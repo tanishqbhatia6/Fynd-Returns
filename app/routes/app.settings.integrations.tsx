@@ -30,33 +30,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
   const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
-  const fyndCredentials = formData.get("fyndCredentials") as string | null;
+  const fyndCredentialsRaw = formData.get("fyndCredentials");
+  const fyndCredentials = typeof fyndCredentialsRaw === "string" ? fyndCredentialsRaw.trim() : "";
   const policyJson = String(formData.get("policyJson") ?? "{}").trim();
 
   let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
   if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
 
-  let credsToStore = shop.settings?.fyndCredentials;
-  if (fyndCredentials && fyndCredentials !== "[encrypted]") {
-    credsToStore = encrypt(JSON.stringify({ accessToken: fyndCredentials }));
+  let credsToStore: string | null | undefined = shop.settings?.fyndCredentials;
+  if (fyndCredentials.length > 0) {
+    try {
+      credsToStore = encrypt(JSON.stringify({ accessToken: fyndCredentials }));
+    } catch (err) {
+      console.error("Fynd token encryption failed:", err);
+      return { success: false, error: "Failed to save token. Ensure ENCRYPTION_KEY is set (64-char hex) in production." };
+    }
   }
 
-  await prisma.shopSettings.upsert({
-    where: { shopId: shop.id },
-    create: {
-      shopId: shop.id,
-      fyndCompanyId: fyndCompanyId || null,
-      fyndApplicationId: fyndApplicationId || null,
-      fyndCredentials: credsToStore,
-      policyJson: policyJson || null,
-    },
-    update: {
-      fyndCompanyId: fyndCompanyId || undefined,
-      fyndApplicationId: fyndApplicationId || undefined,
-      fyndCredentials: credsToStore ?? undefined,
-      policyJson: policyJson || undefined,
-    },
-  });
+  try {
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: {
+        shopId: shop.id,
+        fyndCompanyId: fyndCompanyId || null,
+        fyndApplicationId: fyndApplicationId || null,
+        fyndCredentials: credsToStore ?? null,
+        policyJson: policyJson || null,
+      },
+      update: {
+        fyndCompanyId: fyndCompanyId || undefined,
+        fyndApplicationId: fyndApplicationId || undefined,
+        fyndCredentials: credsToStore !== undefined ? credsToStore : undefined,
+        policyJson: policyJson || undefined,
+      },
+    });
+  } catch (err) {
+    console.error("Fynd settings save failed:", err);
+    return { success: false, error: "Failed to save settings. Please try again." };
+  }
   return { success: true };
 };
 
@@ -82,29 +93,47 @@ export default function Integrations() {
           Manage your partner integrations. Connect Fynd for reverse logistics and return fulfillment.
         </p>
         <s-section heading="Fynd integration">
-          <s-text-field
-            name="fyndCompanyId"
-            label="Fynd Company ID"
-            value={data.fyndCompanyId}
-          />
-          <s-text-field
-            name="fyndApplicationId"
-            label="Fynd Application ID"
-            value={data.fyndApplicationId}
-          />
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Fynd Company ID</label>
+            <input
+              type="text"
+              name="fyndCompanyId"
+              defaultValue={data.fyndCompanyId}
+              placeholder="e.g. 2263"
+              autoComplete="off"
+              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }}
+            />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Fynd Application ID</label>
+            <input
+              type="text"
+              name="fyndApplicationId"
+              defaultValue={data.fyndApplicationId}
+              placeholder="e.g. 67a09b70c8ea7c9123f00fab"
+              autoComplete="off"
+              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }}
+            />
+          </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Fynd Access Token</label>
             <input
               type="password"
               name="fyndCredentials"
-              placeholder="Enter token to update, or leave blank to keep existing"
-              autoComplete="off"
+              placeholder="Enter token to save, or leave blank to keep existing"
+              autoComplete="new-password"
               style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }}
             />
-            <p style={{ fontSize: 13, color: "#6d7175", marginTop: 6 }}>Leave blank to keep existing</p>
+            {data.fyndCredentials ? (
+              <p style={{ fontSize: 13, color: "#008060", marginTop: 6, fontWeight: 500 }}>✓ Token configured (hidden for security)</p>
+            ) : (
+              <p style={{ fontSize: 13, color: "#6d7175", marginTop: 6 }}>Leave blank to keep existing</p>
+            )}
           </div>
-          <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Policy (JSON)</label>
-          <textarea name="policyJson" rows={4} defaultValue={data.policyJson} style={{ width: "100%", marginBottom: 16, padding: 12, borderRadius: 8, border: "1px solid #e1e3e5" }} />
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Policy (JSON)</label>
+            <textarea name="policyJson" rows={4} defaultValue={data.policyJson} style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontFamily: "monospace", fontSize: 13 }} />
+          </div>
         </s-section>
         <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
           <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>

@@ -4,61 +4,184 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Track Your Return | Return Pro Max</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; }
-    h1 { font-size: 1.5rem; margin-bottom: 8px; }
-    .sub { color: #6d7175; font-size: 0.9rem; margin-bottom: 24px; }
-    label { display: block; margin-bottom: 4px; font-weight: 500; }
-    select, input { width: 100%; padding: 12px; margin-bottom: 16px; border: 1px solid #c9cccf; border-radius: 8px; font-size: 1rem; }
-    button { width: 100%; padding: 12px; background: #008060; color: white; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
-    .error { color: #d72c0d; font-size: 0.9rem; margin-top: 8px; }
-    .step { display: none; }
-    .step.active { display: block; }
-    .return-item { padding: 12px; border: 1px solid #e1e3e5; border-radius: 8px; margin-bottom: 8px; }
+    :root {
+      --portal-primary: %PRIMARY_COLOR%;
+      --portal-primary-hover: %PRIMARY_HOVER%;
+      --portal-bg: %BG_COLOR%;
+      --portal-surface: %SURFACE_COLOR%;
+      --portal-text: %TEXT_COLOR%;
+      --portal-text-muted: %TEXT_MUTED%;
+      --portal-border: %BORDER_COLOR%;
+      --portal-font: %FONT_FAMILY%;
+      --portal-heading-font: %HEADING_FONT%;
+      --portal-radius: %BORDER_RADIUS%;
+      --portal-shadow: %SHADOW%;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { font-size: 16px; scroll-behavior: smooth; }
+    body {
+      font-family: var(--portal-font);
+      background: var(--portal-bg);
+      color: var(--portal-text);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .portal {
+      max-width: 440px;
+      margin: 0 auto;
+      padding: 40px 24px;
+    }
+    .portal-header {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .portal-header h1 {
+      font-family: var(--portal-heading-font);
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--portal-text);
+      margin-bottom: 8px;
+    }
+    .portal-header p {
+      font-size: 0.9375rem;
+      color: var(--portal-text-muted);
+    }
+    .portal-card {
+      background: var(--portal-surface);
+      border-radius: var(--portal-radius);
+      padding: 32px;
+      box-shadow: var(--portal-shadow);
+      border: 1px solid var(--portal-border);
+    }
+    .portal-step { display: none; }
+    .portal-step.active { display: block; animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .form-group { margin-bottom: 20px; }
+    .form-group:last-of-type { margin-bottom: 24px; }
+    .form-label {
+      display: block;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--portal-text);
+      margin-bottom: 8px;
+    }
+    .form-input, .form-select {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 1rem;
+      font-family: inherit;
+      color: var(--portal-text);
+      background: var(--portal-bg);
+      border: 1.5px solid var(--portal-border);
+      border-radius: calc(var(--portal-radius) - 2px);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: var(--portal-primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--portal-primary) 15%, transparent);
+    }
+    .form-input::placeholder { color: var(--portal-text-muted); opacity: 0.8; }
+    .form-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236d7175' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px; }
+    .btn-primary {
+      width: 100%;
+      padding: 16px 24px;
+      font-size: 1rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: white;
+      background: var(--portal-primary);
+      border: none;
+      border-radius: calc(var(--portal-radius) - 2px);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.05s;
+    }
+    .btn-primary:hover { background: var(--portal-primary-hover); }
+    .btn-primary:active { transform: scale(0.99); }
+    .form-error { font-size: 0.875rem; color: #d72c0d; margin-top: 8px; }
+    .return-list { margin-top: 24px; }
+    .return-card {
+      padding: 20px;
+      background: var(--portal-bg);
+      border-radius: calc(var(--portal-radius) - 2px);
+      border: 1px solid var(--portal-border);
+      margin-bottom: 12px;
+    }
+    .return-card:last-child { margin-bottom: 0; }
+    .return-order { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
+    .return-status { font-size: 0.875rem; color: var(--portal-text-muted); }
+    .return-empty { text-align: center; padding: 32px; color: var(--portal-text-muted); }
+    .otp-input { letter-spacing: 0.5em; text-align: center; font-size: 1.25rem; }
+    .step-label { font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 12px; }
   </style>
 </head>
 <body>
-  <h1>Track Your Return</h1>
-  <p class="sub">Enter your order or return details</p>
-  <div id="step1" class="step active">
-    <label>Shop</label>
-    <input type="text" id="shop" value="%SHOP%" placeholder="your-store.myshopify.com">
-    <label>Lookup by</label>
-    <select id="lookupType">
-      <option value="order_no">Order Number</option>
-      <option value="return_no">Return Number</option>
-      <option value="forward_awb">Forward AWB</option>
-      <option value="return_awb">Return AWB</option>
-      <option value="email">Email</option>
-      <option value="mobile">Mobile</option>
-    </select>
-    <label>Value</label>
-    <input type="text" id="lookupValue" placeholder="Enter order #, AWB, email...">
-    <button id="btnLookup">Look Up</button>
-    <p id="err1" class="error"></p>
+  <div class="portal">
+    <header class="portal-header">
+      <h1>Track Your Return</h1>
+      <p>Enter your order or return details to get started</p>
+    </header>
+
+    <div class="portal-card">
+      <div id="step1" class="portal-step active">
+        <div class="form-group">
+          <label class="form-label" for="shop">Store</label>
+          <input type="text" id="shop" class="form-input" value="%SHOP%" placeholder="your-store.myshopify.com" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lookupType">Look up by</label>
+          <select id="lookupType" class="form-select">
+            <option value="order_no">Order Number</option>
+            <option value="return_no">Return Number</option>
+            <option value="forward_awb">Forward AWB</option>
+            <option value="return_awb">Return AWB</option>
+            <option value="email">Email</option>
+            <option value="mobile">Mobile</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="lookupValue">Enter your details</label>
+          <input type="text" id="lookupValue" class="form-input" placeholder="Order #, AWB, email, or phone number">
+        </div>
+        <button type="button" id="btnLookup" class="btn-primary">Look Up</button>
+        <p id="err1" class="form-error"></p>
+      </div>
+
+      <div id="step2" class="portal-step">
+        <p class="step-label">We sent a 6-digit code to your email or phone. Enter it below.</p>
+        <div class="form-group">
+          <label class="form-label" for="otp">Verification code</label>
+          <input type="text" id="otp" class="form-input otp-input" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
+        </div>
+        <button type="button" id="btnVerify" class="btn-primary">Verify</button>
+        <p id="err2" class="form-error"></p>
+      </div>
+
+      <div id="step3" class="portal-step">
+        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Your Returns</h2>
+        <div id="result" class="return-list"></div>
+      </div>
+    </div>
   </div>
-  <div id="step2" class="step">
-    <p>Enter the 6-digit verification code:</p>
-    <input type="text" id="otp" placeholder="000000" maxlength="6">
-    <button id="btnVerify">Verify</button>
-    <p id="err2" class="error"></p>
-  </div>
-  <div id="step3" class="step">
-    <h2>Your Returns</h2>
-    <div id="result"></div>
-  </div>
+
   <script>
     const APP_URL = '%APP_URL%' || window.location.origin;
     const API = APP_URL + '/api/portal';
     let sessionId = null, portalToken = null;
+
     document.getElementById('btnLookup').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
       const lookupType = document.getElementById('lookupType').value;
       const lookupValue = document.getElementById('lookupValue').value.trim();
       const err = document.getElementById('err1');
       err.textContent = '';
-      if (!shop || !lookupValue) { err.textContent = 'Please fill in shop and value'; return; }
+      if (!shop || !lookupValue) { err.textContent = 'Please enter your lookup details'; return; }
       try {
         const res = await fetch(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) });
         const data = await res.json();
@@ -66,13 +189,16 @@
         sessionId = data.sessionId;
         document.getElementById('step1').classList.remove('active');
         document.getElementById('step2').classList.add('active');
+        document.getElementById('otp').value = '';
         await fetch(API + '/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }) });
       } catch (e) { err.textContent = e.message; }
     };
+
     document.getElementById('btnVerify').onclick = async () => {
       const otp = document.getElementById('otp').value.trim();
       const err = document.getElementById('err2');
       err.textContent = '';
+      if (!otp || otp.length !== 6) { err.textContent = 'Please enter the 6-digit code'; return; }
       try {
         const res = await fetch(API + '/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, otp }) });
         const data = await res.json();
@@ -82,7 +208,10 @@
         document.getElementById('step3').classList.add('active');
         const r = await fetch(API + '/returns', { headers: { 'Authorization': 'Bearer ' + portalToken } });
         const d = await r.json();
-        document.getElementById('result').innerHTML = (d.returns || []).length === 0 ? '<p>No returns found.</p>' : d.returns.map(x => '<div class="return-item"><strong>' + (x.shopifyOrderName || x.id) + '</strong><br>Status: ' + x.status + '</div>').join('');
+        const returns = d.returns || [];
+        document.getElementById('result').innerHTML = returns.length === 0
+          ? '<p class="return-empty">No returns found for this lookup.</p>'
+          : returns.map(x => '<div class="return-card"><div class="return-order">' + (x.shopifyOrderName || x.id) + '</div><div class="return-status">Status: ' + x.status + '</div></div>').join('');
       } catch (e) { err.textContent = e.message; }
     };
   </script>

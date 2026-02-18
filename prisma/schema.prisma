@@ -50,6 +50,7 @@ model ShopSettings {
   policyJson          String?
   statusMappingJson   String?
   notificationToggles String?
+  portalThemeJson     String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 }

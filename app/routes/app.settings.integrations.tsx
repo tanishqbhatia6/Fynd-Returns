@@ -3,6 +3,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
+import { createFyndClient, FyndClient } from "../lib/fynd.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -28,6 +29,51 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
+  const intent = formData.get("intent") as string | null;
+
+  // Test credentials (real-time API call)
+  if (intent === "test") {
+    const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
+    const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
+    const fyndCredentialsRaw = formData.get("fyndCredentials");
+    const fyndCredentialsFromForm = typeof fyndCredentialsRaw === "string" ? fyndCredentialsRaw.trim() : "";
+
+    if (!fyndCompanyId || !fyndApplicationId) {
+      return { success: false, error: "Company ID and Application ID are required to test.", testResult: false };
+    }
+
+    let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
+    if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+
+    let token = fyndCredentialsFromForm;
+    if (!token && shop.settings?.fyndCredentials) {
+      const client = createFyndClient(shop.settings);
+      if (client) {
+        try {
+          await client.getReturnReasons();
+          return { success: true, testResult: true, testMessage: "Connection successful. Credentials are valid." };
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Connection failed.";
+          return { success: false, error: msg, testResult: false };
+        }
+      }
+      return { success: false, error: "No token available. Enter a token and save, or use Test after saving.", testResult: false };
+    }
+    if (!token) {
+      return { success: false, error: "No token available. Enter a token to test.", testResult: false };
+    }
+
+    try {
+      const client = new FyndClient(fyndCompanyId, fyndApplicationId, token);
+      await client.getReturnReasons();
+      return { success: true, testResult: true, testMessage: "Connection successful. Credentials are valid." };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Connection failed.";
+      return { success: false, error: msg, testResult: false };
+    }
+  }
+
+  // Save
   const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
   const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
   const fyndCredentialsRaw = formData.get("fyndCredentials");
@@ -73,18 +119,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 export default function Integrations() {
   const data = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ success?: boolean; error?: string }>();
+  const fetcher = useFetcher<{ success?: boolean; error?: string; testResult?: boolean; testMessage?: string }>();
+
+  const showSaveSuccess = fetcher.data && "success" in fetcher.data && !("testResult" in fetcher.data);
+  const showTestSuccess = fetcher.data && "testResult" in fetcher.data && fetcher.data.testResult;
+  const showTestError = fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
 
   return (
     <s-page heading="Partner Integrations">
-      {fetcher.data && "error" in fetcher.data && fetcher.data.error && (
+      {fetcher.data && "error" in fetcher.data && fetcher.data.error && !showTestError && (
         <div style={{ padding: 12, marginBottom: 16, background: "#fef2f2", borderRadius: 8, color: "#d72c0d" }}>
           {fetcher.data.error}
         </div>
       )}
-      {fetcher.data && "success" in fetcher.data && (
+      {showSaveSuccess && (
         <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
           Settings saved successfully.
+        </div>
+      )}
+      {showTestSuccess && (
+        <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
+          ✓ {fetcher.data.testMessage ?? "Connection successful. Credentials are valid."}
+        </div>
+      )}
+      {showTestError && (
+        <div style={{ padding: 12, marginBottom: 16, background: "#fef2f2", borderRadius: 8, color: "#d72c0d" }}>
+          Connection failed: {fetcher.data.error}
         </div>
       )}
 
@@ -135,8 +195,26 @@ export default function Integrations() {
             <textarea name="policyJson" rows={4} defaultValue={data.policyJson} style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontFamily: "monospace", fontSize: 13 }} />
           </div>
         </s-section>
-        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
+        <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
           <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
+          <button
+            type="submit"
+            name="intent"
+            value="test"
+            disabled={fetcher.state !== "idle"}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 8,
+              border: "1px solid #e1e3e5",
+              background: "#fff",
+              color: "#202223",
+              fontSize: 14,
+              fontWeight: 500,
+              cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer",
+            }}
+          >
+            {fetcher.state !== "idle" ? "Please wait..." : "Test connection"}
+          </button>
           <Link to="/app/settings">
             <s-button variant="secondary" type="button">Discard</s-button>
           </Link>

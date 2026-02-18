@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Outlet, useLoaderData, useRouteError } from "react-router";
+import { Link, Outlet, useLoaderData, useLocation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
@@ -17,6 +17,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export default function App() {
   const { apiKey } = useLoaderData<typeof loader>();
+  const location = useLocation();
+  const isDashboard = location.pathname === "/app" || location.pathname === "/app/";
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -27,6 +29,13 @@ export default function App() {
         <s-link href="/app/settings">Settings</s-link>
         <s-link href="/app/portal">Customer Portal</s-link>
       </s-app-nav>
+      {!isDashboard && (
+        <div style={{ padding: "0 24px" }}>
+          <Link to="/app" style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#005bd3", textDecoration: "none", fontSize: 14, fontWeight: 500, marginBottom: 16 }}>
+            ← Back to Dashboard
+          </Link>
+        </div>
+      )}
       <Outlet />
     </AppProvider>
   );

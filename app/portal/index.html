@@ -119,6 +119,7 @@
     .return-empty { text-align: center; padding: 32px; color: var(--portal-text-muted); }
     .otp-input { letter-spacing: 0.5em; text-align: center; font-size: 1.25rem; }
     .step-label { font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 12px; }
+    .policy-banner { border: 1px solid var(--portal-border); }
   </style>
 </head>
 <body>
@@ -126,6 +127,10 @@
     <header class="portal-header">
       <h1>Track Your Return</h1>
       <p>Enter your order or return details to get started</p>
+      <div id="policy-banner" class="policy-banner" style="display:none; margin-top:20px; padding:16px; background:color-mix(in srgb, var(--portal-primary) 8%, transparent); border-radius:var(--portal-radius); font-size:0.875rem; color:var(--portal-text-muted); text-align:left;">
+        <strong style="color:var(--portal-text);">Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
+        <div id="policy-detail" style="margin-top:8px;"></div>
+      </div>
     </header>
 
     <div class="portal-card">
@@ -172,6 +177,14 @@
 
   <script>
     const APP_URL = '%APP_URL%' || window.location.origin;
+    const RETURN_POLICY = '%RETURN_POLICY%';
+    const RETURN_REASONS_JSON = '%RETURN_REASONS_JSON%' || '[]';
+    (function() {
+      const banner = document.getElementById('policy-banner');
+      const detail = document.getElementById('policy-detail');
+      banner.style.display = 'block';
+      if (RETURN_POLICY) detail.innerHTML = RETURN_POLICY.replace(/\n/g, '<br>');
+    })();
     const API = APP_URL + '/api/portal';
     let sessionId = null, portalToken = null;
 

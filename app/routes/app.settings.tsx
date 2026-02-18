@@ -20,12 +20,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const s = shop.settings;
   const portalTheme = parsePortalTheme(s?.portalThemeJson);
+  const returnReasons = s?.returnReasonsJson ? (() => { try { return JSON.parse(s.returnReasonsJson); } catch { return []; } })() : [];
   return {
     settings: {
       fyndCompanyId: s?.fyndCompanyId || "",
       fyndApplicationId: s?.fyndApplicationId || "",
       fyndCredentials: s?.fyndCredentials ? "[encrypted]" : "",
       policyJson: s?.policyJson || "{}",
+      returnWindowDays: s?.returnWindowDays ?? 30,
+      returnPolicyText: s?.returnPolicyText || "",
+      returnReasonsJson: Array.isArray(returnReasons) ? JSON.stringify(returnReasons, null, 2) : "[]",
+      autoApproveEnabled: s?.autoApproveEnabled ?? false,
     },
     portalTheme,
     fontOptions: FONT_OPTIONS,
@@ -40,6 +45,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
   const fyndCredentials = formData.get("fyndCredentials") as string | null;
   const policyJson = String(formData.get("policyJson") ?? "{}").trim();
+  const returnWindowDays = parseInt(String(formData.get("returnWindowDays") ?? "30"), 10) || 30;
+  const returnPolicyText = String(formData.get("returnPolicyText") ?? "").trim();
+  const returnReasonsJson = String(formData.get("returnReasonsJson") ?? "[]").trim();
+  const autoApproveEnabled = formData.get("autoApproveEnabled") === "on";
   const portalThemeJson = (() => {
     const primaryColor = formData.get("primaryColor");
     const primaryHoverColor = formData.get("primaryHoverColor");
@@ -105,6 +114,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndCredentials: credsToStore,
       policyJson: policyJson || null,
       portalThemeJson: portalThemeToStore,
+      returnWindowDays,
+      returnPolicyText: returnPolicyText || null,
+      returnReasonsJson: returnReasonsJson || null,
+      autoApproveEnabled,
     },
     update: {
       fyndCompanyId: fyndCompanyId || undefined,
@@ -112,6 +125,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndCredentials: credsToStore ?? undefined,
       policyJson: policyJson || undefined,
       portalThemeJson: portalThemeToStore ?? undefined,
+      returnWindowDays,
+      returnPolicyText: returnPolicyText || undefined,
+      returnReasonsJson: returnReasonsJson || undefined,
+      autoApproveEnabled,
     },
   });
   } catch (err) {
@@ -157,6 +174,50 @@ export default function Settings() {
           />
           <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Policy (JSON)</label>
           <textarea name="policyJson" rows={4} defaultValue={settings.policyJson} style={{ width: "100%", marginBottom: 16, padding: 12, borderRadius: 8, border: "1px solid #e1e3e5" }} />
+        </s-section>
+
+        <s-section heading="Return policy">
+          <p style={{ marginBottom: 16, color: "#6d7175" }}>
+            Configure return eligibility and rules for your store.
+          </p>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Return window (days)</label>
+            <input
+              type="number"
+              name="returnWindowDays"
+              defaultValue={settings.returnWindowDays}
+              min={1}
+              max={365}
+              style={{ width: 120, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}
+            />
+            <p style={{ fontSize: 13, color: "#6d7175", marginTop: 4 }}>Customers can initiate returns within this many days after delivery.</p>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Return policy text</label>
+            <textarea
+              name="returnPolicyText"
+              defaultValue={settings.returnPolicyText}
+              rows={4}
+              placeholder="e.g. We accept returns within 30 days for unused items..."
+              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5" }}
+            />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Return reasons (JSON array)</label>
+            <textarea
+              name="returnReasonsJson"
+              defaultValue={settings.returnReasonsJson}
+              rows={6}
+              placeholder='["Damaged", "Wrong item", "Changed mind", "Not as described"]'
+              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontFamily: "monospace", fontSize: 13 }}
+            />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" name="autoApproveEnabled" defaultChecked={settings.autoApproveEnabled} />
+              <span>Auto-approve returns (requires Fynd integration)</span>
+            </label>
+          </div>
         </s-section>
 
         <s-section heading="Portal theme">

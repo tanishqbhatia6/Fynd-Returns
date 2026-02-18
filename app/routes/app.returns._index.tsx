@@ -3,6 +3,15 @@ import { Form, Link, useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
+const STATUS_COLORS: Record<string, string> = {
+  pending: "#b98900", processing: "#005bd3", "in progress": "#005bd3",
+  approved: "#008060", completed: "#008060", rejected: "#d72c0d",
+  cancelled: "#6d7175", initiated: "#b98900",
+};
+function getStatusColor(s: string) {
+  return STATUS_COLORS[s.toLowerCase()] ?? "#6d7175";
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
@@ -67,7 +76,7 @@ export default function ReturnsList() {
         </s-section>
       )}
       <s-section heading="Search & filter">
-        <Form method="get" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <Form method="get" style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16, alignItems: "flex-end" }}>
           <s-text-field
             name="query"
             label="Search"
@@ -85,6 +94,16 @@ export default function ReturnsList() {
             <Link to="/app/returns">
               <s-button variant="secondary">Clear</s-button>
             </Link>
+          )}
+          {returns.length > 0 && (
+            <a
+              href={`/api/returns/export?${new URLSearchParams({ query, status }).toString()}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ textDecoration: "none" }}
+            >
+              <s-button variant="secondary">Export CSV</s-button>
+            </a>
           )}
         </Form>
       </s-section>
@@ -126,17 +145,31 @@ export default function ReturnsList() {
               </thead>
               <tbody>
                 {returns.map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <Link to={`/app/returns/${r.id}`}>
+                  <tr key={r.id} style={{ borderBottom: "1px solid #f1f2f4" }}>
+                    <td style={{ padding: "12px 16px" }}>
+                      <Link to={`/app/returns/${r.id}`} style={{ color: "#005bd3", textDecoration: "none", fontWeight: 500 }}>
                         {r.shopifyOrderName || r.id}
                       </Link>
                     </td>
-                    <td>{r.fyndReturnNo || "—"}</td>
-                    <td>{r.forwardAwb || "—"}</td>
-                    <td>{r.returnAwb || "—"}</td>
-                    <td>{r.status}</td>
-                    <td>{new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.fyndReturnNo || "—"}</td>
+                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.forwardAwb || "—"}</td>
+                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.returnAwb || "—"}</td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <span
+                        style={{
+                          display: "inline-block",
+                          padding: "4px 10px",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          fontWeight: 500,
+                          background: `${getStatusColor(r.status)}20`,
+                          color: getStatusColor(r.status),
+                        }}
+                      >
+                        {r.status}
+                      </span>
+                    </td>
+                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{new Date(r.createdAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>

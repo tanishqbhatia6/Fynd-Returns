@@ -21,13 +21,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
 
   let theme = parsePortalTheme(null);
+  let returnWindowDays = 30;
+  let returnPolicyText = "";
+  let returnReasonsJson = "[]";
   try {
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
       include: { settings: true },
     });
-    if (shop?.settings?.portalThemeJson) {
-      theme = parsePortalTheme(shop.settings.portalThemeJson);
+    if (shop?.settings) {
+      if (shop.settings.portalThemeJson) {
+        theme = parsePortalTheme(shop.settings.portalThemeJson);
+      }
+      returnWindowDays = shop.settings.returnWindowDays ?? 30;
+      returnPolicyText = shop.settings.returnPolicyText ?? "";
+      returnReasonsJson = shop.settings.returnReasonsJson ?? "[]";
     }
   } catch (err) {
     console.error("Portal theme load error:", err);
@@ -38,7 +46,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     "utf-8"
   );
   portalHtml = applyPortalThemeToHtml(portalHtml, theme);
-  portalHtml = portalHtml.replace("%SHOP%", shopDomain).replace("%APP_URL%", appUrl);
+  portalHtml = portalHtml
+    .replace("%SHOP%", shopDomain)
+    .replace("%APP_URL%", appUrl)
+    .replace("%RETURN_WINDOW%", String(returnWindowDays))
+    .replace("%RETURN_POLICY%", returnPolicyText.replace(/</g, "&lt;").replace(/>/g, "&gt;"))
+    .replace("%RETURN_REASONS_JSON%", returnReasonsJson);
 
   return new Response(portalHtml, {
     headers: { "Content-Type": "text/html" },

@@ -41,18 +41,22 @@ model Shop {
 }
 
 model ShopSettings {
-  id                  String   @id @default(cuid())
-  shopId              String   @unique
-  shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  fyndCompanyId       String?
-  fyndApplicationId   String?
-  fyndCredentials     String?
-  policyJson          String?
-  statusMappingJson   String?
-  notificationToggles String?
-  portalThemeJson     String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  shopId                String   @unique
+  shop                  Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  fyndCompanyId         String?
+  fyndApplicationId     String?
+  fyndCredentials       String?
+  policyJson            String?
+  statusMappingJson     String?
+  notificationToggles   String?
+  portalThemeJson       String?
+  returnWindowDays      Int      @default(30)
+  returnReasonsJson     String?
+  returnPolicyText      String?
+  autoApproveEnabled    Boolean  @default(false)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model ReturnCase {
@@ -69,6 +73,8 @@ model ReturnCase {
   customerEmailNorm String?
   customerPhoneNorm String?
   status            String
+  refundStatus      String?
+  adminNotes        String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

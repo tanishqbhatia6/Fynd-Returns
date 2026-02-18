@@ -31,10 +31,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
-  const fyndCompanyId = formData.get("fyndCompanyId") as string;
-  const fyndApplicationId = formData.get("fyndApplicationId") as string;
-  const fyndCredentials = formData.get("fyndCredentials") as string;
-  const policyJson = formData.get("policyJson") as string;
+  const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
+  const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
+  const fyndCredentials = formData.get("fyndCredentials") as string | null;
+  const policyJson = String(formData.get("policyJson") ?? "{}").trim();
 
   let shop = await prisma.shop.findUnique({
     where: { shopDomain: session.shop },
@@ -52,7 +52,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     credsToStore = encrypt(JSON.stringify({ accessToken: fyndCredentials }));
   }
 
-  await prisma.shopSettings.upsert({
+  try {
+    await prisma.shopSettings.upsert({
     where: { shopId: shop.id },
     create: {
       shopId: shop.id,
@@ -68,6 +69,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       policyJson: policyJson || undefined,
     },
   });
+  } catch (err) {
+    console.error("Settings save error:", err);
+    return { success: false, error: "Failed to save settings" };
+  }
 
   return { success: true };
 };
@@ -75,10 +80,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Settings() {
   const { settings } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
+  const error = fetcher.data && "error" in fetcher.data ? fetcher.data.error : null;
+  const success = fetcher.data && "success" in fetcher.data && fetcher.data.success;
 
   return (
     <s-page heading="Settings">
       <s-section>
+        {error && (
+          <p style={{ color: "#d72c0d", marginBottom: 16 }}>{error}</p>
+        )}
+        {success && (
+          <p style={{ color: "#008060", marginBottom: 16 }}>Settings saved successfully.</p>
+        )}
         <fetcher.Form method="post">
           <s-text-field
             name="fyndCompanyId"

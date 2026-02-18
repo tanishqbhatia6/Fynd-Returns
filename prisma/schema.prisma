@@ -1,0 +1,129 @@
+// Return Pro Max - Fynd ↔ Shopify Returns Manager
+// PostgreSQL for enterprise-grade multi-tenant data
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Session {
+  id                 String    @id
+  shop               String
+  state              String
+  isOnline           Boolean   @default(false)
+  scope              String?
+  expires            DateTime?
+  accessToken        String
+  userId             BigInt?
+  firstName          String?
+  lastName           String?
+  email              String?
+  accountOwner       Boolean   @default(false)
+  locale             String?
+  collaborator       Boolean?  @default(false)
+  emailVerified      Boolean?  @default(false)
+  refreshToken       String?
+  refreshTokenExpires DateTime?
+}
+
+model Shop {
+  id          String   @id @default(cuid())
+  shopDomain  String   @unique
+  installedAt DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  settings    ShopSettings?
+  returnCases ReturnCase[]
+}
+
+model ShopSettings {
+  id                  String   @id @default(cuid())
+  shopId              String   @unique
+  shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  fyndCompanyId       String?
+  fyndApplicationId   String?
+  fyndCredentials     String?
+  policyJson          String?
+  statusMappingJson   String?
+  notificationToggles String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model ReturnCase {
+  id                String   @id @default(cuid())
+  shopId            String
+  shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shopifyOrderId    String
+  shopifyOrderName  String
+  shopifyReturnId   String?
+  fyndReturnId      String?
+  fyndReturnNo      String?
+  forwardAwb        String?
+  returnAwb         String?
+  customerEmailNorm String?
+  customerPhoneNorm String?
+  status            String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  items  ReturnItem[]
+  events ReturnEvent[]
+
+  @@index([shopId, shopifyOrderName])
+  @@index([shopId, forwardAwb])
+  @@index([shopId, returnAwb])
+  @@index([shopId, fyndReturnId])
+  @@index([shopId, customerEmailNorm])
+  @@index([shopId, customerPhoneNorm])
+}
+
+model ReturnItem {
+  id               String    @id @default(cuid())
+  returnCaseId     String
+  returnCase       ReturnCase @relation(fields: [returnCaseId], references: [id], onDelete: Cascade)
+  shopifyLineItemId String
+  sku              String?
+  qty              Int       @default(1)
+  reasonCode       String?
+  notes            String?
+  fyndShipmentId   String?
+  fyndBagId        String?
+  createdAt        DateTime  @default(now())
+
+  @@index([returnCaseId])
+}
+
+model ReturnEvent {
+  id          String   @id @default(cuid())
+  returnCaseId String
+  returnCase  ReturnCase @relation(fields: [returnCaseId], references: [id], onDelete: Cascade)
+  source      String
+  eventType   String
+  payloadJson String?
+  happenedAt  DateTime @default(now())
+
+  @@index([returnCaseId])
+}
+
+model LookupSession {
+  id               String   @id @default(cuid())
+  shopId           String
+  lookupType       String
+  lookupValueHash  String
+  lookupValueNorm  String?
+  matchedReturnIds String?
+  otpTarget        String?
+  otpSentAt        DateTime?
+  verifiedAt       DateTime?
+  expiresAt        DateTime
+  attemptsCount    Int      @default(0)
+  portalToken      String?
+  createdAt        DateTime @default(now())
+
+  @@index([shopId, lookupValueHash])
+}

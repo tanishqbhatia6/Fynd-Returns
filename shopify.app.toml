@@ -1,0 +1,30 @@
+# Return Pro Max - Fynd ↔ Shopify Returns Manager
+name = "Return Pro Max"
+client_id = "YOUR_CLIENT_ID"
+application_url = "https://YOUR_APP_URL"
+embedded = true
+
+[access_scopes]
+scopes = "read_orders,write_orders,read_products,read_customers,read_fulfillments,write_fulfillments,write_returns"
+
+[auth]
+redirect_urls = [
+  "https://YOUR_APP_URL/auth/callback",
+  "https://YOUR_APP_URL/auth/shopify/callback"
+]
+
+[webhooks]
+api_version = "2026-01"
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/app/uninstalled"
+topics = ["app/uninstalled"]
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/app/scopes_update"
+topics = ["app/scopes_update"]
+
+[app_proxy]
+url = "https://YOUR_APP_URL/apps/returns"
+subpath = "returns"
+subpath_prefix = "apps"

@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+web/node_modules/
+web/frontend/node_modules/
+
+# Build outputs
+web/frontend/dist/
+dist/
+build/
+.react-router/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.sqlite
+*.sqlite-journal
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Shopify
+.shopify

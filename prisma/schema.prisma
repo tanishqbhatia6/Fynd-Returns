@@ -41,22 +41,38 @@ model Shop {
 }
 
 model ShopSettings {
-  id                    String   @id @default(cuid())
-  shopId                String   @unique
-  shop                  Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
-  fyndCompanyId         String?
-  fyndApplicationId     String?
-  fyndCredentials       String?
-  policyJson            String?
-  statusMappingJson     String?
-  notificationToggles   String?
-  portalThemeJson       String?
-  returnWindowDays      Int      @default(30)
-  returnReasonsJson     String?
-  returnPolicyText      String?
-  autoApproveEnabled    Boolean  @default(false)
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                         String   @id @default(cuid())
+  shopId                     String   @unique
+  shop                       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  fyndCompanyId              String?
+  fyndApplicationId          String?
+  fyndCredentials            String?
+  policyJson                 String?
+  statusMappingJson          String?
+  notificationToggles          String?
+  portalThemeJson            String?
+  returnWindowDays           Int      @default(30)
+  returnReasonsJson          String?
+  returnPolicyText           String?
+  autoApproveEnabled         Boolean  @default(false)
+  returnOffersJson          String?
+  minimumReturnPrice         Decimal? @db.Decimal(12, 2)
+  restrictedRegionsJson      String?
+  noReturnPeriodEnabled      Boolean  @default(false)
+  noReturnPeriodStart        DateTime?
+  noReturnPeriodEnd          DateTime?
+  restrictedProductTagsJson  String?
+  photoRequired              Boolean  @default(false)
+  returnFeeAmount            Decimal? @db.Decimal(12, 2)
+  returnFeeCurrency          String?
+  refundMethodPrepaidJson    String?
+  refundMethodCODJson        String?
+  notificationNewReturn      Boolean  @default(true)
+  notificationApproved       Boolean  @default(true)
+  notificationRejected       Boolean  @default(true)
+  readAllOrdersEnabled       Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 }
 
 model ReturnCase {

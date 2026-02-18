@@ -360,7 +360,7 @@ export default function Dashboard() {
           <Link to="/app/returns">
             <s-button variant="primary">View all returns</s-button>
           </Link>
-          <Link to="/app/settings">
+          <Link to={hasFyndConfig ? "/app/settings" : "/app/settings/integrations"}>
             <s-button variant="secondary">{hasFyndConfig ? "Settings" : "Configure Fynd"}</s-button>
           </Link>
           <Link to="/app/portal">
@@ -410,7 +410,7 @@ export default function Dashboard() {
             <p style={{ marginBottom: 16, color: "#6d7175", fontSize: 14 }}>
               Fynd handles reverse logistics. Configure your credentials to sync returns and tracking.
             </p>
-            <Link to="/app/settings">
+            <Link to="/app/settings/integrations">
               <s-button variant="primary">Configure Fynd</s-button>
             </Link>
           </div>

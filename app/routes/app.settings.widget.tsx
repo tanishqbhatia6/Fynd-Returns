@@ -1,0 +1,131 @@
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { Link, useLoaderData, useFetcher } from "react-router";
+import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
+import { parsePortalTheme, DEFAULT_PORTAL_THEME, FONT_OPTIONS } from "../lib/portal-theme.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  let shop = await prisma.shop.findUnique({
+    where: { shopDomain: session.shop },
+    include: { settings: true },
+  });
+  if (!shop) {
+    shop = await prisma.shop.create({
+      data: { shopDomain: session.shop },
+      include: { settings: true },
+    });
+  }
+  const theme = parsePortalTheme(shop.settings?.portalThemeJson);
+  return { portalTheme: theme, fontOptions: FONT_OPTIONS, portalUrl: `https://${session.shop}/apps/returns` };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const formData = await request.formData();
+  const primaryColor = formData.get("primaryColor");
+  const primaryHoverColor = formData.get("primaryHoverColor");
+  const backgroundColor = formData.get("backgroundColor");
+  const surfaceColor = formData.get("surfaceColor");
+  const textColor = formData.get("textColor");
+  const textMutedColor = formData.get("textMutedColor");
+  const borderColor = formData.get("borderColor");
+  const fontFamily = formData.get("fontFamily");
+  const borderRadius = formData.get("borderRadius");
+  const shadow = formData.get("shadow");
+
+  let portalThemeJson: string | null = null;
+  if (primaryColor || backgroundColor || fontFamily) {
+    portalThemeJson = JSON.stringify({
+      primaryColor: primaryColor || DEFAULT_PORTAL_THEME.primaryColor,
+      primaryHoverColor: primaryHoverColor || DEFAULT_PORTAL_THEME.primaryHoverColor,
+      backgroundColor: backgroundColor || DEFAULT_PORTAL_THEME.backgroundColor,
+      surfaceColor: surfaceColor || DEFAULT_PORTAL_THEME.surfaceColor,
+      textColor: textColor || DEFAULT_PORTAL_THEME.textColor,
+      textMutedColor: textMutedColor || DEFAULT_PORTAL_THEME.textMutedColor,
+      borderColor: borderColor || DEFAULT_PORTAL_THEME.borderColor,
+      fontFamily: fontFamily || DEFAULT_PORTAL_THEME.fontFamily,
+      headingFont: fontFamily || DEFAULT_PORTAL_THEME.headingFont,
+      borderRadius: borderRadius || DEFAULT_PORTAL_THEME.borderRadius,
+      shadow: shadow || DEFAULT_PORTAL_THEME.shadow,
+    });
+  }
+
+  let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
+  if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
+
+  await prisma.shopSettings.upsert({
+    where: { shopId: shop.id },
+    create: { shopId: shop.id, portalThemeJson },
+    update: { portalThemeJson: portalThemeJson ?? undefined },
+  });
+  return { success: true };
+};
+
+export default function Widget() {
+  const { portalTheme, fontOptions, portalUrl } = useLoaderData<typeof loader>();
+  const fetcher = useFetcher<{ success?: boolean }>();
+
+  return (
+    <s-page heading="Assure Return Widget">
+      {fetcher.data && "success" in fetcher.data && (
+        <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
+          Settings saved successfully.
+        </div>
+      )}
+
+      <fetcher.Form method="post">
+        <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
+          Manage your return portal widget settings. Customize the look and feel of your customer returns portal.
+        </p>
+        <s-section heading="Portal theme">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 20, marginBottom: 20 }}>
+            <div>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Primary color</label>
+              <input type="color" name="primaryColor" defaultValue={portalTheme.primaryColor} style={{ width: "100%", height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5" }} />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Background</label>
+              <input type="color" name="backgroundColor" defaultValue={portalTheme.backgroundColor} style={{ width: "100%", height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5" }} />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Card surface</label>
+              <input type="color" name="surfaceColor" defaultValue={portalTheme.surfaceColor} style={{ width: "100%", height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5" }} />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Font</label>
+              <select name="fontFamily" defaultValue={portalTheme.fontFamily} style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 14 }}>
+                {fontOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Border radius</label>
+              <select name="borderRadius" defaultValue={portalTheme.borderRadius} style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 14 }}>
+                <option value="8px">Minimal (8px)</option>
+                <option value="12px">Rounded (12px)</option>
+                <option value="16px">Soft (16px)</option>
+                <option value="24px">Pill (24px)</option>
+              </select>
+            </div>
+          </div>
+          <input type="hidden" name="primaryHoverColor" value={portalTheme.primaryHoverColor} />
+          <input type="hidden" name="textColor" value={portalTheme.textColor} />
+          <input type="hidden" name="textMutedColor" value={portalTheme.textMutedColor} />
+          <input type="hidden" name="borderColor" value={portalTheme.borderColor} />
+          <input type="hidden" name="shadow" value={portalTheme.shadow} />
+        </s-section>
+        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
+          <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
+          <Link to="/app/settings">
+            <s-button variant="secondary" type="button">Discard</s-button>
+          </Link>
+          <a href={portalUrl} target="_blank" rel="noopener noreferrer">
+            <s-button variant="secondary" type="button">Preview portal</s-button>
+          </a>
+        </div>
+      </fetcher.Form>
+    </s-page>
+  );
+}

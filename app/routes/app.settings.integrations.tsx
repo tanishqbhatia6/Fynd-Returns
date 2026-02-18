@@ -92,13 +92,17 @@ export default function Integrations() {
             label="Fynd Application ID"
             value={data.fyndApplicationId}
           />
-          <s-text-field
-            name="fyndCredentials"
-            label="Fynd Access Token"
-            type="password"
-            value={data.fyndCredentials === "[encrypted]" ? "" : data.fyndCredentials}
-            details="Leave blank to keep existing"
-          />
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Fynd Access Token</label>
+            <input
+              type="password"
+              name="fyndCredentials"
+              placeholder="Enter token to update, or leave blank to keep existing"
+              autoComplete="off"
+              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }}
+            />
+            <p style={{ fontSize: 13, color: "#6d7175", marginTop: 6 }}>Leave blank to keep existing</p>
+          </div>
           <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Policy (JSON)</label>
           <textarea name="policyJson" rows={4} defaultValue={data.policyJson} style={{ width: "100%", marginBottom: 16, padding: 12, borderRadius: 8, border: "1px solid #e1e3e5" }} />
         </s-section>

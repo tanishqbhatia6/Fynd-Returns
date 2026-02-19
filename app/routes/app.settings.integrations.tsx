@@ -7,6 +7,7 @@ import { encrypt } from "../lib/encryption.server";
 import { createFyndClient } from "../lib/fynd.server";
 import { createFyndLogger } from "../lib/fynd-logger.server";
 import { FYND_ENVIRONMENTS, getAppMode } from "../lib/fynd-config.server";
+import { sanitizeCredentialInputs } from "../lib/credential-validation.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -51,19 +52,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const fyndClientSecret = String(formData.get("fyndClientSecret") ?? "").trim();
       const fyndApplicationToken = String(formData.get("fyndApplicationToken") ?? "").trim();
 
-      const envSettings = { fyndEnvironment, fyndCustomBaseUrl: fyndCustomBaseUrl || null };
-      log("test", "Form", `apiType=${apiType} env=${fyndEnvironment} companyId=${fyndCompanyId} appId=${fyndApplicationId}`);
+      const validation = sanitizeCredentialInputs({
+        fyndCompanyId: fyndCompanyId || undefined,
+        fyndApplicationId: fyndApplicationId || undefined,
+        fyndClientId: fyndClientId || undefined,
+        fyndClientSecret: fyndClientSecret || undefined,
+        fyndApplicationToken: fyndApplicationToken || undefined,
+        fyndCustomBaseUrl: fyndCustomBaseUrl || undefined,
+      });
+      if (!validation.valid) {
+        return { success: false, error: validation.error, testResult: false, debugLogs: logs };
+      }
+      const v = validation.sanitized!;
+
+      const envSettings = { fyndEnvironment, fyndCustomBaseUrl: (v.fyndCustomBaseUrl || fyndCustomBaseUrl) || null };
+      log("test", "Form", `apiType=${apiType} env=${fyndEnvironment} companyId=*** appId=***`);
 
       if (apiType === "platform") {
-        if (!fyndCompanyId || !fyndApplicationId || !fyndClientId || !fyndClientSecret) {
+        if (!v.fyndCompanyId || !v.fyndApplicationId || !v.fyndClientId || !v.fyndClientSecret) {
           return { success: false, error: "Platform API requires Company ID, Application ID, Client ID, and Client Secret.", testResult: false, debugLogs: logs };
         }
         try {
           const client = await createFyndClient({
             ...envSettings,
-            fyndCompanyId,
-            fyndApplicationId,
-            fyndCredentials: JSON.stringify({ apiType: "platform", clientId: fyndClientId, clientSecret: fyndClientSecret }),
+            fyndCompanyId: v.fyndCompanyId,
+            fyndApplicationId: v.fyndApplicationId,
+            fyndCredentials: JSON.stringify({ apiType: "platform", clientId: v.fyndClientId, clientSecret: v.fyndClientSecret }),
           }, log);
           if (!client) return { success: false, error: "Failed to create Platform client.", testResult: false, debugLogs: logs };
           await client.testConnection();
@@ -74,15 +88,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       if (apiType === "storefront") {
-        if (!fyndApplicationId || !fyndApplicationToken) {
+        if (!v.fyndApplicationId || !v.fyndApplicationToken) {
           return { success: false, error: "Storefront API requires Application ID and Application Token.", testResult: false, debugLogs: logs };
         }
         try {
           const client = await createFyndClient({
             ...envSettings,
             fyndCompanyId: null,
-            fyndApplicationId,
-            fyndCredentials: JSON.stringify({ apiType: "storefront", applicationToken: fyndApplicationToken }),
+            fyndApplicationId: v.fyndApplicationId,
+            fyndCredentials: JSON.stringify({ apiType: "storefront", applicationToken: v.fyndApplicationToken }),
           }, log);
           if (!client) return { success: false, error: "Failed to create Storefront client.", testResult: false, debugLogs: logs };
           await client.testConnection();
@@ -118,14 +132,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const fyndApplicationToken = String(formData.get("fyndApplicationToken") ?? "").trim();
     const policyJson = String(formData.get("policyJson") ?? "{}").trim();
 
+    const validation = sanitizeCredentialInputs({
+      fyndCompanyId: fyndCompanyId || undefined,
+      fyndApplicationId: fyndApplicationId || undefined,
+      fyndClientId: fyndClientId || undefined,
+      fyndClientSecret: fyndClientSecret || undefined,
+      fyndApplicationToken: fyndApplicationToken || undefined,
+      fyndCustomBaseUrl: fyndCustomBaseUrl || undefined,
+      policyJson: policyJson || undefined,
+    });
+    if (!validation.valid) {
+      return { success: false, error: validation.error, debugLogs: logs };
+    }
+    const v = validation.sanitized!;
+
     let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
     if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
 
     let credsToStore: string | null = null;
-    if (fyndApiType === "platform" && fyndCompanyId && fyndApplicationId && fyndClientId && fyndClientSecret) {
-      credsToStore = encrypt(JSON.stringify({ apiType: "platform", clientId: fyndClientId, clientSecret: fyndClientSecret }));
-    } else if (fyndApiType === "storefront" && fyndApplicationId && fyndApplicationToken) {
-      credsToStore = encrypt(JSON.stringify({ apiType: "storefront", applicationToken: fyndApplicationToken }));
+    if (fyndApiType === "platform" && v.fyndCompanyId && v.fyndApplicationId && v.fyndClientId && v.fyndClientSecret) {
+      credsToStore = encrypt(JSON.stringify({ apiType: "platform", clientId: v.fyndClientId, clientSecret: v.fyndClientSecret }));
+    } else if (fyndApiType === "storefront" && v.fyndApplicationId && v.fyndApplicationToken) {
+      credsToStore = encrypt(JSON.stringify({ apiType: "storefront", applicationToken: v.fyndApplicationToken }));
     }
 
     await prisma.shopSettings.upsert({
@@ -134,22 +162,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         shopId: shop.id,
         fyndApiType: fyndApiType || null,
         fyndEnvironment: fyndEnvironment || null,
-        fyndCustomBaseUrl: fyndCustomBaseUrl || null,
+        fyndCustomBaseUrl: (v.fyndCustomBaseUrl || fyndCustomBaseUrl) || null,
         appMode: appMode === "dev" ? "dev" : "prod",
-        fyndCompanyId: fyndCompanyId || null,
-        fyndApplicationId: fyndApplicationId || null,
+        fyndCompanyId: v.fyndCompanyId || null,
+        fyndApplicationId: v.fyndApplicationId || null,
         fyndCredentials: credsToStore,
-        policyJson: policyJson || null,
+        policyJson: (v.policyJson ?? policyJson) || null,
       },
       update: {
         fyndApiType: fyndApiType || undefined,
         fyndEnvironment: fyndEnvironment || undefined,
-        fyndCustomBaseUrl: fyndCustomBaseUrl || undefined,
+        fyndCustomBaseUrl: (v.fyndCustomBaseUrl || fyndCustomBaseUrl) || undefined,
         appMode: appMode === "dev" ? "dev" : "prod",
-        fyndCompanyId: fyndCompanyId || undefined,
-        fyndApplicationId: fyndApplicationId || undefined,
+        fyndCompanyId: v.fyndCompanyId || undefined,
+        fyndApplicationId: v.fyndApplicationId || undefined,
         fyndCredentials: credsToStore ?? undefined,
-        policyJson: policyJson || undefined,
+        policyJson: (v.policyJson ?? policyJson) || undefined,
       },
     });
 

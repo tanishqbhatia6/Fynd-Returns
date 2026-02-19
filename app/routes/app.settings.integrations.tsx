@@ -42,11 +42,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
     const fyndCredentialsRaw = formData.get("fyndCredentials");
     const fyndCredentialsFromForm = typeof fyndCredentialsRaw === "string" ? fyndCredentialsRaw.trim() : "";
+    const fyndClientId = String(formData.get("fyndClientId") ?? "").trim();
+    const fyndClientSecret = String(formData.get("fyndClientSecret") ?? "").trim();
 
     const tokenPreview = fyndCredentialsFromForm.length >= 8
       ? `${fyndCredentialsFromForm.slice(0, 4)}...${fyndCredentialsFromForm.slice(-4)}`
       : fyndCredentialsFromForm ? `[${fyndCredentialsFromForm.length} chars]` : "empty";
-    log("test", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, tokenFromForm=${fyndCredentialsFromForm ? `present(${fyndCredentialsFromForm.length} chars)` : "empty"} preview=${tokenPreview}`);
+    log("test", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, tokenFromForm=${fyndCredentialsFromForm ? `present(${fyndCredentialsFromForm.length} chars)` : "empty"} clientId=${!!fyndClientId} clientSecret=${!!fyndClientSecret} preview=${tokenPreview}`);
 
     if (!fyndCompanyId || !fyndApplicationId) {
       log("test", "Validation failed", "Company ID and Application ID required");
@@ -58,9 +60,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     log("test", "Shop loaded", `hasSettings=${!!shop.settings}, hasStoredCreds=${!!shop.settings?.fyndCredentials}`);
 
     let token = fyndCredentialsFromForm;
+    const hasClientCreds = fyndClientId && fyndClientSecret;
     if (!token && shop.settings?.fyndCredentials) {
       log("test", "Using stored token", "Attempting to decrypt and create client");
-      const client = createFyndClient(shop.settings, log);
+      const client = await createFyndClient(shop.settings, log);
       if (client) {
         try {
           log("test", "Calling Fynd API", "getReturnReasons");
@@ -76,13 +79,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       log("test", "createFyndClient returned null", "Decryption or token extraction failed");
       return { success: false, error: "No token available. Enter a token and save, or use Test after saving.", testResult: false, debugLogs: logs };
     }
+    if (!token && hasClientCreds) {
+      log("test", "Using Client ID + Secret", "Fetching OAuth token");
+      try {
+        const { fetchFyndAccessToken } = await import("../lib/fynd.server");
+        token = await fetchFyndAccessToken(fyndCompanyId, fyndClientId, fyndClientSecret, log);
+      } catch (err) {
+        log("test", "OAuth failed", String(err));
+        return { success: false, error: err instanceof Error ? err.message : "OAuth token fetch failed.", testResult: false, debugLogs: logs };
+      }
+    }
     if (!token) {
-      log("test", "No token", "Neither form nor stored");
-      return { success: false, error: "No token available. Enter a token to test.", testResult: false, debugLogs: logs };
+      log("test", "No token", "Provide Access Token OR Client ID + Secret");
+      return { success: false, error: "Enter Access Token (from Fynd OAuth) OR Client ID + Client Secret, then Test.", testResult: false, debugLogs: logs };
     }
 
     try {
-      log("test", "Using form token", `length=${token.length}`);
+      log("test", "Using token", `length=${token.length}`);
       const client = new FyndClient(fyndCompanyId, fyndApplicationId, token, log);
       log("test", "Calling Fynd API", "getReturnReasons");
       await client.getReturnReasons();
@@ -114,9 +127,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
   const fyndCredentialsRaw = formData.get("fyndCredentials");
   const fyndCredentials = typeof fyndCredentialsRaw === "string" ? fyndCredentialsRaw.trim() : "";
+  const fyndClientId = String(formData.get("fyndClientId") ?? "").trim();
+  const fyndClientSecret = String(formData.get("fyndClientSecret") ?? "").trim();
   const policyJson = String(formData.get("policyJson") ?? "{}").trim();
 
-  log("save", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, tokenFromForm=${fyndCredentials ? `present(${fyndCredentials.length} chars)` : "empty"}`);
+  log("save", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, token=${!!fyndCredentials}, clientId=${!!fyndClientId}, clientSecret=${!!fyndClientSecret}`);
 
   let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
   if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
@@ -125,15 +140,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let credsToStore: string | null | undefined = shop.settings?.fyndCredentials;
   if (fyndCredentials.length > 0) {
     try {
-      log("save", "Encrypting token");
+      log("save", "Encrypting access token");
       credsToStore = encrypt(JSON.stringify({ accessToken: fyndCredentials }));
       log("save", "Encryption success", `encryptedLength=${credsToStore.length}`);
     } catch (err) {
       log("save", "Encryption failed", String(err));
       return { success: false, error: "Failed to save token. Ensure ENCRYPTION_KEY is set (64-char hex) in production.", debugLogs: logs };
     }
+  } else if (fyndClientId && fyndClientSecret) {
+    try {
+      log("save", "Encrypting client credentials");
+      credsToStore = encrypt(JSON.stringify({ clientId: fyndClientId, clientSecret: fyndClientSecret }));
+      log("save", "Encryption success", "clientId+clientSecret stored");
+    } catch (err) {
+      log("save", "Encryption failed", String(err));
+      return { success: false, error: "Failed to save credentials. Ensure ENCRYPTION_KEY is set.", debugLogs: logs };
+    }
   } else {
-    log("save", "No new token in form", "Keeping existing credentials");
+    log("save", "No new credentials in form", "Keeping existing");
   }
 
   try {
@@ -154,12 +178,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         policyJson: policyJson || undefined,
       },
     });
-    log("save", "Database upsert success", `tokenUpdated=${fyndCredentials.length > 0}`);
+    log("save", "Database upsert success", "done");
   } catch (err) {
     log("save", "Database upsert failed", String(err));
     return { success: false, error: "Failed to save settings. Please try again.", debugLogs: logs };
   }
-  return { success: true, tokenUpdated: fyndCredentials.length > 0, debugLogs: logs };
+  const credsSaved = fyndCredentials.length > 0 || (fyndClientId && fyndClientSecret);
+  return { success: true, tokenUpdated: credsSaved, debugLogs: logs };
 };
 
 type ActionData = {
@@ -191,7 +216,7 @@ export default function Integrations() {
       {showSaveSuccess && (
         <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
           {fetcher.data && "tokenUpdated" in fetcher.data && fetcher.data.tokenUpdated
-            ? "Token saved successfully."
+            ? "Credentials saved successfully."
             : "Settings saved successfully."}
         </div>
       )}
@@ -209,7 +234,7 @@ export default function Integrations() {
         <div style={{ padding: 12, marginBottom: 16, background: "#fef2f2", borderRadius: 8, color: "#d72c0d" }}>
           <div style={{ fontWeight: 500, marginBottom: 6 }}>Connection failed: {fetcher.data.error}</div>
           <div style={{ fontSize: 13, opacity: 0.9 }}>
-            The stored token may be invalid or expired. Enter a new token in the field below and click <strong>Save</strong> first, then <strong>Test connection</strong>.
+            Platform API needs an OAuth token. Use <strong>Client ID + Client Secret</strong> (from Fynd Platform → Developers → Clients), or paste a valid access token. Click <strong>Save</strong> then <strong>Test connection</strong>.
           </div>
         </div>
       )}
@@ -258,23 +283,38 @@ export default function Integrations() {
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Fynd Access Token</label>
-            <div style={{ position: "relative" }}>
+            <input
+              type="text"
+              name="fyndCredentials"
+              placeholder="OAuth access token (from client ID + secret) — or use Client ID + Secret below"
+              autoComplete="off"
+              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14, fontFamily: "monospace" }}
+            />
+            {data.fyndCredentials ? (
+              <p style={{ fontSize: 13, color: "#008060", marginTop: 6, fontWeight: 500 }}>✓ Credentials configured (hidden). Enter new values to replace.</p>
+            ) : (
+              <p style={{ fontSize: 13, color: "#6d7175", marginTop: 6 }}>Platform API requires OAuth token. Use Client ID + Secret below (recommended) or paste token from Fynd Platform.</p>
+            )}
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Client ID + Secret (alternative)</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <input
                 type="text"
-                name="fyndCredentials"
-                placeholder="Enter token to save, or leave blank to keep existing"
+                name="fyndClientId"
+                placeholder="Client ID"
                 autoComplete="off"
-                style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14, fontFamily: "monospace" }}
+                style={{ padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }}
               />
-              <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>
-                Using text field (password fields often fail to submit in embedded apps)
-              </p>
+              <input
+                type="text"
+                name="fyndClientSecret"
+                placeholder="Client Secret"
+                autoComplete="off"
+                style={{ padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }}
+              />
             </div>
-            {data.fyndCredentials ? (
-              <p style={{ fontSize: 13, color: "#008060", marginTop: 6, fontWeight: 500 }}>✓ Token configured (hidden for security). Enter a new token to replace it.</p>
-            ) : (
-              <p style={{ fontSize: 13, color: "#6d7175", marginTop: 6 }}>Enter your Fynd access token. Use Bearer token for Platform APIs, or base64(application_id:application_token) for Application APIs.</p>
-            )}
+            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>From Fynd Platform → Developers → Clients. Token is fetched automatically.</p>
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Policy (JSON)</label>

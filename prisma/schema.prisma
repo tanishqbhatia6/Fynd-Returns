@@ -45,6 +45,9 @@ model ShopSettings {
   shopId                     String   @unique
   shop                       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   fyndApiType                String?  // "platform" | "storefront"
+  fyndEnvironment            String?  // "uat" | "prod"
+  fyndCustomBaseUrl          String?  // optional override
+  appMode                    String?  // "dev" | "prod"
   fyndCompanyId              String?
   fyndApplicationId          String?
   fyndCredentials            String?

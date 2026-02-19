@@ -6,6 +6,7 @@ import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
 import { createFyndClient } from "../lib/fynd.server";
 import { createFyndLogger } from "../lib/fynd-logger.server";
+import { FYND_ENVIRONMENTS, getAppMode } from "../lib/fynd-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -22,10 +23,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const s = shop.settings;
   return {
     fyndApiType: (s as { fyndApiType?: string })?.fyndApiType ?? "platform",
+    fyndEnvironment: (s as { fyndEnvironment?: string })?.fyndEnvironment ?? "uat",
+    fyndCustomBaseUrl: (s as { fyndCustomBaseUrl?: string })?.fyndCustomBaseUrl ?? "",
+    appMode: getAppMode(s ?? {}),
     fyndCompanyId: s?.fyndCompanyId ?? "",
     fyndApplicationId: s?.fyndApplicationId ?? "",
     fyndCredentials: s?.fyndCredentials ? "[configured]" : "",
     policyJson: s?.policyJson ?? "{}",
+    fyndEnvironments: FYND_ENVIRONMENTS,
   };
 };
 
@@ -38,20 +43,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (intent === "test") {
       const apiType = (formData.get("fyndApiType") as string) || "platform";
+      const fyndEnvironment = (formData.get("fyndEnvironment") as string) || "uat";
+      const fyndCustomBaseUrl = String(formData.get("fyndCustomBaseUrl") ?? "").trim();
       const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
       const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
       const fyndClientId = String(formData.get("fyndClientId") ?? "").trim();
       const fyndClientSecret = String(formData.get("fyndClientSecret") ?? "").trim();
       const fyndApplicationToken = String(formData.get("fyndApplicationToken") ?? "").trim();
 
-      log("test", "Form", `apiType=${apiType} companyId=${fyndCompanyId} appId=${fyndApplicationId}`);
+      const envSettings = { fyndEnvironment, fyndCustomBaseUrl: fyndCustomBaseUrl || null };
+      log("test", "Form", `apiType=${apiType} env=${fyndEnvironment} companyId=${fyndCompanyId} appId=${fyndApplicationId}`);
 
       if (apiType === "platform") {
         if (!fyndCompanyId || !fyndApplicationId || !fyndClientId || !fyndClientSecret) {
           return { success: false, error: "Platform API requires Company ID, Application ID, Client ID, and Client Secret.", testResult: false, debugLogs: logs };
         }
         try {
-          const client = await createFyndClient({ fyndCompanyId, fyndApplicationId, fyndCredentials: JSON.stringify({ apiType: "platform", clientId: fyndClientId, clientSecret: fyndClientSecret }) }, log);
+          const client = await createFyndClient({
+            ...envSettings,
+            fyndCompanyId,
+            fyndApplicationId,
+            fyndCredentials: JSON.stringify({ apiType: "platform", clientId: fyndClientId, clientSecret: fyndClientSecret }),
+          }, log);
           if (!client) return { success: false, error: "Failed to create Platform client.", testResult: false, debugLogs: logs };
           await client.testConnection();
           return { success: true, testResult: true, testMessage: "Platform API connection successful.", debugLogs: logs };
@@ -66,6 +79,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
         try {
           const client = await createFyndClient({
+            ...envSettings,
             fyndCompanyId: null,
             fyndApplicationId,
             fyndCredentials: JSON.stringify({ apiType: "storefront", applicationToken: fyndApplicationToken }),
@@ -94,6 +108,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Save
     const fyndApiType = (formData.get("fyndApiType") as string) || "platform";
+    const fyndEnvironment = (formData.get("fyndEnvironment") as string) || "uat";
+    const fyndCustomBaseUrl = String(formData.get("fyndCustomBaseUrl") ?? "").trim();
+    const appMode = (formData.get("appMode") as string) || "prod";
     const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
     const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
     const fyndClientId = String(formData.get("fyndClientId") ?? "").trim();
@@ -116,6 +133,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       create: {
         shopId: shop.id,
         fyndApiType: fyndApiType || null,
+        fyndEnvironment: fyndEnvironment || null,
+        fyndCustomBaseUrl: fyndCustomBaseUrl || null,
+        appMode: appMode === "dev" ? "dev" : "prod",
         fyndCompanyId: fyndCompanyId || null,
         fyndApplicationId: fyndApplicationId || null,
         fyndCredentials: credsToStore,
@@ -123,6 +143,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
       update: {
         fyndApiType: fyndApiType || undefined,
+        fyndEnvironment: fyndEnvironment || undefined,
+        fyndCustomBaseUrl: fyndCustomBaseUrl || undefined,
+        appMode: appMode === "dev" ? "dev" : "prod",
         fyndCompanyId: fyndCompanyId || undefined,
         fyndApplicationId: fyndApplicationId || undefined,
         fyndCredentials: credsToStore ?? undefined,
@@ -152,6 +175,8 @@ export default function Integrations() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
   const [apiType, setApiType] = React.useState(data.fyndApiType);
+  const [fyndEnvironment, setFyndEnvironment] = React.useState(data.fyndEnvironment);
+  const [appMode, setAppMode] = React.useState(data.appMode);
 
   const showSaveSuccess = fetcher.data && "success" in fetcher.data && !("testResult" in fetcher.data) && !("cleared" in fetcher.data);
   const showCleared = fetcher.data && "cleared" in fetcher.data;
@@ -193,8 +218,48 @@ export default function Integrations() {
 
       <fetcher.Form method="post">
         <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
-          Connect Fynd for reverse logistics. Choose API type and enter credentials from <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
+          Connect Fynd for reverse logistics. Choose environment, API type, and enter credentials from <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
         </p>
+
+        <s-section heading="App Mode">
+          <div style={{ display: "flex", gap: 24, marginBottom: 16, flexWrap: "wrap" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="radio" name="appMode" value="dev" checked={appMode === "dev"} onChange={() => setAppMode("dev")} />
+              <span><strong>Dev</strong> — Test mode. Shows dev banner. Use with UAT credentials.</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+              <input type="radio" name="appMode" value="prod" checked={appMode === "prod"} onChange={() => setAppMode("prod")} />
+              <span><strong>Prod Live</strong> — Live mode. Real operations. Use with production credentials.</span>
+            </label>
+          </div>
+        </s-section>
+
+        <s-section heading="Fynd Environment">
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>API Base URL</label>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="radio" name="fyndEnvironment" value="uat" checked={fyndEnvironment === "uat"} onChange={() => setFyndEnvironment("uat")} />
+                <span>UAT (Sandbox)</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="radio" name="fyndEnvironment" value="prod" checked={fyndEnvironment === "prod"} onChange={() => setFyndEnvironment("prod")} />
+                <span>Production</span>
+              </label>
+            </div>
+            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 8 }}>
+              UAT: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.uat ?? "https://api.uat.fyndx1.de"}</code>
+              {" · "}
+              Prod: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.prod ?? "https://api.fynd.com"}</code>
+            </p>
+            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 4 }}>UAT and Prod use different credentials. Use credentials from the matching Fynd environment.</p>
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Custom URL (optional override)</label>
+            <input type="text" name="fyndCustomBaseUrl" defaultValue={data.fyndCustomBaseUrl} placeholder="e.g. https://api.custom.fynd.com" autoComplete="off" style={{ width: "100%", maxWidth: 400, padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
+            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>Leave empty to use preset. Include https://</p>
+          </div>
+        </s-section>
 
         <s-section heading="API Type">
           <div style={{ display: "flex", gap: 24, marginBottom: 16 }}>

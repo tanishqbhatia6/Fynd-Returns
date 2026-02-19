@@ -1,19 +1,26 @@
-const FYND_API_BASE = process.env.FYND_API_BASE_URL || "https://api.fynd.com";
 import { decrypt } from "./encryption.server";
+import { getFyndBaseUrl } from "./fynd-config.server";
 
 export type FyndLogFn = (step: string, message: string, detail?: string) => void;
 
+export type FyndSettings = {
+  fyndEnvironment?: string | null;
+  fyndCustomBaseUrl?: string | null;
+  fyndCompanyId?: string | null;
+  fyndApplicationId?: string | null;
+  fyndCredentials?: string | null;
+};
+
 // --- Platform API (OAuth client_credentials) ---
-// Docs: https://docs.fynd.com/partners/commerce/sdk/latest/platform/client-libraries
-// Auth: Bearer token from POST /oauth/token with Basic base64(client_id:client_secret)
 
 export async function fetchFyndPlatformToken(
+  baseUrl: string,
   companyId: string,
   clientId: string,
   clientSecret: string,
   log?: FyndLogFn
 ): Promise<string> {
-  const url = `${FYND_API_BASE}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
+  const url = `${baseUrl}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   log?.("fynd-platform-oauth", "Fetching token", `url=${url}`);
   const res = await fetch(url, {
@@ -32,9 +39,9 @@ export async function fetchFyndPlatformToken(
   return data.access_token;
 }
 
-/** Platform API client - uses Bearer token from OAuth */
 export class FyndPlatformClient {
   constructor(
+    private baseUrl: string,
     private companyId: string,
     private applicationId: string,
     private accessToken: string,
@@ -46,7 +53,7 @@ export class FyndPlatformClient {
   }
 
   private async request(method: string, path: string) {
-    const url = `${FYND_API_BASE}${path}`;
+    const url = `${this.baseUrl}${path}`;
     const headers = {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${this.accessToken}`,
@@ -67,12 +74,11 @@ export class FyndPlatformClient {
   }
 }
 
-// --- Storefront API (Basic auth with application_id:application_token) ---
-// Docs: https://docs.fynd.com/partners/commerce/sdk/latest/application/client-libraries
-// Auth: Authorization: Basic base64(application_id:application_token)
+// --- Storefront API (Basic auth) ---
 
 export class FyndStorefrontClient {
   constructor(
+    private baseUrl: string,
     private applicationId: string,
     private applicationToken: string,
     private log?: FyndLogFn
@@ -83,7 +89,7 @@ export class FyndStorefrontClient {
   }
 
   private async request(method: string, path: string) {
-    const url = `${FYND_API_BASE}${path}`;
+    const url = `${this.baseUrl}${path}`;
     const headers = {
       "Content-Type": "application/json",
       "Authorization": `Basic ${this.basicAuth}`,
@@ -95,12 +101,10 @@ export class FyndStorefrontClient {
     return JSON.parse(body);
   }
 
-  /** Test: GET /service/application/configuration/v1.0/languages */
   async getLanguages() {
     return this.request("GET", "/service/application/configuration/v1.0/languages");
   }
 
-  /** Bag return reasons - Storefront Order API */
   async getBagReasons() {
     return this.request("GET", "/service/application/order/v1.0/bag/reasons");
   }
@@ -122,17 +126,16 @@ export type FyndCredentials = {
 };
 
 export async function createFyndClient(
-  settings: {
-    fyndCompanyId?: string | null;
-    fyndApplicationId?: string | null;
-    fyndCredentials?: string | null;
-  },
+  settings: FyndSettings,
   log?: FyndLogFn
 ): Promise<FyndPlatformClient | FyndStorefrontClient | null> {
   if (!settings?.fyndApplicationId) {
     log?.("fynd-client", "Missing applicationId");
     return null;
   }
+  const baseUrl = getFyndBaseUrl(settings);
+  log?.("fynd-client", "Base URL", baseUrl);
+
   let credentials: FyndCredentials = {};
   const raw = settings.fyndCredentials;
   try {
@@ -154,7 +157,7 @@ export async function createFyndClient(
       log?.("fynd-client", "Storefront needs applicationToken");
       return null;
     }
-    return new FyndStorefrontClient(settings.fyndApplicationId, token, log);
+    return new FyndStorefrontClient(baseUrl, settings.fyndApplicationId, token, log);
   }
 
   // Platform API
@@ -165,6 +168,7 @@ export async function createFyndClient(
   let accessToken = credentials.accessToken || credentials.token;
   if (!accessToken && credentials.clientId && credentials.clientSecret) {
     accessToken = await fetchFyndPlatformToken(
+      baseUrl,
       settings.fyndCompanyId,
       credentials.clientId,
       credentials.clientSecret,
@@ -173,6 +177,7 @@ export async function createFyndClient(
   }
   if (!accessToken) return null;
   return new FyndPlatformClient(
+    baseUrl,
     settings.fyndCompanyId,
     settings.fyndApplicationId,
     accessToken,

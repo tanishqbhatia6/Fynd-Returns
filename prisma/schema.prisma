@@ -44,6 +44,7 @@ model ShopSettings {
   id                         String   @id @default(cuid())
   shopId                     String   @unique
   shop                       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  fyndApiType                String?  // "platform" | "storefront"
   fyndCompanyId              String?
   fyndApplicationId          String?
   fyndCredentials            String?

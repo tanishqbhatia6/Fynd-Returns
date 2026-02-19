@@ -86,8 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .slice(0, 5);
 
     const portalUrl = `https://${session.shop}/apps/returns`;
-    const hasFyndConfig =
-      !!(shop.settings?.fyndCompanyId && shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
+    const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
     return {
       totalReturns,

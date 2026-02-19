@@ -4,6 +4,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
 import { createFyndClient, FyndClient } from "../lib/fynd.server";
+import { createFyndLogger } from "../lib/fynd-logger.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -27,9 +28,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const { logs, log } = createFyndLogger();
   const { session } = await authenticate.admin(request);
+  log("action", "Request received", `shop=${session.shop}`);
+
   const formData = await request.formData();
   const intent = formData.get("intent") as string | null;
+  log("action", "Form parsed", `intent=${intent ?? "save"}`);
 
   // Test credentials (real-time API call)
   if (intent === "test") {
@@ -38,43 +43,58 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const fyndCredentialsRaw = formData.get("fyndCredentials");
     const fyndCredentialsFromForm = typeof fyndCredentialsRaw === "string" ? fyndCredentialsRaw.trim() : "";
 
+    log("test", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, tokenFromForm=${fyndCredentialsFromForm ? `present(${fyndCredentialsFromForm.length} chars)` : "empty"}`);
+
     if (!fyndCompanyId || !fyndApplicationId) {
-      return { success: false, error: "Company ID and Application ID are required to test.", testResult: false };
+      log("test", "Validation failed", "Company ID and Application ID required");
+      return { success: false, error: "Company ID and Application ID are required to test.", testResult: false, debugLogs: logs };
     }
 
     let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
     if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+    log("test", "Shop loaded", `hasSettings=${!!shop.settings}, hasStoredCreds=${!!shop.settings?.fyndCredentials}`);
 
     let token = fyndCredentialsFromForm;
     if (!token && shop.settings?.fyndCredentials) {
-      const client = createFyndClient(shop.settings);
+      log("test", "Using stored token", "Attempting to decrypt and create client");
+      const client = createFyndClient(shop.settings, log);
       if (client) {
         try {
+          log("test", "Calling Fynd API", "getReturnReasons");
           await client.getReturnReasons();
-          return { success: true, testResult: true, testMessage: "Connection successful. Credentials are valid." };
+          log("test", "API success", "Connection valid");
+          return { success: true, testResult: true, testMessage: "Connection successful. Credentials are valid.", debugLogs: logs };
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Connection failed.";
-          return { success: false, error: msg, testResult: false };
+          log("test", "API failed", String(err));
+          return { success: false, error: msg, testResult: false, debugLogs: logs };
         }
       }
-      return { success: false, error: "No token available. Enter a token and save, or use Test after saving.", testResult: false };
+      log("test", "createFyndClient returned null", "Decryption or token extraction failed");
+      return { success: false, error: "No token available. Enter a token and save, or use Test after saving.", testResult: false, debugLogs: logs };
     }
     if (!token) {
-      return { success: false, error: "No token available. Enter a token to test.", testResult: false };
+      log("test", "No token", "Neither form nor stored");
+      return { success: false, error: "No token available. Enter a token to test.", testResult: false, debugLogs: logs };
     }
 
     try {
-      const client = new FyndClient(fyndCompanyId, fyndApplicationId, token);
+      log("test", "Using form token", `length=${token.length}`);
+      const client = new FyndClient(fyndCompanyId, fyndApplicationId, token, log);
+      log("test", "Calling Fynd API", "getReturnReasons");
       await client.getReturnReasons();
-      return { success: true, testResult: true, testMessage: "Connection successful. Credentials are valid." };
+      log("test", "API success", "Connection valid");
+      return { success: true, testResult: true, testMessage: "Connection successful. Credentials are valid.", debugLogs: logs };
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Connection failed.";
-      return { success: false, error: msg, testResult: false };
+      log("test", "API failed", String(err));
+      return { success: false, error: msg, testResult: false, debugLogs: logs };
     }
   }
 
   // Clear stored token
   if (intent === "clear_token") {
+    log("clear", "Clearing stored token");
     let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
     if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
     await prisma.shopSettings.upsert({
@@ -82,7 +102,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       create: { shopId: shop.id, fyndCredentials: null },
       update: { fyndCredentials: null },
     });
-    return { success: true, cleared: true };
+    log("clear", "Token cleared");
+    return { success: true, cleared: true, debugLogs: logs };
   }
 
   // Save
@@ -92,20 +113,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const fyndCredentials = typeof fyndCredentialsRaw === "string" ? fyndCredentialsRaw.trim() : "";
   const policyJson = String(formData.get("policyJson") ?? "{}").trim();
 
+  log("save", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, tokenFromForm=${fyndCredentials ? `present(${fyndCredentials.length} chars)` : "empty"}`);
+
   let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
   if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+  log("save", "Shop loaded", `hasSettings=${!!shop.settings}`);
 
   let credsToStore: string | null | undefined = shop.settings?.fyndCredentials;
   if (fyndCredentials.length > 0) {
     try {
+      log("save", "Encrypting token");
       credsToStore = encrypt(JSON.stringify({ accessToken: fyndCredentials }));
+      log("save", "Encryption success", `encryptedLength=${credsToStore.length}`);
     } catch (err) {
-      console.error("Fynd token encryption failed:", err);
-      return { success: false, error: "Failed to save token. Ensure ENCRYPTION_KEY is set (64-char hex) in production." };
+      log("save", "Encryption failed", String(err));
+      return { success: false, error: "Failed to save token. Ensure ENCRYPTION_KEY is set (64-char hex) in production.", debugLogs: logs };
     }
+  } else {
+    log("save", "No new token in form", "Keeping existing credentials");
   }
 
   try {
+    log("save", "Upserting to database");
     await prisma.shopSettings.upsert({
       where: { shopId: shop.id },
       create: {
@@ -122,16 +151,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         policyJson: policyJson || undefined,
       },
     });
+    log("save", "Database upsert success", `tokenUpdated=${fyndCredentials.length > 0}`);
   } catch (err) {
-    console.error("Fynd settings save failed:", err);
-    return { success: false, error: "Failed to save settings. Please try again." };
+    log("save", "Database upsert failed", String(err));
+    return { success: false, error: "Failed to save settings. Please try again.", debugLogs: logs };
   }
-  return { success: true, tokenUpdated: fyndCredentials.length > 0 };
+  return { success: true, tokenUpdated: fyndCredentials.length > 0, debugLogs: logs };
+};
+
+type ActionData = {
+  success?: boolean;
+  error?: string;
+  testResult?: boolean;
+  testMessage?: string;
+  tokenUpdated?: boolean;
+  cleared?: boolean;
+  debugLogs?: { ts: string; step: string; message: string; detail?: string }[];
 };
 
 export default function Integrations() {
   const data = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ success?: boolean; error?: string; testResult?: boolean; testMessage?: string; tokenUpdated?: boolean }>();
+  const fetcher = useFetcher<ActionData>();
 
   const showSaveSuccess = fetcher.data && "success" in fetcher.data && !("testResult" in fetcher.data) && !("cleared" in fetcher.data);
   const showCleared = fetcher.data && "cleared" in fetcher.data;
@@ -169,6 +209,21 @@ export default function Integrations() {
             The stored token may be invalid or expired. Enter a new token in the field below and click <strong>Save</strong> first, then <strong>Test connection</strong>.
           </div>
         </div>
+      )}
+
+      {fetcher.data?.debugLogs && fetcher.data.debugLogs.length > 0 && (
+        <details style={{ marginBottom: 24, border: "1px solid #e1e3e5", borderRadius: 8, overflow: "hidden" }} open={!!showTestError || !!fetcher.data?.error}>
+          <summary style={{ padding: 12, background: "#f6f6f7", cursor: "pointer", fontWeight: 600, fontSize: 14 }}>
+            Debug logs ({fetcher.data.debugLogs.length} entries)
+          </summary>
+          <pre style={{ margin: 0, padding: 16, background: "#1e1e1e", color: "#d4d4d4", fontSize: 12, overflow: "auto", maxHeight: 400 }}>
+            {fetcher.data.debugLogs.map((e, i) => (
+              <div key={i} style={{ marginBottom: 4, fontFamily: "monospace" }}>
+                [{e.ts}] {e.step}: {e.message}{e.detail ? ` | ${e.detail}` : ""}
+              </div>
+            ))}
+          </pre>
+        </details>
       )}
 
       <fetcher.Form method="post">

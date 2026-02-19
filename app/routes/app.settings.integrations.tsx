@@ -43,7 +43,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const fyndCredentialsRaw = formData.get("fyndCredentials");
     const fyndCredentialsFromForm = typeof fyndCredentialsRaw === "string" ? fyndCredentialsRaw.trim() : "";
 
-    log("test", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, tokenFromForm=${fyndCredentialsFromForm ? `present(${fyndCredentialsFromForm.length} chars)` : "empty"}`);
+    const tokenPreview = fyndCredentialsFromForm.length >= 8
+      ? `${fyndCredentialsFromForm.slice(0, 4)}...${fyndCredentialsFromForm.slice(-4)}`
+      : fyndCredentialsFromForm ? `[${fyndCredentialsFromForm.length} chars]` : "empty";
+    log("test", "Form values", `companyId=${fyndCompanyId}, appId=${fyndApplicationId}, tokenFromForm=${fyndCredentialsFromForm ? `present(${fyndCredentialsFromForm.length} chars)` : "empty"} preview=${tokenPreview}`);
 
     if (!fyndCompanyId || !fyndApplicationId) {
       log("test", "Validation failed", "Company ID and Application ID required");

@@ -17,20 +17,29 @@ export class FyndClient {
 
   private async request(method: string, path: string, options: RequestInit = {}) {
     const url = `${FYND_API_BASE}${path}`;
-    this.log?.("fynd-api", "Request", `method=${method} url=${url} tokenLength=${this.accessToken.length}`);
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${this.accessToken}`,
+      "x-access-token": this.accessToken,
+      ...(options.headers as Record<string, string>),
+    };
+    const tokenPreview = this.accessToken.length >= 8
+      ? `${this.accessToken.slice(0, 4)}...${this.accessToken.slice(-4)}`
+      : `[${this.accessToken.length} chars]`;
+    this.log?.("fynd-api", "Request", `method=${method} url=${url}`);
+    this.log?.("fynd-api", "Headers", `Authorization: Bearer [len:${this.accessToken.length}] | x-access-token: [len:${this.accessToken.length}] | Content-Type: application/json`);
+    this.log?.("fynd-api", "Token preview", `length=${this.accessToken.length} value=${tokenPreview}`);
     const res = await fetch(url, {
       method,
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this.accessToken}`,
-        "x-access-token": this.accessToken,
-        ...(options.headers as Record<string, string>),
-      },
+      headers,
       ...options,
     });
     const body = await res.text();
     if (!res.ok) {
+      const resHeaders: Record<string, string> = {};
+      res.headers.forEach((v, k) => { resHeaders[k] = v; });
       this.log?.("fynd-api", "Error response", `status=${res.status} body=${body}`);
+      this.log?.("fynd-api", "Response headers", JSON.stringify(resHeaders));
       throw new Error(`Fynd API error ${res.status}: ${body}`);
     }
     return JSON.parse(body);

@@ -29,6 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { logs, log } = createFyndLogger();
+  try {
   const { session } = await authenticate.admin(request);
   log("action", "Request received", `shop=${session.shop}`);
 
@@ -185,6 +186,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   const credsSaved = fyndCredentials.length > 0 || (fyndClientId && fyndClientSecret);
   return { success: true, tokenUpdated: credsSaved, debugLogs: logs };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const stack = err instanceof Error ? err.stack : "";
+    log("action", "Unhandled error", `${msg} ${(stack || "").slice(0, 300)}`);
+    return { success: false, error: msg, testResult: false, debugLogs: logs };
+  }
 };
 
 type ActionData = {

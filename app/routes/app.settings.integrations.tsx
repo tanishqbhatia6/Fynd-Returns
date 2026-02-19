@@ -73,6 +73,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // Clear stored token
+  if (intent === "clear_token") {
+    let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
+    if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: { shopId: shop.id, fyndCredentials: null },
+      update: { fyndCredentials: null },
+    });
+    return { success: true, cleared: true };
+  }
+
   // Save
   const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
   const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
@@ -114,14 +126,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     console.error("Fynd settings save failed:", err);
     return { success: false, error: "Failed to save settings. Please try again." };
   }
-  return { success: true };
+  return { success: true, tokenUpdated: fyndCredentials.length > 0 };
 };
 
 export default function Integrations() {
   const data = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<{ success?: boolean; error?: string; testResult?: boolean; testMessage?: string }>();
+  const fetcher = useFetcher<{ success?: boolean; error?: string; testResult?: boolean; testMessage?: string; tokenUpdated?: boolean }>();
 
-  const showSaveSuccess = fetcher.data && "success" in fetcher.data && !("testResult" in fetcher.data);
+  const showSaveSuccess = fetcher.data && "success" in fetcher.data && !("testResult" in fetcher.data) && !("cleared" in fetcher.data);
+  const showCleared = fetcher.data && "cleared" in fetcher.data;
   const showTestSuccess = fetcher.data && "testResult" in fetcher.data && fetcher.data.testResult;
   const showTestError = fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
 
@@ -134,7 +147,14 @@ export default function Integrations() {
       )}
       {showSaveSuccess && (
         <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
-          Settings saved successfully.
+          {fetcher.data && "tokenUpdated" in fetcher.data && fetcher.data.tokenUpdated
+            ? "Token saved successfully."
+            : "Settings saved successfully."}
+        </div>
+      )}
+      {showCleared && (
+        <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
+          Stored token cleared. Enter a new token and click Save.
         </div>
       )}
       {showTestSuccess && (
@@ -144,7 +164,10 @@ export default function Integrations() {
       )}
       {showTestError && (
         <div style={{ padding: 12, marginBottom: 16, background: "#fef2f2", borderRadius: 8, color: "#d72c0d" }}>
-          Connection failed: {fetcher.data.error}
+          <div style={{ fontWeight: 500, marginBottom: 6 }}>Connection failed: {fetcher.data.error}</div>
+          <div style={{ fontSize: 13, opacity: 0.9 }}>
+            The stored token may be invalid or expired. Enter a new token in the field below and click <strong>Save</strong> first, then <strong>Test connection</strong>.
+          </div>
         </div>
       )}
 
@@ -177,17 +200,22 @@ export default function Integrations() {
           </div>
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Fynd Access Token</label>
-            <input
-              type="password"
-              name="fyndCredentials"
-              placeholder="Enter token to save, or leave blank to keep existing"
-              autoComplete="new-password"
-              style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }}
-            />
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                name="fyndCredentials"
+                placeholder="Enter token to save, or leave blank to keep existing"
+                autoComplete="off"
+                style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14, fontFamily: "monospace" }}
+              />
+              <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>
+                Using text field (password fields often fail to submit in embedded apps)
+              </p>
+            </div>
             {data.fyndCredentials ? (
-              <p style={{ fontSize: 13, color: "#008060", marginTop: 6, fontWeight: 500 }}>✓ Token configured (hidden for security)</p>
+              <p style={{ fontSize: 13, color: "#008060", marginTop: 6, fontWeight: 500 }}>✓ Token configured (hidden for security). Enter a new token to replace it.</p>
             ) : (
-              <p style={{ fontSize: 13, color: "#6d7175", marginTop: 6 }}>Leave blank to keep existing</p>
+              <p style={{ fontSize: 13, color: "#6d7175", marginTop: 6 }}>Enter your Fynd access token. Use Bearer token for Platform APIs, or base64(application_id:application_token) for Application APIs.</p>
             )}
           </div>
           <div style={{ marginBottom: 16 }}>
@@ -215,6 +243,26 @@ export default function Integrations() {
           >
             {fetcher.state !== "idle" ? "Please wait..." : "Test connection"}
           </button>
+          {data.fyndCredentials && (
+            <button
+              type="submit"
+              name="intent"
+              value="clear_token"
+              disabled={fetcher.state !== "idle"}
+              style={{
+                padding: "10px 20px",
+                borderRadius: 8,
+                border: "1px solid #d72c0d",
+                background: "#fff",
+                color: "#d72c0d",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer",
+              }}
+            >
+              Clear stored token
+            </button>
+          )}
           <Link to="/app/settings">
             <s-button variant="secondary" type="button">Discard</s-button>
           </Link>

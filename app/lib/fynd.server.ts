@@ -18,6 +18,7 @@ export class FyndClient {
       method,
       headers: {
         "Content-Type": "application/json",
+        "Authorization": `Bearer ${this.accessToken}`,
         "x-access-token": this.accessToken,
         ...(options.headers as Record<string, string>),
       },

@@ -44,22 +44,27 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   if (!returnCase) throw new Response("Return not found", { status: 404 });
 
+  const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
   let shopifyOrder = null;
-  try {
-    shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
-  } catch (err) {
-    console.warn("Could not fetch Shopify order:", err);
+  if (!isManualReturn && returnCase.shopifyOrderId) {
+    try {
+      shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
+    } catch (err) {
+      console.warn("Could not fetch Shopify order:", err);
+    }
   }
 
-  return { returnCase, shopDomain: session.shop, shopifyOrder };
+  return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn };
 };
 
 export default function ReturnDetail() {
-  const { returnCase, shopDomain, shopifyOrder } = useLoaderData<typeof loader>();
+  const { returnCase, shopDomain, shopifyOrder, isManualReturn } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher<{ success?: boolean; error?: string; status?: string }>();
   const storeName = shopDomain.replace(".myshopify.com", "");
-  const orderUrl = `https://admin.shopify.com/store/${storeName}/orders/${returnCase.shopifyOrderId}`;
+  const orderUrl = isManualReturn
+    ? `https://admin.shopify.com/store/${storeName}/orders`
+    : `https://admin.shopify.com/store/${storeName}/orders/${returnCase.shopifyOrderId}`;
 
   const cardStyle = {
     padding: 20,
@@ -78,13 +83,18 @@ export default function ReturnDetail() {
       )}
 
       <s-section>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
           <s-button variant="secondary" onClick={() => navigate("/app/returns")}>
             Back to Returns
           </s-button>
           <a href={orderUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <s-button variant="secondary">View in Shopify</s-button>
+            <s-button variant="secondary">{isManualReturn ? "Orders in Shopify" : "View in Shopify"}</s-button>
           </a>
+          {isManualReturn && (
+            <span style={{ fontSize: 13, color: "#6d7175" }}>
+              Manual return — search for order <strong>{returnCase.shopifyOrderName || "—"}</strong> in Shopify Admin
+            </span>
+          )}
         </div>
       </s-section>
 
@@ -170,14 +180,21 @@ export default function ReturnDetail() {
             </>
           )}
           {["approved", "completed"].includes(returnCase.status.toLowerCase()) &&
-            returnCase.refundStatus !== "refunded" && (
+            returnCase.refundStatus !== "refunded" &&
+            (isManualReturn ? (
+              <div style={{ ...cardStyle, padding: 12, background: "#f6f6f7", borderColor: "#e1e3e5" }}>
+                <p style={{ margin: 0, fontSize: 14, color: "#1a1a1a" }}>
+                  Manual return — process the refund in Shopify Admin for order <strong>{returnCase.shopifyOrderName || "—"}</strong>.
+                </p>
+              </div>
+            ) : (
               <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
                 <input type="hidden" name="json" value={JSON.stringify({ action: "process_refund" })} />
                 <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
                   {fetcher.state !== "idle" ? "Processing refund..." : "Process refund in Shopify"}
                 </s-button>
               </fetcher.Form>
-            )}
+            ))}
         </div>
         <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
           <input type="hidden" name="action" value="add_note" />

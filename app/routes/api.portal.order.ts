@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { fetchOrderByOrderNumber, OrderAccessError } from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 
@@ -32,6 +32,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("Portal order fetch:", err);
     if ((err as { name?: string }).name === "SessionNotFoundError") {
       return withCors(Response.json({ error: "Store has not connected the app. Please contact the store." }, { status: 403 }), request);
+    }
+    if (err instanceof OrderAccessError) {
+      return withCors(
+        Response.json({
+          fallback: true,
+          orderNumber: orderNumber?.replace(/^#/, "").trim(),
+          error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
+        }, { status: 200 }),
+        request
+      );
+    }
+    const msg = (err as Error)?.message ?? "";
+    if (msg.includes("not approved") || msg.includes("Order object") || msg.includes("protected")) {
+      return withCors(
+        Response.json({
+          fallback: true,
+          orderNumber: orderNumber?.replace(/^#/, "").trim(),
+          error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
+        }, { status: 200 }),
+        request
+      );
     }
     return withCors(
       Response.json({ error: err instanceof Error ? err.message : "Failed to fetch order" }, { status: 500 }),

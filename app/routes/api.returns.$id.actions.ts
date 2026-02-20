@@ -132,6 +132,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (returnCase.refundStatus === "refunded") {
       return Response.json({ error: "Refund has already been processed" }, { status: 400 });
     }
+    if (returnCase.shopifyOrderId?.startsWith("manual:")) {
+      const orderName = returnCase.shopifyOrderName ?? returnCase.shopifyOrderId?.replace(/^manual:/, "") ?? "—";
+      return Response.json({
+        error: `This is a manual return request. Process the refund in Shopify Admin for order ${orderName}.`,
+      }, { status: 400 });
+    }
     let lineItemIds = (returnCase.items ?? [])
       .map((i) => i.shopifyLineItemId)
       .filter((x): x is string => !!x);

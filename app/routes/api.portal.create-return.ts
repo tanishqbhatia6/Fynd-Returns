@@ -23,10 +23,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const shopifyOrderName = body.shopifyOrderName as string | undefined;
     const customerEmail = (body.customerEmail as string | undefined)?.trim().toLowerCase();
     const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string }> | undefined;
+    const manualMode = body.manual === true;
+    const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
 
-    if (!shop || !orderId || !shopifyOrderName) {
+    if (!shop || !shopifyOrderName) {
       return withCors(
-        Response.json({ error: "shop, orderId, and shopifyOrderName are required" }, { status: 400 }),
+        Response.json({ error: "shop and shopifyOrderName are required" }, { status: 400 }),
+        request
+      );
+    }
+    if (!manualMode && !orderId) {
+      return withCors(
+        Response.json({ error: "orderId is required for automatic mode" }, { status: 400 }),
         request
       );
     }
@@ -43,26 +51,45 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const settings = shopRecord.settings;
     const returnWindowDays = settings?.returnWindowDays ?? 30;
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return withCors(
-        Response.json({ error: "At least one item must be selected for return" }, { status: 400 }),
-        request
-      );
-    }
+    const effectiveOrderId = manualMode ? `manual:${shopifyOrderName}` : orderId!;
+    let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string }>;
 
-    for (const it of items) {
-      if (!it?.lineItemId || typeof it.qty !== "number" || it.qty < 1) {
+    if (manualMode) {
+      if (!customerEmail) {
         return withCors(
-          Response.json({ error: "Each item must have lineItemId and qty >= 1" }, { status: 400 }),
+          Response.json({ error: "Email is required for manual return requests" }, { status: 400 }),
           request
         );
       }
+      if (!manualItemDescription || manualItemDescription.length < 3) {
+        return withCors(
+          Response.json({ error: "Please describe the item(s) you want to return" }, { status: 400 }),
+          request
+        );
+      }
+      itemsToCreate = [{ lineItemId: "manual", qty: 1, reasonCode: body.reasonCode || "Other", notes: manualItemDescription }];
+    } else {
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return withCors(
+          Response.json({ error: "At least one item must be selected for return" }, { status: 400 }),
+          request
+        );
+      }
+      for (const it of items) {
+        if (!it?.lineItemId || typeof it.qty !== "number" || it.qty < 1) {
+          return withCors(
+            Response.json({ error: "Each item must have lineItemId and qty >= 1" }, { status: 400 }),
+            request
+          );
+        }
+      }
+      itemsToCreate = items.map((it) => ({ lineItemId: it.lineItemId, qty: it.qty, reasonCode: it.reasonCode }));
     }
 
     const existing = await prisma.returnCase.findFirst({
       where: {
         shopId: shopRecord.id,
-        shopifyOrderId: orderId,
+        shopifyOrderId: effectiveOrderId,
         status: { in: NON_TERMINAL_STATUSES },
       },
     });
@@ -75,47 +102,50 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       );
     }
 
-    const orderCreatedAt = body.orderCreatedAt as string | undefined;
-    const orderDate = orderCreatedAt ? new Date(orderCreatedAt) : new Date();
-    const windowEnd = new Date(orderDate);
-    windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
-    if (new Date() > windowEnd) {
-      return withCors(
-        Response.json({
-          error: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.`,
-        }, { status: 400 }),
-        request
-      );
-    }
-
-    const lineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
-      id: string;
-      price?: string;
-      productTags?: string[];
-    }>;
-    const validLineIds = new Set(lineItemsWithPrice.map((l) => l.id));
-    for (const sel of items) {
-      if (!validLineIds.has(sel.lineItemId)) {
+    if (!manualMode) {
+      const orderCreatedAt = body.orderCreatedAt as string | undefined;
+      const orderDate = orderCreatedAt ? new Date(orderCreatedAt) : new Date();
+      const windowEnd = new Date(orderDate);
+      windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
+      if (new Date() > windowEnd) {
         return withCors(
-          Response.json({ error: "Invalid line item selected. Please refresh and try again." }, { status: 400 }),
+          Response.json({
+            error: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.`,
+          }, { status: 400 }),
           request
         );
       }
-      const li = lineItemsWithPrice.find((l) => l.id === sel.lineItemId);
-      const price = li?.price ? parseFloat(li.price) : undefined;
-      const tags = li?.productTags ?? [];
-      const eligibility = checkReturnEligibility(settings, {
-        orderDate,
-        productPrice: price,
-        productTags: tags.length ? tags : undefined,
-        customerCountry: body.shippingCountry,
-        customerProvince: body.shippingProvince,
-      });
-      if (!eligibility.eligible) {
-        return withCors(
-          Response.json({ error: eligibility.reason ?? "Item not eligible for return" }, { status: 400 }),
-          request
-        );
+
+      const lineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
+        id: string;
+        price?: string;
+        productTags?: string[];
+      }>;
+      const validLineIds = new Set(lineItemsWithPrice.map((l) => l.id));
+      for (const sel of itemsToCreate) {
+        if (sel.lineItemId === "manual") continue;
+        if (!validLineIds.has(sel.lineItemId)) {
+          return withCors(
+            Response.json({ error: "Invalid line item selected. Please refresh and try again." }, { status: 400 }),
+            request
+          );
+        }
+        const li = lineItemsWithPrice.find((l) => l.id === sel.lineItemId);
+        const price = li?.price ? parseFloat(li.price) : undefined;
+        const tags = li?.productTags ?? [];
+        const eligibility = checkReturnEligibility(settings, {
+          orderDate: orderCreatedAt ? new Date(orderCreatedAt) : new Date(),
+          productPrice: price,
+          productTags: tags.length ? tags : undefined,
+          customerCountry: body.shippingCountry,
+          customerProvince: body.shippingProvince,
+        });
+        if (!eligibility.eligible) {
+          return withCors(
+            Response.json({ error: eligibility.reason ?? "Item not eligible for return" }, { status: 400 }),
+            request
+          );
+        }
       }
     }
 
@@ -124,15 +154,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const returnCase = await prisma.returnCase.create({
       data: {
         shopId: shopRecord.id,
-        shopifyOrderId: orderId,
+        shopifyOrderId: effectiveOrderId,
         shopifyOrderName,
         customerEmailNorm: customerEmail || null,
         status,
         items: {
-          create: items.map((it) => ({
+          create: itemsToCreate.map((it) => ({
             shopifyLineItemId: it.lineItemId,
             qty: it.qty,
             reasonCode: it.reasonCode || null,
+            notes: it.notes || null,
           })),
         },
       },
@@ -146,7 +177,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         eventType: status === "approved" ? "auto_approved" : "initiated",
         payloadJson: JSON.stringify({
           customerEmail: customerEmail || null,
-          itemCount: items.length,
+          itemCount: itemsToCreate.length,
+          manual: manualMode,
         }),
       },
     });

@@ -80,6 +80,16 @@ export type OrderForPortal = {
   shippingProvince?: string | null;
 };
 
+export class OrderAccessError extends Error {
+  constructor(
+    message: string,
+    public readonly code: "PCDA" | "NOT_FOUND" = "PCDA"
+  ) {
+    super(message);
+    this.name = "OrderAccessError";
+  }
+}
+
 export async function fetchOrderByOrderNumber(
   admin: AdminGraphQL,
   orderNumber: string
@@ -88,7 +98,17 @@ export async function fetchOrderByOrderNumber(
   if (!clean) return null;
   const query = /^\d+$/.test(clean) ? `name:#${clean}` : `name:${clean}`;
   const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query } });
-  const json = (await res.json()) as { data?: { orders?: { nodes?: Array<unknown> } } };
+  const json = (await res.json()) as {
+    data?: { orders?: { nodes?: Array<unknown> } };
+    errors?: Array<{ message?: string }>;
+  };
+  const errMsg = json.errors?.[0]?.message ?? "";
+  if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
+    throw new OrderAccessError(errMsg, "PCDA");
+  }
+  if (json.errors?.length) {
+    throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
+  }
   const node = json.data?.orders?.nodes?.[0];
   if (!node || !("name" in node)) return null;
   const o = node as {

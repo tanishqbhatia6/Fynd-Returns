@@ -203,6 +203,29 @@
         <button type="button" id="btnCreateBack" class="btn-primary" style="margin-top: 12px; background: var(--portal-text-muted);">Back</button>
         <p id="createErr2" class="form-error"></p>
       </div>
+      <div id="create-step2-manual" class="portal-step">
+        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Submit Return Request</h2>
+        <p id="createManualHint" style="font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 16px;"></p>
+        <div class="form-group">
+          <label class="form-label" for="createManualOrderNumber">Order Number</label>
+          <input type="text" id="createManualOrderNumber" class="form-input" readonly>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="createManualEmail">Your email <span style="color:#d72c0d">*</span></label>
+          <input type="email" id="createManualEmail" class="form-input" placeholder="email@example.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="createManualReason">Reason for return</label>
+          <select id="createManualReason" class="form-select"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="createManualItems">Describe the item(s) you want to return <span style="color:#d72c0d">*</span></label>
+          <textarea id="createManualItems" class="form-input" rows="3" placeholder="e.g. Blue t-shirt size M, 1 unit"></textarea>
+        </div>
+        <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit Return Request</button>
+        <button type="button" id="btnManualBack" class="btn-primary" style="margin-top: 12px; background: var(--portal-text-muted);">Back</button>
+        <p id="createErrManual" class="form-error"></p>
+      </div>
       <div id="create-step3" class="portal-step">
         <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Return Submitted</h2>
         <p id="createSuccessMsg" class="return-empty" style="color: var(--portal-text);"></p>
@@ -269,6 +292,17 @@
       try {
         const res = await fetch(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber.replace(/^#/,'')));
         const data = await res.json();
+        if (data.fallback) {
+          document.getElementById('createManualHint').textContent = data.error || 'Complete the form below. The store will process your return manually.';
+          document.getElementById('createManualOrderNumber').value = '#' + (data.orderNumber || orderNumber.replace(/^#/,''));
+          const reasonSel = document.getElementById('createManualReason');
+          reasonSel.innerHTML = REASONS.map(r => '<option value="'+r+'">'+r+'</option>').join('') || '<option value="Other">Other</option>';
+          createOrderData = { manual: true, orderNumber: data.orderNumber || orderNumber.replace(/^#/,''), name: '#' + (data.orderNumber || orderNumber.replace(/^#/,'')) };
+          document.getElementById('create-step1').classList.remove('active');
+          document.getElementById('create-step2').classList.remove('active');
+          document.getElementById('create-step2-manual').classList.add('active');
+          return;
+        }
         if (data.error) throw new Error(data.error);
         createOrderData = data.order;
         document.getElementById('createOrderName').textContent = 'Order ' + (createOrderData.name || '');
@@ -283,17 +317,56 @@
         const reasonSel = document.getElementById('createReason');
         reasonSel.innerHTML = REASONS.map(r => '<option value="'+r+'">'+r+'</option>').join('') || '<option value="Other">Other</option>';
         document.getElementById('create-step1').classList.remove('active');
+        document.getElementById('create-step2-manual').classList.remove('active');
         document.getElementById('create-step2').classList.add('active');
       } catch (e) { err.textContent = e.message; }
     };
 
     document.getElementById('btnCreateBack').onclick = () => {
       document.getElementById('create-step2').classList.remove('active');
+      document.getElementById('create-step2-manual').classList.remove('active');
       document.getElementById('create-step3').classList.remove('active');
       document.getElementById('create-step1').classList.add('active');
     };
 
+    document.getElementById('btnManualBack').onclick = () => {
+      document.getElementById('create-step2-manual').classList.remove('active');
+      document.getElementById('create-step1').classList.add('active');
+    };
+
+    document.getElementById('btnSubmitManualReturn').onclick = async () => {
+      const shop = document.getElementById('shop').value.trim();
+      const err = document.getElementById('createErrManual');
+      err.textContent = '';
+      const orderNumber = document.getElementById('createManualOrderNumber').value.replace(/^#/,'').trim();
+      const email = document.getElementById('createManualEmail').value.trim();
+      const reason = document.getElementById('createManualReason').value;
+      const itemDesc = document.getElementById('createManualItems').value.trim();
+      if (!email) { err.textContent = 'Please enter your email'; return; }
+      if (!itemDesc || itemDesc.length < 3) { err.textContent = 'Please describe the item(s) you want to return'; return; }
+      try {
+        const res = await fetch(API + '/create-return', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop,
+            shopifyOrderName: '#' + orderNumber,
+            customerEmail: email,
+            manual: true,
+            reasonCode: reason,
+            manualItemDescription: itemDesc
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        document.getElementById('create-step2-manual').classList.remove('active');
+        document.getElementById('create-step3').classList.add('active');
+        document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted. The store will process it manually.';
+      } catch (e) { err.textContent = e.message; }
+    };
+
     document.getElementById('btnSubmitReturn').onclick = async () => {
+      if (!createOrderData || createOrderData.manual) return;
       const shop = document.getElementById('shop').value.trim();
       const err = document.getElementById('createErr2');
       err.textContent = '';
@@ -337,6 +410,9 @@
     document.getElementById('btnCreateAnother').onclick = () => {
       createOrderData = null;
       document.getElementById('createOrderNumber').value = '';
+      document.getElementById('createManualEmail').value = '';
+      document.getElementById('createManualItems').value = '';
+      document.getElementById('create-step2-manual').classList.remove('active');
       document.getElementById('create-step3').classList.remove('active');
       document.getElementById('create-step1').classList.add('active');
     };

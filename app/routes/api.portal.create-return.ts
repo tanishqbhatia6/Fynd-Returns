@@ -30,6 +30,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string }> | undefined;
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
+    const customerNotes = (body.customerNotes as string | undefined)?.trim();
 
     if (!shop || !shopifyOrderName) {
       return withCors(
@@ -182,6 +183,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         shopifyOrderId: effectiveOrderId,
         shopifyOrderName,
         customerEmailNorm: customerEmail || null,
+        customerNotes: customerNotes || null,
         status,
         items: {
           create: itemsToCreate.map((it) => ({

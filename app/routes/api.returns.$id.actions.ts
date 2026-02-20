@@ -3,6 +3,9 @@ import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { createRefund, fetchOrder } from "../lib/shopify-admin.server";
+import { createFyndClient } from "../lib/fynd.server";
+import { createReturnOnFynd } from "../lib/fynd-returns.server";
+import { sendRejectionNotification } from "../lib/notification.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -24,7 +27,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const terminalStatuses = ["approved", "rejected", "completed", "cancelled"];
   const isTerminal = terminalStatuses.includes(returnCase.status.toLowerCase());
 
-  let body: { action: string; status?: string; note?: string; refund?: boolean };
+  let body: { action: string; status?: string; note?: string; refund?: boolean; rejectionReason?: string };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     try {
@@ -37,6 +40,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const jsonStr = formData.get("json") as string | null;
     const actionVal = formData.get("action") as string | null;
     const noteVal = formData.get("note") as string | null;
+    const rejectionReasonVal = formData.get("rejectionReason") as string | null;
     if (jsonStr) {
       try {
         body = JSON.parse(jsonStr) as typeof body;
@@ -47,9 +51,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       body = { action: actionVal || "unknown" };
     }
     if (noteVal !== null && noteVal !== undefined) body.note = noteVal;
+    if (rejectionReasonVal !== null && rejectionReasonVal !== undefined) body.rejectionReason = rejectionReasonVal;
   }
 
-  const { action: actionType, status: newStatus, note, refund: doRefund } = body;
+  const { action: actionType, status: newStatus, note, refund: doRefund, rejectionReason } = body;
 
   if (actionType === "update_status" && newStatus) {
     const validStatuses = ["pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled", "initiated"];
@@ -91,16 +96,47 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (isTerminal) {
       return Response.json({ error: `Cannot approve: return is already ${returnCase.status}` }, { status: 400 });
     }
+    let fyndReturnId: string | null = null;
+    let fyndReturnNo: string | null = null;
+    const shopWithSettings = await prisma.shop.findUnique({
+      where: { id: shop.id },
+      include: { settings: true },
+    });
+    const fyndClient = shopWithSettings?.settings
+      ? await createFyndClient(shopWithSettings.settings)
+      : null;
+    if (fyndClient && "getShipments" in fyndClient) {
+      try {
+        const fyndResult = await createReturnOnFynd(fyndClient, returnCase);
+        if (fyndResult.success && fyndResult.fyndReturnId) {
+          fyndReturnId = fyndResult.fyndReturnId;
+          fyndReturnNo = fyndResult.fyndReturnNo ?? null;
+        } else if (fyndResult.error) {
+          console.warn("[Approve] Fynd create return failed:", fyndResult.error);
+        }
+      } catch (err) {
+        console.warn("[Approve] Fynd error:", err);
+      }
+    }
     await prisma.returnCase.update({
       where: { id },
-      data: { status: "approved", adminNotes: note || returnCase.adminNotes },
+      data: {
+        status: "approved",
+        adminNotes: note || returnCase.adminNotes,
+        ...(fyndReturnId && { fyndReturnId }),
+        ...(fyndReturnNo && { fyndReturnNo }),
+      },
     });
     await prisma.returnEvent.create({
       data: {
         returnCaseId: id,
         source: "admin",
         eventType: "approved",
-        payloadJson: note ? JSON.stringify({ note }) : null,
+        payloadJson: JSON.stringify({
+          note: note || null,
+          fyndReturnId: fyndReturnId || null,
+          fyndReturnNo: fyndReturnNo || null,
+        }),
       },
     });
     throw redirect(`/app/returns/${id}`);
@@ -110,18 +146,46 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (isTerminal) {
       return Response.json({ error: `Cannot reject: return is already ${returnCase.status}` }, { status: 400 });
     }
+    const reason = (rejectionReason ?? "").trim();
+    if (!reason) {
+      return Response.json({ error: "Rejection reason is required. Please provide a reason to show the customer." }, { status: 400 });
+    }
+    if (reason.length > 500) {
+      return Response.json({ error: "Rejection reason is too long" }, { status: 400 });
+    }
     await prisma.returnCase.update({
       where: { id },
-      data: { status: "rejected", adminNotes: note || returnCase.adminNotes },
+      data: {
+        status: "rejected",
+        rejectionReason: reason,
+        adminNotes: note || returnCase.adminNotes,
+      },
     });
     await prisma.returnEvent.create({
       data: {
         returnCaseId: id,
         source: "admin",
         eventType: "rejected",
-        payloadJson: note ? JSON.stringify({ note }) : null,
+        payloadJson: JSON.stringify({ rejectionReason: reason, note: note || null }),
       },
     });
+    const shopWithSettings = await prisma.shop.findUnique({
+      where: { id: shop.id },
+      include: { settings: true },
+    });
+    const notifyRejected = shopWithSettings?.settings?.notificationRejected ?? true;
+    if (notifyRejected && returnCase.customerEmailNorm) {
+      try {
+        await sendRejectionNotification({
+          to: returnCase.customerEmailNorm,
+          orderName: returnCase.shopifyOrderName || "your order",
+          rejectionReason: reason,
+          shopName: session.shop?.replace(".myshopify.com", ""),
+        });
+      } catch (err) {
+        console.warn("[Reject] Notification failed:", err);
+      }
+    }
     throw redirect(`/app/returns/${id}`);
   }
 

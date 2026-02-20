@@ -1,0 +1,2 @@
+ALTER TABLE "ReturnCase" ADD COLUMN IF NOT EXISTS "customerNotes" TEXT;
+ALTER TABLE "ReturnCase" ADD COLUMN IF NOT EXISTS "rejectionReason" TEXT;

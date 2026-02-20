@@ -205,6 +205,10 @@
           <label class="form-label" for="createEmail">Your email (optional)</label>
           <input type="email" id="createEmail" class="form-input" placeholder="email@example.com">
         </div>
+        <div class="form-group">
+          <label class="form-label" for="createCustomerNotes">Additional notes (optional)</label>
+          <textarea id="createCustomerNotes" class="form-input" rows="2" placeholder="Any additional details for the store"></textarea>
+        </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit Return Request</button>
         <button type="button" id="btnCreateBack" class="btn-primary" style="margin-top: 12px; background: var(--portal-text-muted);">Back</button>
         <p id="createErr2" class="form-error"></p>
@@ -227,6 +231,10 @@
         <div class="form-group">
           <label class="form-label" for="createManualItems">Describe the item(s) you want to return <span style="color:#d72c0d">*</span></label>
           <textarea id="createManualItems" class="form-input" rows="3" placeholder="e.g. Blue t-shirt size M, 1 unit"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="createManualCustomerNotes">Additional notes (optional)</label>
+          <textarea id="createManualCustomerNotes" class="form-input" rows="2" placeholder="Any additional details for the store"></textarea>
         </div>
         <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit Return Request</button>
         <button type="button" id="btnManualBack" class="btn-primary" style="margin-top: 12px; background: var(--portal-text-muted);">Back</button>
@@ -251,6 +259,7 @@
       if (RETURN_POLICY) detail.innerHTML = RETURN_POLICY.replace(/\n/g, '<br>');
     })();
     const API = APP_URL + '/api/portal';
+    function escapeHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
     document.getElementById('btnLookup').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
@@ -268,7 +277,13 @@
         document.getElementById('step2').classList.add('active');
         document.getElementById('result').innerHTML = returns.length === 0
           ? '<p class="return-empty">No returns found for this lookup.</p>'
-          : returns.map(x => '<div class="return-card"><div class="return-order">' + (x.shopifyOrderName || x.id) + '</div><div class="return-status">Status: ' + x.status + '</div></div>').join('');
+          : returns.map(x => {
+              let html = '<div class="return-card"><div class="return-order">' + (x.shopifyOrderName || x.id) + '</div><div class="return-status">Status: ' + x.status + '</div>';
+              if (x.status && x.status.toLowerCase() === 'rejected' && x.rejectionReason) {
+                html += '<div style="margin-top:8px;font-size:0.875rem;color:#d72c0d;">Reason: ' + escapeHtml(x.rejectionReason) + '</div>';
+              }
+              return html + '</div>';
+            }).join('');
       } catch (e) { err.textContent = e.message; }
     };
 
@@ -409,7 +424,8 @@
             customerEmail: email,
             manual: true,
             reasonCode: reason,
-            manualItemDescription: itemDesc
+            manualItemDescription: itemDesc,
+            customerNotes: document.getElementById('createManualCustomerNotes').value.trim() || undefined
           })
         });
         const data = await res.json();
@@ -462,6 +478,7 @@
             orderId: createOrderData.id,
             shopifyOrderName: createOrderData.name,
             customerEmail: document.getElementById('createEmail').value.trim() || undefined,
+            customerNotes: document.getElementById('createCustomerNotes').value.trim() || undefined,
             orderCreatedAt: createOrderData.createdAt,
             shippingCountry: createOrderData.shippingCountry,
             shippingProvince: createOrderData.shippingProvince,
@@ -488,6 +505,8 @@
       document.getElementById('createManualOrderNumber').value = '';
       document.getElementById('createManualEmail').value = '';
       document.getElementById('createManualItems').value = '';
+      document.getElementById('createCustomerNotes').value = '';
+      document.getElementById('createManualCustomerNotes').value = '';
       document.getElementById('createErr1').textContent = '';
       document.getElementById('createErr2').textContent = '';
       document.getElementById('createErrManual').textContent = '';

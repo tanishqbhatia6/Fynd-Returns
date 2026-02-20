@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useNavigate, useFetcher, isRouteErrorResponse, useRouteError } from "react-router";
+import { useState } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
@@ -61,6 +62,8 @@ export default function ReturnDetail() {
   const { returnCase, shopDomain, shopifyOrder, isManualReturn } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const fetcher = useFetcher<{ success?: boolean; error?: string; status?: string }>();
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const storeName = shopDomain.replace(".myshopify.com", "");
   const orderUrl = isManualReturn
     ? `https://admin.shopify.com/store/${storeName}/orders`
@@ -158,6 +161,14 @@ export default function ReturnDetail() {
               <span style={{ color: returnCase.refundStatus === "refunded" ? "#008060" : "#6d7175" }}>{returnCase.refundStatus}</span>
             </div>
           )}
+          {returnCase.status.toLowerCase() === "rejected" && returnCase.rejectionReason && (
+            <div style={{ gridColumn: "1 / -1" }}>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Rejection reason (shown to customer)</div>
+              <div style={{ padding: 12, background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca", color: "#991b1b" }}>
+                {returnCase.rejectionReason}
+              </div>
+            </div>
+          )}
         </div>
       </s-section>
 
@@ -171,12 +182,38 @@ export default function ReturnDetail() {
                   {fetcher.state !== "idle" ? "Processing..." : "Approve"}
                 </s-button>
               </fetcher.Form>
-              <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                <input type="hidden" name="json" value={JSON.stringify({ action: "reject" })} />
-                <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+              {!showRejectForm ? (
+                <s-button
+                  type="button"
+                  variant="secondary"
+                  disabled={fetcher.state !== "idle"}
+                  onClick={() => setShowRejectForm(true)}
+                >
                   Reject
                 </s-button>
-              </fetcher.Form>
+              ) : (
+                <div style={{ ...cardStyle, padding: 16, width: "100%", maxWidth: 400 }}>
+                  <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Rejection reason (required — shown to customer)</label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="e.g. Item is not in original condition"
+                    rows={3}
+                    style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", marginBottom: 12 }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                      <input type="hidden" name="json" value={JSON.stringify({ action: "reject", rejectionReason: rejectReason.trim() })} />
+                      <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle" || !rejectReason.trim()}>
+                        {fetcher.state !== "idle" ? "Rejecting..." : "Confirm Reject"}
+                      </s-button>
+                    </fetcher.Form>
+                    <s-button type="button" variant="secondary" onClick={() => { setShowRejectForm(false); setRejectReason(""); }}>
+                      Cancel
+                    </s-button>
+                  </div>
+                </div>
+              )}
             </>
           )}
           {["approved", "completed"].includes(returnCase.status.toLowerCase()) &&
@@ -196,6 +233,14 @@ export default function ReturnDetail() {
               </fetcher.Form>
             ))}
         </div>
+        {returnCase.customerNotes && (
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Customer notes</label>
+            <div style={{ padding: 12, background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5", whiteSpace: "pre-wrap" }}>
+              {returnCase.customerNotes}
+            </div>
+          </div>
+        )}
         <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
           <input type="hidden" name="action" value="add_note" />
           <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Admin notes</label>

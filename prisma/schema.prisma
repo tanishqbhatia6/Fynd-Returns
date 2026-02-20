@@ -95,6 +95,8 @@ model ReturnCase {
   status            String
   refundStatus      String?
   adminNotes        String?
+  customerNotes     String?
+  rejectionReason   String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

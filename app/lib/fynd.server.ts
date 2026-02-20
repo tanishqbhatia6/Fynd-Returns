@@ -52,21 +52,51 @@ export class FyndPlatformClient {
     return `/service/platform/order/v1.0/company/${this.companyId}/application/${this.applicationId}`;
   }
 
-  private async request(method: string, path: string) {
+  private async request(method: string, path: string, body?: unknown) {
     const url = `${this.baseUrl}${path}`;
-    const headers = {
+    const headers: Record<string, string> = {
       "Content-Type": "application/json",
       "Authorization": `Bearer ${this.accessToken}`,
     };
-    this.log?.("fynd-platform", "Request", `GET ${url}`);
-    const res = await fetch(url, { method, headers });
-    const body = await res.text();
-    if (!res.ok) throw new Error(`Fynd Platform API error ${res.status}: ${body}`);
-    return JSON.parse(body);
+    this.log?.("fynd-platform", "Request", `${method} ${path}`);
+    const res = await fetch(url, {
+      method,
+      headers,
+      ...(body !== undefined && { body: JSON.stringify(body) }),
+    });
+    const text = await res.text();
+    if (!res.ok) throw new Error(`Fynd Platform API error ${res.status}: ${text}`);
+    return text ? (JSON.parse(text) as unknown) : null;
   }
 
   async getReturnReasons() {
     return this.request("GET", `${this.basePath}/orders/returns/reasons`);
+  }
+
+  /** Get shipments for an order (orderId = Fynd order ID, often matches Shopify order name) */
+  async getShipments(orderId: string): Promise<unknown> {
+    return this.request("GET", `${this.basePath}/orders/${encodeURIComponent(orderId)}/shipments`);
+  }
+
+  /** Update shipment status (e.g. return_initiated to create return on Fynd) */
+  async updateShipmentStatus(
+    orderId: string,
+    payload: {
+      statuses: Array<{
+        shipments: Array<{
+          identifier: string;
+          products?: Array<{ line_number: number; quantity: number; identifier: string }>;
+          reasons?: { products?: Array<{ filters: Array<{ identifier: string; line_number: number; quantity: number }>; data: { reason_id?: number; reason_text?: string } }> };
+        }>;
+        status: string;
+      }>;
+      task?: boolean;
+      force_transition?: boolean;
+      lock_after_transition?: boolean;
+      unlock_before_transition?: boolean;
+    }
+  ): Promise<unknown> {
+    return this.request("PUT", `${this.basePath}/orders/${encodeURIComponent(orderId)}/shipments/status`, payload);
   }
 
   async testConnection() {

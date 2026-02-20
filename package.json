@@ -11,7 +11,8 @@
     "start": "react-router-serve ./build/server/index.js",
     "setup": "prisma generate && prisma migrate deploy",
     "shopify": "shopify",
-    "prisma": "prisma"
+    "prisma": "prisma",
+    "validate:key": "node scripts/validate-encryption-key.js"
   },
   "type": "module",
   "engines": {

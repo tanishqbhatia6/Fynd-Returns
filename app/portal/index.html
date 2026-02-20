@@ -177,11 +177,17 @@
     <div id="create-panel" class="portal-card" style="display:none;">
       <div id="create-step1" class="portal-step active">
         <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Create Return</h2>
+        <p class="step-label">Choose how you'd like to start your return:</p>
         <div class="form-group">
-          <label class="form-label" for="createOrderNumber">Order Number</label>
+          <label class="form-label" for="createOrderNumber">Search by Order Number</label>
           <input type="text" id="createOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
+          <button type="button" id="btnFetchOrder" class="btn-primary" style="margin-top: 12px;">Find Order</button>
         </div>
-        <button type="button" id="btnFetchOrder" class="btn-primary">Find Order</button>
+        <div style="text-align: center; margin: 20px 0; color: var(--portal-text-muted); font-size: 0.875rem;">— or —</div>
+        <div class="form-group">
+          <button type="button" id="btnUseManualForm" class="btn-primary" style="background: var(--portal-text-muted);">Use manual form</button>
+          <p style="font-size: 0.8125rem; color: var(--portal-text-muted); margin-top: 8px;">Can't find your order? Submit a return request manually.</p>
+        </div>
         <p id="createErr1" class="form-error"></p>
       </div>
       <div id="create-step2" class="portal-step">
@@ -205,10 +211,10 @@
       </div>
       <div id="create-step2-manual" class="portal-step">
         <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Submit Return Request</h2>
-        <p id="createManualHint" style="font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 16px;"></p>
+        <p id="createManualHint" style="font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 16px; display:none;"></p>
         <div class="form-group">
-          <label class="form-label" for="createManualOrderNumber">Order Number</label>
-          <input type="text" id="createManualOrderNumber" class="form-input" readonly>
+          <label class="form-label" for="createManualOrderNumber">Order Number <span style="color:#d72c0d">*</span></label>
+          <input type="text" id="createManualOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
         </div>
         <div class="form-group">
           <label class="form-label" for="createManualEmail">Your email <span style="color:#d72c0d">*</span></label>
@@ -283,43 +289,85 @@
       };
     });
 
+    function showManualForm(fromFallback, orderNumber, hint) {
+      const hintEl = document.getElementById('createManualHint');
+      const orderInput = document.getElementById('createManualOrderNumber');
+      if (fromFallback) {
+        hintEl.textContent = hint || 'Complete the form below. The store will process your return manually.';
+        hintEl.style.display = 'block';
+        orderInput.value = orderNumber ? '#' + orderNumber.replace(/^#/,'') : '';
+      } else {
+        hintEl.textContent = '';
+        hintEl.style.display = 'none';
+        orderInput.value = '';
+      }
+      const reasonSel = document.getElementById('createManualReason');
+      reasonSel.innerHTML = REASONS.map(r => '<option value="'+r+'">'+r+'</option>').join('') || '<option value="Other">Other</option>';
+      document.getElementById('create-step1').classList.remove('active');
+      document.getElementById('create-step2').classList.remove('active');
+      document.getElementById('create-step2-manual').classList.add('active');
+    }
+
+    document.getElementById('btnUseManualForm').onclick = () => {
+      document.getElementById('createErr1').textContent = '';
+      showManualForm(false, null, null);
+    };
+
     document.getElementById('btnFetchOrder').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
       const orderNumber = document.getElementById('createOrderNumber').value.trim();
       const err = document.getElementById('createErr1');
+      const btn = document.getElementById('btnFetchOrder');
       err.textContent = '';
+      if (!shop) { err.textContent = 'Store is required'; return; }
       if (!orderNumber) { err.textContent = 'Please enter your order number'; return; }
+      const cleanOrder = orderNumber.replace(/^#/,'').trim();
+      if (!cleanOrder) { err.textContent = 'Please enter a valid order number'; return; }
+      btn.disabled = true;
+      btn.textContent = 'Searching...';
       try {
-        const res = await fetch(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber.replace(/^#/,'')));
+        const res = await fetch(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(cleanOrder));
         const data = await res.json();
         if (data.fallback) {
-          document.getElementById('createManualHint').textContent = data.error || 'Complete the form below. The store will process your return manually.';
-          document.getElementById('createManualOrderNumber').value = '#' + (data.orderNumber || orderNumber.replace(/^#/,''));
-          const reasonSel = document.getElementById('createManualReason');
-          reasonSel.innerHTML = REASONS.map(r => '<option value="'+r+'">'+r+'</option>').join('') || '<option value="Other">Other</option>';
-          createOrderData = { manual: true, orderNumber: data.orderNumber || orderNumber.replace(/^#/,''), name: '#' + (data.orderNumber || orderNumber.replace(/^#/,'')) };
-          document.getElementById('create-step1').classList.remove('active');
-          document.getElementById('create-step2').classList.remove('active');
-          document.getElementById('create-step2-manual').classList.add('active');
+          createOrderData = { manual: true, orderNumber: data.orderNumber || cleanOrder, name: '#' + (data.orderNumber || cleanOrder) };
+          showManualForm(true, data.orderNumber || cleanOrder, data.error);
           return;
         }
         if (data.error) throw new Error(data.error);
+        if (!data.order) throw new Error('Order not found');
         createOrderData = data.order;
+        if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
+          throw new Error('This order has no items to return.');
+        }
         document.getElementById('createOrderName').textContent = 'Order ' + (createOrderData.name || '');
         const list = document.getElementById('createItemsList');
         list.innerHTML = createOrderData.lineItems.map(li => `
           <div class="item-row">
             <input type="checkbox" id="item-${li.id}" data-id="${li.id}" data-price="${li.price || ''}" data-tags="${(li.productTags||[]).join(',')}">
             <label for="item-${li.id}">${li.title} ${li.sku ? '('+li.sku+')' : ''} × ${li.quantity}</label>
-            <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}">
+            <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}" data-max="${li.quantity}">
           </div>
         `).join('');
+        list.querySelectorAll('.item-qty').forEach(inp => {
+          inp.addEventListener('blur', function() {
+            const max = parseInt(this.dataset.max || '1', 10);
+            let v = parseInt(this.value, 10);
+            if (isNaN(v) || v < 1) v = 1;
+            if (v > max) v = max;
+            this.value = v;
+          });
+        });
         const reasonSel = document.getElementById('createReason');
         reasonSel.innerHTML = REASONS.map(r => '<option value="'+r+'">'+r+'</option>').join('') || '<option value="Other">Other</option>';
         document.getElementById('create-step1').classList.remove('active');
         document.getElementById('create-step2-manual').classList.remove('active');
         document.getElementById('create-step2').classList.add('active');
-      } catch (e) { err.textContent = e.message; }
+      } catch (e) {
+        err.textContent = e.message || 'Something went wrong. Please try again or use the manual form.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Find Order';
+      }
     };
 
     document.getElementById('btnCreateBack').onclick = () => {
@@ -334,16 +382,23 @@
       document.getElementById('create-step1').classList.add('active');
     };
 
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     document.getElementById('btnSubmitManualReturn').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
       const err = document.getElementById('createErrManual');
+      const btn = document.getElementById('btnSubmitManualReturn');
       err.textContent = '';
       const orderNumber = document.getElementById('createManualOrderNumber').value.replace(/^#/,'').trim();
       const email = document.getElementById('createManualEmail').value.trim();
       const reason = document.getElementById('createManualReason').value;
       const itemDesc = document.getElementById('createManualItems').value.trim();
+      if (!shop) { err.textContent = 'Store is required'; return; }
+      if (!orderNumber) { err.textContent = 'Please enter your order number'; return; }
       if (!email) { err.textContent = 'Please enter your email'; return; }
-      if (!itemDesc || itemDesc.length < 3) { err.textContent = 'Please describe the item(s) you want to return'; return; }
+      if (!EMAIL_REGEX.test(email)) { err.textContent = 'Please enter a valid email address'; return; }
+      if (!itemDesc || itemDesc.length < 3) { err.textContent = 'Please describe the item(s) you want to return (at least 3 characters)'; return; }
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
       try {
         const res = await fetch(API + '/create-return', {
           method: 'POST',
@@ -362,27 +417,42 @@
         document.getElementById('create-step2-manual').classList.remove('active');
         document.getElementById('create-step3').classList.add('active');
         document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted. The store will process it manually.';
-      } catch (e) { err.textContent = e.message; }
+      } catch (e) {
+        err.textContent = e.message || 'Failed to submit. Please try again.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Return Request';
+      }
     };
 
     document.getElementById('btnSubmitReturn').onclick = async () => {
       if (!createOrderData || createOrderData.manual) return;
       const shop = document.getElementById('shop').value.trim();
       const err = document.getElementById('createErr2');
+      const btn = document.getElementById('btnSubmitReturn');
       err.textContent = '';
       const checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
       if (checked.length === 0) { err.textContent = 'Please select at least one item to return'; return; }
+      const emailVal = document.getElementById('createEmail').value.trim();
+      if (emailVal && !EMAIL_REGEX.test(emailVal)) { err.textContent = 'Please enter a valid email address'; return; }
       const items = [];
+      const reasonCode = document.getElementById('createReason').value;
       checked.forEach(cb => {
+        const li = createOrderData.lineItems.find(l => l.id === cb.dataset.id);
+        const maxQty = li ? li.quantity : 1;
         const qtyInput = document.querySelector('.item-qty[data-id="'+cb.dataset.id+'"]');
-        const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10));
-        items.push({ lineItemId: cb.dataset.id, qty, reasonCode: document.getElementById('createReason').value });
+        let qty = parseInt(qtyInput?.value || '1', 10);
+        if (isNaN(qty) || qty < 1) qty = 1;
+        if (qty > maxQty) qty = maxQty;
+        items.push({ lineItemId: cb.dataset.id, qty, reasonCode });
       });
       const lineItemsWithPrice = createOrderData.lineItems.map(li => ({
         id: li.id,
         price: li.price,
         productTags: li.productTags || []
       }));
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
       try {
         const res = await fetch(API + '/create-return', {
           method: 'POST',
@@ -404,14 +474,24 @@
         document.getElementById('create-step2').classList.remove('active');
         document.getElementById('create-step3').classList.add('active');
         document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted successfully.';
-      } catch (e) { err.textContent = e.message; }
+      } catch (e) {
+        err.textContent = e.message || 'Failed to submit. Please try again.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Return Request';
+      }
     };
 
     document.getElementById('btnCreateAnother').onclick = () => {
       createOrderData = null;
       document.getElementById('createOrderNumber').value = '';
+      document.getElementById('createManualOrderNumber').value = '';
       document.getElementById('createManualEmail').value = '';
       document.getElementById('createManualItems').value = '';
+      document.getElementById('createErr1').textContent = '';
+      document.getElementById('createErr2').textContent = '';
+      document.getElementById('createErrManual').textContent = '';
+      document.getElementById('create-step2').classList.remove('active');
       document.getElementById('create-step2-manual').classList.remove('active');
       document.getElementById('create-step3').classList.remove('active');
       document.getElementById('create-step1').classList.add('active');

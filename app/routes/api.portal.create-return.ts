@@ -20,7 +20,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const body = await request.json();
     const shop = body.shop as string | undefined;
     const orderId = body.orderId as string | undefined;
-    const shopifyOrderName = body.shopifyOrderName as string | undefined;
+    const shopifyOrderNameRaw = (body.shopifyOrderName as string | undefined)?.trim();
+    const shopifyOrderName = shopifyOrderNameRaw?.startsWith("#")
+      ? shopifyOrderNameRaw
+      : shopifyOrderNameRaw
+        ? `#${shopifyOrderNameRaw}`
+        : undefined;
     const customerEmail = (body.customerEmail as string | undefined)?.trim().toLowerCase();
     const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string }> | undefined;
     const manualMode = body.manual === true;
@@ -28,7 +33,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     if (!shop || !shopifyOrderName) {
       return withCors(
-        Response.json({ error: "shop and shopifyOrderName are required" }, { status: 400 }),
+        Response.json({ error: "Shop and order number are required" }, { status: 400 }),
+        request
+      );
+    }
+    const orderNameClean = shopifyOrderName.replace(/^#/, "").trim();
+    if (!orderNameClean || orderNameClean.length > 64) {
+      return withCors(
+        Response.json({ error: "Invalid order number" }, { status: 400 }),
         request
       );
     }
@@ -54,6 +66,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const effectiveOrderId = manualMode ? `manual:${shopifyOrderName}` : orderId!;
     let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string }>;
 
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (manualMode) {
       if (!customerEmail) {
         return withCors(
@@ -61,9 +74,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           request
         );
       }
+      if (!EMAIL_REGEX.test(customerEmail)) {
+        return withCors(
+          Response.json({ error: "Please enter a valid email address" }, { status: 400 }),
+          request
+        );
+      }
       if (!manualItemDescription || manualItemDescription.length < 3) {
         return withCors(
-          Response.json({ error: "Please describe the item(s) you want to return" }, { status: 400 }),
+          Response.json({ error: "Please describe the item(s) you want to return (at least 3 characters)" }, { status: 400 }),
+          request
+        );
+      }
+      if (manualItemDescription.length > 2000) {
+        return withCors(
+          Response.json({ error: "Item description is too long" }, { status: 400 }),
           request
         );
       }

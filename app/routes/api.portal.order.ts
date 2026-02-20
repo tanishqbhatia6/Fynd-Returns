@@ -10,9 +10,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
   const url = new URL(request.url);
   const shopParam = url.searchParams.get("shop");
-  const orderNumber = url.searchParams.get("orderNumber");
-  if (!shopParam || !orderNumber) {
-    return withCors(Response.json({ error: "shop and orderNumber required" }, { status: 400 }), request);
+  const orderNumber = (url.searchParams.get("orderNumber") ?? "").replace(/^#/, "").trim();
+  if (!shopParam) {
+    return withCors(Response.json({ error: "Shop is required" }, { status: 400 }), request);
+  }
+  if (!orderNumber) {
+    return withCors(Response.json({ error: "Order number is required" }, { status: 400 }), request);
   }
   const shopDomain = shopParam.includes(".") ? shopParam : `${shopParam}.myshopify.com`;
 

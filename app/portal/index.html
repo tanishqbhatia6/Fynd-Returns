@@ -159,19 +159,11 @@
       </div>
 
       <div id="step2" class="portal-step">
-        <p class="step-label">We sent a 6-digit code to your email or phone. Enter it below.</p>
-        <div class="form-group">
-          <label class="form-label" for="otp">Verification code</label>
-          <input type="text" id="otp" class="form-input otp-input" placeholder="000000" maxlength="6" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code">
-        </div>
-        <button type="button" id="btnVerify" class="btn-primary">Verify</button>
-        <p id="err2" class="form-error"></p>
-      </div>
-
-      <div id="step3" class="portal-step">
         <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Your Returns</h2>
         <div id="result" class="return-list"></div>
+        <button type="button" id="btnBack" class="btn-primary" style="margin-top: 20px; background: var(--portal-text-muted);">Look up another</button>
       </div>
+
     </div>
   </div>
 
@@ -186,7 +178,6 @@
       if (RETURN_POLICY) detail.innerHTML = RETURN_POLICY.replace(/\n/g, '<br>');
     })();
     const API = APP_URL + '/api/portal';
-    let sessionId = null, portalToken = null;
 
     document.getElementById('btnLookup').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
@@ -199,33 +190,18 @@
         const res = await fetch(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) });
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        sessionId = data.sessionId;
+        const returns = data.returns || [];
         document.getElementById('step1').classList.remove('active');
         document.getElementById('step2').classList.add('active');
-        document.getElementById('otp').value = '';
-        await fetch(API + '/otp/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }) });
-      } catch (e) { err.textContent = e.message; }
-    };
-
-    document.getElementById('btnVerify').onclick = async () => {
-      const otp = document.getElementById('otp').value.trim();
-      const err = document.getElementById('err2');
-      err.textContent = '';
-      if (!otp || otp.length !== 6) { err.textContent = 'Please enter the 6-digit code'; return; }
-      try {
-        const res = await fetch(API + '/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId, otp }) });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        portalToken = data.portalToken;
-        document.getElementById('step2').classList.remove('active');
-        document.getElementById('step3').classList.add('active');
-        const r = await fetch(API + '/returns', { headers: { 'Authorization': 'Bearer ' + portalToken } });
-        const d = await r.json();
-        const returns = d.returns || [];
         document.getElementById('result').innerHTML = returns.length === 0
           ? '<p class="return-empty">No returns found for this lookup.</p>'
           : returns.map(x => '<div class="return-card"><div class="return-order">' + (x.shopifyOrderName || x.id) + '</div><div class="return-status">Status: ' + x.status + '</div></div>').join('');
       } catch (e) { err.textContent = e.message; }
+    };
+
+    document.getElementById('btnBack').onclick = () => {
+      document.getElementById('step2').classList.remove('active');
+      document.getElementById('step1').classList.add('active');
     };
   </script>
 </body>

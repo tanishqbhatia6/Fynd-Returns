@@ -18,13 +18,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { shop, lookupType, lookupValue } = await request.json();
     if (!shop || !lookupType || !lookupValue) {
-      return Response.json({ error: "shop, lookupType, lookupValue required" }, { status: 400 });
+      return withCors(Response.json({ error: "shop, lookupType, lookupValue required" }, { status: 400 }), request);
     }
 
     const shopDomain = shop.includes(".") ? shop : `${shop}.myshopify.com`;
     const shopRecord = await prisma.shop.findUnique({ where: { shopDomain } });
     if (!shopRecord) {
-      return Response.json({ error: "Shop not found" }, { status: 404 });
+      return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
     }
 
     const norm = String(lookupValue).toLowerCase().trim();
@@ -51,18 +51,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const matches = await prisma.returnCase.findMany({ where, select: { id: true } });
     const matchedReturnIds = matches.map((m) => m.id);
 
-    const session = await prisma.lookupSession.create({
-      data: {
-        shopId: shopRecord.id,
-        lookupType,
-        lookupValueHash: hash,
-        lookupValueNorm: norm,
-        matchedReturnIds: JSON.stringify(matchedReturnIds),
-        expiresAt: new Date(Date.now() + 15 * 60 * 1000),
-      },
-    });
+    const returns =
+      matchedReturnIds.length > 0
+        ? await prisma.returnCase.findMany({
+            where: { id: { in: matchedReturnIds }, shopId: shopRecord.id },
+            include: {
+              items: true,
+              events: { orderBy: { happenedAt: "desc" }, take: 10 },
+            },
+            orderBy: { createdAt: "desc" },
+          })
+        : [];
 
-    return withCors(Response.json({ sessionId: session.id, nextStep: "otp" }), request);
+    return withCors(Response.json({ returns }), request);
   } catch (err) {
     console.error("Portal lookup:", err);
     return withCors(Response.json({ error: (err as Error).message }, { status: 500 }), request);

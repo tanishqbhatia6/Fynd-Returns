@@ -1,10 +1,19 @@
-import type { ActionFunctionArgs } from "react-router";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { hashLookupValue } from "../lib/portal-auth.server";
+import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: getPortalCorsHeaders(request) });
+  }
+  return null;
+};
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
-    return Response.json({ error: "Method not allowed" }, { status: 405 });
+    const res = Response.json({ error: "Method not allowed" }, { status: 405 });
+    return withCors(res, request);
   }
   try {
     const { shop, lookupType, lookupValue } = await request.json();
@@ -53,9 +62,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    return Response.json({ sessionId: session.id, nextStep: "otp" });
+    return withCors(Response.json({ sessionId: session.id, nextStep: "otp" }), request);
   } catch (err) {
     console.error("Portal lookup:", err);
-    return Response.json({ error: (err as Error).message }, { status: 500 });
+    return withCors(Response.json({ error: (err as Error).message }, { status: 500 }), request);
   }
 };

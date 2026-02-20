@@ -31,11 +31,15 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
     }
-    .portal {
-      max-width: 440px;
-      margin: 0 auto;
-      padding: 40px 24px;
-    }
+    .portal { max-width: 520px; margin: 0 auto; padding: 40px 24px; }
+    .portal-tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--portal-border); }
+    .portal-tab { padding: 12px 20px; font-size: 0.9375rem; font-weight: 500; background: none; border: none; color: var(--portal-text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+    .portal-tab.active { color: var(--portal-primary); border-bottom-color: var(--portal-primary); }
+    .portal-tab:hover { color: var(--portal-text); }
+    .item-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--portal-bg); border-radius: 6px; margin-bottom: 8px; border: 1px solid var(--portal-border); }
+    .item-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+    .item-row label { flex: 1; cursor: pointer; }
+    .item-qty { width: 60px; padding: 8px; text-align: center; }
     .portal-header {
       text-align: center;
       margin-bottom: 40px;
@@ -125,15 +129,20 @@
 <body>
   <div class="portal">
     <header class="portal-header">
-      <h1>Track Your Return</h1>
-      <p>Enter your order or return details to get started</p>
+      <h1>Returns</h1>
+      <p>Track existing returns or create a new return request</p>
       <div id="policy-banner" class="policy-banner" style="display:none; margin-top:20px; padding:16px; background:color-mix(in srgb, var(--portal-primary) 8%, transparent); border-radius:var(--portal-radius); font-size:0.875rem; color:var(--portal-text-muted); text-align:left;">
         <strong style="color:var(--portal-text);">Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
         <div id="policy-detail" style="margin-top:8px;"></div>
       </div>
     </header>
 
-    <div class="portal-card">
+    <div class="portal-tabs">
+      <button type="button" class="portal-tab active" data-tab="track">Track Return</button>
+      <button type="button" class="portal-tab" data-tab="create">Create Return</button>
+    </div>
+
+    <div id="track-panel" class="portal-card">
       <div id="step1" class="portal-step active">
         <div class="form-group">
           <label class="form-label" for="shop">Store</label>
@@ -163,7 +172,42 @@
         <div id="result" class="return-list"></div>
         <button type="button" id="btnBack" class="btn-primary" style="margin-top: 20px; background: var(--portal-text-muted);">Look up another</button>
       </div>
+    </div>
 
+    <div id="create-panel" class="portal-card" style="display:none;">
+      <div id="create-step1" class="portal-step active">
+        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Create Return</h2>
+        <div class="form-group">
+          <label class="form-label" for="createOrderNumber">Order Number</label>
+          <input type="text" id="createOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
+        </div>
+        <button type="button" id="btnFetchOrder" class="btn-primary">Find Order</button>
+        <p id="createErr1" class="form-error"></p>
+      </div>
+      <div id="create-step2" class="portal-step">
+        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Select Items to Return</h2>
+        <p id="createOrderName" style="font-weight: 600; margin-bottom: 12px;"></p>
+        <div class="form-group">
+          <label class="form-label">Items</label>
+          <div id="createItemsList"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="createReason">Reason for return</label>
+          <select id="createReason" class="form-select"></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="createEmail">Your email (optional)</label>
+          <input type="email" id="createEmail" class="form-input" placeholder="email@example.com">
+        </div>
+        <button type="button" id="btnSubmitReturn" class="btn-primary">Submit Return Request</button>
+        <button type="button" id="btnCreateBack" class="btn-primary" style="margin-top: 12px; background: var(--portal-text-muted);">Back</button>
+        <p id="createErr2" class="form-error"></p>
+      </div>
+      <div id="create-step3" class="portal-step">
+        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Return Submitted</h2>
+        <p id="createSuccessMsg" class="return-empty" style="color: var(--portal-text);"></p>
+        <button type="button" id="btnCreateAnother" class="btn-primary">Create another return</button>
+      </div>
     </div>
   </div>
 
@@ -202,6 +246,99 @@
     document.getElementById('btnBack').onclick = () => {
       document.getElementById('step2').classList.remove('active');
       document.getElementById('step1').classList.add('active');
+    };
+
+    const REASONS = (function() { try { return JSON.parse(RETURN_REASONS_JSON || '[]'); } catch { return ['Other']; } })();
+    let createOrderData = null;
+
+    document.querySelectorAll('.portal-tab').forEach(tab => {
+      tab.onclick = () => {
+        document.querySelectorAll('.portal-tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById('track-panel').style.display = tab.dataset.tab === 'track' ? 'block' : 'none';
+        document.getElementById('create-panel').style.display = tab.dataset.tab === 'create' ? 'block' : 'none';
+      };
+    });
+
+    document.getElementById('btnFetchOrder').onclick = async () => {
+      const shop = document.getElementById('shop').value.trim();
+      const orderNumber = document.getElementById('createOrderNumber').value.trim();
+      const err = document.getElementById('createErr1');
+      err.textContent = '';
+      if (!orderNumber) { err.textContent = 'Please enter your order number'; return; }
+      try {
+        const res = await fetch(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber.replace(/^#/,'')));
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        createOrderData = data.order;
+        document.getElementById('createOrderName').textContent = 'Order ' + (createOrderData.name || '');
+        const list = document.getElementById('createItemsList');
+        list.innerHTML = createOrderData.lineItems.map(li => `
+          <div class="item-row">
+            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" data-price="${li.price || ''}" data-tags="${(li.productTags||[]).join(',')}">
+            <label for="item-${li.id}">${li.title} ${li.sku ? '('+li.sku+')' : ''} × ${li.quantity}</label>
+            <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}">
+          </div>
+        `).join('');
+        const reasonSel = document.getElementById('createReason');
+        reasonSel.innerHTML = REASONS.map(r => '<option value="'+r+'">'+r+'</option>').join('') || '<option value="Other">Other</option>';
+        document.getElementById('create-step1').classList.remove('active');
+        document.getElementById('create-step2').classList.add('active');
+      } catch (e) { err.textContent = e.message; }
+    };
+
+    document.getElementById('btnCreateBack').onclick = () => {
+      document.getElementById('create-step2').classList.remove('active');
+      document.getElementById('create-step3').classList.remove('active');
+      document.getElementById('create-step1').classList.add('active');
+    };
+
+    document.getElementById('btnSubmitReturn').onclick = async () => {
+      const shop = document.getElementById('shop').value.trim();
+      const err = document.getElementById('createErr2');
+      err.textContent = '';
+      const checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
+      if (checked.length === 0) { err.textContent = 'Please select at least one item to return'; return; }
+      const items = [];
+      checked.forEach(cb => {
+        const qtyInput = document.querySelector('.item-qty[data-id="'+cb.dataset.id+'"]');
+        const qty = Math.max(1, parseInt(qtyInput?.value || '1', 10));
+        items.push({ lineItemId: cb.dataset.id, qty, reasonCode: document.getElementById('createReason').value });
+      });
+      const lineItemsWithPrice = createOrderData.lineItems.map(li => ({
+        id: li.id,
+        price: li.price,
+        productTags: li.productTags || []
+      }));
+      try {
+        const res = await fetch(API + '/create-return', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop,
+            orderId: createOrderData.id,
+            shopifyOrderName: createOrderData.name,
+            customerEmail: document.getElementById('createEmail').value.trim() || undefined,
+            orderCreatedAt: createOrderData.createdAt,
+            shippingCountry: createOrderData.shippingCountry,
+            shippingProvince: createOrderData.shippingProvince,
+            items,
+            lineItemsWithPrice
+          })
+        });
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        document.getElementById('create-step2').classList.remove('active');
+        document.getElementById('create-step3').classList.add('active');
+        document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted successfully.';
+      } catch (e) { err.textContent = e.message; }
+    };
+
+    document.getElementById('btnCreateAnother').onclick = () => {
+      createOrderData = null;
+      document.getElementById('createOrderNumber').value = '';
+      document.getElementById('create-step3').classList.remove('active');
+      document.getElementById('create-step1').classList.add('active');
     };
   </script>
 </body>

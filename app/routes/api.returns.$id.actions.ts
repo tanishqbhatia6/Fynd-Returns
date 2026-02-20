@@ -21,6 +21,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   });
   if (!returnCase) return Response.json({ error: "Return not found" }, { status: 404 });
 
+  const terminalStatuses = ["approved", "rejected", "completed", "cancelled"];
+  const isTerminal = terminalStatuses.includes(returnCase.status.toLowerCase());
+
   let body: { action: string; status?: string; note?: string; refund?: boolean };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -49,6 +52,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const { action: actionType, status: newStatus, note, refund: doRefund } = body;
 
   if (actionType === "update_status" && newStatus) {
+    const validStatuses = ["pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled", "initiated"];
+    if (!validStatuses.includes(newStatus.toLowerCase())) {
+      return Response.json({ error: `Invalid status: ${newStatus}` }, { status: 400 });
+    }
     await prisma.returnCase.update({
       where: { id },
       data: { status: newStatus, adminNotes: note || returnCase.adminNotes },
@@ -81,6 +88,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (actionType === "approve") {
+    if (isTerminal) {
+      return Response.json({ error: `Cannot approve: return is already ${returnCase.status}` }, { status: 400 });
+    }
     await prisma.returnCase.update({
       where: { id },
       data: { status: "approved", adminNotes: note || returnCase.adminNotes },
@@ -97,6 +107,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (actionType === "reject") {
+    if (isTerminal) {
+      return Response.json({ error: `Cannot reject: return is already ${returnCase.status}` }, { status: 400 });
+    }
     await prisma.returnCase.update({
       where: { id },
       data: { status: "rejected", adminNotes: note || returnCase.adminNotes },
@@ -113,6 +126,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (actionType === "process_refund") {
+    if (!["approved", "completed"].includes(returnCase.status.toLowerCase())) {
+      return Response.json({ error: "Return must be approved before processing refund" }, { status: 400 });
+    }
+    if (returnCase.refundStatus === "refunded") {
+      return Response.json({ error: "Refund has already been processed" }, { status: 400 });
+    }
     let lineItemIds = (returnCase.items ?? [])
       .map((i) => i.shopifyLineItemId)
       .filter((x): x is string => !!x);

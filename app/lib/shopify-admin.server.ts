@@ -7,9 +7,11 @@ const ORDERS_QUERY = `#graphql
         id
         name
         createdAt
+        email
         totalPriceSet { shopMoney { amount } }
         displayFinancialStatus
         displayFulfillmentStatus
+        shippingAddress { countryCode provinceCode }
         lineItems(first: 50) {
           nodes {
             id
@@ -17,6 +19,33 @@ const ORDERS_QUERY = `#graphql
             sku
             quantity
             originalUnitPriceSet { shopMoney { amount } }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const ORDERS_BY_NAME_QUERY = `#graphql
+  query getOrdersByName($query: String!) {
+    orders(first: 1, query: $query, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        createdAt
+        email
+        totalPriceSet { shopMoney { amount } }
+        displayFinancialStatus
+        displayFulfillmentStatus
+        shippingAddress { countryCode provinceCode }
+        lineItems(first: 50) {
+          nodes {
+            id
+            title
+            sku
+            quantity
+            originalUnitPriceSet { shopMoney { amount } }
+            variant { product { tags } }
           }
         }
       }
@@ -32,6 +61,72 @@ const REFUND_MUTATION = `#graphql
     }
   }
 `;
+
+export type OrderForPortal = {
+  id: string;
+  name: string;
+  createdAt: string;
+  email?: string | null;
+  totalPrice?: string;
+  lineItems: Array<{
+    id: string;
+    title: string;
+    sku: string | null;
+    quantity: number;
+    price?: string;
+    productTags?: string[];
+  }>;
+  shippingCountry?: string | null;
+  shippingProvince?: string | null;
+};
+
+export async function fetchOrderByOrderNumber(
+  admin: AdminGraphQL,
+  orderNumber: string
+): Promise<OrderForPortal | null> {
+  const clean = orderNumber.replace(/^#/, "").trim();
+  if (!clean) return null;
+  const query = /^\d+$/.test(clean) ? `name:#${clean}` : `name:${clean}`;
+  const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query } });
+  const json = (await res.json()) as { data?: { orders?: { nodes?: Array<unknown> } } };
+  const node = json.data?.orders?.nodes?.[0];
+  if (!node || !("name" in node)) return null;
+  const o = node as {
+    id: string;
+    name: string;
+    createdAt: string;
+    email?: string | null;
+    totalPriceSet?: { shopMoney?: { amount?: string } };
+    shippingAddress?: { countryCode?: string; provinceCode?: string };
+    lineItems?: {
+      nodes?: Array<{
+        id: string;
+        title: string;
+        sku: string | null;
+        quantity: number;
+        originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+        variant?: { product?: { tags?: string[] } };
+      }>;
+    };
+  };
+  return {
+    id: o.id,
+    name: o.name,
+    createdAt: o.createdAt,
+    email: o.email ?? null,
+    totalPrice: o.totalPriceSet?.shopMoney?.amount,
+    lineItems: (o.lineItems?.nodes ?? []).map((li) => ({
+      id: li.id,
+      title: li.title,
+      sku: li.sku,
+      quantity: li.quantity,
+      price: li.originalUnitPriceSet?.shopMoney?.amount,
+      productTags: (li as { variant?: { product?: { tags?: string[] } } }).variant?.product?.tags ?? [],
+    })),
+    shippingCountry: o.shippingAddress?.countryCode ?? null,
+    shippingProvince: o.shippingAddress?.provinceCode ?? null,
+  };
+}
 
 export async function fetchOrder(
   admin: AdminGraphQL,

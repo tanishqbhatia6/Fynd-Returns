@@ -15,32 +15,60 @@ export type CreateFyndReturnResult = {
   error?: string;
 };
 
-/** Map Shopify order name to Fynd order ID - Fynd may use same format when channel is configured */
-function toFyndOrderId(shopifyOrderName: string): string {
+/** Map Shopify order name to Fynd order ID - used as fallback when affiliate_order_id is not available */
+function toFyndOrderIdFallback(shopifyOrderName: string): string {
   return shopifyOrderName.replace(/^#/, "").trim();
 }
 
 /**
  * Create return on Fynd by calling updateShipmentStatus with return_initiated.
- * Uses Shopify order name as Fynd order ID (channel config must map them).
+ * Fynd APIs expect affiliate_order_id (from order customAttributes), NOT Shopify order name.
+ * Pass affiliateOrderId when available; otherwise falls back to shopifyOrderName (may fail for Fynd integrations).
  */
 export async function createReturnOnFynd(
   client: FyndPlatformClient,
   returnCase: ReturnCase & { items: ReturnItem[] },
-  defaultReasonId = 122,
-  defaultReasonText = "Other"
+  options?: {
+    affiliateOrderId?: string | null;
+    defaultReasonId?: number;
+    defaultReasonText?: string;
+  }
 ): Promise<CreateFyndReturnResult> {
   if (returnCase.shopifyOrderId?.startsWith("manual:")) {
     return { success: false, error: "Manual returns cannot be synced to Fynd" };
   }
 
-  const fyndOrderId = toFyndOrderId(returnCase.shopifyOrderName);
-  if (!fyndOrderId) {
+  const defaultReasonId = options?.defaultReasonId ?? 122;
+  const defaultReasonText = options?.defaultReasonText ?? "Other";
+
+  let fyndOrderId =
+    (options?.affiliateOrderId && options.affiliateOrderId.trim()) ||
+    (returnCase as { fyndOrderId?: string | null }).fyndOrderId ||
+    toFyndOrderIdFallback(returnCase.shopifyOrderName);
+  if (!fyndOrderId?.trim()) {
     return { success: false, error: "Invalid order ID" };
   }
 
   try {
-    const shipmentsRes = await client.getShipments(fyndOrderId);
+    let shipmentsRes: unknown;
+    try {
+      shipmentsRes = await client.getShipments(fyndOrderId);
+    } catch (getErr) {
+      const msg = getErr instanceof Error ? getErr.message : String(getErr);
+      const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
+      if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && externalOrderId && "searchShipmentsByExternalOrderId" in client) {
+        const searchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(externalOrderId);
+        const resolved = searchRes.orderId ?? searchRes.shipmentId;
+        if (resolved) {
+          fyndOrderId = resolved;
+          shipmentsRes = await client.getShipments(fyndOrderId);
+        } else {
+          throw getErr;
+        }
+      } else {
+        throw getErr;
+      }
+    }
     const shipments = Array.isArray(shipmentsRes)
       ? shipmentsRes
       : (shipmentsRes as { items?: unknown[] })?.items ?? (shipmentsRes as { shipments?: unknown[] })?.shipments ?? [];

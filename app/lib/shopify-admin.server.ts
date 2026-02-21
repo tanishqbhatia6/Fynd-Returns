@@ -12,6 +12,7 @@ const ORDERS_QUERY = `#graphql
         displayFinancialStatus
         displayFulfillmentStatus
         shippingAddress { countryCode provinceCode }
+        customAttributes { key value }
         lineItems(first: 50) {
           nodes {
             id
@@ -38,6 +39,7 @@ const ORDERS_BY_NAME_QUERY = `#graphql
         displayFinancialStatus
         displayFulfillmentStatus
         shippingAddress { countryCode provinceCode }
+        customAttributes { key value }
         lineItems(first: 50) {
           nodes {
             id
@@ -84,6 +86,7 @@ export type OrderForPortal = {
   createdAt: string;
   email?: string | null;
   totalPrice?: string;
+  affiliateOrderId?: string | null;
   lineItems: Array<{
     id: string;
     title: string;
@@ -134,6 +137,7 @@ export async function fetchOrderByOrderNumber(
     createdAt: string;
     email?: string | null;
     totalPriceSet?: { shopMoney?: { amount?: string } };
+    customAttributes?: Array<{ key: string; value: string }>;
     shippingAddress?: { countryCode?: string; provinceCode?: string };
     lineItems?: {
       nodes?: Array<{
@@ -146,12 +150,14 @@ export async function fetchOrderByOrderNumber(
       }>;
     };
   };
+  const affiliateOrderId = extractAffiliateOrderId(o.customAttributes);
   return {
     id: o.id,
     name: o.name,
     createdAt: o.createdAt,
     email: o.email ?? null,
     totalPrice: o.totalPriceSet?.shopMoney?.amount,
+    affiliateOrderId: affiliateOrderId ?? undefined,
     lineItems: (o.lineItems?.nodes ?? []).map((li) => {
       const product = (li as { variant?: { product?: { tags?: string[]; productType?: string } } }).variant?.product;
       return {
@@ -216,20 +222,55 @@ export async function fetchOrdersByCustomer(
   }
 }
 
+/** Extract Fynd affiliate_order_id from order customAttributes. Fynd APIs expect affiliate_order_id, not Shopify order name. */
+const AFFILIATE_ORDER_ID_KEYS = [
+  "affiliate_order_id",
+  "_affiliate_order_id",
+  "fynd_affiliate_order_id",
+  "fynd_order_id",
+  "_fynd_order_id",
+  "fyndOrderId",
+  "affiliateOrderId",
+];
+
+export function extractAffiliateOrderId(
+  customAttributes: Array<{ key: string; value: string }> | null | undefined
+): string | null {
+  if (!customAttributes?.length) return null;
+  const keyMap = new Map(customAttributes.map((a) => [a.key.toLowerCase(), a.value?.trim()]));
+  for (const k of AFFILIATE_ORDER_ID_KEYS) {
+    const v = keyMap.get(k.toLowerCase());
+    if (v && v.length > 0) return v;
+  }
+  return null;
+}
+
 export async function fetchOrder(
   admin: AdminGraphQL,
   orderId: string
-): Promise<{ id: string; name: string; lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }> } | null> {
+): Promise<{
+  id: string;
+  name: string;
+  lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }>;
+  affiliateOrderId?: string | null;
+} | null> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
   const res = await admin.graphql(ORDERS_QUERY, { variables: { ids: [gid] } });
   const json = (await res.json()) as { data?: { nodes?: Array<unknown> } };
   const node = json.data?.nodes?.[0];
   if (!node || !("name" in node)) return null;
-  const order = node as { id: string; name: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku: string | null; quantity: number }> } };
+  const order = node as {
+    id: string;
+    name: string;
+    customAttributes?: Array<{ key: string; value: string }>;
+    lineItems?: { nodes?: Array<{ id: string; title: string; sku: string | null; quantity: number }> };
+  };
+  const affiliateOrderId = extractAffiliateOrderId(order.customAttributes);
   return {
     id: order.id,
     name: order.name,
     lineItems: order.lineItems?.nodes ?? [],
+    affiliateOrderId: affiliateOrderId ?? undefined,
   };
 }
 

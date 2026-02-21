@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, fetchOrder } from "../lib/shopify-admin.server";
+import { createRefund, fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification } from "../lib/notification.server";
@@ -112,8 +112,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     let fyndPayloadJson: string | null = null;
     if (fyndClientResult.ok && "getShipments" in fyndClientResult.client) {
       const fyndClient = fyndClientResult.client;
+      let affiliateOrderId: string | null = null;
+      if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
+        const order = returnCase.shopifyOrderId
+          ? await fetchOrder(admin, returnCase.shopifyOrderId)
+          : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
+        affiliateOrderId = order?.affiliateOrderId ?? null;
+      }
       try {
-        const fyndResult = await createReturnOnFynd(fyndClient, returnCase);
+        const fyndResult = await createReturnOnFynd(fyndClient, returnCase, { affiliateOrderId });
         if (fyndResult.success && fyndResult.fyndReturnId) {
           fyndReturnId = fyndResult.fyndReturnId;
           fyndReturnNo = fyndResult.fyndReturnNo ?? null;
@@ -189,7 +196,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (!("getShipments" in fyndClient)) {
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("Sync to Fynd requires Platform API. Switch to Platform in Settings → Integrations.")}`);
     }
-    const fyndResult = await createReturnOnFynd(fyndClient, returnCase);
+    let affiliateOrderId: string | null = null;
+    if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
+      const order = returnCase.shopifyOrderId
+        ? await fetchOrder(admin, returnCase.shopifyOrderId)
+        : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
+      affiliateOrderId = order?.affiliateOrderId ?? null;
+    }
+    const fyndResult = await createReturnOnFynd(fyndClient, returnCase, { affiliateOrderId });
     if (fyndResult.success && fyndResult.fyndReturnId) {
       let payloadJson: string | null = null;
       try {
@@ -225,10 +239,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (actionType === "refresh_fynd_details") {
-    const fyndOrderIdStored = (returnCase as { fyndOrderId?: string | null }).fyndOrderId;
-    const fyndOrderId = fyndOrderIdStored ?? (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
+    let fyndOrderId: string | null = (returnCase as { fyndOrderId?: string | null }).fyndOrderId;
+    if (!fyndOrderId && !returnCase.shopifyOrderId?.startsWith("manual:")) {
+      const order = returnCase.shopifyOrderId
+        ? await fetchOrder(admin, returnCase.shopifyOrderId)
+        : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
+      fyndOrderId = order?.affiliateOrderId ?? ((returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || null);
+    }
     if (!fyndOrderId) {
-      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("No Fynd order ID (add order number)")}`);
+      fyndOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || null;
+    }
+    if (!fyndOrderId) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("No Fynd order ID. Add affiliate_order_id to order customAttributes or ensure order number is set.")}`);
     }
     const shopWithSettings = await prisma.shop.findUnique({
       where: { id: shop.id },
@@ -246,11 +268,29 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("This action requires Fynd Platform API. Switch to Platform in Settings → Integrations.")}`);
     }
     try {
-      const payload = await fyndClient.getShipments(fyndOrderId);
+      let payload: unknown;
+      try {
+        payload = await fyndClient.getShipments(fyndOrderId);
+      } catch (getErr) {
+        const msg = getErr instanceof Error ? getErr.message : String(getErr);
+        const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
+        if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && externalOrderId && "searchShipmentsByExternalOrderId" in fyndClient) {
+          const searchRes = await fyndClient.searchShipmentsByExternalOrderId(externalOrderId);
+          const resolved = searchRes.orderId ?? searchRes.shipmentId;
+          if (resolved) {
+            fyndOrderId = resolved;
+            payload = await fyndClient.getShipments(fyndOrderId);
+          } else {
+            throw getErr;
+          }
+        } else {
+          throw getErr;
+        }
+      }
       const payloadJson = payload != null ? JSON.stringify(payload) : null;
       await prisma.returnCase.update({
         where: { id },
-        data: { fyndPayloadJson: payloadJson ?? undefined },
+        data: { fyndPayloadJson: payloadJson ?? undefined, ...(fyndOrderId && { fyndOrderId }) },
       });
       throw redirect(`/app/returns/${id}?fyndRefresh=1`);
     } catch (err) {

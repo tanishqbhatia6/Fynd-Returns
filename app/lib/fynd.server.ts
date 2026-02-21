@@ -11,6 +11,31 @@ export type FyndSettings = {
   fyndCredentials?: string | null;
 };
 
+export type ShipmentsListingSearchType =
+  | "external_order_id"
+  | "order_id"
+  | "shipment_id"
+  | "awb"
+  | "channel_order_id"
+  | "customer_phone"
+  | "customer_email";
+
+export type ShipmentsListingParams = {
+  searchValue?: string;
+  searchType?: ShipmentsListingSearchType;
+  startDate?: string;
+  endDate?: string;
+  pageNo?: number;
+  pageSize?: number;
+  groupEntity?: "shipments" | "orders";
+  fulfillmentType?: string;
+  parentViewSlug?: string;
+  childViewSlug?: string;
+  sortType?: string;
+  orderStatus?: string;
+  locationCode?: string;
+};
+
 // --- Platform API (OAuth client_credentials) ---
 
 export async function fetchFyndPlatformToken(
@@ -104,9 +129,51 @@ export class FyndPlatformClient {
     return this.request("GET", `${this.basePath}/orders/returns/reasons`);
   }
 
-  /** Get shipments for an order (orderId = Fynd order ID, often matches Shopify order name) */
+  /** Get shipments for an order (orderId = Fynd order/shipment ID) */
   async getShipments(orderId: string): Promise<unknown> {
     return this.request("GET", `${this.basePath}/orders/${encodeURIComponent(orderId)}/shipments`);
+  }
+
+  /** Search shipments by external_order_id (Shopify order name). Uses portal order-manage API. */
+  async searchShipmentsByExternalOrderId(
+    externalOrderId: string,
+    params?: Partial<ShipmentsListingParams>
+  ): Promise<{ items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; orderId?: string; shipmentId?: string }> {
+    const now = new Date();
+    const endDate = params?.endDate ?? now.toISOString();
+    const startDate = params?.startDate ?? (() => {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - 1);
+      return d.toISOString();
+    })();
+    const searchParams = new URLSearchParams({
+      group_entity: params?.groupEntity ?? "shipments",
+      page_no: String(params?.pageNo ?? 1),
+      page_size: String(params?.pageSize ?? 2),
+      start_date: startDate,
+      end_date: endDate,
+      search_value: externalOrderId.trim(),
+      search_type: params?.searchType ?? "external_order_id",
+      fulfillment_type: params?.fulfillmentType ?? "FULFILLMENT",
+      parent_view_slug: params?.parentViewSlug ?? "all",
+      child_view_slug: params?.childViewSlug ?? "all",
+      sort_type: params?.sortType ?? "sla_asc",
+    });
+    if (params?.orderStatus) searchParams.set("order_status", params.orderStatus);
+    if (params?.locationCode) searchParams.set("location_code", params.locationCode);
+    const path = `/service/portal/order-manage/v1.0/company/${this.companyId}/shipments-listing?${searchParams.toString()}`;
+    const res = await this.request("GET", path);
+    const body = res as { items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; order?: { id?: string }; results?: unknown[] };
+    const items = body?.items ?? body?.shipments ?? body?.data?.items ?? body?.results ?? [];
+    const first = Array.isArray(items) ? items[0] : null;
+    const firstObj = first && typeof first === "object" ? first as Record<string, unknown> : null;
+    const orderId = firstObj?.order_id ?? firstObj?.orderId ?? firstObj?.id ?? null;
+    const shipmentId = firstObj?.id ?? firstObj?.shipment_id ?? firstObj?.shipmentId ?? orderId;
+    return {
+      ...body,
+      orderId: orderId != null ? String(orderId) : undefined,
+      shipmentId: shipmentId != null ? String(shipmentId) : undefined,
+    };
   }
 
   /** Update shipment status (e.g. return_initiated to create return on Fynd) */

@@ -90,7 +90,7 @@ model ReturnCase {
   shopifyReturnId   String?
   fyndReturnId      String?
   fyndReturnNo      String?
-  fyndOrderId       String?   // Fynd order ID used for API (often same as Shopify order name)
+  fyndOrderId       String?   // Fynd affiliate_order_id for API (from order customAttributes); NOT Shopify order name
   fyndShipmentId    String?   // main shipment ID from Fynd
   fyndPayloadJson   String?   // full Fynd order/shipment payload for invoice, AWB, DP, etc.
   forwardAwb        String?

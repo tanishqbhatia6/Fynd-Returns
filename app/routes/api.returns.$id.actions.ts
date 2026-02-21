@@ -27,7 +27,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const terminalStatuses = ["approved", "rejected", "completed", "cancelled"];
   const isTerminal = terminalStatuses.includes(returnCase.status.toLowerCase());
 
-  let body: { action: string; status?: string; note?: string; refund?: boolean; rejectionReason?: string };
+  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     try {
@@ -40,6 +40,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const jsonStr = formData.get("json") as string | null;
     const actionVal = formData.get("action") as string | null;
     const noteVal = formData.get("note") as string | null;
+    const notesForCustomerVal = formData.get("notesForCustomer") as string | null;
     const rejectionReasonVal = formData.get("rejectionReason") as string | null;
     if (jsonStr) {
       try {
@@ -51,10 +52,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       body = { action: actionVal || "unknown" };
     }
     if (noteVal !== null && noteVal !== undefined) body.note = noteVal;
+    if (notesForCustomerVal !== null && notesForCustomerVal !== undefined) body.notesForCustomer = notesForCustomerVal;
     if (rejectionReasonVal !== null && rejectionReasonVal !== undefined) body.rejectionReason = rejectionReasonVal;
   }
 
-  const { action: actionType, status: newStatus, note, refund: doRefund, rejectionReason } = body;
+  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason } = body;
 
   if (actionType === "update_status" && newStatus) {
     const validStatuses = ["pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled", "initiated"];
@@ -87,6 +89,23 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         source: "admin",
         eventType: "note_added",
         payloadJson: note ? JSON.stringify({ note }) : null,
+      },
+    });
+    throw redirect(`/app/returns/${id}`);
+  }
+
+  if (actionType === "save_notes_for_customer") {
+    const val = notesForCustomer !== undefined ? (notesForCustomer || null) : (returnCase as { notesForCustomer?: string | null }).notesForCustomer ?? null;
+    await prisma.returnCase.update({
+      where: { id },
+      data: { notesForCustomer: val },
+    });
+    await prisma.returnEvent.create({
+      data: {
+        returnCaseId: id,
+        source: "admin",
+        eventType: "notes_for_customer_published",
+        payloadJson: notesForCustomer ? JSON.stringify({ notesForCustomer }) : null,
       },
     });
     throw redirect(`/app/returns/${id}`);

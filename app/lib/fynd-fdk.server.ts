@@ -137,9 +137,13 @@ export class FyndPlatformClientFDK {
       const msg = err instanceof Error ? err.message : String(err);
       const status = (err as { response?: { status?: number } })?.response?.status;
       const desc = (err as { response?: { data?: { message?: string; description?: string } } })?.response?.data;
-      const fullMsg = status
-        ? `Fynd Platform API error ${status}: ${desc?.message ?? desc?.description ?? msg}`
-        : msg;
+      const apiMsg = desc?.message ?? desc?.description ?? msg;
+      let fullMsg = status ? `Fynd Platform API error ${status}: ${apiMsg}` : msg;
+      if (status === 403) {
+        fullMsg += " Fynd returned 403 Forbidden—your app may lack required scopes. In Fynd Platform, ensure the extension has company/orders/read and company/orders/write. Re-save credentials in Settings → Integrations.";
+      } else if (status === 401) {
+        fullMsg += " Verify Company ID, Client ID and Secret in Settings → Integrations.";
+      }
       throw new Error(fullMsg);
     }
   }

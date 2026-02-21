@@ -8,10 +8,15 @@ const ORDERS_QUERY = `#graphql
         name
         createdAt
         email
+        phone
         totalPriceSet { shopMoney { amount } }
+        totalDiscountsSet { shopMoney { amount } }
+        subtotalPriceSet { shopMoney { amount } }
         displayFinancialStatus
         displayFulfillmentStatus
-        shippingAddress { countryCode provinceCode }
+        discountCodes
+        shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
+        billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         customAttributes { key value }
         lineItems(first: 50) {
           nodes {
@@ -21,6 +26,9 @@ const ORDERS_QUERY = `#graphql
             sku
             quantity
             originalUnitPriceSet { shopMoney { amount } }
+            discountedUnitPriceSet { shopMoney { amount } }
+            originalTotalSet { shopMoney { amount } }
+            discountedTotalSet { shopMoney { amount } }
             image { url }
           }
         }
@@ -37,10 +45,15 @@ const ORDERS_BY_NAME_QUERY = `#graphql
         name
         createdAt
         email
+        phone
         totalPriceSet { shopMoney { amount } }
+        totalDiscountsSet { shopMoney { amount } }
+        subtotalPriceSet { shopMoney { amount } }
         displayFinancialStatus
         displayFulfillmentStatus
-        shippingAddress { countryCode provinceCode }
+        discountCodes
+        shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
+        billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         customAttributes { key value }
         lineItems(first: 50) {
           nodes {
@@ -50,6 +63,9 @@ const ORDERS_BY_NAME_QUERY = `#graphql
             sku
             quantity
             originalUnitPriceSet { shopMoney { amount } }
+            discountedUnitPriceSet { shopMoney { amount } }
+            originalTotalSet { shopMoney { amount } }
+            discountedTotalSet { shopMoney { amount } }
             image { url }
             variant { product { tags, productType } }
           }
@@ -84,6 +100,22 @@ const REFUND_MUTATION = `#graphql
   }
 `;
 
+export type MailingAddressDisplay = {
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  provinceCode?: string | null;
+  country?: string | null;
+  countryCode?: string | null;
+  zip?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
+  company?: string | null;
+  phone?: string | null;
+};
+
 export type OrderLineItemForDisplay = {
   id: string;
   title: string;
@@ -91,6 +123,9 @@ export type OrderLineItemForDisplay = {
   sku: string | null;
   quantity: number;
   price?: string | null;
+  discountedPrice?: string | null;
+  originalTotal?: string | null;
+  discountedTotal?: string | null;
   imageUrl?: string | null;
 };
 
@@ -99,9 +134,15 @@ export type OrderForPortal = {
   name: string;
   createdAt: string;
   email?: string | null;
+  phone?: string | null;
   totalPrice?: string;
+  totalDiscounts?: string;
+  subtotalPrice?: string;
+  discountCodes?: string[];
   affiliateOrderId?: string | null;
   lineItems: OrderLineItemForDisplay[];
+  shippingAddress?: MailingAddressDisplay | null;
+  billingAddress?: MailingAddressDisplay | null;
   shippingCountry?: string | null;
   shippingProvince?: string | null;
 };
@@ -142,9 +183,14 @@ export async function fetchOrderByOrderNumber(
     name: string;
     createdAt: string;
     email?: string | null;
+    phone?: string | null;
     totalPriceSet?: { shopMoney?: { amount?: string } };
+    totalDiscountsSet?: { shopMoney?: { amount?: string } };
+    subtotalPriceSet?: { shopMoney?: { amount?: string } };
+    discountCodes?: string[];
     customAttributes?: Array<{ key: string; value: string }>;
-    shippingAddress?: { countryCode?: string; provinceCode?: string };
+    shippingAddress?: MailingAddressDisplay;
+    billingAddress?: MailingAddressDisplay;
     lineItems?: {
       nodes?: Array<{
         id: string;
@@ -153,6 +199,9 @@ export async function fetchOrderByOrderNumber(
         sku: string | null;
         quantity: number;
         originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+        discountedUnitPriceSet?: { shopMoney?: { amount?: string } };
+        originalTotalSet?: { shopMoney?: { amount?: string } };
+        discountedTotalSet?: { shopMoney?: { amount?: string } };
         image?: { url?: string } | null;
         variant?: { product?: { tags?: string[]; productType?: string } };
       }>;
@@ -166,6 +215,9 @@ export async function fetchOrderByOrderNumber(
     sku: li.sku ?? null,
     quantity: li.quantity,
     price: li.originalUnitPriceSet?.shopMoney?.amount ?? null,
+    discountedPrice: li.discountedUnitPriceSet?.shopMoney?.amount ?? null,
+    originalTotal: li.originalTotalSet?.shopMoney?.amount ?? null,
+    discountedTotal: li.discountedTotalSet?.shopMoney?.amount ?? null,
     imageUrl: li.image?.url ?? null,
   }));
   return {
@@ -173,9 +225,15 @@ export async function fetchOrderByOrderNumber(
     name: o.name,
     createdAt: o.createdAt,
     email: o.email ?? null,
+    phone: o.phone ?? null,
     totalPrice: o.totalPriceSet?.shopMoney?.amount,
+    totalDiscounts: o.totalDiscountsSet?.shopMoney?.amount,
+    subtotalPrice: o.subtotalPriceSet?.shopMoney?.amount,
+    discountCodes: o.discountCodes ?? undefined,
     affiliateOrderId: affiliateOrderId ?? undefined,
     lineItems,
+    shippingAddress: o.shippingAddress ?? null,
+    billingAddress: o.billingAddress ?? null,
     shippingCountry: o.shippingAddress?.countryCode ?? null,
     shippingProvince: o.shippingAddress?.provinceCode ?? null,
   };
@@ -254,12 +312,7 @@ export function extractAffiliateOrderId(
 export async function fetchOrder(
   admin: AdminGraphQL,
   orderId: string
-): Promise<{
-  id: string;
-  name: string;
-  lineItems: OrderLineItemForDisplay[];
-  affiliateOrderId?: string | null;
-} | null> {
+): Promise<OrderForPortal | null> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
   const res = await admin.graphql(ORDERS_QUERY, { variables: { ids: [gid] } });
   const json = (await res.json()) as { data?: { nodes?: Array<unknown> } };
@@ -268,7 +321,16 @@ export async function fetchOrder(
   const order = node as {
     id: string;
     name: string;
+    createdAt?: string;
+    email?: string | null;
+    phone?: string | null;
+    totalPriceSet?: { shopMoney?: { amount?: string } };
+    totalDiscountsSet?: { shopMoney?: { amount?: string } };
+    subtotalPriceSet?: { shopMoney?: { amount?: string } };
+    discountCodes?: string[];
     customAttributes?: Array<{ key: string; value: string }>;
+    shippingAddress?: MailingAddressDisplay;
+    billingAddress?: MailingAddressDisplay;
     lineItems?: {
       nodes?: Array<{
         id: string;
@@ -277,6 +339,9 @@ export async function fetchOrder(
         sku: string | null;
         quantity: number;
         originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+        discountedUnitPriceSet?: { shopMoney?: { amount?: string } };
+        originalTotalSet?: { shopMoney?: { amount?: string } };
+        discountedTotalSet?: { shopMoney?: { amount?: string } };
         image?: { url?: string } | null;
       }>;
     };
@@ -289,13 +354,27 @@ export async function fetchOrder(
     sku: li.sku ?? null,
     quantity: li.quantity,
     price: li.originalUnitPriceSet?.shopMoney?.amount ?? null,
+    discountedPrice: li.discountedUnitPriceSet?.shopMoney?.amount ?? null,
+    originalTotal: li.originalTotalSet?.shopMoney?.amount ?? null,
+    discountedTotal: li.discountedTotalSet?.shopMoney?.amount ?? null,
     imageUrl: li.image?.url ?? null,
   }));
   return {
     id: order.id,
     name: order.name,
+    createdAt: order.createdAt ?? "",
+    email: order.email ?? null,
+    phone: order.phone ?? null,
+    totalPrice: order.totalPriceSet?.shopMoney?.amount,
+    totalDiscounts: order.totalDiscountsSet?.shopMoney?.amount,
+    subtotalPrice: order.subtotalPriceSet?.shopMoney?.amount,
+    discountCodes: order.discountCodes ?? undefined,
     lineItems,
     affiliateOrderId: affiliateOrderId ?? undefined,
+    shippingAddress: order.shippingAddress ?? null,
+    billingAddress: order.billingAddress ?? null,
+    shippingCountry: order.shippingAddress?.countryCode ?? null,
+    shippingProvince: order.shippingAddress?.provinceCode ?? null,
   };
 }
 

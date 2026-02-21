@@ -26,14 +26,14 @@ const LABEL_MAP: Record<string, string> = {
   awb: "AWB",
   traking_no: "Tracking number",
   tracking_no: "Tracking number",
-  dp_name: "CP Name (Courier partner)",
+  dp_name: "Logistics Partner",
   dp: "Delivery partner",
-  courierName: "CP Name (Courier partner)",
-  courier_name: "CP Name (Courier partner)",
-  cp_name: "CP Name (Courier partner)",
+  courierName: "Logistics Partner",
+  courier_name: "Logistics Partner",
+  cp_name: "Logistics Partner",
   courierCode: "Courier code",
   courier_code: "Courier code",
-  logistics_partner: "Logistics partner",
+  logistics_partner: "Logistics Partner",
   track_url: "Tracking URL",
   trackUrl: "Tracking URL",
   tracking_url: "Tracking URL",
@@ -91,7 +91,7 @@ function collectFields(obj: Record<string, unknown>, prefix = ""): FyndDisplayFi
     if (key === "tracking_details" || key === "size_info" || key === "currency_info") continue;
     if (key === "meta" && val != null && typeof val === "object") {
       const meta = val as Record<string, unknown>;
-      if (meta.cp_name != null) push("cp_name", "CP Name (Courier partner)", meta.cp_name);
+      if (meta.cp_name != null) push("cp_name", "Logistics Partner", meta.cp_name);
       if (meta.awb_no != null || meta.awb != null) push("awb", "Forward AWB", meta.awb_no ?? meta.awb);
       if (meta.invoice_id != null || meta.invoice_number != null) push("invoice_id", "Invoice ID", meta.invoice_id ?? meta.invoice_number);
       continue;
@@ -117,6 +117,24 @@ function collectFields(obj: Record<string, unknown>, prefix = ""): FyndDisplayFi
   return out;
 }
 
+/** Build tracking URL from courier name + AWB when Fynd doesn't provide tracking_url */
+function buildTrackingUrlFromCourierAndAwb(courierName: string, awb: string): string | null {
+  const c = (courierName ?? "").toLowerCase().replace(/\s+/g, "");
+  const a = String(awb ?? "").trim();
+  if (!a) return null;
+  if (c.includes("xpressbees") || c.includes("xpress")) return `https://www.xpressbees.com/track/${a}`;
+  if (c.includes("delhivery")) return `https://www.delhivery.com/track/package/${a}`;
+  if (c.includes("bluedart") || c.includes("blue dart")) return `https://www.bluedart.com/tracking.html?track=${a}`;
+  if (c.includes("dtdc")) return `https://www.dtdc.in/tracking.asp?ref=${a}`;
+  if (c.includes("ekart") || c.includes("ekartlogistics")) return `https://ekartlogistics.com/track/${a}`;
+  if (c.includes("shadowfax")) return `https://track.shadowfax.in/track/${a}`;
+  if (c.includes("ecom") || c.includes("ecom express")) return `https://ecomexpress.in/tracking/?awb=${a}`;
+  if (c.includes("shiprocket")) return `https://track.shiprocket.in/tracking/${a}`;
+  if (c.includes("pickrr")) return `https://track.pickrr.com/?tracking_id=${a}`;
+  if (c.includes("dunzo")) return `https://www.delhivery.com/track/package/${a}`;
+  return null;
+}
+
 /** Convert API value to display string - Fynd often returns objects (e.g. fulfilling_store) instead of strings */
 function toDisplayString(val: unknown): string | null {
   if (val == null) return null;
@@ -125,6 +143,19 @@ function toDisplayString(val: unknown): string | null {
   if (typeof val === "object") {
     const o = val as Record<string, unknown>;
     const s = (o.name ?? o.title ?? o.display_name ?? o.displayName ?? o.code ?? o.id) as string | undefined;
+    return (typeof s === "string" && s) ? s : null;
+  }
+  return null;
+}
+
+/** Prefer full/display names over short codes - for logistics partner etc. */
+function toFullDisplayString(val: unknown): string | null {
+  if (val == null) return null;
+  if (typeof val === "string") return val || null;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (typeof val === "object") {
+    const o = val as Record<string, unknown>;
+    const s = (o.display_name ?? o.displayName ?? o.full_name ?? o.fullName ?? o.long_name ?? o.title ?? o.name ?? o.code ?? o.id) as string | undefined;
     return (typeof s === "string" && s) ? s : null;
   }
   return null;
@@ -211,6 +242,59 @@ export function parseFyndPayloadForDisplay(fyndPayloadJson: string | null | unde
   }
 }
 
+/** Pickup/return address from Fynd payload */
+export type PickupAddressFromFynd = {
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  name?: string | null;
+  formatted?: string;
+};
+
+/** Extract pickup/return address from Fynd payload (return_address, pickup_address, etc.) */
+export function getPickupAddressFromFyndPayload(fyndPayloadJson: string | null | undefined): PickupAddressFromFynd | null {
+  if (!fyndPayloadJson || typeof fyndPayloadJson !== "string") return null;
+  try {
+    const payload = JSON.parse(fyndPayloadJson) as unknown;
+    const list = normalizeFyndPayload(payload);
+    const first = list[0] as Record<string, unknown> | undefined;
+    if (!first || typeof first !== "object") return null;
+    const addr =
+      (first.return_address as Record<string, unknown>) ??
+      (first.pickup_address as Record<string, unknown>) ??
+      (first.pickupAddress as Record<string, unknown>) ??
+      (first.returnAddress as Record<string, unknown>) ??
+      (first.address as Record<string, unknown>);
+    if (!addr || typeof addr !== "object") return null;
+    const a1 = toDisplayString(addr.address1 ?? addr.address ?? addr.street);
+    const a2 = toDisplayString(addr.address2 ?? addr.area);
+    const city = toDisplayString(addr.city);
+    const state = toDisplayString(addr.state ?? addr.province);
+    const pincode = toDisplayString(addr.pincode ?? addr.zip ?? addr.postal_code);
+    const country = toDisplayString(addr.country);
+    const phone = toDisplayString(addr.phone ?? addr.mobile);
+    const name = toDisplayString(addr.name ?? addr.contact_name);
+    const parts = [a1, a2, city, state, pincode, country].filter(Boolean);
+    return {
+      address1: a1 ?? null,
+      address2: a2 ?? null,
+      city: city ?? null,
+      state: state ?? null,
+      pincode: pincode ?? null,
+      country: country ?? null,
+      phone: phone ?? null,
+      name: name ?? null,
+      formatted: parts.length > 0 ? parts.join(", ") : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Structured Fynd Order details for the tab */
 export type FyndOrderDetailsTab = {
   fyndOrderId: string | null;
@@ -224,7 +308,7 @@ export type FyndOrderDetailsTab = {
     fulfillmentStore: string | null;
     fulfillmentOptions: string | null;
     shipmentStatus: string | null;
-    items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string }>;
+    items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string; price?: string; total?: string }>;
   }>;
 };
 
@@ -245,11 +329,26 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const awb = dpDetails.awb_no ?? raw.awbNumber ?? raw.awb_no ?? raw.awb ?? meta.awb_no ?? meta.awb;
       const awbVal = Array.isArray(awb) ? awb[0] : awb;
       const awbStr = toDisplayString(awbVal) ?? (typeof awbVal === "string" ? awbVal : null);
-      const cpName = toDisplayString(dpDetails.display_name ?? dpDetails.name ?? raw.courierName ?? raw.courier_name ?? raw.dp_name ?? raw.dp ?? meta.cp_name ?? meta.courier_name);
-      const trackUrl = raw.tracking_url ?? raw.track_url ?? raw.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url;
-      const trackingUrlStr = typeof trackUrl === "string" ? trackUrl : null;
-      const invNum = toDisplayString(raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ?? meta.invoice_number);
-      const invId = toDisplayString(raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id);
+      const logisticsPartnerRaw = dpDetails.display_name ?? dpDetails.name ?? raw.logistics_partner ?? raw.logisticsPartner ?? raw.courierName ?? raw.courier_name ?? raw.dp_name ?? raw.dp ?? meta.cp_name ?? meta.courier_name ?? meta.logistics_partner;
+      const cpName = toFullDisplayString(logisticsPartnerRaw) ?? toDisplayString(logisticsPartnerRaw);
+      let trackUrl = raw.tracking_url ?? raw.track_url ?? raw.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url ?? meta.tracking_url ?? meta.track_url;
+      if (typeof trackUrl !== "string" && Array.isArray(raw.bags) && raw.bags.length > 0) {
+        for (const bag of raw.bags as Record<string, unknown>[]) {
+          const b = bag ?? {};
+          const m = (b.meta ?? b.dp_details) as Record<string, unknown> | undefined;
+          const t = b.tracking_url ?? b.track_url ?? b.trackUrl ?? m?.tracking_url ?? m?.track_url;
+          if (typeof t === "string") {
+            trackUrl = t;
+            break;
+          }
+        }
+      }
+      let trackingUrlStr = typeof trackUrl === "string" ? trackUrl : null;
+      if (!trackingUrlStr && awbStr && cpName) {
+        trackingUrlStr = buildTrackingUrlFromCourierAndAwb(cpName, awbStr);
+      }
+      const invNum = toDisplayString(raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ?? meta.invoice_number ?? raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id);
+      const invId = toDisplayString(raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id ?? raw.invoice_number ?? meta.invoice_number);
       const fulfillStore = toDisplayString(raw.fulfilling_store ?? raw.fulfilling_store_name ?? raw.fulfilling_company);
       const fulfillOptsRaw = [
         raw.ordering_source,
@@ -264,14 +363,39 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         : status;
       const shipmentStatusStr = toDisplayString(statusTitle ?? status);
       const rawOrderItems = raw.orderItems ?? raw.order_items ?? raw.items ?? [];
-      const orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
+      let orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
+      if (orderItems.length === 0 && Array.isArray(raw.bags)) {
+        const fromBags: unknown[] = [];
+        for (const bag of raw.bags as Record<string, unknown>[]) {
+          const articles = bag?.articles ?? bag?.items ?? bag?.item;
+          if (Array.isArray(articles)) fromBags.push(...articles);
+          else if (articles && typeof articles === "object") fromBags.push(articles);
+        }
+        if (fromBags.length > 0) orderItems = fromBags;
+      }
+      if (orderItems.length === 0 && Array.isArray(raw.packages)) {
+        const fromPkgs: unknown[] = [];
+        for (const pkg of raw.packages as Record<string, unknown>[]) {
+          const pkgItems = pkg?.items ?? pkg?.articles ?? pkg?.item;
+          if (Array.isArray(pkgItems)) fromPkgs.push(...pkgItems);
+          else if (pkgItems && typeof pkgItems === "object") fromPkgs.push(pkgItems);
+        }
+        if (fromPkgs.length > 0) orderItems = fromPkgs;
+      }
       const items = orderItems.map((oi) => {
         const o = (typeof oi === "object" && oi != null ? oi : {}) as Record<string, unknown>;
+        const qty = typeof o.quantity === "number" ? o.quantity : typeof o.qty === "number" ? o.qty : 1;
+        const priceVal = o.price ?? o.amount ?? o.effective_price ?? o.effectivePrice ?? o.sale_price ?? o.salePrice ?? o.unit_price ?? o.unitPrice;
+        const priceStr = typeof priceVal === "string" ? priceVal : typeof priceVal === "number" ? String(priceVal) : null;
+        const totalVal = o.total ?? o.line_total ?? o.lineTotal ?? o.amount;
+        const totalStr = typeof totalVal === "string" ? totalVal : typeof totalVal === "number" ? String(totalVal) : (priceStr && qty ? String(parseFloat(priceStr) * qty) : null);
         return {
           sku: toDisplayString(o.sku ?? o.identifier ?? o.seller_identifier) ?? undefined,
-          title: toDisplayString(o.title ?? o.product_title) ?? undefined,
-          quantity: (typeof o.quantity === "number" ? o.quantity : typeof o.qty === "number" ? o.qty : 1),
+          title: toDisplayString(o.title ?? o.product_title ?? o.productTitle ?? o.name) ?? undefined,
+          quantity: qty,
           identifier: toDisplayString(o.identifier ?? o.seller_identifier) ?? undefined,
+          price: priceStr ?? undefined,
+          total: totalStr ?? undefined,
         };
       });
       return {

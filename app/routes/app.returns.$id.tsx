@@ -42,19 +42,28 @@ type ShipmentForRow = {
   fulfillmentStore: string | null;
   fulfillmentOptions: string | null;
   shipmentStatus: string | null;
-  items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string }>;
+  items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string; price?: string; total?: string }>;
 };
 
-function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr }: {
+function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMoney, shopifyLineItems }: {
   shipment: ShipmentForRow;
   index: number;
   expanded: boolean;
   onToggle: () => void;
   safeStr: (v: unknown) => string;
+  formatMoney: (v: string | null | undefined) => string;
+  shopifyLineItems?: Array<{ sku?: string | null; title?: string; price?: string | null; discountedPrice?: string | null; quantity: number }>;
 }) {
-  const cardStyle = { padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5" };
+  const cardStyle = {
+    padding: expanded ? 20 : "14px 20px",
+    background: "var(--rpm-surface-elevated)",
+    borderRadius: "var(--rpm-radius-lg)",
+    border: "var(--rpm-border)",
+    boxShadow: "var(--rpm-shadow-sm)",
+    transition: "all 0.25s ease",
+  };
   return (
-    <div style={{ ...cardStyle, padding: expanded ? 16 : "12px 16px" }}>
+    <div style={{ ...cardStyle }}>
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, flex: 1, minWidth: 0 }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>Shipment {index + 1}</span>
@@ -62,37 +71,53 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr }: {
           {safeStr(s.cpName) && <span style={{ fontSize: 13 }}>{safeStr(s.cpName)}</span>}
           {safeStr(s.forwardAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>AWB: {safeStr(s.forwardAwb)}</span>}
           {safeStr(s.shipmentStatus) && (
-            <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#e1e3e5", color: "#1a1a1a" }}>{safeStr(s.shipmentStatus)}</span>
+            <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: "var(--rpm-surface-hover)", color: "var(--rpm-text)", fontWeight: 500 }}>{safeStr(s.shipmentStatus)}</span>
           )}
         </div>
-        <button type="button" onClick={onToggle} style={{ fontSize: 13, color: "#005bd3", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
+        <button type="button" onClick={onToggle} className="app-btn-text">
           {expanded ? "Hide details" : "View details"}
         </button>
       </div>
       {expanded && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>CP Name</div><div style={{ fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Logistics Partner</div><div style={{ fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.forwardAwb) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Tracking</div><div style={{ fontSize: 13 }}>
-              {s.trackingUrl ? <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3", textDecoration: "none" }}>Track shipment →</a> : "—"}
+              {s.trackingUrl ? <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 600 }}>Track shipment →</a> : "—"}
             </div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice number</div><div style={{ fontSize: 13 }}>{safeStr(s.invoiceNumber) || "—"}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice ID</div><div style={{ fontSize: 13 }}>{safeStr(s.invoiceId) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice</div><div style={{ fontSize: 13 }}>{safeStr(s.invoiceNumber) || safeStr(s.invoiceId) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentStore) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentOptions) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Status</div><div style={{ fontSize: 13 }}>{safeStr(s.shipmentStatus) || "—"}</div></div>
           </div>
           {(s.items ?? []).length > 0 && (
             <div>
-              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8 }}>Items</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {(s.items ?? []).map((it, i) => (
-                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#fff", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}>
-                    <span>{safeStr(it.title) || safeStr(it.sku) || safeStr(it.identifier) || "Item"}</span>
-                    <span style={{ color: "#6d7175" }}>Qty: {it.quantity ?? 1} {safeStr(it.sku) ? `· ${safeStr(it.sku)}` : ""}</span>
-                  </div>
-                ))}
+              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Items</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {(s.items ?? []).map((it, i) => {
+                  const matched = shopifyLineItems?.find((li) =>
+                    (it.sku && li.sku && String(li.sku).toLowerCase() === String(it.sku).toLowerCase()) ||
+                    (it.identifier && li.sku && String(li.sku).toLowerCase() === String(it.identifier).toLowerCase())
+                  );
+                  const title = safeStr(it.title) || matched?.title || safeStr(it.sku) || safeStr(it.identifier) || "Item";
+                  const qty = it.quantity ?? 1;
+                  const price = it.price ?? matched?.discountedPrice ?? matched?.price;
+                  const total = it.total ?? (price ? String(parseFloat(price) * qty) : null);
+                  return (
+                    <div key={i} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8, padding: 14, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)", fontSize: 13, transition: "box-shadow 0.2s ease" }}>
+                      <div>
+                        <div style={{ fontWeight: 500 }}>{title}</div>
+                        {it.sku && it.sku !== title && <div style={{ fontSize: 12, fontFamily: "monospace", color: "#6d7175", marginTop: 2 }}>SKU: {safeStr(it.sku)}</div>}
+                      </div>
+                      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ color: "#6d7175" }}>Qty: {qty}</span>
+                        {formatMoney(price) && <span style={{ fontWeight: 500 }}>{formatMoney(price)} × {qty}</span>}
+                        {formatMoney(total) && <span style={{ fontWeight: 600 }}>Total: {formatMoney(total)}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -103,7 +128,27 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr }: {
 }
 
 import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
-import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab } from "../lib/fynd-payload.server";
+import type { MailingAddressDisplay } from "../lib/shopify-admin.server";
+import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload } from "../lib/fynd-payload.server";
+
+function formatAddress(addr: MailingAddressDisplay | null | undefined): string {
+  if (!addr) return "";
+  const parts = [
+    addr.name,
+    addr.address1,
+    addr.address2,
+    [addr.city, addr.provinceCode ?? addr.province].filter(Boolean).join(" "),
+    addr.zip,
+    addr.country,
+  ].filter(Boolean);
+  return parts.join(", ");
+}
+
+function formatMoney(amount: string | null | undefined): string {
+  if (amount == null || amount === "") return "";
+  const n = parseFloat(amount);
+  return isNaN(n) ? amount : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   try {
@@ -147,8 +192,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
     const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
     const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
+    const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
 
-    return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab };
+    return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress };
   } catch (err) {
     if (err instanceof Response) throw err;
     console.error("Return detail loader unexpected error:", err);
@@ -157,7 +203,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function ReturnDetail() {
-  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab } = useLoaderData<typeof loader>();
+  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showRawFynd, setShowRawFynd] = useState(false);
@@ -192,11 +238,13 @@ export default function ReturnDetail() {
   }, [fyndError, fyndSuccess, fyndRefresh, setSearchParams]);
 
   const cardStyle = {
-    padding: 20,
-    background: "#fff",
-    borderRadius: 12,
-    border: "1px solid #e1e3e5",
+    padding: 24,
+    background: "var(--rpm-surface)",
+    borderRadius: "var(--rpm-radius-lg)",
+    border: "var(--rpm-border)",
     marginBottom: 16,
+    boxShadow: "var(--rpm-shadow-sm)",
+    transition: "box-shadow 0.2s ease, border-color 0.2s ease",
   };
 
   const canRetryFynd = !isManualReturn
@@ -206,6 +254,25 @@ export default function ReturnDetail() {
   return (
     <s-page heading={`Return ${returnCase.shopifyOrderName || returnCase.id}`}>
       <div className="app-content">
+      <div style={{ marginBottom: 24, padding: "20px 24px", background: "linear-gradient(135deg, var(--rpm-surface-subtle) 0%, var(--rpm-surface-elevated) 100%)", borderRadius: "var(--rpm-radius-xl)", border: "var(--rpm-border)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}>
+        <span className="app-status-badge" style={{ padding: "10px 18px", borderRadius: 20, fontSize: 15, fontWeight: 600, background: `${getStatusColor(returnCase.status)}20`, color: getStatusColor(returnCase.status), border: `2px solid ${getStatusColor(returnCase.status)}50` }}>
+          {returnCase.status}
+        </span>
+        <div>
+          <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Order</div>
+          <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.02em" }}>{returnCase.shopifyOrderName || "—"}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Created</div>
+          <div style={{ fontSize: 14, color: "var(--rpm-text)" }}>{new Date(returnCase.createdAt).toLocaleString()}</div>
+        </div>
+        {returnCase.refundStatus && (
+          <div>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Refund</div>
+            <span style={{ color: returnCase.refundStatus === "refunded" ? "var(--rpm-success)" : "var(--rpm-text-muted)", fontWeight: 600 }}>{returnCase.refundStatus}</span>
+          </div>
+        )}
+      </div>
       {fetcher.data?.error && (
         <div className="app-alert app-alert-error">{fetcher.data.error}</div>
       )}
@@ -250,8 +317,36 @@ export default function ReturnDetail() {
 
       {shopifyOrder && (
         <s-section heading="Order from Shopify">
-          <div style={{ ...cardStyle, marginBottom: 8 }}>
+          <div style={{ ...cardStyle, marginBottom: 8 }} className="app-card-interactive">
             <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 16 }}>Order {shopifyOrder.name}</div>
+
+            {(shopifyOrder.email || shopifyOrder.phone) && (
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Customer</div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 14 }}>
+                  {shopifyOrder.email && <span>{shopifyOrder.email}</span>}
+                  {shopifyOrder.phone && <span>{shopifyOrder.phone}</span>}
+                </div>
+              </div>
+            )}
+
+            {(formatAddress(shopifyOrder.shippingAddress) || formatAddress(shopifyOrder.billingAddress)) && (
+              <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 24 }}>
+                {formatAddress(shopifyOrder.shippingAddress) && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 6, fontWeight: 600 }}>Shipping address</div>
+                    <div style={{ fontSize: 13, lineHeight: 1.5 }}>{formatAddress(shopifyOrder.shippingAddress)}</div>
+                  </div>
+                )}
+                {formatAddress(shopifyOrder.billingAddress) && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 6, fontWeight: 600 }}>Billing address</div>
+                    <div style={{ fontSize: 13, lineHeight: 1.5 }}>{formatAddress(shopifyOrder.billingAddress)}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {(shopifyOrder.lineItems ?? []).map((li) => (
                 <div
@@ -260,10 +355,11 @@ export default function ReturnDetail() {
                     display: "flex",
                     gap: 16,
                     padding: 16,
-                    background: "#f9fafb",
-                    borderRadius: 10,
-                    border: "1px solid #e1e3e5",
+                    background: "var(--rpm-surface-elevated)",
+                    borderRadius: "var(--rpm-radius)",
+                    border: "var(--rpm-border)",
                     alignItems: "flex-start",
+                    transition: "box-shadow 0.2s ease",
                   }}
                 >
                   {li.imageUrl ? (
@@ -283,31 +379,72 @@ export default function ReturnDetail() {
                     {li.sku && (
                       <div style={{ fontSize: 12, fontFamily: "monospace", color: "#6d7175", marginBottom: 4 }}>SKU: {li.sku}</div>
                     )}
-                    <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 13 }}>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8, fontSize: 13, alignItems: "center" }}>
                       <span style={{ color: "#6d7175" }}>Qty: {li.quantity}</span>
-                      {li.price != null && li.price !== "" && (
-                        <span style={{ fontWeight: 500 }}>{li.price} × {li.quantity}</span>
+                      {(li.discountedPrice ?? li.price) != null && (li.discountedPrice ?? li.price) !== "" && (
+                        <span style={{ fontWeight: 500 }}>
+                          {formatMoney(li.discountedPrice ?? li.price)} × {li.quantity}
+                          {li.discountedPrice != null && li.price != null && li.discountedPrice !== li.price && (
+                            <span style={{ marginLeft: 8, color: "#6d7175", textDecoration: "line-through", fontWeight: 400 }}>{formatMoney(li.price)} each</span>
+                          )}
+                        </span>
+                      )}
+                      {(li.discountedTotal ?? li.originalTotal) != null && (li.discountedTotal ?? li.originalTotal) !== "" && (
+                        <span style={{ fontWeight: 600 }}>Total: {formatMoney(li.discountedTotal ?? li.originalTotal)}</span>
                       )}
                     </div>
                   </div>
                 </div>
               ))}
             </div>
+
+            {(shopifyOrder.subtotalPrice != null || shopifyOrder.totalDiscounts != null || shopifyOrder.totalPrice != null || (shopifyOrder.discountCodes?.length ?? 0) > 0) && (
+              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 320 }}>
+                  {shopifyOrder.subtotalPrice != null && shopifyOrder.subtotalPrice !== "" && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                      <span style={{ color: "#6d7175" }}>Subtotal</span>
+                      <span>{formatMoney(shopifyOrder.subtotalPrice)}</span>
+                    </div>
+                  )}
+                  {(shopifyOrder.discountCodes?.length ?? 0) > 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                      <span style={{ color: "#6d7175" }}>Discount codes</span>
+                      <span>{shopifyOrder.discountCodes!.join(", ")}</span>
+                    </div>
+                  )}
+                  {shopifyOrder.totalDiscounts != null && shopifyOrder.totalDiscounts !== "" && parseFloat(shopifyOrder.totalDiscounts) !== 0 && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#008060" }}>
+                      <span>Discounts</span>
+                      <span>−{formatMoney(shopifyOrder.totalDiscounts)}</span>
+                    </div>
+                  )}
+                  {shopifyOrder.totalPrice != null && shopifyOrder.totalPrice !== "" && (
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 600, marginTop: 4 }}>
+                      <span>Total</span>
+                      <span>{formatMoney(shopifyOrder.totalPrice)}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </s-section>
       )}
 
       <s-section heading="Return details">
-        <div style={{ ...cardStyle }}>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center", marginBottom: (returnCase.items?.length ?? 0) > 0 ? 16 : 0 }}>
+        <div style={{ ...cardStyle }} className="app-card-interactive">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
             <span
+              className="app-status-badge"
               style={{
-                padding: "8px 14px",
-                borderRadius: 8,
+                padding: "8px 16px",
+                borderRadius: 20,
                 fontSize: 14,
                 fontWeight: 600,
-                background: `${getStatusColor(returnCase.status)}20`,
+                background: `${getStatusColor(returnCase.status)}18`,
                 color: getStatusColor(returnCase.status),
+                border: `1px solid ${getStatusColor(returnCase.status)}40`,
               }}
             >
               {returnCase.status}
@@ -333,29 +470,25 @@ export default function ReturnDetail() {
               </div>
             )}
           </div>
-          {(returnCase.items?.length ?? 0) > 0 && (
-            <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 8, fontWeight: 500 }}>Items ({returnCase.items!.length})</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                {returnCase.items!.map((item) => (
-                  <div key={item.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}>
-                    <span><strong>{item.sku || item.shopifyLineItemId}</strong> × {item.qty}</span>
-                    {item.reasonCode && <span style={{ color: "#6d7175" }}>{item.reasonCode}</span>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           {returnCase.status.toLowerCase() === "rejected" && returnCase.rejectionReason && (
             <div style={{ marginTop: 16, padding: 12, background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca", color: "#991b1b", fontSize: 14 }}>
               <strong>Rejection reason (shown to customer):</strong> {returnCase.rejectionReason}
+            </div>
+          )}
+          {pickupAddress && (pickupAddress.formatted || pickupAddress.address1 || pickupAddress.city) && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
+              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Pickup address</div>
+              <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+                {pickupAddress.formatted ?? [pickupAddress.name, pickupAddress.address1, pickupAddress.address2, pickupAddress.city, pickupAddress.state, pickupAddress.pincode, pickupAddress.country].filter(Boolean).join(", ")}
+              </div>
+              {pickupAddress.phone && <div style={{ marginTop: 6, fontSize: 13 }}>Phone: {pickupAddress.phone}</div>}
             </div>
           )}
         </div>
       </s-section>
 
       <s-section heading="Fynd">
-        <div style={{ ...cardStyle, marginBottom: 0 }}>
+        <div style={{ ...cardStyle, marginBottom: 0 }} className="app-card-interactive">
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16 }}>
             <div>
               <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
@@ -377,37 +510,33 @@ export default function ReturnDetail() {
               <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 12, fontWeight: 500 }}>Shipments ({fyndOrderDetailsTab.shipments.length})</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {fyndOrderDetailsTab.shipments.map((s, idx) => (
-                  <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} />
+                  <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} formatMoney={formatMoney} shopifyLineItems={shopifyOrder?.lineItems} />
                 ))}
               </div>
             </div>
           ) : (
-            <div style={{ padding: 16, background: "#f9fafb", borderRadius: 8, color: "#6d7175", fontSize: 14 }}>
+            <div style={{ padding: 20, background: "var(--rpm-surface-elevated)", borderRadius: "var(--rpm-radius-lg)", color: "var(--rpm-text-muted)", fontSize: 14, border: "var(--rpm-border)" }}>
               {!isManualReturn ? "No Fynd shipment data yet. Use Refresh from Fynd to fetch details." : "Manual return — no Fynd sync."}
+            </div>
+          )}
+          {(fyndPayloadInfo?.shipments?.length ?? 0) > 0 && (
+            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
+              <button type="button" onClick={() => setShowRawFynd((v) => !v)} className="app-btn-text">
+                {showRawFynd ? "Hide Fynd payload" : "View Fynd payload"}
+              </button>
+              {showRawFynd && (
+                <pre style={{ marginTop: 12, padding: 16, background: "var(--rpm-surface-elevated)", borderRadius: "var(--rpm-radius)", overflow: "auto", fontSize: 11, maxHeight: 400, border: "var(--rpm-border)" }}>
+                  {fyndPayloadInfo.rawJson}
+                </pre>
+              )}
             </div>
           )}
         </div>
       </s-section>
 
-      {fyndPayloadInfo && fyndPayloadInfo.shipments.length > 0 ? (
-        <div style={{ marginBottom: 16 }}>
-          <button
-            type="button"
-            onClick={() => setShowRawFynd((v) => !v)}
-            style={{ fontSize: 14, color: "#005bd3", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 500 }}
-          >
-            {showRawFynd ? "Hide Fynd payload" : "View Fynd payload"}
-          </button>
-          {showRawFynd && (
-            <pre style={{ marginTop: 12, padding: 12, background: "#f6f6f7", borderRadius: 8, overflow: "auto", fontSize: 11, maxHeight: 400 }}>
-              {fyndPayloadInfo.rawJson}
-            </pre>
-          )}
-        </div>
-      ) : null}
-
       <s-section heading="Actions">
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ ...cardStyle, padding: 24 }} className="app-card-interactive">
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
           {!["approved", "rejected", "completed"].includes(returnCase.status.toLowerCase()) && (
             <>
               <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
@@ -496,59 +625,48 @@ export default function ReturnDetail() {
             Save note
           </s-button>
         </fetcher.Form>
-      </s-section>
-
-      <s-section heading="Items">
-        {(returnCase.items?.length ?? 0) === 0 ? (
-          <p style={{ color: "#6d7175" }}>No items in this return.</p>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {(returnCase.items || []).map((item) => (
-              <div
-                key={item.id}
-                style={{
-                  padding: 16,
-                  background: "#f9fafb",
-                  borderRadius: 8,
-                  border: "1px solid #e1e3e5",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                  <div>
-                    <strong>{item.sku || item.shopifyLineItemId}</strong> × {item.qty}
-                  </div>
-                  <div style={{ color: "#6d7175" }}>{item.reasonCode || "—"}</div>
-                </div>
-                {(item.fyndShipmentId || item.fyndBagId) && (
-                  <div style={{ fontSize: 12, color: "#6d7175", marginTop: 8 }}>
-                    {item.fyndShipmentId && <span>Fynd Shipment: <code style={{ background: "#eee", padding: "2px 6px", borderRadius: 4 }}>{item.fyndShipmentId}</code></span>}
-                    {item.fyndShipmentId && item.fyndBagId && " · "}
-                    {item.fyndBagId && <span>Bag: <code style={{ background: "#eee", padding: "2px 6px", borderRadius: 4 }}>{item.fyndBagId}</code></span>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+        <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 20 }}>
+          <input type="hidden" name="action" value="save_notes_for_customer" />
+          <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Notes for Customer</label>
+          <p style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 10 }}>These notes will be published and visible to the customer when they view their return.</p>
+          <textarea
+            name="notesForCustomer"
+            defaultValue={(returnCase as { notesForCustomer?: string | null }).notesForCustomer ?? ""}
+            rows={3}
+            placeholder="e.g. Your return has been approved. Please ship the item to..."
+            style={{ width: "100%", padding: 12, borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)", marginBottom: 12, boxSizing: "border-box" }}
+          />
+          <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+            Save & publish
+          </s-button>
+        </fetcher.Form>
+        </div>
       </s-section>
 
       <s-section heading="Return tracking (timeline)">
         {(returnCase.events?.length ?? 0) === 0 ? (
-          <p style={{ color: "#6d7175" }}>No events yet.</p>
+          <p style={{ color: "var(--rpm-text-muted)", padding: 20, background: "var(--rpm-surface-subtle)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)" }}>No events yet.</p>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {(returnCase.events || []).map((ev) => (
+          <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
+            {(returnCase.events || []).map((ev, i) => (
               <div
                 key={ev.id}
                 style={{
-                  padding: 12,
-                  background: "#f9fafb",
-                  borderRadius: 8,
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 16,
+                  padding: "14px 18px",
+                  background: i % 2 === 0 ? "var(--rpm-surface)" : "var(--rpm-surface-subtle)",
+                  borderLeft: "4px solid var(--rpm-accent)",
+                  borderRadius: "0 var(--rpm-radius) var(--rpm-radius) 0",
+                  marginLeft: 0,
                   fontSize: 14,
-                  borderLeft: "4px solid #005bd3",
+                  transition: "background 0.2s ease",
                 }}
               >
-                <span style={{ fontWeight: 600 }}>[{ev.source}]</span> {ev.eventType} — {new Date(ev.happenedAt).toLocaleString()}
+                <span style={{ fontWeight: 600, color: "var(--rpm-accent)", minWidth: 70 }}>[{ev.source}]</span>
+                <span style={{ flex: 1 }}>{ev.eventType}</span>
+                <span style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>{new Date(ev.happenedAt).toLocaleString()}</span>
               </div>
             ))}
           </div>

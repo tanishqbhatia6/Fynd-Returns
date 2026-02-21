@@ -100,6 +100,7 @@ model ReturnCase {
   status            String
   refundStatus      String?
   adminNotes        String?
+  notesForCustomer  String?   // published notes visible to customer in portal
   customerNotes     String?
   rejectionReason   String?
   createdAt         DateTime @default(now())

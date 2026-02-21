@@ -114,68 +114,71 @@ export default function ReturnsList() {
         {returns.length === 0 ? (
           <div
             style={{
-              padding: 48,
+              padding: 56,
               textAlign: "center",
-              background: "var(--p-color-bg-surface-secondary, #f6f6f7)",
-              borderRadius: 8,
-              border: "1px dashed var(--p-color-border-secondary, #e1e3e5)",
+              background: "linear-gradient(180deg, var(--rpm-surface-subtle) 0%, var(--rpm-surface-elevated) 100%)",
+              borderRadius: "var(--rpm-radius-xl)",
+              border: "2px dashed var(--rpm-border-strong)",
+              boxShadow: "var(--rpm-shadow-sm)",
             }}
           >
-            <p style={{ fontSize: 18, fontWeight: 500, marginBottom: 8 }}>
-              No returns available yet
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>📦</div>
+            <p style={{ fontSize: 20, fontWeight: 600, marginBottom: 10, color: "var(--rpm-text)", letterSpacing: "-0.02em" }}>
+              No returns yet
             </p>
-            <p style={{ color: "#6d7175", marginBottom: 16, maxWidth: 400, margin: "0 auto 16px" }}>
+            <p style={{ color: "var(--rpm-text-muted)", marginBottom: 24, maxWidth: 420, margin: "0 auto 24px", lineHeight: 1.6 }}>
               Returns will appear here when customers initiate them via the customer portal.
               Share your portal URL with customers to get started.
             </p>
-            <Link to="/app/portal">
+            <Link to="/app/portal" style={{ textDecoration: "none" }}>
               <s-button variant="primary">View Customer Portal URL</s-button>
             </Link>
           </div>
         ) : (
           <s-data-table>
-            <table>
+            <table className="app-table" style={{ width: "100%", borderCollapse: "collapse", borderRadius: "var(--rpm-radius-lg)", overflow: "hidden", boxShadow: "var(--rpm-shadow-sm)" }}>
               <thead>
-                <tr>
-                  <th>Order</th>
-                  <th>Fynd Order ID</th>
-                  <th>Fynd Return #</th>
-                  <th>Forward AWB</th>
-                  <th>Return AWB</th>
-                  <th>Status</th>
-                  <th>Created</th>
+                <tr style={{ background: "var(--rpm-surface-elevated)", borderBottom: "var(--rpm-border)" }}>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Order</th>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fynd Order ID</th>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fynd Return #</th>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Forward AWB</th>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Return AWB</th>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Created</th>
                 </tr>
               </thead>
               <tbody>
                 {returns.map((r) => (
-                  <tr key={r.id} style={{ borderBottom: "1px solid #f1f2f4" }}>
-                    <td style={{ padding: "12px 16px" }}>
-                      <Link to={`/app/returns/${r.id}`} style={{ color: "#005bd3", textDecoration: "none", fontWeight: 500 }}>
+                  <tr key={r.id} style={{ borderBottom: "var(--rpm-border)", background: "var(--rpm-surface)" }}>
+                    <td style={{ padding: "14px 18px" }}>
+                      <Link to={`/app/returns/${r.id}`} className="app-link">
                         {r.shopifyOrderName || r.id}
                       </Link>
                     </td>
-                    <td style={{ padding: "12px 16px", color: "#6d7175", fontFamily: "monospace", fontSize: 13 }}>
+                    <td style={{ padding: "14px 18px", color: "var(--rpm-text-muted)", fontFamily: "monospace", fontSize: 13 }}>
                       {(r as { fyndOrderId?: string | null }).fyndOrderId || (r.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}
                     </td>
-                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.fyndReturnNo || "—"}</td>
-                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.forwardAwb || "—"}</td>
-                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.returnAwb || "—"}</td>
-                    <td style={{ padding: "12px 16px" }}>
+                    <td style={{ padding: "14px 18px", color: "var(--rpm-text-muted)" }}>{r.fyndReturnNo || "—"}</td>
+                    <td style={{ padding: "14px 18px", color: "var(--rpm-text-muted)" }}>{r.forwardAwb || "—"}</td>
+                    <td style={{ padding: "14px 18px", color: "var(--rpm-text-muted)" }}>{r.returnAwb || "—"}</td>
+                    <td style={{ padding: "14px 18px" }}>
                       <span
+                        className="app-status-badge"
                         style={{
-                          display: "inline-block",
-                          padding: "4px 10px",
-                          borderRadius: 6,
+                          padding: "5px 12px",
+                          borderRadius: 20,
                           fontSize: 12,
-                          fontWeight: 500,
-                          background: `${getStatusColor(r.status)}20`,
+                          fontWeight: 600,
+                          background: `${getStatusColor(r.status)}18`,
                           color: getStatusColor(r.status),
+                          border: `1px solid ${getStatusColor(r.status)}40`,
                         }}
                       >
                         {r.status}
                       </span>
                     </td>
-                    <td style={{ padding: "12px 16px", color: "#6d7175" }}>{new Date(r.createdAt).toLocaleDateString()}</td>
+                    <td style={{ padding: "14px 18px", color: "var(--rpm-text-muted)", fontSize: 13 }}>{new Date(r.createdAt).toLocaleDateString()}</td>
                   </tr>
                 ))}
               </tbody>

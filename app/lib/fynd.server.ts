@@ -115,9 +115,9 @@ export class FyndPlatformClient {
     if (!res.ok) {
       const hint =
         res.status === 401
-          ? " Invalid or expired credentials. Check Company ID, Client ID & Secret."
+          ? " Invalid or expired credentials. Check Company ID, Client ID & Secret in Settings → Integrations."
           : res.status === 403
-            ? " Access denied. Check app permissions in Fynd Platform."
+            ? " Fynd returned 403 Forbidden—your app may lack required scopes (company/orders/read, company/orders/write). Grant these in Fynd Platform and re-save credentials."
             : res.status >= 500
               ? " Fynd server error. Try again later."
               : "";

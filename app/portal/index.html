@@ -499,6 +499,7 @@
                 if (meta.length) html += '<div class="return-meta">' + meta.join('') + '</div>';
                 if (ti.trackingUrl) html += '<div class="return-tracking-cta"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary">Track shipment →</a></div>';
                 if (x.status && status === 'rejected' && x.rejectionReason) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, #dc2626 0.08, transparent);border-radius:10px;font-size:0.875rem;color:#b91c1c;">' + escapeHtml(x.rejectionReason) + '</div>';
+                if (x.notesForCustomer) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, var(--portal-primary) 0.08, transparent);border-radius:10px;font-size:0.875rem;color:var(--portal-text);border-left:4px solid var(--portal-primary);"><strong>Message from store:</strong><div style="margin-top:8px;white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
                 var events = (x.events || []).slice().sort(function(a,b) { return new Date(a.happenedAt||0) - new Date(b.happenedAt||0); }).slice(-15);
                 if (events.length) {
                   html += '<div class="return-timeline"><div class="return-timeline-title">Tracking timeline</div>';

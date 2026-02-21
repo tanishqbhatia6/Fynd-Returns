@@ -46,10 +46,9 @@ export default function Permissions() {
 
   return (
     <s-page heading="All orders permission">
+      <div className="app-content">
       {fetcher.data && "success" in fetcher.data && (
-        <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
-          Settings saved successfully.
-        </div>
+        <div className="app-alert app-alert-success">Settings saved successfully.</div>
       )}
 
       <fetcher.Form method="post">
@@ -80,13 +79,14 @@ export default function Permissions() {
             <span>I acknowledge and want to use read_all_orders for full order access</span>
           </label>
         </s-section>
-        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
+        <div className="app-actions">
           <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
           <Link to="/app/settings">
             <s-button variant="secondary" type="button">Discard</s-button>
           </Link>
         </div>
       </fetcher.Form>
+      </div>
     </s-page>
   );
 }

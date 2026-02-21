@@ -114,13 +114,12 @@ export default function ReturnDetail() {
 
   return (
     <s-page heading={`Return ${returnCase.shopifyOrderName || returnCase.id}`}>
+      <div className="app-content">
       {fetcher.data?.error && (
-        <div style={{ ...cardStyle, borderColor: "#d72c0d", background: "#fef2f2" }}>
-          <p style={{ color: "#d72c0d" }}>{fetcher.data.error}</p>
-        </div>
+        <div className="app-alert app-alert-error">{fetcher.data.error}</div>
       )}
       {fyndError && (
-        <div style={{ ...cardStyle, borderColor: "#b98900", background: "#fffbeb" }}>
+        <div className="app-alert app-alert-warning">
           <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#92400e" }}>Fynd sync issue</p>
           <p style={{ margin: 0, color: "#78350f" }}>{decodeURIComponent(fyndError)}</p>
           {canRetryFynd && (
@@ -134,16 +133,12 @@ export default function ReturnDetail() {
         </div>
       )}
       {fyndSuccess && (
-        <div style={{ ...cardStyle, borderColor: "#008060", background: "#ecfdf5" }}>
-          <p style={{ margin: 0, color: "#065f46" }}>
-            {fyndSuccess === "already_synced" ? "This return is already synced to Fynd." : "Return synced to Fynd successfully."}
-          </p>
+        <div className="app-alert app-alert-success">
+          {fyndSuccess === "already_synced" ? "This return is already synced to Fynd." : "Return synced to Fynd successfully."}
         </div>
       )}
       {fyndRefresh && (
-        <div style={{ ...cardStyle, borderColor: "#008060", background: "#ecfdf5" }}>
-          <p style={{ margin: 0, color: "#065f46" }}>Fynd details refreshed from API.</p>
-        </div>
+        <div className="app-alert app-alert-success">Fynd details refreshed from API.</div>
       )}
 
       <s-section>
@@ -462,6 +457,7 @@ export default function ReturnDetail() {
           </div>
         )}
       </s-section>
+      </div>
     </s-page>
   );
 }

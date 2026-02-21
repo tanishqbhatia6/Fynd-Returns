@@ -98,10 +98,9 @@ export default function Reports() {
 
   return (
     <s-page heading="Reports">
+      <div className="app-content">
       {error && (
-        <div style={{ ...cardStyle, marginBottom: 24, borderColor: "#d72c0d", background: "#fef2f2" }}>
-          <p style={{ color: "#d72c0d" }}>{error}</p>
-        </div>
+        <div className="app-alert app-alert-error">{error}</div>
       )}
 
       <s-section heading="Overview">
@@ -181,6 +180,7 @@ export default function Reports() {
           <s-button variant="primary">View returns</s-button>
         </Link>
       </s-section>
+      </div>
     </s-page>
   );
 }

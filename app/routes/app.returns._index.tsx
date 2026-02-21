@@ -70,6 +70,7 @@ export default function ReturnsList() {
 
   return (
     <s-page heading="Returns">
+      <div className="app-content">
       {error && (
         <s-section>
           <p style={{ color: "#d72c0d", marginBottom: 16 }}>{error}</p>
@@ -182,6 +183,7 @@ export default function ReturnsList() {
           </s-data-table>
         )}
       </s-section>
+      </div>
     </s-page>
   );
 }

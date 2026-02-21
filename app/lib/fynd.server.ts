@@ -23,17 +23,29 @@ export async function fetchFyndPlatformToken(
   const url = `${baseUrl}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   log?.("fynd-platform-oauth", "Fetching token", `url=${url}`);
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Basic ${basicAuth}`,
-    },
-    body: JSON.stringify({ grant_type: "client_credentials" }),
-  });
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${basicAuth}`,
+      },
+      body: JSON.stringify({ grant_type: "client_credentials" }),
+    });
+  } catch (netErr) {
+    const m = netErr instanceof Error ? netErr.message : String(netErr);
+    if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
+      throw new Error("Network error: Could not reach Fynd OAuth. Check base URL and internet connection.");
+    }
+    throw netErr;
+  }
   const body = await res.text();
   log?.("fynd-platform-oauth", "Response", `status=${res.status}`);
-  if (!res.ok) throw new Error(`Fynd Platform OAuth error ${res.status}: ${body}`);
+  if (!res.ok) {
+    const hint = res.status === 401 ? " Check Company ID, Client ID & Secret." : res.status >= 500 ? " Fynd server error. Try again later." : "";
+    throw new Error(`Fynd Platform OAuth error ${res.status}: ${(body || "Unknown error").slice(0, 200)}${hint}`);
+  }
   const data = JSON.parse(body) as { access_token?: string };
   if (!data.access_token) throw new Error("No access_token in OAuth response");
   return data.access_token;
@@ -59,13 +71,32 @@ export class FyndPlatformClient {
       "Authorization": `Bearer ${this.accessToken}`,
     };
     this.log?.("fynd-platform", "Request", `${method} ${path}`);
-    const res = await fetch(url, {
-      method,
-      headers,
-      ...(body !== undefined && { body: JSON.stringify(body) }),
-    });
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method,
+        headers,
+        ...(body !== undefined && { body: JSON.stringify(body) }),
+      });
+    } catch (netErr) {
+      const m = netErr instanceof Error ? netErr.message : String(netErr);
+      if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
+        throw new Error("Network error: Could not reach Fynd API. Check base URL, firewall, and internet connection.");
+      }
+      throw netErr;
+    }
     const text = await res.text();
-    if (!res.ok) throw new Error(`Fynd Platform API error ${res.status}: ${text}`);
+    if (!res.ok) {
+      const hint =
+        res.status === 401
+          ? " Invalid or expired credentials. Check Company ID, Client ID & Secret."
+          : res.status === 403
+            ? " Access denied. Check app permissions in Fynd Platform."
+            : res.status >= 500
+              ? " Fynd server error. Try again later."
+              : "";
+      throw new Error(`Fynd Platform API error ${res.status}: ${(text || "Unknown error").slice(0, 300)}${hint}`);
+    }
     return text ? (JSON.parse(text) as unknown) : null;
   }
 
@@ -99,8 +130,17 @@ export class FyndPlatformClient {
     return this.request("PUT", `${this.basePath}/orders/${encodeURIComponent(orderId)}/shipments/status`, payload);
   }
 
-  async testConnection() {
-    await this.getReturnReasons();
+  async testConnection(): Promise<{ ok: true; warning?: string }> {
+    try {
+      await this.getReturnReasons();
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404") || msg.includes("Not Found")) {
+        return { ok: true, warning: "Credentials valid. Return reasons endpoint not available in this Fynd environment—using admin-configured reasons." };
+      }
+      throw err;
+    }
   }
 }
 
@@ -125,10 +165,29 @@ export class FyndStorefrontClient {
       "Authorization": `Basic ${this.basicAuth}`,
     };
     this.log?.("fynd-storefront", "Request", `GET ${path}`);
-    const res = await fetch(url, { method, headers });
+    let res: Response;
+    try {
+      res = await fetch(url, { method, headers });
+    } catch (netErr) {
+      const m = netErr instanceof Error ? netErr.message : String(netErr);
+      if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
+        throw new Error("Network error: Could not reach Fynd API. Check base URL and internet connection.");
+      }
+      throw netErr;
+    }
     const body = await res.text();
-    if (!res.ok) throw new Error(`Fynd Storefront API error ${res.status}: ${body}`);
-    return JSON.parse(body);
+    if (!res.ok) {
+      const hint =
+        res.status === 401
+          ? " Invalid Application Token. Check credentials in Fynd Platform."
+          : res.status === 403
+            ? " Access denied. Check Application Token and permissions."
+            : res.status >= 500
+              ? " Fynd server error. Try again later."
+              : "";
+      throw new Error(`Fynd Storefront API error ${res.status}: ${(body || "Unknown error").slice(0, 300)}${hint}`);
+    }
+    return body ? (JSON.parse(body) as unknown) : null;
   }
 
   async getLanguages() {
@@ -165,15 +224,15 @@ export type NormalizedFyndCreds = {
 
 function normalizeCredentials(credentials: FyndCredentials): NormalizedFyndCreds {
   const out: NormalizedFyndCreds = {};
-  if (credentials.platform?.clientId && credentials.platform?.clientSecret) {
-    out.platform = { clientId: credentials.platform.clientId, clientSecret: credentials.platform.clientSecret };
-  } else if (credentials.clientId && credentials.clientSecret) {
-    out.platform = { clientId: credentials.clientId, clientSecret: credentials.clientSecret };
+  const p = credentials.platform as { clientId?: string; clientSecret?: string; client_id?: string; client_secret?: string } | undefined;
+  const cId = p?.clientId ?? p?.client_id ?? credentials.clientId ?? (credentials as { client_id?: string }).client_id;
+  const cSec = p?.clientSecret ?? p?.client_secret ?? credentials.clientSecret ?? (credentials as { client_secret?: string }).client_secret;
+  if (cId && cSec) {
+    out.platform = { clientId: String(cId).trim(), clientSecret: String(cSec).trim() };
   }
-  if (credentials.storefront?.applicationToken) {
-    out.storefront = { applicationToken: credentials.storefront.applicationToken };
-  } else if (credentials.applicationToken) {
-    out.storefront = { applicationToken: credentials.applicationToken };
+  const tok = credentials.storefront?.applicationToken ?? credentials.applicationToken ?? (credentials as { application_token?: string }).application_token;
+  if (tok) {
+    out.storefront = { applicationToken: String(tok).trim() };
   }
   return out;
 }
@@ -243,7 +302,12 @@ export async function createFyndClientOrError(
 
   if (requirePlatform) {
     if (!credentials.platform) {
-      return { ok: false, error: "Creating returns and refreshing details require Platform API (Company ID + Client ID & Secret). Add Platform credentials in Settings → Integrations." };
+      return {
+        ok: false,
+        error:
+          "Creating returns and refreshing details require Platform API (Company ID + Client ID & Secret). " +
+          "Add them in Settings → Integrations (Platform section) and Save. If already configured, try re-entering Client ID & Secret and Save again.",
+      };
     }
     if (!settings?.fyndCompanyId) {
       return { ok: false, error: "Fynd Company ID is missing. Set it in Settings → Integrations (Platform API)." };

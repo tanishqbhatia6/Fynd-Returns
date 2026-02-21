@@ -152,19 +152,11 @@ export default function Dashboard() {
 
   return (
     <s-page heading="Dashboard">
+      <div className="app-content">
       {error && (
-        <div
-          style={{
-            ...cardStyle,
-            marginBottom: 24,
-            borderColor: "#d72c0d",
-            background: "#fef2f2",
-          }}
-        >
-          <p style={{ color: "#d72c0d", marginBottom: 8, fontWeight: 500 }}>
-            {error}
-          </p>
-          <p style={{ color: "#6d7175", fontSize: 14 }}>
+        <div className="app-alert app-alert-error">
+          <p style={{ marginBottom: 8, fontWeight: 500 }}>{error}</p>
+          <p style={{ fontSize: 14, opacity: 0.9 }}>
             Some metrics may be unavailable. You can still use Returns, Settings, and the Customer Portal.
           </p>
         </div>
@@ -415,6 +407,7 @@ export default function Dashboard() {
           </div>
         </s-section>
       )}
+      </div>
     </s-page>
   );
 }

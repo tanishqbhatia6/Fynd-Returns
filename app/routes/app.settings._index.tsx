@@ -75,6 +75,7 @@ export default function SettingsDashboard() {
 
   return (
     <s-page heading="Settings">
+      <div className="app-content">
       <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
         Manage your settings like rules, notifications and integrations for customers.
       </p>
@@ -104,6 +105,7 @@ export default function SettingsDashboard() {
             <div style={{ color: "#6d7175", fontSize: 14, lineHeight: 1.5 }}>{c.desc}</div>
           </Link>
         ))}
+      </div>
       </div>
     </s-page>
   );

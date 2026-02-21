@@ -13,6 +13,7 @@ export default function PortalInfo() {
 
   return (
     <s-page heading="Customer Portal">
+      <div className="app-content">
       <s-section heading="Portal URL">
         <p style={{ marginBottom: 12, color: "#6d7175" }}>
           Share this URL with your customers so they can initiate and track returns.
@@ -82,6 +83,7 @@ export default function PortalInfo() {
           Example: Add a "Returns" link in your footer that points to the portal URL above.
         </p>
       </s-section>
+      </div>
     </s-page>
   );
 }

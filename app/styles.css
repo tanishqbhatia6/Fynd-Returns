@@ -1,0 +1,200 @@
+/* ReturnProMax — Design system & layout fixes */
+
+:root {
+  --rpm-space-xs: 4px;
+  --rpm-space-sm: 8px;
+  --rpm-space-md: 16px;
+  --rpm-space-lg: 24px;
+  --rpm-space-xl: 32px;
+  --rpm-space-2xl: 40px;
+  --rpm-radius: 8px;
+  --rpm-radius-lg: 12px;
+  --rpm-border: 1px solid #e1e3e5;
+  --rpm-border-strong: 1px solid #c9cccf;
+  --rpm-surface: #ffffff;
+  --rpm-surface-subtle: #f6f6f7;
+  --rpm-surface-elevated: #f9fafb;
+  --rpm-text: #202223;
+  --rpm-text-muted: #6d7175;
+  --rpm-input-max: 480px;
+  --rpm-content-max: 720px;
+}
+
+/* Page & content container */
+.app-content {
+  padding: 0 24px 40px;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Clear separation between s-section siblings */
+s-page s-section + s-section {
+  margin-top: var(--rpm-space-xl) !important;
+}
+
+s-page s-section {
+  display: block;
+}
+
+/* Form field constraints — prevent overflow */
+.app-content input[type="text"],
+.app-content input[type="number"],
+.app-content input[type="email"],
+.app-content input[type="url"],
+.app-content input[type="password"],
+.app-content input[type="date"],
+.app-content select,
+.app-content textarea {
+  box-sizing: border-box !important;
+  max-width: var(--rpm-input-max) !important;
+  width: 100% !important;
+}
+
+/* Color pickers can be smaller */
+.app-content input[type="color"] {
+  box-sizing: border-box !important;
+  max-width: 120px;
+}
+
+/* Card blocks — clear boundaries */
+.app-card {
+  padding: var(--rpm-space-lg);
+  background: var(--rpm-surface-subtle);
+  border: var(--rpm-border);
+  border-radius: var(--rpm-radius-lg);
+  margin-bottom: var(--rpm-space-lg);
+}
+
+.app-card:last-child {
+  margin-bottom: 0;
+}
+
+.app-card + .app-card {
+  margin-top: var(--rpm-space-lg);
+}
+
+/* Form field group */
+.app-field {
+  margin-bottom: var(--rpm-space-md);
+}
+
+.app-field:last-child {
+  margin-bottom: 0;
+}
+
+.app-field label {
+  display: block;
+  margin-bottom: var(--rpm-space-sm);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--rpm-text);
+}
+
+.app-field-helper {
+  font-size: 12px;
+  color: var(--rpm-text-muted);
+  margin-top: 6px;
+  max-width: var(--rpm-input-max);
+}
+
+/* Input base */
+.app-input {
+  display: block;
+  width: 100%;
+  max-width: var(--rpm-input-max);
+  padding: 10px 12px;
+  font-size: 14px;
+  border: var(--rpm-border);
+  border-radius: var(--rpm-radius);
+  background: var(--rpm-surface);
+  box-sizing: border-box;
+}
+
+.app-input:focus {
+  outline: 2px solid #005bd3;
+  outline-offset: -1px;
+  border-color: #005bd3;
+}
+
+/* Section spacing within forms */
+.app-form-section {
+  margin-bottom: var(--rpm-space-2xl);
+}
+
+.app-form-section:last-of-type {
+  margin-bottom: var(--rpm-space-lg);
+}
+
+/* Alerts / banners */
+.app-alert {
+  padding: 12px 16px;
+  border-radius: var(--rpm-radius);
+  margin-bottom: var(--rpm-space-md);
+  font-size: 14px;
+}
+
+.app-alert-success {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.app-alert-error {
+  background: #fef2f2;
+  color: #d72c0d;
+}
+
+.app-alert-warning {
+  background: #fef9e7;
+  color: #b98900;
+}
+
+/* Details/summary for collapsible */
+.app-details {
+  margin-top: var(--rpm-space-lg);
+  margin-bottom: var(--rpm-space-lg);
+  border: var(--rpm-border);
+  border-radius: var(--rpm-radius-lg);
+  overflow: hidden;
+}
+
+.app-details summary {
+  padding: 12px 16px;
+  background: var(--rpm-surface-elevated);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.app-details[open] summary {
+  border-bottom: var(--rpm-border);
+}
+
+.app-details-content {
+  padding: var(--rpm-space-lg);
+  border-top: var(--rpm-border);
+}
+
+/* Button row */
+.app-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: var(--rpm-space-xl);
+  padding-top: var(--rpm-space-lg);
+  border-top: var(--rpm-border);
+}
+
+/* Grid for form fields */
+.app-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--rpm-space-md);
+}
+
+/* Page wrapper */
+s-page {
+  display: block;
+  max-width: 100%;
+  box-sizing: border-box;
+}

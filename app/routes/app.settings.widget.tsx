@@ -84,10 +84,9 @@ export default function Widget() {
 
   return (
     <s-page heading="Assure Return Widget">
+      <div className="app-content">
       {fetcher.data && "success" in fetcher.data && (
-        <div style={{ padding: 12, marginBottom: 16, background: "#e8f5e9", borderRadius: 8, color: "#2e7d32" }}>
-          Settings saved successfully.
-        </div>
+        <div className="app-alert app-alert-success">Settings saved successfully.</div>
       )}
 
       <fetcher.Form method="post">
@@ -112,9 +111,9 @@ export default function Widget() {
               <span><strong>Create return</strong> — Tab to start a new return request</span>
             </label>
           </div>
-          <div>
-            <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Default tab when portal opens</label>
-            <select name="defaultTab" defaultValue={portalConfig.defaultTab} style={{ padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 14 }}>
+          <div className="app-field">
+            <label>Default tab when portal opens</label>
+            <select name="defaultTab" defaultValue={portalConfig.defaultTab} className="app-input">
               <option value="order">Order tracking</option>
               <option value="return">Return tracking</option>
               <option value="create">Create return</option>
@@ -122,30 +121,30 @@ export default function Widget() {
           </div>
         </s-section>
         <s-section heading="Portal theme">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 20, marginBottom: 20 }}>
-            <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Primary color</label>
-              <input type="color" name="primaryColor" defaultValue={portalTheme.primaryColor} style={{ width: "100%", height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5" }} />
+          <div className="app-grid" style={{ marginBottom: 20 }}>
+            <div className="app-field">
+              <label>Primary color</label>
+              <input type="color" name="primaryColor" defaultValue={portalTheme.primaryColor} style={{ width: "100%", maxWidth: 120, height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5", boxSizing: "border-box" }} />
             </div>
-            <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Background</label>
-              <input type="color" name="backgroundColor" defaultValue={portalTheme.backgroundColor} style={{ width: "100%", height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5" }} />
+            <div className="app-field">
+              <label>Background</label>
+              <input type="color" name="backgroundColor" defaultValue={portalTheme.backgroundColor} style={{ width: "100%", maxWidth: 120, height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5", boxSizing: "border-box" }} />
             </div>
-            <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Card surface</label>
-              <input type="color" name="surfaceColor" defaultValue={portalTheme.surfaceColor} style={{ width: "100%", height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5" }} />
+            <div className="app-field">
+              <label>Card surface</label>
+              <input type="color" name="surfaceColor" defaultValue={portalTheme.surfaceColor} style={{ width: "100%", maxWidth: 120, height: 40, padding: 4, cursor: "pointer", borderRadius: 6, border: "1px solid #e1e3e5", boxSizing: "border-box" }} />
             </div>
-            <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Font</label>
-              <select name="fontFamily" defaultValue={portalTheme.fontFamily} style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 14 }}>
+            <div className="app-field">
+              <label>Font</label>
+              <select name="fontFamily" defaultValue={portalTheme.fontFamily} className="app-input">
                 {fontOptions.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
-            <div>
-              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Border radius</label>
-              <select name="borderRadius" defaultValue={portalTheme.borderRadius} style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 14 }}>
+            <div className="app-field">
+              <label>Border radius</label>
+              <select name="borderRadius" defaultValue={portalTheme.borderRadius} className="app-input">
                 <option value="8px">Minimal (8px)</option>
                 <option value="12px">Rounded (12px)</option>
                 <option value="16px">Soft (16px)</option>
@@ -159,7 +158,7 @@ export default function Widget() {
           <input type="hidden" name="borderColor" value={portalTheme.borderColor} />
           <input type="hidden" name="shadow" value={portalTheme.shadow} />
         </s-section>
-        <div style={{ marginTop: 24, display: "flex", gap: 12 }}>
+        <div className="app-actions">
           <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
           <Link to="/app/settings">
             <s-button variant="secondary" type="button">Discard</s-button>
@@ -169,6 +168,7 @@ export default function Widget() {
           </a>
         </div>
       </fetcher.Form>
+      </div>
     </s-page>
   );
 }

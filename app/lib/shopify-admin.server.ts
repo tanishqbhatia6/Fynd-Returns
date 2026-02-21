@@ -45,9 +45,25 @@ const ORDERS_BY_NAME_QUERY = `#graphql
             sku
             quantity
             originalUnitPriceSet { shopMoney { amount } }
-            variant { product { tags } }
+            variant { product { tags, productType } }
           }
         }
+      }
+    }
+  }
+`;
+
+const ORDERS_BY_CUSTOMER_QUERY = `#graphql
+  query getOrdersByCustomer($query: String!) {
+    orders(first: 50, query: $query, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        createdAt
+        email
+        totalPriceSet { shopMoney { amount } }
+        displayFinancialStatus
+        displayFulfillmentStatus
       }
     }
   }
@@ -75,6 +91,7 @@ export type OrderForPortal = {
     quantity: number;
     price?: string;
     productTags?: string[];
+    productType?: string | null;
   }>;
   shippingCountry?: string | null;
   shippingProvince?: string | null;
@@ -125,7 +142,7 @@ export async function fetchOrderByOrderNumber(
         sku: string | null;
         quantity: number;
         originalUnitPriceSet?: { shopMoney?: { amount?: string } };
-        variant?: { product?: { tags?: string[] } };
+        variant?: { product?: { tags?: string[]; productType?: string } };
       }>;
     };
   };
@@ -135,17 +152,68 @@ export async function fetchOrderByOrderNumber(
     createdAt: o.createdAt,
     email: o.email ?? null,
     totalPrice: o.totalPriceSet?.shopMoney?.amount,
-    lineItems: (o.lineItems?.nodes ?? []).map((li) => ({
-      id: li.id,
-      title: li.title,
-      sku: li.sku,
-      quantity: li.quantity,
-      price: li.originalUnitPriceSet?.shopMoney?.amount,
-      productTags: (li as { variant?: { product?: { tags?: string[] } } }).variant?.product?.tags ?? [],
-    })),
+    lineItems: (o.lineItems?.nodes ?? []).map((li) => {
+      const product = (li as { variant?: { product?: { tags?: string[]; productType?: string } } }).variant?.product;
+      return {
+        id: li.id,
+        title: li.title,
+        sku: li.sku,
+        quantity: li.quantity,
+        price: li.originalUnitPriceSet?.shopMoney?.amount,
+        productTags: product?.tags ?? [],
+        productType: product?.productType ?? null,
+      };
+    }),
     shippingCountry: o.shippingAddress?.countryCode ?? null,
     shippingProvince: o.shippingAddress?.provinceCode ?? null,
   };
+}
+
+export type OrderSummaryForPortal = {
+  id: string;
+  name: string;
+  createdAt: string;
+  email?: string | null;
+  totalPrice?: string;
+  displayFinancialStatus?: string;
+  displayFulfillmentStatus?: string;
+};
+
+export async function fetchOrdersByCustomer(
+  admin: AdminGraphQL,
+  email: string
+): Promise<OrderSummaryForPortal[]> {
+  const trimmed = email.trim().toLowerCase();
+  if (!trimmed) return [];
+  const query = `email:${trimmed}`;
+  try {
+    const res = await admin.graphql(ORDERS_BY_CUSTOMER_QUERY, { variables: { query } });
+    const json = (await res.json()) as {
+      data?: { orders?: { nodes?: Array<{
+        id: string;
+        name: string;
+        createdAt: string;
+        email?: string | null;
+        totalPriceSet?: { shopMoney?: { amount?: string } };
+        displayFinancialStatus?: string;
+        displayFulfillmentStatus?: string;
+      }> } };
+      errors?: Array<{ message?: string }>;
+    };
+    if (json.errors?.length) return [];
+    const nodes = json.data?.orders?.nodes ?? [];
+    return nodes.map((o) => ({
+      id: o.id,
+      name: o.name,
+      createdAt: o.createdAt,
+      email: o.email ?? null,
+      totalPrice: o.totalPriceSet?.shopMoney?.amount,
+      displayFinancialStatus: o.displayFinancialStatus ?? undefined,
+      displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export async function fetchOrder(

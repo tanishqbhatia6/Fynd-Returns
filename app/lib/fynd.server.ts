@@ -153,7 +153,66 @@ export type FyndCredentials = {
   clientId?: string;
   clientSecret?: string;
   applicationToken?: string;
+  /** New shape: both Platform and Storefront can be present */
+  platform?: { clientId: string; clientSecret: string };
+  storefront?: { applicationToken: string };
 };
+
+export type NormalizedFyndCreds = {
+  platform?: { clientId: string; clientSecret: string };
+  storefront?: { applicationToken: string };
+};
+
+function normalizeCredentials(credentials: FyndCredentials): NormalizedFyndCreds {
+  const out: NormalizedFyndCreds = {};
+  if (credentials.platform?.clientId && credentials.platform?.clientSecret) {
+    out.platform = { clientId: credentials.platform.clientId, clientSecret: credentials.platform.clientSecret };
+  } else if (credentials.clientId && credentials.clientSecret) {
+    out.platform = { clientId: credentials.clientId, clientSecret: credentials.clientSecret };
+  }
+  if (credentials.storefront?.applicationToken) {
+    out.storefront = { applicationToken: credentials.storefront.applicationToken };
+  } else if (credentials.applicationToken) {
+    out.storefront = { applicationToken: credentials.applicationToken };
+  }
+  return out;
+}
+
+function parseStoredCredentials(
+  raw: string | null | undefined,
+  log?: FyndLogFn
+): { ok: true; credentials: NormalizedFyndCreds } | { ok: false; error: string } {
+  if (!raw || String(raw).trim() === "") {
+    return { ok: false, error: "Fynd credentials are not set. Enter Client ID & Secret (Platform) and/or Application Token (Storefront) in Settings → Integrations." };
+  }
+  let parsed: FyndCredentials = {};
+  try {
+    const s = String(raw).trim();
+    if (s.startsWith("{")) {
+      parsed = JSON.parse(s) as FyndCredentials;
+    } else if (s.includes(":")) {
+      try {
+        parsed = JSON.parse(decrypt(s)) as FyndCredentials;
+      } catch (decErr) {
+        log?.("fynd-client", "Decrypt failed", decErr instanceof Error ? decErr.message : String(decErr));
+        return { ok: false, error: "Could not read stored credentials (wrong ENCRYPTION_KEY or corrupted). Re-save credentials in Settings → Integrations." };
+      }
+    } else {
+      parsed = JSON.parse(s || "{}") as FyndCredentials;
+    }
+  } catch (parseErr) {
+    log?.("fynd-client", "Parse failed", parseErr instanceof Error ? parseErr.message : String(parseErr));
+    return { ok: false, error: "Stored Fynd credentials are invalid. Re-save them in Settings → Integrations." };
+  }
+  const credentials = normalizeCredentials(parsed);
+  return { ok: true, credentials };
+}
+
+/** Parse stored credentials for merging (e.g. in settings save). Returns null if empty or invalid. */
+export function getNormalizedCredentialsFromRaw(raw: string | null | undefined): NormalizedFyndCreds | null {
+  const result = parseStoredCredentials(raw);
+  return result.ok ? result.credentials : null;
+}
 
 /** Result when we need a Platform client but got Storefront or null */
 export type FyndClientResult =
@@ -161,15 +220,16 @@ export type FyndClientResult =
   | { ok: false; error: string };
 
 /**
- * Create Fynd client and return it or a clear error (e.g. "Storefront configured" or "Credentials invalid").
- * Use this when you need getShipments (Platform only) and want to show a specific message.
+ * Create Fynd client by requirement: use Platform when requirePlatform, Storefront when requireStorefront,
+ * otherwise prefer Platform then Storefront. Supports storing both credential sets and picks the right one per operation.
  */
 export async function createFyndClientOrError(
   settings: FyndSettings & { fyndApiType?: string | null },
-  options?: { requirePlatform?: boolean; log?: FyndLogFn }
+  options?: { requirePlatform?: boolean; requireStorefront?: boolean; log?: FyndLogFn }
 ): Promise<FyndClientResult> {
   const log = options?.log;
   const requirePlatform = options?.requirePlatform ?? false;
+  const requireStorefront = options?.requireStorefront ?? false;
 
   if (!settings?.fyndApplicationId) {
     return { ok: false, error: "Fynd Application ID is missing. Set it in Settings → Integrations." };
@@ -177,55 +237,24 @@ export async function createFyndClientOrError(
   const baseUrl = getFyndBaseUrl(settings);
   log?.("fynd-client", "Base URL", baseUrl);
 
-  let credentials: FyndCredentials = {};
-  const raw = settings.fyndCredentials;
-  if (!raw || String(raw).trim() === "") {
-    return { ok: false, error: "Fynd credentials are not set. Enter Client ID & Secret (Platform) or Application Token (Storefront) in Settings → Integrations." };
-  }
-  try {
-    const s = String(raw).trim();
-    if (s.startsWith("{")) {
-      credentials = JSON.parse(s) as FyndCredentials;
-    } else if (s.includes(":")) {
-      try {
-        credentials = JSON.parse(decrypt(s)) as FyndCredentials;
-      } catch (decErr) {
-        log?.("fynd-client", "Decrypt failed", decErr instanceof Error ? decErr.message : String(decErr));
-        return { ok: false, error: "Could not read stored credentials (wrong ENCRYPTION_KEY or corrupted). Re-save Client ID & Secret in Settings → Integrations." };
-      }
-    } else {
-      credentials = JSON.parse(s || "{}") as FyndCredentials;
-    }
-  } catch (parseErr) {
-    log?.("fynd-client", "Parse failed", parseErr instanceof Error ? parseErr.message : String(parseErr));
-    return { ok: false, error: "Stored Fynd credentials are invalid. Re-save them in Settings → Integrations." };
-  }
+  const parsed = parseStoredCredentials(settings.fyndCredentials, log);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const credentials = parsed.credentials;
 
-  const apiType = (credentials.apiType ?? settings.fyndApiType ?? "platform").toLowerCase();
-
-  if (apiType === "storefront") {
-    const token = credentials.applicationToken;
-    if (!token) {
-      return { ok: false, error: "Storefront Application Token is missing. Set it in Settings → Integrations." };
+  if (requirePlatform) {
+    if (!credentials.platform) {
+      return { ok: false, error: "Creating returns and refreshing details require Platform API (Company ID + Client ID & Secret). Add Platform credentials in Settings → Integrations." };
     }
-    const client = new FyndStorefrontClient(baseUrl, settings.fyndApplicationId, token, log);
-    if (requirePlatform) {
-      return { ok: false, error: "Creating returns and refreshing details require Platform API (Company ID + Client ID & Secret). You have Storefront configured. Switch to Platform in Settings → Integrations." };
+    if (!settings?.fyndCompanyId) {
+      return { ok: false, error: "Fynd Company ID is missing. Set it in Settings → Integrations (Platform API)." };
     }
-    return { ok: true, client };
-  }
-
-  if (!settings?.fyndCompanyId) {
-    return { ok: false, error: "Fynd Company ID is missing. Set it in Settings → Integrations (Platform API)." };
-  }
-  let accessToken = credentials.accessToken ?? credentials.token;
-  if (!accessToken && credentials.clientId && credentials.clientSecret) {
+    let accessToken: string;
     try {
       accessToken = await fetchFyndPlatformToken(
         baseUrl,
         settings.fyndCompanyId,
-        credentials.clientId,
-        credentials.clientSecret,
+        credentials.platform.clientId,
+        credentials.platform.clientSecret,
         log
       );
     } catch (tokenErr) {
@@ -233,18 +262,52 @@ export async function createFyndClientOrError(
       log?.("fynd-client", "OAuth failed", msg);
       return { ok: false, error: `Fynd login failed: ${msg}. Check Company ID, Client ID & Secret and environment (UAT/Prod) in Settings → Integrations.` };
     }
+    const client = new FyndPlatformClient(
+      baseUrl,
+      settings.fyndCompanyId,
+      settings.fyndApplicationId,
+      accessToken,
+      log
+    );
+    return { ok: true, client };
   }
-  if (!accessToken) {
-    return { ok: false, error: "Fynd Platform credentials incomplete. Enter Client ID & Secret in Settings → Integrations and save." };
+
+  if (requireStorefront) {
+    if (!credentials.storefront) {
+      return { ok: false, error: "Storefront API requires an Application Token. Add Storefront credentials in Settings → Integrations." };
+    }
+    const client = new FyndStorefrontClient(baseUrl, settings.fyndApplicationId, credentials.storefront.applicationToken, log);
+    return { ok: true, client };
   }
-  const client = new FyndPlatformClient(
-    baseUrl,
-    settings.fyndCompanyId,
-    settings.fyndApplicationId,
-    accessToken,
-    log
-  );
-  return { ok: true, client };
+
+  // Prefer Platform, then Storefront (for generic/createFyndClient usage)
+  if (credentials.platform && settings?.fyndCompanyId) {
+    try {
+      const accessToken = await fetchFyndPlatformToken(
+        baseUrl,
+        settings.fyndCompanyId,
+        credentials.platform.clientId,
+        credentials.platform.clientSecret,
+        log
+      );
+      const client = new FyndPlatformClient(
+        baseUrl,
+        settings.fyndCompanyId,
+        settings.fyndApplicationId,
+        accessToken,
+        log
+      );
+      return { ok: true, client };
+    } catch {
+      // fall through to Storefront if OAuth fails
+    }
+  }
+  if (credentials.storefront) {
+    const client = new FyndStorefrontClient(baseUrl, settings.fyndApplicationId, credentials.storefront.applicationToken, log);
+    return { ok: true, client };
+  }
+
+  return { ok: false, error: "Fynd credentials are not set. Enter Client ID & Secret (Platform) and/or Application Token (Storefront) in Settings → Integrations." };
 }
 
 export async function createFyndClient(

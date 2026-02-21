@@ -3,6 +3,8 @@ import prisma from "../db.server";
 import { hashLookupValue } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload } from "../lib/fynd-payload.server";
+import { fetchOrdersByCustomer } from "../lib/shopify-admin.server";
+import shopify from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -29,7 +31,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const norm = String(lookupValue).toLowerCase().trim();
-    const hash = hashLookupValue(norm);
 
     const where: Record<string, unknown> = { shopId: shopRecord.id };
     if (["return_no", "order_no"].includes(lookupType)) {
@@ -73,7 +74,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     });
 
-    return withCors(Response.json({ returns }), request);
+    let orders: Array<{ id: string; name: string; createdAt: string; email?: string | null; totalPrice?: string; displayFinancialStatus?: string; displayFulfillmentStatus?: string }> = [];
+    if (lookupType === "email" && norm.includes("@")) {
+      try {
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        orders = await fetchOrdersByCustomer(admin, norm);
+      } catch (err) {
+        console.error("Portal lookup orders by email:", err);
+      }
+    }
+
+    return withCors(Response.json({ orders, returns }), request);
   } catch (err) {
     console.error("Portal lookup:", err);
     return withCors(Response.json({ error: (err as Error).message }, { status: 500 }), request);

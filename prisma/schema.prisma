@@ -55,8 +55,10 @@ model ShopSettings {
   statusMappingJson          String?
   notificationToggles          String?
   portalThemeJson            String?
+  portalConfigJson           String?
   returnWindowDays           Int      @default(30)
   returnReasonsJson          String?
+  returnReasonsByCategoryJson String?
   returnPolicyText           String?
   autoApproveEnabled         Boolean  @default(false)
   returnOffersJson          String?

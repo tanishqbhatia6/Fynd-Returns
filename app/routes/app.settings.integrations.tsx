@@ -4,7 +4,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
-import { createFyndClient } from "../lib/fynd.server";
+import { createFyndClientOrError, getNormalizedCredentialsFromRaw } from "../lib/fynd.server";
 import { createFyndLogger } from "../lib/fynd-logger.server";
 import { FYND_ENVIRONMENTS, getAppMode } from "../lib/fynd-config.server";
 import { sanitizeCredentialInputs } from "../lib/credential-validation.server";
@@ -22,6 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
   const s = shop.settings;
+  const normalized = getNormalizedCredentialsFromRaw(s?.fyndCredentials ?? null);
   return {
     fyndApiType: (s as { fyndApiType?: string })?.fyndApiType ?? "platform",
     fyndEnvironment: (s as { fyndEnvironment?: string })?.fyndEnvironment ?? "uat",
@@ -30,6 +31,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     fyndCompanyId: s?.fyndCompanyId ?? "",
     fyndApplicationId: s?.fyndApplicationId ?? "",
     fyndCredentials: s?.fyndCredentials ? "[configured]" : "",
+    hasPlatformCreds: !!normalized?.platform,
+    hasStorefrontCreds: !!normalized?.storefront,
     policyJson: s?.policyJson ?? "{}",
     fyndEnvironments: FYND_ENVIRONMENTS,
   };
@@ -42,8 +45,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const formData = await request.formData();
     const intent = formData.get("intent") as string | null;
 
-    if (intent === "test") {
-      const apiType = (formData.get("fyndApiType") as string) || "platform";
+    if (intent === "test_platform" || intent === "test_storefront" || intent === "test") {
       const fyndEnvironment = (formData.get("fyndEnvironment") as string) || "uat";
       const fyndCustomBaseUrl = String(formData.get("fyndCustomBaseUrl") ?? "").trim();
       const fyndCompanyId = String(formData.get("fyndCompanyId") ?? "").trim();
@@ -55,75 +57,48 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
       if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
       const stored = shop.settings;
+      const existingNormalized = getNormalizedCredentialsFromRaw(stored?.fyndCredentials ?? null);
 
       const envSettings = { fyndEnvironment, fyndCustomBaseUrl: fyndCustomBaseUrl || null };
-      log("test", "Form", `apiType=${apiType} env=${fyndEnvironment} companyId=*** appId=***`);
+      const companyId = fyndCompanyId || stored?.fyndCompanyId ?? null;
+      const applicationId = fyndApplicationId || stored?.fyndApplicationId ?? null;
 
-      let fyndCredentials: string | null = null;
-
-      if (apiType === "platform") {
-        const hasFormCreds = fyndCompanyId && fyndApplicationId && fyndClientId && fyndClientSecret;
-        if (hasFormCreds) {
-          const validation = sanitizeCredentialInputs({
-            fyndCompanyId, fyndApplicationId, fyndClientId, fyndClientSecret,
-            fyndCustomBaseUrl: fyndCustomBaseUrl || undefined,
-          });
-          if (!validation.valid) return { success: false, error: validation.error, testResult: false, debugLogs: logs };
-          const v = validation.sanitized!;
-          fyndCredentials = JSON.stringify({ apiType: "platform", clientId: v.fyndClientId, clientSecret: v.fyndClientSecret });
-        } else if (stored?.fyndCredentials && stored.fyndApiType === "platform" && (stored.fyndCompanyId || fyndCompanyId) && (stored.fyndApplicationId || fyndApplicationId)) {
-          fyndCredentials = stored.fyndCredentials;
+      function buildCredsForTest(): string | null {
+        const merged: Record<string, unknown> = {};
+        if (fyndCompanyId && fyndClientId && fyndClientSecret) {
+          merged.platform = { clientId: fyndClientId, clientSecret: fyndClientSecret };
+        } else if (existingNormalized?.platform) {
+          merged.platform = existingNormalized.platform;
         }
-        if (!fyndCredentials || !(fyndCompanyId || stored?.fyndCompanyId) || !(fyndApplicationId || stored?.fyndApplicationId)) {
-          return { success: false, error: "Platform API requires Company ID, Application ID, Client ID, and Client Secret. Enter them and Save first, or use stored credentials.", testResult: false, debugLogs: logs };
+        if (fyndApplicationToken) {
+          merged.storefront = { applicationToken: fyndApplicationToken };
+        } else if (existingNormalized?.storefront) {
+          merged.storefront = existingNormalized.storefront;
         }
-        try {
-          const client = await createFyndClient({
-            ...envSettings,
-            fyndCompanyId: fyndCompanyId || stored?.fyndCompanyId || null,
-            fyndApplicationId: fyndApplicationId || stored?.fyndApplicationId || null,
-            fyndCredentials,
-          }, log);
-          if (!client) return { success: false, error: "Failed to create Platform client.", testResult: false, debugLogs: logs };
-          await client.testConnection();
-          return { success: true, testResult: true, testMessage: "Platform API connection successful.", debugLogs: logs };
-        } catch (err) {
-          return { success: false, error: err instanceof Error ? err.message : "Connection failed.", testResult: false, debugLogs: logs };
-        }
+        if (Object.keys(merged).length === 0) return null;
+        return encrypt(JSON.stringify(merged));
       }
 
-      if (apiType === "storefront") {
-        const hasFormCreds = fyndApplicationId && fyndApplicationToken;
-        if (hasFormCreds) {
-          const validation = sanitizeCredentialInputs({
-            fyndApplicationId, fyndApplicationToken,
-            fyndCustomBaseUrl: fyndCustomBaseUrl || undefined,
-          });
-          if (!validation.valid) return { success: false, error: validation.error, testResult: false, debugLogs: logs };
-          const v = validation.sanitized!;
-          fyndCredentials = JSON.stringify({ apiType: "storefront", applicationToken: v.fyndApplicationToken });
-        } else if (stored?.fyndCredentials && stored.fyndApiType === "storefront" && (stored.fyndApplicationId || fyndApplicationId)) {
-          fyndCredentials = stored.fyndCredentials;
-        }
-        if (!fyndCredentials || !(fyndApplicationId || stored?.fyndApplicationId)) {
-          return { success: false, error: "Storefront API requires Application ID and Application Token. Enter them and Save first, or use stored credentials.", testResult: false, debugLogs: logs };
-        }
-        try {
-          const client = await createFyndClient({
-            ...envSettings,
-            fyndCompanyId: null,
-            fyndApplicationId: fyndApplicationId || stored?.fyndApplicationId || null,
-            fyndCredentials,
-          }, log);
-          if (!client) return { success: false, error: "Failed to create Storefront client.", testResult: false, debugLogs: logs };
-          await client.testConnection();
-          return { success: true, testResult: true, testMessage: "Storefront API connection successful.", debugLogs: logs };
-        } catch (err) {
-          return { success: false, error: err instanceof Error ? err.message : "Connection failed.", testResult: false, debugLogs: logs };
-        }
+      const creds = buildCredsForTest();
+      if (!creds || !applicationId) {
+        return { success: false, error: "Enter Application ID and at least one set of credentials (Platform or Storefront), then Save or Test.", testResult: false, debugLogs: logs };
       }
 
-      return { success: false, error: "Invalid API type.", testResult: false, debugLogs: logs };
+      const requirePlatform = intent === "test_platform";
+      const requireStorefront = intent === "test_storefront";
+
+      const result = await createFyndClientOrError(
+        { ...envSettings, fyndCompanyId: companyId, fyndApplicationId: applicationId, fyndCredentials: creds },
+        { requirePlatform, requireStorefront, log }
+      );
+      if (!result.ok) return { success: false, error: result.error, testResult: false, debugLogs: logs };
+      try {
+        await result.client.testConnection();
+        const msg = requirePlatform ? "Platform API connection successful." : requireStorefront ? "Storefront API connection successful." : "Connection successful.";
+        return { success: true, testResult: true, testMessage: msg, debugLogs: logs };
+      } catch (err) {
+        return { success: false, error: err instanceof Error ? err.message : "Connection failed.", testResult: false, debugLogs: logs };
+      }
     }
 
     if (intent === "clear_token") {
@@ -138,7 +113,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Save
-    const fyndApiType = (formData.get("fyndApiType") as string) || "platform";
     const fyndEnvironment = (formData.get("fyndEnvironment") as string) || "uat";
     const fyndCustomBaseUrl = String(formData.get("fyndCustomBaseUrl") ?? "").trim();
     const appMode = (formData.get("appMode") as string) || "prod";
@@ -166,23 +140,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
     if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
 
-    let credsToStore: string | null = null;
-    if (fyndApiType === "platform" && v.fyndCompanyId && v.fyndApplicationId && v.fyndClientId && v.fyndClientSecret) {
-      credsToStore = encrypt(JSON.stringify({ apiType: "platform", clientId: v.fyndClientId, clientSecret: v.fyndClientSecret }));
-    } else if (fyndApiType === "storefront" && v.fyndApplicationId && v.fyndApplicationToken) {
-      credsToStore = encrypt(JSON.stringify({ apiType: "storefront", applicationToken: v.fyndApplicationToken }));
+    const existingNormalized = getNormalizedCredentialsFromRaw(shop.settings?.fyndCredentials ?? null);
+    const merged: Record<string, unknown> = {};
+    if (v.fyndCompanyId && v.fyndClientId && v.fyndClientSecret) {
+      merged.platform = { clientId: v.fyndClientId, clientSecret: v.fyndClientSecret };
+    } else if (existingNormalized?.platform) {
+      merged.platform = existingNormalized.platform;
     }
-
-    const existingCreds = shop.settings?.fyndCredentials;
-    const storedApiType = (shop.settings as { fyndApiType?: string })?.fyndApiType;
-    const preserveCreds = !credsToStore && storedApiType === fyndApiType;
-    const credsToPersist = credsToStore ?? (preserveCreds ? existingCreds : null) ?? null;
+    if (v.fyndApplicationToken) {
+      merged.storefront = { applicationToken: v.fyndApplicationToken };
+    } else if (existingNormalized?.storefront) {
+      merged.storefront = existingNormalized.storefront;
+    }
+    const credsToPersist = Object.keys(merged).length > 0 ? encrypt(JSON.stringify(merged)) : (shop.settings?.fyndCredentials ?? null);
+    const fyndApiType = merged.platform && merged.storefront ? null : merged.platform ? "platform" : merged.storefront ? "storefront" : null;
 
     await prisma.shopSettings.upsert({
       where: { shopId: shop.id },
       create: {
         shopId: shop.id,
-        fyndApiType: fyndApiType || null,
+        fyndApiType: fyndApiType ?? null,
         fyndEnvironment: fyndEnvironment || null,
         fyndCustomBaseUrl: (v.fyndCustomBaseUrl || fyndCustomBaseUrl) || null,
         appMode: appMode === "dev" ? "dev" : "prod",
@@ -192,7 +169,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         policyJson: (v.policyJson ?? policyJson) || null,
       },
       update: {
-        fyndApiType: fyndApiType || undefined,
+        fyndApiType: fyndApiType ?? undefined,
         fyndEnvironment: fyndEnvironment || undefined,
         fyndCustomBaseUrl: (v.fyndCustomBaseUrl || fyndCustomBaseUrl) || undefined,
         appMode: appMode === "dev" ? "dev" : "prod",
@@ -203,7 +180,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    return { success: true, tokenUpdated: !!credsToStore, debugLogs: logs };
+    return { success: true, tokenUpdated: Object.keys(merged).length > 0, debugLogs: logs };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     log("action", "Error", msg);
@@ -224,7 +201,6 @@ type ActionData = {
 export default function Integrations() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
-  const [apiType, setApiType] = React.useState(data.fyndApiType);
   const [fyndEnvironment, setFyndEnvironment] = React.useState(data.fyndEnvironment);
   const [appMode, setAppMode] = React.useState(data.appMode);
 
@@ -268,8 +244,7 @@ export default function Integrations() {
 
       <fetcher.Form method="post">
         <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
-          Connect Fynd for reverse logistics. Choose environment, API type, and enter credentials from <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
-          Creating returns on Fynd when you approve a return requires the <strong>Platform API</strong> (Company ID + Client ID/Secret); Storefront API does not support creating returns.
+          Connect Fynd for reverse logistics. You can add <strong>Platform</strong> and/or <strong>Storefront</strong> credentials; the app uses the right API per operation (e.g. Platform for creating returns, Storefront for storefront features). From <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
         </p>
 
         <s-section heading="App Mode">
@@ -312,61 +287,44 @@ export default function Integrations() {
           </div>
         </s-section>
 
-        <s-section heading="API Type">
-          <div style={{ display: "flex", gap: 24, marginBottom: 16 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="radio" name="fyndApiType" value="platform" checked={apiType === "platform"} onChange={() => setApiType("platform")} />
-              <span><strong>Platform API</strong> — Order management, returns, shipments. Uses Client ID + Secret (OAuth).</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="radio" name="fyndApiType" value="storefront" checked={apiType === "storefront"} onChange={() => setApiType("storefront")} />
-              <span><strong>Storefront API</strong> — Customer-facing storefront. Uses Application ID + Token (Basic auth).</span>
-            </label>
-          </div>
-        </s-section>
-
         <s-section heading="Credentials">
           <div style={{ marginBottom: 16 }}>
             <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Application ID</label>
             <input type="text" name="fyndApplicationId" defaultValue={data.fyndApplicationId} placeholder="e.g. 67a09b70c8ea7c9123f00fab" autoComplete="off" style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
-            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>From Company → Settings → Developers → Application Token (Storefront) or your sales channel.</p>
+            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>Shared by both APIs. From Company → Settings → Developers or your sales channel.</p>
           </div>
 
-          {apiType === "platform" && (
-            <>
-              <input type="hidden" name="fyndApplicationToken" value="" />
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Company ID</label>
-                <input type="text" name="fyndCompanyId" defaultValue={data.fyndCompanyId} placeholder="e.g. 2263" autoComplete="off" style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
-                <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>From Fynd Platform → Developers → Clients.</p>
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Client ID</label>
-                <input type="text" name="fyndClientId" placeholder="Client ID" autoComplete="off" style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
-              </div>
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Client Secret</label>
-                <input type="text" name="fyndClientSecret" placeholder="Client Secret" autoComplete="off" style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
-                <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>Company → Settings → Developers → Clients → Create Client.</p>
-              </div>
-            </>
-          )}
+          <div style={{ marginBottom: 20, padding: "12px 16px", background: "#f6f6f7", borderRadius: 8, border: "1px solid #e1e3e5" }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Platform API (optional)</div>
+            <p style={{ fontSize: 12, color: "#6d7175", marginBottom: 12 }}>Required for creating returns on Fynd and refreshing details. Company ID + Client ID & Secret (OAuth).</p>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", marginBottom: 6, fontWeight: 500 }}>Company ID</label>
+              <input type="text" name="fyndCompanyId" defaultValue={data.fyndCompanyId} placeholder="e.g. 2263" autoComplete="off" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ display: "block", marginBottom: 6, fontWeight: 500 }}>Client ID</label>
+              <input type="text" name="fyndClientId" placeholder="Client ID" autoComplete="off" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
+            </div>
+            <div>
+              <label style={{ display: "block", marginBottom: 6, fontWeight: 500 }}>Client Secret</label>
+              <input type="text" name="fyndClientSecret" placeholder="Client Secret" autoComplete="off" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
+            </div>
+          </div>
 
-          {apiType === "storefront" && (
-            <>
-              <input type="hidden" name="fyndCompanyId" value="" />
-              <input type="hidden" name="fyndClientId" value="" />
-              <input type="hidden" name="fyndClientSecret" value="" />
-              <div style={{ marginBottom: 16 }}>
-                <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Application Token</label>
-              <input type="text" name="fyndApplicationToken" placeholder="Application Token" autoComplete="off" style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
+          <div style={{ marginBottom: 16, padding: "12px 16px", background: "#f6f6f7", borderRadius: 8, border: "1px solid #e1e3e5" }}>
+            <div style={{ fontWeight: 600, marginBottom: 8 }}>Storefront API (optional)</div>
+            <p style={{ fontSize: 12, color: "#6d7175", marginBottom: 12 }}>For storefront features. Application Token (Basic auth).</p>
+            <div>
+              <label style={{ display: "block", marginBottom: 6, fontWeight: 500 }}>Application Token</label>
+              <input type="text" name="fyndApplicationToken" placeholder="Application Token" autoComplete="off" style={{ width: "100%", padding: 10, borderRadius: 8, border: "1px solid #e1e3e5", fontSize: 14 }} />
               <p style={{ fontSize: 12, color: "#6d7175", marginTop: 6 }}>Company → Settings → Developers → Application Token tab.</p>
-              </div>
-            </>
-          )}
+            </div>
+          </div>
 
           {data.fyndCredentials && (
-            <p style={{ fontSize: 13, color: "#008060", marginTop: 8, fontWeight: 500 }}>✓ Credentials configured. Test connection uses stored credentials. Enter new values to replace.</p>
+            <p style={{ fontSize: 13, color: "#008060", marginTop: 8, fontWeight: 500 }}>
+              ✓ Credentials configured ({[data.hasPlatformCreds && "Platform", data.hasStorefrontCreds && "Storefront"].filter(Boolean).join(", ")}). Enter new values to replace; leave blank to keep existing.
+            </p>
           )}
         </s-section>
 
@@ -377,9 +335,21 @@ export default function Integrations() {
 
         <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
           <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
-          <button type="submit" name="intent" value="test" disabled={fetcher.state !== "idle"} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>
-            {fetcher.state !== "idle" ? "Please wait..." : "Test connection"}
-          </button>
+          {data.hasPlatformCreds && (
+            <button type="submit" name="intent" value="test_platform" disabled={fetcher.state !== "idle"} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>
+              {fetcher.state !== "idle" ? "Please wait..." : "Test Platform"}
+            </button>
+          )}
+          {data.hasStorefrontCreds && (
+            <button type="submit" name="intent" value="test_storefront" disabled={fetcher.state !== "idle"} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>
+              {fetcher.state !== "idle" ? "Please wait..." : "Test Storefront"}
+            </button>
+          )}
+          {(!data.hasPlatformCreds && !data.hasStorefrontCreds) && (
+            <button type="submit" name="intent" value="test" disabled={fetcher.state !== "idle"} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>
+              {fetcher.state !== "idle" ? "Please wait..." : "Test connection"}
+            </button>
+          )}
           {data.fyndCredentials && (
             <button type="submit" name="intent" value="clear_token" disabled={fetcher.state !== "idle"} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #d72c0d", background: "#fff", color: "#d72c0d", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>Clear credentials</button>
           )}

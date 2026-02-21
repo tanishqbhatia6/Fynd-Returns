@@ -11,6 +11,7 @@ import {
   parsePortalTheme,
   applyPortalThemeToHtml,
 } from "../lib/portal-theme.server";
+import { parsePortalConfig } from "../lib/portal-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -24,6 +25,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let returnWindowDays = 30;
   let returnPolicyText = "";
   let returnReasonsJson = "[]";
+  let returnReasonsByCategoryJson = "";
+  let portalConfigJson = "";
   try {
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -36,10 +39,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       returnWindowDays = shop.settings.returnWindowDays ?? 30;
       returnPolicyText = shop.settings.returnPolicyText ?? "";
       returnReasonsJson = shop.settings.returnReasonsJson ?? "[]";
+      returnReasonsByCategoryJson = shop.settings.returnReasonsByCategoryJson ?? "";
+      portalConfigJson = shop.settings.portalConfigJson ?? "";
     }
   } catch (err) {
     console.error("Portal theme load error:", err);
   }
+
+  const portalConfig = parsePortalConfig(portalConfigJson);
 
   let portalHtml = readFileSync(
     join(process.cwd(), "app", "portal", "index.html"),
@@ -51,7 +58,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .replace("%APP_URL%", appUrl)
     .replace("%RETURN_WINDOW%", String(returnWindowDays))
     .replace("%RETURN_POLICY%", returnPolicyText.replace(/</g, "&lt;").replace(/>/g, "&gt;"))
-    .replace("%RETURN_REASONS_JSON%", returnReasonsJson);
+    .replace("%RETURN_REASONS_JSON%", returnReasonsJson)
+    .replace("%RETURN_REASONS_BY_CATEGORY_JSON%", (returnReasonsByCategoryJson || "{}").replace(/</g, "\\u003c").replace(/>/g, "\\u003e"))
+    .replace("%PORTAL_CONFIG%", JSON.stringify(portalConfig));
 
   return new Response(portalHtml, {
     headers: { "Content-Type": "text/html" },

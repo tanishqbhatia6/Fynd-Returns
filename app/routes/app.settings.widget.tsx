@@ -3,6 +3,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parsePortalTheme, DEFAULT_PORTAL_THEME, FONT_OPTIONS } from "../lib/portal-theme.server";
+import { parsePortalConfig } from "../lib/portal-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -17,7 +18,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
   const theme = parsePortalTheme(shop.settings?.portalThemeJson);
-  return { portalTheme: theme, fontOptions: FONT_OPTIONS, portalUrl: `https://${session.shop}/apps/returns` };
+  const portalConfig = parsePortalConfig(shop.settings?.portalConfigJson);
+  return { portalTheme: theme, portalConfig, fontOptions: FONT_OPTIONS, portalUrl: `https://${session.shop}/apps/returns` };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -33,6 +35,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const fontFamily = formData.get("fontFamily");
   const borderRadius = formData.get("borderRadius");
   const shadow = formData.get("shadow");
+
+  const showOrderTracking = formData.get("showOrderTracking") === "on";
+  const showReturnTracking = formData.get("showReturnTracking") === "on";
+  const showCreateReturnTab = formData.get("showCreateReturnTab") === "on";
+  const defaultTab = (formData.get("defaultTab") as string) || "return";
+  const portalConfigJson = JSON.stringify({
+    showOrderTracking,
+    showReturnTracking,
+    showCreateReturnTab,
+    defaultTab: ["order", "return", "create"].includes(defaultTab) ? defaultTab : "return",
+  });
 
   let portalThemeJson: string | null = null;
   if (primaryColor || backgroundColor || fontFamily) {
@@ -51,19 +64,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
+  let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
+  if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
 
   await prisma.shopSettings.upsert({
     where: { shopId: shop.id },
-    create: { shopId: shop.id, portalThemeJson },
-    update: { portalThemeJson: portalThemeJson ?? undefined },
+    create: { shopId: shop.id, portalThemeJson, portalConfigJson },
+    update: {
+      portalThemeJson: portalThemeJson ?? undefined,
+      portalConfigJson,
+    },
   });
   return { success: true };
 };
 
 export default function Widget() {
-  const { portalTheme, fontOptions, portalUrl } = useLoaderData<typeof loader>();
+  const { portalTheme, portalConfig, fontOptions, portalUrl } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean }>();
 
   return (
@@ -76,8 +92,35 @@ export default function Widget() {
 
       <fetcher.Form method="post">
         <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
-          Manage your return portal widget settings. Customize the look and feel of your customer returns portal.
+          Manage your return portal. Choose which sections to show and customize the look and feel.
         </p>
+        <s-section heading="Portal sections (what customers see)">
+          <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+            Control which pages and tabs appear on the customer portal. Order tracking shows Shopify orders (by email lookup); return tracking shows returns; create return lets customers start a new return.
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: 16 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" name="showOrderTracking" defaultChecked={portalConfig.showOrderTracking} />
+              <span><strong>Order tracking</strong> — Show &quot;Your orders&quot; after lookup (by email)</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" name="showReturnTracking" defaultChecked={portalConfig.showReturnTracking} />
+              <span><strong>Return tracking</strong> — Show &quot;Your returns&quot; after lookup</span>
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input type="checkbox" name="showCreateReturnTab" defaultChecked={portalConfig.showCreateReturnTab} />
+              <span><strong>Create return</strong> — Tab to start a new return request</span>
+            </label>
+          </div>
+          <div>
+            <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Default tab when portal opens</label>
+            <select name="defaultTab" defaultValue={portalConfig.defaultTab} style={{ padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 14 }}>
+              <option value="order">Order tracking</option>
+              <option value="return">Return tracking</option>
+              <option value="create">Create return</option>
+            </select>
+          </div>
+        </s-section>
         <s-section heading="Portal theme">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 20, marginBottom: 20 }}>
             <div>

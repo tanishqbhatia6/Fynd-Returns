@@ -18,16 +18,19 @@ const LABEL_MAP: Record<string, string> = {
   marketplace_invoice_number: "Fynd Invoice number",
   invoice_number: "Invoice number",
   invoiceNumber: "Invoice number",
+  invoice_id: "Invoice ID",
+  invoiceId: "Invoice ID",
   invoice: "Invoice",
-  awbNumber: "Fynd AWB number",
-  awb_no: "Fynd AWB number",
+  awbNumber: "Forward AWB / Tracking number",
+  awb_no: "Forward AWB / Tracking number",
   awb: "AWB",
   traking_no: "Tracking number",
   tracking_no: "Tracking number",
-  dp_name: "DP / Logistics partner name",
+  dp_name: "CP Name (Courier partner)",
   dp: "Delivery partner",
-  courierName: "Courier name",
-  courier_name: "Courier name",
+  courierName: "CP Name (Courier partner)",
+  courier_name: "CP Name (Courier partner)",
+  cp_name: "CP Name (Courier partner)",
   courierCode: "Courier code",
   courier_code: "Courier code",
   logistics_partner: "Logistics partner",
@@ -38,7 +41,7 @@ const LABEL_MAP: Record<string, string> = {
   orderStatus: "Order status",
   status: "Status",
   fulfilling_store: "Fulfilling store",
-  fulfilling_store_name: "Fulfilling store name",
+  fulfilling_store_name: "Fulfilling store",
   fulfilling_company: "Fulfilling company",
   total_bags: "Total bags",
   bags: "Bags",
@@ -52,6 +55,10 @@ const LABEL_MAP: Record<string, string> = {
   fulfillmentType: "Fulfillment type",
   paymentType: "Payment type",
   fulfillment_option: "Fulfillment option",
+  ordering_source: "Ordering source",
+  ordering_channel: "Ordering channel",
+  channel: "Channel",
+  display_name: "Display name",
   promise: "Promise",
   need_help_url: "Support URL",
 };
@@ -82,6 +89,13 @@ function collectFields(obj: Record<string, unknown>, prefix = ""): FyndDisplayFi
   for (const [key, val] of Object.entries(obj)) {
     const label = LABEL_MAP[key] ?? key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").trim();
     if (key === "tracking_details" || key === "size_info" || key === "currency_info") continue;
+    if (key === "meta" && val != null && typeof val === "object") {
+      const meta = val as Record<string, unknown>;
+      if (meta.cp_name != null) push("cp_name", "CP Name (Courier partner)", meta.cp_name);
+      if (meta.awb_no != null || meta.awb != null) push("awb", "Forward AWB", meta.awb_no ?? meta.awb);
+      if (meta.invoice_id != null || meta.invoice_number != null) push("invoice_id", "Invoice ID", meta.invoice_id ?? meta.invoice_number);
+      continue;
+    }
     if (val != null && Array.isArray(val)) {
       if (key === "bags") push(key, label, `${val.length} bag(s)`);
       else push(key, label, val);
@@ -177,6 +191,76 @@ export function parseFyndPayloadForDisplay(fyndPayloadJson: string | null | unde
       shipments,
       rawJson: fyndPayloadJson,
     };
+  } catch {
+    return null;
+  }
+}
+
+/** Structured Fynd Order details for the tab */
+export type FyndOrderDetailsTab = {
+  fyndOrderId: string | null;
+  shipments: Array<{
+    shipmentId: string;
+    cpName: string | null;
+    forwardAwb: string | null;
+    invoiceNumber: string | null;
+    invoiceId: string | null;
+    fulfillmentStore: string | null;
+    fulfillmentOptions: string | null;
+    shipmentStatus: string | null;
+    items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string }>;
+  }>;
+};
+
+/** Extract structured Fynd Order details for the tab (order id, shipment ids, CP name, AWB, invoice, fulfillment, status, items) */
+export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | undefined): FyndOrderDetailsTab | null {
+  if (!fyndPayloadJson || typeof fyndPayloadJson !== "string") return null;
+  try {
+    const payload = JSON.parse(fyndPayloadJson) as unknown;
+    const list = normalizeFyndPayload(payload);
+    const first = list[0] as Record<string, unknown> | undefined;
+    const fyndOrderId = first
+      ? String(first.order_id ?? first.orderId ?? first.id ?? first.channel_order_id ?? first.affiliate_order_id ?? "")
+      : null;
+    const shipments = list.map((item) => {
+      const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
+      const meta = (raw.meta as Record<string, unknown>) ?? {};
+      const awb = raw.awbNumber ?? raw.awb_no ?? raw.awb ?? meta.awb_no ?? meta.awb;
+      const awbStr = Array.isArray(awb) ? (awb[0] as string) : (awb as string);
+      const cpName = (raw.courierName ?? raw.courier_name ?? raw.dp_name ?? raw.dp ?? meta.cp_name ?? meta.courier_name) as string | null;
+      const invNum = (raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ?? meta.invoice_number) as string | null;
+      const invId = (raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id) as string | null;
+      const fulfillStore = (raw.fulfilling_store ?? raw.fulfilling_store_name ?? raw.fulfilling_company) as string | null;
+      const fulfillOpts = [
+        raw.ordering_source,
+        raw.ordering_channel ?? raw.orderingChannel,
+        raw.channel,
+        raw.fulfillmentType ?? raw.fulfillment_type,
+      ].filter(Boolean).join(" · ") || null;
+      const status = (raw.shipment_status ?? raw.orderStatus ?? raw.status) as string | null;
+      const statusTitle = status && typeof status === "object" && status !== null && "title" in (status as object)
+        ? (status as { title?: string }).title
+        : status;
+      const orderItems = (raw.orderItems ?? raw.order_items ?? raw.items ?? []) as Array<Record<string, unknown>>;
+      const items = orderItems.map((oi) => ({
+        sku: (oi.sku ?? oi.identifier ?? oi.seller_identifier) as string | undefined,
+        title: (oi.title ?? oi.product_title) as string | undefined,
+        quantity: (oi.quantity ?? oi.qty) as number | undefined,
+        identifier: (oi.identifier ?? oi.seller_identifier) as string | undefined,
+      }));
+      return {
+        shipmentId: String(raw.id ?? raw.shipment_id ?? raw.shipmentId ?? raw.channel_shipment_id ?? "—"),
+        cpName: cpName ?? null,
+        forwardAwb: awbStr ?? null,
+        invoiceNumber: invNum ?? null,
+        invoiceId: invId ?? null,
+        fulfillmentStore: fulfillStore ?? null,
+        fulfillmentOptions: fulfillOpts ?? null,
+        shipmentStatus: (statusTitle ?? status) ?? null,
+        items,
+      };
+    });
+    return { fyndOrderId: fyndOrderId || null, shipments };
   } catch {
     return null;
   }

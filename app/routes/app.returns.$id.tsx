@@ -20,7 +20,7 @@ function getStatusColor(s: string) {
 }
 
 import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
-import { parseFyndPayloadForDisplay } from "../lib/fynd-payload.server";
+import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab } from "../lib/fynd-payload.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const id = params.id;
@@ -62,12 +62,13 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
   const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
+  const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
 
-  return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo };
+  return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab };
 };
 
 export default function ReturnDetail() {
-  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo } = useLoaderData<typeof loader>();
+  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showRawFynd, setShowRawFynd] = useState(false);
@@ -264,6 +265,46 @@ export default function ReturnDetail() {
           ) : null}
         </div>
       </s-section>
+
+      {fyndOrderDetailsTab && fyndOrderDetailsTab.shipments.length > 0 ? (
+        <s-section heading="Fynd Order details">
+          <div style={{ ...cardStyle, marginBottom: 0 }}>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
+              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>{fyndOrderDetailsTab.fyndOrderId || "—"}</div>
+            </div>
+            {fyndOrderDetailsTab.shipments.map((s, idx) => (
+              <div key={idx} style={{ padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5", marginBottom: idx < fyndOrderDetailsTab.shipments.length - 1 ? 16 : 0 }}>
+                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#1a1a1a" }}>
+                  Shipment {idx + 1} — {s.shipmentId}
+                </h3>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>CP Name (Courier partner)</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.cpName || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB / Tracking</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.forwardAwb || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice number</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.invoiceNumber || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.invoiceId || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.fulfillmentStore || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.fulfillmentOptions || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Shipment status</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.shipmentStatus || "—"}</div></div>
+                </div>
+                {s.items.length > 0 && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8 }}>Item details</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {s.items.map((it, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#fff", borderRadius: 6, border: "1px solid #e1e3e5" }}>
+                          <span>{it.title || it.sku || it.identifier || "Item"}</span>
+                          <span style={{ color: "#6d7175" }}>Qty: {it.quantity ?? 1} {it.sku ? `· ${it.sku}` : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </s-section>
+      ) : null}
 
       {fyndPayloadInfo && fyndPayloadInfo.shipments.length > 0 ? (
         <s-section heading="Fynd full payload (invoice, AWB, DP, logistics and all details)">

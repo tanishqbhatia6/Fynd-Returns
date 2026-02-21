@@ -385,7 +385,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
       await prisma.returnCase.update({
         where: { id },
-        data: { refundStatus: "refunded", adminNotes: note || returnCase.adminNotes },
+        data: {
+          refundStatus: "refunded",
+          status: "completed",
+          adminNotes: note || returnCase.adminNotes,
+        },
       });
       await prisma.returnEvent.create({
         data: {

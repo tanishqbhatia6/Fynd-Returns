@@ -19,6 +19,19 @@ function getStatusColor(s: string) {
   return STATUS_COLORS[s.toLowerCase()] ?? "#6d7175";
 }
 
+/** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
+function safeStr(v: unknown): string {
+  if (v == null) return "";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (typeof v === "object" && v !== null) {
+    const o = v as Record<string, unknown>;
+    const s = o.name ?? o.title ?? o.display_name ?? o.code ?? o.id;
+    return typeof s === "string" ? s : "";
+  }
+  return "";
+}
+
 import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab } from "../lib/fynd-payload.server";
 
@@ -285,13 +298,13 @@ export default function ReturnDetail() {
                   Shipment {idx + 1} — {s.shipmentId}
                 </h3>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>CP Name (Courier partner)</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.cpName || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB / Tracking</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.forwardAwb || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice number</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.invoiceNumber || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.invoiceId || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.fulfillmentStore || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.fulfillmentOptions || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Shipment status</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.shipmentStatus || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>CP Name (Courier partner)</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB / Tracking</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.forwardAwb) || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice number</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.invoiceNumber) || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.invoiceId) || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.fulfillmentStore) || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.fulfillmentOptions) || "—"}</div></div>
+                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Shipment status</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.shipmentStatus) || "—"}</div></div>
                 </div>
                 {(s.items ?? []).length > 0 && (
                   <div>
@@ -299,8 +312,8 @@ export default function ReturnDetail() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                       {(s.items ?? []).map((it, i) => (
                         <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#fff", borderRadius: 6, border: "1px solid #e1e3e5" }}>
-                          <span>{it.title || it.sku || it.identifier || "Item"}</span>
-                          <span style={{ color: "#6d7175" }}>Qty: {it.quantity ?? 1} {it.sku ? `· ${it.sku}` : ""}</span>
+                          <span>{safeStr(it.title) || safeStr(it.sku) || safeStr(it.identifier) || "Item"}</span>
+                          <span style={{ color: "#6d7175" }}>Qty: {it.quantity ?? 1} {safeStr(it.sku) ? `· ${safeStr(it.sku)}` : ""}</span>
                         </div>
                       ))}
                     </div>

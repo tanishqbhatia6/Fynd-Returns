@@ -117,6 +117,19 @@ function collectFields(obj: Record<string, unknown>, prefix = ""): FyndDisplayFi
   return out;
 }
 
+/** Convert API value to display string - Fynd often returns objects (e.g. fulfilling_store) instead of strings */
+function toDisplayString(val: unknown): string | null {
+  if (val == null) return null;
+  if (typeof val === "string") return val || null;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  if (typeof val === "object") {
+    const o = val as Record<string, unknown>;
+    const s = (o.name ?? o.title ?? o.display_name ?? o.displayName ?? o.code ?? o.id) as string | undefined;
+    return (typeof s === "string" && s) ? s : null;
+  }
+  return null;
+}
+
 /** Normalize raw Fynd API response to array of shipment-like objects */
 export function normalizeFyndPayload(payload: unknown): unknown[] {
   if (payload == null) return [];
@@ -226,30 +239,33 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
       const meta = (raw.meta as Record<string, unknown>) ?? {};
       const awb = raw.awbNumber ?? raw.awb_no ?? raw.awb ?? meta.awb_no ?? meta.awb;
-      const awbStr = Array.isArray(awb) ? (awb[0] as string) : (awb as string);
-      const cpName = (raw.courierName ?? raw.courier_name ?? raw.dp_name ?? raw.dp ?? meta.cp_name ?? meta.courier_name) as string | null;
-      const invNum = (raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ?? meta.invoice_number) as string | null;
-      const invId = (raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id) as string | null;
-      const fulfillStore = (raw.fulfilling_store ?? raw.fulfilling_store_name ?? raw.fulfilling_company) as string | null;
-      const fulfillOpts = [
+      const awbVal = Array.isArray(awb) ? awb[0] : awb;
+      const awbStr = toDisplayString(awbVal) ?? (typeof awbVal === "string" ? awbVal : null);
+      const cpName = toDisplayString(raw.courierName ?? raw.courier_name ?? raw.dp_name ?? raw.dp ?? meta.cp_name ?? meta.courier_name);
+      const invNum = toDisplayString(raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ?? meta.invoice_number);
+      const invId = toDisplayString(raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id);
+      const fulfillStore = toDisplayString(raw.fulfilling_store ?? raw.fulfilling_store_name ?? raw.fulfilling_company);
+      const fulfillOptsRaw = [
         raw.ordering_source,
         raw.ordering_channel ?? raw.orderingChannel,
         raw.channel,
         raw.fulfillmentType ?? raw.fulfillment_type,
-      ].filter(Boolean).join(" · ") || null;
-      const status = (raw.shipment_status ?? raw.orderStatus ?? raw.status) as string | null;
+      ].map(toDisplayString).filter(Boolean);
+      const fulfillOpts = fulfillOptsRaw.length > 0 ? fulfillOptsRaw.join(" · ") : null;
+      const status = raw.shipment_status ?? raw.orderStatus ?? raw.status;
       const statusTitle = status && typeof status === "object" && status !== null && "title" in (status as object)
         ? (status as { title?: string }).title
         : status;
+      const shipmentStatusStr = toDisplayString(statusTitle ?? status);
       const rawOrderItems = raw.orderItems ?? raw.order_items ?? raw.items ?? [];
       const orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
       const items = orderItems.map((oi) => {
         const o = (typeof oi === "object" && oi != null ? oi : {}) as Record<string, unknown>;
         return {
-          sku: (o.sku ?? o.identifier ?? o.seller_identifier) as string | undefined,
-          title: (o.title ?? o.product_title) as string | undefined,
-          quantity: (o.quantity ?? o.qty) as number | undefined,
-          identifier: (o.identifier ?? o.seller_identifier) as string | undefined,
+          sku: toDisplayString(o.sku ?? o.identifier ?? o.seller_identifier) ?? undefined,
+          title: toDisplayString(o.title ?? o.product_title) ?? undefined,
+          quantity: (typeof o.quantity === "number" ? o.quantity : typeof o.qty === "number" ? o.qty : 1),
+          identifier: toDisplayString(o.identifier ?? o.seller_identifier) ?? undefined,
         };
       });
       return {
@@ -260,7 +276,7 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         invoiceId: invId ?? null,
         fulfillmentStore: fulfillStore ?? null,
         fulfillmentOptions: fulfillOpts ?? null,
-        shipmentStatus: (statusTitle ?? status) ?? null,
+        shipmentStatus: shipmentStatusStr ?? null,
         items,
       };
     });

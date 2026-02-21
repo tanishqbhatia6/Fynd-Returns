@@ -171,23 +171,42 @@ export async function createRefund(
   lineItemIds: string[],
   note?: string
 ): Promise<{ success: boolean; error?: string }> {
-  const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
-  const refundInput: Record<string, unknown> = {
-    orderId: gid,
-    note: note || "Return processed via Return Pro Max",
-  };
-  if (lineItemIds.length > 0) {
-    refundInput.refundLineItems = lineItemIds.map((id) => ({
-      lineItemId: id.startsWith("gid://") ? id : `gid://shopify/LineItem/${id}`,
-      quantity: 1,
-      restockType: "RETURN",
-    }));
-  } else {
-    refundInput.refundLineItems = [{ quantity: 1, restockType: "RETURN" }];
+  try {
+    const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+    const refundInput: Record<string, unknown> = {
+      orderId: gid,
+      note: note || "Return processed via Return Pro Max",
+    };
+    if (lineItemIds.length > 0) {
+      refundInput.refundLineItems = lineItemIds.map((id) => ({
+        lineItemId: id.startsWith("gid://") ? id : `gid://shopify/LineItem/${id}`,
+        quantity: 1,
+        restockType: "RETURN",
+      }));
+    } else {
+      refundInput.refundLineItems = [{ quantity: 1, restockType: "RETURN" }];
+    }
+    const res = await admin.graphql(REFUND_MUTATION, { variables: { refund: refundInput } });
+    let json: { data?: { refundCreate?: { userErrors?: Array<{ message: string }> } }; errors?: Array<{ message?: string }> };
+    try {
+      json = (await res.json()) as typeof json;
+    } catch {
+      return { success: false, error: "Invalid response from Shopify. Please try again." };
+    }
+    const gqlErrors = json.errors ?? [];
+    if (gqlErrors.length > 0) {
+      return { success: false, error: gqlErrors.map((e) => e.message ?? "GraphQL error").join(", ") };
+    }
+    if (!res.ok) {
+      return { success: false, error: `Shopify API error (${res.status}). Please try again or refund manually in Shopify Admin.` };
+    }
+    const userErrors = json.data?.refundCreate?.userErrors ?? [];
+    if (userErrors.length > 0) {
+      return { success: false, error: userErrors.map((e) => e.message).join(", ") };
+    }
+    return { success: true };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Refund request failed";
+    return { success: false, error: msg };
   }
-  const res = await admin.graphql(REFUND_MUTATION, { variables: { refund: refundInput } });
-  const json = (await res.json()) as { data?: { refundCreate?: { userErrors?: Array<{ message: string }> } } };
-  const errors = json.data?.refundCreate?.userErrors ?? [];
-  if (errors.length > 0) return { success: false, error: errors.map((e) => e.message).join(", ") };
-  return { success: true };
 }

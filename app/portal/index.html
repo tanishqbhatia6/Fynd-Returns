@@ -121,6 +121,14 @@
     .return-order { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
     .return-status { font-size: 0.875rem; color: var(--portal-text-muted); }
     .return-empty { text-align: center; padding: 32px; color: var(--portal-text-muted); }
+    .return-meta { font-size: 0.8125rem; color: var(--portal-text-muted); margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; }
+    .return-meta span { display: inline-flex; align-items: center; gap: 4px; }
+    .return-meta strong { color: var(--portal-text); font-weight: 500; }
+    .return-timeline { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--portal-border); }
+    .return-timeline-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--portal-text-muted); margin-bottom: 8px; }
+    .return-timeline-item { font-size: 0.8125rem; padding: 6px 0; display: flex; align-items: flex-start; gap: 8px; color: var(--portal-text); }
+    .return-timeline-item time { color: var(--portal-text-muted); white-space: nowrap; }
+    .return-timeline-item .event-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--portal-primary); margin-top: 6px; flex-shrink: 0; }
     .otp-input { letter-spacing: 0.5em; text-align: center; font-size: 1.25rem; }
     .step-label { font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 12px; }
     .policy-banner { border: 1px solid var(--portal-border); }
@@ -278,9 +286,26 @@
         document.getElementById('result').innerHTML = returns.length === 0
           ? '<p class="return-empty">No returns found for this lookup.</p>'
           : returns.map(x => {
-              let html = '<div class="return-card"><div class="return-order">' + (x.shopifyOrderName || x.id) + '</div><div class="return-status">Status: ' + x.status + '</div>';
+              const orderName = x.shopifyOrderName || x.id;
+              let html = '<div class="return-card"><div class="return-order">' + escapeHtml(orderName) + '</div><div class="return-status">Status: ' + escapeHtml(x.status || '') + '</div>';
+              const meta = [];
+              if (x.fyndReturnNo) meta.push('<span><strong>Return #</strong> ' + escapeHtml(x.fyndReturnNo) + '</span>');
+              if (x.forwardAwb) meta.push('<span><strong>Forward AWB</strong> ' + escapeHtml(x.forwardAwb) + '</span>');
+              if (x.returnAwb) meta.push('<span><strong>Return AWB</strong> ' + escapeHtml(x.returnAwb) + '</span>');
+              if (x.createdAt) meta.push('<span><strong>Created</strong> ' + new Date(x.createdAt).toLocaleString() + '</span>');
+              if (meta.length) html += '<div class="return-meta">' + meta.join('') + '</div>';
               if (x.status && x.status.toLowerCase() === 'rejected' && x.rejectionReason) {
                 html += '<div style="margin-top:8px;font-size:0.875rem;color:#d72c0d;">Reason: ' + escapeHtml(x.rejectionReason) + '</div>';
+              }
+              const events = (x.events || []).slice().sort((a, b) => new Date(a.happenedAt || 0) - new Date(b.happenedAt || 0)).slice(-15);
+              if (events.length) {
+                html += '<div class="return-timeline"><div class="return-timeline-title">Tracking</div>';
+                events.forEach(ev => {
+                  const time = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString() : '';
+                  const label = (ev.source ? '[' + escapeHtml(ev.source) + '] ' : '') + escapeHtml(ev.eventType || '');
+                  html += '<div class="return-timeline-item"><span class="event-dot"></span><span><time>' + escapeHtml(time) + '</time> ' + label + '</span></div>';
+                });
+                html += '</div>';
               }
               return html + '</div>';
             }).join('');

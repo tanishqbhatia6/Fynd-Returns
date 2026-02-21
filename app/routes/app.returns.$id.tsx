@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useNavigate, useFetcher, isRouteErrorResponse, useRouteError } from "react-router";
-import { useState } from "react";
+import { Link, useLoaderData, useNavigate, useFetcher, useSearchParams, isRouteErrorResponse, useRouteError } from "react-router";
+import { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
@@ -19,7 +19,8 @@ function getStatusColor(s: string) {
   return STATUS_COLORS[s.toLowerCase()] ?? "#6d7175";
 }
 
-import { fetchOrder } from "../lib/shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { parseFyndPayloadForDisplay } from "../lib/fynd-payload.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const id = params.id;
@@ -46,28 +47,58 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   if (!returnCase) throw new Response("Return not found", { status: 404 });
 
   const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
-  let shopifyOrder = null;
+  let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
   if (!isManualReturn && returnCase.shopifyOrderId) {
     try {
       shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
+      if (!shopifyOrder && returnCase.shopifyOrderName) {
+        const orderNum = returnCase.shopifyOrderName.replace(/^#/, "").trim();
+        if (orderNum) shopifyOrder = await fetchOrderByOrderNumber(admin, orderNum);
+      }
     } catch (err) {
       console.warn("Could not fetch Shopify order:", err);
     }
   }
 
-  return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn };
+  const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+  const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
+
+  return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo };
 };
 
 export default function ReturnDetail() {
-  const { returnCase, shopDomain, shopifyOrder, isManualReturn } = useLoaderData<typeof loader>();
+  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [showRawFynd, setShowRawFynd] = useState(false);
   const fetcher = useFetcher<{ success?: boolean; error?: string; status?: string }>();
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const storeName = shopDomain.replace(".myshopify.com", "");
+  const orderIdForLink = shopifyOrder?.id
+    ? shopifyOrder.id.replace(/^gid:\/\/shopify\/Order\//, "")
+    : returnCase.shopifyOrderId;
   const orderUrl = isManualReturn
     ? `https://admin.shopify.com/store/${storeName}/orders`
-    : `https://admin.shopify.com/store/${storeName}/orders/${returnCase.shopifyOrderId}`;
+    : `https://admin.shopify.com/store/${storeName}/orders/${orderIdForLink ?? returnCase.shopifyOrderId}`;
+
+  const fyndError = searchParams.get("fyndError");
+  const fyndSuccess = searchParams.get("fyndSuccess");
+  const fyndRefresh = searchParams.get("fyndRefresh");
+  useEffect(() => {
+    if (fyndError || fyndSuccess || fyndRefresh) {
+      const t = setTimeout(() => {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("fyndError");
+          next.delete("fyndSuccess");
+          next.delete("fyndRefresh");
+          return next;
+        }, { replace: true });
+      }, 15000);
+      return () => clearTimeout(t);
+    }
+  }, [fyndError, fyndSuccess, fyndRefresh, setSearchParams]);
 
   const cardStyle = {
     padding: 20,
@@ -77,11 +108,41 @@ export default function ReturnDetail() {
     marginBottom: 16,
   };
 
+  const canRetryFynd = !isManualReturn
+    && ["approved", "completed"].includes(returnCase.status.toLowerCase())
+    && !returnCase.fyndReturnId;
+
   return (
     <s-page heading={`Return ${returnCase.shopifyOrderName || returnCase.id}`}>
       {fetcher.data?.error && (
         <div style={{ ...cardStyle, borderColor: "#d72c0d", background: "#fef2f2" }}>
           <p style={{ color: "#d72c0d" }}>{fetcher.data.error}</p>
+        </div>
+      )}
+      {fyndError && (
+        <div style={{ ...cardStyle, borderColor: "#b98900", background: "#fffbeb" }}>
+          <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#92400e" }}>Fynd sync issue</p>
+          <p style={{ margin: 0, color: "#78350f" }}>{decodeURIComponent(fyndError)}</p>
+          {canRetryFynd && (
+            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 12 }}>
+              <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
+              <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                {fetcher.state !== "idle" ? "Syncing…" : "Retry Fynd sync"}
+              </s-button>
+            </fetcher.Form>
+          )}
+        </div>
+      )}
+      {fyndSuccess && (
+        <div style={{ ...cardStyle, borderColor: "#008060", background: "#ecfdf5" }}>
+          <p style={{ margin: 0, color: "#065f46" }}>
+            {fyndSuccess === "already_synced" ? "This return is already synced to Fynd." : "Return synced to Fynd successfully."}
+          </p>
+        </div>
+      )}
+      {fyndRefresh && (
+        <div style={{ ...cardStyle, borderColor: "#008060", background: "#ecfdf5" }}>
+          <p style={{ margin: 0, color: "#065f46" }}>Fynd details refreshed from API.</p>
         </div>
       )}
 
@@ -148,10 +209,6 @@ export default function ReturnDetail() {
             <div>{returnCase.returnAwb || "—"}</div>
           </div>
           <div>
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Return #</div>
-            <div>{returnCase.fyndReturnNo || "—"}</div>
-          </div>
-          <div>
             <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Created</div>
             <div>{new Date(returnCase.createdAt).toLocaleString()}</div>
           </div>
@@ -171,6 +228,91 @@ export default function ReturnDetail() {
           )}
         </div>
       </s-section>
+
+      <s-section heading="Fynd details (end-to-end)">
+        <div style={{ ...cardStyle, marginBottom: 0 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{(returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Return ID</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{(returnCase as { fyndReturnId?: string | null }).fyndReturnId || "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Return #</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{returnCase.fyndReturnNo || "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Shipment ID</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Forward AWB</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{returnCase.forwardAwb || "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Return AWB</div>
+              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{returnCase.returnAwb || "—"}</div>
+            </div>
+          </div>
+          {!isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) ? (
+            <div style={{ marginTop: 16 }}>
+              <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                <input type="hidden" name="json" value={JSON.stringify({ action: "refresh_fynd_details" })} />
+                <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                  {fetcher.state !== "idle" ? "Refreshing…" : "Refresh from Fynd"}
+                </s-button>
+              </fetcher.Form>
+            </div>
+          ) : null}
+        </div>
+      </s-section>
+
+      {fyndPayloadInfo && fyndPayloadInfo.shipments.length > 0 ? (
+        <s-section heading="Fynd full payload (invoice, AWB, DP, logistics and all details)">
+          <div style={{ ...cardStyle, marginBottom: 0 }}>
+            {fyndPayloadInfo.shipments.map(({ index, fields }) => (
+              <div key={index} style={{ marginBottom: index > 1 ? 24 : 0 }}>
+                {fyndPayloadInfo.shipments.length > 1 && (
+                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#1a1a1a" }}>Shipment {index}</h3>
+                )}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
+                  {fields.map((f) => (
+                    <div key={f.key ?? f.label}>
+                      <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>{f.label}</div>
+                      <div style={{ fontFamily: "monospace", fontSize: 13, wordBreak: "break-all" }}>
+                        {f.value.length > 200 ? `${f.value.slice(0, 200)}…` : f.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div style={{ marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setShowRawFynd((v) => !v)}
+                style={{ fontSize: 13, color: "#005bd3", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+              >
+                {showRawFynd ? "Hide raw JSON" : "Show raw JSON"}
+              </button>
+              {showRawFynd && (
+                <pre style={{ marginTop: 8, padding: 12, background: "#f6f6f7", borderRadius: 8, overflow: "auto", fontSize: 11, maxHeight: 400 }}>
+                  {fyndPayloadInfo.rawJson}
+                </pre>
+              )}
+            </div>
+          </div>
+        </s-section>
+      ) : !isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) ? (
+        <s-section heading="Fynd full payload">
+          <div style={{ ...cardStyle, background: "#f9fafb" }}>
+            <p style={{ margin: 0, color: "#6d7175", fontSize: 14 }}>No Fynd payload stored yet. Use &quot;Refresh from Fynd&quot; above to fetch invoice, AWB, DP and all details from Fynd.</p>
+          </div>
+        </s-section>
+      ) : null}
 
       <s-section heading="Actions">
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
@@ -215,6 +357,14 @@ export default function ReturnDetail() {
                 </div>
               )}
             </>
+          )}
+          {canRetryFynd && (
+            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+              <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
+              <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                {fetcher.state !== "idle" ? "Syncing…" : "Sync to Fynd"}
+              </s-button>
+            </fetcher.Form>
           )}
           {["approved", "completed"].includes(returnCase.status.toLowerCase()) &&
             returnCase.refundStatus !== "refunded" &&
@@ -268,22 +418,29 @@ export default function ReturnDetail() {
                   padding: 16,
                   background: "#f9fafb",
                   borderRadius: 8,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
+                  border: "1px solid #e1e3e5",
                 }}
               >
-                <div>
-                  <strong>{item.sku || item.shopifyLineItemId}</strong> × {item.qty}
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div>
+                    <strong>{item.sku || item.shopifyLineItemId}</strong> × {item.qty}
+                  </div>
+                  <div style={{ color: "#6d7175" }}>{item.reasonCode || "—"}</div>
                 </div>
-                <div style={{ color: "#6d7175" }}>{item.reasonCode || "—"}</div>
+                {(item.fyndShipmentId || item.fyndBagId) && (
+                  <div style={{ fontSize: 12, color: "#6d7175", marginTop: 8 }}>
+                    {item.fyndShipmentId && <span>Fynd Shipment: <code style={{ background: "#eee", padding: "2px 6px", borderRadius: 4 }}>{item.fyndShipmentId}</code></span>}
+                    {item.fyndShipmentId && item.fyndBagId && " · "}
+                    {item.fyndBagId && <span>Bag: <code style={{ background: "#eee", padding: "2px 6px", borderRadius: 4 }}>{item.fyndBagId}</code></span>}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </s-section>
 
-      <s-section heading="Timeline">
+      <s-section heading="Return tracking (timeline)">
         {(returnCase.events?.length ?? 0) === 0 ? (
           <p style={{ color: "#6d7175" }}>No events yet.</p>
         ) : (

@@ -8,6 +8,10 @@ export type CreateFyndReturnResult = {
   success: boolean;
   fyndReturnId?: string;
   fyndReturnNo?: string;
+  fyndOrderId?: string;
+  fyndShipmentId?: string;
+  /** Full Fynd shipments response (array or { items/shipments }) for invoice, AWB, DP, etc. */
+  fyndPayload?: unknown;
   error?: string;
 };
 
@@ -42,6 +46,7 @@ export async function createReturnOnFynd(
       : (shipmentsRes as { items?: unknown[] })?.items ?? (shipmentsRes as { shipments?: unknown[] })?.shipments ?? [];
 
     const shipment = Array.isArray(shipments) ? shipments[0] : null;
+    const fullPayload = shipmentsRes != null ? shipmentsRes : undefined;
     if (!shipment || typeof shipment !== "object") {
       return { success: false, error: "Order not found in Fynd or no shipments" };
     }
@@ -113,6 +118,9 @@ export async function createReturnOnFynd(
       success: true,
       fyndReturnId: fyndReturnId ? String(fyndReturnId) : undefined,
       fyndReturnNo: fyndReturnNo ? String(fyndReturnNo) : undefined,
+      fyndOrderId,
+      fyndShipmentId: shipmentId ? String(shipmentId) : undefined,
+      fyndPayload: fullPayload,
     };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

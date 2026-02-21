@@ -1,0 +1,149 @@
+/**
+ * Normalize and extract display-friendly fields from Fynd order/shipment payload.
+ * Handles various response shapes: array, { items }, { shipments }, single object.
+ */
+
+export type FyndDisplayField = { label: string; value: string; key?: string };
+
+/** Known Fynd payload key variants -> display label */
+const LABEL_MAP: Record<string, string> = {
+  order_id: "Fynd Order ID",
+  orderId: "Fynd Order ID",
+  shipment_id: "Fynd Shipment ID",
+  shipmentId: "Shipment ID",
+  identifier: "Shipment identifier",
+  id: "ID",
+  _id: "ID",
+  marketplaceInvoiceNumber: "Fynd Invoice number",
+  marketplace_invoice_number: "Fynd Invoice number",
+  invoice_number: "Invoice number",
+  invoiceNumber: "Invoice number",
+  invoice: "Invoice",
+  awbNumber: "Fynd AWB number",
+  awb_no: "Fynd AWB number",
+  awb: "AWB",
+  traking_no: "Tracking number",
+  tracking_no: "Tracking number",
+  dp_name: "DP / Logistics partner name",
+  dp: "Delivery partner",
+  courierName: "Courier name",
+  courier_name: "Courier name",
+  courierCode: "Courier code",
+  courier_code: "Courier code",
+  logistics_partner: "Logistics partner",
+  track_url: "Tracking URL",
+  trackUrl: "Tracking URL",
+  tracking_url: "Tracking URL",
+  shipment_status: "Shipment status",
+  orderStatus: "Order status",
+  status: "Status",
+  fulfilling_store: "Fulfilling store",
+  fulfilling_store_name: "Fulfilling store name",
+  fulfilling_company: "Fulfilling company",
+  total_bags: "Total bags",
+  bags: "Bags",
+  shipment_created_at: "Shipment created at",
+  shipment_created_ts: "Shipment created (ts)",
+  orderDate: "Order date",
+  modifiedDate: "Modified date",
+  marketplaceOrderId: "Marketplace order ID",
+  marketplaceReturnId: "Marketplace return ID",
+  forwardId: "Forward shipment ID",
+  fulfillmentType: "Fulfillment type",
+  paymentType: "Payment type",
+  fulfillment_option: "Fulfillment option",
+  promise: "Promise",
+  need_help_url: "Support URL",
+};
+
+function valueToString(v: unknown): string {
+  if (v == null) return "—";
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (Array.isArray(v)) return v.map(valueToString).join(", ");
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+}
+
+function collectFields(obj: Record<string, unknown>, prefix = ""): FyndDisplayField[] {
+  const out: FyndDisplayField[] = [];
+  const seen = new Set<string>();
+
+  const push = (key: string, label: string, val: unknown) => {
+    const value = valueToString(val);
+    if (value === "—" && (val == null || val === "")) return;
+    const k = (prefix ? `${prefix}.` : "") + key;
+    if (!seen.has(k)) {
+      seen.add(k);
+      out.push({ label, value, key: k });
+    }
+  };
+
+  for (const [key, val] of Object.entries(obj)) {
+    const label = LABEL_MAP[key] ?? key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").trim();
+    if (key === "tracking_details" || key === "size_info" || key === "currency_info") continue;
+    if (val != null && Array.isArray(val)) {
+      if (key === "bags") push(key, label, `${val.length} bag(s)`);
+      else push(key, label, val);
+      continue;
+    }
+    if (val != null && typeof val === "object") {
+      const nested = val as Record<string, unknown>;
+      if (nested.title !== undefined || nested.name !== undefined || nested.value !== undefined || "currency_code" in nested) {
+        push(key, label, nested.title ?? nested.name ?? nested.value ?? nested.currency_code ?? JSON.stringify(nested));
+      } else if (Object.keys(nested).length <= 8) {
+        out.push(...collectFields(nested, prefix ? `${prefix}.${key}` : key));
+      } else {
+        push(key, label, JSON.stringify(nested));
+      }
+    } else {
+      push(key, label, val);
+    }
+  }
+  return out;
+}
+
+/** Normalize raw Fynd API response to array of shipment-like objects */
+export function normalizeFyndPayload(payload: unknown): unknown[] {
+  if (payload == null) return [];
+  if (Array.isArray(payload)) return payload;
+  const o = payload as Record<string, unknown>;
+  if (Array.isArray(o.items)) return o.items;
+  if (Array.isArray(o.shipments)) return o.shipments;
+  if (typeof o === "object" && Object.keys(o).length > 0) return [o];
+  return [];
+}
+
+/** Extract display fields from a single shipment-like object */
+export function getFyndShipmentDisplayFields(shipment: unknown): FyndDisplayField[] {
+  if (shipment == null || typeof shipment !== "object") return [];
+  return collectFields(shipment as Record<string, unknown>);
+}
+
+export type FyndPayloadInfo = {
+  shipments: Array<{ index: number; fields: FyndDisplayField[]; raw: Record<string, unknown> }>;
+  rawJson: string;
+};
+
+/** Parse fyndPayloadJson and return structured display info */
+export function parseFyndPayloadForDisplay(fyndPayloadJson: string | null | undefined): FyndPayloadInfo | null {
+  if (!fyndPayloadJson || typeof fyndPayloadJson !== "string") return null;
+  try {
+    const payload = JSON.parse(fyndPayloadJson) as unknown;
+    const list = normalizeFyndPayload(payload);
+    const shipments = list.map((item, index) => {
+      const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
+      return {
+        index: index + 1,
+        fields: getFyndShipmentDisplayFields(item),
+        raw,
+      };
+    });
+    return {
+      shipments,
+      rawJson: fyndPayloadJson,
+    };
+  } catch {
+    return null;
+  }
+}

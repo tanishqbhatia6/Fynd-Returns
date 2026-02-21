@@ -34,6 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (query.trim()) {
     where.OR = [
       { shopifyOrderName: { contains: query.trim(), mode: "insensitive" } },
+      { fyndOrderId: { contains: query.trim(), mode: "insensitive" } },
       { forwardAwb: { contains: query.trim(), mode: "insensitive" } },
       { returnAwb: { contains: query.trim(), mode: "insensitive" } },
       { fyndReturnNo: { contains: query.trim(), mode: "insensitive" } },
@@ -136,7 +137,8 @@ export default function ReturnsList() {
               <thead>
                 <tr>
                   <th>Order</th>
-                  <th>Return #</th>
+                  <th>Fynd Order ID</th>
+                  <th>Fynd Return #</th>
                   <th>Forward AWB</th>
                   <th>Return AWB</th>
                   <th>Status</th>
@@ -150,6 +152,9 @@ export default function ReturnsList() {
                       <Link to={`/app/returns/${r.id}`} style={{ color: "#005bd3", textDecoration: "none", fontWeight: 500 }}>
                         {r.shopifyOrderName || r.id}
                       </Link>
+                    </td>
+                    <td style={{ padding: "12px 16px", color: "#6d7175", fontFamily: "monospace", fontSize: 13 }}>
+                      {(r as { fyndOrderId?: string | null }).fyndOrderId || (r.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}
                     </td>
                     <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.fyndReturnNo || "—"}</td>
                     <td style={{ padding: "12px 16px", color: "#6d7175" }}>{r.forwardAwb || "—"}</td>

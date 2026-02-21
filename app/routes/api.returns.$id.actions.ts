@@ -98,6 +98,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
     let fyndReturnId: string | null = null;
     let fyndReturnNo: string | null = null;
+    let fyndError: string | null = null;
     const shopWithSettings = await prisma.shop.findUnique({
       where: { id: shop.id },
       include: { settings: true },
@@ -105,17 +106,36 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const fyndClient = shopWithSettings?.settings
       ? await createFyndClient(shopWithSettings.settings)
       : null;
+    let fyndOrderId: string | null = null;
+    let fyndShipmentId: string | null = null;
+    let fyndPayloadJson: string | null = null;
     if (fyndClient && "getShipments" in fyndClient) {
       try {
         const fyndResult = await createReturnOnFynd(fyndClient, returnCase);
         if (fyndResult.success && fyndResult.fyndReturnId) {
           fyndReturnId = fyndResult.fyndReturnId;
           fyndReturnNo = fyndResult.fyndReturnNo ?? null;
+          fyndOrderId = fyndResult.fyndOrderId ?? null;
+          fyndShipmentId = fyndResult.fyndShipmentId ?? null;
+          try {
+            fyndPayloadJson = fyndResult.fyndPayload != null ? JSON.stringify(fyndResult.fyndPayload) : null;
+          } catch {
+            fyndPayloadJson = null;
+          }
         } else if (fyndResult.error) {
+          fyndError = fyndResult.error;
           console.warn("[Approve] Fynd create return failed:", fyndResult.error);
         }
       } catch (err) {
+        fyndError = err instanceof Error ? err.message : String(err);
         console.warn("[Approve] Fynd error:", err);
+      }
+    } else {
+      const apiType = (shopWithSettings?.settings as { fyndApiType?: string } | undefined)?.fyndApiType;
+      if (shopWithSettings?.settings?.fyndApplicationId && apiType === "storefront") {
+        fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). You have Storefront API configured.";
+      } else if (!shopWithSettings?.settings?.fyndApplicationId || !shopWithSettings?.settings?.fyndCredentials) {
+        fyndError = "Fynd is not configured. Go to Settings → Integrations and connect Fynd with Platform API to create returns on Fynd.";
       }
     }
     await prisma.returnCase.update({
@@ -125,6 +145,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         adminNotes: note || returnCase.adminNotes,
         ...(fyndReturnId && { fyndReturnId }),
         ...(fyndReturnNo && { fyndReturnNo }),
+        ...(fyndOrderId && { fyndOrderId }),
+        ...(fyndShipmentId && { fyndShipmentId }),
+        ...(fyndPayloadJson != null && { fyndPayloadJson }),
       },
     });
     await prisma.returnEvent.create({
@@ -139,7 +162,96 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }),
       },
     });
-    throw redirect(`/app/returns/${id}`);
+    const redirectUrl = fyndError
+      ? `/app/returns/${id}?fyndError=${encodeURIComponent(fyndError)}`
+      : `/app/returns/${id}`;
+    throw redirect(redirectUrl);
+  }
+
+  if (actionType === "retry_fynd_sync") {
+    if (!["approved", "completed"].includes(returnCase.status.toLowerCase())) {
+      return Response.json({ error: "Return must be approved first" }, { status: 400 });
+    }
+    if (returnCase.fyndReturnId) {
+      throw redirect(`/app/returns/${id}?fyndSuccess=already_synced`);
+    }
+    const shopWithSettings = await prisma.shop.findUnique({
+      where: { id: shop.id },
+      include: { settings: true },
+    });
+    const fyndClient = shopWithSettings?.settings
+      ? await createFyndClient(shopWithSettings.settings)
+      : null;
+    if (!fyndClient || !("getShipments" in fyndClient)) {
+      const apiType = (shopWithSettings?.settings as { fyndApiType?: string } | undefined)?.fyndApiType;
+      const msg = apiType === "storefront"
+        ? "Fynd return creation requires Platform API. Use Settings → Integrations and switch to Platform API."
+        : "Fynd is not configured. Configure Fynd with Platform API in Settings → Integrations.";
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(msg)}`);
+    }
+    const fyndResult = await createReturnOnFynd(fyndClient, returnCase);
+    if (fyndResult.success && fyndResult.fyndReturnId) {
+      let payloadJson: string | null = null;
+      try {
+        payloadJson = fyndResult.fyndPayload != null ? JSON.stringify(fyndResult.fyndPayload) : null;
+      } catch {
+        payloadJson = null;
+      }
+      await prisma.returnCase.update({
+        where: { id },
+        data: {
+          fyndReturnId: fyndResult.fyndReturnId,
+          fyndReturnNo: fyndResult.fyndReturnNo ?? null,
+          fyndOrderId: fyndResult.fyndOrderId ?? null,
+          fyndShipmentId: fyndResult.fyndShipmentId ?? null,
+          ...(payloadJson != null && { fyndPayloadJson: payloadJson }),
+        },
+      });
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "fynd_sync",
+          payloadJson: JSON.stringify({
+            fyndReturnId: fyndResult.fyndReturnId,
+            fyndReturnNo: fyndResult.fyndReturnNo ?? null,
+          }),
+        },
+      });
+      throw redirect(`/app/returns/${id}?fyndSuccess=1`);
+    }
+    const errMsg = fyndResult.error ?? "Unknown Fynd error";
+    throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(errMsg)}`);
+  }
+
+  if (actionType === "refresh_fynd_details") {
+    const fyndOrderIdStored = (returnCase as { fyndOrderId?: string | null }).fyndOrderId;
+    const fyndOrderId = fyndOrderIdStored ?? (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
+    if (!fyndOrderId) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("No Fynd order ID (add order number)")}`);
+    }
+    const shopWithSettings = await prisma.shop.findUnique({
+      where: { id: shop.id },
+      include: { settings: true },
+    });
+    const fyndClient = shopWithSettings?.settings
+      ? await createFyndClient(shopWithSettings.settings)
+      : null;
+    if (!fyndClient || !("getShipments" in fyndClient)) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("Fynd Platform API not configured")}`);
+    }
+    try {
+      const payload = await fyndClient.getShipments(fyndOrderId);
+      const payloadJson = payload != null ? JSON.stringify(payload) : null;
+      await prisma.returnCase.update({
+        where: { id },
+        data: { fyndPayloadJson: payloadJson ?? undefined },
+      });
+      throw redirect(`/app/returns/${id}?fyndRefresh=1`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(msg)}`);
+    }
   }
 
   if (actionType === "reject") {
@@ -190,44 +302,73 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (actionType === "process_refund") {
-    if (!["approved", "completed"].includes(returnCase.status.toLowerCase())) {
-      return Response.json({ error: "Return must be approved before processing refund" }, { status: 400 });
-    }
-    if (returnCase.refundStatus === "refunded") {
-      return Response.json({ error: "Refund has already been processed" }, { status: 400 });
-    }
-    if (returnCase.shopifyOrderId?.startsWith("manual:")) {
-      const orderName = returnCase.shopifyOrderName ?? returnCase.shopifyOrderId?.replace(/^manual:/, "") ?? "—";
-      return Response.json({
-        error: `This is a manual return request. Process the refund in Shopify Admin for order ${orderName}.`,
-      }, { status: 400 });
-    }
-    let lineItemIds = (returnCase.items ?? [])
-      .map((i) => i.shopifyLineItemId)
-      .filter((x): x is string => !!x);
-    if (lineItemIds.length === 0) {
-      const order = await fetchOrder(admin, returnCase.shopifyOrderId);
-      if (order?.lineItems?.length) {
-        lineItemIds = order.lineItems.map((li) => li.id);
+    try {
+      if (!["approved", "completed"].includes(returnCase.status.toLowerCase())) {
+        return Response.json({ error: "Return must be approved before processing refund" }, { status: 400 });
       }
+      if (returnCase.refundStatus === "refunded") {
+        return Response.json({ error: "Refund has already been processed" }, { status: 400 });
+      }
+      if (returnCase.shopifyOrderId?.startsWith("manual:")) {
+        const orderName = returnCase.shopifyOrderName ?? returnCase.shopifyOrderId?.replace(/^manual:/, "") ?? "—";
+        return Response.json({
+          error: `This is a manual return request. Process the refund in Shopify Admin for order ${orderName}.`,
+        }, { status: 400 });
+      }
+
+      let orderIdForRefund = returnCase.shopifyOrderId;
+      let lineItemIds = (returnCase.items ?? [])
+        .map((i) => i.shopifyLineItemId)
+        .filter((x): x is string => !!x && x !== "manual");
+
+      const isGid = orderIdForRefund?.startsWith("gid://");
+      const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
+      if (!isGid && !isNumericId) {
+        const { fetchOrderByOrderNumber } = await import("../lib/shopify-admin.server");
+        const orderNumber = (returnCase.shopifyOrderName ?? orderIdForRefund ?? "").replace(/^#/, "").trim();
+        const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
+        if (orderByNumber?.id) {
+          orderIdForRefund = orderByNumber.id;
+          if (lineItemIds.length === 0 && orderByNumber.lineItems?.length) {
+            lineItemIds = orderByNumber.lineItems.map((li) => li.id);
+          }
+        }
+      }
+
+      if (!orderIdForRefund) {
+        return Response.json({ error: "Could not determine Shopify order. Check that the return has a valid order." }, { status: 400 });
+      }
+
+      if (lineItemIds.length === 0) {
+        const order = await fetchOrder(admin, orderIdForRefund);
+        if (order?.lineItems?.length) {
+          lineItemIds = order.lineItems.map((li) => li.id);
+        }
+      }
+
+      const result = await createRefund(admin, orderIdForRefund, lineItemIds, note || returnCase.adminNotes || undefined);
+      if (!result.success) {
+        return Response.json({ error: result.error ?? "Refund failed" }, { status: 400 });
+      }
+      await prisma.returnCase.update({
+        where: { id },
+        data: { refundStatus: "refunded", adminNotes: note || returnCase.adminNotes },
+      });
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "refund_processed",
+          payloadJson: JSON.stringify({ note: "Refund created in Shopify" }),
+        },
+      });
+      throw redirect(`/app/returns/${id}`);
+    } catch (err) {
+      if (err instanceof Response) throw err;
+      const message = err instanceof Error ? err.message : "Refund could not be processed. Please try again or process the refund manually in Shopify Admin.";
+      console.error("[process_refund] Error:", err);
+      return Response.json({ error: message }, { status: 500 });
     }
-    const result = await createRefund(admin, returnCase.shopifyOrderId, lineItemIds, note || returnCase.adminNotes || undefined);
-    if (!result.success) {
-      return Response.json({ error: result.error ?? "Refund failed" }, { status: 400 });
-    }
-    await prisma.returnCase.update({
-      where: { id },
-      data: { refundStatus: "refunded", adminNotes: note || returnCase.adminNotes },
-    });
-    await prisma.returnEvent.create({
-      data: {
-        returnCaseId: id,
-        source: "admin",
-        eventType: "refund_processed",
-        payloadJson: JSON.stringify({ note: "Refund created in Shopify" }),
-      },
-    });
-    throw redirect(`/app/returns/${id}`);
   }
 
   return Response.json({ error: "Unknown action" }, { status: 400 });

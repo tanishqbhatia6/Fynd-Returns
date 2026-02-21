@@ -269,6 +269,7 @@ export default function Integrations() {
       <fetcher.Form method="post">
         <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
           Connect Fynd for reverse logistics. Choose environment, API type, and enter credentials from <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
+          Creating returns on Fynd when you approve a return requires the <strong>Platform API</strong> (Company ID + Client ID/Secret); Storefront API does not support creating returns.
         </p>
 
         <s-section heading="App Mode">

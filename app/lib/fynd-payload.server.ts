@@ -308,7 +308,19 @@ export type FyndOrderDetailsTab = {
     fulfillmentStore: string | null;
     fulfillmentOptions: string | null;
     shipmentStatus: string | null;
-    items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string; price?: string; total?: string }>;
+    items: Array<{
+      sku?: string;
+      itemId?: string;
+      affiliateLineNo?: string;
+      title?: string;
+      quantity?: number;
+      identifier?: string;
+      price?: string;
+      discountedPrice?: string;
+      discount?: string;
+      total?: string;
+      originalPrice?: string;
+    }>;
   }>;
 };
 
@@ -385,17 +397,32 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const items = orderItems.map((oi) => {
         const o = (typeof oi === "object" && oi != null ? oi : {}) as Record<string, unknown>;
         const qty = typeof o.quantity === "number" ? o.quantity : typeof o.qty === "number" ? o.qty : 1;
-        const priceVal = o.price ?? o.amount ?? o.effective_price ?? o.effectivePrice ?? o.sale_price ?? o.salePrice ?? o.unit_price ?? o.unitPrice;
+        const priceVal = o.price ?? o.amount ?? o.effective_price ?? o.effectivePrice ?? o.sale_price ?? o.salePrice ?? o.unit_price ?? o.unitPrice ?? o.mrp;
         const priceStr = typeof priceVal === "string" ? priceVal : typeof priceVal === "number" ? String(priceVal) : null;
-        const totalVal = o.total ?? o.line_total ?? o.lineTotal ?? o.amount;
+        const discountedVal = o.discounted_price ?? o.discountedPrice ?? o.effective_price ?? o.effectivePrice ?? o.sale_price ?? o.salePrice;
+        const discountedStr = typeof discountedVal === "string" ? discountedVal : typeof discountedVal === "number" ? String(discountedVal) : null;
+        const discountVal = o.discount ?? o.discount_amount ?? o.discountAmount ?? o.discount_value;
+        const discountStr = typeof discountVal === "string" ? discountVal : typeof discountVal === "number" ? String(discountVal) : null;
+        const totalVal = o.total ?? o.line_total ?? o.lineTotal ?? o.amount ?? o.final_price;
         const totalStr = typeof totalVal === "string" ? totalVal : typeof totalVal === "number" ? String(totalVal) : (priceStr && qty ? String(parseFloat(priceStr) * qty) : null);
+        const itemIdVal = o.id ?? o.item_id ?? o._id ?? o.identifier;
+        const itemIdStr = itemIdVal != null ? String(itemIdVal) : null;
+        const lineNoVal = o.line_number ?? o.line_no ?? o.affiliate_line_no ?? o.lineNumber ?? o.index;
+        const lineNoStr = lineNoVal != null ? String(lineNoVal) : null;
+        const skuVal = o.sku ?? o.code ?? o.identifier ?? o.seller_identifier;
+        const skuStr = toDisplayString(skuVal) ?? (typeof skuVal === "string" ? skuVal : null);
         return {
-          sku: toDisplayString(o.sku ?? o.identifier ?? o.seller_identifier) ?? undefined,
-          title: toDisplayString(o.title ?? o.product_title ?? o.productTitle ?? o.name) ?? undefined,
+          sku: skuStr ?? undefined,
+          itemId: itemIdStr ?? undefined,
+          affiliateLineNo: lineNoStr ?? undefined,
+          title: toDisplayString(o.title ?? o.product_title ?? o.productTitle ?? o.name ?? o.product_name) ?? undefined,
           quantity: qty,
           identifier: toDisplayString(o.identifier ?? o.seller_identifier) ?? undefined,
           price: priceStr ?? undefined,
+          discountedPrice: discountedStr ?? undefined,
+          discount: discountStr ?? undefined,
           total: totalStr ?? undefined,
+          originalPrice: priceStr ?? undefined,
         };
       });
       return {

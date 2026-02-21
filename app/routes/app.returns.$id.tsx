@@ -32,6 +32,20 @@ function safeStr(v: unknown): string {
   return "";
 }
 
+type ShipmentItem = {
+  sku?: string;
+  itemId?: string;
+  affiliateLineNo?: string;
+  title?: string;
+  quantity?: number;
+  identifier?: string;
+  price?: string;
+  discountedPrice?: string;
+  discount?: string;
+  total?: string;
+  originalPrice?: string;
+};
+
 type ShipmentForRow = {
   shipmentId: string;
   cpName: string | null;
@@ -42,7 +56,7 @@ type ShipmentForRow = {
   fulfillmentStore: string | null;
   fulfillmentOptions: string | null;
   shipmentStatus: string | null;
-  items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string; price?: string; total?: string }>;
+  items: ShipmentItem[];
 };
 
 function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMoney, shopifyLineItems }: {
@@ -52,7 +66,7 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
   onToggle: () => void;
   safeStr: (v: unknown) => string;
   formatMoney: (v: string | null | undefined) => string;
-  shopifyLineItems?: Array<{ sku?: string | null; title?: string; price?: string | null; discountedPrice?: string | null; quantity: number }>;
+  shopifyLineItems?: Array<{ sku?: string | null; title?: string; price?: string | null; discountedPrice?: string | null; quantity: number; id?: string }>;
 }) {
   const cardStyle = {
     padding: expanded ? 20 : "14px 20px",
@@ -93,8 +107,8 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
           </div>
           {(s.items ?? []).length > 0 && (
             <div>
-              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Items</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Items</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 {(s.items ?? []).map((it, i) => {
                   const matched = shopifyLineItems?.find((li) =>
                     (it.sku && li.sku && String(li.sku).toLowerCase() === String(it.sku).toLowerCase()) ||
@@ -102,18 +116,35 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
                   );
                   const title = safeStr(it.title) || matched?.title || safeStr(it.sku) || safeStr(it.identifier) || "Item";
                   const qty = it.quantity ?? 1;
-                  const price = it.price ?? matched?.discountedPrice ?? matched?.price;
-                  const total = it.total ?? (price ? String(parseFloat(price) * qty) : null);
+                  const unitPrice = it.discountedPrice ?? it.price ?? matched?.discountedPrice ?? matched?.price;
+                  const originalPrice = it.price ?? it.originalPrice ?? matched?.price;
+                  const total = it.total ?? (unitPrice ? String(parseFloat(unitPrice) * qty) : null);
                   return (
-                    <div key={i} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 8, padding: 14, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)", fontSize: 13, transition: "box-shadow 0.2s ease" }}>
-                      <div>
-                        <div style={{ fontWeight: 500 }}>{title}</div>
-                        {it.sku && it.sku !== title && <div style={{ fontSize: 12, fontFamily: "monospace", color: "#6d7175", marginTop: 2 }}>SKU: {safeStr(it.sku)}</div>}
-                      </div>
-                      <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
-                        <span style={{ color: "#6d7175" }}>Qty: {qty}</span>
-                        {formatMoney(price) && <span style={{ fontWeight: 500 }}>{formatMoney(price)} × {qty}</span>}
-                        {formatMoney(total) && <span style={{ fontWeight: 600 }}>Total: {formatMoney(total)}</span>}
+                    <div key={i} style={{ padding: 16, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)", transition: "box-shadow 0.2s ease", boxShadow: "var(--rpm-shadow-sm)" }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
+                        <div style={{ flex: 1, minWidth: 200 }}>
+                          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{title}</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: "var(--rpm-text-muted)" }}>
+                            {it.sku && <span><strong>SKU:</strong> <code style={{ background: "var(--rpm-surface-elevated)", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }}>{safeStr(it.sku)}</code></span>}
+                            {it.itemId && <span><strong>Item ID:</strong> <code style={{ background: "var(--rpm-surface-elevated)", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }}>{safeStr(it.itemId)}</code></span>}
+                            {it.affiliateLineNo && <span><strong>Affiliate line no:</strong> {safeStr(it.affiliateLineNo)}</span>}
+                            <span><strong>Qty:</strong> {qty}</span>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+                          {unitPrice && (
+                            <div style={{ fontSize: 13 }}>
+                              {formatMoney(unitPrice)} × {qty}
+                              {originalPrice && parseFloat(originalPrice) !== parseFloat(unitPrice) && (
+                                <span style={{ marginLeft: 8, color: "var(--rpm-text-muted)", textDecoration: "line-through", fontWeight: 400 }}>{formatMoney(originalPrice)} each</span>
+                              )}
+                            </div>
+                          )}
+                          {it.discount && parseFloat(it.discount) !== 0 && (
+                            <div style={{ fontSize: 12, color: "var(--rpm-success)" }}>Discount: −{formatMoney(it.discount)}</div>
+                          )}
+                          {total && <div style={{ fontWeight: 700, fontSize: 14, color: "var(--rpm-text)" }}>Total: {formatMoney(total)}</div>}
+                        </div>
                       </div>
                     </div>
                   );

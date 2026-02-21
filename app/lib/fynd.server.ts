@@ -161,19 +161,38 @@ export class FyndPlatformClient {
     });
     if (params?.orderStatus) searchParams.set("order_status", params.orderStatus);
     if (params?.locationCode) searchParams.set("location_code", params.locationCode);
+    if (this.applicationId) searchParams.set("application_id", this.applicationId);
     const path = `/service/portal/order-manage/v1.0/company/${this.companyId}/shipments-listing?${searchParams.toString()}`;
     const res = await this.request("GET", path);
     const body = res as { items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; order?: { id?: string }; results?: unknown[] };
     const items = body?.items ?? body?.shipments ?? body?.data?.items ?? body?.results ?? [];
     const first = Array.isArray(items) ? items[0] : null;
     const firstObj = first && typeof first === "object" ? first as Record<string, unknown> : null;
-    const orderId = firstObj?.order_id ?? firstObj?.orderId ?? firstObj?.id ?? null;
-    const shipmentId = firstObj?.id ?? firstObj?.shipment_id ?? firstObj?.shipmentId ?? orderId;
+    const { orderId, shipmentId } = this.parseInternalIdsFromShipment(firstObj);
     return {
       ...body,
-      orderId: orderId != null ? String(orderId) : undefined,
-      shipmentId: shipmentId != null ? String(shipmentId) : undefined,
+      orderId: orderId ?? undefined,
+      shipmentId: shipmentId ?? undefined,
     };
+  }
+
+  /** Prefer internal numeric IDs; platform order API rejects external IDs (e.g. FYMP...). */
+  private parseInternalIdsFromShipment(obj: Record<string, unknown> | null): { orderId: string | null; shipmentId: string | null } {
+    if (!obj) return { orderId: null, shipmentId: null };
+    const str = (v: unknown) => (v != null && typeof v === "string" ? v.trim() : null);
+    const raw = [
+      str(obj.id),
+      str(obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id),
+      str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.bagId ?? obj.channel_bag_id),
+    ].filter((x): x is string => !!x);
+    const internal = raw.find((s) => /^\d+$/.test(s));
+    const anyNonExternal = raw.find((s) => !/^FY[A-Z0-9]{10,}/i.test(s));
+    const chosen = internal ?? anyNonExternal ?? null;
+    if (!chosen) return { orderId: null, shipmentId: null };
+    const orderId = str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.channel_bag_id) ?? chosen;
+    const shipmentId = str(obj.id ?? obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id) ?? chosen;
+    const use = (a: string) => (/^\d+$/.test(a) ? a : chosen);
+    return { orderId: use(orderId), shipmentId: use(shipmentId) };
   }
 
   /** Update shipment status (e.g. return_initiated to create return on Fynd) */

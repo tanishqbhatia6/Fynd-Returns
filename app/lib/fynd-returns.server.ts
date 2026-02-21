@@ -41,22 +41,34 @@ export async function createReturnOnFynd(
   const defaultReasonId = options?.defaultReasonId ?? 122;
   const defaultReasonText = options?.defaultReasonText ?? "Other";
 
-  let fyndOrderId =
-    (options?.affiliateOrderId && options.affiliateOrderId.trim()) ||
-    (returnCase as { fyndOrderId?: string | null }).fyndOrderId ||
-    toFyndOrderIdFallback(returnCase.shopifyOrderName);
+  const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
+  const looksExternal = (id: string) => /^FY[A-Z0-9]{10,}/i.test(id.trim());
+  const affiliateOrderId = options?.affiliateOrderId?.trim() || null;
+  const storedFyndOrderId = (returnCase as { fyndOrderId?: string | null }).fyndOrderId?.trim() || null;
+
+  let fyndOrderId = affiliateOrderId || storedFyndOrderId || (externalOrderId ? toFyndOrderIdFallback(returnCase.shopifyOrderName) : null);
   if (!fyndOrderId?.trim()) {
     return { success: false, error: "Invalid order ID" };
   }
 
   try {
     let shipmentsRes: unknown;
+    const shouldSearchFirst = externalOrderId && "searchShipmentsByExternalOrderId" in client && (
+      !affiliateOrderId ||
+      looksExternal(fyndOrderId)
+    );
+    if (shouldSearchFirst) {
+      const searchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(externalOrderId);
+      const resolved = searchRes.orderId ?? searchRes.shipmentId;
+      if (resolved) {
+        fyndOrderId = resolved;
+      }
+    }
     try {
       shipmentsRes = await client.getShipments(fyndOrderId);
     } catch (getErr) {
       const msg = getErr instanceof Error ? getErr.message : String(getErr);
-      const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
-      if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && externalOrderId && "searchShipmentsByExternalOrderId" in client) {
+      if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && externalOrderId && "searchShipmentsByExternalOrderId" in client && !shouldSearchFirst) {
         const searchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(externalOrderId);
         const resolved = searchRes.orderId ?? searchRes.shipmentId;
         if (resolved) {

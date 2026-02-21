@@ -513,6 +513,8 @@ export function ErrorBoundary() {
   const error = useRouteError();
   const is404 = isRouteErrorResponse(error) && error.status === 404;
   const is500 = isRouteErrorResponse(error) && error.status === 500;
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? error.stack : undefined;
 
   return (
     <s-page heading={is404 ? "Return not found" : "Something went wrong"}>
@@ -524,6 +526,15 @@ export function ErrorBoundary() {
               ? "We couldn't load this return. Please try again later."
               : "An unexpected error occurred."}
         </p>
+        {!is404 && !is500 && (
+          <details style={{ marginBottom: 16, fontSize: 12, color: "#6d7175", background: "#f6f6f7", padding: 12, borderRadius: 8 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 600 }}>Error details (for debugging)</summary>
+            <pre style={{ marginTop: 8, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              {errorMessage}
+              {errorStack ? `\n\n${errorStack}` : ""}
+            </pre>
+          </details>
+        )}
         <Link to="/app/returns">
           <s-button variant="primary">Back to Returns</s-button>
         </Link>

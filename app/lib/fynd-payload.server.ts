@@ -148,7 +148,8 @@ export type TrackingInfoFromFynd = {
   awbNo?: string | null;
 };
 
-/** Extract tracking URL, DP name, status from Fynd payload for customer-facing display */
+/** Extract tracking URL, DP name, status from Fynd payload for customer-facing display.
+ * Checks dp_details (display_name, name, awb_no, track_url) and top-level tracking_url. */
 export function getTrackingInfoFromFyndPayload(fyndPayloadJson: string | null | undefined): TrackingInfoFromFynd | null {
   if (!fyndPayloadJson || typeof fyndPayloadJson !== "string") return null;
   try {
@@ -156,13 +157,14 @@ export function getTrackingInfoFromFyndPayload(fyndPayloadJson: string | null | 
     const list = normalizeFyndPayload(payload);
     const first = list[0] as Record<string, unknown> | undefined;
     if (!first || typeof first !== "object") return null;
-    const trackUrl = first.track_url ?? first.trackUrl ?? first.tracking_url;
-    const dp = first.dp_name ?? first.dp ?? first.courierName ?? first.courier_name ?? first.logistics_partner;
+    const dpDetails = (first.dp_details as Record<string, unknown>) ?? {};
+    const trackUrl = first.tracking_url ?? first.track_url ?? first.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url;
+    const dp = dpDetails.display_name ?? dpDetails.name ?? first.dp_name ?? first.dp ?? first.courierName ?? first.courier_name ?? first.logistics_partner;
     const status = first.shipment_status ?? first.orderStatus ?? first.status;
     const statusTitle = status && typeof status === "object" && status !== null && "title" in status
       ? (status as { title?: string }).title
       : status;
-    const awb = first.awb_no ?? first.awbNumber ?? first.awb;
+    const awb = dpDetails.awb_no ?? first.awb_no ?? first.awbNumber ?? first.awb;
     const awbStr = Array.isArray(awb) ? awb[0] : awb;
     return {
       trackingUrl: typeof trackUrl === "string" ? trackUrl : null,
@@ -216,6 +218,7 @@ export type FyndOrderDetailsTab = {
     shipmentId: string;
     cpName: string | null;
     forwardAwb: string | null;
+    trackingUrl: string | null;
     invoiceNumber: string | null;
     invoiceId: string | null;
     fulfillmentStore: string | null;
@@ -238,10 +241,13 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
     const shipments = list.map((item) => {
       const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
       const meta = (raw.meta as Record<string, unknown>) ?? {};
-      const awb = raw.awbNumber ?? raw.awb_no ?? raw.awb ?? meta.awb_no ?? meta.awb;
+      const dpDetails = (raw.dp_details as Record<string, unknown>) ?? {};
+      const awb = dpDetails.awb_no ?? raw.awbNumber ?? raw.awb_no ?? raw.awb ?? meta.awb_no ?? meta.awb;
       const awbVal = Array.isArray(awb) ? awb[0] : awb;
       const awbStr = toDisplayString(awbVal) ?? (typeof awbVal === "string" ? awbVal : null);
-      const cpName = toDisplayString(raw.courierName ?? raw.courier_name ?? raw.dp_name ?? raw.dp ?? meta.cp_name ?? meta.courier_name);
+      const cpName = toDisplayString(dpDetails.display_name ?? dpDetails.name ?? raw.courierName ?? raw.courier_name ?? raw.dp_name ?? raw.dp ?? meta.cp_name ?? meta.courier_name);
+      const trackUrl = raw.tracking_url ?? raw.track_url ?? raw.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url;
+      const trackingUrlStr = typeof trackUrl === "string" ? trackUrl : null;
       const invNum = toDisplayString(raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ?? meta.invoice_number);
       const invId = toDisplayString(raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id);
       const fulfillStore = toDisplayString(raw.fulfilling_store ?? raw.fulfilling_store_name ?? raw.fulfilling_company);
@@ -272,6 +278,7 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         shipmentId: String(raw.id ?? raw.shipment_id ?? raw.shipmentId ?? raw.channel_shipment_id ?? "—"),
         cpName: cpName ?? null,
         forwardAwb: awbStr ?? null,
+        trackingUrl: trackingUrlStr,
         invoiceNumber: invNum ?? null,
         invoiceId: invId ?? null,
         fulfillmentStore: fulfillStore ?? null,

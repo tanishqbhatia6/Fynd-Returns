@@ -32,6 +32,76 @@ function safeStr(v: unknown): string {
   return "";
 }
 
+type ShipmentForRow = {
+  shipmentId: string;
+  cpName: string | null;
+  forwardAwb: string | null;
+  trackingUrl: string | null;
+  invoiceNumber: string | null;
+  invoiceId: string | null;
+  fulfillmentStore: string | null;
+  fulfillmentOptions: string | null;
+  shipmentStatus: string | null;
+  items: Array<{ sku?: string; title?: string; quantity?: number; identifier?: string }>;
+};
+
+function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr }: {
+  shipment: ShipmentForRow;
+  index: number;
+  expanded: boolean;
+  onToggle: () => void;
+  safeStr: (v: unknown) => string;
+}) {
+  const cardStyle = { padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5" };
+  return (
+    <div style={{ ...cardStyle, padding: expanded ? 16 : "12px 16px" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, flex: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: 600, fontSize: 13 }}>Shipment {index + 1}</span>
+          <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6d7175" }}>{s.shipmentId}</span>
+          {safeStr(s.cpName) && <span style={{ fontSize: 13 }}>{safeStr(s.cpName)}</span>}
+          {safeStr(s.forwardAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>AWB: {safeStr(s.forwardAwb)}</span>}
+          {safeStr(s.shipmentStatus) && (
+            <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#e1e3e5", color: "#1a1a1a" }}>{safeStr(s.shipmentStatus)}</span>
+          )}
+        </div>
+        <button type="button" onClick={onToggle} style={{ fontSize: 13, color: "#005bd3", background: "none", border: "none", cursor: "pointer", fontWeight: 500 }}>
+          {expanded ? "Hide details" : "View details"}
+        </button>
+      </div>
+      {expanded && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>CP Name</div><div style={{ fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.forwardAwb) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Tracking</div><div style={{ fontSize: 13 }}>
+              {s.trackingUrl ? <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3", textDecoration: "none" }}>Track shipment →</a> : "—"}
+            </div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice number</div><div style={{ fontSize: 13 }}>{safeStr(s.invoiceNumber) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice ID</div><div style={{ fontSize: 13 }}>{safeStr(s.invoiceId) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentStore) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentOptions) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Status</div><div style={{ fontSize: 13 }}>{safeStr(s.shipmentStatus) || "—"}</div></div>
+          </div>
+          {(s.items ?? []).length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8 }}>Items</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {(s.items ?? []).map((it, i) => (
+                  <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#fff", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}>
+                    <span>{safeStr(it.title) || safeStr(it.sku) || safeStr(it.identifier) || "Item"}</span>
+                    <span style={{ color: "#6d7175" }}>Qty: {it.quantity ?? 1} {safeStr(it.sku) ? `· ${safeStr(it.sku)}` : ""}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab } from "../lib/fynd-payload.server";
 
@@ -91,6 +161,7 @@ export default function ReturnDetail() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showRawFynd, setShowRawFynd] = useState(false);
+  const [expandedShipment, setExpandedShipment] = useState<number | null>(null);
   const fetcher = useFetcher<{ success?: boolean; error?: string; status?: string }>();
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -180,12 +251,45 @@ export default function ReturnDetail() {
       {shopifyOrder && (
         <s-section heading="Order from Shopify">
           <div style={{ ...cardStyle, marginBottom: 8 }}>
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 8 }}>Order {shopifyOrder.name}</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 16 }}>Order {shopifyOrder.name}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {(shopifyOrder.lineItems ?? []).map((li) => (
-                <div key={li.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f1f2f4" }}>
-                  <span>{li.title} {li.sku ? `(${li.sku})` : ""}</span>
-                  <span style={{ color: "#6d7175" }}>Qty: {li.quantity}</span>
+                <div
+                  key={li.id}
+                  style={{
+                    display: "flex",
+                    gap: 16,
+                    padding: 16,
+                    background: "#f9fafb",
+                    borderRadius: 10,
+                    border: "1px solid #e1e3e5",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  {li.imageUrl ? (
+                    <img
+                      src={li.imageUrl}
+                      alt={li.title}
+                      style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, flexShrink: 0 }}
+                    />
+                  ) : (
+                    <div style={{ width: 64, height: 64, background: "#e1e3e5", borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#6d7175", fontSize: 24 }}>—</div>
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{li.title}</div>
+                    {li.variantTitle && (
+                      <div style={{ fontSize: 13, color: "#6d7175", marginBottom: 4 }}>Variant: {li.variantTitle}</div>
+                    )}
+                    {li.sku && (
+                      <div style={{ fontSize: 12, fontFamily: "monospace", color: "#6d7175", marginBottom: 4 }}>SKU: {li.sku}</div>
+                    )}
+                    <div style={{ display: "flex", gap: 16, marginTop: 8, fontSize: 13 }}>
+                      <span style={{ color: "#6d7175" }}>Qty: {li.quantity}</span>
+                      {li.price != null && li.price !== "" && (
+                        <span style={{ fontWeight: 500 }}>{li.price} × {li.quantity}</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -194,13 +298,11 @@ export default function ReturnDetail() {
       )}
 
       <s-section heading="Return details">
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Status</div>
+        <div style={{ ...cardStyle }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center", marginBottom: (returnCase.items?.length ?? 0) > 0 ? 16 : 0 }}>
             <span
               style={{
-                display: "inline-block",
-                padding: "6px 12px",
+                padding: "8px 14px",
                 borderRadius: 8,
                 fontSize: 14,
                 fontWeight: 600,
@@ -210,163 +312,98 @@ export default function ReturnDetail() {
             >
               {returnCase.status}
             </span>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Order</div>
-            <div style={{ fontWeight: 500 }}>{returnCase.shopifyOrderName || "—"}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Forward AWB</div>
-            <div>{returnCase.forwardAwb || "—"}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Return AWB</div>
-            <div>{returnCase.returnAwb || "—"}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Created</div>
-            <div>{new Date(returnCase.createdAt).toLocaleString()}</div>
-          </div>
-          {returnCase.refundStatus && (
             <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Refund</div>
-              <span style={{ color: returnCase.refundStatus === "refunded" ? "#008060" : "#6d7175" }}>{returnCase.refundStatus}</span>
+              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Order</div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{returnCase.shopifyOrderName || "—"}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Created</div>
+              <div style={{ fontSize: 13 }}>{new Date(returnCase.createdAt).toLocaleString()}</div>
+            </div>
+            {returnCase.refundStatus && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Refund</div>
+                <span style={{ color: returnCase.refundStatus === "refunded" ? "#008060" : "#6d7175", fontWeight: 500 }}>{returnCase.refundStatus}</span>
+              </div>
+            )}
+            {(returnCase.forwardAwb || returnCase.returnAwb) && (
+              <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
+                {returnCase.forwardAwb && <span><strong>Forward AWB:</strong> <code style={{ background: "#f1f2f4", padding: "2px 6px", borderRadius: 4 }}>{returnCase.forwardAwb}</code></span>}
+                {returnCase.returnAwb && <span><strong>Return AWB:</strong> <code style={{ background: "#f1f2f4", padding: "2px 6px", borderRadius: 4 }}>{returnCase.returnAwb}</code></span>}
+              </div>
+            )}
+          </div>
+          {(returnCase.items?.length ?? 0) > 0 && (
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 8, fontWeight: 500 }}>Items ({returnCase.items!.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {returnCase.items!.map((item) => (
+                  <div key={item.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 12px", background: "#f9fafb", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}>
+                    <span><strong>{item.sku || item.shopifyLineItemId}</strong> × {item.qty}</span>
+                    {item.reasonCode && <span style={{ color: "#6d7175" }}>{item.reasonCode}</span>}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {returnCase.status.toLowerCase() === "rejected" && returnCase.rejectionReason && (
-            <div style={{ gridColumn: "1 / -1" }}>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Rejection reason (shown to customer)</div>
-              <div style={{ padding: 12, background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca", color: "#991b1b" }}>
-                {returnCase.rejectionReason}
-              </div>
+            <div style={{ marginTop: 16, padding: 12, background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca", color: "#991b1b", fontSize: 14 }}>
+              <strong>Rejection reason (shown to customer):</strong> {returnCase.rejectionReason}
             </div>
           )}
         </div>
       </s-section>
 
-      <s-section heading="Fynd details (end-to-end)">
+      <s-section heading="Fynd">
         <div style={{ ...cardStyle, marginBottom: 0 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16 }}>
             <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
-              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{(returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}</div>
+              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
+              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                {fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Return ID</div>
-              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{(returnCase as { fyndReturnId?: string | null }).fyndReturnId || "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Return #</div>
-              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{returnCase.fyndReturnNo || "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Shipment ID</div>
-              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Forward AWB</div>
-              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{returnCase.forwardAwb || "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Return AWB</div>
-              <div style={{ fontFamily: "monospace", fontSize: 13 }}>{returnCase.returnAwb || "—"}</div>
-            </div>
-          </div>
-          {!isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) ? (
-            <div style={{ marginTop: 16 }}>
+            {!isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) && (
               <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
                 <input type="hidden" name="json" value={JSON.stringify({ action: "refresh_fynd_details" })} />
                 <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
                   {fetcher.state !== "idle" ? "Refreshing…" : "Refresh from Fynd"}
                 </s-button>
               </fetcher.Form>
+            )}
+          </div>
+          {fyndOrderDetailsTab && fyndOrderDetailsTab.shipments.length > 0 ? (
+            <div>
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 12, fontWeight: 500 }}>Shipments ({fyndOrderDetailsTab.shipments.length})</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {fyndOrderDetailsTab.shipments.map((s, idx) => (
+                  <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} />
+                ))}
+              </div>
             </div>
-          ) : null}
+          ) : (
+            <div style={{ padding: 16, background: "#f9fafb", borderRadius: 8, color: "#6d7175", fontSize: 14 }}>
+              {!isManualReturn ? "No Fynd shipment data yet. Use Refresh from Fynd to fetch details." : "Manual return — no Fynd sync."}
+            </div>
+          )}
         </div>
       </s-section>
 
-      {fyndOrderDetailsTab && fyndOrderDetailsTab.shipments.length > 0 ? (
-        <s-section heading="Fynd Order details">
-          <div style={{ ...cardStyle, marginBottom: 0 }}>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
-              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>{fyndOrderDetailsTab.fyndOrderId || "—"}</div>
-            </div>
-            {fyndOrderDetailsTab.shipments.map((s, idx) => (
-              <div key={idx} style={{ padding: 16, background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5", marginBottom: idx < fyndOrderDetailsTab.shipments.length - 1 ? 16 : 0 }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#1a1a1a" }}>
-                  Shipment {idx + 1} — {s.shipmentId}
-                </h3>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>CP Name (Courier partner)</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB / Tracking</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.forwardAwb) || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice number</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.invoiceNumber) || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.invoiceId) || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.fulfillmentStore) || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.fulfillmentOptions) || "—"}</div></div>
-                  <div><div style={{ fontSize: 11, color: "#6d7175" }}>Shipment status</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.shipmentStatus) || "—"}</div></div>
-                </div>
-                {(s.items ?? []).length > 0 && (
-                  <div>
-                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8 }}>Item details</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {(s.items ?? []).map((it, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#fff", borderRadius: 6, border: "1px solid #e1e3e5" }}>
-                          <span>{safeStr(it.title) || safeStr(it.sku) || safeStr(it.identifier) || "Item"}</span>
-                          <span style={{ color: "#6d7175" }}>Qty: {it.quantity ?? 1} {safeStr(it.sku) ? `· ${safeStr(it.sku)}` : ""}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </s-section>
-      ) : null}
-
       {fyndPayloadInfo && fyndPayloadInfo.shipments.length > 0 ? (
-        <s-section heading="Fynd full payload (invoice, AWB, DP, logistics and all details)">
-          <div style={{ ...cardStyle, marginBottom: 0 }}>
-            {fyndPayloadInfo.shipments.map(({ index, fields }) => (
-              <div key={index} style={{ marginBottom: index > 1 ? 24 : 0 }}>
-                {fyndPayloadInfo.shipments.length > 1 && (
-                  <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: "#1a1a1a" }}>Shipment {index}</h3>
-                )}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
-                  {fields.map((f) => (
-                    <div key={f.key ?? f.label}>
-                      <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>{f.label}</div>
-                      <div style={{ fontFamily: "monospace", fontSize: 13, wordBreak: "break-all" }}>
-                        {f.value.length > 200 ? `${f.value.slice(0, 200)}…` : f.value}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            <div style={{ marginTop: 16 }}>
-              <button
-                type="button"
-                onClick={() => setShowRawFynd((v) => !v)}
-                style={{ fontSize: 13, color: "#005bd3", background: "none", border: "none", cursor: "pointer", padding: 0 }}
-              >
-                {showRawFynd ? "Hide raw JSON" : "Show raw JSON"}
-              </button>
-              {showRawFynd && (
-                <pre style={{ marginTop: 8, padding: 12, background: "#f6f6f7", borderRadius: 8, overflow: "auto", fontSize: 11, maxHeight: 400 }}>
-                  {fyndPayloadInfo.rawJson}
-                </pre>
-              )}
-            </div>
-          </div>
-        </s-section>
-      ) : !isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) ? (
-        <s-section heading="Fynd full payload">
-          <div style={{ ...cardStyle, background: "#f9fafb" }}>
-            <p style={{ margin: 0, color: "#6d7175", fontSize: 14 }}>No Fynd payload stored yet. Use &quot;Refresh from Fynd&quot; above to fetch invoice, AWB, DP and all details from Fynd.</p>
-          </div>
-        </s-section>
+        <div style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            onClick={() => setShowRawFynd((v) => !v)}
+            style={{ fontSize: 14, color: "#005bd3", background: "none", border: "none", cursor: "pointer", padding: 0, fontWeight: 500 }}
+          >
+            {showRawFynd ? "Hide Fynd payload" : "View Fynd payload"}
+          </button>
+          {showRawFynd && (
+            <pre style={{ marginTop: 12, padding: 12, background: "#f6f6f7", borderRadius: 8, overflow: "auto", fontSize: 11, maxHeight: 400 }}>
+              {fyndPayloadInfo.rawJson}
+            </pre>
+          )}
+        </div>
       ) : null}
 
       <s-section heading="Actions">

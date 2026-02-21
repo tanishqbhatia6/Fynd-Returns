@@ -17,9 +17,11 @@ const ORDERS_QUERY = `#graphql
           nodes {
             id
             title
+            variantTitle
             sku
             quantity
             originalUnitPriceSet { shopMoney { amount } }
+            image { url }
           }
         }
       }
@@ -44,9 +46,11 @@ const ORDERS_BY_NAME_QUERY = `#graphql
           nodes {
             id
             title
+            variantTitle
             sku
             quantity
             originalUnitPriceSet { shopMoney { amount } }
+            image { url }
             variant { product { tags, productType } }
           }
         }
@@ -80,6 +84,16 @@ const REFUND_MUTATION = `#graphql
   }
 `;
 
+export type OrderLineItemForDisplay = {
+  id: string;
+  title: string;
+  variantTitle?: string | null;
+  sku: string | null;
+  quantity: number;
+  price?: string | null;
+  imageUrl?: string | null;
+};
+
 export type OrderForPortal = {
   id: string;
   name: string;
@@ -87,15 +101,7 @@ export type OrderForPortal = {
   email?: string | null;
   totalPrice?: string;
   affiliateOrderId?: string | null;
-  lineItems: Array<{
-    id: string;
-    title: string;
-    sku: string | null;
-    quantity: number;
-    price?: string;
-    productTags?: string[];
-    productType?: string | null;
-  }>;
+  lineItems: OrderLineItemForDisplay[];
   shippingCountry?: string | null;
   shippingProvince?: string | null;
 };
@@ -143,14 +149,25 @@ export async function fetchOrderByOrderNumber(
       nodes?: Array<{
         id: string;
         title: string;
+        variantTitle?: string | null;
         sku: string | null;
         quantity: number;
         originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+        image?: { url?: string } | null;
         variant?: { product?: { tags?: string[]; productType?: string } };
       }>;
     };
   };
   const affiliateOrderId = extractAffiliateOrderId(o.customAttributes);
+  const lineItems: OrderLineItemForDisplay[] = (o.lineItems?.nodes ?? []).map((li) => ({
+    id: li.id,
+    title: li.title,
+    variantTitle: li.variantTitle ?? null,
+    sku: li.sku ?? null,
+    quantity: li.quantity,
+    price: li.originalUnitPriceSet?.shopMoney?.amount ?? null,
+    imageUrl: li.image?.url ?? null,
+  }));
   return {
     id: o.id,
     name: o.name,
@@ -158,18 +175,7 @@ export async function fetchOrderByOrderNumber(
     email: o.email ?? null,
     totalPrice: o.totalPriceSet?.shopMoney?.amount,
     affiliateOrderId: affiliateOrderId ?? undefined,
-    lineItems: (o.lineItems?.nodes ?? []).map((li) => {
-      const product = (li as { variant?: { product?: { tags?: string[]; productType?: string } } }).variant?.product;
-      return {
-        id: li.id,
-        title: li.title,
-        sku: li.sku,
-        quantity: li.quantity,
-        price: li.originalUnitPriceSet?.shopMoney?.amount,
-        productTags: product?.tags ?? [],
-        productType: product?.productType ?? null,
-      };
-    }),
+    lineItems,
     shippingCountry: o.shippingAddress?.countryCode ?? null,
     shippingProvince: o.shippingAddress?.provinceCode ?? null,
   };
@@ -251,7 +257,7 @@ export async function fetchOrder(
 ): Promise<{
   id: string;
   name: string;
-  lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }>;
+  lineItems: OrderLineItemForDisplay[];
   affiliateOrderId?: string | null;
 } | null> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
@@ -263,13 +269,32 @@ export async function fetchOrder(
     id: string;
     name: string;
     customAttributes?: Array<{ key: string; value: string }>;
-    lineItems?: { nodes?: Array<{ id: string; title: string; sku: string | null; quantity: number }> };
+    lineItems?: {
+      nodes?: Array<{
+        id: string;
+        title: string;
+        variantTitle?: string | null;
+        sku: string | null;
+        quantity: number;
+        originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+        image?: { url?: string } | null;
+      }>;
+    };
   };
   const affiliateOrderId = extractAffiliateOrderId(order.customAttributes);
+  const lineItems: OrderLineItemForDisplay[] = (order.lineItems?.nodes ?? []).map((li) => ({
+    id: li.id,
+    title: li.title,
+    variantTitle: li.variantTitle ?? null,
+    sku: li.sku ?? null,
+    quantity: li.quantity,
+    price: li.originalUnitPriceSet?.shopMoney?.amount ?? null,
+    imageUrl: li.image?.url ?? null,
+  }));
   return {
     id: order.id,
     name: order.name,
-    lineItems: order.lineItems?.nodes ?? [],
+    lineItems,
     affiliateOrderId: affiliateOrderId ?? undefined,
   };
 }

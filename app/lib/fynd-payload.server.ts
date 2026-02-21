@@ -241,13 +241,17 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const statusTitle = status && typeof status === "object" && status !== null && "title" in (status as object)
         ? (status as { title?: string }).title
         : status;
-      const orderItems = (raw.orderItems ?? raw.order_items ?? raw.items ?? []) as Array<Record<string, unknown>>;
-      const items = orderItems.map((oi) => ({
-        sku: (oi.sku ?? oi.identifier ?? oi.seller_identifier) as string | undefined,
-        title: (oi.title ?? oi.product_title) as string | undefined,
-        quantity: (oi.quantity ?? oi.qty) as number | undefined,
-        identifier: (oi.identifier ?? oi.seller_identifier) as string | undefined,
-      }));
+      const rawOrderItems = raw.orderItems ?? raw.order_items ?? raw.items ?? [];
+      const orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
+      const items = orderItems.map((oi) => {
+        const o = (typeof oi === "object" && oi != null ? oi : {}) as Record<string, unknown>;
+        return {
+          sku: (o.sku ?? o.identifier ?? o.seller_identifier) as string | undefined,
+          title: (o.title ?? o.product_title) as string | undefined,
+          quantity: (o.quantity ?? o.qty) as number | undefined,
+          identifier: (o.identifier ?? o.seller_identifier) as string | undefined,
+        };
+      });
       return {
         shipmentId: String(raw.id ?? raw.shipment_id ?? raw.shipmentId ?? raw.channel_shipment_id ?? "—"),
         cpName: cpName ?? null,

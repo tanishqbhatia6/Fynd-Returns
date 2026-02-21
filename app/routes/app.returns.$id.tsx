@@ -23,48 +23,54 @@ import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab } from "../lib/fynd-payload.server";
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
-  const id = params.id;
-  if (!id) throw new Response("Return ID is required", { status: 400 });
-
-  const { session, admin } = await authenticate.admin(request);
-  const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) throw new Response("Shop not found", { status: 404 });
-
-  let returnCase;
   try {
-    returnCase = await prisma.returnCase.findFirst({
-      where: { id, shopId: shop.id },
-      include: {
-        items: true,
-        events: { orderBy: { happenedAt: "asc" } },
-      },
-    });
+    const id = params.id;
+    if (!id) throw new Response("Return ID is required", { status: 400 });
+
+    const { session, admin } = await authenticate.admin(request);
+    const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
+    if (!shop) throw new Response("Shop not found", { status: 404 });
+
+    let returnCase;
+    try {
+      returnCase = await prisma.returnCase.findFirst({
+        where: { id, shopId: shop.id },
+        include: {
+          items: true,
+          events: { orderBy: { happenedAt: "asc" } },
+        },
+      });
+    } catch (err) {
+      console.error("Return detail loader error:", err);
+      throw new Response("Failed to load return", { status: 500 });
+    }
+
+    if (!returnCase) throw new Response("Return not found", { status: 404 });
+
+    const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
+    let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
+    if (!isManualReturn && returnCase.shopifyOrderId) {
+      try {
+        shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
+        if (!shopifyOrder && returnCase.shopifyOrderName) {
+          const orderNum = returnCase.shopifyOrderName.replace(/^#/, "").trim();
+          if (orderNum) shopifyOrder = await fetchOrderByOrderNumber(admin, orderNum);
+        }
+      } catch (err) {
+        console.warn("Could not fetch Shopify order:", err);
+      }
+    }
+
+    const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+    const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
+    const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
+
+    return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab };
   } catch (err) {
-    console.error("Return detail loader error:", err);
+    if (err instanceof Response) throw err;
+    console.error("Return detail loader unexpected error:", err);
     throw new Response("Failed to load return", { status: 500 });
   }
-
-  if (!returnCase) throw new Response("Return not found", { status: 404 });
-
-  const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
-  let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
-  if (!isManualReturn && returnCase.shopifyOrderId) {
-    try {
-      shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
-      if (!shopifyOrder && returnCase.shopifyOrderName) {
-        const orderNum = returnCase.shopifyOrderName.replace(/^#/, "").trim();
-        if (orderNum) shopifyOrder = await fetchOrderByOrderNumber(admin, orderNum);
-      }
-    } catch (err) {
-      console.warn("Could not fetch Shopify order:", err);
-    }
-  }
-
-  const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
-  const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
-  const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
-
-  return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab };
 };
 
 export default function ReturnDetail() {
@@ -163,7 +169,7 @@ export default function ReturnDetail() {
           <div style={{ ...cardStyle, marginBottom: 8 }}>
             <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 8 }}>Order {shopifyOrder.name}</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {shopifyOrder.lineItems.map((li) => (
+              {(shopifyOrder.lineItems ?? []).map((li) => (
                 <div key={li.id} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid #f1f2f4" }}>
                   <span>{li.title} {li.sku ? `(${li.sku})` : ""}</span>
                   <span style={{ color: "#6d7175" }}>Qty: {li.quantity}</span>
@@ -287,11 +293,11 @@ export default function ReturnDetail() {
                   <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.fulfillmentOptions || "—"}</div></div>
                   <div><div style={{ fontSize: 11, color: "#6d7175" }}>Shipment status</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.shipmentStatus || "—"}</div></div>
                 </div>
-                {s.items.length > 0 && (
+                {(s.items ?? []).length > 0 && (
                   <div>
                     <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8 }}>Item details</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {s.items.map((it, i) => (
+                      {(s.items ?? []).map((it, i) => (
                         <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "8px 12px", background: "#fff", borderRadius: 6, border: "1px solid #e1e3e5" }}>
                           <span>{it.title || it.sku || it.identifier || "Item"}</span>
                           <span style={{ color: "#6d7175" }}>Qty: {it.quantity ?? 1} {it.sku ? `· ${it.sku}` : ""}</span>

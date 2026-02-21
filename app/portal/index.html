@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Track Your Return | Return Pro Max</title>
+  <title>Order &amp; Return Tracking | Return Pro Max</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
       --portal-primary: %PRIMARY_COLOR%;
@@ -20,6 +20,9 @@
       --portal-heading-font: %HEADING_FONT%;
       --portal-radius: %BORDER_RADIUS%;
       --portal-shadow: %SHADOW%;
+      --status-ok: #059669;
+      --status-pending: #d97706;
+      --status-error: #dc2626;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { font-size: 16px; scroll-behavior: smooth; }
@@ -31,123 +34,188 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
     }
-    .portal { max-width: 520px; margin: 0 auto; padding: 40px 24px; }
-    .portal-tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--portal-border); }
-    .portal-tab { padding: 12px 20px; font-size: 0.9375rem; font-weight: 500; background: none; border: none; color: var(--portal-text-muted); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
-    .portal-tab.active { color: var(--portal-primary); border-bottom-color: var(--portal-primary); }
-    .portal-tab:hover { color: var(--portal-text); }
-    .item-row { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--portal-bg); border-radius: 6px; margin-bottom: 8px; border: 1px solid var(--portal-border); }
-    .item-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
-    .item-row label { flex: 1; cursor: pointer; }
-    .item-qty { width: 60px; padding: 8px; text-align: center; }
+    .portal { max-width: 560px; margin: 0 auto; padding: 48px 24px 64px; }
     .portal-header {
       text-align: center;
       margin-bottom: 40px;
     }
     .portal-header h1 {
       font-family: var(--portal-heading-font);
-      font-size: 1.75rem;
+      font-size: 2rem;
       font-weight: 700;
-      letter-spacing: -0.02em;
+      letter-spacing: -0.03em;
       color: var(--portal-text);
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      line-height: 1.2;
     }
     .portal-header p {
+      font-size: 1rem;
+      color: var(--portal-text-muted);
+      max-width: 400px;
+      margin: 0 auto;
+    }
+    #policy-banner {
+      display: block;
+      margin-top: 24px;
+      padding: 18px 20px;
+      background: color-mix(in srgb, var(--portal-primary) 0.08, transparent);
+      border-radius: var(--portal-radius);
       font-size: 0.9375rem;
       color: var(--portal-text-muted);
+      text-align: left;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 0.2, transparent);
     }
+    #policy-banner strong { color: var(--portal-text); }
+    .portal-tabs {
+      display: flex;
+      gap: 0;
+      margin-bottom: 28px;
+      border-bottom: 2px solid var(--portal-border);
+      background: color-mix(in srgb, var(--portal-text) 0.03, var(--portal-surface));
+      border-radius: var(--portal-radius) var(--portal-radius) 0 0;
+      padding: 6px 6px 0;
+    }
+    .portal-tab {
+      padding: 14px 24px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      background: none;
+      border: none;
+      color: var(--portal-text-muted);
+      cursor: pointer;
+      border-radius: 10px 10px 0 0;
+      transition: color 0.2s, background 0.2s;
+    }
+    .portal-tab.active { color: var(--portal-primary); background: var(--portal-surface); box-shadow: 0 -2px 8px rgba(0,0,0,0.04); }
+    .portal-tab:hover:not(.active) { color: var(--portal-text); }
     .portal-card {
       background: var(--portal-surface);
       border-radius: var(--portal-radius);
-      padding: 32px;
+      padding: 36px 32px;
       box-shadow: var(--portal-shadow);
       border: 1px solid var(--portal-border);
     }
     .portal-step { display: none; }
-    .portal-step.active { display: block; animation: fadeIn 0.3s ease; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
-    .form-group { margin-bottom: 20px; }
-    .form-group:last-of-type { margin-bottom: 24px; }
+    .portal-step.active { display: block; animation: fadeIn 0.35s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .form-group { margin-bottom: 22px; }
+    .form-group:last-of-type { margin-bottom: 28px; }
     .form-label {
       display: block;
       font-size: 0.8125rem;
       font-weight: 600;
       color: var(--portal-text);
-      margin-bottom: 8px;
+      margin-bottom: 10px;
+      letter-spacing: 0.01em;
     }
     .form-input, .form-select {
       width: 100%;
-      padding: 14px 16px;
+      padding: 16px 18px;
       font-size: 1rem;
       font-family: inherit;
       color: var(--portal-text);
       background: var(--portal-bg);
-      border: 1.5px solid var(--portal-border);
-      border-radius: calc(var(--portal-radius) - 2px);
+      border: 2px solid var(--portal-border);
+      border-radius: 12px;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
     .form-input:focus, .form-select:focus {
       outline: none;
       border-color: var(--portal-primary);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--portal-primary) 15%, transparent);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--portal-primary) 0.12, transparent);
     }
-    .form-input::placeholder { color: var(--portal-text-muted); opacity: 0.8; }
-    .form-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236d7175' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 40px; }
+    .form-input::placeholder { color: var(--portal-text-muted); opacity: 0.85; }
+    .form-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236d7175' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 44px; }
     .btn-primary {
       width: 100%;
-      padding: 16px 24px;
+      padding: 18px 24px;
       font-size: 1rem;
       font-weight: 600;
       font-family: inherit;
       color: white;
       background: var(--portal-primary);
       border: none;
-      border-radius: calc(var(--portal-radius) - 2px);
+      border-radius: 12px;
       cursor: pointer;
-      transition: background 0.2s, transform 0.05s;
+      transition: background 0.2s, transform 0.05s, box-shadow 0.2s;
     }
-    .btn-primary:hover { background: var(--portal-primary-hover); }
+    .btn-primary:hover { background: var(--portal-primary-hover); box-shadow: 0 4px 14px color-mix(in srgb, var(--portal-primary) 0.4); }
     .btn-primary:active { transform: scale(0.99); }
-    .form-error { font-size: 0.875rem; color: #d72c0d; margin-top: 8px; }
-    .return-list { margin-top: 24px; }
+    .btn-secondary {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 20px;
+      font-size: 0.9375rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--portal-primary);
+      background: color-mix(in srgb, var(--portal-primary) 0.1, transparent);
+      border: 2px solid color-mix(in srgb, var(--portal-primary) 0.35, transparent);
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, border-color 0.2s;
+    }
+    .btn-secondary:hover { background: color-mix(in srgb, var(--portal-primary) 0.18, transparent); border-color: var(--portal-primary); }
+    .form-error { font-size: 0.875rem; color: var(--status-error); margin-top: 10px; font-weight: 500; }
+    .return-list { margin-top: 28px; }
     .return-card {
-      padding: 20px;
-      background: var(--portal-bg);
-      border-radius: calc(var(--portal-radius) - 2px);
+      padding: 24px;
+      background: var(--portal-surface);
+      border-radius: 16px;
       border: 1px solid var(--portal-border);
-      margin-bottom: 12px;
+      margin-bottom: 16px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
     }
     .return-card:last-child { margin-bottom: 0; }
-    .return-order { font-weight: 600; font-size: 1rem; margin-bottom: 4px; }
-    .return-status { font-size: 0.875rem; color: var(--portal-text-muted); }
-    .return-empty { text-align: center; padding: 32px; color: var(--portal-text-muted); }
-    .return-meta { font-size: 0.8125rem; color: var(--portal-text-muted); margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; }
-    .return-meta span { display: inline-flex; align-items: center; gap: 4px; }
-    .return-meta strong { color: var(--portal-text); font-weight: 500; }
-    .return-timeline { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--portal-border); }
-    .return-timeline-title { font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--portal-text-muted); margin-bottom: 8px; }
-    .return-timeline-item { font-size: 0.8125rem; padding: 6px 0; display: flex; align-items: flex-start; gap: 8px; color: var(--portal-text); }
-    .return-timeline-item time { color: var(--portal-text-muted); white-space: nowrap; }
-    .return-timeline-item .event-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--portal-primary); margin-top: 6px; flex-shrink: 0; }
+    .return-order { font-weight: 700; font-size: 1.125rem; margin-bottom: 10px; letter-spacing: -0.02em; }
+    .return-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+    }
+    .status-badge.shopify { background: color-mix(in srgb, var(--portal-primary) 0.15, transparent); color: var(--portal-primary); }
+    .status-badge.fynd { background: color-mix(in srgb, #4f46e5 0.15, transparent); color: #4f46e5; }
+    .status-badge.ok { background: color-mix(in srgb, var(--status-ok) 0.15, transparent); color: var(--status-ok); }
+    .status-badge.pending { background: color-mix(in srgb, var(--status-pending) 0.15, transparent); color: var(--status-pending); }
+    .status-badge.error { background: color-mix(in srgb, var(--status-error) 0.15, transparent); color: var(--status-error); }
+    .return-meta { font-size: 0.875rem; color: var(--portal-text-muted); display: flex; flex-wrap: wrap; gap: 16px 24px; margin-bottom: 14px; }
+    .return-meta span { display: inline-flex; align-items: center; gap: 6px; }
+    .return-meta strong { color: var(--portal-text); font-weight: 600; }
+    .return-tracking-cta { margin-top: 16px; margin-bottom: 16px; }
+    .return-timeline { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--portal-border); }
+    .return-timeline-title { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--portal-text-muted); margin-bottom: 12px; }
+    .return-timeline-item { font-size: 0.875rem; padding: 10px 0; display: flex; align-items: flex-start; gap: 12px; color: var(--portal-text); }
+    .return-timeline-item time { color: var(--portal-text-muted); white-space: nowrap; font-size: 0.8125rem; }
+    .return-timeline-item .event-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--portal-primary); margin-top: 5px; flex-shrink: 0; }
+    .item-row { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--portal-bg); border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--portal-border); }
+    .item-row input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
+    .item-row label { flex: 1; cursor: pointer; }
+    .item-qty { width: 64px; padding: 10px; text-align: center; border-radius: 8px; }
     .otp-input { letter-spacing: 0.5em; text-align: center; font-size: 1.25rem; }
-    .step-label { font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 12px; }
-    .policy-banner { border: 1px solid var(--portal-border); }
+    .step-label { font-size: 0.9375rem; color: var(--portal-text-muted); margin-bottom: 14px; }
   </style>
 </head>
 <body>
   <div class="portal">
     <header class="portal-header">
-      <h1>Returns</h1>
-      <p>Track existing returns or create a new return request</p>
-      <div id="policy-banner" class="policy-banner" style="display:none; margin-top:20px; padding:16px; background:color-mix(in srgb, var(--portal-primary) 8%, transparent); border-radius:var(--portal-radius); font-size:0.875rem; color:var(--portal-text-muted); text-align:left;">
-        <strong style="color:var(--portal-text);">Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
+      <h1>Order &amp; Return Tracking</h1>
+      <p>Track your order or return end-to-end. Look up by order number, AWB, email, or phone.</p>
+      <div id="policy-banner" class="policy-banner" style="display:none;">
+        <strong>Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
         <div id="policy-detail" style="margin-top:8px;"></div>
       </div>
     </header>
 
     <div class="portal-tabs">
-      <button type="button" class="portal-tab active" data-tab="track">Track Return</button>
-      <button type="button" class="portal-tab" data-tab="create">Create Return</button>
+      <button type="button" class="portal-tab active" data-tab="track">Track order or return</button>
+      <button type="button" class="portal-tab" data-tab="create">Create return</button>
     </div>
 
     <div id="track-panel" class="portal-card">
@@ -176,15 +244,15 @@
       </div>
 
       <div id="step2" class="portal-step">
-        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Your Returns</h2>
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 20px; letter-spacing: -0.02em;">Your orders &amp; returns</h2>
         <div id="result" class="return-list"></div>
-        <button type="button" id="btnBack" class="btn-primary" style="margin-top: 20px; background: var(--portal-text-muted);">Look up another</button>
+        <button type="button" id="btnBack" class="btn-primary" style="margin-top: 24px; background: var(--portal-text-muted);">Look up another</button>
       </div>
     </div>
 
     <div id="create-panel" class="portal-card" style="display:none;">
       <div id="create-step1" class="portal-step active">
-        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Create Return</h2>
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 18px; letter-spacing: -0.02em;">Create return</h2>
         <p class="step-label">Choose how you'd like to start your return:</p>
         <div class="form-group">
           <label class="form-label" for="createOrderNumber">Search by Order Number</label>
@@ -284,22 +352,34 @@
         document.getElementById('step1').classList.remove('active');
         document.getElementById('step2').classList.add('active');
         document.getElementById('result').innerHTML = returns.length === 0
-          ? '<p class="return-empty">No returns found for this lookup.</p>'
+          ? '<p class="return-empty" style="text-align:center;padding:48px 24px;color:var(--portal-text-muted);font-size:1rem;">No orders or returns found for this lookup.</p>'
           : returns.map(x => {
               const orderName = x.shopifyOrderName || x.id;
-              let html = '<div class="return-card"><div class="return-order">' + escapeHtml(orderName) + '</div><div class="return-status">Status: ' + escapeHtml(x.status || '') + '</div>';
+              const status = (x.status || '').toLowerCase();
+              const statusClass = status === 'approved' || status === 'completed' ? 'ok' : (status === 'rejected' ? 'error' : 'pending');
+              const ti = x.trackingInfo || {};
+              let html = '<div class="return-card"><div class="return-order">' + escapeHtml(orderName) + '</div>';
+              html += '<div class="return-status-row">';
+              html += '<span class="status-badge shopify ' + statusClass + '">Shopify: ' + escapeHtml(x.status || '—') + '</span>';
+              if (ti.fyndStatus) html += '<span class="status-badge fynd">Fynd: ' + escapeHtml(ti.fyndStatus) + '</span>';
+              html += '</div>';
               const meta = [];
               if (x.fyndReturnNo) meta.push('<span><strong>Return #</strong> ' + escapeHtml(x.fyndReturnNo) + '</span>');
+              if (ti.awbNo) meta.push('<span><strong>AWB</strong> ' + escapeHtml(ti.awbNo) + '</span>');
               if (x.forwardAwb) meta.push('<span><strong>Forward AWB</strong> ' + escapeHtml(x.forwardAwb) + '</span>');
               if (x.returnAwb) meta.push('<span><strong>Return AWB</strong> ' + escapeHtml(x.returnAwb) + '</span>');
+              if (ti.logisticsPartner) meta.push('<span><strong>Courier</strong> ' + escapeHtml(ti.logisticsPartner) + '</span>');
               if (x.createdAt) meta.push('<span><strong>Created</strong> ' + new Date(x.createdAt).toLocaleString() + '</span>');
               if (meta.length) html += '<div class="return-meta">' + meta.join('') + '</div>';
-              if (x.status && x.status.toLowerCase() === 'rejected' && x.rejectionReason) {
-                html += '<div style="margin-top:8px;font-size:0.875rem;color:#d72c0d;">Reason: ' + escapeHtml(x.rejectionReason) + '</div>';
+              if (ti.trackingUrl) {
+                html += '<div class="return-tracking-cta"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary">Track shipment →</a></div>';
+              }
+              if (x.status && status === 'rejected' && x.rejectionReason) {
+                html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, #dc2626 0.08, transparent);border-radius:10px;font-size:0.875rem;color:#b91c1c;">' + escapeHtml(x.rejectionReason) + '</div>';
               }
               const events = (x.events || []).slice().sort((a, b) => new Date(a.happenedAt || 0) - new Date(b.happenedAt || 0)).slice(-15);
               if (events.length) {
-                html += '<div class="return-timeline"><div class="return-timeline-title">Tracking</div>';
+                html += '<div class="return-timeline"><div class="return-timeline-title">Tracking timeline</div>';
                 events.forEach(ev => {
                   const time = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString() : '';
                   const label = (ev.source ? '[' + escapeHtml(ev.source) + '] ' : '') + escapeHtml(ev.eventType || '');

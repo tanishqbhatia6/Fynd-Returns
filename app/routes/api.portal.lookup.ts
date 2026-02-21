@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { hashLookupValue } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+import { getTrackingInfoFromFyndPayload } from "../lib/fynd-payload.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -51,7 +52,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const matches = await prisma.returnCase.findMany({ where, select: { id: true } });
     const matchedReturnIds = matches.map((m) => m.id);
 
-    const returns =
+    const returnsRaw =
       matchedReturnIds.length > 0
         ? await prisma.returnCase.findMany({
             where: { id: { in: matchedReturnIds }, shopId: shopRecord.id },
@@ -62,6 +63,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             orderBy: { createdAt: "desc" },
           })
         : [];
+
+    const returns = returnsRaw.map((r) => {
+      const payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+      const trackingInfo = getTrackingInfoFromFyndPayload(payload);
+      return {
+        ...r,
+        trackingInfo: trackingInfo ?? undefined,
+      };
+    });
 
     return withCors(Response.json({ returns }), request);
   } catch (err) {

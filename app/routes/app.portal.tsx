@@ -47,6 +47,14 @@ export default function PortalInfo() {
           >
             Copy URL
           </s-button>
+          <a
+            href={portalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none" }}
+          >
+            <s-button variant="secondary">Open in new tab</s-button>
+          </a>
         </div>
       </s-section>
 
@@ -58,10 +66,10 @@ export default function PortalInfo() {
             color: "#4a4a4a",
           }}
         >
-          <li>Customer visits the portal URL</li>
-          <li>They enter Order #, AWB, Email, or Mobile to look up their order</li>
-          <li>They verify via OTP sent to their email or phone</li>
-          <li>They can view return status and initiate new returns</li>
+          <li>Customer visits the portal URL (copy or open in a new tab to preview)</li>
+          <li>They enter Order #, AWB, Email, or Mobile to look up their order or return</li>
+          <li>They see end-to-end tracking: Shopify status, Fynd status, tracking URL, and timeline</li>
+          <li>They can initiate new returns from the same portal</li>
           <li>Returns appear in your admin Returns list</li>
         </ol>
       </s-section>

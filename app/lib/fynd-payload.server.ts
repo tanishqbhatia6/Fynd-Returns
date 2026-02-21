@@ -114,6 +114,40 @@ export function normalizeFyndPayload(payload: unknown): unknown[] {
   return [];
 }
 
+export type TrackingInfoFromFynd = {
+  trackingUrl?: string | null;
+  logisticsPartner?: string | null;
+  fyndStatus?: string | null;
+  awbNo?: string | null;
+};
+
+/** Extract tracking URL, DP name, status from Fynd payload for customer-facing display */
+export function getTrackingInfoFromFyndPayload(fyndPayloadJson: string | null | undefined): TrackingInfoFromFynd | null {
+  if (!fyndPayloadJson || typeof fyndPayloadJson !== "string") return null;
+  try {
+    const payload = JSON.parse(fyndPayloadJson) as unknown;
+    const list = normalizeFyndPayload(payload);
+    const first = list[0] as Record<string, unknown> | undefined;
+    if (!first || typeof first !== "object") return null;
+    const trackUrl = first.track_url ?? first.trackUrl ?? first.tracking_url;
+    const dp = first.dp_name ?? first.dp ?? first.courierName ?? first.courier_name ?? first.logistics_partner;
+    const status = first.shipment_status ?? first.orderStatus ?? first.status;
+    const statusTitle = status && typeof status === "object" && status !== null && "title" in status
+      ? (status as { title?: string }).title
+      : status;
+    const awb = first.awb_no ?? first.awbNumber ?? first.awb;
+    const awbStr = Array.isArray(awb) ? awb[0] : awb;
+    return {
+      trackingUrl: typeof trackUrl === "string" ? trackUrl : null,
+      logisticsPartner: typeof dp === "string" ? dp : (dp && typeof dp === "object" && "name" in dp ? String((dp as { name?: string }).name) : null),
+      fyndStatus: typeof statusTitle === "string" ? statusTitle : (typeof status === "string" ? status : null),
+      awbNo: typeof awbStr === "string" ? awbStr : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Extract display fields from a single shipment-like object */
 export function getFyndShipmentDisplayFields(shipment: unknown): FyndDisplayField[] {
   if (shipment == null || typeof shipment !== "object") return [];

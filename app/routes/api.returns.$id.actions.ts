@@ -3,7 +3,7 @@ import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { createRefund, fetchOrder } from "../lib/shopify-admin.server";
-import { createFyndClient } from "../lib/fynd.server";
+import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification } from "../lib/notification.server";
 
@@ -103,13 +103,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       where: { id: shop.id },
       include: { settings: true },
     });
-    const fyndClient = shopWithSettings?.settings
-      ? await createFyndClient(shopWithSettings.settings)
-      : null;
+    const settingsForApprove = shopWithSettings?.settings as (typeof shopWithSettings.settings) & { fyndApiType?: string | null } | undefined;
+    const fyndClientResult = settingsForApprove
+      ? await createFyndClientOrError(settingsForApprove, { requirePlatform: true })
+      : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations and connect Fynd with Platform API to create returns on Fynd." };
     let fyndOrderId: string | null = null;
     let fyndShipmentId: string | null = null;
     let fyndPayloadJson: string | null = null;
-    if (fyndClient && "getShipments" in fyndClient) {
+    if (fyndClientResult.ok && "getShipments" in fyndClientResult.client) {
+      const fyndClient = fyndClientResult.client;
       try {
         const fyndResult = await createReturnOnFynd(fyndClient, returnCase);
         if (fyndResult.success && fyndResult.fyndReturnId) {
@@ -130,13 +132,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         fyndError = err instanceof Error ? err.message : String(err);
         console.warn("[Approve] Fynd error:", err);
       }
+    } else if (!fyndClientResult.ok) {
+      fyndError = fyndClientResult.error;
     } else {
-      const apiType = (shopWithSettings?.settings as { fyndApiType?: string } | undefined)?.fyndApiType;
-      if (shopWithSettings?.settings?.fyndApplicationId && apiType === "storefront") {
-        fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). You have Storefront API configured.";
-      } else if (!shopWithSettings?.settings?.fyndApplicationId || !shopWithSettings?.settings?.fyndCredentials) {
-        fyndError = "Fynd is not configured. Go to Settings → Integrations and connect Fynd with Platform API to create returns on Fynd.";
-      }
+      fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). You have Storefront configured. Switch in Settings → Integrations.";
     }
     await prisma.returnCase.update({
       where: { id },
@@ -179,15 +178,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       where: { id: shop.id },
       include: { settings: true },
     });
-    const fyndClient = shopWithSettings?.settings
-      ? await createFyndClient(shopWithSettings.settings)
-      : null;
-    if (!fyndClient || !("getShipments" in fyndClient)) {
-      const apiType = (shopWithSettings?.settings as { fyndApiType?: string } | undefined)?.fyndApiType;
-      const msg = apiType === "storefront"
-        ? "Fynd return creation requires Platform API. Use Settings → Integrations and switch to Platform API."
-        : "Fynd is not configured. Configure Fynd with Platform API in Settings → Integrations.";
-      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(msg)}`);
+    const settingsRetry = shopWithSettings?.settings as (typeof shopWithSettings.settings) & { fyndApiType?: string | null } | undefined;
+    const fyndRetryResult = settingsRetry
+      ? await createFyndClientOrError(settingsRetry, { requirePlatform: true })
+      : { ok: false as const, error: "Fynd is not configured. Configure Fynd with Platform API in Settings → Integrations." };
+    if (!fyndRetryResult.ok) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(fyndRetryResult.error)}`);
+    }
+    const fyndClient = fyndRetryResult.client;
+    if (!("getShipments" in fyndClient)) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("Sync to Fynd requires Platform API. Switch to Platform in Settings → Integrations.")}`);
     }
     const fyndResult = await createReturnOnFynd(fyndClient, returnCase);
     if (fyndResult.success && fyndResult.fyndReturnId) {
@@ -234,11 +234,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       where: { id: shop.id },
       include: { settings: true },
     });
-    const fyndClient = shopWithSettings?.settings
-      ? await createFyndClient(shopWithSettings.settings)
-      : null;
-    if (!fyndClient || !("getShipments" in fyndClient)) {
-      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("Fynd Platform API not configured")}`);
+    const settings = shopWithSettings?.settings as (typeof shopWithSettings.settings) & { fyndApiType?: string | null } | undefined;
+    const fyndResult = settings
+      ? await createFyndClientOrError(settings, { requirePlatform: true })
+      : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations." };
+    if (!fyndResult.ok) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(fyndResult.error)}`);
+    }
+    const fyndClient = fyndResult.client;
+    if (!("getShipments" in fyndClient)) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("This action requires Fynd Platform API. Switch to Platform in Settings → Integrations.")}`);
     }
     try {
       const payload = await fyndClient.getShipments(fyndOrderId);

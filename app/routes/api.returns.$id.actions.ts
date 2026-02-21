@@ -239,18 +239,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   if (actionType === "refresh_fynd_details") {
-    let fyndOrderId: string | null = (returnCase as { fyndOrderId?: string | null }).fyndOrderId;
-    if (!fyndOrderId && !returnCase.shopifyOrderId?.startsWith("manual:")) {
-      const order = returnCase.shopifyOrderId
-        ? await fetchOrder(admin, returnCase.shopifyOrderId)
-        : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
-      fyndOrderId = order?.affiliateOrderId ?? ((returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || null);
-    }
-    if (!fyndOrderId) {
-      fyndOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || null;
-    }
-    if (!fyndOrderId) {
-      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("No Fynd order ID. Add affiliate_order_id to order customAttributes or ensure order number is set.")}`);
+    const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
+    if (!externalOrderId || returnCase.shopifyOrderId?.startsWith("manual:")) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("No order number. Refresh from Fynd requires a valid order number.")}`);
     }
     const shopWithSettings = await prisma.shop.findUnique({
       where: { id: shop.id },
@@ -264,30 +255,27 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(fyndResult.error)}`);
     }
     const fyndClient = fyndResult.client;
-    if (!("getShipments" in fyndClient)) {
-      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("This action requires Fynd Platform API. Switch to Platform in Settings → Integrations.")}`);
+    if (!("searchShipmentsByExternalOrderId" in fyndClient)) {
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("Refresh from Fynd requires Platform API. Configure in Settings → Integrations.")}`);
     }
     try {
-      let payload: unknown;
-      try {
-        payload = await fyndClient.getShipments(fyndOrderId);
-      } catch (getErr) {
-        const msg = getErr instanceof Error ? getErr.message : String(getErr);
-        const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
-        if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && externalOrderId && "searchShipmentsByExternalOrderId" in fyndClient) {
-          const searchRes = await fyndClient.searchShipmentsByExternalOrderId(externalOrderId);
-          const resolved = searchRes.orderId ?? searchRes.shipmentId;
-          if (resolved) {
-            fyndOrderId = resolved;
-            payload = await fyndClient.getShipments(fyndOrderId);
-          } else {
-            throw getErr;
-          }
-        } else {
-          throw getErr;
-        }
+      const searchRes = await fyndClient.searchShipmentsByExternalOrderId(externalOrderId, {
+        searchType: "external_order_id",
+        groupEntity: "shipments",
+        pageNo: 1,
+        pageSize: 10,
+        fulfillmentType: "FULFILLMENT",
+        parentViewSlug: "all",
+        childViewSlug: "all",
+        sortType: "sla_asc",
+      });
+      const items = searchRes?.items ?? searchRes?.shipments ?? (searchRes as { data?: { items?: unknown[] } })?.data?.items ?? [];
+      if (!Array.isArray(items) || items.length === 0) {
+        throw new Error(`No shipments found for order ${externalOrderId}. Check order number and date range.`);
       }
+      const payload = searchRes;
       const payloadJson = payload != null ? JSON.stringify(payload) : null;
+      const fyndOrderId = searchRes.orderId ?? searchRes.shipmentId ?? null;
       await prisma.returnCase.update({
         where: { id },
         data: { fyndPayloadJson: payloadJson ?? undefined, ...(fyndOrderId && { fyndOrderId }) },

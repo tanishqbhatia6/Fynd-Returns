@@ -60,8 +60,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const existingNormalized = getNormalizedCredentialsFromRaw(stored?.fyndCredentials ?? null);
 
       const envSettings = { fyndEnvironment, fyndCustomBaseUrl: fyndCustomBaseUrl || null };
-      const companyId = fyndCompanyId || stored?.fyndCompanyId ?? null;
-      const applicationId = fyndApplicationId || stored?.fyndApplicationId ?? null;
+      const companyId = (fyndCompanyId || stored?.fyndCompanyId) ?? null;
+      const applicationId = (fyndApplicationId || stored?.fyndApplicationId) ?? null;
 
       function buildCredsForTest(): string | null {
         const merged: Record<string, unknown> = {};

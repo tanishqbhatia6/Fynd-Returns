@@ -59,6 +59,13 @@ const LABEL_MAP: Record<string, string> = {
   ordering_channel: "Ordering channel",
   channel: "Channel",
   display_name: "Display name",
+  orderPrice: "Order price",
+  order_price: "Order price",
+  orderTotalAmount: "Order total",
+  subtotal: "Subtotal",
+  total: "Total",
+  breakup: "Price breakup",
+  prices_info: "Prices info",
   promise: "Promise",
   need_help_url: "Support URL",
 };
@@ -308,6 +315,17 @@ export type FyndOrderDetailsTab = {
     fulfillmentStore: string | null;
     fulfillmentOptions: string | null;
     shipmentStatus: string | null;
+    /** Shipment-level pricing (Fynd Konnect orderPrice, breakup, etc.) */
+    pricing?: {
+      subtotal?: string;
+      total?: string;
+      currency?: string;
+      discount?: string;
+      deliveryCharges?: string;
+      codAmount?: string;
+      promotions?: string;
+      coupon?: string;
+    };
     items: Array<{
       sku?: string;
       itemId?: string;
@@ -320,6 +338,10 @@ export type FyndOrderDetailsTab = {
       discount?: string;
       total?: string;
       originalPrice?: string;
+      /** Fynd Konnect orderItemPrice fields */
+      markedPrice?: string;
+      transferPrice?: string;
+      shippingCharges?: string;
     }>;
   }>;
 };
@@ -374,6 +396,43 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         ? (status as { title?: string }).title
         : status;
       const shipmentStatusStr = toDisplayString(statusTitle ?? status);
+      // --- Shipment-level pricing (Fynd Konnect orderPrice, breakup, prices_info) ---
+      const orderPrice = (raw.orderPrice ?? raw.order_price ?? raw.prices ?? raw.prices_info) as Record<string, unknown> | undefined;
+      const breakup = (raw.breakup ?? raw.price_breakup) as Array<{ type?: string; value?: number; display?: string }> | undefined;
+      const toNumStr = (v: unknown): string | undefined => {
+        if (v == null) return undefined;
+        if (typeof v === "number" && !isNaN(v)) return String(v);
+        if (typeof v === "string") return v;
+        return undefined;
+      };
+      const breakupVal = (type: string) => {
+        const b = breakup?.find((x) => x.type === type);
+        return b?.value != null ? String(b.value) : undefined;
+      };
+      const subtotalStr =
+        toNumStr(orderPrice?.subtotal ?? orderPrice?.subtotalAmount ?? orderPrice?.product_total) ?? breakupVal("subtotal") ?? breakupVal("mrp");
+      const totalStr =
+        toNumStr(orderPrice?.orderTotalAmount ?? orderPrice?.total ?? orderPrice?.amount ?? orderPrice?.order_total) ?? breakupVal("total");
+      const discountVal = orderPrice?.discount ?? orderPrice?.total_discount ?? breakup?.find((b) => b.type === "discount")?.value;
+      const deliveryVal = orderPrice?.deliveryCharges ?? orderPrice?.delivery_charges ?? orderPrice?.shipping ?? breakup?.find((b) => b.type === "delivery")?.value;
+      const codVal = orderPrice?.codAmount ?? orderPrice?.cod_amount;
+      const promoVal = orderPrice?.promotion ?? orderPrice?.promotions ?? breakup?.find((b) => b.type === "promotion")?.value;
+      const couponVal = orderPrice?.coupon ?? orderPrice?.coupon_value ?? breakup?.find((b) => b.type === "coupon")?.value;
+      const currency = orderPrice?.currency as string | undefined;
+      const shipmentPricing =
+        subtotalStr || totalStr || toNumStr(discountVal) || toNumStr(deliveryVal) || toNumStr(codVal) || toNumStr(promoVal) || toNumStr(couponVal) || currency
+          ? {
+              subtotal: subtotalStr ?? undefined,
+              total: totalStr ?? undefined,
+              currency: currency ?? undefined,
+              discount: toNumStr(discountVal) ?? undefined,
+              deliveryCharges: toNumStr(deliveryVal) ?? undefined,
+              codAmount: toNumStr(codVal) ?? undefined,
+              promotions: toNumStr(promoVal) ?? undefined,
+              coupon: toNumStr(couponVal) ?? undefined,
+            }
+          : undefined;
+
       const rawOrderItems = raw.orderItems ?? raw.order_items ?? raw.items ?? [];
       let orderItems = Array.isArray(rawOrderItems) ? rawOrderItems : [];
       if (orderItems.length === 0 && Array.isArray(raw.bags)) {
@@ -397,19 +456,44 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const items = orderItems.map((oi) => {
         const o = (typeof oi === "object" && oi != null ? oi : {}) as Record<string, unknown>;
         const qty = typeof o.quantity === "number" ? o.quantity : typeof o.qty === "number" ? o.qty : 1;
-        const priceVal = o.price ?? o.amount ?? o.effective_price ?? o.effectivePrice ?? o.sale_price ?? o.salePrice ?? o.unit_price ?? o.unitPrice ?? o.mrp;
+        // Fynd Konnect: orderItemPrice { totalMarkedPrice, discount, totalItemPrice }
+        const orderItemPrice = (o.orderItemPrice ?? o.order_item_price ?? o.price_info ?? o.priceInfo) as Record<string, unknown> | undefined;
+        const orderPriceMarked = orderItemPrice?.totalMarkedPrice ?? orderItemPrice?.total_marked_price ?? orderItemPrice?.mrp;
+        const orderPriceDiscount = orderItemPrice?.discount;
+        const orderPriceTotal = orderItemPrice?.totalItemPrice ?? orderItemPrice?.total_item_price ?? orderItemPrice?.amount;
+        const orderPriceTransfer = orderItemPrice?.transferPrice ?? orderItemPrice?.transfer_price;
+        const orderPriceShipping = orderItemPrice?.shippingCharges ?? orderItemPrice?.shipping_charges;
+        const priceVal =
+          orderPriceMarked ??
+          orderPriceTotal ??
+          o.price ??
+          o.amount ??
+          o.effective_price ??
+          o.effectivePrice ??
+          o.sale_price ??
+          o.salePrice ??
+          o.unit_price ??
+          o.unitPrice ??
+          o.mrp;
         const priceStr = typeof priceVal === "string" ? priceVal : typeof priceVal === "number" ? String(priceVal) : null;
-        const discountedVal = o.discounted_price ?? o.discountedPrice ?? o.effective_price ?? o.effectivePrice ?? o.sale_price ?? o.salePrice;
+        const discountedVal =
+          orderPriceTotal ??
+          o.discounted_price ??
+          o.discountedPrice ??
+          o.effective_price ??
+          o.effectivePrice ??
+          o.sale_price ??
+          o.salePrice;
         const discountedStr = typeof discountedVal === "string" ? discountedVal : typeof discountedVal === "number" ? String(discountedVal) : null;
-        const discountVal = o.discount ?? o.discount_amount ?? o.discountAmount ?? o.discount_value;
+        const discountVal = orderPriceDiscount ?? o.discount ?? o.discount_amount ?? o.discountAmount ?? o.discount_value;
         const discountStr = typeof discountVal === "string" ? discountVal : typeof discountVal === "number" ? String(discountVal) : null;
-        const totalVal = o.total ?? o.line_total ?? o.lineTotal ?? o.amount ?? o.final_price;
-        const totalStr = typeof totalVal === "string" ? totalVal : typeof totalVal === "number" ? String(totalVal) : (priceStr && qty ? String(parseFloat(priceStr) * qty) : null);
-        const itemIdVal = o.id ?? o.item_id ?? o._id ?? o.identifier;
+        const totalVal = orderPriceTotal ?? o.total ?? o.line_total ?? o.lineTotal ?? o.amount ?? o.final_price;
+        const itemTotalStr = typeof totalVal === "string" ? totalVal : typeof totalVal === "number" ? String(totalVal) : (priceStr && qty ? String(parseFloat(priceStr) * qty) : null);
+        const itemIdVal = o.orderItemId ?? o.order_item_id ?? o.id ?? o.item_id ?? o._id ?? o.identifier;
         const itemIdStr = itemIdVal != null ? String(itemIdVal) : null;
-        const lineNoVal = o.line_number ?? o.line_no ?? o.affiliate_line_no ?? o.lineNumber ?? o.index;
+        const lineNoVal = o.line_number ?? o.line_no ?? o.affiliate_line_no ?? o.lineNumber ?? o.index ?? o.packetNumber;
         const lineNoStr = lineNoVal != null ? String(lineNoVal) : null;
-        const skuVal = o.sku ?? o.code ?? o.identifier ?? o.seller_identifier;
+        const skuVal = (o.productIdentifiers as { sku_code?: string })?.sku_code ?? o.sku ?? o.code ?? o.identifier ?? o.seller_identifier;
         const skuStr = toDisplayString(skuVal) ?? (typeof skuVal === "string" ? skuVal : null);
         return {
           sku: skuStr ?? undefined,
@@ -421,8 +505,11 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
           price: priceStr ?? undefined,
           discountedPrice: discountedStr ?? undefined,
           discount: discountStr ?? undefined,
-          total: totalStr ?? undefined,
+          total: itemTotalStr ?? undefined,
           originalPrice: priceStr ?? undefined,
+          markedPrice: toNumStr(orderPriceMarked) ?? undefined,
+          transferPrice: toNumStr(orderPriceTransfer) ?? undefined,
+          shippingCharges: toNumStr(orderPriceShipping) ?? undefined,
         };
       });
       return {
@@ -435,6 +522,7 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         fulfillmentStore: fulfillStore ?? null,
         fulfillmentOptions: fulfillOpts ?? null,
         shipmentStatus: shipmentStatusStr ?? null,
+        pricing: shipmentPricing,
         items,
       };
     });

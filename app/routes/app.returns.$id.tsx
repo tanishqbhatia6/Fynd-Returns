@@ -44,6 +44,20 @@ type ShipmentItem = {
   discount?: string;
   total?: string;
   originalPrice?: string;
+  markedPrice?: string;
+  transferPrice?: string;
+  shippingCharges?: string;
+};
+
+type ShipmentPricing = {
+  subtotal?: string;
+  total?: string;
+  currency?: string;
+  discount?: string;
+  deliveryCharges?: string;
+  codAmount?: string;
+  promotions?: string;
+  coupon?: string;
 };
 
 type ShipmentForRow = {
@@ -56,6 +70,7 @@ type ShipmentForRow = {
   fulfillmentStore: string | null;
   fulfillmentOptions: string | null;
   shipmentStatus: string | null;
+  pricing?: ShipmentPricing;
   items: ShipmentItem[];
 };
 
@@ -105,6 +120,55 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentOptions) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Status</div><div style={{ fontSize: 13 }}>{safeStr(s.shipmentStatus) || "—"}</div></div>
           </div>
+          {s.pricing && (s.pricing.subtotal || s.pricing.total || s.pricing.discount || s.pricing.deliveryCharges || s.pricing.codAmount || s.pricing.promotions || s.pricing.coupon) && (
+            <div style={{ marginBottom: 16, padding: 16, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)" }}>
+              <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Shipment pricing</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 320 }}>
+                {s.pricing.subtotal && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                    <span style={{ color: "#6d7175" }}>Subtotal</span>
+                    <span>{formatMoney(s.pricing.subtotal)}{s.pricing.currency ? ` ${s.pricing.currency}` : ""}</span>
+                  </div>
+                )}
+                {s.pricing.discount && parseFloat(s.pricing.discount) !== 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--rpm-success)" }}>
+                    <span>Discount</span>
+                    <span>−{formatMoney(s.pricing.discount)}</span>
+                  </div>
+                )}
+                {s.pricing.promotions && parseFloat(s.pricing.promotions) !== 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
+                    <span>Promotions</span>
+                    <span>−{formatMoney(s.pricing.promotions)}</span>
+                  </div>
+                )}
+                {s.pricing.coupon && parseFloat(s.pricing.coupon) !== 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
+                    <span>Coupon</span>
+                    <span>−{formatMoney(s.pricing.coupon)}</span>
+                  </div>
+                )}
+                {s.pricing.deliveryCharges && parseFloat(s.pricing.deliveryCharges) !== 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
+                    <span>Delivery charges</span>
+                    <span>{formatMoney(s.pricing.deliveryCharges)}</span>
+                  </div>
+                )}
+                {s.pricing.codAmount && parseFloat(s.pricing.codAmount) !== 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
+                    <span>COD amount</span>
+                    <span>{formatMoney(s.pricing.codAmount)}</span>
+                  </div>
+                )}
+                {s.pricing.total && (
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 600, marginTop: 4, paddingTop: 8, borderTop: "1px solid #e1e3e5" }}>
+                    <span>Total</span>
+                    <span>{formatMoney(s.pricing.total)}{s.pricing.currency ? ` ${s.pricing.currency}` : ""}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {(s.items ?? []).length > 0 && (
             <div>
               <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Items</div>
@@ -116,8 +180,8 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
                   );
                   const title = safeStr(it.title) || matched?.title || safeStr(it.sku) || safeStr(it.identifier) || "Item";
                   const qty = it.quantity ?? 1;
-                  const unitPrice = it.discountedPrice ?? it.price ?? matched?.discountedPrice ?? matched?.price;
-                  const originalPrice = it.price ?? it.originalPrice ?? matched?.price;
+                  const unitPrice = it.discountedPrice ?? it.price ?? it.markedPrice ?? matched?.discountedPrice ?? matched?.price;
+                  const originalPrice = it.price ?? it.originalPrice ?? it.markedPrice ?? matched?.price;
                   const total = it.total ?? (unitPrice ? String(parseFloat(unitPrice) * qty) : null);
                   return (
                     <div key={i} style={{ padding: 16, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)", transition: "box-shadow 0.2s ease", boxShadow: "var(--rpm-shadow-sm)" }}>
@@ -129,6 +193,8 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
                             {it.itemId && <span><strong>Item ID:</strong> <code style={{ background: "var(--rpm-surface-elevated)", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }}>{safeStr(it.itemId)}</code></span>}
                             {it.affiliateLineNo && <span><strong>Affiliate line no:</strong> {safeStr(it.affiliateLineNo)}</span>}
                             <span><strong>Qty:</strong> {qty}</span>
+                            {it.transferPrice && parseFloat(it.transferPrice) !== 0 && <span><strong>Transfer price:</strong> {formatMoney(it.transferPrice)}</span>}
+                            {it.shippingCharges && parseFloat(it.shippingCharges) !== 0 && <span><strong>Shipping:</strong> {formatMoney(it.shippingCharges)}</span>}
                           </div>
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
@@ -308,9 +374,23 @@ export default function ReturnDetail() {
         <div className="app-alert app-alert-error">{fetcher.data.error}</div>
       )}
       {fyndError && (
-        <div className="app-alert app-alert-warning">
+        <div className="app-alert app-alert-warning" style={{ borderLeft: "4px solid #b45309" }}>
           <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#92400e" }}>Fynd sync issue</p>
           <p style={{ margin: 0, color: "#78350f" }}>{decodeURIComponent(fyndError)}</p>
+          {(fyndError.includes("403") || fyndError.includes("Forbidden")) && (
+            <div style={{ marginTop: 16, padding: 16, background: "rgba(255,255,255,0.5)", borderRadius: 8, border: "1px solid rgba(180,83,9,0.3)" }}>
+              <p style={{ margin: "0 0 12px 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>Fix 403 Forbidden — checklist:</p>
+              <ol style={{ margin: 0, paddingLeft: 20, color: "#78350f", fontSize: 13, lineHeight: 1.8 }}>
+                <li><strong>Scopes:</strong> Your Fynd OAuth app must have <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/read</code> and <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/write</code>. In Fynd Partners → your extension/app → ensure these scopes are enabled.</li>
+                <li><strong>Environment:</strong> UAT credentials only work on UAT. Production credentials only work on Production. Match the environment in Settings → Integrations.</li>
+                <li><strong>Company ID & Application ID:</strong> Must match your Fynd Commerce company and application exactly (no extra spaces).</li>
+                <li><strong>Test first:</strong> Go to <Link to="/app/settings/integrations" style={{ fontWeight: 600, color: "#b45309" }}>Settings → Integrations</Link>, click <strong>Test Platform</strong>. If that fails, fix credentials there before retrying sync.</li>
+              </ol>
+              <p style={{ margin: "12px 0 0 0", fontSize: 12, color: "#92400e" }}>
+                <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>Fynd access scopes docs →</a>
+              </p>
+            </div>
+          )}
           {canRetryFynd && (
             <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 12 }}>
               <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />

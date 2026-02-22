@@ -310,8 +310,13 @@ export default function Integrations() {
         <div className="app-alert app-alert-success">✓ {fetcher.data?.testMessage ?? "Connection successful."}</div>
       )}
       {showTestError && (
-        <div className="app-alert app-alert-error">
+        <div className="app-alert app-alert-error" style={{ borderLeft: "4px solid #d72c0d" }}>
           <div style={{ fontWeight: 500, marginBottom: 6 }}>Connection failed: {fetcher.data?.error}</div>
+          {(fetcher.data?.error?.includes("403") || fetcher.data?.error?.includes("Forbidden")) && (
+            <div style={{ marginTop: 12, padding: 12, background: "rgba(255,255,255,0.5)", borderRadius: 8, fontSize: 13 }}>
+              <strong>403 = Missing scopes.</strong> In Fynd Partners, your OAuth app needs <code>company/orders/read</code> and <code>company/orders/write</code>. Also verify: correct environment (UAT vs Prod), Company ID, Application ID. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3", textDecoration: "underline" }}>Scopes docs</a>
+            </div>
+          )}
         </div>
       )}
 
@@ -380,7 +385,10 @@ export default function Integrations() {
 
           <div className="app-card">
             <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Platform API (optional)</div>
-            <p className="app-field-helper" style={{ marginBottom: 16 }}>Required for creating returns on Fynd and refreshing details. Company ID + Client ID & Secret (OAuth).</p>
+            <p className="app-field-helper" style={{ marginBottom: 8 }}>Required for creating returns on Fynd and refreshing details. Company ID + Client ID & Secret (OAuth).</p>
+            <p className="app-field-helper" style={{ marginBottom: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 8, border: "1px solid #fcd34d", fontSize: 13 }}>
+              <strong>Getting 403 Forbidden?</strong> Your OAuth app in Fynd Partners must have <code>company/orders/read</code> and <code>company/orders/write</code> scopes. Enable them in your extension/app config, then re-authorize. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>Fynd scopes docs</a>
+            </p>
             <div className="app-field">
               <label>Company ID</label>
               <input type="text" name="fyndCompanyId" defaultValue={data.fyndCompanyId} placeholder="e.g. 2263" autoComplete="off" className="app-input" />

@@ -1,6 +1,17 @@
 import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
+
+/** Ensure 403/Forbidden errors include actionable guidance (URL may truncate long messages) */
+function enrichFyndError(msg: string): string {
+  if (!msg) return msg;
+  const is403 = /403|forbidden/i.test(msg);
+  const hasGuidance = /company\/orders|scopes|Fynd Partners|Settings.*Integrations/i.test(msg);
+  if (is403 && !hasGuidance) {
+    return `${msg} — Fynd 403: Your OAuth app needs company/orders/read and company/orders/write scopes in Fynd Partners. Check Settings → Integrations and run Test Platform.`;
+  }
+  return msg;
+}
 import prisma from "../db.server";
 import { createRefund, fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
@@ -151,11 +162,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             fyndPayloadJson = null;
           }
         } else if (fyndResult.error) {
-          fyndError = fyndResult.error;
+          fyndError = enrichFyndError(fyndResult.error);
           console.warn("[Approve] Fynd create return failed:", fyndResult.error);
         }
       } catch (err) {
-        fyndError = err instanceof Error ? err.message : String(err);
+        fyndError = enrichFyndError(err instanceof Error ? err.message : String(err));
         console.warn("[Approve] Fynd error:", err);
       }
     } else if (!fyndClientResult.ok) {
@@ -253,7 +264,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
       throw redirect(`/app/returns/${id}?fyndSuccess=1`);
     }
-    const errMsg = fyndResult.error ?? "Unknown Fynd error";
+    const errMsg = enrichFyndError(fyndResult.error ?? "Unknown Fynd error");
     throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(errMsg)}`);
   }
 
@@ -292,16 +303,32 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (!Array.isArray(items) || items.length === 0) {
         throw new Error(`No shipments found for order ${externalOrderId}. Check order number and date range.`);
       }
-      const payload = searchRes;
+      let payload: unknown = searchRes;
+      let fyndOrderId = (searchRes as { orderId?: string; shipmentId?: string }).orderId ?? (searchRes as { orderId?: string; shipmentId?: string }).shipmentId ?? null;
+      // Prefer full shipment details (with orderPrice, orderItems) from Platform API when available
+      if (fyndOrderId && "getShipments" in fyndClient) {
+        try {
+          const fullShipments = await fyndClient.getShipments(fyndOrderId);
+          if (fullShipments != null) {
+            const fullList = Array.isArray(fullShipments)
+              ? fullShipments
+              : (fullShipments as { items?: unknown[] })?.items ?? (fullShipments as { shipments?: unknown[] })?.shipments ?? [];
+            if (fullList.length > 0) {
+              payload = fullShipments;
+            }
+          }
+        } catch {
+          // Fall back to portal search result if getShipments fails
+        }
+      }
       const payloadJson = payload != null ? JSON.stringify(payload) : null;
-      const fyndOrderId = searchRes.orderId ?? searchRes.shipmentId ?? null;
       await prisma.returnCase.update({
         where: { id },
         data: { fyndPayloadJson: payloadJson ?? undefined, ...(fyndOrderId && { fyndOrderId }) },
       });
       throw redirect(`/app/returns/${id}?fyndRefresh=1`);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
+      const msg = enrichFyndError(err instanceof Error ? err.message : String(err));
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(msg)}`);
     }
   }

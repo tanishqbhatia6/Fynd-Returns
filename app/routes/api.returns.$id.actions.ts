@@ -234,7 +234,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       affiliateOrderId = order?.affiliateOrderId ?? null;
     }
     const fyndResult = await createReturnOnFynd(fyndClient, returnCase, { affiliateOrderId });
-    if (fyndResult.success && fyndResult.fyndReturnId) {
+    const hasFyndId = fyndResult.fyndReturnId ?? fyndResult.fyndShipmentId;
+    if (fyndResult.success && (hasFyndId || fyndResult.alreadyExists)) {
       let payloadJson: string | null = null;
       try {
         payloadJson = fyndResult.fyndPayload != null ? JSON.stringify(fyndResult.fyndPayload) : null;
@@ -244,7 +245,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       await prisma.returnCase.update({
         where: { id },
         data: {
-          fyndReturnId: fyndResult.fyndReturnId,
+          fyndReturnId: fyndResult.fyndReturnId ?? fyndResult.fyndShipmentId ?? null,
           fyndReturnNo: fyndResult.fyndReturnNo ?? null,
           fyndOrderId: fyndResult.fyndOrderId ?? null,
           fyndShipmentId: fyndResult.fyndShipmentId ?? null,
@@ -259,12 +260,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           payloadJson: JSON.stringify({
             fyndReturnId: fyndResult.fyndReturnId,
             fyndReturnNo: fyndResult.fyndReturnNo ?? null,
+            alreadyExists: fyndResult.alreadyExists ?? false,
           }),
         },
       });
-      throw redirect(`/app/returns/${id}?fyndSuccess=1`);
+      const successParam = fyndResult.alreadyExists ? "already_exists" : "1";
+      throw redirect(`/app/returns/${id}?fyndSuccess=${successParam}`);
     }
-    const errMsg = enrichFyndError(fyndResult.error ?? "Unknown Fynd error");
+    const rawErr = fyndResult.error?.trim();
+    const errMsg = enrichFyndError(
+      rawErr || (fyndResult.success ? "Sync completed but Fynd did not return a return ID. Check Fynd dashboard." : "Unknown Fynd error")
+    );
     throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(errMsg)}`);
   }
 

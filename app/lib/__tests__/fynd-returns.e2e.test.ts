@@ -153,6 +153,52 @@ describe("createReturnOnFynd E2E", () => {
     );
   });
 
+  it("returns alreadyExists when return is already created (status 400 Invalid State Transition)", async () => {
+    const client = createMockClient({
+      updateReturn: {
+        statuses: [
+          {
+            shipments: [
+              {
+                status: 400,
+                message: "Invalid State Transition return_initiated detected for given entity",
+                identifier: "17718404850311580665",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const returnCase = createMockReturnCase({ shopifyOrderName: "#FYMP698CC01401C9F4A1" });
+    const result = await createReturnOnFynd(client, returnCase);
+    expect(result.success).toBe(true);
+    expect(result.alreadyExists).toBe(true);
+    expect(result.fyndPayload).toBeDefined();
+    expect(result.fyndShipmentId).toBe("FYSHIP001");
+  });
+
+  it("parses status-internal nested response (statuses[0].shipments[0].status: 200)", async () => {
+    const client = createMockClient({
+      updateReturn: {
+        statuses: [
+          {
+            shipments: [
+              {
+                status: 200,
+                final_state: { return_initiated: "return_initiated", shipment_id: "17718404850311580665" },
+                identifier: "17708318940301766054",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    const returnCase = createMockReturnCase({ shopifyOrderName: "#FYMP698CC01401C9F4A1" });
+    const result = await createReturnOnFynd(client, returnCase);
+    expect(result.success).toBe(true);
+    expect(result.fyndReturnId).toBe("17718404850311580665");
+  });
+
   it("builds payload with correct structure for Fynd API", async () => {
     const client = createMockClient();
     const returnCase = createMockReturnCase();

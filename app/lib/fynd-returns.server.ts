@@ -13,6 +13,8 @@ export type CreateFyndReturnResult = {
   /** Full Fynd shipments response (array or { items/shipments }) for invoice, AWB, DP, etc. */
   fyndPayload?: unknown;
   error?: string;
+  /** True when return already exists on Fynd (Invalid State Transition) - payload contains fetched details */
+  alreadyExists?: boolean;
 };
 
 /** Map Shopify order name to Fynd order ID - used as fallback when affiliate_order_id is not available */
@@ -181,14 +183,47 @@ export async function createReturnOnFynd(
       }
     }
 
-    const res = result as { return_id?: string; return_no?: string; id?: string; returnId?: string } | null;
-    const fyndReturnId = res?.return_id ?? res?.id ?? res?.returnId;
-    const fyndReturnNo = res?.return_no;
+    const res = result as Record<string, unknown> | null;
+    // Top-level return ID (some Fynd responses)
+    let fyndReturnId =
+      (res?.return_id ?? res?.id ?? res?.returnId) != null ? String(res?.return_id ?? res?.id ?? res?.returnId) : null;
+    const fyndReturnNo = res?.return_no != null ? String(res.return_no) : undefined;
+
+    // status-internal returns nested: statuses[0].shipments[0].{ status, message, final_state, identifier }
+    if (Array.isArray(res?.statuses) && res.statuses.length > 0) {
+      const firstStatus = res.statuses[0] as Record<string, unknown>;
+      const shipments = firstStatus?.shipments as Array<Record<string, unknown>> | undefined;
+      const firstShip = Array.isArray(shipments) ? shipments[0] : null;
+      const shipStatus = firstShip?.status;
+      if (shipStatus !== 200 && shipStatus !== undefined) {
+        const msg = (firstShip?.message ?? firstShip?.error ?? `Fynd API returned status ${shipStatus}`) as string;
+        const isAlreadyReturnInitiated =
+          /Invalid State Transition.*return_initiated|return_initiated.*already|already.*return/i.test(msg);
+        if (isAlreadyReturnInitiated && fullPayload) {
+          return {
+            success: true,
+            alreadyExists: true,
+            fyndReturnId: shipmentId ? String(shipmentId) : undefined,
+            fyndOrderId,
+            fyndShipmentId: shipmentId ? String(shipmentId) : undefined,
+            fyndPayload: fullPayload,
+          };
+        }
+        return { success: false, error: msg };
+      }
+      if (shipStatus === 200 && !fyndReturnId) {
+        const finalState = firstShip?.final_state as Record<string, unknown> | undefined;
+        fyndReturnId =
+          (finalState?.shipment_id ?? finalState?.return_id ?? firstShip?.identifier) != null
+            ? String(finalState?.shipment_id ?? finalState?.return_id ?? firstShip?.identifier)
+            : null;
+      }
+    }
 
     return {
       success: true,
-      fyndReturnId: fyndReturnId ? String(fyndReturnId) : undefined,
-      fyndReturnNo: fyndReturnNo ? String(fyndReturnNo) : undefined,
+      fyndReturnId: fyndReturnId ?? undefined,
+      fyndReturnNo,
       fyndOrderId,
       fyndShipmentId: shipmentId ? String(shipmentId) : undefined,
       fyndPayload: fullPayload,

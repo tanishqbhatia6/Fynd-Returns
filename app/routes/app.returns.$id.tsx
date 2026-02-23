@@ -408,7 +408,11 @@ export default function ReturnDetail() {
       )}
       {fyndSuccess && (
         <div className="app-alert app-alert-success">
-          {fyndSuccess === "already_synced" ? "This return is already synced to Fynd." : "Return synced to Fynd successfully."}
+          {fyndSuccess === "already_synced"
+            ? "This return is already synced to Fynd."
+            : fyndSuccess === "already_exists"
+              ? "Return already exists on Fynd for this order. Details have been loaded and displayed below."
+              : "Return synced to Fynd successfully."}
         </div>
       )}
       {fyndRefresh && (
@@ -605,13 +609,43 @@ export default function ReturnDetail() {
 
       <s-section heading="Fynd">
         <div style={{ ...cardStyle, marginBottom: 0 }} className="app-card-interactive">
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, marginBottom: 16 }}>
             <div>
               <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
               <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
                 {fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}
               </div>
             </div>
+            {((returnCase as { fyndReturnId?: string | null }).fyndReturnId || (returnCase as { fyndReturnNo?: string | null }).fyndReturnNo) && (
+              <>
+                {(returnCase as { fyndReturnId?: string | null }).fyndReturnId && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Return ID</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                      {(returnCase as { fyndReturnId?: string | null }).fyndReturnId}
+                    </div>
+                  </div>
+                )}
+                {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && (
+                  <div>
+                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Return #</div>
+                    <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                      {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+            {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Shipment ID</div>
+                <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                  {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId}
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: fyndOrderDetailsTab?.shipments?.length ? 16 : 0 }}>
             {!isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) && (
               <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
                 <input type="hidden" name="json" value={JSON.stringify({ action: "refresh_fynd_details" })} />

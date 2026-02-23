@@ -1,0 +1,3318 @@
+{
+  "success": true,
+  "order": {
+    "fynd_order_id": "FYMP698CC01401C9F4A1",
+    "affiliate_order_id": "FYNDSHOPIFYX14083",
+    "meta": {
+      "staff": {},
+      "charges": [
+        {
+          "code": "",
+          "name": "PP value",
+          "type": "order_value",
+          "amount": {
+            "value": 10,
+            "currency": "INR"
+          }
+        },
+        {
+          "code": "",
+          "name": "COD Charges",
+          "type": "cod_charges",
+          "amount": {
+            "value": 0,
+            "currency": "INR"
+          }
+        },
+        {
+          "code": "",
+          "name": "Delivery Charges",
+          "type": "delivery_charges",
+          "amount": {
+            "value": 0,
+            "currency": "INR"
+          }
+        }
+      ],
+      "receipt": {},
+      "currency": {
+        "currency_code": "INR",
+        "currency_name": "",
+        "currency_symbol": "INR",
+        "currency_sub_unit": ""
+      },
+      "extra_meta": {},
+      "order_tags": [
+        {
+          "slug": "Associate Order: LK232321",
+          "display_text": "Associate Order: LK232321"
+        },
+        {
+          "slug": "Exchange",
+          "display_text": "Exchange"
+        },
+        {
+          "slug": "On hold",
+          "display_text": "On hold"
+        },
+        {
+          "slug": "Unlock",
+          "display_text": "Unlock"
+        }
+      ],
+      "order_type": "HomeDelivery",
+      "employee_id": "",
+      "shop_domain": "fynd-store-1.myshopify.com",
+      "company_logo": null,
+      "payment_type": null,
+      "authorization": null,
+      "currency_info": {
+        "currency": {
+          "currency_code": "INR",
+          "currency_name": "",
+          "currency_symbol": "INR",
+          "currency_sub_unit": ""
+        },
+        "conversion_rate": {
+          "base": "INR",
+          "rates": {
+            "INR": {
+              "name": "",
+              "value": 1,
+              "symbol": "INR",
+              "sub_unit": ""
+            }
+          },
+          "timestamp": 1770831891685
+        }
+      },
+      "mongo_cart_id": 1000000007,
+      "application_id": "67a09b70c8ea7c9123f00fab",
+      "order_platform": null,
+      "seller_details": {
+        "country": "India",
+        "currency": {
+          "code": "INR",
+          "name": "Indian Rupee",
+          "symbol": "₹"
+        },
+        "timezone": "Asia/Kolkata",
+        "country_code": "IN"
+      },
+      "conversion_rate": {
+        "base": "INR",
+        "rates": {
+          "INR": {
+            "name": "",
+            "value": 1,
+            "symbol": "INR",
+            "sub_unit": ""
+          }
+        },
+        "timestamp": 1770831891685
+      },
+      "payment_gateway": "Cash on Delivery (COD)",
+      "system_messages": [],
+      "is_pendency_order": false,
+      "ordering_store_id": null,
+      "channel_account_id": "",
+      "sales_channel_logo": "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyprod/wrkr/misc/pictures/application-logos/original/olqHM8LNr-JioMart-Groceries.png",
+      "is_refundable_order": true,
+      "order_child_entities": [
+        "bag",
+        "shipment"
+      ],
+      "billing_staff_details": {},
+      "ordering_channel_logo": "",
+      "platform_user_details": {},
+      "external_creation_date": "2026-02-11T23:14:43+05:30",
+      "hogwarts_integration_id": "63917c5f41e8393d12aea657",
+      "customer_note": ""
+    },
+    "payment_methods": {
+      "PP": {
+        "meta": {
+          "logo_url": {
+            "large": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png",
+            "small": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png"
+          },
+          "payment_id": null,
+          "merchant_code": "PP",
+          "payment_gateway": "Cash on Delivery (COD)",
+          "payment_identifier": "rrqeu9sutMzUqaMIk6HOUYPp2"
+        },
+        "mode": "PP",
+        "name": "Partner Pay",
+        "amount": 10,
+        "refund_by": "seller",
+        "refund_to": "",
+        "collect_by": "seller",
+        "display_name": "Partner Pay",
+        "identifier": "PPrrqeu9sutMzUqaMIk6HOUYPp2"
+      }
+    },
+    "payment_info": [
+      {
+        "meta": {
+          "logo_url": {
+            "large": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png",
+            "small": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png"
+          },
+          "payment_id": null,
+          "merchant_code": "PP",
+          "payment_gateway": "Cash on Delivery (COD)",
+          "payment_identifier": "rrqeu9sutMzUqaMIk6HOUYPp2"
+        },
+        "mode": "PP",
+        "name": "Partner Pay",
+        "amount": 10,
+        "refund_by": "seller",
+        "refund_to": "",
+        "collect_by": "seller",
+        "display_name": "Partner Pay",
+        "identifier": "PPrrqeu9sutMzUqaMIk6HOUYPp2"
+      }
+    ],
+    "affiliate_id": "67a09b70c8ea7c9123f00fab",
+    "ordering_channel": "Ecomm",
+    "ordering_source": "storefront",
+    "ordering_source_details": {
+      "type": "SALES_CHANNEL",
+      "slug": "storefront",
+      "display_name": "STOREFRONT",
+      "is_active": true,
+      "logo": null
+    },
+    "source": "uniket-desktop",
+    "tax_details": {
+      "gstin": "",
+      "pan_no": null
+    },
+    "created_at": "2026-02-11T23:14:54",
+    "created_ts": "2026-02-11T17:44:54Z",
+    "order_date": "2026-02-11T23:14:54+00:00",
+    "loyalty_discount_details": {},
+    "prices": {
+      "amount_paid": 10,
+      "refund_amount": 10,
+      "price_marked": 300,
+      "cod_charges": 0,
+      "discount": 290,
+      "cashback_applied": 0,
+      "delivery_charge": 0,
+      "fynd_credits": 0,
+      "cashback": 0,
+      "price_effective": 10,
+      "refund_credit": 0,
+      "value_of_good": 9.52,
+      "coupon_value": 0,
+      "tax_collected_at_source": 0,
+      "promotion_effective_discount": 0,
+      "fynd_promotion_effective_discount": 0,
+      "seller_promotion_effective_discount": 0,
+      "cn_refund_amount": 0,
+      "gift_price": 0,
+      "loyalty_discount": 0,
+      "cost_price": 0,
+      "amount_paid_roundoff": 10
+    },
+    "raw_user_agent": "axios/1.7.7",
+    "charges": [],
+    "ordering_currency_prices": {
+      "amount_paid": 10,
+      "refund_amount": 10,
+      "price_marked": 300,
+      "cod_charges": 0,
+      "discount": 290,
+      "cashback_applied": 0,
+      "delivery_charge": 0,
+      "fynd_credits": 0,
+      "cashback": 0,
+      "price_effective": 10,
+      "refund_credit": 0,
+      "value_of_good": 9.52,
+      "coupon_value": 0,
+      "tax_collected_at_source": 0,
+      "promotion_effective_discount": 0,
+      "fynd_promotion_effective_discount": 0,
+      "seller_promotion_effective_discount": 0,
+      "cn_refund_amount": 0,
+      "gift_price": 0,
+      "loyalty_discount": 0,
+      "cost_price": 0,
+      "amount_paid_roundoff": 10
+    },
+    "comment": null,
+    "currency": {
+      "currency_code": "INR",
+      "currency_symbol": "INR"
+    },
+    "currency_info": {
+      "ordering_currency": {
+        "currency_code": "INR",
+        "currency_name": "",
+        "currency_symbol": "INR",
+        "currency_sub_unit": ""
+      },
+      "conversion_rate": {
+        "base": "INR",
+        "rates": {
+          "INR": {
+            "name": "",
+            "value": 1,
+            "symbol": "INR",
+            "sub_unit": ""
+          }
+        },
+        "timestamp": 1770831891685
+      }
+    }
+  },
+  "shipments": [
+    {
+      "logistics_meta": {},
+      "forward_shipment_id": "17708318940301766054",
+      "manifest_id": null,
+      "shipment_id": "17718404850311580665",
+      "fulfilling_store": {
+        "is_active": false,
+        "code": "HS-4c312",
+        "fulfillment_channel": "pulse",
+        "meta": {
+          "timing": [
+            {
+              "closing": {
+                "hour": 21,
+                "minute": 30
+              },
+              "opening": {
+                "hour": 11,
+                "minute": 0
+              },
+              "open": true,
+              "weekday": "monday"
+            },
+            {
+              "closing": {
+                "hour": 21,
+                "minute": 30
+              },
+              "opening": {
+                "hour": 11,
+                "minute": 0
+              },
+              "open": true,
+              "weekday": "tuesday"
+            },
+            {
+              "closing": {
+                "hour": 21,
+                "minute": 30
+              },
+              "opening": {
+                "hour": 11,
+                "minute": 0
+              },
+              "open": true,
+              "weekday": "wednesday"
+            },
+            {
+              "closing": {
+                "hour": 21,
+                "minute": 30
+              },
+              "opening": {
+                "hour": 11,
+                "minute": 0
+              },
+              "open": true,
+              "weekday": "thursday"
+            },
+            {
+              "closing": {
+                "hour": 21,
+                "minute": 30
+              },
+              "opening": {
+                "hour": 11,
+                "minute": 0
+              },
+              "open": true,
+              "weekday": "friday"
+            },
+            {
+              "closing": {
+                "hour": 21,
+                "minute": 30
+              },
+              "opening": {
+                "hour": 11,
+                "minute": 0
+              },
+              "open": true,
+              "weekday": "saturday"
+            },
+            {
+              "closing": {
+                "hour": 22,
+                "minute": 0
+              },
+              "opening": {
+                "hour": 11,
+                "minute": 0
+              },
+              "open": false,
+              "weekday": "sunday"
+            }
+          ],
+          "stage": null,
+          "display_name": "RTI Father",
+          "notification_emails": [
+            "sujoydev@gofynd.com"
+          ],
+          "product_return_config": {
+            "on_same_store": true
+          },
+          "gst_credentials": {
+            "e_invoice": {
+              "enabled": false
+            },
+            "e_waybill": {
+              "enabled": false
+            }
+          },
+          "gst_number": null,
+          "additional_contact_details": {
+            "number": [
+              "91 - 7700059124"
+            ]
+          },
+          "documents": {},
+          "auto_invoice": true,
+          "credit_note": true,
+          "ewaybill_portal_details": null
+        },
+        "store_address_json": {
+          "version": "1.0",
+          "contact_person": "Sujoy Dev",
+          "address": "b-606,",
+          "address1": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia",
+          "address2": "sdsv",
+          "name": "Sujoy Dev",
+          "area": "",
+          "area_code": "",
+          "area_code_slug": "",
+          "landmark": "sdvSFV",
+          "city": "Mumbai",
+          "state": "Maharashtra",
+          "country": "India",
+          "pincode": "400001",
+          "longitude": 72.836334,
+          "sector": "",
+          "latitude": 18.9385352,
+          "phone": "917700059124",
+          "email": "sujoydev@gofynd.com",
+          "address_type": "store",
+          "address_category": "store",
+          "created_at": "2026-02-23 15:24:45",
+          "updated_at": "2026-02-23 15:24:45",
+          "country_phone_code": null,
+          "country_iso_code": "IN",
+          "country_code": "IN",
+          "phone_number": "7700059124",
+          "address_meta": {},
+          "display_address": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia"
+        },
+        "id": 14066,
+        "name": "RTI Father",
+        "company_id": 2263,
+        "multi_piece_shipment": false,
+        "updated_at": "2026-01-20T14:18:55+00:00",
+        "location_type": "warehouse",
+        "packaging_material_count": 0,
+        "is_enabled_for_recon": false,
+        "is_archived": false,
+        "order_integration_id": null,
+        "tags": [
+          "selectthisstore"
+        ],
+        "created_at": "2023-09-22T09:41:07+00:00",
+        "address1": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia",
+        "address2": "sdsv",
+        "display_address": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "sector": "",
+        "country": "India",
+        "pincode": "400001",
+        "store_email": "sujoydev@gofynd.com",
+        "contact_person": "Sujoy Dev",
+        "phone": "917700059124",
+        "country_code": "IN",
+        "brand_store_tags": [
+          "pulse"
+        ],
+        "store_name": "RTI Father",
+        "address": "store b-606, b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia sdsv sdvSFV Mumbai Maharashtra 400001"
+      },
+      "fulfillment_option": {
+        "name": "Standard Delivery",
+        "slug": "standard-delivery",
+        "type": "HomeDelivery",
+        "is_default": true
+      },
+      "delivery_details": {
+        "area": "899009",
+        "city": "Mumbai",
+        "name": "Tanishq Bhatia",
+        "email": "",
+        "phone": "9231313131",
+        "state": "Maharashtra",
+        "title": "",
+        "mobile": "9231313131",
+        "address": "Andheri East",
+        "country": "India",
+        "pincode": "400079",
+        "user_id": 17314581,
+        "version": "1.0",
+        "address1": "Andheri East 899009\nMumbai Maharashtra 400079\nIndia",
+        "address2": "",
+        "landmark": "",
+        "latitude": 0,
+        "location": {
+          "latitude": "",
+          "longitude": ""
+        },
+        "area_code": "",
+        "last_name": "Bhatia",
+        "longitude": 0,
+        "created_at": "2026-02-11T23:14:53+00:00",
+        "first_name": "Tanishq",
+        "state_code": "MH",
+        "updated_at": "2026-02-11T23:14:53+00:00",
+        "middle_name": "",
+        "address_type": "home",
+        "country_code": "IN",
+        "geo_location": {},
+        "shipping_type": "delivery",
+        "area_code_slug": "",
+        "contact_person": "Tanishq Bhatia",
+        "display_address": "Andheri East 899009\nMumbai Maharashtra 400079\nIndia",
+        "address_category": "",
+        "country_iso_code": "IN",
+        "country_phone_code": null,
+        "external_customer_code": "8740046897302"
+      },
+      "billing_details": {
+        "area": "899009",
+        "city": "Mumbai",
+        "name": "Tanishq Bhatia",
+        "email": "",
+        "phone": "9231313131",
+        "state": "Maharashtra",
+        "title": "",
+        "mobile": "9231313131",
+        "address": "Andheri East",
+        "country": "India",
+        "pincode": "400079",
+        "version": "1.0",
+        "address1": "Andheri East 899009\nMumbai Maharashtra 400079\nIndia",
+        "address2": "",
+        "landmark": "",
+        "latitude": 0,
+        "area_code": "",
+        "last_name": "Bhatia",
+        "longitude": 0,
+        "created_at": "2026-02-11 23:14:53",
+        "first_name": "Tanishq",
+        "state_code": "MH",
+        "updated_at": "2026-02-11 23:14:53",
+        "middle_name": "",
+        "address_type": "home",
+        "country_code": "IN",
+        "geo_location": {},
+        "shipping_type": "delivery",
+        "area_code_slug": "",
+        "contact_person": "Tanishq Bhatia",
+        "display_address": "Andheri East 899009\nMumbai Maharashtra 400079\nIndia",
+        "address_category": "",
+        "country_iso_code": "IN",
+        "country_phone_code": null,
+        "external_customer_code": "8740046897302"
+      },
+      "dp_details": {
+        "id": null,
+        "account": null,
+        "name": null,
+        "awb_no": null,
+        "eway_bill_id": null,
+        "track_url": null,
+        "gst_tag": "sgst",
+        "extension_id": null,
+        "scheme_id": null,
+        "courier_partner_slug": null,
+        "dp_otp": ""
+      },
+      "journey_type": "return",
+      "order": {
+        "fynd_order_id": "FYMP698CC01401C9F4A1",
+        "affiliate_order_id": "FYNDSHOPIFYX14083",
+        "meta": {
+          "staff": {},
+          "charges": [
+            {
+              "code": "",
+              "name": "PP value",
+              "type": "order_value",
+              "amount": {
+                "value": 10,
+                "currency": "INR"
+              }
+            },
+            {
+              "code": "",
+              "name": "COD Charges",
+              "type": "cod_charges",
+              "amount": {
+                "value": 0,
+                "currency": "INR"
+              }
+            },
+            {
+              "code": "",
+              "name": "Delivery Charges",
+              "type": "delivery_charges",
+              "amount": {
+                "value": 0,
+                "currency": "INR"
+              }
+            }
+          ],
+          "receipt": {},
+          "currency": {
+            "currency_code": "INR",
+            "currency_name": "",
+            "currency_symbol": "INR",
+            "currency_sub_unit": ""
+          },
+          "extra_meta": {},
+          "order_tags": [
+            {
+              "slug": "Associate Order: LK232321",
+              "display_text": "Associate Order: LK232321"
+            },
+            {
+              "slug": "Exchange",
+              "display_text": "Exchange"
+            },
+            {
+              "slug": "On hold",
+              "display_text": "On hold"
+            },
+            {
+              "slug": "Unlock",
+              "display_text": "Unlock"
+            }
+          ],
+          "order_type": "HomeDelivery",
+          "employee_id": "",
+          "shop_domain": "fynd-store-1.myshopify.com",
+          "company_logo": null,
+          "payment_type": null,
+          "authorization": null,
+          "currency_info": {
+            "currency": {
+              "currency_code": "INR",
+              "currency_name": "",
+              "currency_symbol": "INR",
+              "currency_sub_unit": ""
+            },
+            "conversion_rate": {
+              "base": "INR",
+              "rates": {
+                "INR": {
+                  "name": "",
+                  "value": 1,
+                  "symbol": "INR",
+                  "sub_unit": ""
+                }
+              },
+              "timestamp": 1770831891685
+            }
+          },
+          "mongo_cart_id": 1000000007,
+          "application_id": "67a09b70c8ea7c9123f00fab",
+          "order_platform": null,
+          "seller_details": {
+            "country": "India",
+            "currency": {
+              "code": "INR",
+              "name": "Indian Rupee",
+              "symbol": "₹"
+            },
+            "timezone": "Asia/Kolkata",
+            "country_code": "IN"
+          },
+          "conversion_rate": {
+            "base": "INR",
+            "rates": {
+              "INR": {
+                "name": "",
+                "value": 1,
+                "symbol": "INR",
+                "sub_unit": ""
+              }
+            },
+            "timestamp": 1770831891685
+          },
+          "payment_gateway": "Cash on Delivery (COD)",
+          "system_messages": [],
+          "is_pendency_order": false,
+          "ordering_store_id": null,
+          "channel_account_id": "",
+          "sales_channel_logo": "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyprod/wrkr/misc/pictures/application-logos/original/olqHM8LNr-JioMart-Groceries.png",
+          "is_refundable_order": true,
+          "order_child_entities": [
+            "bag",
+            "shipment"
+          ],
+          "billing_staff_details": {},
+          "ordering_channel_logo": "",
+          "platform_user_details": {},
+          "external_creation_date": "2026-02-11T23:14:43+05:30",
+          "hogwarts_integration_id": "63917c5f41e8393d12aea657"
+        },
+        "payment_methods": {
+          "PP": {
+            "meta": {
+              "logo_url": {
+                "large": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png",
+                "small": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png"
+              },
+              "payment_id": null,
+              "merchant_code": "PP",
+              "payment_gateway": "Cash on Delivery (COD)",
+              "payment_identifier": "rrqeu9sutMzUqaMIk6HOUYPp2"
+            },
+            "mode": "PP",
+            "name": "Partner Pay",
+            "amount": 10,
+            "refund_by": "seller",
+            "refund_to": "",
+            "collect_by": "seller",
+            "display_name": "Partner Pay",
+            "identifier": "PPrrqeu9sutMzUqaMIk6HOUYPp2"
+          }
+        },
+        "payment_info": [
+          {
+            "meta": {
+              "logo_url": {
+                "large": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png",
+                "small": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png"
+              },
+              "payment_id": null,
+              "merchant_code": "PP",
+              "payment_gateway": "Cash on Delivery (COD)",
+              "payment_identifier": "rrqeu9sutMzUqaMIk6HOUYPp2"
+            },
+            "mode": "PP",
+            "name": "Partner Pay",
+            "amount": 10,
+            "refund_by": "seller",
+            "refund_to": "",
+            "collect_by": "seller",
+            "display_name": "Partner Pay",
+            "identifier": "PPrrqeu9sutMzUqaMIk6HOUYPp2"
+          }
+        ],
+        "affiliate_id": "67a09b70c8ea7c9123f00fab",
+        "ordering_channel": "Ecomm",
+        "ordering_source": "storefront",
+        "source": "uniket-desktop",
+        "tax_details": {
+          "gstin": "",
+          "pan_no": null
+        },
+        "created_at": "2026-02-11T23:14:54",
+        "created_ts": "2026-02-11T17:44:54Z",
+        "order_date": "2026-02-11T23:14:54+00:00",
+        "loyalty_discount_details": {},
+        "prices": {
+          "amount_paid": 10,
+          "refund_amount": 10,
+          "price_marked": 300,
+          "cod_charges": 0,
+          "discount": 290,
+          "cashback_applied": 0,
+          "delivery_charge": 0,
+          "fynd_credits": 0,
+          "cashback": 0,
+          "price_effective": 10,
+          "refund_credit": 0,
+          "value_of_good": 9.52,
+          "coupon_value": 0,
+          "tax_collected_at_source": 0,
+          "promotion_effective_discount": 0,
+          "fynd_promotion_effective_discount": 0,
+          "seller_promotion_effective_discount": 0,
+          "cn_refund_amount": 0,
+          "gift_price": 0,
+          "loyalty_discount": 0,
+          "cost_price": 0,
+          "amount_paid_roundoff": 10
+        },
+        "ordering_currency_prices": {
+          "amount_paid": 10,
+          "refund_amount": 10,
+          "price_marked": 300,
+          "cod_charges": 0,
+          "discount": 290,
+          "cashback_applied": 0,
+          "delivery_charge": 0,
+          "fynd_credits": 0,
+          "cashback": 0,
+          "price_effective": 10,
+          "refund_credit": 0,
+          "value_of_good": 9.52,
+          "coupon_value": 0,
+          "tax_collected_at_source": 0,
+          "promotion_effective_discount": 0,
+          "fynd_promotion_effective_discount": 0,
+          "seller_promotion_effective_discount": 0,
+          "cn_refund_amount": 0,
+          "gift_price": 0,
+          "loyalty_discount": 0,
+          "cost_price": 0,
+          "amount_paid_roundoff": 10
+        },
+        "raw_user_agent": "axios/1.7.7",
+        "comment": null,
+        "currency": {
+          "currency_code": "INR",
+          "currency_symbol": "INR"
+        },
+        "currency_info": {
+          "ordering_currency": {
+            "currency_code": "INR",
+            "currency_name": "",
+            "currency_symbol": "INR",
+            "currency_sub_unit": ""
+          },
+          "conversion_rate": {
+            "base": "INR",
+            "rates": {
+              "INR": {
+                "name": "",
+                "value": 1,
+                "symbol": "INR",
+                "sub_unit": ""
+              }
+            },
+            "timestamp": 1770831891685
+          }
+        },
+        "charges": []
+      },
+      "gst_details": {
+        "value_of_good": 9.52,
+        "gst_fee": 0.48,
+        "brand_calculated_amount": 10,
+        "tax_collected_at_source": 0,
+        "gstin_code": null
+      },
+      "shipment_quantity": 1,
+      "bag_status_history": [
+        {
+          "status": "pending",
+          "updated_at": "2026-02-11T23:14:54+00:00",
+          "updated_ts": "2026-02-11T17:44:54Z",
+          "created_at": "2026-02-11T23:14:54+00:00",
+          "state_type": "operational",
+          "app_display_name": "Pending",
+          "app_facing": true,
+          "display_name": "Pending",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "placed",
+          "updated_at": "2026-02-11T23:14:55+00:00",
+          "updated_ts": "2026-02-11T17:44:54Z",
+          "created_at": "2026-02-11T23:14:54+00:00",
+          "state_type": "operational",
+          "app_display_name": "Processing",
+          "app_facing": true,
+          "display_name": "Placed",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "bag_confirmed",
+          "updated_at": "2026-02-16T02:26:26+00:00",
+          "updated_ts": "2026-02-15T20:56:25Z",
+          "created_at": "2026-02-16T02:26:26+00:00",
+          "state_type": "operational",
+          "app_display_name": "Confirmed",
+          "app_facing": true,
+          "display_name": "Confirmed",
+          "forward": null,
+          "action_user": {
+            "title": "Admin",
+            "user_id": "191",
+            "user_name": "Ashit Mundra",
+            "order_role": "full_access",
+            "employee_code": ""
+          }
+        },
+        {
+          "status": "bag_invoiced",
+          "updated_at": "2026-02-16T02:26:27+00:00",
+          "updated_ts": "2026-02-15T20:56:26Z",
+          "created_at": "2026-02-16T02:26:27+00:00",
+          "state_type": "operational",
+          "app_display_name": "Bag Invoiced",
+          "app_facing": false,
+          "display_name": "Bag Invoiced",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "ready_for_dp_assignment",
+          "updated_at": "2026-02-16T02:26:27+00:00",
+          "updated_ts": "2026-02-15T20:56:26Z",
+          "created_at": "2026-02-16T02:26:27+00:00",
+          "state_type": "operational",
+          "app_display_name": "Ready For Dp Assignment",
+          "app_facing": false,
+          "display_name": "Ready For Dp Assignment",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "dp_assigned",
+          "updated_at": "2026-02-16T02:26:38+00:00",
+          "updated_ts": "2026-02-15T20:56:37Z",
+          "created_at": "2026-02-16T02:26:29+00:00",
+          "state_type": "operational",
+          "app_display_name": "DP Assigned",
+          "app_facing": true,
+          "display_name": "DP Assigned",
+          "forward": null,
+          "action_user": {
+            "title": "Staff",
+            "user_id": "533",
+            "user_name": "Shopify Extension Client",
+            "order_role": "full_access",
+            "employee_code": "",
+            "x-extension-id": "63917c5f41e8393d12aea657"
+          }
+        },
+        {
+          "status": "bag_packed",
+          "updated_at": "2026-02-20T13:11:34+00:00",
+          "updated_ts": "2026-02-20T07:41:34Z",
+          "created_at": "2026-02-20T13:11:34+00:00",
+          "state_type": "operational",
+          "app_display_name": "Bag Packed",
+          "app_facing": true,
+          "display_name": "Bag Packed",
+          "forward": null,
+          "action_user": {
+            "title": "Admin",
+            "user_id": "239",
+            "user_name": "Md. Farhan Khan",
+            "order_role": "full_access",
+            "employee_code": ""
+          }
+        },
+        {
+          "status": "handed_over_to_dg",
+          "updated_at": "2026-02-20T13:13:00+00:00",
+          "updated_ts": "2026-02-20T07:42:59Z",
+          "created_at": "2026-02-20T13:13:00+00:00",
+          "state_type": "operational",
+          "app_display_name": "Bag Packed",
+          "app_facing": true,
+          "display_name": "Handed Over to DG",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "bag_picked",
+          "updated_at": "2026-02-20T13:14:18+00:00",
+          "updated_ts": "2026-02-20T07:44:18Z",
+          "created_at": "2026-02-20T13:14:18+00:00",
+          "state_type": "operational",
+          "app_display_name": "In Transit",
+          "app_facing": true,
+          "display_name": "In Transit",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "out_for_delivery",
+          "updated_at": "2026-02-20T13:14:30+00:00",
+          "updated_ts": "2026-02-20T07:44:30Z",
+          "created_at": "2026-02-20T13:14:30+00:00",
+          "state_type": "operational",
+          "app_display_name": "Out For Delivery",
+          "app_facing": true,
+          "display_name": "Out For Delivery",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "delivery_done",
+          "updated_at": "2026-02-20T13:14:43+00:00",
+          "updated_ts": "2026-02-20T07:44:43Z",
+          "created_at": "2026-02-20T13:14:43+00:00",
+          "state_type": "operational",
+          "app_display_name": "Delivered",
+          "app_facing": true,
+          "display_name": "Delivered",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "return_initiated",
+          "updated_at": "2026-02-23T15:24:48+00:00",
+          "updated_ts": "2026-02-23T09:54:47Z",
+          "created_at": "2026-02-23T15:24:45+00:00",
+          "state_type": "operational",
+          "app_display_name": "Return Processing",
+          "app_facing": true,
+          "display_name": "Return Initiated",
+          "forward": null,
+          "action_user": {
+            "title": "Staff",
+            "user_id": "533",
+            "user_name": "Shopify Extension Client",
+            "order_role": "full_access",
+            "employee_code": "",
+            "x-extension-id": "63917c5f41e8393d12aea657"
+          }
+        },
+        {
+          "status": "return_bag_delivered",
+          "updated_at": "2026-02-23T16:10:01+00:00",
+          "updated_ts": "2026-02-23T10:40:01Z",
+          "created_at": "2026-02-23T16:10:01+00:00",
+          "state_type": "operational",
+          "app_display_name": " ",
+          "app_facing": false,
+          "display_name": "Return Delivered",
+          "forward": null,
+          "action_user": {
+            "title": "Admin",
+            "user_id": "239",
+            "user_name": "Md. Farhan Khan",
+            "order_role": "full_access",
+            "employee_code": ""
+          }
+        },
+        {
+          "status": "return_accepted",
+          "updated_at": "2026-02-23T16:10:19+00:00",
+          "updated_ts": "2026-02-23T10:40:18Z",
+          "created_at": "2026-02-23T16:10:19+00:00",
+          "state_type": "operational",
+          "app_display_name": "Return Accepted",
+          "app_facing": true,
+          "display_name": "Return Accepted",
+          "forward": null,
+          "action_user": {
+            "title": "Admin",
+            "user_id": "239",
+            "user_name": "Md. Farhan Khan",
+            "order_role": "full_access",
+            "employee_code": ""
+          }
+        },
+        {
+          "status": "credit_note_generated",
+          "updated_at": "2026-02-23T16:10:19+00:00",
+          "updated_ts": "2026-02-23T10:40:18Z",
+          "created_at": "2026-02-23T16:10:19+00:00",
+          "state_type": "operational",
+          "app_display_name": "Credit Note Generated",
+          "app_facing": false,
+          "display_name": "Credit Note Generated",
+          "forward": null,
+          "action_user": {}
+        },
+        {
+          "status": "refund_initiated",
+          "updated_at": "2026-02-23T16:10:20+00:00",
+          "updated_ts": "2026-02-23T10:40:19Z",
+          "created_at": "2026-02-23T16:10:20+00:00",
+          "state_type": "financial",
+          "app_display_name": "Refund Initiated ",
+          "app_facing": false,
+          "display_name": "Refund Initiated",
+          "forward": null,
+          "action_user": {}
+        }
+      ],
+      "bags": [
+        {
+          "bag_id": 3769623,
+          "display_name": "Bag",
+          "entity_type": "bag",
+          "meta": {
+            "group_id": "",
+            "gift_card": {},
+            "promo_ids": [],
+            "order_type": "HomeDelivery",
+            "tracking_url": "https://www.xpressbees.com/track?isawb=Yes&trackid=1387840005759",
+            "docket_number": "177184048503115806651",
+            "ewaybill_info": {
+              "success": true
+            },
+            "affiliate_meta": {
+              "shop_domain": "fynd-store-1.myshopify.com",
+              "affiliate_sku": "EAN_L_AUTOINVOICE_CHICKEN_0104151436",
+              "note_attributes": [],
+              "affiliate_line_id": 16839251460246,
+              "affiliate_primary_identifier": 7411776651414
+            },
+            "is_own_account": false,
+            "partial_can_ret": false,
+            "sequence_number": 10000,
+            "article_position": 0,
+            "country_of_origin": "India",
+            "cod_charges_hsn_code": "996819",
+            "courier_partner_name": "Xpressbees adisurface",
+            "parent_docket_number": "177083189403017660541",
+            "reverse_docket_number": "177083189403017660541",
+            "cod_charges_tax_rule_id": null,
+            "is_bundle_article_order": false,
+            "courier_partner_scheme_id": "657736f65ed9445f3b3c34c1",
+            "delivery_charges_hsn_code": "996819",
+            "multi_quantity_bag_enabled": false,
+            "courier_partner_extension_id": "656da3d7e7b208e46ca12e72",
+            "courier_partner_shipper_name": "Xpressbees",
+            "delivery_charges_tax_rule_id": null,
+            "custom_message": ""
+          },
+          "bag_configs": {
+            "is_returnable": true,
+            "can_be_cancelled": true,
+            "enable_tracking": false,
+            "is_customer_return_allowed": false,
+            "is_active": false,
+            "allow_force_return": false
+          },
+          "financial_breakup": {
+            "price_effective": 10,
+            "discount": 290,
+            "amount_paid": 10,
+            "coupon_effective_discount": 0,
+            "delivery_charge": 0,
+            "fynd_credits": 0,
+            "cod_charges": 0,
+            "refund_credit": 0,
+            "cashback": 0,
+            "refund_amount": 10,
+            "added_to_fynd_cash": false,
+            "cashback_applied": 0,
+            "gst_tax_percentage": 5,
+            "value_of_good": 9.52,
+            "price_marked": 300,
+            "transfer_price": 0,
+            "brand_calculated_amount": 10,
+            "tax_collected_at_source": 0,
+            "tcs_percentage": 0,
+            "promotion_effective_discount": 0,
+            "gift_price": 0,
+            "loyalty_discount": 0,
+            "cost_price": 0,
+            "coupon_value": 0,
+            "seller_promotion_effective_discount": 0,
+            "fynd_promotion_effective_discount": 0,
+            "amount_paid_roundoff": 10,
+            "size": "L",
+            "total_units": 1,
+            "hsn_code": "00000001",
+            "identifiers": {
+              "ean": "EAN_L_AUTOINVOICE_CHICKEN_0104151436"
+            },
+            "item_name": "Chicken_0104151436",
+            "gst_fee": 0.48,
+            "gst_tag": "SGST",
+            "taxes": [
+              {
+                "name": "GST",
+                "rate": 0.05,
+                "tax_amount": 0.48,
+                "taxable_amount": 9.52
+              }
+            ]
+          },
+          "prices": {
+            "price_effective": 10,
+            "discount": 290,
+            "amount_paid": 10,
+            "coupon_effective_discount": 0,
+            "delivery_charge": 0,
+            "fynd_credits": 0,
+            "cod_charges": 0,
+            "refund_credit": 0,
+            "cashback": 0,
+            "refund_amount": 10,
+            "added_to_fynd_cash": false,
+            "cashback_applied": 0,
+            "gst_tax_percentage": 5,
+            "value_of_good": 9.52,
+            "price_marked": 300,
+            "transfer_price": 0,
+            "brand_calculated_amount": 10,
+            "tax_collected_at_source": 0,
+            "tcs_percentage": 0,
+            "promotion_effective_discount": 0,
+            "gift_price": 0,
+            "loyalty_discount": 0,
+            "cost_price": 0,
+            "coupon_value": 0,
+            "seller_promotion_effective_discount": 0,
+            "fynd_promotion_effective_discount": 0,
+            "amount_paid_roundoff": 10
+          },
+          "current_status": {
+            "kafka_sync": false,
+            "store_id": 14066,
+            "state_type": "financial",
+            "shipment_id": "17718404850311580665",
+            "updated_at": 1771863020,
+            "created_at": "2026-02-23T16:10:20+00:00",
+            "state_id": 53,
+            "created_ts": "2026-02-23T10:40:19Z",
+            "delivery_partner_id": null,
+            "status": "refund_initiated",
+            "delivery_awb_number": "1387840005759",
+            "updated_ts": "2026-02-23T10:40:19Z",
+            "id": 7260293,
+            "bag_id": 3769623,
+            "article_meta": {
+              "_id": "6953aab8a1201d25f8c4e3ae"
+            },
+            "bag_state_mapper": {
+              "journey_type": "",
+              "notify_customer": false,
+              "is_active": true,
+              "state_type": "financial",
+              "app_state_name": "refund_initiated_",
+              "id": 53,
+              "display_name": "Refund Initiated",
+              "name": "refund_initiated",
+              "app_display_name": "Refund Initiated ",
+              "app_facing": false
+            },
+            "reasons": [],
+            "action_user": {}
+          },
+          "item": {
+            "id": 11525507,
+            "name": "Chicken_0104151436",
+            "code": "BK_Chicken_0104151436",
+            "color": null,
+            "brand": "Adidas Kids",
+            "slug_key": "chicken_0104151436-11525507",
+            "images": [
+              "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyndnp/wrkr/x5/products/pictures/item/free/270x0/j9bJuwDnH-BACDE.png"
+            ],
+            "size": "L",
+            "tags": [],
+            "l1_category": [
+              "Clothing"
+            ],
+            "l3_category": 2167,
+            "attributes": {
+              "gender": "Men",
+              "occasion": "sdfsdf",
+              "lifestyle": [],
+              "brand_name": "Adidas Kids",
+              "myattribute": [],
+              "sustainable": [
+                "Sustainable"
+              ],
+              "closure-type": [],
+              "primary_color": "Blue",
+              "product_details": "",
+              "bottomwear-length": [],
+              "primary_color_hex": "0000FF",
+              "short_description": "Recycled",
+              "media": []
+            },
+            "can_return": true,
+            "can_cancel": true
+          },
+          "can_return": false,
+          "can_cancel": false,
+          "brand": {
+            "brand_name": "Adidas Kids",
+            "logo": "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyndnp/wrkr/x5/brands/pictures/square-logo/original/0rAWi6too-Logo.webp",
+            "is_virtual_invoice": false,
+            "modified_on": "2023-11-21T09:56:58",
+            "id": 7265,
+            "credit_note_allowed": false,
+            "created_on": "2023-07-19T11:00:27"
+          },
+          "gst_details": {
+            "gstin_code": null,
+            "gst_tag": "SGST",
+            "hsn_code": "00000001",
+            "value_of_good": 9.52,
+            "gst_tax_percentage": 5,
+            "is_default_hsn_code": true,
+            "brand_calculated_amount": 10,
+            "tax_collected_at_source": 0,
+            "hsn_code_id": null,
+            "tax_rule_id": "68c541fa3b89a5d3c75ba5d3",
+            "gst_fee": 0.48,
+            "igst_tax_percentage": 0,
+            "sgst_tax_percentage": 2.5,
+            "cgst_tax_percentage": 2.5,
+            "igst_gst_fee": 0,
+            "cgst_gst_fee": 0.24,
+            "sgst_gst_fee": 0.24,
+            "total_gst_fee": 0.48
+          },
+          "bundle_details": {},
+          "article": {
+            "uid": "6953aab8a1201d25f8c4e3ae",
+            "identifiers": {
+              "ean": "EAN_L_AUTOINVOICE_CHICKEN_0104151436"
+            },
+            "return_config": {
+              "time": 2,
+              "unit": "days",
+              "returnable": true,
+              "allow_partial_return": false
+            },
+            "size": "L",
+            "_custom_json": {}
+          },
+          "affiliate_bag_details": {
+            "coupon_code": null,
+            "affiliate_bag_id": "3769623",
+            "affiliate_meta": {
+              "fynd": {
+                "fulfilment_identifier": "pulse",
+                "fulfilment_identifiers_list": [
+                  "pulse"
+                ]
+              },
+              "channel_shipment_id": null,
+              "channel_order_id": null,
+              "due_date": null,
+              "is_priority": false,
+              "box_type": null,
+              "coupon_code": null,
+              "affiliate_line_id": 16839251460246,
+              "shop_domain": "fynd-store-1.myshopify.com",
+              "affiliate_sku": "EAN_L_AUTOINVOICE_CHICKEN_0104151436",
+              "affiliate_primary_identifier": 7411776651414,
+              "note_attributes": [],
+              "size_level_total_qty": null,
+              "loyalty_discount": 0,
+              "employee_discount": 0,
+              "affiliate_location_id": 67361407126,
+              "affiliate_fulfillement_id": 6613003665558
+            }
+          },
+          "quantity": 1,
+          "applied_promos": [],
+          "waivers": null,
+          "group_id": "",
+          "is_parent": true,
+          "parent_promo_bags": {},
+          "seller_identifier": "EAN_L_AUTOINVOICE_CHICKEN_0104151436",
+          "identifier": "EAN_L_AUTOINVOICE_CHICKEN_0104151436",
+          "line_number": 1,
+          "mark_as_returnable": false,
+          "bag_status": [
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-11T23:14:54+00:00",
+              "created_at": "2026-02-11T23:14:54+00:00",
+              "state_id": 89,
+              "created_ts": "2026-02-11T17:44:54Z",
+              "delivery_partner_id": null,
+              "status": "pending",
+              "delivery_awb_number": null,
+              "updated_ts": "2026-02-11T17:44:54Z",
+              "id": 7231333,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": true,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "pending",
+                "id": 89,
+                "display_name": "Pending",
+                "name": "pending",
+                "app_display_name": "Pending",
+                "app_facing": true
+              },
+              "reasons": [],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-11T23:14:55+00:00",
+              "created_at": "2026-02-11T23:14:54+00:00",
+              "state_id": 1,
+              "created_ts": "2026-02-11T17:44:54Z",
+              "delivery_partner_id": null,
+              "status": "placed",
+              "delivery_awb_number": null,
+              "updated_ts": "2026-02-11T17:44:54Z",
+              "id": 7231334,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae",
+                "inventory_movement": {
+                  "from_action": "sellable",
+                  "to_action": {
+                    "": {
+                      "reason_id": "",
+                      "action": "order_committed",
+                      "total_quantity": null
+                    }
+                  }
+                }
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": true,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "processing",
+                "id": 1,
+                "display_name": "Placed",
+                "name": "placed",
+                "app_display_name": "Processing",
+                "app_facing": true
+              },
+              "reasons": [],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-16T02:26:26+00:00",
+              "created_at": "2026-02-16T02:26:26+00:00",
+              "state_id": 2,
+              "created_ts": "2026-02-15T20:56:25Z",
+              "delivery_partner_id": null,
+              "status": "bag_confirmed",
+              "delivery_awb_number": null,
+              "updated_ts": "2026-02-15T20:56:25Z",
+              "id": 7243001,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae",
+                "inventory_movement": {
+                  "from_action": "order_committed",
+                  "to_action": {
+                    "": {
+                      "reason_id": "",
+                      "action": null,
+                      "total_quantity": "SUBTRACT"
+                    }
+                  }
+                }
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "confirmed",
+                "id": 2,
+                "display_name": "Confirmed",
+                "name": "bag_confirmed",
+                "app_display_name": "Confirmed",
+                "app_facing": true
+              },
+              "reasons": [],
+              "action_user": {
+                "title": "Admin",
+                "user_id": "191",
+                "user_name": "Ashit Mundra",
+                "order_role": "full_access",
+                "employee_code": ""
+              }
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-16T02:26:27+00:00",
+              "created_at": "2026-02-16T02:26:27+00:00",
+              "state_id": 91,
+              "created_ts": "2026-02-15T20:56:26Z",
+              "delivery_partner_id": null,
+              "status": "bag_invoiced",
+              "delivery_awb_number": null,
+              "updated_ts": "2026-02-15T20:56:26Z",
+              "id": 7243002,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "bag_invoiced",
+                "id": 91,
+                "display_name": "Bag Invoiced",
+                "name": "bag_invoiced",
+                "app_display_name": "Bag Invoiced",
+                "app_facing": false
+              },
+              "reasons": [],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-16T02:26:27+00:00",
+              "created_at": "2026-02-16T02:26:27+00:00",
+              "state_id": 117,
+              "created_ts": "2026-02-15T20:56:26Z",
+              "delivery_partner_id": null,
+              "status": "ready_for_dp_assignment",
+              "delivery_awb_number": null,
+              "updated_ts": "2026-02-15T20:56:26Z",
+              "id": 7243003,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "ready_for_dp_assignment",
+                "id": 117,
+                "display_name": "Ready For Dp Assignment",
+                "name": "ready_for_dp_assignment",
+                "app_display_name": "Ready For Dp Assignment",
+                "app_facing": false
+              },
+              "reasons": [],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-16T02:26:38+00:00",
+              "created_at": "2026-02-16T02:26:29+00:00",
+              "state_id": 7,
+              "created_ts": "2026-02-15T20:56:29Z",
+              "delivery_partner_id": null,
+              "status": "dp_assigned",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-15T20:56:37Z",
+              "id": 7243004,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "dp_assigned",
+                "id": 7,
+                "display_name": "DP Assigned",
+                "name": "dp_assigned",
+                "app_display_name": "DP Assigned",
+                "app_facing": true
+              },
+              "reasons": [],
+              "action_user": {
+                "title": "Staff",
+                "user_id": "533",
+                "user_name": "Shopify Extension Client",
+                "order_role": "full_access",
+                "employee_code": "",
+                "x-extension-id": "63917c5f41e8393d12aea657"
+              }
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-20T13:11:34+00:00",
+              "created_at": "2026-02-20T13:11:34+00:00",
+              "state_id": 8,
+              "created_ts": "2026-02-20T07:41:34Z",
+              "delivery_partner_id": null,
+              "status": "bag_packed",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-20T07:41:34Z",
+              "id": 7257968,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": true,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "bag_packed",
+                "id": 8,
+                "display_name": "Bag Packed",
+                "name": "bag_packed",
+                "app_display_name": "Bag Packed",
+                "app_facing": true
+              },
+              "reasons": [],
+              "action_user": {
+                "title": "Admin",
+                "user_id": "239",
+                "user_name": "Md. Farhan Khan",
+                "order_role": "full_access",
+                "employee_code": ""
+              }
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-20T13:13:00+00:00",
+              "created_at": "2026-02-20T13:13:00+00:00",
+              "state_id": 10,
+              "created_ts": "2026-02-20T07:42:59Z",
+              "delivery_partner_id": null,
+              "status": "handed_over_to_dg",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-20T07:42:59Z",
+              "id": 7257973,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": true,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "bag_packed",
+                "id": 10,
+                "display_name": "Handed Over to DG",
+                "name": "handed_over_to_dg",
+                "app_display_name": "Bag Packed",
+                "app_facing": true
+              },
+              "reasons": [],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-20T13:14:18+00:00",
+              "created_at": "2026-02-20T13:14:18+00:00",
+              "state_id": 12,
+              "created_ts": "2026-02-20T07:44:18Z",
+              "delivery_partner_id": null,
+              "status": "bag_picked",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-20T07:44:18Z",
+              "id": 7257974,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "in_transit",
+                "id": 12,
+                "display_name": "In Transit",
+                "name": "bag_picked",
+                "app_display_name": "In Transit",
+                "app_facing": true
+              },
+              "reasons": [
+                {
+                  "slug": "others",
+                  "display_name": "Others",
+                  "id": 447,
+                  "state": "fluid_state",
+                  "text": "dsafsffffwef",
+                  "quantity": 1,
+                  "inventory_flag": true
+                }
+              ],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-20T13:14:30+00:00",
+              "created_at": "2026-02-20T13:14:30+00:00",
+              "state_id": 13,
+              "created_ts": "2026-02-20T07:44:30Z",
+              "delivery_partner_id": null,
+              "status": "out_for_delivery",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-20T07:44:30Z",
+              "id": 7257975,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": true,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "out_for_delivery",
+                "id": 13,
+                "display_name": "Out For Delivery",
+                "name": "out_for_delivery",
+                "app_display_name": "Out For Delivery",
+                "app_facing": true
+              },
+              "reasons": [
+                {
+                  "slug": "others",
+                  "display_name": "Others",
+                  "id": 447,
+                  "state": "fluid_state",
+                  "text": "frgtgertwrwre",
+                  "quantity": 1,
+                  "inventory_flag": true
+                }
+              ],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17708318940301766054",
+              "updated_at": "2026-02-20T13:14:43+00:00",
+              "created_at": "2026-02-20T13:14:43+00:00",
+              "state_id": 14,
+              "created_ts": "2026-02-20T07:44:43Z",
+              "delivery_partner_id": null,
+              "status": "delivery_done",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-20T07:44:43Z",
+              "id": 7257976,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "forward",
+                "notify_customer": true,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "delivered",
+                "id": 14,
+                "display_name": "Delivered",
+                "name": "delivery_done",
+                "app_display_name": "Delivered",
+                "app_facing": true
+              },
+              "reasons": [
+                {
+                  "slug": "others",
+                  "display_name": "Others",
+                  "id": 447,
+                  "state": "fluid_state",
+                  "text": "test Delivery done",
+                  "quantity": 1,
+                  "inventory_flag": true
+                }
+              ],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17718404850311580665",
+              "updated_at": "2026-02-23T15:24:48+00:00",
+              "created_at": "2026-02-23T15:24:45+00:00",
+              "state_id": 26,
+              "created_ts": "2026-02-23T09:54:45Z",
+              "delivery_partner_id": null,
+              "status": "return_initiated",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-23T09:54:47Z",
+              "id": 7260121,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "return",
+                "notify_customer": true,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "return_processing",
+                "id": 26,
+                "display_name": "Return Initiated",
+                "name": "return_initiated",
+                "app_display_name": "Return Processing",
+                "app_facing": true
+              },
+              "reasons": [
+                {
+                  "slug": "product_looks_different_from_image",
+                  "display_name": "Product looks different from image",
+                  "id": 122,
+                  "state": "return_initiated",
+                  "text": "Other",
+                  "quantity": 1,
+                  "inventory_flag": true
+                }
+              ],
+              "action_user": {
+                "title": "Staff",
+                "user_id": "533",
+                "user_name": "Shopify Extension Client",
+                "order_role": "full_access",
+                "employee_code": "",
+                "x-extension-id": "63917c5f41e8393d12aea657"
+              }
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17718404850311580665",
+              "updated_at": "2026-02-23T16:10:01+00:00",
+              "created_at": "2026-02-23T16:10:01+00:00",
+              "state_id": 50,
+              "created_ts": "2026-02-23T10:40:01Z",
+              "delivery_partner_id": null,
+              "status": "return_bag_delivered",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-23T10:40:01Z",
+              "id": 7260290,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "return",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "_",
+                "id": 50,
+                "display_name": "Return Delivered",
+                "name": "return_bag_delivered",
+                "app_display_name": " ",
+                "app_facing": false
+              },
+              "reasons": [],
+              "action_user": {
+                "title": "Admin",
+                "user_id": "239",
+                "user_name": "Md. Farhan Khan",
+                "order_role": "full_access",
+                "employee_code": ""
+              }
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17718404850311580665",
+              "updated_at": "2026-02-23T16:10:19+00:00",
+              "created_at": "2026-02-23T16:10:19+00:00",
+              "state_id": 28,
+              "created_ts": "2026-02-23T10:40:18Z",
+              "delivery_partner_id": null,
+              "status": "return_accepted",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-23T10:40:18Z",
+              "id": 7260291,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "return",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "return_accepted",
+                "id": 28,
+                "display_name": "Return Accepted",
+                "name": "return_accepted",
+                "app_display_name": "Return Accepted",
+                "app_facing": true
+              },
+              "reasons": [],
+              "action_user": {
+                "title": "Admin",
+                "user_id": "239",
+                "user_name": "Md. Farhan Khan",
+                "order_role": "full_access",
+                "employee_code": ""
+              }
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "operational",
+              "shipment_id": "17718404850311580665",
+              "updated_at": "2026-02-23T16:10:19+00:00",
+              "created_at": "2026-02-23T16:10:19+00:00",
+              "state_id": 118,
+              "created_ts": "2026-02-23T10:40:18Z",
+              "delivery_partner_id": null,
+              "status": "credit_note_generated",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-23T10:40:18Z",
+              "id": 7260292,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "return",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "operational",
+                "app_state_name": "credit_note_generated",
+                "id": 118,
+                "display_name": "Credit Note Generated",
+                "name": "credit_note_generated",
+                "app_display_name": "Credit Note Generated",
+                "app_facing": false
+              },
+              "reasons": [],
+              "action_user": {}
+            },
+            {
+              "kafka_sync": false,
+              "store_id": 14066,
+              "state_type": "financial",
+              "shipment_id": "17718404850311580665",
+              "updated_at": "2026-02-23T16:10:20+00:00",
+              "created_at": "2026-02-23T16:10:20+00:00",
+              "state_id": 53,
+              "created_ts": "2026-02-23T10:40:19Z",
+              "delivery_partner_id": null,
+              "status": "refund_initiated",
+              "delivery_awb_number": "1387840005759",
+              "updated_ts": "2026-02-23T10:40:19Z",
+              "id": 7260293,
+              "bag_id": 3769623,
+              "article_meta": {
+                "_id": "6953aab8a1201d25f8c4e3ae"
+              },
+              "bag_state_mapper": {
+                "journey_type": "",
+                "notify_customer": false,
+                "is_active": true,
+                "state_type": "financial",
+                "app_state_name": "refund_initiated_",
+                "id": 53,
+                "display_name": "Refund Initiated",
+                "name": "refund_initiated",
+                "app_display_name": "Refund Initiated ",
+                "app_facing": false
+              },
+              "reasons": [],
+              "action_user": {}
+            }
+          ],
+          "payment_methods": [
+            {
+              "mode": "PP",
+              "amount": 10,
+              "refund_by": "seller",
+              "collect_by": "seller"
+            }
+          ],
+          "payment_info": [
+            {
+              "meta": {
+                "logo_url": {
+                  "large": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png",
+                  "small": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png"
+                },
+                "payment_id": null,
+                "merchant_code": "PP",
+                "payment_gateway": "Cash on Delivery (COD)",
+                "payment_identifier": "rrqeu9sutMzUqaMIk6HOUYPp2"
+              },
+              "mode": "PP",
+              "amount": 10,
+              "refund_by": "seller",
+              "collect_by": "seller",
+              "identifier": "PPrrqeu9sutMzUqaMIk6HOUYPp2"
+            }
+          ],
+          "charges": [],
+          "seller_qc_details": {
+            "line_number": 1,
+            "bad_quantity": 0,
+            "good_quantity": 1
+          },
+          "is_bundle_item": false,
+          "is_base": false,
+          "returnable_date": "2026-02-22T13:14:43.000Z",
+          "ordering_currency_prices": {
+            "price_effective": 10,
+            "discount": 290,
+            "amount_paid": 10,
+            "coupon_effective_discount": 0,
+            "delivery_charge": 0,
+            "fynd_credits": 0,
+            "cod_charges": 0,
+            "refund_credit": 0,
+            "cashback": 0,
+            "refund_amount": 10,
+            "added_to_fynd_cash": 0,
+            "cashback_applied": 0,
+            "gst_tax_percentage": 5,
+            "value_of_good": 9.52,
+            "price_marked": 300,
+            "transfer_price": 0,
+            "brand_calculated_amount": 10,
+            "tax_collected_at_source": 0,
+            "tcs_percentage": 0,
+            "promotion_effective_discount": 0,
+            "gift_price": 0,
+            "loyalty_discount": 0,
+            "cost_price": 0,
+            "coupon_value": 0,
+            "seller_promotion_effective_discount": 0,
+            "fynd_promotion_effective_discount": 0,
+            "amount_paid_roundoff": 10
+          }
+        }
+      ],
+      "custom_message": "",
+      "company_id": 2263,
+      "company_details": {
+        "company_name": "Konnect-Parent",
+        "company_cin": null,
+        "company_id": 2263,
+        "address": {
+          "country_code": "IN",
+          "country": "INDIA",
+          "address_type": "registered",
+          "pincode": 400093,
+          "address1": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+          "state": "MAHARASHTRA",
+          "city": "MUMBAI",
+          "country_iso_code": "IN",
+          "display_address": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+          "latitude": 19.0653252,
+          "longitude": 72.8423802
+        },
+        "company_gst": "19AAACA2573R1Z6",
+        "company_contact": {
+          "phone": [
+            {
+              "country_code": 91,
+              "number": "9898032852"
+            }
+          ],
+          "emails": [
+            "estore.support@jadeblue.com"
+          ]
+        }
+      },
+      "user": {
+        "gender": null,
+        "mobile": "9231313131",
+        "mongo_user_id": null,
+        "last_name": "Bhatia",
+        "meta": {
+          "country_phone_code": ""
+        },
+        "external_customer_id": null,
+        "email": "tanishqbhatia@gmail.com",
+        "id": 17314581,
+        "user_oid": null,
+        "first_name": "Tanishq",
+        "country_phone_code": "",
+        "is_anonymous_user": false
+      },
+      "pickup_slot": {},
+      "delivery_slot": {
+        "slot": "By 22:00 PM",
+        "upper_bound": "2026-02-16T22:11:56+00:00",
+        "lower_bound": "2026-02-12T21:18:02+00:00",
+        "date": "2026-02-16T22:11:56+00:00",
+        "type": "order_window"
+      },
+      "total_items": 1,
+      "payment_methods": {
+        "PP": {
+          "meta": {
+            "logo_url": {
+              "large": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png",
+              "small": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png"
+            },
+            "payment_id": null,
+            "merchant_code": "PP",
+            "payment_gateway": "Cash on Delivery (COD)",
+            "payment_identifier": "rrqeu9sutMzUqaMIk6HOUYPp2"
+          },
+          "mode": "PP",
+          "name": "Partner Pay",
+          "amount": 10,
+          "refund_by": "seller",
+          "refund_to": "others",
+          "collect_by": "seller",
+          "display_name": "Partner Pay",
+          "base_currency_amount": 10
+        }
+      },
+      "payment_info": [
+        {
+          "meta": {
+            "logo_url": {
+              "large": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png",
+              "small": "https://cdn.pixelbin.io/v2/falling-surf-7c8bb8/fyprod/wrkr/payments/original/Az7lv_ytK-netbanking.png"
+            },
+            "payment_id": null,
+            "merchant_code": "PP",
+            "payment_gateway": "Cash on Delivery (COD)",
+            "payment_identifier": "rrqeu9sutMzUqaMIk6HOUYPp2"
+          },
+          "mode": "PP",
+          "name": "Partner Pay",
+          "amount": 10,
+          "refund_by": "seller",
+          "refund_to": "others",
+          "collect_by": "seller",
+          "display_name": "Partner Pay",
+          "base_currency_amount": 10
+        }
+      ],
+      "vertical": null,
+      "priority_text": "",
+      "status": {
+        "seller_qc_details": null,
+        "shipment_id": "17718404850311580665",
+        "created_at": "2026-02-23T16:10:20",
+        "created_ts": "2026-02-23T10:40:19Z",
+        "bag_list": [
+          "3769623"
+        ],
+        "status": "credit_note_generated",
+        "meta": {
+          "request_meta": {},
+          "state_manager_used": "entity",
+          "kafka_emission_status": 1,
+          "inventory_update_required": false,
+          "is_sla_enabled": false
+        },
+        "updated_ts": 1771843222,
+        "id": 5587252,
+        "display_name": "Credit Note Generated",
+        "current_shipment_status": "refund_initiated",
+        "status_created_at": "2026-02-23T16:10:19+00:00",
+        "name": "Refund Initiated "
+      },
+      "prices": {
+        "amount_paid": 10,
+        "refund_amount": 10,
+        "price_marked": 300,
+        "cod_charges": 0,
+        "coupon_value": 0,
+        "discount": 290,
+        "cashback_applied": 0,
+        "delivery_charge": 0,
+        "fynd_credits": 0,
+        "cashback": 0,
+        "price_effective": 10,
+        "refund_credit": 0,
+        "value_of_good": 9.52,
+        "pm_price_split": 0,
+        "brand_calculated_amount": 10,
+        "coupon_effective_discount": 0,
+        "tax_collected_at_source": 0,
+        "promotion_effective_discount": 0,
+        "cn_refund_amount": 0,
+        "loyalty_discount": 0,
+        "cost_price": 0
+      },
+      "waivers": [],
+      "ordering_currency_prices": {
+        "amount_paid": 10,
+        "refund_amount": 10,
+        "price_marked": 300,
+        "cod_charges": 0,
+        "coupon_value": 0,
+        "discount": 290,
+        "cashback_applied": 0,
+        "delivery_charge": 0,
+        "fynd_credits": 0,
+        "cashback": 0,
+        "price_effective": 10,
+        "refund_credit": 0,
+        "value_of_good": 9.52,
+        "pm_price_split": 0,
+        "brand_calculated_amount": 10,
+        "coupon_effective_discount": 0,
+        "tax_collected_at_source": 0,
+        "promotion_effective_discount": 0,
+        "cn_refund_amount": 0,
+        "loyalty_discount": 0,
+        "cost_price": 0
+      },
+      "coupon": {},
+      "tracking_list": [
+        {
+          "text": "Return Initiated",
+          "state": "Return Initiated",
+          "status": "Return Initiated",
+          "is_current": false,
+          "is_passed": true,
+          "time": "2026-02-23T15:24:45+00:00",
+          "created_ts": "2026-02-23T09:54:45Z"
+        },
+        {
+          "text": "Return Delivered",
+          "state": "Return Delivered",
+          "status": "Return Delivered",
+          "is_current": false,
+          "is_passed": true,
+          "time": "2026-02-23T16:10:01+00:00",
+          "created_ts": "2026-02-23T10:40:01Z"
+        },
+        {
+          "text": "Return Accepted",
+          "state": "Return Accepted",
+          "status": "Return Accepted",
+          "is_current": true,
+          "is_passed": true,
+          "time": "2026-02-23T16:10:19+00:00",
+          "created_ts": "2026-02-23T10:40:18Z"
+        }
+      ],
+      "user_agent": "axios/1.7.7",
+      "platform_logo": "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyprod/wrkr/misc/pictures/application-logos/original/olqHM8LNr-JioMart-Groceries.png",
+      "packaging_type": "System Default",
+      "enable_dp_tracking": false,
+      "invoice": {
+        "updated_date": "2026-02-16T02:26:26",
+        "updated_ts": "2026-02-15T20:56:26Z",
+        "store_invoice_id": "I00014066A000036",
+        "invoice_url": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+        "label_url": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+        "external_invoice_id": "",
+        "credit_note_id": "J00014066A000002",
+        "links": {
+          "label_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+          "label_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a6/PDFs/17708318940301766054_label_a6.pdf",
+          "label_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_pos/PDFs/17708318940301766054_label_pos.pdf",
+          "invoice_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+          "invoice_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a6/PDFs/17708318940301766054_invoice_a6.pdf",
+          "label_type": "fynd",
+          "invoice_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_pos/PDFs/17708318940301766054_invoice_pos.pdf",
+          "invoice_type": "fynd",
+          "credit_note_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/credit_note_a4/PDFs/17718404850311580665_credit_note_a4.pdf",
+          "invoicelabel_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a4/PDFs/17708318940301766054_invoicelabel_a4.pdf",
+          "invoicelabel_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a6/PDFs/17708318940301766054_invoicelabel_a6.pdf",
+          "invoicelabel_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_pos/PDFs/17708318940301766054_invoicelabel_pos.pdf"
+        }
+      },
+      "can_process": true,
+      "estimated_sla_time": null,
+      "estimated_sla_ts": null,
+      "tracking_url": "https://www.xpressbees.com/track?isawb=Yes&trackid=1387840005759",
+      "meta": {
+        "sla": 1770874200,
+        "tags": [
+          "Associate Order: LK232321",
+          "Exchange",
+          "On hold",
+          "Unlock"
+        ],
+        "weight": 40,
+        "external": {},
+        "vertical": "NA",
+        "dimension": {
+          "width": 18.17,
+          "height": 18.17,
+          "length": 18.17
+        },
+        "formatted": {
+          "max": "Mon, 16 Feb",
+          "min": "Thu, 12 Feb"
+        },
+        "lock_data": {
+          "mto": false,
+          "locked": false,
+          "lock_message": "Shipment locked as per application config"
+        },
+        "pdf_media": [
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+            "entity": "17708318940301766054",
+            "format": "A4",
+            "status": true,
+            "private": true,
+            "media_type": "invoice_a4"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/invoice_a6/PDFs/17708318940301766054_invoice_a6.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a6/PDFs/17708318940301766054_invoice_a6.pdf",
+            "entity": "17708318940301766054",
+            "format": "A6",
+            "status": true,
+            "private": true,
+            "media_type": "invoice_a6"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/invoice_pos/PDFs/17708318940301766054_invoice_pos.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_pos/PDFs/17708318940301766054_invoice_pos.pdf",
+            "entity": "17708318940301766054",
+            "format": "POS",
+            "status": true,
+            "private": true,
+            "media_type": "invoice_pos"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+            "entity": "17708318940301766054",
+            "format": "A4",
+            "status": true,
+            "private": true,
+            "media_type": "label_a4"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/label_a6/PDFs/17708318940301766054_label_a6.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a6/PDFs/17708318940301766054_label_a6.pdf",
+            "entity": "17708318940301766054",
+            "format": "A6",
+            "status": true,
+            "private": true,
+            "media_type": "label_a6"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/label_pos/PDFs/17708318940301766054_label_pos.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_pos/PDFs/17708318940301766054_label_pos.pdf",
+            "entity": "17708318940301766054",
+            "format": "POS",
+            "status": true,
+            "private": true,
+            "media_type": "label_pos"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/invoicelabel_a4/PDFs/17708318940301766054_invoicelabel_a4.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a4/PDFs/17708318940301766054_invoicelabel_a4.pdf",
+            "entity": "17708318940301766054",
+            "format": "A4",
+            "status": true,
+            "private": true,
+            "media_type": "invoicelabel_a4"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/invoicelabel_a6/PDFs/17708318940301766054_invoicelabel_a6.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a6/PDFs/17708318940301766054_invoicelabel_a6.pdf",
+            "entity": "17708318940301766054",
+            "format": "A6",
+            "status": true,
+            "private": true,
+            "media_type": "invoicelabel_a6"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/invoicelabel_pos/PDFs/17708318940301766054_invoicelabel_pos.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_pos/PDFs/17708318940301766054_invoicelabel_pos.pdf",
+            "entity": "17708318940301766054",
+            "format": "POS",
+            "status": true,
+            "private": true,
+            "media_type": "invoicelabel_pos"
+          },
+          {
+            "code": 200,
+            "file": {
+              "key": "x5/documents/credit_note_a4/PDFs/17718404850311580665_credit_note_a4.pdf",
+              "bucket": "fynd-staging-assets-private",
+              "region": "ap-south-1"
+            },
+            "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/credit_note_a4/PDFs/17718404850311580665_credit_note_a4.pdf",
+            "entity": "17718404850311580665",
+            "status": true,
+            "private": true,
+            "media_type": "credit_note_a4"
+          }
+        ],
+        "timestamp": {
+          "max": 1771279916,
+          "min": 1770931082
+        },
+        "bag_weight": {
+          "3769623": 40
+        },
+        "debug_info": {
+          "stormbreaker_uuid": ""
+        },
+        "dp_options": {},
+        "order_type": "HomeDelivery",
+        "dp_sort_key": null,
+        "forward_awb": "1387840005759",
+        "shop_domain": "fynd-store-1.myshopify.com",
+        "is_self_ship": false,
+        "packaging_id": "system_default",
+        "tracking_url": "https://www.xpressbees.com/track?isawb=Yes&trackid=1387840005759",
+        "ewaybill_info": {
+          "success": true
+        },
+        "shipment_cost": 10,
+        "shipment_tags": [
+          {
+            "slug": "Associate Order: LK232321",
+            "display_text": "Associate Order: LK232321"
+          },
+          {
+            "slug": "Exchange",
+            "display_text": "Exchange"
+          },
+          {
+            "slug": "On hold",
+            "display_text": "On hold"
+          },
+          {
+            "slug": "Unlock",
+            "display_text": "Unlock"
+          }
+        ],
+        "shipment_type": "3P",
+        "delivery_slots": {},
+        "is_own_account": false,
+        "packaging_name": "System Default",
+        "payment_status": "Paid",
+        "system_messages": [],
+        "fulfillment_tags": [],
+        "is_international": false,
+        "packaging_weight": null,
+        "processing_dates": null,
+        "shopify_return_id": "28290908310",
+        "affiliate_store_id": "67361407126",
+        "first_time_sb_call": true,
+        "is_export_shipment": false,
+        "is_label_generated": true,
+        "is_invoice_generated": true,
+        "packaging_error_rate": null,
+        "packaging_vol_weight": null,
+        "process_after_config": null,
+        "same_store_available": true,
+        "comms_delivery_status": {
+          "delay_delivery_comms_sent": true
+        },
+        "shopify_return_status": "OPEN",
+        "credit_note_updated_ts": "2026-02-23T10:40:18Z",
+        "mop_refund_status_flag": {
+          "PPrrqeu9sutMzUqaMIk6HOUYPp2": false
+        },
+        "fulfill_virtual_invoice": true,
+        "shipping_label_provided": false,
+        "credit_note_updated_date": "2026-02-23 16:10:18.764312+05:30",
+        "fulfilment_priority_text": "",
+        "store_invoice_updated_ts": "2026-02-15T20:56:26Z",
+        "store_invoice_updated_date": "2026-02-16T02:26:26+00:00",
+        "affiliate_primary_identifier": 7411776651414,
+        "E-invoice_applicable_response": {
+          "message": "Shipment is not applicable for E-invoice generation as buyer GSTIN not present",
+          "is_applicable": false
+        },
+        "auto_trigger_dp_assignment_ACF": true,
+        "E-credit_note_applicable_response": {
+          "message": "Shipment is not applicable for E-invoice generation as buyer GSTIN not present",
+          "is_applicable": false
+        },
+        "eligible_for_split": false
+      },
+      "shipment_created_at": "2026-02-23T15:24:45+00:00",
+      "shipment_created_ts": "2026-02-23T09:54:45Z",
+      "mark_as_returnable": false,
+      "ordering_store": {},
+      "order_platform": null,
+      "custom_meta": [],
+      "dp_assignment": true,
+      "order_source_domain": "",
+      "is_dp_assign_enabled": false,
+      "lock_status": false,
+      "can_update_dimension": false,
+      "affiliate_details": {
+        "id": "67a09b70c8ea7c9123f00fab",
+        "affiliate_bag_id": "3769623",
+        "affiliate_order_id": "FYNDSHOPIFYX14083",
+        "company_affiliate_tag": "Order Poll",
+        "affiliate_id": "67a09b70c8ea7c9123f00fab",
+        "affiliate_shipment_id": "17708318940301766054",
+        "shipment_meta": {
+          "sla": 1770874200,
+          "tags": [
+            "Associate Order: LK232321",
+            "Exchange",
+            "On hold",
+            "Unlock"
+          ],
+          "weight": 40,
+          "external": {},
+          "vertical": "NA",
+          "dimension": {
+            "width": 18.17,
+            "height": 18.17,
+            "length": 18.17
+          },
+          "formatted": {
+            "max": "Mon, 16 Feb",
+            "min": "Thu, 12 Feb"
+          },
+          "lock_data": {
+            "mto": false,
+            "locked": false,
+            "lock_message": "Shipment locked as per application config"
+          },
+          "pdf_media": [
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+              "entity": "17708318940301766054",
+              "format": "A4",
+              "status": true,
+              "private": true,
+              "media_type": "invoice_a4"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/invoice_a6/PDFs/17708318940301766054_invoice_a6.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a6/PDFs/17708318940301766054_invoice_a6.pdf",
+              "entity": "17708318940301766054",
+              "format": "A6",
+              "status": true,
+              "private": true,
+              "media_type": "invoice_a6"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/invoice_pos/PDFs/17708318940301766054_invoice_pos.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_pos/PDFs/17708318940301766054_invoice_pos.pdf",
+              "entity": "17708318940301766054",
+              "format": "POS",
+              "status": true,
+              "private": true,
+              "media_type": "invoice_pos"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+              "entity": "17708318940301766054",
+              "format": "A4",
+              "status": true,
+              "private": true,
+              "media_type": "label_a4"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/label_a6/PDFs/17708318940301766054_label_a6.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a6/PDFs/17708318940301766054_label_a6.pdf",
+              "entity": "17708318940301766054",
+              "format": "A6",
+              "status": true,
+              "private": true,
+              "media_type": "label_a6"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/label_pos/PDFs/17708318940301766054_label_pos.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_pos/PDFs/17708318940301766054_label_pos.pdf",
+              "entity": "17708318940301766054",
+              "format": "POS",
+              "status": true,
+              "private": true,
+              "media_type": "label_pos"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/invoicelabel_a4/PDFs/17708318940301766054_invoicelabel_a4.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a4/PDFs/17708318940301766054_invoicelabel_a4.pdf",
+              "entity": "17708318940301766054",
+              "format": "A4",
+              "status": true,
+              "private": true,
+              "media_type": "invoicelabel_a4"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/invoicelabel_a6/PDFs/17708318940301766054_invoicelabel_a6.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a6/PDFs/17708318940301766054_invoicelabel_a6.pdf",
+              "entity": "17708318940301766054",
+              "format": "A6",
+              "status": true,
+              "private": true,
+              "media_type": "invoicelabel_a6"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/invoicelabel_pos/PDFs/17708318940301766054_invoicelabel_pos.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_pos/PDFs/17708318940301766054_invoicelabel_pos.pdf",
+              "entity": "17708318940301766054",
+              "format": "POS",
+              "status": true,
+              "private": true,
+              "media_type": "invoicelabel_pos"
+            },
+            {
+              "code": 200,
+              "file": {
+                "key": "x5/documents/credit_note_a4/PDFs/17718404850311580665_credit_note_a4.pdf",
+                "bucket": "fynd-staging-assets-private",
+                "region": "ap-south-1"
+              },
+              "link": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/credit_note_a4/PDFs/17718404850311580665_credit_note_a4.pdf",
+              "entity": "17718404850311580665",
+              "status": true,
+              "private": true,
+              "media_type": "credit_note_a4"
+            }
+          ],
+          "timestamp": {
+            "max": 1771279916,
+            "min": 1770931082
+          },
+          "bag_weight": {
+            "3769623": 40
+          },
+          "debug_info": {
+            "stormbreaker_uuid": ""
+          },
+          "dp_options": {},
+          "order_type": "HomeDelivery",
+          "dp_sort_key": null,
+          "forward_awb": "1387840005759",
+          "shop_domain": "fynd-store-1.myshopify.com",
+          "is_self_ship": false,
+          "packaging_id": "system_default",
+          "tracking_url": "https://www.xpressbees.com/track?isawb=Yes&trackid=1387840005759",
+          "ewaybill_info": {
+            "success": true
+          },
+          "shipment_cost": 10,
+          "shipment_tags": [
+            {
+              "slug": "Associate Order: LK232321",
+              "display_text": "Associate Order: LK232321"
+            },
+            {
+              "slug": "Exchange",
+              "display_text": "Exchange"
+            },
+            {
+              "slug": "On hold",
+              "display_text": "On hold"
+            },
+            {
+              "slug": "Unlock",
+              "display_text": "Unlock"
+            }
+          ],
+          "shipment_type": "3P",
+          "delivery_slots": {},
+          "is_own_account": false,
+          "packaging_name": "System Default",
+          "payment_status": "Paid",
+          "system_messages": [],
+          "fulfillment_tags": [],
+          "is_international": false,
+          "packaging_weight": null,
+          "processing_dates": null,
+          "shopify_return_id": "28290908310",
+          "affiliate_store_id": "67361407126",
+          "first_time_sb_call": true,
+          "is_export_shipment": false,
+          "is_label_generated": true,
+          "is_invoice_generated": true,
+          "packaging_error_rate": null,
+          "packaging_vol_weight": null,
+          "process_after_config": null,
+          "same_store_available": true,
+          "comms_delivery_status": {
+            "delay_delivery_comms_sent": true
+          },
+          "shopify_return_status": "OPEN",
+          "credit_note_updated_ts": "2026-02-23T10:40:18Z",
+          "mop_refund_status_flag": {
+            "PPrrqeu9sutMzUqaMIk6HOUYPp2": false
+          },
+          "fulfill_virtual_invoice": true,
+          "shipping_label_provided": false,
+          "credit_note_updated_date": "2026-02-23 16:10:18.764312+05:30",
+          "fulfilment_priority_text": "",
+          "store_invoice_updated_ts": "2026-02-15T20:56:26Z",
+          "store_invoice_updated_date": "2026-02-16T02:26:26+00:00",
+          "affiliate_primary_identifier": 7411776651414,
+          "E-invoice_applicable_response": {
+            "message": "Shipment is not applicable for E-invoice generation as buyer GSTIN not present",
+            "is_applicable": false
+          },
+          "auto_trigger_dp_assignment_ACF": true,
+          "E-credit_note_applicable_response": {
+            "message": "Shipment is not applicable for E-invoice generation as buyer GSTIN not present",
+            "is_applicable": false
+          },
+          "eligible_for_split": false,
+          "auto_trigger_dp_assignment_acf": true
+        },
+        "affiliate_meta": {
+          "fynd": {
+            "fulfilment_identifier": "pulse",
+            "fulfilment_identifiers_list": [
+              "pulse"
+            ]
+          },
+          "channel_shipment_id": null,
+          "channel_order_id": null,
+          "due_date": null,
+          "is_priority": false,
+          "box_type": null,
+          "coupon_code": null,
+          "affiliate_line_id": 16839251460246,
+          "shop_domain": "fynd-store-1.myshopify.com",
+          "affiliate_sku": "EAN_L_AUTOINVOICE_CHICKEN_0104151436",
+          "affiliate_primary_identifier": 7411776651414,
+          "note_attributes": [],
+          "size_level_total_qty": null,
+          "loyalty_discount": 0,
+          "employee_discount": 0,
+          "affiliate_location_id": 67361407126,
+          "affiliate_fulfillement_id": 6613003665558
+        },
+        "affiliate_store_id": "67361407126",
+        "pdf_links": {
+          "label_type": "fynd",
+          "invoice_type": "fynd",
+          "invoice_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+          "invoice_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a6/PDFs/17708318940301766054_invoice_a6.pdf",
+          "invoice_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_pos/PDFs/17708318940301766054_invoice_pos.pdf",
+          "label_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+          "label_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a6/PDFs/17708318940301766054_label_a6.pdf",
+          "label_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_pos/PDFs/17708318940301766054_label_pos.pdf",
+          "invoicelabel_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a4/PDFs/17708318940301766054_invoicelabel_a4.pdf",
+          "invoicelabel_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a6/PDFs/17708318940301766054_invoicelabel_a6.pdf",
+          "invoicelabel_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_pos/PDFs/17708318940301766054_invoicelabel_pos.pdf",
+          "credit_note_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/credit_note_a4/PDFs/17718404850311580665_credit_note_a4.pdf"
+        },
+        "config": {
+          "id": "67a09b70c8ea7c9123f00fab",
+          "meta": [
+            {
+              "name": "shipment_lock_states",
+              "value": [
+                "dp_assigned"
+              ]
+            },
+            {
+              "name": "lock_state_messages",
+              "value": []
+            }
+          ],
+          "name": "Order Poll",
+          "token": null,
+          "dp_assignment": true,
+          "app_company_id": 2263,
+          "article_assignment": {},
+          "force_reassignment": false,
+          "sales_channel_logo": "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyprod/wrkr/misc/pictures/application-logos/original/olqHM8LNr-JioMart-Groceries.png",
+          "ordering_channel_logo": "",
+          "post_order_reassignment": false
+        }
+      },
+      "shipment_details": {
+        "lock_message": "",
+        "action_to_status": {},
+        "lock_status": false
+      },
+      "actionable": true,
+      "transition_config": {
+        "rto_in_transit": {
+          "can_break_entity": false
+        },
+        "rto_bag_delivered": {
+          "can_break_entity": false
+        },
+        "dp_assigned": {
+          "can_break_entity": false
+        },
+        "bag_picked": {
+          "can_break_entity": false
+        },
+        "delivery_done": {
+          "can_break_entity": true
+        },
+        "cancelled_fynd": {
+          "can_break_entity": true
+        },
+        "return_bag_delivered": {
+          "can_break_entity": false
+        },
+        "cancelled_at_dp": {
+          "can_break_entity": false
+        },
+        "dp_not_assigned": {
+          "can_break_entity": false
+        },
+        "refund_pending": {
+          "can_break_entity": false
+        },
+        "manual_refund": {
+          "can_break_entity": false
+        },
+        "refund_initiated": {
+          "can_break_entity": false
+        },
+        "refund_completed": {
+          "can_break_entity": false
+        },
+        "refund_failed": {
+          "can_break_entity": false
+        },
+        "refund_retry": {
+          "can_break_entity": false
+        },
+        "refund_on_hold": {
+          "can_break_entity": false
+        },
+        "refund_acknowledged": {
+          "can_break_entity": false
+        },
+        "refund_pending_for_approval": {
+          "can_break_entity": false
+        },
+        "refund_approved": {
+          "can_break_entity": false
+        },
+        "beneficiary_awaited": {
+          "can_break_entity": false
+        }
+      },
+      "next_possible_states": {
+        "bag_invoiced": [
+          {
+            "text": "Invoice Id",
+            "value": "store_invoice_id",
+            "type": "text",
+            "options": null
+          }
+        ]
+      },
+      "payment_mode": "PREPAID",
+      "rto_address": {
+        "store_address_json": {
+          "version": "1.0",
+          "contact_person": "Sujoy Dev",
+          "address": "b-606,",
+          "address1": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia",
+          "address2": "sdsv",
+          "name": "Sujoy Dev",
+          "area": "",
+          "area_code": "",
+          "area_code_slug": "",
+          "landmark": "sdvSFV",
+          "city": "Mumbai",
+          "state": "Maharashtra",
+          "country": "India",
+          "pincode": "400001",
+          "longitude": 72.836334,
+          "sector": "",
+          "latitude": 18.9385352,
+          "phone": "917700059124",
+          "email": "sujoydev@gofynd.com",
+          "address_type": "store",
+          "address_category": "store",
+          "created_at": "2026-02-23 15:24:45",
+          "updated_at": "2026-02-23 15:24:45",
+          "country_phone_code": null,
+          "country_iso_code": "IN",
+          "country_code": "IN",
+          "phone_number": "7700059124",
+          "address_meta": {},
+          "display_address": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia"
+        },
+        "location_type": "warehouse",
+        "code": "HS-4c312",
+        "id": 14066,
+        "name": "RTI Father",
+        "company_id": 2263,
+        "address1": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia",
+        "address2": "sdsv",
+        "display_address": "b-606, sdsv\nsdvSFV\nMumbai Maharashtra 400001\nIndia",
+        "city": "Mumbai",
+        "state": "Maharashtra",
+        "sector": "",
+        "country": "India",
+        "pincode": "400001",
+        "store_email": "sujoydev@gofynd.com",
+        "contact_person": "Sujoy Dev",
+        "phone": "917700059124"
+      },
+      "shipment_status": "credit_note_generated",
+      "previous_shipment_id": "17708318940301766054",
+      "forward_end_shipment_id": "17708318940301766054",
+      "is_processing": false,
+      "total_bag_qty": 1,
+      "order_created_time": "2026-02-11T23:14:54+00:00",
+      "order_created_ts": "2026-02-11T17:44:54Z",
+      "company": {
+        "company_name": "Konnect-Parent",
+        "meta": {
+          "address": [
+            {
+              "country_code": "IN",
+              "country": "INDIA",
+              "address_type": "registered",
+              "pincode": 400093,
+              "address1": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+              "state": "MAHARASHTRA",
+              "city": "MUMBAI",
+              "country_iso_code": "IN",
+              "display_address": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+              "latitude": 19.0653252,
+              "longitude": 72.8423802
+            },
+            {
+              "country_code": "IN",
+              "country": "INDIA",
+              "address_type": "registered",
+              "pincode": 400093,
+              "address1": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+              "state": "MAHARASHTRA",
+              "city": "MUMBAI",
+              "country_iso_code": "IN",
+              "display_address": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+              "latitude": 19.0653252,
+              "longitude": 72.8423802
+            }
+          ],
+          "notification_emails": [
+            "sujoydev@gofynd.com"
+          ],
+          "stage": null,
+          "business_info": ",jj",
+          "business_details": {},
+          "contact_details": {
+            "phone": [
+              {
+                "country_code": 91,
+                "number": "9898032852"
+              }
+            ],
+            "emails": [
+              "estore.support@jadeblue.com"
+            ]
+          },
+          "documents": {
+            "pan": {
+              "legal_name": "RJ CORP LIMITED",
+              "value": "AAACA2573R",
+              "url": "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyndnp/wrkr/x5/company/2263/self/legal/documents/free/original/MGcKuXU-l-d5TamMB62-Kaya-PAN-Card.pdf",
+              "type": "pan",
+              "verified": true
+            },
+            "gst": {
+              "legal_name": "RJ CORP LIMITED",
+              "value": "19AAACA2573R1Z6",
+              "type": "gst",
+              "verified": true,
+              "url": null
+            }
+          }
+        },
+        "gst_number": "19AAACA2573R1Z6",
+        "business_country_currency": {
+          "code": "INR",
+          "name": "Indian Rupee",
+          "symbol": "₹"
+        },
+        "id": 2263,
+        "company_type": "mbo",
+        "business_type": "Private",
+        "business_country_timezone": "Asia/Kolkata",
+        "pan_no": "AAACA2573R",
+        "modified_on": "2024-07-31T08:23:32+00:00",
+        "created_on": "2023-09-22T09:41:07+00:00",
+        "agreement_start_date": "1970-01-01T00:00:00+00:00",
+        "company_cin": null,
+        "address": {
+          "country_code": "IN",
+          "country": "INDIA",
+          "address_type": "registered",
+          "pincode": 400093,
+          "address1": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+          "state": "MAHARASHTRA",
+          "city": "MUMBAI",
+          "country_iso_code": "IN",
+          "display_address": "B-606,\nMUMBAI MAHARASHTRA 400093\nINDIA",
+          "latitude": 19.0653252,
+          "longitude": 72.8423802
+        },
+        "company_gst": "19AAACA2573R1Z6",
+        "company_contact": {
+          "phone": [
+            {
+              "country_code": 91,
+              "number": "9898032852"
+            }
+          ],
+          "emails": [
+            "estore.support@jadeblue.com"
+          ]
+        }
+      },
+      "fyndstore_emp": {},
+      "is_not_fynd_source": true,
+      "is_fynd_coupon": false,
+      "order_status": {
+        "text": "Expected Delivery Date",
+        "value": "Arriving on 16 Feb 2026 22:11:56",
+        "color_code": "#00a100",
+        "expected_delivery_date": "2026-02-16T22:11:56+00:00"
+      },
+      "user_id": null,
+      "email_id": "tanishqbhatia@gmail.com",
+      "escalation": null,
+      "beneficiary_details": false,
+      "is_lapa_enabled": true,
+      "can_break": null,
+      "affiliate_shipment_id": null,
+      "credit_note_id": "J00014066A000002",
+      "is_packaging_order": false,
+      "delivery_status": [
+        {
+          "title": "Processing",
+          "type": "processing",
+          "state": false
+        },
+        {
+          "title": "In Transit",
+          "type": "in transit",
+          "state": false
+        },
+        {
+          "title": "Delivered",
+          "type": "delivered",
+          "state": false
+        }
+      ],
+      "current_shipment_status": {
+        "seller_qc_details": null,
+        "shipment_id": "17718404850311580665",
+        "created_at": "2026-02-23T16:10:20",
+        "created_ts": "2026-02-23T10:40:19Z",
+        "bag_list": [
+          "3769623"
+        ],
+        "status": "credit_note_generated",
+        "meta": {
+          "request_meta": {},
+          "state_manager_used": "entity",
+          "kafka_emission_status": 1,
+          "inventory_update_required": false,
+          "is_sla_enabled": false
+        },
+        "updated_ts": 1771843222,
+        "id": 5587252,
+        "display_name": "Credit Note Generated",
+        "current_shipment_status": "refund_initiated",
+        "status_created_at": "2026-02-23T16:10:19+00:00",
+        "name": "Refund Initiated "
+      },
+      "order_type": "return",
+      "can_cancel": false,
+      "enable_tracking": false,
+      "can_return": false,
+      "is_invoiced": true,
+      "child_nodes": [],
+      "user_info": {
+        "gender": null,
+        "mobile": "9231313131",
+        "email": "tanishqbhatia@gmail.com",
+        "name": "Tanishq Bhatia"
+      },
+      "status_progress": 0,
+      "items": [
+        {
+          "skucode": "BK_Chicken_0104151436",
+          "company_name": "Konnect-Parent",
+          "brand_name": "Adidas Kids",
+          "item_name": "Chicken_0104151436",
+          "seller_name": "RTI Father",
+          "total_quantity": 1,
+          "image": [
+            "https://cdn.fynd.com/v2/falling-surf-7c8bb8/fyndnp/wrkr/x5/products/pictures/item/free/270x0/j9bJuwDnH-BACDE.png"
+          ],
+          "size_info": {
+            "L": {
+              "size_type": "L",
+              "price_effective": 10,
+              "amount_paid": 10,
+              "refund_amount": 10,
+              "price_marked": 300,
+              "delivery_charge": 0,
+              "margin": 96.67,
+              "price_effective_display": "10.00",
+              "price_marked_display": "10.00",
+              "quantities": 1,
+              "bag_ids": [
+                3769623
+              ],
+              "sku_code": null,
+              "discount": 290,
+              "coupon_effective_discount": 0
+            }
+          },
+          "item_slug": "chicken_0104151436-11525507",
+          "item_id": 11525507,
+          "can_return": false,
+          "can_cancel": false,
+          "allow_force_return": false,
+          "penny_validation": null,
+          "l3_category": 2167,
+          "product_status": "RETURN",
+          "refund_text": null,
+          "prices": {
+            "size_type": "L",
+            "price_effective": 10,
+            "amount_paid": 10,
+            "refund_amount": 10,
+            "price_marked": 300,
+            "delivery_charge": 0,
+            "margin": 96.67,
+            "price_effective_display": "10.00",
+            "price_marked_display": "300.00",
+            "quantities": 1,
+            "bag_ids": [
+              3769623
+            ],
+            "sku_code": null,
+            "discount": 290,
+            "coupon_effective_discount": 0
+          },
+          "item_refunds": [
+            {
+              "refund_amt": 10,
+              "refund_type": "RETURN",
+              "refund_date": 1771863020,
+              "refund_qty": 1,
+              "refund_status": "UNDER PROCESS"
+            }
+          ],
+          "total_detail": {
+            "total_price": "10.00",
+            "sizes": 1,
+            "pieces": 1
+          }
+        }
+      ],
+      "refund_details": [
+        {
+          "refund_amt": 10,
+          "refund_date": 1771863020,
+          "refund_rrn": "",
+          "refund_text": "UNDER PROCESS",
+          "refund_type": ""
+        }
+      ],
+      "pdf_links": {
+        "label_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a4/PDFs/17708318940301766054_label_a4.pdf",
+        "label_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_a6/PDFs/17708318940301766054_label_a6.pdf",
+        "label_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/label_pos/PDFs/17708318940301766054_label_pos.pdf",
+        "invoice_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a4/PDFs/17708318940301766054_invoice_a4.pdf",
+        "invoice_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_a6/PDFs/17708318940301766054_invoice_a6.pdf",
+        "label_type": "fynd",
+        "invoice_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoice_pos/PDFs/17708318940301766054_invoice_pos.pdf",
+        "invoice_type": "fynd",
+        "credit_note_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/credit_note_a4/PDFs/17718404850311580665_credit_note_a4.pdf",
+        "invoicelabel_a4": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a4/PDFs/17708318940301766054_invoicelabel_a4.pdf",
+        "invoicelabel_a6": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_a6/PDFs/17708318940301766054_invoicelabel_a6.pdf",
+        "invoicelabel_pos": "https://storage.googleapis.com/fynd-staging-assets-private/x5/documents/invoicelabel_pos/PDFs/17708318940301766054_invoicelabel_pos.pdf"
+      },
+      "is_self_ship": false,
+      "mode_of_payment": "ECOMM",
+      "currency": {
+        "currency_code": "INR",
+        "currency_symbol": "INR"
+      },
+      "currency_info": {
+        "ordering_currency": {
+          "currency_code": "INR",
+          "currency_name": "",
+          "currency_symbol": "INR",
+          "currency_sub_unit": ""
+        },
+        "conversion_rate": {
+          "base": "INR",
+          "rates": {
+            "INR": {
+              "name": "",
+              "value": 1,
+              "symbol": "INR",
+              "sub_unit": ""
+            }
+          },
+          "timestamp": 1770831891685
+        }
+      },
+      "charges": [],
+      "packages": [
+        {
+          "id": "PK0000083322",
+          "name": "System Default",
+          "width": 18.17,
+          "height": 18.17,
+          "length": 18.17,
+          "weight": 40,
+          "products": [
+            {
+              "quantity": 1,
+              "identifier": "EAN_L_AUTOINVOICE_CHICKEN_0104151436",
+              "line_number": 1
+            }
+          ],
+          "pdf_links": {},
+          "error_rate": null,
+          "packaging_id": "system_default",
+          "package_vol_weight": null
+        }
+      ]
+    }
+  ],
+  "total_count": 1,
+  "page": {
+    "current": 1,
+    "total": 1,
+    "has_previous": false,
+    "has_next": false,
+    "type": "number",
+    "size": 100
+  }
+}

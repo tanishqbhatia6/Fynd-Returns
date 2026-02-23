@@ -309,7 +309,10 @@ export function getPickupAddressFromFyndPayload(fyndPayloadJson: string | null |
 export type FyndOrderDetailsTab = {
   fyndOrderId: string | null;
   shipments: Array<{
+    /** Return/current shipment ID (shipment_id in API) */
     shipmentId: string;
+    /** Original forward delivery shipment ID (forward_shipment_id in API) */
+    forwardShipmentId: string | null;
     cpName: string | null;
     forwardAwb: string | null;
     trackingUrl: string | null;
@@ -356,8 +359,11 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
     const payload = JSON.parse(fyndPayloadJson) as unknown;
     const list = normalizeFyndPayload(payload);
     const first = list[0] as Record<string, unknown> | undefined;
+    const orderFromFirst = (first?.order as Record<string, unknown>) ?? {};
     const fyndOrderId = first
-      ? String(first.order_id ?? first.orderId ?? first.id ?? first.channel_order_id ?? first.affiliate_order_id ?? "")
+      ? String(
+          first.order_id ?? first.orderId ?? first.channel_order_id ?? orderFromFirst.fynd_order_id ?? orderFromFirst.affiliate_order_id ?? first.affiliate_order_id ?? first.id ?? ""
+        )
       : null;
     const shipments = list.map((item) => {
       const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
@@ -515,8 +521,12 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
           shippingCharges: toNumStr(orderPriceShipping) ?? undefined,
         };
       });
+      const forwardShipmentIdVal = raw.forward_shipment_id ?? raw.forwardShipmentId;
+      const forwardShipmentIdStr = forwardShipmentIdVal != null ? String(forwardShipmentIdVal).trim() : null;
+      const returnShipmentId = raw.shipment_id ?? raw.shipmentId ?? raw.id ?? raw.channel_shipment_id;
       return {
-        shipmentId: String(raw.id ?? raw.shipment_id ?? raw.shipmentId ?? raw.channel_shipment_id ?? "—"),
+        shipmentId: String(returnShipmentId ?? "—"),
+        forwardShipmentId: forwardShipmentIdStr || null,
         cpName: cpName ?? null,
         forwardAwb: awbStr ?? null,
         trackingUrl: trackingUrlStr,

@@ -62,6 +62,7 @@ type ShipmentPricing = {
 
 type ShipmentForRow = {
   shipmentId: string;
+  forwardShipmentId: string | null;
   cpName: string | null;
   forwardAwb: string | null;
   trackingUrl: string | null;
@@ -96,7 +97,14 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, flex: 1, minWidth: 0 }}>
           <span style={{ fontWeight: 600, fontSize: 13 }}>Shipment {index + 1}</span>
-          <span style={{ fontFamily: "monospace", fontSize: 12, color: "#6d7175" }}>{s.shipmentId}</span>
+          {s.forwardShipmentId && (
+            <span style={{ fontSize: 12 }} title="Original delivery shipment">
+              <span style={{ color: "#6d7175" }}>Forward:</span> <code style={{ fontFamily: "monospace", background: "var(--rpm-surface)", padding: "2px 6px", borderRadius: 4 }}>{s.forwardShipmentId}</code>
+            </span>
+          )}
+          <span style={{ fontSize: 12 }} title="Return shipment">
+            <span style={{ color: "#6d7175" }}>Return:</span> <code style={{ fontFamily: "monospace", background: "var(--rpm-surface)", padding: "2px 6px", borderRadius: 4 }}>{s.shipmentId}</code>
+          </span>
           {safeStr(s.cpName) && <span style={{ fontSize: 13 }}>{safeStr(s.cpName)}</span>}
           {safeStr(s.forwardAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>AWB: {safeStr(s.forwardAwb)}</span>}
           {safeStr(s.shipmentStatus) && (
@@ -110,6 +118,10 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
       {expanded && (
         <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
+            {s.forwardShipmentId && (
+              <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward Shipment ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.forwardShipmentId}</div></div>
+            )}
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Return Shipment ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.shipmentId}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Logistics Partner</div><div style={{ fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.forwardAwb) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Tracking</div><div style={{ fontSize: 13 }}>
@@ -616,6 +628,22 @@ export default function ReturnDetail() {
                 {fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}
               </div>
             </div>
+            {(fyndOrderDetailsTab?.shipments?.[0] as { forwardShipmentId?: string | null })?.forwardShipmentId && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Forward Shipment ID</div>
+                <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                  {(fyndOrderDetailsTab?.shipments?.[0] as { forwardShipmentId?: string | null })?.forwardShipmentId}
+                </div>
+              </div>
+            )}
+            {((returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || (fyndOrderDetailsTab?.shipments?.[0] as { shipmentId?: string })?.shipmentId) && (
+              <div>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Return Shipment ID</div>
+                <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                  {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || (fyndOrderDetailsTab?.shipments?.[0] as { shipmentId?: string })?.shipmentId}
+                </div>
+              </div>
+            )}
             {((returnCase as { fyndReturnId?: string | null }).fyndReturnId || (returnCase as { fyndReturnNo?: string | null }).fyndReturnNo) && (
               <>
                 {(returnCase as { fyndReturnId?: string | null }).fyndReturnId && (
@@ -635,14 +663,6 @@ export default function ReturnDetail() {
                   </div>
                 )}
               </>
-            )}
-            {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && (
-              <div>
-                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Shipment ID</div>
-                <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
-                  {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId}
-                </div>
-              </div>
             )}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: fyndOrderDetailsTab?.shipments?.length ? 16 : 0 }}>

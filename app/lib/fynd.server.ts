@@ -77,6 +77,68 @@ export async function fetchFyndPlatformToken(
   return data.access_token;
 }
 
+/**
+ * Test Platform connection using raw OAuth + fetch (same flow as CURL).
+ * Bypasses FDK to avoid 403 when FDK uses different auth/signing.
+ */
+export async function testPlatformConnectionRaw(
+  settings: {
+    fyndEnvironment?: string | null;
+    fyndCustomBaseUrl?: string | null;
+    fyndCompanyId?: string | null;
+    fyndApplicationId?: string | null;
+    fyndCredentials?: string | null;
+  },
+  log?: FyndLogFn
+): Promise<{ ok: true; warning?: string } | { ok: false; error: string }> {
+  const baseUrl = getFyndBaseUrl(settings);
+  const companyId = settings?.fyndCompanyId?.trim();
+  const applicationId = settings?.fyndApplicationId?.trim();
+  if (!companyId || !applicationId) {
+    return { ok: false, error: "Company ID and Application ID are required." };
+  }
+  const parsed = parseStoredCredentials(settings.fyndCredentials, log);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const platform = parsed.credentials.platform;
+  if (!platform) {
+    return { ok: false, error: "Platform credentials (Client ID & Secret) are required." };
+  }
+
+  try {
+    const token = await fetchFyndPlatformToken(baseUrl, companyId, platform.clientId, platform.clientSecret, log);
+    const path = `/service/platform/order/v1.0/company/${companyId}/application/${applicationId}/orders/shipments/reasons/return`;
+    const url = `${baseUrl}${path}`;
+    log?.("fynd-test-raw", "Request", `GET ${path}`);
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+    });
+    const text = await res.text();
+    log?.("fynd-test-raw", "Response", `status=${res.status}`);
+    if (res.ok) {
+      return { ok: true };
+    }
+    if (res.status === 404) {
+      return { ok: true, warning: "Credentials valid. Return reasons endpoint not available in this Fynd environment—using admin-configured reasons." };
+    }
+    const hint =
+      res.status === 401
+        ? " Check Company ID, Client ID & Secret."
+        : res.status === 403
+          ? " Your OAuth app needs company/orders/read and company/orders/write scopes in Fynd Partners."
+          : res.status >= 500
+            ? " Fynd server error. Try again later."
+            : "";
+    return { ok: false, error: `Fynd API ${res.status}: ${(text || "Unknown error").slice(0, 150)}${hint}` };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, error: msg };
+  }
+}
+
 export class FyndPlatformClient {
   constructor(
     private baseUrl: string,

@@ -4,7 +4,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
-import { createFyndClientOrError, getNormalizedCredentialsFromRaw } from "../lib/fynd.server";
+import { createFyndClientOrError, getNormalizedCredentialsFromRaw, testPlatformConnectionRaw } from "../lib/fynd.server";
 import { createFyndLogger } from "../lib/fynd-logger.server";
 import { FYND_ENVIRONMENTS, getAppMode } from "../lib/fynd-config.server";
 import { sanitizeCredentialInputs } from "../lib/credential-validation.server";
@@ -159,14 +159,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const requirePlatform = intent === "test_platform";
       const requireStorefront = intent === "test_storefront";
 
+      if (requirePlatform) {
+        const rawResult = await testPlatformConnectionRaw(
+          { ...envSettings, fyndCompanyId: companyId, fyndApplicationId: applicationId, fyndCredentials: creds },
+          log
+        );
+        if (rawResult.ok) {
+          const msg = rawResult.warning
+            ? `Platform API connection successful. ${rawResult.warning}`
+            : "Platform API connection successful.";
+          return { success: true, testResult: true, testMessage: msg, debugLogs: logs };
+        }
+        return { success: false, error: rawResult.error, testResult: false, debugLogs: logs };
+      }
+
+      if (requireStorefront) {
         const result = await createFyndClientOrError(
           { ...envSettings, fyndCompanyId: companyId, fyndApplicationId: applicationId, fyndCredentials: creds },
-          { requirePlatform, requireStorefront, log }
+          { requireStorefront: true, log }
         );
         if (!result.ok) return { success: false, error: result.error, testResult: false, debugLogs: logs };
         try {
           const testResult = "testConnection" in result.client ? await result.client.testConnection() : null;
-          const baseMsg = requirePlatform ? "Platform API connection successful." : requireStorefront ? "Storefront API connection successful." : "Connection successful.";
+          const baseMsg = "Storefront API connection successful.";
           const msg = testResult && typeof testResult === "object" && "warning" in testResult && testResult.warning
             ? `${baseMsg} ${testResult.warning}`
             : baseMsg;
@@ -175,6 +190,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           const errMsg = err instanceof Error ? err.message : "Connection failed.";
           return { success: false, error: errMsg, testResult: false, debugLogs: logs };
         }
+      }
+
+      const result = await createFyndClientOrError(
+        { ...envSettings, fyndCompanyId: companyId, fyndApplicationId: applicationId, fyndCredentials: creds },
+        { log }
+      );
+      if (!result.ok) return { success: false, error: result.error, testResult: false, debugLogs: logs };
+      try {
+        const testResult = "testConnection" in result.client ? await result.client.testConnection() : null;
+        const baseMsg = "Connection successful.";
+        const msg = testResult && typeof testResult === "object" && "warning" in testResult && testResult.warning
+          ? `${baseMsg} ${testResult.warning}`
+          : baseMsg;
+        return { success: true, testResult: true, testMessage: msg, debugLogs: logs };
+      } catch (err) {
+        const errMsg = err instanceof Error ? err.message : "Connection failed.";
+        return { success: false, error: errMsg, testResult: false, debugLogs: logs };
+      }
     }
 
     if (intent === "clear_token") {

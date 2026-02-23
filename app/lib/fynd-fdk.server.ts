@@ -148,12 +148,16 @@ export class FyndPlatformClientFDK {
     }
   }
 
-  /** Use FDK native method: application().order.getPlatformShipmentReasons (path: orders/shipments/reasons/{action}) */
+  /**
+   * Platform Order API has no company-level return reasons.
+   * Bag reasons require shipment_id, bag_id, state (GET .../shipments/{id}/bags/{id}/state/{state}/reasons).
+   * Validate connection via orders-listing; callers use admin-configured reasons.
+   */
   async getReturnReasons(): Promise<unknown> {
-    this.log?.("fynd-fdk", "Request", "FDK order.getPlatformShipmentReasons");
+    this.log?.("fynd-fdk", "Request", "GET orders-listing (validate connection)");
     try {
-      const res = await this.fdk.application(this.applicationId).order.getPlatformShipmentReasons({ action: "return" });
-      return res;
+      await this.request("GET", `/service/platform/order/v1.0/company/${this.companyId}/orders-listing?page_no=1&page_size=1`);
+      return null;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       const status = (err as { response?: { status?: number } })?.response?.status;
@@ -182,11 +186,13 @@ export class FyndPlatformClientFDK {
     }
   }
 
+  /** Platform Order API: GET order-details returns order + shipments */
   async getShipments(orderId: string): Promise<unknown> {
-    const path = `/service/platform/order/v1.0/company/${this.companyId}/application/${this.applicationId}/orders/${encodeURIComponent(orderId)}/shipments`;
-    return this.request("GET", path);
+    const res = await this.request("GET", `/service/platform/order/v1.0/company/${this.companyId}/order-details?order_id=${encodeURIComponent(orderId)}`) as { order?: unknown; shipments?: unknown[] };
+    return res?.shipments ?? res?.order ?? res;
   }
 
+  /** Platform Order API: GET shipments-listing (docs.fynd.com/partners/commerce/sdk/latest/platform/company/order) */
   async searchShipmentsByExternalOrderId(
     externalOrderId: string,
     params?: Partial<ShipmentsListingParamsFDK>
@@ -201,20 +207,15 @@ export class FyndPlatformClientFDK {
     const searchParams = new URLSearchParams({
       group_entity: params?.groupEntity ?? "shipments",
       page_no: String(params?.pageNo ?? 1),
-      page_size: String(params?.pageSize ?? 2),
+      page_size: String(params?.pageSize ?? 50),
       start_date: startDate,
       end_date: endDate,
       search_value: externalOrderId.trim(),
       search_type: params?.searchType ?? "external_order_id",
-      fulfillment_type: params?.fulfillmentType ?? "FULFILLMENT",
-      parent_view_slug: params?.parentViewSlug ?? "all",
-      child_view_slug: params?.childViewSlug ?? "all",
       sort_type: params?.sortType ?? "sla_asc",
     });
-    if (params?.orderStatus) searchParams.set("order_status", params.orderStatus);
-    if (params?.locationCode) searchParams.set("location_code", params.locationCode);
-    if (this.applicationId) searchParams.set("application_id", this.applicationId);
-    const path = `/service/portal/order-manage/v1.0/company/${this.companyId}/shipments-listing?${searchParams.toString()}`;
+    if (params?.orderStatus) searchParams.set("bag_status", params.orderStatus);
+    const path = `/service/platform/order/v1.0/company/${this.companyId}/shipments-listing?${searchParams.toString()}`;
     const res = await this.request("GET", path) as { items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; results?: unknown[] };
     const items = res?.items ?? res?.shipments ?? res?.data?.items ?? res?.results ?? [];
     const first = Array.isArray(items) ? items[0] : null;
@@ -246,8 +247,9 @@ export class FyndPlatformClientFDK {
     return { orderId, shipmentId };
   }
 
+  /** Platform Order API: PUT shipment/status-internal (orderId kept for backward compat, not used in path) */
   async updateShipmentStatus(
-    orderId: string,
+    _orderId: string,
     payload: {
       statuses: Array<{
         shipments: Array<{
@@ -263,7 +265,7 @@ export class FyndPlatformClientFDK {
       unlock_before_transition?: boolean;
     }
   ): Promise<unknown> {
-    const path = `/service/platform/order/v1.0/company/${this.companyId}/application/${this.applicationId}/orders/${encodeURIComponent(orderId)}/shipments/status`;
+    const path = `/service/platform/order-manage/v1.0/company/${this.companyId}/shipment/status-internal`;
     return this.request("PUT", path, payload);
   }
 }

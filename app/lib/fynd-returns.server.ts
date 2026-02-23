@@ -53,25 +53,37 @@ export async function createReturnOnFynd(
 
   try {
     let shipmentsRes: unknown;
-    // Always search when we have external order ID to get correct FY order ID from portal (platform API expects FY format)
-    const shouldSearchFirst = externalOrderId && "searchShipmentsByExternalOrderId" in client;
-    if (shouldSearchFirst) {
-      const searchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(externalOrderId);
+    let searchRes: { items?: unknown[]; shipments?: unknown[]; orderId?: string; shipmentId?: string } | null = null;
+    // Prefer affiliateOrderId for search when set (Fynd stores this as external_order_id); else use externalOrderId or fyndOrderId
+    const searchValue = affiliateOrderId || externalOrderId || fyndOrderId;
+    // Use external_order_id when: affiliateOrderId is explicitly set (Shopify metadata), or value doesn't look like Fynd order ID (FYMP...)
+    const looksLikeFyndOrderId = (id: string) => /^FYMP[A-Z0-9]{10,}/i.test((id || "").trim());
+    const isAffiliateOrderId = (options?.affiliateOrderId?.trim() || null) === (searchValue?.trim() || null);
+    const searchType = isAffiliateOrderId || !looksLikeFyndOrderId(searchValue || "") ? "external_order_id" : "order_id";
+
+    if (searchValue && "searchShipmentsByExternalOrderId" in client) {
+      searchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(searchValue, {
+        searchType,
+        pageSize: 10,
+      });
       const resolved = searchRes.orderId ?? searchRes.shipmentId;
       if (resolved) {
         fyndOrderId = resolved;
       }
     }
+
     try {
       shipmentsRes = await client.getShipments(fyndOrderId);
     } catch (getErr) {
       const msg = getErr instanceof Error ? getErr.message : String(getErr);
-      if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && externalOrderId && "searchShipmentsByExternalOrderId" in client && !shouldSearchFirst) {
-        const searchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(externalOrderId);
-        const resolved = searchRes.orderId ?? searchRes.shipmentId;
-        if (resolved) {
-          fyndOrderId = resolved;
-          shipmentsRes = await client.getShipments(fyndOrderId);
+      if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && searchRes) {
+        const items = searchRes.items ?? searchRes.shipments ?? [];
+        if (Array.isArray(items) && items.length > 0) {
+          shipmentsRes = items.map((it: unknown) => {
+            const o = it && typeof it === "object" ? it as Record<string, unknown> : {};
+            const sid = String(o.shipment_id ?? o.shipmentId ?? o.id ?? "");
+            return { ...o, id: sid, identifier: sid };
+          });
         } else {
           throw getErr;
         }
@@ -146,7 +158,21 @@ export async function createReturnOnFynd(
       unlock_before_transition: false,
     };
 
-    const result = await client.updateShipmentStatus(fyndOrderId, payload);
+    let result: unknown;
+    try {
+      result = await client.updateShipmentStatus(fyndOrderId, payload);
+    } catch (updateErr) {
+      const updateMsg = updateErr instanceof Error ? updateErr.message : String(updateErr);
+      if ((updateMsg.includes("404") || updateMsg.includes("Not Found")) && shipmentId && shipmentId !== fyndOrderId) {
+        try {
+          result = await client.updateShipmentStatus(String(shipmentId), payload);
+        } catch {
+          throw updateErr;
+        }
+      } else {
+        throw updateErr;
+      }
+    }
 
     const res = result as { return_id?: string; return_no?: string; id?: string; returnId?: string } | null;
     const fyndReturnId = res?.return_id ?? res?.id ?? res?.returnId;

@@ -12,7 +12,11 @@
     "setup": "prisma generate && prisma migrate deploy",
     "shopify": "shopify",
     "prisma": "prisma",
-    "validate:key": "node scripts/validate-encryption-key.js"
+    "validate:key": "node scripts/validate-encryption-key.js",
+    "test:fynd-api": "node scripts/test-fynd-apis.mjs",
+    "test:fynd-api:bash": "./scripts/test-fynd-apis.sh",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "type": "module",
   "engines": {
@@ -44,6 +48,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
   }
 }

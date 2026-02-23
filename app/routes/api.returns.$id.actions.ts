@@ -172,7 +172,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     } else if (!fyndClientResult.ok) {
       fyndError = fyndClientResult.error;
     } else {
-      fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). You have Storefront configured. Switch in Settings → Integrations.";
+      fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). Configure in Settings → Integrations.";
     }
     await prisma.returnCase.update({
       where: { id },

@@ -78,8 +78,8 @@ export async function fetchFyndPlatformToken(
 }
 
 /**
- * Test Platform connection using raw OAuth + fetch (same flow as CURL).
- * Bypasses FDK to avoid 403 when FDK uses different auth/signing.
+ * Test Platform connection using raw OAuth + fetch.
+ * Uses Platform Order API: GET orders-listing (docs.fynd.com/partners/commerce/sdk/latest/platform/company/order).
  */
 export async function testPlatformConnectionRaw(
   settings: {
@@ -93,9 +93,8 @@ export async function testPlatformConnectionRaw(
 ): Promise<{ ok: true; warning?: string } | { ok: false; error: string }> {
   const baseUrl = getFyndBaseUrl(settings);
   const companyId = settings?.fyndCompanyId?.trim();
-  const applicationId = settings?.fyndApplicationId?.trim();
-  if (!companyId || !applicationId) {
-    return { ok: false, error: "Company ID and Application ID are required." };
+  if (!companyId) {
+    return { ok: false, error: "Company ID is required." };
   }
   const parsed = parseStoredCredentials(settings.fyndCredentials, log);
   if (!parsed.ok) return { ok: false, error: parsed.error };
@@ -106,7 +105,7 @@ export async function testPlatformConnectionRaw(
 
   try {
     const token = await fetchFyndPlatformToken(baseUrl, companyId, platform.clientId, platform.clientSecret, log);
-    const path = `/service/platform/order/v1.0/company/${companyId}/application/${applicationId}/orders/shipments/reasons/return`;
+    const path = `/service/platform/order/v1.0/company/${companyId}/orders-listing?page_no=1&page_size=1`;
     const url = `${baseUrl}${path}`;
     log?.("fynd-test-raw", "Request", `GET ${path}`);
     const res = await fetch(url, {
@@ -120,9 +119,6 @@ export async function testPlatformConnectionRaw(
     log?.("fynd-test-raw", "Response", `status=${res.status}`);
     if (res.ok) {
       return { ok: true };
-    }
-    if (res.status === 404) {
-      return { ok: true, warning: "Credentials valid. Return reasons endpoint not available in this Fynd environment—using admin-configured reasons." };
     }
     const hint =
       res.status === 401
@@ -148,8 +144,14 @@ export class FyndPlatformClient {
     private log?: FyndLogFn
   ) {}
 
-  private get basePath() {
-    return `/service/platform/order/v1.0/company/${this.companyId}/application/${this.applicationId}`;
+  /** Platform Order API base path (docs.fynd.com/partners/commerce/sdk/latest/platform/company/order) */
+  private get platformOrderPath() {
+    return `/service/platform/order/v1.0/company/${this.companyId}`;
+  }
+
+  /** Platform Order-manage API base path (for status-internal, etc.) */
+  private get platformOrderManagePath() {
+    return `/service/platform/order-manage/v1.0/company/${this.companyId}`;
   }
 
   private async request(method: string, path: string, body?: unknown) {
@@ -188,16 +190,24 @@ export class FyndPlatformClient {
     return text ? (JSON.parse(text) as unknown) : null;
   }
 
-  async getReturnReasons() {
-    return this.request("GET", `${this.basePath}/orders/returns/reasons`);
+  /**
+   * Platform Order API has no company-level return reasons.
+   * Bag-level reasons require shipment_id, bag_id, state.
+   * Validates connection via orders-listing; returns null (use admin-configured reasons).
+   */
+  async getReturnReasons(): Promise<unknown> {
+    await this.request("GET", `${this.platformOrderPath}/orders-listing?page_no=1&page_size=1`);
+    return null;
   }
 
-  /** Get shipments for an order (orderId = Fynd order/shipment ID) */
+  /** Get order details including shipments. Uses Platform Order API: GET order-details. */
   async getShipments(orderId: string): Promise<unknown> {
-    return this.request("GET", `${this.basePath}/orders/${encodeURIComponent(orderId)}/shipments`);
+    const res = await this.request("GET", `${this.platformOrderPath}/order-details?order_id=${encodeURIComponent(orderId)}`);
+    const body = res as { order?: unknown; shipments?: unknown[] };
+    return body?.shipments ?? body?.order ?? res;
   }
 
-  /** Search shipments by external_order_id (Shopify order name). Uses portal order-manage API. */
+  /** Search shipments by external_order_id. Uses Platform Order API: GET shipments-listing. */
   async searchShipmentsByExternalOrderId(
     externalOrderId: string,
     params?: Partial<ShipmentsListingParams>
@@ -212,20 +222,15 @@ export class FyndPlatformClient {
     const searchParams = new URLSearchParams({
       group_entity: params?.groupEntity ?? "shipments",
       page_no: String(params?.pageNo ?? 1),
-      page_size: String(params?.pageSize ?? 2),
+      page_size: String(params?.pageSize ?? 50),
       start_date: startDate,
       end_date: endDate,
       search_value: externalOrderId.trim(),
       search_type: params?.searchType ?? "external_order_id",
-      fulfillment_type: params?.fulfillmentType ?? "FULFILLMENT",
-      parent_view_slug: params?.parentViewSlug ?? "all",
-      child_view_slug: params?.childViewSlug ?? "all",
       sort_type: params?.sortType ?? "sla_asc",
     });
-    if (params?.orderStatus) searchParams.set("order_status", params.orderStatus);
-    if (params?.locationCode) searchParams.set("location_code", params.locationCode);
-    if (this.applicationId) searchParams.set("application_id", this.applicationId);
-    const path = `/service/portal/order-manage/v1.0/company/${this.companyId}/shipments-listing?${searchParams.toString()}`;
+    if (params?.orderStatus) searchParams.set("bag_status", params.orderStatus);
+    const path = `${this.platformOrderPath}/shipments-listing?${searchParams.toString()}`;
     const res = await this.request("GET", path);
     const body = res as { items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; order?: { id?: string }; results?: unknown[] };
     const items = body?.items ?? body?.shipments ?? body?.data?.items ?? body?.results ?? [];
@@ -259,9 +264,9 @@ export class FyndPlatformClient {
     return { orderId, shipmentId };
   }
 
-  /** Update shipment status (e.g. return_initiated to create return on Fynd) */
+  /** Update shipment status (e.g. return_initiated to create return on Fynd). Uses Platform Order API: PUT shipment/status-internal. */
   async updateShipmentStatus(
-    orderId: string,
+    _orderId: string,
     payload: {
       statuses: Array<{
         shipments: Array<{
@@ -277,7 +282,7 @@ export class FyndPlatformClient {
       unlock_before_transition?: boolean;
     }
   ): Promise<unknown> {
-    return this.request("PUT", `${this.basePath}/orders/${encodeURIComponent(orderId)}/shipments/status`, payload);
+    return this.request("PUT", `${this.platformOrderManagePath}/shipment/status-internal`, payload);
   }
 
   async testConnection(): Promise<{ ok: true; warning?: string }> {
@@ -429,16 +434,20 @@ export type FyndClientResult =
   | { ok: false; error: string };
 
 /**
- * Create Fynd client by requirement: use Platform when requirePlatform, Storefront when requireStorefront,
- * otherwise prefer Platform then Storefront. Supports storing both credential sets and picks the right one per operation.
+ * Create Fynd client. All Fynd operations use Platform API only (OAuth).
+ * Storefront API is not used. requirePlatform is always true for return-related operations.
  */
 export async function createFyndClientOrError(
   settings: FyndSettings & { fyndApiType?: string | null },
   options?: { requirePlatform?: boolean; requireStorefront?: boolean; log?: FyndLogFn }
 ): Promise<FyndClientResult> {
   const log = options?.log;
-  const requirePlatform = options?.requirePlatform ?? false;
+  const requirePlatform = options?.requirePlatform ?? true;
   const requireStorefront = options?.requireStorefront ?? false;
+
+  if (requireStorefront) {
+    return { ok: false, error: "Storefront API is not used. All Fynd operations use Platform API only. Configure Platform credentials (Company ID + Client ID & Secret) in Settings → Integrations." };
+  }
 
   if (!settings?.fyndApplicationId) {
     return { ok: false, error: "Fynd Application ID is missing. Set it in Settings → Integrations." };
@@ -487,69 +496,38 @@ export async function createFyndClientOrError(
     }
   }
 
-  if (requireStorefront) {
-    if (!credentials.storefront) {
-      return { ok: false, error: "Storefront API requires an Application Token. Add Storefront credentials in Settings → Integrations." };
-    }
-    try {
-      const appClient = createFyndApplicationClient({
-        applicationId: settings.fyndApplicationId,
-        applicationToken: credentials.storefront.applicationToken,
-        domain: getFyndDomain(settings),
-        log,
-      });
-      const client = new FyndStorefrontClientFDK(appClient, log);
-      return { ok: true, client };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { ok: false, error: `Fynd Storefront setup failed: ${msg}` };
-    }
-  }
-
-  // Prefer Platform, then Storefront (for generic/createFyndClient usage)
+  // Platform only when requirePlatform is false (e.g. generic test)
   if (credentials.platform && settings?.fyndCompanyId) {
     try {
-      const fdk = createFyndPlatformClient({
-        companyId: settings.fyndCompanyId,
-        applicationId: settings.fyndApplicationId,
-        apiKey: credentials.platform.clientId,
-        apiSecret: credentials.platform.clientSecret,
-        domain: getFyndDomain(settings),
-        log,
-      });
-      const client = new FyndPlatformClientFDK(
-        fdk,
+      const token = await fetchFyndPlatformToken(
+        baseUrl,
+        settings.fyndCompanyId,
+        credentials.platform.clientId,
+        credentials.platform.clientSecret,
+        log
+      );
+      const client = new FyndPlatformClient(
+        baseUrl,
         settings.fyndCompanyId,
         settings.fyndApplicationId,
+        token,
         log
       );
       return { ok: true, client };
-    } catch {
-      // fall through to Storefront if FDK fails
-    }
-  }
-  if (credentials.storefront) {
-    try {
-      const appClient = createFyndApplicationClient({
-        applicationId: settings.fyndApplicationId,
-        applicationToken: credentials.storefront.applicationToken,
-        domain: getFyndDomain(settings),
-        log,
-      });
-      const client = new FyndStorefrontClientFDK(appClient, log);
-      return { ok: true, client };
-    } catch {
-      // fall through to error
+    } catch (tokenErr) {
+      const msg = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+      log?.("fynd-client", "Platform OAuth failed", msg);
+      return { ok: false, error: `Fynd login failed: ${msg}. Check Company ID, Client ID & Secret in Settings → Integrations.` };
     }
   }
 
-  return { ok: false, error: "Fynd credentials are not set. Enter Client ID & Secret (Platform) and/or Application Token (Storefront) in Settings → Integrations." };
+  return { ok: false, error: "Fynd Platform credentials are required. Enter Company ID, Client ID & Secret in Settings → Integrations." };
 }
 
 export async function createFyndClient(
   settings: FyndSettings,
   log?: FyndLogFn
 ): Promise<FyndPlatformClient | FyndPlatformClientFDK | FyndStorefrontClient | FyndStorefrontClientFDK | null> {
-  const result = await createFyndClientOrError(settings as FyndSettings & { fyndApiType?: string | null }, { requirePlatform: false, log });
+  const result = await createFyndClientOrError(settings as FyndSettings & { fyndApiType?: string | null }, { requirePlatform: true, log });
   return result.ok ? result.client : null;
 }

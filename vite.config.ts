@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { reactRouter } from "@react-router/dev/vite";
 import { defineConfig, type UserConfig } from "vite";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -41,4 +42,9 @@ export default defineConfig({
   plugins: [reactRouter(), tsconfigPaths()],
   build: { assetsInlineLimit: 0 },
   optimizeDeps: { include: ["@shopify/app-bridge-react"] },
+  test: {
+    include: ["app/**/*.test.ts", "app/**/*.e2e.test.ts"],
+    environment: "node",
+    globals: true,
+  },
 }) satisfies UserConfig;

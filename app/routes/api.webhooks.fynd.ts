@@ -39,12 +39,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const body = (await request.json()) as Record<string, unknown>;
     // Fynd Platform format: { company_id, contains, event, payload }
     const inner = body?.payload && typeof body.payload === "object" ? (body.payload as Record<string, unknown>) : body;
-    // Map event.type (e.g. refund_done) to refund_status when present
+    // Map status for handler: prefer refund_status, then status (e.g. return_bag_delivered), then nested, then event type
     const event = body?.event && typeof body.event === "object" ? (body.event as { type?: string; name?: string }) : null;
     const eventType = event?.type ?? event?.name;
+    const firstShipment = Array.isArray(inner?.shipments) ? inner.shipments[0] : null;
+    const statusOrRefund =
+      (typeof inner?.refund_status === "string" && inner.refund_status) ||
+      (typeof inner?.status === "string" && inner.status) ||
+      (typeof firstShipment?.refund_status === "string" && firstShipment.refund_status) ||
+      (typeof firstShipment?.status === "string" && firstShipment.status) ||
+      eventType;
     payload = {
       ...inner,
-      ...(eventType && { refund_status: inner?.refund_status ?? eventType }),
+      ...(statusOrRefund && { refund_status: statusOrRefund }),
     } as FyndWebhookPayload;
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });

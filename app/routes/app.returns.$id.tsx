@@ -237,6 +237,7 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
 }
 
 import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload } from "../lib/fynd-payload.server";
 
@@ -283,6 +284,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     }
 
     if (!returnCase) throw new Response("Return not found", { status: 404 });
+
+    // Backfill returnRequestNo for existing returns
+    if (!(returnCase as { returnRequestNo?: string | null }).returnRequestNo) {
+      const returnRequestNo = formatReturnRequestId(returnCase.id);
+      try {
+        await prisma.returnCase.update({
+          where: { id: returnCase.id },
+          data: { returnRequestNo },
+        });
+        returnCase = { ...returnCase, returnRequestNo };
+      } catch {
+        // Non-fatal
+      }
+    }
 
     const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
     let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
@@ -360,13 +375,19 @@ export default function ReturnDetail() {
     && ["approved", "completed"].includes(returnCase.status.toLowerCase())
     && !returnCase.fyndReturnId;
 
+  const returnRequestId = (returnCase as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(returnCase.id);
+
   return (
-    <s-page heading={`Return ${returnCase.shopifyOrderName || returnCase.id}`}>
+    <s-page heading={`Return ${returnCase.shopifyOrderName || returnRequestId}`}>
       <div className="app-content">
       <div style={{ marginBottom: 24, padding: "20px 24px", background: "linear-gradient(135deg, var(--rpm-surface-subtle) 0%, var(--rpm-surface-elevated) 100%)", borderRadius: "var(--rpm-radius-xl)", border: "var(--rpm-border)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}>
         <span className="app-status-badge" style={{ padding: "10px 18px", borderRadius: 20, fontSize: 15, fontWeight: 600, background: `${getStatusColor(returnCase.status)}20`, color: getStatusColor(returnCase.status), border: `2px solid ${getStatusColor(returnCase.status)}50` }}>
           {returnCase.status}
         </span>
+        <div>
+          <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Return Request ID</div>
+          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.05em", fontFamily: "monospace" }}>{returnRequestId}</div>
+        </div>
         <div>
           <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Order</div>
           <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.02em" }}>{returnCase.shopifyOrderName || "—"}</div>
@@ -388,7 +409,18 @@ export default function ReturnDetail() {
       {fyndError && (
         <div className="app-alert app-alert-warning" style={{ borderLeft: "4px solid #b45309" }}>
           <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#92400e" }}>Fynd sync issue</p>
-          <p style={{ margin: 0, color: "#78350f" }}>{decodeURIComponent(fyndError)}</p>
+          <p style={{ margin: 0, color: "#78350f" }}>
+            {(() => {
+              try {
+                const decoded = decodeURIComponent(fyndError);
+                return decoded === "[object Response]" || decoded === "[object Object]"
+                  ? "Request failed. Please check Fynd configuration and try again."
+                  : decoded;
+              } catch {
+                return fyndError;
+              }
+            })()}
+          </p>
           {(fyndError.includes("404") || fyndError.includes("not found")) && (
             <p style={{ margin: "12px 0 0 0", fontSize: 13, color: "#78350f" }}>
               The app now uses FY-prefixed Fynd order IDs (e.g. FYMP698CC01401C9F4A1) when available. Try <strong>Retry Fynd sync</strong> again.
@@ -815,7 +847,10 @@ export default function ReturnDetail() {
 
       <s-section heading="Return tracking (timeline)">
         {(returnCase.events?.length ?? 0) === 0 ? (
-          <p style={{ color: "var(--rpm-text-muted)", padding: 20, background: "var(--rpm-surface-subtle)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)" }}>No events yet.</p>
+          <div style={{ padding: 24, background: "var(--rpm-surface-subtle)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)", textAlign: "center" }}>
+            <p style={{ color: "var(--rpm-text-muted)", margin: 0, fontSize: 15 }}>No events yet.</p>
+            <p style={{ color: "var(--rpm-text-muted)", margin: "8px 0 0 0", fontSize: 13 }}>Events from the portal, admin actions, and Fynd webhooks will appear here.</p>
+          </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
             {(returnCase.events || []).map((ev, i) => (
@@ -834,8 +869,10 @@ export default function ReturnDetail() {
                   transition: "background 0.2s ease",
                 }}
               >
-                <span style={{ fontWeight: 600, color: "var(--rpm-accent)", minWidth: 70 }}>[{ev.source}]</span>
-                <span style={{ flex: 1 }}>{ev.eventType}</span>
+                <span style={{ fontWeight: 600, color: "var(--rpm-accent)", minWidth: 90 }}>
+                  {ev.source === "fynd_webhook" ? "Fynd" : ev.source.charAt(0).toUpperCase() + ev.source.slice(1)}
+                </span>
+                <span style={{ flex: 1 }}>{ev.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
                 <span style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>{new Date(ev.happenedAt).toLocaleString()}</span>
               </div>
             ))}

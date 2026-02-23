@@ -31,9 +31,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const norm = String(lookupValue).toLowerCase().trim();
+    const rawValue = String(lookupValue).trim();
 
     const where: Record<string, unknown> = { shopId: shopRecord.id };
-    if (["return_no", "order_no"].includes(lookupType)) {
+    if (lookupType === "return_id") {
+      const returnIdUpper = rawValue.toUpperCase();
+      where.OR = [
+        { id: rawValue },
+        { returnRequestNo: rawValue },
+        { returnRequestNo: returnIdUpper },
+      ];
+    } else if (["return_no", "order_no"].includes(lookupType)) {
       where.OR = [
         { fyndReturnNo: { contains: norm, mode: "insensitive" } },
         { shopifyOrderName: { contains: norm, mode: "insensitive" } },

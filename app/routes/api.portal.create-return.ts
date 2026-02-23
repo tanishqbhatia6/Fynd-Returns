@@ -7,6 +7,8 @@ import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { fetchOrder } from "../lib/shopify-admin.server";
 
+import { formatReturnRequestId } from "../lib/return-request-id";
+
 const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress"];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -181,7 +183,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const status = settings?.autoApproveEnabled ? "approved" : "initiated";
 
-    const returnCase = await prisma.returnCase.create({
+    let returnCase = await prisma.returnCase.create({
       data: {
         shopId: shopRecord.id,
         shopifyOrderId: effectiveOrderId,
@@ -200,6 +202,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
       include: { items: true },
     });
+
+    const returnRequestNo = formatReturnRequestId(returnCase.id);
+    await prisma.returnCase.update({
+      where: { id: returnCase.id },
+      data: { returnRequestNo },
+    });
+    returnCase = { ...returnCase, returnRequestNo };
 
     await prisma.returnEvent.create({
       data: {
@@ -260,15 +269,43 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    const lineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
+      id?: string;
+      title?: string;
+      price?: string;
+      productTags?: string[];
+    }>;
+    const itemSummaries = itemsToCreate.map((it) => {
+      if (it.lineItemId === "manual") {
+        return { title: it.notes ?? "Manual return", qty: it.qty };
+      }
+      const li = lineItemsWithPrice.find((l) => l.id === it.lineItemId);
+      return { title: li?.title ?? "Item", qty: it.qty };
+    });
+
+    const nextSteps =
+      status === "approved"
+        ? "Your return has been approved. The store will process your refund."
+        : "The store will review your request. You'll receive an email once it's approved or if more information is needed.";
+
     return withCors(
       Response.json({
         success: true,
         returnId: returnCase.id,
+        returnRequestId: formatReturnRequestId(returnCase.id),
         status: returnCase.status,
         message:
           status === "approved"
             ? "Return approved. Refund will be processed by the store."
             : "Return request submitted. You will be notified once it is reviewed.",
+        summary: {
+          orderName: shopifyOrderName,
+          itemsCount: itemsToCreate.length,
+          items: itemSummaries,
+          status: returnCase.status,
+          createdAt: returnCase.createdAt,
+          nextSteps,
+        },
       }),
       request
     );

@@ -12,6 +12,25 @@ function enrichFyndError(msg: string): string {
   }
   return msg;
 }
+
+/** Extract readable error message from unknown (handles Response, Error, etc.) */
+async function extractErrorMessage(err: unknown): Promise<string> {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null && "ok" in err && typeof (err as Response).json === "function") {
+    const res = err as Response;
+    try {
+      const j = await res.json().catch(() => ({}));
+      const msg = (j as { error?: string; message?: string })?.error ?? (j as { error?: string; message?: string })?.message;
+      if (typeof msg === "string" && msg.trim()) return msg;
+    } catch {
+      /* ignore */
+    }
+    return `Request failed (${res.status}). Please check Fynd configuration and try again.`;
+  }
+  const s = String(err);
+  if (s === "[object Response]" || s === "[object Object]") return "Request failed. Please check Fynd configuration and try again.";
+  return s;
+}
 import prisma from "../db.server";
 import { createRefund, fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
@@ -334,7 +353,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
       throw redirect(`/app/returns/${id}?fyndRefresh=1`);
     } catch (err) {
-      const msg = enrichFyndError(err instanceof Error ? err.message : String(err));
+      const rawMsg = await extractErrorMessage(err);
+      const msg = enrichFyndError(rawMsg);
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(msg)}`);
     }
   }

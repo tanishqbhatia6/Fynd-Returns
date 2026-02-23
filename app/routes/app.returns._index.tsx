@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { Form, Link, useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { formatReturnRequestId } from "../lib/return-request-id";
 
 const STATUS_COLORS: Record<string, string> = {
   pending: "#b98900", processing: "#005bd3", "in progress": "#005bd3",
@@ -32,14 +33,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const where: Record<string, unknown> = { shopId: shop.id };
   if (status) where.status = status;
   if (query.trim()) {
+    const q = query.trim();
     where.OR = [
-      { shopifyOrderName: { contains: query.trim(), mode: "insensitive" } },
-      { fyndOrderId: { contains: query.trim(), mode: "insensitive" } },
-      { forwardAwb: { contains: query.trim(), mode: "insensitive" } },
-      { returnAwb: { contains: query.trim(), mode: "insensitive" } },
-      { fyndReturnNo: { contains: query.trim(), mode: "insensitive" } },
-      { customerEmailNorm: { contains: query.trim(), mode: "insensitive" } },
-      { customerPhoneNorm: { contains: query.trim(), mode: "insensitive" } },
+      { shopifyOrderName: { contains: q, mode: "insensitive" } },
+      { returnRequestNo: { contains: q, mode: "insensitive" } },
+      { fyndOrderId: { contains: q, mode: "insensitive" } },
+      { forwardAwb: { contains: q, mode: "insensitive" } },
+      { returnAwb: { contains: q, mode: "insensitive" } },
+      { fyndReturnNo: { contains: q, mode: "insensitive" } },
+      { customerEmailNorm: { contains: q, mode: "insensitive" } },
+      { customerPhoneNorm: { contains: q, mode: "insensitive" } },
     ];
   }
 
@@ -139,6 +142,7 @@ export default function ReturnsList() {
             <table className="app-table" style={{ width: "100%", borderCollapse: "collapse", borderRadius: "var(--rpm-radius-lg)", overflow: "hidden", boxShadow: "var(--rpm-shadow-sm)" }}>
               <thead>
                 <tr style={{ background: "var(--rpm-surface-elevated)", borderBottom: "var(--rpm-border)" }}>
+                  <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Return ID</th>
                   <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Order</th>
                   <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fynd Order ID</th>
                   <th style={{ padding: "14px 18px", textAlign: "left", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Fynd Return #</th>
@@ -151,9 +155,14 @@ export default function ReturnsList() {
               <tbody>
                 {returns.map((r) => (
                   <tr key={r.id} style={{ borderBottom: "var(--rpm-border)", background: "var(--rpm-surface)" }}>
+                    <td style={{ padding: "14px 18px", fontFamily: "monospace", fontSize: 13, fontWeight: 600 }}>
+                      <Link to={`/app/returns/${r.id}`} className="app-link">
+                        {(r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)}
+                      </Link>
+                    </td>
                     <td style={{ padding: "14px 18px" }}>
                       <Link to={`/app/returns/${r.id}`} className="app-link">
-                        {r.shopifyOrderName || r.id}
+                        {r.shopifyOrderName || "—"}
                       </Link>
                     </td>
                     <td style={{ padding: "14px 18px", color: "var(--rpm-text-muted)", fontFamily: "monospace", fontSize: 13 }}>

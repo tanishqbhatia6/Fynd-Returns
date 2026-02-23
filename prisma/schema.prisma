@@ -83,6 +83,7 @@ model ShopSettings {
 
 model ReturnCase {
   id                String   @id @default(cuid())
+  returnRequestNo   String?  // User-friendly ID e.g. RPM-A1B2C3D4 for display and lookup
   shopId            String
   shop              Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
   shopifyOrderId    String
@@ -115,6 +116,7 @@ model ReturnCase {
   @@index([shopId, fyndReturnId])
   @@index([shopId, fyndShipmentId])
   @@index([shopId, fyndOrderId])
+  @@index([shopId, returnRequestNo])
   @@index([shopId, customerEmailNorm])
   @@index([shopId, customerPhoneNorm])
 }

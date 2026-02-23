@@ -262,6 +262,15 @@
     .order-card:last-child { margin-bottom: 0; }
     .order-name { font-weight: 700; font-size: 1.0625rem; margin-bottom: 8px; }
     .order-meta { font-size: 0.875rem; color: var(--portal-text-muted); }
+    .return-success-card { padding: 24px; background: var(--portal-surface); border-radius: 16px; border: 1px solid var(--portal-border); box-shadow: var(--portal-shadow); }
+    .return-request-id-block { margin-bottom: 20px; padding: 16px; background: color-mix(in srgb, var(--portal-text) 0.04, transparent); border-radius: 12px; }
+    .return-summary-block { padding: 16px; background: color-mix(in srgb, var(--portal-text) 0.04, transparent); border-radius: 12px; font-size: 0.9375rem; }
+    .return-summary-block .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--portal-border); }
+    .return-summary-block .summary-row:last-child { border-bottom: none; }
+    .return-summary-block .summary-label { color: var(--portal-text-muted); }
+    .return-summary-block .summary-value { font-weight: 600; color: var(--portal-text); }
+    .return-summary-items { margin-top: 8px; padding-left: 16px; }
+    .return-summary-items li { margin: 4px 0; }
   </style>
 </head>
 <body>
@@ -287,6 +296,7 @@
           <label class="form-label" for="lookupType">Look up by</label>
           <select id="lookupType" class="form-select">
             <option value="order_no">Order Number</option>
+            <option value="return_id">Return Request ID</option>
             <option value="return_no">Return Number</option>
             <option value="forward_awb">Forward AWB</option>
             <option value="return_awb">Return AWB</option>
@@ -296,7 +306,7 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="lookupValue">Enter your details</label>
-          <input type="text" id="lookupValue" class="form-input" placeholder="Order #, AWB, email, or phone number">
+          <input type="text" id="lookupValue" class="form-input" placeholder="Order #, Return ID (RPM-XXX), AWB, email, or phone">
         </div>
         <button type="button" id="btnLookup" class="btn-primary">Look Up</button>
         <p id="err1" class="form-error"></p>
@@ -383,9 +393,30 @@
         <p id="createErrManual" class="form-error"></p>
       </div>
       <div id="create-step3" class="portal-step">
-        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Return Submitted</h2>
-        <p id="createSuccessMsg" class="return-empty" style="color: var(--portal-text);"></p>
-        <button type="button" id="btnCreateAnother" class="btn-primary">Create another return</button>
+        <div id="createSuccessCard" class="return-success-card" style="display: none;">
+          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
+            <div style="width: 48px; height: 48px; border-radius: 50%; background: color-mix(in srgb, var(--status-ok) 0.2, transparent); display: flex; align-items: center; justify-content: center;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--status-ok)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+            <div>
+              <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; color: var(--portal-text);">Return Submitted</h2>
+              <p id="createSuccessMsg" style="margin: 0; font-size: 0.9375rem; color: var(--portal-text-muted);"></p>
+            </div>
+          </div>
+          <div class="return-request-id-block">
+            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--portal-text-muted); margin-bottom: 6px; display: block;">Return Request ID</label>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <code id="createReturnRequestId" style="font-size: 1.125rem; font-weight: 700; padding: 12px 16px; background: color-mix(in srgb, var(--portal-primary) 0.12, transparent); border-radius: 10px; border: 1px solid color-mix(in srgb, var(--portal-primary) 0.3, transparent); color: var(--portal-primary); letter-spacing: 0.05em;"></code>
+              <button type="button" id="btnCopyReturnId" class="btn-secondary" style="padding: 10px 16px; font-size: 0.875rem;">Copy</button>
+            </div>
+          </div>
+          <div id="createSummaryBlock" class="return-summary-block"></div>
+          <div id="createNextSteps" style="margin-top: 16px; padding: 14px 16px; background: color-mix(in srgb, var(--portal-primary) 0.08, transparent); border-radius: 10px; font-size: 0.9375rem; color: var(--portal-text); border-left: 4px solid var(--portal-primary);"></div>
+          <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px;">
+            <button type="button" id="btnTrackThisReturn" class="btn-primary">Track this return</button>
+            <button type="button" id="btnCreateAnother" class="btn-secondary">Create another return</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -408,6 +439,14 @@
     })();
     const API = APP_URL + '/api/portal';
     function escapeHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+    async function fetchJson(url, opts) {
+      let res;
+      try { res = await fetch(url, opts); } catch (e) { throw new Error('Network error. Please check your connection and try again.'); }
+      let data;
+      try { data = await res.json(); } catch (_) { throw new Error(res.ok ? 'Invalid response from server' : 'Something went wrong. Please try again.'); }
+      if (!res.ok) throw new Error(data?.error || ('Request failed (' + res.status + ')'));
+      return data;
+    }
 
     (function buildTabs() {
       const wrap = document.getElementById('portal-tabs-wrap');
@@ -449,9 +488,7 @@
       err.textContent = '';
       if (!shop || !lookupValue) { err.textContent = 'Please enter your lookup details'; return; }
       try {
-        const res = await fetch(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
+        const data = await fetchJson(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) });
         const orders = data.orders || [];
         const returns = data.returns || [];
         document.getElementById('step1').classList.remove('active');
@@ -484,13 +521,15 @@
                 const status = (x.status || '').toLowerCase();
                 const statusClass = status === 'approved' || status === 'completed' ? 'ok' : (status === 'rejected' ? 'error' : 'pending');
                 const ti = x.trackingInfo || {};
-                let html = '<div class="return-card"><div class="return-order">' + escapeHtml(x.fyndReturnNo || orderName) + '</div>';
+                const displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
+                let html = '<div class="return-card"><div class="return-order">' + escapeHtml(displayId) + '</div>';
                 html += '<div class="return-status-row">';
                 html += '<span class="status-badge shopify ' + statusClass + '">Shopify: ' + escapeHtml(x.status || '—') + '</span>';
                 if (ti.fyndStatus) html += '<span class="status-badge fynd">Fynd: ' + escapeHtml(ti.fyndStatus) + '</span>';
                 html += '</div>';
                 var meta = [];
-                if (x.fyndReturnNo) meta.push('<span><strong>Return #</strong> ' + escapeHtml(x.fyndReturnNo) + '</span>');
+                if (x.returnRequestNo) meta.push('<span><strong>Return ID</strong> ' + escapeHtml(x.returnRequestNo) + '</span>');
+                if (x.fyndReturnNo) meta.push('<span><strong>Fynd Return #</strong> ' + escapeHtml(x.fyndReturnNo) + '</span>');
                 if (ti.awbNo) meta.push('<span><strong>AWB</strong> ' + escapeHtml(ti.awbNo) + '</span>');
                 if (x.forwardAwb) meta.push('<span><strong>Forward AWB</strong> ' + escapeHtml(x.forwardAwb) + '</span>');
                 if (x.returnAwb) meta.push('<span><strong>Return AWB</strong> ' + escapeHtml(x.returnAwb) + '</span>');
@@ -513,7 +552,7 @@
                 return html + '</div>';
               }).join('');
         }
-      } catch (e) { err.textContent = e.message; }
+      } catch (e) { err.textContent = e.message || 'Lookup failed. Please try again.'; }
     };
 
     document.getElementById('btnBack').onclick = () => {
@@ -575,14 +614,12 @@
       btn.disabled = true;
       btn.textContent = 'Searching...';
       try {
-        const res = await fetch(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(cleanOrder));
-        const data = await res.json();
+        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(cleanOrder));
         if (data.fallback) {
           createOrderData = { manual: true, orderNumber: data.orderNumber || cleanOrder, name: '#' + (data.orderNumber || cleanOrder) };
           showManualForm(true, data.orderNumber || cleanOrder, data.error);
           return;
         }
-        if (data.error) throw new Error(data.error);
         if (!data.order) throw new Error('Order not found');
         createOrderData = data.order;
         if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
@@ -649,7 +686,7 @@
       btn.disabled = true;
       btn.textContent = 'Submitting...';
       try {
-        const res = await fetch(API + '/create-return', {
+        const data = await fetchJson(API + '/create-return', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -662,11 +699,9 @@
             customerNotes: document.getElementById('createManualCustomerNotes').value.trim() || undefined
           })
         });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
         document.getElementById('create-step2-manual').classList.remove('active');
         document.getElementById('create-step3').classList.add('active');
-        document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted. The store will process it manually.';
+        showReturnSuccessCard(data);
       } catch (e) {
         err.textContent = e.message || 'Failed to submit. Please try again.';
       } finally {
@@ -698,13 +733,14 @@
       });
       const lineItemsWithPrice = createOrderData.lineItems.map(li => ({
         id: li.id,
+        title: li.title,
         price: li.price,
         productTags: li.productTags || []
       }));
       btn.disabled = true;
       btn.textContent = 'Submitting...';
       try {
-        const res = await fetch(API + '/create-return', {
+        const data = await fetchJson(API + '/create-return', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -720,11 +756,9 @@
             lineItemsWithPrice
           })
         });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
         document.getElementById('create-step2').classList.remove('active');
         document.getElementById('create-step3').classList.add('active');
-        document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted successfully.';
+        showReturnSuccessCard(data);
       } catch (e) {
         err.textContent = e.message || 'Failed to submit. Please try again.';
       } finally {
@@ -733,8 +767,68 @@
       }
     };
 
+    let lastCreatedReturnId = null;
+    let lastCreatedReturnRequestId = null;
+    function showReturnSuccessCard(data) {
+      var card = document.getElementById('createSuccessCard');
+      var returnIdEl = document.getElementById('createReturnRequestId');
+      var summaryBlock = document.getElementById('createSummaryBlock');
+      var nextStepsEl = document.getElementById('createNextSteps');
+      card.style.display = 'block';
+      document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted successfully.';
+      var displayId = data.returnRequestId || (data.returnId ? 'RPM-' + String(data.returnId).slice(-8).toUpperCase() : '');
+      returnIdEl.textContent = displayId || '—';
+      lastCreatedReturnId = data.returnId || null;
+      lastCreatedReturnRequestId = data.returnRequestId || displayId || null;
+      var summary = data.summary || {};
+      var summaryHtml = '';
+      if (summary.orderName) summaryHtml += '<div class="summary-row"><span class="summary-label">Order</span><span class="summary-value">' + escapeHtml(summary.orderName) + '</span></div>';
+      if (summary.itemsCount != null) summaryHtml += '<div class="summary-row"><span class="summary-label">Items</span><span class="summary-value">' + summary.itemsCount + '</span></div>';
+      if (summary.items && summary.items.length) {
+        summaryHtml += '<div class="summary-row"><span class="summary-label">Returning</span><span class="summary-value"></span></div><ul class="return-summary-items">';
+        summary.items.forEach(function(it) { summaryHtml += '<li>' + escapeHtml(it.title || 'Item') + (it.qty > 1 ? ' × ' + it.qty : '') + '</li>'; });
+        summaryHtml += '</ul>';
+      }
+      if (summary.status) summaryHtml += '<div class="summary-row"><span class="summary-label">Status</span><span class="summary-value">' + escapeHtml(summary.status) + '</span></div>';
+      if (summary.createdAt) summaryHtml += '<div class="summary-row"><span class="summary-label">Submitted</span><span class="summary-value">' + escapeHtml(new Date(summary.createdAt).toLocaleString()) + '</span></div>';
+      summaryBlock.innerHTML = summaryHtml || '<div class="summary-row"><span class="summary-label">Order</span><span class="summary-value">' + escapeHtml(summary.orderName || '—') + '</span></div>';
+      summaryBlock.style.display = 'block';
+      nextStepsEl.textContent = summary.nextSteps || 'You will be notified once your return is reviewed.';
+      nextStepsEl.style.display = 'block';
+    }
+
+    document.getElementById('btnCopyReturnId').onclick = function() {
+      var el = document.getElementById('createReturnRequestId');
+      if (!el || !el.textContent) return;
+      navigator.clipboard.writeText(el.textContent).then(function() {
+        var btn = document.getElementById('btnCopyReturnId');
+        var orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = orig; }, 2000);
+      }).catch(function() {});
+    };
+
+    document.getElementById('btnTrackThisReturn').onclick = function() {
+      var idToTrack = lastCreatedReturnRequestId || lastCreatedReturnId;
+      if (!idToTrack || !document.getElementById('shop').value.trim()) return;
+      var trackTab = document.querySelector('.portal-tab[data-tab="track"]');
+      if (trackTab) {
+        document.querySelectorAll('.portal-tab').forEach(function(t) { t.classList.remove('active'); });
+        trackTab.classList.add('active');
+      }
+      document.getElementById('track-panel').style.display = 'block';
+      document.getElementById('create-panel').style.display = 'none';
+      document.getElementById('lookupType').value = 'return_id';
+      document.getElementById('lookupValue').value = idToTrack;
+      document.getElementById('step1').classList.add('active');
+      document.getElementById('step2').classList.remove('active');
+      document.getElementById('btnLookup').click();
+    };
+
     document.getElementById('btnCreateAnother').onclick = () => {
       createOrderData = null;
+      lastCreatedReturnId = null;
+      lastCreatedReturnRequestId = null;
       document.getElementById('createOrderNumber').value = '';
       document.getElementById('createManualOrderNumber').value = '';
       document.getElementById('createManualEmail').value = '';
@@ -748,6 +842,7 @@
       document.getElementById('create-step2-manual').classList.remove('active');
       document.getElementById('create-step3').classList.remove('active');
       document.getElementById('create-step1').classList.add('active');
+      document.getElementById('createSuccessCard').style.display = 'none';
     };
   </script>
 </body>

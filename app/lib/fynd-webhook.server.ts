@@ -385,6 +385,20 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
   }
 
+  // Log Fynd status update to timeline even when we don't take refund action
+  // (e.g. return_bag_delivered, return_accepted, etc.) so the full journey is visible
+  if (refundStatus) {
+    const eventLabel = refundStatus.replace(/_/g, " ");
+    await prisma.returnEvent.create({
+      data: {
+        returnCaseId: returnCase.id,
+        source: "fynd_webhook",
+        eventType: eventLabel,
+        payloadJson: JSON.stringify({ fynd_status: refundStatus, shipment_id: shipmentId }),
+      },
+    });
+  }
+
   await logWebhook({
     shipmentId,
     orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,

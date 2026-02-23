@@ -21,6 +21,8 @@ const EXTERNAL_ORDER_ID = process.env.FYND_EXTERNAL_ORDER_ID;
 const CLIENT_ID = process.env.FYND_CLIENT_ID;
 const CLIENT_SECRET = process.env.FYND_CLIENT_SECRET;
 const TEST_UPDATE = process.env.FYND_TEST_UPDATE === "1";
+const WEBHOOK_URL = process.env.FYND_WEBHOOK_URL || process.env.SHOPIFY_APP_URL;
+const TEST_WEBHOOK = process.env.FYND_TEST_WEBHOOK === "1";
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error("Error: FYND_CLIENT_ID and FYND_CLIENT_SECRET are required.");
@@ -38,6 +40,8 @@ console.log("Base URL:", BASE_URL);
 console.log("Company ID:", COMPANY_ID);
 console.log("Application ID:", APPLICATION_ID);
 console.log("Test Update (return_initiated):", TEST_UPDATE);
+console.log("Test Webhook (list + register):", TEST_WEBHOOK);
+if (TEST_WEBHOOK) console.log("Webhook URL:", WEBHOOK_URL || "(FYND_WEBHOOK_URL or SHOPIFY_APP_URL required)");
 console.log("");
 
 async function run() {
@@ -199,6 +203,78 @@ async function run() {
       console.error("\nUpdate failed. Check scopes (company/orders/read, company/orders/write) in Fynd Partners.");
     }
     console.log("");
+  }
+
+  // 6. Webhook: List subscribers
+  console.log("--- 6. Webhook: List Subscribers ---");
+  const r6 = await fetch(`${BASE_URL}/service/platform/webhook/v1.0/company/${COMPANY_ID}/subscriber/?page_no=1&page_size=10`, {
+    headers,
+  });
+  const body6 = await r6.text();
+  console.log(r6.ok ? "OK" : "FAIL", "HTTP", r6.status);
+  try {
+    const d6 = JSON.parse(body6);
+    const items = d6?.items ?? [];
+    console.log("Subscribers found:", items.length);
+    items.slice(0, 3).forEach((s, i) => {
+      console.log(`  ${i + 1}. ${s.name ?? "(unnamed)"} → ${s.webhook_url ?? "(no url)"}`);
+    });
+  } catch {
+    console.log(body6.slice(0, 300));
+  }
+  console.log("");
+
+  // 7. Webhook: Register (optional, when FYND_TEST_WEBHOOK=1 and URL set)
+  if (TEST_WEBHOOK && WEBHOOK_URL) {
+    console.log("--- 7. Webhook: Register Subscriber ---");
+    const urlClean = String(WEBHOOK_URL).trim().replace(/\/$/, "") + "/api/webhooks/fynd";
+    const registerBody = {
+      webhook_config: {
+        notification_email: "webhooks@test.local",
+        name: "Return Pro Max (Test)",
+        status: "active",
+        association: {
+          application_id: [APPLICATION_ID],
+          criteria: "SPECIFIC-EVENTS",
+        },
+        event_map: {
+          rest: {
+            webhook_url: urlClean,
+            type: "rest",
+            events: [
+              { event_category: "application", event_name: "refund", event_type: "refund_initiated", version: 1 },
+              { event_category: "application", event_name: "refund", event_type: "refund_pending", version: 1 },
+              { event_category: "application", event_name: "refund", event_type: "refund_done", version: 1 },
+              { event_category: "application", event_name: "shipment", event_type: "update", version: 1 },
+            ],
+          },
+        },
+      },
+    };
+    const r7 = await fetch(`${BASE_URL}/service/platform/webhook/v3.0/company/${COMPANY_ID}/subscriber/`, {
+      method: "PUT",
+      headers,
+      body: JSON.stringify(registerBody),
+    });
+    const body7 = await r7.text();
+    console.log(r7.ok ? "OK" : "FAIL", "HTTP", r7.status);
+    if (!r7.ok) {
+      try {
+        const err = JSON.parse(body7);
+        console.log("Error:", JSON.stringify(err.err ?? err, null, 2));
+      } catch {
+        console.log(body7);
+      }
+    } else {
+      try {
+        const res = JSON.parse(body7);
+        console.log("Response:", res.message ?? res.status ?? "Success");
+      } catch {}
+    }
+    console.log("");
+  } else if (TEST_WEBHOOK && !WEBHOOK_URL) {
+    console.log("--- 7. Webhook: Register ---");
+    console.log("SKIPPED: Set FYND_WEBHOOK_URL or SHOPIFY_APP_URL to test registration.\n");
   }
 
   console.log("=== End-to-End Test Complete ===");

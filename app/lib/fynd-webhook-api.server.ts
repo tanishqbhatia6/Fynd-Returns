@@ -185,12 +185,12 @@ export async function registerFyndWebhook(
           application_id: [applicationId],
           criteria: "SPECIFIC-EVENTS",
         },
-      },
-      event_map: {
-        rest: {
-          webhook_url: urlClean,
-          type: "rest",
-          events: FYND_WEBHOOK_EVENTS.map((e) => ({ ...e })),
+        event_map: {
+          rest: {
+            webhook_url: urlClean,
+            type: "rest",
+            events: FYND_WEBHOOK_EVENTS.map((e) => ({ ...e })),
+          },
         },
       },
     };
@@ -212,8 +212,12 @@ export async function registerFyndWebhook(
     if (!res.ok) {
       let errMsg = text || "Unknown error";
       try {
-        const parsed = JSON.parse(text) as { message?: string; error?: string };
-        errMsg = parsed.message ?? parsed.error ?? errMsg;
+        const parsed = JSON.parse(text) as { message?: string; error?: string; err?: Array<{ msg?: string; path?: string }> };
+        if (Array.isArray(parsed.err) && parsed.err.length > 0) {
+          errMsg = parsed.err.map((e) => `${e.path ?? ""}: ${e.msg ?? ""}`.trim()).join("; ") || errMsg;
+        } else {
+          errMsg = parsed.message ?? parsed.error ?? errMsg;
+        }
       } catch {
         // use raw text
       }
@@ -221,9 +225,9 @@ export async function registerFyndWebhook(
         res.status === 403
           ? " Your OAuth app may need company/webhooks or company/settings scope in Fynd Partners."
           : res.status === 400
-            ? " Check webhook URL format and application ID."
+            ? " Check webhook URL format, application ID, and request body structure."
             : "";
-      return { ok: false, error: `Fynd Webhook API ${res.status}: ${String(errMsg).slice(0, 300)}${hint}` };
+      return { ok: false, error: `Fynd Webhook API ${res.status}: ${String(errMsg).slice(0, 400)}${hint}` };
     }
 
     let message = "Webhook registered successfully.";

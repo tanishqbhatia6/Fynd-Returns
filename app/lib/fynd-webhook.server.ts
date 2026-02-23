@@ -101,7 +101,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
   const affiliateOrderId = extractAffiliateOrderId(payload);
 
   if (!shipmentId && !affiliateOrderId) {
-    return { ok: false, error: "Could not extract shipment_id or affiliate_order_id from webhook payload" };
+    // Treat as acknowledged (200) for dummy/test payloads — webhook providers expect 200 to avoid retries
+    return { ok: true, action: "ignored", returnCaseId: undefined };
   }
 
   // Find return case by fyndShipmentId (preferred) or fyndOrderId

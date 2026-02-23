@@ -60,6 +60,12 @@ export default function SettingsDashboard() {
       desc: hasFynd ? "Manage your Fynd integration." : "Connect Fynd for reverse logistics.",
     },
     {
+      to: "/app/settings/setup",
+      icon: "📋",
+      title: "Fynd Setup Guide",
+      desc: "Step-by-step guided setup with webhook configuration and testing.",
+    },
+    {
       to: "/app/settings/widget",
       icon: "📦",
       title: "Return Widget",

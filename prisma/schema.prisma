@@ -113,6 +113,8 @@ model ReturnCase {
   @@index([shopId, forwardAwb])
   @@index([shopId, returnAwb])
   @@index([shopId, fyndReturnId])
+  @@index([shopId, fyndShipmentId])
+  @@index([shopId, fyndOrderId])
   @@index([shopId, customerEmailNorm])
   @@index([shopId, customerPhoneNorm])
 }

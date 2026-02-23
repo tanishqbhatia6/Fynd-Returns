@@ -87,6 +87,15 @@ function buildSuggestions(data: {
     });
   }
 
+  if (data.hasFyndConfig && data.fyndSyncedCount > 0) {
+    suggestions.push({
+      type: "info",
+      message: "Setup Fynd webhook for automatic refunds when Fynd processes returns.",
+      action: "Fynd Setup Guide",
+      actionUrl: "/app/settings/setup",
+    });
+  }
+
   const topReason = data.topReasons[0];
   if (topReason && (topReason.reason === "Other" || topReason.reason === "other") && data.totalReturns >= 2) {
     suggestions.push({
@@ -980,6 +989,11 @@ export default function Dashboard() {
               <Link to={hasFyndConfig ? "/app/settings" : "/app/settings/integrations"}>
                 <s-button variant="secondary">{hasFyndConfig ? "Settings" : "Configure Fynd"}</s-button>
               </Link>
+              {hasFyndConfig && (
+                <Link to="/app/settings/setup">
+                  <s-button variant="secondary">Fynd Setup Guide</s-button>
+                </Link>
+              )}
               <Link to="/app/reports">
                 <s-button variant="secondary">Reports</s-button>
               </Link>

@@ -1,5 +1,7 @@
 # Fynd Platform Order API — URLs and Endpoints
 
+> **Setup:** Use the in-app **Fynd Setup Guide** (Settings → Fynd Setup Guide) for guided onboarding.
+
 This document lists all URLs used by Return Pro Max for the Fynd integration. **All Fynd operations use Platform Order API only** (OAuth). Storefront and Konnect APIs are not used.
 
 **Reference:** [Fynd Platform Order docs](https://docs.fynd.com/partners/commerce/sdk/latest/platform/company/order)
@@ -115,6 +117,21 @@ PUT {BASE_URL}/service/platform/order-manage/v1.0/company/{COMPANY_ID}/shipment/
 
 ---
 
+## 6. Fynd Shipment Update Webhook (Incoming)
+
+Return Pro Max listens for Fynd shipment/refund status updates to automatically update refund status and trigger Shopify refunds.
+
+**Webhook URL:** `https://YOUR_APP_URL/api/webhooks/fynd`
+
+Configure this URL in Fynd Platform (Partners → Webhooks) for shipment status events. When Fynd sends updates:
+
+- **refund_initiated / refund_pending / UNDER PROCESS** → `refundStatus` = `in_progress`
+- **refund_done / refunded** → Calls Shopify Refund API, sets `refundStatus` = `refunded`
+
+See `docs/FYND_WEBHOOK.md` for payload format and setup.
+
+---
+
 ## API Summary
 
 | Operation | Method | Path |
@@ -124,6 +141,7 @@ PUT {BASE_URL}/service/platform/order-manage/v1.0/company/{COMPANY_ID}/shipment/
 | List shipments | GET | `/service/platform/order/v1.0/company/{companyId}/shipments-listing` |
 | Order details | GET | `/service/platform/order/v1.0/company/{companyId}/order-details?order_id=...` |
 | Update status | PUT | `/service/platform/order-manage/v1.0/company/{companyId}/shipment/status-internal` |
+| **Webhook (incoming)** | POST | `/api/webhooks/fynd` |
 
 ---
 
@@ -132,6 +150,7 @@ PUT {BASE_URL}/service/platform/order-manage/v1.0/company/{COMPANY_ID}/shipment/
 1. **Scopes** — In Fynd Partners → your extension, enable:
    - `company/orders/read`
    - `company/orders/write`
+   - `company/settings` (may be required for webhook registration via Platform Webhook API)
 
 2. **Environment** — UAT credentials → `https://api.uat.fyndx1.de`. Prod credentials → `https://api.fynd.com`.
 

@@ -333,6 +333,15 @@ export default function Integrations() {
       )}
 
       <fetcher.Form method="post">
+        <div style={{ marginBottom: 24, padding: "12px 16px", background: "#e8f4fc", borderRadius: 8, border: "1px solid #b6d4fe" }}>
+          <p className="app-field-helper" style={{ margin: 0, fontSize: 14 }}>
+            <strong>New to Fynd?</strong> Use the{" "}
+            <Link to="/app/settings/setup" style={{ color: "#005bd3", fontWeight: 600 }}>
+              Fynd Setup Guide
+            </Link>{" "}
+            for step-by-step onboarding with webhook configuration and testing.
+          </p>
+        </div>
         <p className="app-field-helper" style={{ marginBottom: 24, fontSize: 14 }}>
           Connect Fynd for reverse logistics. All Fynd operations use <strong>Platform API only</strong> (OAuth). Storefront API is not used. From <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
         </p>

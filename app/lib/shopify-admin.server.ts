@@ -1,4 +1,24 @@
-type AdminGraphQL = { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> };
+export type AdminGraphQL = { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> };
+
+const API_VERSION = "2026-01";
+
+/** Create Admin GraphQL client from shop domain and access token (e.g. for webhooks/background jobs) */
+export function createAdminClient(shopDomain: string, accessToken: string): AdminGraphQL {
+  const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
+  const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
+  return {
+    graphql: async (query: string, options?: { variables?: Record<string, unknown> }) => {
+      return fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Shopify-Access-Token": accessToken,
+        },
+        body: JSON.stringify({ query, variables: options?.variables ?? {} }),
+      });
+    },
+  };
+}
 
 const ORDERS_QUERY = `#graphql
   query getOrders($ids: [ID!]!) {

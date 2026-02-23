@@ -462,24 +462,26 @@ export async function createFyndClientOrError(
       return { ok: false, error: "Fynd Company ID is missing. Set it in Settings → Integrations (Platform API)." };
     }
     try {
-      const fdk = createFyndPlatformClient({
-        companyId: settings.fyndCompanyId,
-        applicationId: settings.fyndApplicationId,
-        apiKey: credentials.platform.clientId,
-        apiSecret: credentials.platform.clientSecret,
-        domain: getFyndDomain(settings),
-        log,
-      });
-      const client = new FyndPlatformClientFDK(
-        fdk,
+      // Use raw OAuth + fetch (same flow as Test Platform and CURL). FDK uses different auth
+      // that can cause 403 on write operations even when reads work.
+      const token = await fetchFyndPlatformToken(
+        baseUrl,
+        settings.fyndCompanyId,
+        credentials.platform.clientId,
+        credentials.platform.clientSecret,
+        log
+      );
+      const client = new FyndPlatformClient(
+        baseUrl,
         settings.fyndCompanyId,
         settings.fyndApplicationId,
+        token,
         log
       );
       return { ok: true, client };
     } catch (tokenErr) {
       const msg = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
-      log?.("fynd-client", "FDK init failed", msg);
+      log?.("fynd-client", "Platform OAuth failed", msg);
       return { ok: false, error: `Fynd login failed: ${msg}. Check Company ID, Client ID & Secret and environment (UAT/Prod) in Settings → Integrations.` };
     }
   }

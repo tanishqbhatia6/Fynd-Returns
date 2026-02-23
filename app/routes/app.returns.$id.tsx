@@ -379,11 +379,11 @@ export default function ReturnDetail() {
           <p style={{ margin: 0, color: "#78350f" }}>{decodeURIComponent(fyndError)}</p>
           {(fyndError.includes("403") || fyndError.includes("Forbidden")) && (
             <div style={{ marginTop: 16, padding: 16, background: "rgba(255,255,255,0.5)", borderRadius: 8, border: "1px solid rgba(180,83,9,0.3)" }}>
-              <p style={{ margin: "0 0 12px 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>Fix 403 Forbidden — checklist:</p>
-              <ol style={{ margin: 0, paddingLeft: 20, color: "#78350f", fontSize: 13, lineHeight: 1.8 }}>
-                <li><strong>Scopes:</strong> Your Fynd OAuth app must have <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/read</code> and <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/write</code>. In Fynd Partners → your extension/app → ensure these scopes are enabled.</li>
-                <li><strong>Environment:</strong> UAT credentials only work on UAT. Production credentials only work on Production. Match the environment in Settings → Integrations.</li>
-                <li><strong>Company ID & Application ID:</strong> Must match your Fynd Commerce company and application exactly (no extra spaces).</li>
+              <p style={{ margin: "0 0 12px 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>Sync uses the same OAuth flow as Test Platform. If you can see order/shipment details and Test Platform passes, try Retry Fynd sync again.</p>
+              <p style={{ margin: "12px 0 0 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>If 403 persists:</p>
+              <ol style={{ margin: "8px 0 0 0", paddingLeft: 20, color: "#78350f", fontSize: 13, lineHeight: 1.8 }}>
+                <li><strong>Scopes:</strong> Ensure <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/read</code> and <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/write</code> in Fynd Partners.</li>
+                <li><strong>Environment:</strong> UAT credentials only work on UAT. Production credentials only work on Production.</li>
                 <li><strong>Test first:</strong> Go to <Link to="/app/settings/integrations" style={{ fontWeight: 600, color: "#b45309" }}>Settings → Integrations</Link>, click <strong>Test Platform</strong>. If that fails, fix credentials there before retrying sync.</li>
               </ol>
               <p style={{ margin: "12px 0 0 0", fontSize: 12, color: "#92400e" }}>

@@ -6,9 +6,9 @@ import { authenticate } from "../shopify.server";
 function enrichFyndError(msg: string): string {
   if (!msg) return msg;
   const is403 = /403|forbidden/i.test(msg);
-  const hasGuidance = /company\/orders|scopes|Fynd Partners|Settings.*Integrations/i.test(msg);
+  const hasGuidance = /company\/orders|scopes|Fynd Partners|Settings.*Integrations|Test Platform/i.test(msg);
   if (is403 && !hasGuidance) {
-    return `${msg} — Fynd 403: Your OAuth app needs company/orders/read and company/orders/write scopes in Fynd Partners. Check Settings → Integrations and run Test Platform.`;
+    return `${msg} — Sync uses the same OAuth flow as Test Platform. If Test Platform passes in Settings → Integrations but sync still fails, the write endpoint may require additional permissions—contact Fynd support.`;
   }
   return msg;
 }

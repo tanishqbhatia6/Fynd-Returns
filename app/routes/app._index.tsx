@@ -1,7 +1,8 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData } from "react-router";
+import { Link, useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
 import {
   AreaChart,
   Area,
@@ -35,8 +36,113 @@ function getStatusColor(status: string): string {
   return STATUS_COLORS[key] ?? "#6d7175";
 }
 
+function buildSuggestions(data: {
+  totalReturns: number;
+  pendingCount: number;
+  rejectedCount: number;
+  approvedCount: number;
+  topReasons: { reason: string; count: number }[];
+  hasFyndConfig: boolean;
+  fyndSyncedCount: number;
+  refundedCount: number;
+  avgProcessingDays: number | null;
+  rangeLabel: string;
+}): { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[] {
+  const suggestions: { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[] = [];
+
+  if (data.totalReturns === 0) {
+    suggestions.push({
+      type: "info",
+      message: `No returns in ${data.rangeLabel}. Share your customer portal URL to let customers initiate returns.`,
+      action: "Share portal",
+      actionUrl: "/app/portal",
+    });
+    return suggestions;
+  }
+
+  if (data.pendingCount > 0) {
+    suggestions.push({
+      type: "warning",
+      message: `${data.pendingCount} return${data.pendingCount > 1 ? "s" : ""} pending review. Process them to improve customer satisfaction.`,
+      action: "View pending",
+      actionUrl: "/app/returns?status=pending",
+    });
+  }
+
+  if (!data.hasFyndConfig && data.approvedCount > 0) {
+    suggestions.push({
+      type: "info",
+      message: "Connect Fynd to sync returns with your logistics partner and track return numbers.",
+      action: "Configure Fynd",
+      actionUrl: "/app/settings/integrations",
+    });
+  }
+
+  if (data.hasFyndConfig && data.approvedCount > 0 && data.fyndSyncedCount < data.approvedCount) {
+    suggestions.push({
+      type: "warning",
+      message: `${data.approvedCount - data.fyndSyncedCount} approved return${data.approvedCount - data.fyndSyncedCount > 1 ? "s" : ""} not yet synced to Fynd. Use "Retry Fynd sync" on each return.`,
+      action: "View returns",
+      actionUrl: "/app/returns",
+    });
+  }
+
+  const topReason = data.topReasons[0];
+  if (topReason && (topReason.reason === "Other" || topReason.reason === "other") && data.totalReturns >= 2) {
+    suggestions.push({
+      type: "info",
+      message: "Many returns use 'Other' as the reason. Consider adding more specific return reasons in Settings to get better insights.",
+      action: "Return settings",
+      actionUrl: "/app/settings/return-settings",
+    });
+  }
+
+  if (data.rejectedCount > 0 && data.totalReturns >= 3) {
+    const rejectRate = Math.round((data.rejectedCount / data.totalReturns) * 100);
+    if (rejectRate > 30) {
+      suggestions.push({
+        type: "warning",
+        message: `Rejection rate is ${rejectRate}%. Review your return policy and approval criteria.`,
+        action: "View rejected",
+        actionUrl: "/app/returns?status=rejected",
+      });
+    }
+  }
+
+  if (data.refundedCount < data.approvedCount && data.approvedCount > 0) {
+    suggestions.push({
+      type: "info",
+      message: `${data.approvedCount - data.refundedCount} approved return${data.approvedCount - data.refundedCount > 1 ? "s" : ""} not yet refunded. Process refunds in Shopify.`,
+      action: "View returns",
+      actionUrl: "/app/returns",
+    });
+  }
+
+  if (data.avgProcessingDays !== null && data.avgProcessingDays > 5 && data.approvedCount >= 2) {
+    suggestions.push({
+      type: "warning",
+      message: `Average processing time is ${Math.round(data.avgProcessingDays)} days. Consider faster approval to improve customer experience.`,
+      action: "View pending",
+      actionUrl: "/app/returns?status=pending",
+    });
+  }
+
+  if (suggestions.length === 0 && data.totalReturns > 0) {
+    suggestions.push({
+      type: "success",
+      message: `All returns in ${data.rangeLabel} are processed. Keep up the good work.`,
+    });
+  }
+
+  return suggestions;
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
+  const url = new URL(request.url);
+  const range = url.searchParams.get("range") || "last_30_days";
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
 
   try {
     let shop = await prisma.shop.findUnique({
@@ -50,23 +156,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
 
-    const now = new Date();
-    const fourteenDaysAgo = new Date(now);
-    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const thirtyDaysAgo = new Date(now);
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to);
+    const where = {
+      shopId: shop.id,
+      createdAt: { gte: rangeStart, lte: rangeEnd },
+    };
+    const whereAll = { shopId: shop.id };
 
-    const where = { shopId: shop.id };
-    const whereLast7 = { ...where, createdAt: { gte: sevenDaysAgo } };
-    const whereLast30 = { ...where, createdAt: { gte: thirtyDaysAgo } };
-    const whereLast14 = { ...where, createdAt: { gte: fourteenDaysAgo } };
+    const approvedStatuses = ["approved", "completed"];
+    const approvedWhere = {
+      ...where,
+      status: { in: approvedStatuses },
+    };
 
     const [
       totalReturns,
-      returnsLast7,
-      returnsLast30,
       returnsByStatus,
       recentReturns,
       reasonAggregation,
@@ -74,17 +178,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       fyndSyncedCount,
       pendingCount,
       rejectedCount,
-      returnsLast14,
       itemsCount,
+      allTimeReturns,
+      approvedWithEvents,
+      returnsForDaily,
     ] = await Promise.all([
       prisma.returnCase.count({ where }),
-      prisma.returnCase.count({ where: whereLast7 }),
-      prisma.returnCase.count({ where: whereLast30 }),
-      prisma.returnCase.groupBy({
-        by: ["status"],
-        where,
-        _count: true,
-      }),
+      prisma.returnCase.groupBy({ by: ["status"], where, _count: true }),
       prisma.returnCase.findMany({
         where,
         orderBy: { createdAt: "desc" },
@@ -93,40 +193,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }),
       prisma.returnItem.groupBy({
         by: ["reasonCode"],
-        where: { returnCase: { shopId: shop.id } },
+        where: { returnCase: where },
         _count: true,
       }),
       prisma.returnCase.count({ where: { ...where, refundStatus: "refunded" } }),
       prisma.returnCase.count({ where: { ...where, fyndReturnNo: { not: null } } }),
       prisma.returnCase.count({ where: { ...where, status: "pending" } }),
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
+      prisma.returnItem.count({ where: { returnCase: where } }),
+      prisma.returnCase.count({ where: whereAll }),
       prisma.returnCase.findMany({
-        where: whereLast14,
-        select: { createdAt: true },
+        where: approvedWhere,
+        select: { createdAt: true, updatedAt: true },
       }),
-      prisma.returnItem.count({ where: { returnCase: { shopId: shop.id } } }),
+      prisma.returnCase.findMany({ where, select: { createdAt: true } }),
     ]);
 
-    const statusMap = returnsByStatus.reduce(
-      (acc, x) => ({ ...acc, [x.status]: x._count }),
-      {} as Record<string, number>
-    );
+    const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
+    const approvedCount = (statusMap.approved ?? 0) + (statusMap.completed ?? 0);
     const maxStatusCount = Math.max(...Object.values(statusMap), 1);
 
     const topReasons = reasonAggregation
-      .filter((r) => r.reasonCode && r.reasonCode.trim() !== "")
-      .map((r) => ({ reason: r.reasonCode!, count: r._count }))
+      .filter((r) => r.reasonCode != null && String(r.reasonCode).trim() !== "")
+      .map((r) => ({ reason: String(r.reasonCode), count: r._count }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 8);
+      .slice(0, 10);
 
     const dailyData: Record<string, number> = {};
-    for (let d = 0; d < 14; d++) {
-      const date = new Date(now);
-      date.setDate(date.getDate() - (13 - d));
+    const daysDiff = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000));
+    const numDays = Math.min(Math.max(daysDiff, 1), 90);
+    for (let d = 0; d < numDays; d++) {
+      const date = new Date(rangeStart);
+      date.setDate(date.getDate() + d);
       const key = date.toISOString().slice(0, 10);
       dailyData[key] = 0;
     }
-    returnsLast14.forEach((r) => {
+    returnsForDaily.forEach((r) => {
       const key = new Date(r.createdAt).toISOString().slice(0, 10);
       if (dailyData[key] !== undefined) dailyData[key]++;
     });
@@ -142,18 +244,50 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .sort(([, a], [, b]) => b - a)
       .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
 
+    let avgProcessingDays: number | null = null;
+    if (approvedWithEvents.length >= 1) {
+      const times: number[] = approvedWithEvents
+        .map((rc) => {
+          const created = new Date(rc.createdAt).getTime();
+          const updated = new Date(rc.updatedAt).getTime();
+          return (updated - created) / (24 * 60 * 60 * 1000);
+        })
+        .filter((t) => t >= 0);
+      if (times.length > 0) {
+        avgProcessingDays = times.reduce((a, b) => a + b, 0) / times.length;
+      }
+    }
+
     const portalUrl = `https://${session.shop}/apps/returns`;
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
-    const weekOverWeekChange =
-      returnsLast7 > 0 && returnsLast30 > 0
-        ? Math.round(((returnsLast7 - (returnsLast30 - returnsLast7) / 3) / Math.max(returnsLast7, 1)) * 100)
+    const prevPeriodStart = new Date(rangeStart);
+    prevPeriodStart.setTime(prevPeriodStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime()));
+    const prevPeriodWhere = {
+      shopId: shop.id,
+      createdAt: { gte: prevPeriodStart, lt: rangeStart },
+    };
+    const prevPeriodCount = await prisma.returnCase.count({ where: prevPeriodWhere });
+    const periodChange =
+      totalReturns > 0 && prevPeriodCount >= 0
+        ? Math.round(((totalReturns - prevPeriodCount) / Math.max(prevPeriodCount, 1)) * 100)
         : 0;
+
+    const suggestions = buildSuggestions({
+      totalReturns,
+      pendingCount,
+      rejectedCount,
+      approvedCount,
+      topReasons,
+      hasFyndConfig,
+      fyndSyncedCount,
+      refundedCount,
+      avgProcessingDays,
+      rangeLabel,
+    });
 
     return {
       totalReturns,
-      returnsLast7,
-      returnsLast30,
       statusMap,
       maxStatusCount,
       topReasons,
@@ -165,18 +299,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       fyndSyncedCount,
       pendingCount,
       rejectedCount,
+      approvedCount,
       returnsOverTime,
       statusChartData,
       itemsCount,
-      weekOverWeekChange,
+      periodChange,
+      rangeLabel,
+      range,
+      from: from ?? undefined,
+      to: to ?? undefined,
+      allTimeReturns,
+      processingCount: (statusMap.processing ?? 0) + (statusMap["in progress"] ?? 0) + (statusMap.initiated ?? 0),
+      cancelledCount: statusMap.cancelled ?? 0,
+      suggestions,
       error: null,
     };
   } catch (err) {
     console.error("Dashboard loader error:", err);
     return {
       totalReturns: 0,
-      returnsLast7: 0,
-      returnsLast30: 0,
       statusMap: {} as Record<string, number>,
       maxStatusCount: 1,
       topReasons: [] as { reason: string; count: number }[],
@@ -188,10 +329,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       fyndSyncedCount: 0,
       pendingCount: 0,
       rejectedCount: 0,
+      approvedCount: 0,
       returnsOverTime: [] as { date: string; returns: number; fullDate: string }[],
       statusChartData: [] as { name: string; value: number }[],
       itemsCount: 0,
-      weekOverWeekChange: 0,
+      periodChange: 0,
+      rangeLabel: "Last 30 days",
+      range: "last_30_days",
+      from: undefined,
+      to: undefined,
+      allTimeReturns: 0,
+      processingCount: 0,
+      cancelledCount: 0,
+      suggestions: [] as { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[],
       error: "Failed to load dashboard data. Please refresh or try again later.",
     };
   }
@@ -272,10 +422,9 @@ const MetricCard = ({
 );
 
 export default function Dashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const {
     totalReturns,
-    returnsLast7,
-    returnsLast30,
     statusMap,
     maxStatusCount,
     topReasons,
@@ -286,12 +435,43 @@ export default function Dashboard() {
     fyndSyncedCount,
     pendingCount,
     rejectedCount,
+    approvedCount,
     returnsOverTime,
     statusChartData,
     itemsCount,
-    weekOverWeekChange,
+    periodChange,
+    rangeLabel,
+    range,
+    from,
+    to,
+    allTimeReturns,
+    processingCount,
+    cancelledCount,
+    suggestions,
     error,
   } = useLoaderData<typeof loader>();
+
+  const handleRangeChange = (newRange: DateRangePreset) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("range", newRange);
+    if (newRange !== "custom") {
+      next.delete("from");
+      next.delete("to");
+    }
+    setSearchParams(next);
+  };
+
+  const handleCustomRange = (fromVal: string, toVal: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.set("range", "custom");
+    next.set("from", fromVal);
+    next.set("to", toVal);
+    setSearchParams(next);
+  };
+
+  const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
+  const rejectionRate = totalReturns > 0 ? Math.round((rejectedCount / totalReturns) * 100) : 0;
+  const avgItemsPerReturn = totalReturns > 0 ? (itemsCount / totalReturns).toFixed(1) : "0";
 
   return (
     <s-page heading="Dashboard">
@@ -305,11 +485,138 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Date range filter */}
+        <div
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 24,
+            padding: "16px 20px",
+            background: "var(--rpm-surface)",
+            borderRadius: 14,
+            border: "1px solid var(--rpm-border)",
+          }}
+        >
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text)" }}>Date range:</span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+            <select
+              value={range}
+              onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
+              style={{
+                padding: "8px 14px",
+                borderRadius: 8,
+                border: "1px solid var(--rpm-border)",
+                fontSize: 14,
+                fontWeight: 500,
+                background: "var(--rpm-surface)",
+                color: "var(--rpm-text)",
+                minWidth: 160,
+              }}
+            >
+              {DATE_RANGE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {range === "custom" && (
+              <>
+                <input
+                  type="date"
+                  value={from ?? ""}
+                  onChange={(e) => handleCustomRange(e.target.value, to ?? "")}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--rpm-border)",
+                    fontSize: 14,
+                  }}
+                />
+                <span style={{ color: "var(--rpm-text-muted)" }}>to</span>
+                <input
+                  type="date"
+                  value={to ?? ""}
+                  onChange={(e) => handleCustomRange(from ?? "", e.target.value)}
+                  style={{
+                    padding: "8px 12px",
+                    borderRadius: 8,
+                    border: "1px solid var(--rpm-border)",
+                    fontSize: 14,
+                  }}
+                />
+              </>
+            )}
+          </div>
+          <span style={{ fontSize: 13, color: "var(--rpm-text-muted)", marginLeft: 8 }}>{rangeLabel}</span>
+        </div>
+
+        {/* Suggestions */}
+        {suggestions.length > 0 && (
+          <div
+            style={{
+              marginBottom: 24,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}
+          >
+            <h3 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 600, color: "var(--rpm-text)" }}>
+              Suggestions
+            </h3>
+            {suggestions.map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  padding: "14px 18px",
+                  borderRadius: 10,
+                  background:
+                    s.type === "success"
+                      ? "var(--rpm-success-bg)"
+                      : s.type === "warning"
+                        ? "var(--rpm-warning-bg)"
+                        : "#eff6ff",
+                  border: `1px solid ${s.type === "success" ? "#a7f3d0" : s.type === "warning" ? "#fde68a" : "#bfdbfe"}`,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 14,
+                    color: s.type === "success" ? "#047857" : s.type === "warning" ? "#b45309" : "#1e40af",
+                  }}
+                >
+                  {s.message}
+                </span>
+                {s.action && s.actionUrl && (
+                  <Link
+                    to={s.actionUrl}
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 600,
+                      color: "var(--rpm-accent)",
+                      textDecoration: "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {s.action} →
+                  </Link>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Hero metrics */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
             gap: 20,
             marginBottom: 32,
           }}
@@ -318,37 +625,33 @@ export default function Dashboard() {
             <MetricCard
               label="Total returns"
               value={totalReturns}
-              subtext="All time"
-              trend={weekOverWeekChange}
+              subtext={rangeLabel}
+              trend={periodChange}
               icon="📦"
             />
           </Link>
-          <MetricCard label="Last 7 days" value={returnsLast7} subtext="This week" icon="📅" />
-          <MetricCard label="Last 30 days" value={returnsLast30} subtext="This month" icon="📆" />
-          <MetricCard
-            label="Approved"
-            value={(statusMap.approved ?? 0) + (statusMap.completed ?? 0)}
-            color="#059669"
-            icon="✓"
-          />
-          <MetricCard label="Pending" value={pendingCount} color="#b98900" icon="⏳" />
+          <MetricCard label="Approved" value={approvedCount} color="#059669" subtext={`${approvalRate}% of total`} icon="✓" />
+          <MetricCard label="Pending" value={pendingCount} color="#b98900" subtext="Awaiting review" icon="⏳" />
+          <MetricCard label="Processing" value={processingCount} color="#005bd3" subtext="In progress" icon="🔄" />
+          <MetricCard label="Rejected" value={rejectedCount} color="#d72c0d" subtext={`${rejectionRate}% of total`} icon="✕" />
           <MetricCard label="Refunded" value={refundedCount} color="#059669" subtext="Processed" icon="💰" />
           {hasFyndConfig && (
             <MetricCard label="Fynd synced" value={fyndSyncedCount} subtext="With return #" icon="🔄" />
           )}
-          <MetricCard label="Items returned" value={itemsCount} subtext="Total units" icon="📋" />
+          <MetricCard label="Items returned" value={itemsCount} subtext={`~${avgItemsPerReturn} per return`} icon="📋" />
+          <MetricCard label="Cancelled" value={cancelledCount} color="#6d7175" subtext="Voided" icon="⊘" />
+          <MetricCard label="All time" value={allTimeReturns} subtext="Total ever" icon="📊" />
         </div>
 
         {/* Charts row */}
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
             gap: 24,
             marginBottom: 32,
           }}
         >
-          {/* Returns over time */}
           <div
             style={{
               background: "var(--rpm-surface)",
@@ -358,18 +661,10 @@ export default function Dashboard() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             }}
           >
-            <h3
-              style={{
-                margin: "0 0 20px",
-                fontSize: 16,
-                fontWeight: 600,
-                color: "var(--rpm-text)",
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
               Returns over time
             </h3>
-            <div style={{ height: 240 }}>
+            <div style={{ height: 260 }}>
               {returnsOverTime.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={returnsOverTime} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
@@ -383,21 +678,11 @@ export default function Dashboard() {
                     <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
-                      contentStyle={{
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                        fontSize: 13,
-                      }}
+                      contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
                       formatter={(value: number) => [value, "Returns"]}
                       labelFormatter={(label) => `Date: ${label}`}
                     />
-                    <Area
-                      type="monotone"
-                      dataKey="returns"
-                      stroke="#005bd3"
-                      strokeWidth={2}
-                      fill="url(#returnsGradient)"
-                    />
+                    <Area type="monotone" dataKey="returns" stroke="#005bd3" strokeWidth={2} fill="url(#returnsGradient)" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
@@ -409,15 +694,16 @@ export default function Dashboard() {
                     justifyContent: "center",
                     color: "var(--rpm-text-muted)",
                     fontSize: 14,
+                    textAlign: "center",
+                    padding: 24,
                   }}
                 >
-                  No returns in the last 14 days
+                  No returns in selected period. Try a different date range or share your portal URL.
                 </div>
               )}
             </div>
           </div>
 
-          {/* Status distribution */}
           <div
             style={{
               background: "var(--rpm-surface)",
@@ -427,18 +713,10 @@ export default function Dashboard() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             }}
           >
-            <h3
-              style={{
-                margin: "0 0 20px",
-                fontSize: 16,
-                fontWeight: 600,
-                color: "var(--rpm-text)",
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
               Returns by status
             </h3>
-            <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {statusChartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
@@ -457,65 +735,55 @@ export default function Dashboard() {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{
-                        borderRadius: 10,
-                        border: "1px solid #e5e7eb",
-                        fontSize: 13,
-                      }}
-                      formatter={(value: number, name: string, props: { payload: { value: number } }) => {
+                      contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
+                      formatter={(value: number, _: string, props: { payload: { value: number } }) => {
                         const total = statusChartData.reduce((a, d) => a + d.value, 0);
                         const pct = total > 0 ? Math.round((props.payload.value / total) * 100) : 0;
-                        return [`${value} (${pct}%)`, name];
+                        return [`${value} (${pct}%)`, ""];
                       }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ color: "var(--rpm-text-muted)", fontSize: 14 }}>No status data yet</div>
+                <div style={{ color: "var(--rpm-text-muted)", fontSize: 14, textAlign: "center" }}>
+                  No status data in selected period
+                </div>
               )}
             </div>
           </div>
         </div>
 
-        {/* Return reasons bar chart */}
-        {topReasons.length > 0 && (
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              marginBottom: 32,
-            }}
-          >
-            <h3
-              style={{
-                margin: "0 0 20px",
-                fontSize: 16,
-                fontWeight: 600,
-                color: "var(--rpm-text)",
-                letterSpacing: "-0.01em",
-              }}
-            >
-              Top return reasons
-            </h3>
-            <div style={{ height: 220 }}>
+        {/* Top return reasons - always visible */}
+        <div
+          style={{
+            background: "var(--rpm-surface)",
+            borderRadius: 14,
+            padding: 24,
+            border: "1px solid var(--rpm-border)",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            marginBottom: 32,
+          }}
+        >
+          <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
+            Top return reasons
+          </h3>
+          <div style={{ height: Math.max(180, topReasons.length * 36) }}>
+            {topReasons.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart
-                  data={topReasons.map((r) => ({ name: r.reason.length > 20 ? r.reason.slice(0, 20) + "…" : r.reason, count: r.count, fullName: r.reason }))}
+                  data={topReasons.map((r) => ({
+                    name: r.reason.length > 25 ? r.reason.slice(0, 25) + "…" : r.reason,
+                    count: r.count,
+                    fullName: r.reason,
+                  }))}
                   layout="vertical"
                   margin={{ top: 4, right: 24, left: 4, bottom: 4 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
                   <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} width={100} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} width={120} axisLine={false} tickLine={false} />
                   <Tooltip
-                    contentStyle={{
-                      borderRadius: 10,
-                      border: "1px solid #e5e7eb",
-                      fontSize: 13,
-                    }}
+                    contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
                     formatter={(value: number, _: unknown, props: { payload?: { fullName?: string } }) => [
                       value,
                       props.payload?.fullName ?? "Returns",
@@ -524,9 +792,24 @@ export default function Dashboard() {
                   <Bar dataKey="count" fill="#005bd3" radius={[0, 4, 4, 0]} name="Returns" />
                 </BarChart>
               </ResponsiveContainer>
-            </div>
+            ) : (
+              <div
+                style={{
+                  height: "100%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--rpm-text-muted)",
+                  fontSize: 14,
+                  textAlign: "center",
+                  padding: 24,
+                }}
+              >
+                No return reasons recorded yet. Reasons will appear as customers submit returns with specific reasons.
+              </div>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Status breakdown + Recent returns */}
         <div
@@ -546,20 +829,12 @@ export default function Dashboard() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             }}
           >
-            <h3
-              style={{
-                margin: "0 0 16px",
-                fontSize: 16,
-                fontWeight: 600,
-                color: "var(--rpm-text)",
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
               Status breakdown
             </h3>
             {Object.keys(statusMap).length === 0 ? (
               <div style={{ padding: 24, textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 14 }}>
-                No returns yet. Status breakdown will appear when customers initiate returns.
+                No returns in selected period.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -602,30 +877,13 @@ export default function Dashboard() {
               padding: 24,
               border: "1px solid var(--rpm-border)",
               boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              gridColumn: "span 1",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3
-                style={{
-                  margin: 0,
-                  fontSize: 16,
-                  fontWeight: 600,
-                  color: "var(--rpm-text)",
-                  letterSpacing: "-0.01em",
-                }}
-              >
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
                 Recent returns
               </h3>
-              <Link
-                to="/app/returns"
-                style={{
-                  fontSize: 13,
-                  fontWeight: 600,
-                  color: "var(--rpm-accent)",
-                  textDecoration: "none",
-                }}
-              >
+              <Link to="/app/returns" style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
                 View all →
               </Link>
             </div>
@@ -639,11 +897,9 @@ export default function Dashboard() {
                   border: "1px dashed var(--rpm-border)",
                 }}
               >
-                <p style={{ fontSize: 15, fontWeight: 500, marginBottom: 8, color: "var(--rpm-text)" }}>
-                  No returns yet
-                </p>
+                <p style={{ fontSize: 15, fontWeight: 500, marginBottom: 8, color: "var(--rpm-text)" }}>No returns yet</p>
                 <p style={{ color: "var(--rpm-text-muted)", marginBottom: 16, fontSize: 14 }}>
-                  Returns will appear here when customers initiate them via the portal.
+                  Returns will appear when customers initiate them via the portal.
                 </p>
                 <Link to="/app/portal">
                   <s-button variant="primary">Share portal URL</s-button>
@@ -654,11 +910,11 @@ export default function Dashboard() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
                   <thead>
                     <tr style={{ borderBottom: "1px solid var(--rpm-border)" }}>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Order</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Status</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Return #</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Created</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}></th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Order</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Status</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Return #</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Created</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -685,26 +941,12 @@ export default function Dashboard() {
                             {r.status}
                           </span>
                         </td>
+                        <td style={{ padding: "12px", color: "var(--rpm-text-muted)" }}>{r.fyndReturnNo || "—"}</td>
                         <td style={{ padding: "12px", color: "var(--rpm-text-muted)" }}>
-                          {r.fyndReturnNo || "—"}
-                        </td>
-                        <td style={{ padding: "12px", color: "var(--rpm-text-muted)" }}>
-                          {new Date(r.createdAt).toLocaleDateString(undefined, {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                          {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
                         </td>
                         <td style={{ padding: "12px", textAlign: "right" }}>
-                          <Link
-                            to={`/app/returns/${r.id}`}
-                            style={{
-                              fontSize: 13,
-                              fontWeight: 600,
-                              color: "var(--rpm-accent)",
-                              textDecoration: "none",
-                            }}
-                          >
+                          <Link to={`/app/returns/${r.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
                             View
                           </Link>
                         </td>
@@ -718,13 +960,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick actions + Portal */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: 24,
-          }}
-        >
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
           <div
             style={{
               background: "var(--rpm-surface)",
@@ -734,15 +970,7 @@ export default function Dashboard() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             }}
           >
-            <h3
-              style={{
-                margin: "0 0 16px",
-                fontSize: 16,
-                fontWeight: 600,
-                color: "var(--rpm-text)",
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
               Quick actions
             </h3>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
@@ -770,15 +998,7 @@ export default function Dashboard() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
             }}
           >
-            <h3
-              style={{
-                margin: "0 0 8px",
-                fontSize: 16,
-                fontWeight: 600,
-                color: "var(--rpm-text)",
-                letterSpacing: "-0.01em",
-              }}
-            >
+            <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
               Customer portal URL
             </h3>
             <p style={{ marginBottom: 14, color: "var(--rpm-text-muted)", fontSize: 14 }}>

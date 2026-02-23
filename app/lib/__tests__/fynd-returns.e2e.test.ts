@@ -122,6 +122,18 @@ describe("createReturnOnFynd E2E", () => {
     expect(client.searchShipmentsByExternalOrderId).toHaveBeenCalled();
   });
 
+  it("extracts shipment_id from Fynd API response (shipment_id field)", async () => {
+    const client = createMockClient({
+      getShipmentsReturn: {
+        shipments: [{ shipment_id: "17708318940301766054", order_id: "FYMP698CC01401C9F4A1" }],
+      },
+    });
+    const returnCase = createMockReturnCase({ shopifyOrderName: "#FYMP698CC01401C9F4A1" });
+    const result = await createReturnOnFynd(client, returnCase);
+    expect(result.success).toBe(true);
+    expect(result.fyndShipmentId).toBe("17708318940301766054");
+  });
+
   it("uses external_order_id when affiliateOrderId is Shopify/external format (FYNDSHOPIFYX14083)", async () => {
     const client = createMockClient({
       searchReturn: {

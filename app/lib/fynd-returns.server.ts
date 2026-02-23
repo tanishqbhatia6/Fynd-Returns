@@ -93,7 +93,10 @@ export async function createReturnOnFynd(
     }
     const shipments = Array.isArray(shipmentsRes)
       ? shipmentsRes
-      : (shipmentsRes as { items?: unknown[] })?.items ?? (shipmentsRes as { shipments?: unknown[] })?.shipments ?? [];
+      : (shipmentsRes as { items?: unknown[] })?.items
+        ?? (shipmentsRes as { shipments?: unknown[] })?.shipments
+        ?? (shipmentsRes as { bags?: unknown[] })?.bags
+        ?? [];
 
     const shipment = Array.isArray(shipments) ? shipments[0] : null;
     const fullPayload = shipmentsRes != null ? shipmentsRes : undefined;
@@ -101,9 +104,13 @@ export async function createReturnOnFynd(
       return { success: false, error: "Order not found in Fynd or no shipments" };
     }
 
-    const shipmentId = (shipment as { id?: string; identifier?: string; _id?: string }).id
-      ?? (shipment as { identifier?: string }).identifier
-      ?? (shipment as { _id?: string })._id;
+    const s = shipment as Record<string, unknown>;
+    const toStr = (v: unknown) => (v != null ? String(v).trim() : "");
+    let shipmentId =
+      toStr(s.id ?? s.identifier ?? s._id ?? s.shipment_id ?? s.shipmentId ?? s.channel_shipment_id) || null;
+    if (!shipmentId && searchRes?.shipmentId) {
+      shipmentId = String(searchRes.shipmentId).trim() || null;
+    }
     if (!shipmentId) {
       return { success: false, error: "Could not determine Fynd shipment ID" };
     }

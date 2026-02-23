@@ -51,6 +51,7 @@ export type FyndWebhookPayload = {
   order?: {
     affiliate_order_id?: string;
     fynd_order_id?: string;
+    order_id?: string;
     shipments?: Array<{ shipment_id?: string; shipmentId?: string; status?: string; refund_status?: string }>;
   };
 };
@@ -91,32 +92,117 @@ function extractAffiliateOrderId(payload: FyndWebhookPayload): string | null {
   return typeof s === "string" && s.trim() ? s.trim() : null;
 }
 
+/** Fynd order_id (internal) — used for lookup when affiliate_order_id not present */
+function extractOrderId(payload: FyndWebhookPayload): string | null {
+  const s =
+    payload.order_id ??
+    payload.orderId ??
+    payload.order?.fynd_order_id ??
+    payload.order?.order_id ??
+    payload.shipments?.[0]?.order?.fynd_order_id;
+  return typeof s === "string" && s.trim() ? s.trim() : null;
+}
+
+/** Collect all order identifiers for multi-strategy lookup */
+function extractOrderIdentifiers(payload: FyndWebhookPayload): string[] {
+  const ids = new Set<string>();
+  for (const id of [
+    extractAffiliateOrderId(payload),
+    extractOrderId(payload),
+  ]) {
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
 export type ProcessFyndWebhookResult =
   | { ok: true; action: "refund_in_progress" | "refund_completed" | "ignored"; returnCaseId?: string }
   | { ok: false; error: string };
 
+async function logWebhook(params: {
+  shipmentId: string | null;
+  orderId: string | null;
+  refundStatus: string | null;
+  action: string;
+  returnCaseId?: string | null;
+  rawPayload?: string | null;
+  error?: string | null;
+}) {
+  try {
+    await prisma.fyndWebhookLog.create({
+      data: {
+        shipmentId: params.shipmentId ?? undefined,
+        orderId: params.orderId ?? undefined,
+        refundStatus: params.refundStatus ?? undefined,
+        action: params.action,
+        returnCaseId: params.returnCaseId ?? undefined,
+        rawPayload: params.rawPayload ? params.rawPayload.slice(0, 10000) : undefined,
+        error: params.error ? params.error.slice(0, 2000) : undefined,
+      },
+    });
+  } catch (e) {
+    console.warn("[Fynd webhook] Failed to log webhook:", e);
+  }
+}
+
 export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<ProcessFyndWebhookResult> {
   const shipmentId = extractShipmentId(payload);
   const refundStatus = extractRefundStatus(payload);
+  const orderIds = extractOrderIdentifiers(payload);
   const affiliateOrderId = extractAffiliateOrderId(payload);
+  const orderId = extractOrderId(payload);
 
-  if (!shipmentId && !affiliateOrderId) {
-    // Treat as acknowledged (200) for dummy/test payloads — webhook providers expect 200 to avoid retries
+  if (!shipmentId && orderIds.length === 0) {
+    await logWebhook({
+      shipmentId: null,
+      orderId: null,
+      refundStatus,
+      action: "ignored",
+      rawPayload: JSON.stringify(payload),
+    });
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
 
-  // Find return case by fyndShipmentId (preferred) or fyndOrderId
-  const returnCase = await prisma.returnCase.findFirst({
-    where: shipmentId
-      ? { fyndShipmentId: shipmentId }
-      : affiliateOrderId
-        ? { fyndOrderId: affiliateOrderId }
-        : undefined,
-    include: { items: true, shop: true },
-  });
+  // Multi-strategy lookup: fyndShipmentId first, then fyndOrderId (try all order identifiers)
+  let returnCase = shipmentId
+    ? await prisma.returnCase.findFirst({
+        where: { fyndShipmentId: shipmentId },
+        include: { items: true, shop: true },
+      })
+    : null;
+
+  if (!returnCase && orderIds.length > 0) {
+    for (const oid of orderIds) {
+      returnCase = await prisma.returnCase.findFirst({
+        where: { fyndOrderId: oid },
+        include: { items: true, shop: true },
+      });
+      if (returnCase) break;
+    }
+  }
 
   if (!returnCase) {
+    await logWebhook({
+      shipmentId,
+      orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+      refundStatus,
+      action: "ignored",
+      rawPayload: JSON.stringify(payload),
+    });
     return { ok: true, action: "ignored", returnCaseId: undefined };
+  }
+
+  // Backfill fyndShipmentId when we found by order_id and payload has shipment_id
+  if (shipmentId && !returnCase.fyndShipmentId) {
+    try {
+      await prisma.returnCase.update({
+        where: { id: returnCase.id },
+        data: { fyndShipmentId: shipmentId },
+      });
+      returnCase = { ...returnCase, fyndShipmentId: shipmentId };
+    } catch {
+      // Non-fatal
+    }
   }
 
   const shopDomain = returnCase.shop.shopDomain;
@@ -126,7 +212,17 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     where: { shop: shopDomain, isOnline: false },
   });
   if (!session?.accessToken) {
-    return { ok: false, error: `No offline session for shop ${shopDomain}. App may need to be reinstalled.` };
+    const errMsg = `No offline session for shop ${shopDomain}. App may need to be reinstalled.`;
+    await logWebhook({
+      shipmentId,
+      orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+      refundStatus,
+      action: "error",
+      returnCaseId: returnCase.id,
+      rawPayload: JSON.stringify(payload),
+      error: errMsg,
+    });
+    return { ok: false, error: errMsg };
   }
 
   const admin = createAdminClient(shopDomain, session.accessToken);
@@ -151,6 +247,13 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         payloadJson: JSON.stringify({ fynd_refund_status: refundStatus, shipment_id: shipmentId }),
       },
     });
+    await logWebhook({
+      shipmentId,
+      orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+      refundStatus,
+      action: "refund_in_progress",
+      returnCaseId: returnCase.id,
+    });
     return { ok: true, action: "refund_in_progress", returnCaseId: returnCase.id };
   }
 
@@ -168,6 +271,13 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
           eventType: "refund_marked_complete",
           payloadJson: JSON.stringify({ note: "Manual return - Fynd refund done, mark complete in app" }),
         },
+      });
+      await logWebhook({
+        shipmentId,
+        orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+        refundStatus,
+        action: "refund_completed",
+        returnCaseId: returnCase.id,
       });
       return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
     }
@@ -191,7 +301,16 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     }
 
     if (!orderIdForRefund) {
-      return { ok: false, error: "Could not determine Shopify order for refund" };
+      const errMsg = "Could not determine Shopify order for refund";
+      await logWebhook({
+        shipmentId,
+        orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+        refundStatus,
+        action: "error",
+        returnCaseId: returnCase.id,
+        error: errMsg,
+      });
+      return { ok: false, error: errMsg };
     }
 
     if (lineItemIds.length === 0) {
@@ -208,7 +327,40 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       `Refund processed via Fynd webhook (shipment ${shipmentId})`
     );
     if (!result.success) {
-      return { ok: false, error: result.error ?? "Shopify refund failed" };
+      const errMsg = result.error ?? "Shopify refund failed";
+      const isAlreadyRefunded = /already refunded|refunded for this|has been refunded/i.test(errMsg);
+      if (isAlreadyRefunded) {
+        // Idempotency: treat duplicate refund as success
+        await prisma.returnCase.update({
+          where: { id: returnCase.id },
+          data: { refundStatus: "refunded", status: "completed" },
+        });
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: returnCase.id,
+            source: "fynd_webhook",
+            eventType: "refund_already_done",
+            payloadJson: JSON.stringify({ shipment_id: shipmentId, note: "Shopify reported already refunded" }),
+          },
+        });
+        await logWebhook({
+          shipmentId,
+          orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+          refundStatus,
+          action: "refund_completed",
+          returnCaseId: returnCase.id,
+        });
+        return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
+      }
+      await logWebhook({
+        shipmentId,
+        orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+        refundStatus,
+        action: "error",
+        returnCaseId: returnCase.id,
+        error: errMsg,
+      });
+      return { ok: false, error: errMsg };
     }
 
     await prisma.returnCase.update({
@@ -223,8 +375,22 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         payloadJson: JSON.stringify({ shipment_id: shipmentId, fynd_refund_status: refundStatus }),
       },
     });
+    await logWebhook({
+      shipmentId,
+      orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+      refundStatus,
+      action: "refund_completed",
+      returnCaseId: returnCase.id,
+    });
     return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
   }
 
+  await logWebhook({
+    shipmentId,
+    orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+    refundStatus,
+    action: "ignored",
+    returnCaseId: returnCase.id,
+  });
   return { ok: true, action: "ignored", returnCaseId: returnCase.id };
 }

@@ -1,7 +1,11 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
+import shopify from "../shopify.server";
 import { checkReturnEligibility } from "../lib/return-rules.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+import { createFyndClientOrError } from "../lib/fynd.server";
+import { createReturnOnFynd } from "../lib/fynd-returns.server";
+import { fetchOrder } from "../lib/shopify-admin.server";
 
 const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress"];
 
@@ -209,6 +213,52 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }),
       },
     });
+
+    // When auto-approved, sync to Fynd so webhook can match returns
+    if (status === "approved" && !manualMode && orderId) {
+      try {
+        const shopDomain = shopRecord.shopDomain;
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const order = await fetchOrder(admin, orderId);
+        const affiliateOrderId = order?.affiliateOrderId ?? null;
+        const settings = shopRecord.settings as Parameters<typeof createFyndClientOrError>[0] | null;
+        const fyndResult = settings
+          ? await createFyndClientOrError(settings, { requirePlatform: true })
+          : { ok: false as const, error: "Fynd not configured" };
+        if (fyndResult.ok && "getShipments" in fyndResult.client) {
+          const fyndSync = await createReturnOnFynd(fyndResult.client, returnCase, { affiliateOrderId });
+          if (fyndSync.success && (fyndSync.fyndReturnId ?? fyndSync.fyndShipmentId ?? fyndSync.alreadyExists)) {
+            await prisma.returnCase.update({
+              where: { id: returnCase.id },
+              data: {
+                ...(fyndSync.fyndReturnId && { fyndReturnId: fyndSync.fyndReturnId }),
+                ...(fyndSync.fyndReturnNo && { fyndReturnNo: fyndSync.fyndReturnNo }),
+                ...(fyndSync.fyndOrderId && { fyndOrderId: fyndSync.fyndOrderId }),
+                ...(fyndSync.fyndShipmentId && { fyndShipmentId: fyndSync.fyndShipmentId }),
+                ...(fyndSync.fyndPayload != null && {
+                  fyndPayloadJson: JSON.stringify(fyndSync.fyndPayload),
+                }),
+              },
+            });
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: returnCase.id,
+                source: "portal",
+                eventType: "fynd_sync",
+                payloadJson: JSON.stringify({
+                  fyndReturnId: fyndSync.fyndReturnId,
+                  fyndShipmentId: fyndSync.fyndShipmentId,
+                  alreadyExists: fyndSync.alreadyExists ?? false,
+                }),
+              },
+            });
+          }
+        }
+      } catch (fyndErr) {
+        console.warn("[Portal create-return] Fynd sync failed:", fyndErr);
+        // Non-fatal: return is created and approved; admin can retry sync from UI
+      }
+    }
 
     return withCors(
       Response.json({

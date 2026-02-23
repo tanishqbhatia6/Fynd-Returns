@@ -147,6 +147,23 @@ model ReturnEvent {
   @@index([returnCaseId])
 }
 
+model FyndWebhookLog {
+  id          String   @id @default(cuid())
+  shipmentId  String?
+  orderId     String?
+  refundStatus String?
+  action      String?  // ignored | refund_in_progress | refund_completed
+  returnCaseId String?
+  rawPayload  String?  @db.Text
+  error       String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@index([shipmentId])
+  @@index([orderId])
+  @@index([returnCaseId])
+  @@index([createdAt])
+}
+
 model LookupSession {
   id               String   @id @default(cuid())
   shopId           String

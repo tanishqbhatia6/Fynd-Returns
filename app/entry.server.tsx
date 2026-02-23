@@ -14,7 +14,12 @@ export default async function handleRequest(
   responseHeaders: Headers,
   reactRouterContext: EntryContext
 ) {
-  addDocumentResponseHeaders(request, responseHeaders);
+  try {
+    addDocumentResponseHeaders(request, responseHeaders);
+  } catch (err) {
+    console.error("[entry.server] addDocumentResponseHeaders:", err);
+    // Don't fail the request — some routes (e.g. /api/webhooks/fynd) don't have shop context
+  }
   const userAgent = request.headers.get("user-agent");
   const callbackName = isbot(userAgent ?? "") ? "onAllReady" : "onShellReady";
 

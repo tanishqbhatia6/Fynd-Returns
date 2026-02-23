@@ -6,15 +6,33 @@
  *
  * Configure in Fynd Platform: Webhooks → add URL: https://YOUR_APP_URL/api/webhooks/fynd
  * Optional: set FYND_WEBHOOK_SECRET env to verify X-Fynd-Signature (if Fynd supports it).
+ *
+ * Loader has no heavy imports so GET requests work without loading Prisma/Shopify.
  */
 
-import type { ActionFunctionArgs } from "react-router";
-import { processFyndWebhook, type FyndWebhookPayload } from "../lib/fynd-webhook.server";
+import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import type { FyndWebhookPayload } from "../lib/fynd-webhook.server";
+
+/** GET returns 200 with info — allows URL verification (e.g. Fynd or health checks). No heavy imports. */
+export const loader = async (_args: LoaderFunctionArgs) => {
+  try {
+    return Response.json({
+      ok: true,
+      message: "Fynd webhook endpoint. Use POST with JSON payload.",
+      path: "/api/webhooks/fynd",
+    });
+  } catch (err) {
+    console.error("[Fynd webhook loader]", err);
+    return Response.json({ error: "Webhook endpoint error" }, { status: 500 });
+  }
+};
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
+
+  const { processFyndWebhook } = await import("../lib/fynd-webhook.server");
 
   let payload: FyndWebhookPayload;
   try {

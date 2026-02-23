@@ -169,10 +169,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         notificationEmail,
         log
       );
-      if (result.ok) {
-        return { success: true, registerResult: true, registerMessage: result.message, debugLogs: logs };
+      if (!result.ok) {
+        return { success: false, registerError: result.error, registerResult: false, debugLogs: logs };
       }
-      return { success: false, registerError: result.error, registerResult: false, debugLogs: logs };
+      // Verify endpoint is reachable before showing success
+      try {
+        const verifyRes = await fetch(webhookUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ shipment_id: "verify-" + Date.now(), refund_status: "UNDER PROCESS" }),
+          signal: AbortSignal.timeout(15000),
+        });
+        const ok = verifyRes.ok && verifyRes.status >= 200 && verifyRes.status < 300;
+        if (!ok) {
+          const text = await verifyRes.text();
+          log("register_webhook", "Endpoint verification failed", `${verifyRes.status}: ${text.slice(0, 200)}`);
+          return {
+            success: false,
+            registerError: `Webhook registered in Fynd, but the endpoint returned ${verifyRes.status}. Ensure ${webhookUrl} is publicly reachable (check SHOPIFY_APP_URL, Render deployment, and firewall).`,
+            registerResult: false,
+            debugLogs: logs,
+          };
+        }
+      } catch (verifyErr) {
+        const msg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+        log("register_webhook", "Endpoint verification error", msg);
+        return {
+          success: false,
+          registerError: `Webhook registered in Fynd, but the endpoint is not reachable: ${msg}. Ensure ${webhookUrl} is publicly reachable (check SHOPIFY_APP_URL, Render deployment, and firewall).`,
+          registerResult: false,
+          debugLogs: logs,
+        };
+      }
+      return { success: true, registerResult: true, registerMessage: result.message, debugLogs: logs };
     }
 
     return { success: false, error: "Unknown action", debugLogs: logs };

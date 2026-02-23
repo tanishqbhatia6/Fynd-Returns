@@ -39,6 +39,19 @@ Add these in **Render → Your Service → Environment**:
 **Optional:**
 - `FYND_API_BASE_URL` — defaults to `https://api.fynd.com`
 
+### 1.4 Fynd Webhook URL (if using Fynd integration)
+
+The Fynd webhook endpoint is **public** (no Shopify auth required):
+
+```
+https://YOUR-APP-NAME.onrender.com/api/webhooks/fynd
+```
+
+- **GET** returns `200` with a JSON info message (for URL verification)
+- **POST** receives Fynd shipment/refund updates (JSON body)
+
+Ensure `SHOPIFY_APP_URL` is set correctly so the app can construct this URL. The endpoint is included in the build; no extra configuration needed.
+
 ---
 
 ## Part 2: Shopify Partner Dashboard Changes

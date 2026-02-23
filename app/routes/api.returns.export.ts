@@ -1,22 +1,31 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { parseDateRange } from "../lib/dashboard-date-utils";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const status = url.searchParams.get("status") || "";
   const query = url.searchParams.get("query") || "";
+  const range = url.searchParams.get("range") || "last_30_days";
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
 
   let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
   if (!shop) {
     shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
   }
 
-  const where: Record<string, unknown> = { shopId: shop.id };
-  if (status) where.status = status;
+  const { start: rangeStart, end: rangeEnd } = parseDateRange(range, from, to);
+
+  const where: Record<string, unknown> = {
+    shopId: shop.id,
+    createdAt: { gte: rangeStart, lte: rangeEnd },
+  };
+  if (status) (where as Record<string, unknown>).status = status;
   if (query.trim()) {
-    where.OR = [
+    (where as Record<string, unknown>).OR = [
       { shopifyOrderName: { contains: query.trim(), mode: "insensitive" } },
       { forwardAwb: { contains: query.trim(), mode: "insensitive" } },
       { returnAwb: { contains: query.trim(), mode: "insensitive" } },
@@ -41,6 +50,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 
   const headers = [
+    "Return Request ID",
     "Order",
     "Return #",
     "Forward AWB",
@@ -50,7 +60,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     "Refund Status",
     "Created",
   ];
+  const formatReturnRequestId = (id: string) => {
+    if (!id || id.length < 8) return id;
+    return `RPM-${id.slice(-8).toUpperCase().replace(/[^A-Z0-9]/g, "X")}`;
+  };
   const rows = returns.map((r) => [
+    escape((r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)),
     escape(r.shopifyOrderName),
     escape(r.fyndReturnNo),
     escape(r.forwardAwb),

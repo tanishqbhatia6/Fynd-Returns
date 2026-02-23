@@ -148,9 +148,38 @@ export class FyndPlatformClientFDK {
     }
   }
 
+  /** Use FDK native method: application().order.getPlatformShipmentReasons (path: orders/shipments/reasons/{action}) */
   async getReturnReasons(): Promise<unknown> {
-    const path = `/service/platform/order/v1.0/company/${this.companyId}/application/${this.applicationId}/orders/returns/reasons`;
-    return this.request("GET", path);
+    this.log?.("fynd-fdk", "Request", "FDK order.getPlatformShipmentReasons");
+    try {
+      const res = await this.fdk.application(this.applicationId).order.getPlatformShipmentReasons({ action: "return" });
+      return res;
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      const desc = (err as { response?: { data?: { message?: string; description?: string } } })?.response?.data;
+      const apiMsg = desc?.message ?? desc?.description ?? msg;
+      let fullMsg = status ? `Fynd Platform API error ${status}: ${apiMsg}` : msg;
+      if (status === 403) {
+        fullMsg += " Fynd returned 403 Forbidden—your app may lack required scopes. In Fynd Platform, ensure the extension has company/orders/read and company/orders/write. Re-save credentials in Settings → Integrations.";
+      } else if (status === 401) {
+        fullMsg += " Verify Company ID, Client ID and Secret in Settings → Integrations.";
+      }
+      throw new Error(fullMsg);
+    }
+  }
+
+  async testConnection(): Promise<{ ok: true; warning?: string }> {
+    try {
+      await this.getReturnReasons();
+      return { ok: true };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("404") || msg.includes("Not Found")) {
+        return { ok: true, warning: "Credentials valid. Return reasons endpoint not available in this Fynd environment—using admin-configured reasons." };
+      }
+      throw err;
+    }
   }
 
   async getShipments(orderId: string): Promise<unknown> {

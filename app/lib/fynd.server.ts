@@ -239,23 +239,24 @@ export class FyndPlatformClient {
     };
   }
 
-  /** Prefer internal numeric IDs; platform order API rejects external IDs (e.g. FYMP...). */
+  /** Prefer FY-prefixed order IDs (e.g. FYMP698CC01401C9F4A1) for platform API; fall back to numeric if FY not available. */
   private parseInternalIdsFromShipment(obj: Record<string, unknown> | null): { orderId: string | null; shipmentId: string | null } {
     if (!obj) return { orderId: null, shipmentId: null };
     const str = (v: unknown) => (v != null && typeof v === "string" ? v.trim() : null);
-    const raw = [
-      str(obj.id),
-      str(obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id),
-      str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.bagId ?? obj.channel_bag_id),
+    const orderRaw = [
+      str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.bagId ?? obj.channel_bag_id ?? obj.channel_order_id),
     ].filter((x): x is string => !!x);
-    const internal = raw.find((s) => /^\d+$/.test(s));
-    const anyNonExternal = raw.find((s) => !/^FY[A-Z0-9]{10,}/i.test(s));
-    const chosen = internal ?? anyNonExternal ?? null;
-    if (!chosen) return { orderId: null, shipmentId: null };
-    const orderId = str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.channel_bag_id) ?? chosen;
-    const shipmentId = str(obj.id ?? obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id) ?? chosen;
-    const use = (a: string) => (/^\d+$/.test(a) ? a : chosen);
-    return { orderId: use(orderId), shipmentId: use(shipmentId) };
+    const shipmentRaw = [
+      str(obj.id ?? obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id),
+    ].filter((x): x is string => !!x);
+    const fyOrderId = orderRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s));
+    const numericOrderId = orderRaw.find((s) => /^\d+$/.test(s));
+    const orderId = fyOrderId ?? numericOrderId ?? orderRaw[0] ?? null;
+    const shipmentId = shipmentRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s))
+      ?? shipmentRaw.find((s) => /^\d+$/.test(s))
+      ?? shipmentRaw[0]
+      ?? null;
+    return { orderId, shipmentId };
   }
 
   /** Update shipment status (e.g. return_initiated to create return on Fynd) */

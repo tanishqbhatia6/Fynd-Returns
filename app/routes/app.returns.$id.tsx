@@ -377,6 +377,11 @@ export default function ReturnDetail() {
         <div className="app-alert app-alert-warning" style={{ borderLeft: "4px solid #b45309" }}>
           <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#92400e" }}>Fynd sync issue</p>
           <p style={{ margin: 0, color: "#78350f" }}>{decodeURIComponent(fyndError)}</p>
+          {(fyndError.includes("404") || fyndError.includes("not found")) && (
+            <p style={{ margin: "12px 0 0 0", fontSize: 13, color: "#78350f" }}>
+              The app now uses FY-prefixed Fynd order IDs (e.g. FYMP698CC01401C9F4A1) when available. Try <strong>Retry Fynd sync</strong> again.
+            </p>
+          )}
           {(fyndError.includes("403") || fyndError.includes("Forbidden")) && (
             <div style={{ marginTop: 16, padding: 16, background: "rgba(255,255,255,0.5)", borderRadius: 8, border: "1px solid rgba(180,83,9,0.3)" }}>
               <p style={{ margin: "0 0 12px 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>Sync uses the same OAuth flow as Test Platform. If you can see order/shipment details and Test Platform passes, try Retry Fynd sync again.</p>

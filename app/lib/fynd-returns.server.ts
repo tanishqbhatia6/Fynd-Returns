@@ -53,10 +53,8 @@ export async function createReturnOnFynd(
 
   try {
     let shipmentsRes: unknown;
-    const shouldSearchFirst = externalOrderId && "searchShipmentsByExternalOrderId" in client && (
-      !affiliateOrderId ||
-      looksExternal(fyndOrderId)
-    );
+    // Always search when we have external order ID to get correct FY order ID from portal (platform API expects FY format)
+    const shouldSearchFirst = externalOrderId && "searchShipmentsByExternalOrderId" in client;
     if (shouldSearchFirst) {
       const searchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(externalOrderId);
       const resolved = searchRes.orderId ?? searchRes.shipmentId;

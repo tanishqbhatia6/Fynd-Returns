@@ -694,77 +694,108 @@
 
     <div id="create-panel" class="portal-card" style="display:none;">
       <div id="create-step1" class="portal-step active">
-        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 18px; letter-spacing: -0.02em;">Create return
-        </h2>
-        <p class="step-label">Choose how you'd like to start your return:</p>
+        <div style="text-align:center;margin-bottom:24px;">
+          <div
+            style="width:52px;height:52px;border-radius:50%;background:color-mix(in srgb, var(--portal-primary) 0.1, transparent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:24px;">
+            📦</div>
+          <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em;">Start a return
+          </h2>
+          <p style="font-size:0.875rem;color:var(--portal-text-muted);margin:0;">Enter your order number to begin the
+            return process.</p>
+        </div>
         <div class="form-group">
-          <label class="form-label" for="createOrderNumber">Search by Order Number</label>
+          <label class="form-label" for="createOrderNumber">Order number</label>
           <input type="text" id="createOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
-          <button type="button" id="btnFetchOrder" class="btn-primary" style="margin-top: 12px;">Find Order</button>
         </div>
-        <div style="text-align: center; margin: 20px 0; color: var(--portal-text-muted); font-size: 0.875rem;">— or —
-        </div>
-        <div class="form-group">
-          <button type="button" id="btnUseManualForm" class="btn-secondary" style="width:100%;">Use manual form</button>
-          <p style="font-size: 0.8125rem; color: var(--portal-text-muted); margin-top: 8px;">Can't find your order?
-            Submit a return request manually.</p>
-        </div>
+        <button type="button" id="btnFetchOrder" class="btn-primary">Find my order</button>
         <p id="createErr1" class="form-error"></p>
+        <div style="text-align:center;margin:24px 0 16px;position:relative;">
+          <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--portal-border);"></div>
+          <span
+            style="position:relative;background:var(--portal-surface);padding:0 16px;font-size:0.8125rem;color:var(--portal-text-muted);">or</span>
+        </div>
+        <button type="button" id="btnUseManualForm" class="btn-secondary" style="width:100%;">Submit manually without
+          order lookup</button>
       </div>
       <div id="create-step2" class="portal-step">
-        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Select Items to Return</h2>
-        <p id="createOrderName" style="font-weight: 600; margin-bottom: 12px;"></p>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <div
+            style="width:32px;height:32px;border-radius:50%;background:var(--portal-primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">
+            2</div>
+          <div>
+            <h2 style="font-size: 1.125rem; font-weight:700; margin:0;">Select items to return</h2>
+            <p id="createOrderName" style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;"></p>
+          </div>
+        </div>
         <div class="form-group">
-          <label class="form-label">Items</label>
+          <label class="form-label">Select the items you'd like to return</label>
           <div id="createItemsList"></div>
         </div>
         <div class="form-group">
-          <label class="form-label" for="createReason">Reason for return</label>
+          <label class="form-label" for="createReason">Why are you returning?</label>
           <select id="createReason" class="form-select"></select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="createEmail">Your email (optional)</label>
-          <input type="email" id="createEmail" class="form-input" placeholder="email@example.com">
+          <label class="form-label" for="createEmail">Email for updates <span
+              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
+          <input type="email" id="createEmail" class="form-input" placeholder="you@example.com">
+          <p style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:6px;">We'll send you updates about your
+            return status.</p>
         </div>
         <div class="form-group">
-          <label class="form-label" for="createCustomerNotes">Additional notes (optional)</label>
+          <label class="form-label" for="createCustomerNotes">Anything else we should know? <span
+              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
           <textarea id="createCustomerNotes" class="form-input" rows="2"
-            placeholder="Any additional details for the store"></textarea>
+            placeholder="Any additional details about your return"></textarea>
         </div>
-        <button type="button" id="btnSubmitReturn" class="btn-primary">Submit Return Request</button>
+        <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
           Back</button>
         <p id="createErr2" class="form-error"></p>
       </div>
       <div id="create-step2-manual" class="portal-step">
-        <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Submit Return Request</h2>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+          <div
+            style="width:32px;height:32px;border-radius:50%;background:var(--portal-primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">
+            ✎</div>
+          <div>
+            <h2 style="font-size: 1.125rem; font-weight:700; margin:0;">Manual return request</h2>
+            <p style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;">Fill in the details below and we'll
+              process your return.</p>
+          </div>
+        </div>
         <p id="createManualHint"
-          style="font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 16px; display:none;"></p>
+          style="font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 16px; padding:12px 14px; background:color-mix(in srgb, var(--portal-primary) 0.06, transparent); border-radius:10px; border-left:3px solid var(--portal-primary); display:none;">
+        </p>
         <div class="form-group">
-          <label class="form-label" for="createManualOrderNumber">Order Number <span
+          <label class="form-label" for="createManualOrderNumber">Order number <span
               style="color:#d72c0d">*</span></label>
           <input type="text" id="createManualOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
         </div>
         <div class="form-group">
           <label class="form-label" for="createManualEmail">Your email <span style="color:#d72c0d">*</span></label>
-          <input type="email" id="createManualEmail" class="form-input" placeholder="email@example.com" required>
+          <input type="email" id="createManualEmail" class="form-input" placeholder="you@example.com" required>
+          <p style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:6px;">We'll use this to send you return
+            updates and confirmations.</p>
         </div>
         <div class="form-group">
           <label class="form-label" for="createManualReason">Reason for return</label>
           <select id="createManualReason" class="form-select"></select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="createManualItems">Describe the item(s) you want to return <span
-              style="color:#d72c0d">*</span></label>
+          <label class="form-label" for="createManualItems">Items to return <span style="color:#d72c0d">*</span></label>
           <textarea id="createManualItems" class="form-input" rows="3"
-            placeholder="e.g. Blue t-shirt size M, 1 unit"></textarea>
+            placeholder="Describe each item — e.g. Blue t-shirt size M, qty 1"></textarea>
+          <p style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:6px;">Please include product name,
+            size/color, and quantity.</p>
         </div>
         <div class="form-group">
-          <label class="form-label" for="createManualCustomerNotes">Additional notes (optional)</label>
+          <label class="form-label" for="createManualCustomerNotes">Additional notes <span
+              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
           <textarea id="createManualCustomerNotes" class="form-input" rows="2"
-            placeholder="Any additional details for the store"></textarea>
+            placeholder="Any other details that might help us process your return"></textarea>
         </div>
-        <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit Return Request</button>
+        <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnManualBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
           Back</button>
         <p id="createErrManual" class="form-error"></p>
@@ -827,6 +858,93 @@
     })();
     const API = APP_URL + '/api/portal';
     function escapeHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+    // ── Customer-friendly status helpers ──
+    function friendlyOrderStatus(raw) {
+      var s = (raw || '').toLowerCase();
+      if (s.includes('fulfilled') && !s.includes('unfulfilled')) return { label: 'Delivered', cls: 'ok' };
+      if (s.includes('partial')) return { label: 'Partially shipped', cls: 'pending' };
+      if (s.includes('unfulfilled') || s.includes('pending')) return { label: 'Processing', cls: 'pending' };
+      if (s.includes('cancel')) return { label: 'Cancelled', cls: 'error' };
+      if (s.includes('paid')) return { label: 'Confirmed', cls: 'ok' };
+      if (s.includes('refund')) return { label: 'Refunded', cls: 'ok' };
+      return { label: raw || 'Processing', cls: 'pending' };
+    }
+
+    function unifiedReturnStatus(shopifyStatus, fyndStatus) {
+      // Merge Shopify + Fynd into ONE customer-friendly status
+      var s = (shopifyStatus || '').toLowerCase();
+      var f = (fyndStatus || '').toLowerCase();
+      // Completed / refunded states
+      if (s === 'completed' || s === 'refunded' || f.includes('refund')) return { label: 'Refund processed', icon: '💰', cls: 'ok', step: 4 };
+      // Delivery done (Fynd)
+      if (f.includes('delivery_done') || f.includes('delivered')) return { label: 'Return received', icon: '📬', cls: 'ok', step: 3 };
+      // In transit
+      if (f.includes('in_transit') || f.includes('picked_up') || f.includes('out_for_pickup') || f.includes('dp_assigned')) return { label: 'Return in transit', icon: '🚚', cls: 'pending', step: 2 };
+      // Approved
+      if (s === 'approved' || f.includes('bag_confirmed') || f.includes('created')) return { label: 'Return approved', icon: '✅', cls: 'ok', step: 2 };
+      // Rejected
+      if (s === 'rejected') return { label: 'Return declined', icon: '✕', cls: 'error', step: -1 };
+      // Cancelled
+      if (s === 'cancelled') return { label: 'Cancelled', icon: '—', cls: 'error', step: -1 };
+      // Pending / initiated / processing
+      if (s === 'pending' || s === 'initiated' || s === 'processing' || s === 'in progress') return { label: 'Under review', icon: '⏳', cls: 'pending', step: 1 };
+      return { label: shopifyStatus || 'Under review', icon: '⏳', cls: 'pending', step: 1 };
+    }
+
+    function friendlyEventLabel(eventType, source) {
+      var e = (eventType || '').toLowerCase();
+      // Map internal event types to plain English for customers
+      if (e === 'initiated' || e === 'created') return 'Return request submitted';
+      if (e === 'approved') return 'Return approved by store';
+      if (e === 'rejected') return 'Return request declined';
+      if (e === 'processing') return 'Return is being processed';
+      if (e === 'completed' || e === 'refunded') return 'Refund processed';
+      if (e === 'cancelled') return 'Return cancelled';
+      if (e.includes('fynd_sync') || e.includes('synced')) return 'Return sent to logistics partner';
+      if (e.includes('pickup') || e.includes('picked')) return 'Package picked up by courier';
+      if (e.includes('in_transit') || e.includes('transit')) return 'Package in transit';
+      if (e.includes('deliver') || e.includes('received')) return 'Return package received';
+      if (e.includes('refund') && e.includes('process')) return 'Refund is being processed';
+      if (e.includes('bag_confirmed')) return 'Return confirmed by logistics';
+      if (e.includes('dp_assigned')) return 'Courier assigned for pickup';
+      if (e.includes('out_for_pickup')) return 'Courier en route for pickup';
+      if (e.includes('note') || e.includes('comment')) return 'Store added a note';
+      // Fallback: capitalize and clean up
+      var cleaned = eventType.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+      return cleaned;
+    }
+
+    function renderProgressSteps(activeStep) {
+      if (activeStep < 0) return ''; // rejected/cancelled — no progress bar
+      var steps = [
+        { num: 1, label: 'Submitted' },
+        { num: 2, label: 'Approved' },
+        { num: 3, label: 'Received' },
+        { num: 4, label: 'Refunded' }
+      ];
+      var html = '<div style="display:flex;align-items:center;gap:0;margin:16px 0;padding:0 4px;">';
+      steps.forEach(function (st, i) {
+        var done = activeStep >= st.num;
+        var current = activeStep === st.num;
+        var color = done ? 'var(--portal-primary)' : 'var(--portal-border)';
+        var textColor = done ? 'var(--portal-primary)' : 'var(--portal-text-muted)';
+        var weight = current ? '700' : (done ? '600' : '400');
+        // Circle
+        html += '<div style="display:flex;flex-direction:column;align-items:center;flex:0 0 auto;z-index:1;">';
+        html += '<div style="width:' + (current ? '28px' : '22px') + ';height:' + (current ? '28px' : '22px') + ';border-radius:50%;background:' + (done ? color : 'var(--portal-surface)') + ';border:2px solid ' + color + ';display:flex;align-items:center;justify-content:center;font-size:' + (current ? '12px' : '10px') + ';color:' + (done ? 'white' : textColor) + ';font-weight:700;transition:all 0.3s;">';
+        html += done ? '✓' : st.num;
+        html += '</div>';
+        html += '<div style="font-size:0.625rem;margin-top:4px;color:' + textColor + ';font-weight:' + weight + ';white-space:nowrap;">' + st.label + '</div>';
+        html += '</div>';
+        // Connector line
+        if (i < steps.length - 1) {
+          html += '<div style="flex:1;height:2px;background:' + (activeStep > st.num ? 'var(--portal-primary)' : 'var(--portal-border)') + ';margin:0 -2px;margin-bottom:18px;"></div>';
+        }
+      });
+      html += '</div>';
+      return html;
+    }
     async function fetchJson(url, opts) {
       let res;
       try { res = await fetch(url, opts); } catch (e) { throw new Error('Network error. Please check your connection and try again.'); }
@@ -894,56 +1012,97 @@
         document.getElementById('result-orders-wrap').style.display = PORTAL_CONFIG.showOrderTracking ? 'block' : 'none';
         document.getElementById('result-returns-wrap').style.display = PORTAL_CONFIG.showReturnTracking ? 'block' : 'none';
         document.getElementById('result-empty').style.display = (orders.length === 0 && returns.length === 0) ? 'block' : 'none';
-        document.getElementById('result-empty').textContent = 'No orders or returns found for this lookup.';
 
         if (PORTAL_CONFIG.showOrderTracking) {
           document.getElementById('result-orders').innerHTML = orders.length === 0
-            ? '<p class="return-empty" style="text-align:center;padding:24px;color:var(--portal-text-muted);font-size:0.9375rem;">No orders found.</p>'
+            ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">No orders found for this search.</p>'
             : orders.map(function (o) {
-              const status = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
-              const statusClass = status.includes('fulfilled') || status.includes('paid') ? 'ok' : (status.includes('cancel') ? 'error' : 'pending');
-              let html = '<div class="order-card"><div class="order-name">' + escapeHtml(o.name || o.id) + '</div>';
-              html += '<div class="return-status-row"><span class="status-badge shopify ' + statusClass + '">' + escapeHtml(o.displayFulfillmentStatus || o.displayFinancialStatus || '—') + '</span></div>';
-              html += '<div class="order-meta">' + (o.createdAt ? 'Ordered ' + new Date(o.createdAt).toLocaleString() : '') + (o.totalPrice ? ' · ' + escapeHtml(o.totalPrice) : '') + '</div></div>';
+              var status = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
+              var friendlyStatus = friendlyOrderStatus(status);
+              var statusClass = friendlyStatus.cls;
+              var html = '<div class="order-card">';
+              html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">';
+              html += '<div class="order-name" style="margin:0;">' + escapeHtml(o.name || o.id) + '</div>';
+              html += '<span class="status-badge ' + statusClass + '">' + escapeHtml(friendlyStatus.label) + '</span>';
+              html += '</div>';
+              var details = [];
+              if (o.createdAt) details.push('<span>📅 Ordered ' + new Date(o.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + '</span>');
+              if (o.totalPrice) details.push('<span>💰 ' + escapeHtml(o.totalPrice) + '</span>');
+              if (details.length) html += '<div class="order-meta">' + details.join('') + '</div>';
+              html += '</div>';
               return html;
             }).join('');
         }
         if (PORTAL_CONFIG.showReturnTracking) {
           document.getElementById('result-returns').innerHTML = returns.length === 0
-            ? '<p class="return-empty" style="text-align:center;padding:24px;color:var(--portal-text-muted);font-size:0.9375rem;">No returns found.</p>'
+            ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">No returns found for this search.</p>'
             : returns.map(function (x) {
-              const orderName = x.shopifyOrderName || x.id;
-              const status = (x.status || '').toLowerCase();
-              const statusClass = status === 'approved' || status === 'completed' ? 'ok' : (status === 'rejected' ? 'error' : 'pending');
-              const ti = x.trackingInfo || {};
-              const displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
-              let html = '<div class="return-card"><div class="return-order">' + escapeHtml(displayId) + '</div>';
-              html += '<div class="return-status-row">';
-              html += '<span class="status-badge shopify ' + statusClass + '">Shopify: ' + escapeHtml(x.status || '—') + '</span>';
-              if (ti.fyndStatus) html += '<span class="status-badge fynd">Fynd: ' + escapeHtml(ti.fyndStatus) + '</span>';
+              var orderName = x.shopifyOrderName || x.id;
+              var status = (x.status || '').toLowerCase();
+              var ti = x.trackingInfo || {};
+              var fyndSt = (ti.fyndStatus || '').toLowerCase();
+              var unified = unifiedReturnStatus(status, fyndSt);
+              var displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
+
+              var html = '<div class="return-card">';
+              // Header row
+              html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">';
+              html += '<div>';
+              html += '<div class="return-order" style="margin-bottom:2px;">Return ' + escapeHtml(displayId) + '</div>';
+              if (orderName !== displayId) html += '<div style="font-size:0.8125rem;color:var(--portal-text-muted);">Order ' + escapeHtml(orderName) + '</div>';
               html += '</div>';
-              var meta = [];
-              if (x.returnRequestNo) meta.push('<span><strong>Return ID</strong> ' + escapeHtml(x.returnRequestNo) + '</span>');
-              if (x.fyndReturnNo) meta.push('<span><strong>Fynd Return #</strong> ' + escapeHtml(x.fyndReturnNo) + '</span>');
-              if (ti.awbNo) meta.push('<span><strong>AWB</strong> ' + escapeHtml(ti.awbNo) + '</span>');
-              if (x.forwardAwb) meta.push('<span><strong>Forward AWB</strong> ' + escapeHtml(x.forwardAwb) + '</span>');
-              if (x.returnAwb) meta.push('<span><strong>Return AWB</strong> ' + escapeHtml(x.returnAwb) + '</span>');
-              if (ti.logisticsPartner) meta.push('<span><strong>Courier</strong> ' + escapeHtml(ti.logisticsPartner) + '</span>');
-              if (x.createdAt) meta.push('<span><strong>Created</strong> ' + new Date(x.createdAt).toLocaleString() + '</span>');
-              if (meta.length) html += '<div class="return-meta">' + meta.join('') + '</div>';
-              if (ti.trackingUrl) html += '<div class="return-tracking-cta"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary">Track shipment →</a></div>';
-              if (x.status && status === 'rejected' && x.rejectionReason) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, #dc2626 0.08, transparent);border-radius:10px;font-size:0.875rem;color:#b91c1c;">' + escapeHtml(x.rejectionReason) + '</div>';
-              if (x.notesForCustomer) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, var(--portal-primary) 0.08, transparent);border-radius:10px;font-size:0.875rem;color:var(--portal-text);border-left:4px solid var(--portal-primary);"><strong>Message from store:</strong><div style="margin-top:8px;white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
-              var events = (x.events || []).slice().sort(function (a, b) { return new Date(a.happenedAt || 0) - new Date(b.happenedAt || 0); }).slice(-15);
-              if (events.length) {
-                html += '<div class="return-timeline"><div class="return-timeline-title">Tracking timeline</div>';
-                events.forEach(function (ev) {
-                  var time = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString() : '';
-                  var label = (ev.source ? '[' + escapeHtml(ev.source) + '] ' : '') + escapeHtml(ev.eventType || '');
-                  html += '<div class="return-timeline-item"><span class="event-dot"></span><span><time>' + escapeHtml(time) + '</time> ' + label + '</span></div>';
+              html += '<span class="status-badge ' + unified.cls + '">' + unified.icon + ' ' + escapeHtml(unified.label) + '</span>';
+              html += '</div>';
+
+              // Progress steps
+              html += renderProgressSteps(unified.step);
+
+              // Key details grid
+              var info = [];
+              if (x.returnRequestNo) info.push(['Return ID', x.returnRequestNo]);
+              if (ti.awbNo || x.returnAwb) info.push(['Tracking #', ti.awbNo || x.returnAwb]);
+              if (ti.logisticsPartner) info.push(['Courier', ti.logisticsPartner]);
+              if (x.createdAt) info.push(['Submitted', new Date(x.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })]);
+              if (info.length) {
+                html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:16px 0;padding:14px;background:color-mix(in srgb, var(--portal-text) 0.03, transparent);border-radius:10px;">';
+                info.forEach(function (pair) {
+                  html += '<div><div style="font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--portal-text-muted);margin-bottom:3px;">' + escapeHtml(pair[0]) + '</div>';
+                  html += '<div style="font-size:0.875rem;font-weight:600;color:var(--portal-text);">' + escapeHtml(pair[1]) + '</div></div>';
                 });
                 html += '</div>';
               }
+
+              // Track shipment CTA
+              if (ti.trackingUrl) html += '<div style="margin:14px 0;"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="width:100%;justify-content:center;">📦 Track your shipment →</a></div>';
+
+              // Rejection reason
+              if (status === 'rejected' && x.rejectionReason) {
+                html += '<div style="margin-top:14px;padding:14px 16px;background:color-mix(in srgb, var(--status-error) 0.06, transparent);border-radius:10px;font-size:0.875rem;color:#b91c1c;border-left:3px solid var(--status-error);">';
+                html += '<div style="font-weight:600;margin-bottom:4px;">Return declined</div>';
+                html += escapeHtml(x.rejectionReason) + '</div>';
+              }
+
+              // Store message
+              if (x.notesForCustomer) {
+                html += '<div style="margin-top:14px;padding:14px 16px;background:color-mix(in srgb, var(--portal-primary) 0.06, transparent);border-radius:10px;font-size:0.875rem;color:var(--portal-text);border-left:3px solid var(--portal-primary);">';
+                html += '<div style="font-weight:600;margin-bottom:4px;">Message from the store</div>';
+                html += '<div style="white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
+              }
+
+              // Timeline
+              var events = (x.events || []).slice().sort(function (a, b) { return new Date(a.happenedAt || 0) - new Date(b.happenedAt || 0); }).slice(-10);
+              if (events.length) {
+                html += '<div class="return-timeline"><div class="return-timeline-title">Activity</div>';
+                events.forEach(function (ev, idx) {
+                  var time = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                  var label = friendlyEventLabel(ev.eventType || '', ev.source || '');
+                  var isLast = idx === events.length - 1;
+                  var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
+                  html += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(label) + '</span></div>';
+                });
+                html += '</div>';
+              }
+
               return html + '</div>';
             }).join('');
         }

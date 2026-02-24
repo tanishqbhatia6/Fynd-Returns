@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Order &amp; Return Tracking | Return Pro Max</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet">
   <style>
     :root {
       --portal-primary: %PRIMARY_COLOR%;
@@ -24,8 +27,20 @@
       --status-pending: #d97706;
       --status-error: #dc2626;
     }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { font-size: 16px; scroll-behavior: smooth; }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+    }
+
     body {
       font-family: var(--portal-font);
       background: var(--portal-bg);
@@ -34,6 +49,7 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
     }
+
     /* Responsive: mobile-first, scales to tablet and desktop */
     .portal {
       width: 100%;
@@ -41,18 +57,36 @@
       margin: 0 auto;
       padding: 24px 20px 48px;
     }
+
     @media (min-width: 640px) {
-      .portal { max-width: 640px; padding: 32px 28px 56px; }
+      .portal {
+        max-width: 640px;
+        padding: 32px 28px 56px;
+      }
     }
+
     @media (min-width: 1024px) {
-      .portal { max-width: 880px; padding: 48px 40px 72px; }
+      .portal {
+        max-width: 880px;
+        padding: 48px 40px 72px;
+      }
     }
+
+    .btn-primary:disabled,
+    .btn-secondary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
     .portal-header {
       text-align: center;
       margin-bottom: 32px;
       padding-bottom: 24px;
-      border-bottom: 1px solid var(--portal-border);
+      border-bottom: 2px solid transparent;
+      border-image: linear-gradient(90deg, transparent, var(--portal-primary), transparent) 1;
     }
+
     .portal-header h1 {
       font-family: var(--portal-heading-font);
       font-size: 1.5rem;
@@ -62,6 +96,7 @@
       margin-bottom: 8px;
       line-height: 1.25;
     }
+
     .portal-header p {
       font-size: 0.9375rem;
       color: var(--portal-text-muted);
@@ -69,14 +104,28 @@
       margin: 0 auto;
       line-height: 1.5;
     }
+
     @media (min-width: 640px) {
-      .portal-header h1 { font-size: 1.75rem; }
-      .portal-header p { max-width: 480px; }
+      .portal-header h1 {
+        font-size: 1.75rem;
+      }
+
+      .portal-header p {
+        max-width: 480px;
+      }
     }
+
     @media (min-width: 1024px) {
-      .portal-header h1 { font-size: 2rem; }
-      .portal-header p { max-width: 520px; font-size: 1rem; }
+      .portal-header h1 {
+        font-size: 2rem;
+      }
+
+      .portal-header p {
+        max-width: 520px;
+        font-size: 1rem;
+      }
     }
+
     #policy-banner {
       display: block;
       margin-top: 20px;
@@ -88,10 +137,18 @@
       text-align: left;
       border: 1px solid color-mix(in srgb, var(--portal-primary) 0.2, transparent);
     }
+
     @media (min-width: 640px) {
-      #policy-banner { padding: 18px 20px; font-size: 0.9375rem; }
+      #policy-banner {
+        padding: 18px 20px;
+        font-size: 0.9375rem;
+      }
     }
-    #policy-banner strong { color: var(--portal-text); }
+
+    #policy-banner strong {
+      color: var(--portal-text);
+    }
+
     /* Tabs: centered, full-width on mobile, pill-style on desktop */
     .portal-tabs {
       display: flex;
@@ -100,6 +157,7 @@
       gap: 8px;
       margin-bottom: 24px;
     }
+
     .portal-tab {
       flex: 1;
       min-width: 140px;
@@ -114,17 +172,32 @@
       transition: color 0.2s, background 0.2s, border-color 0.2s;
       text-align: center;
     }
+
     .portal-tab.active {
       color: var(--portal-primary);
       background: var(--portal-surface);
       border-color: var(--portal-primary);
       box-shadow: var(--portal-shadow);
     }
-    .portal-tab:hover:not(.active) { color: var(--portal-text); background: color-mix(in srgb, var(--portal-text) 0.08, var(--portal-surface)); }
-    @media (min-width: 640px) {
-      .portal-tabs { flex-wrap: nowrap; justify-content: center; gap: 12px; }
-      .portal-tab { flex: 0 1 auto; min-width: 180px; }
+
+    .portal-tab:hover:not(.active) {
+      color: var(--portal-text);
+      background: color-mix(in srgb, var(--portal-text) 0.08, var(--portal-surface));
     }
+
+    @media (min-width: 640px) {
+      .portal-tabs {
+        flex-wrap: nowrap;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      .portal-tab {
+        flex: 0 1 auto;
+        min-width: 180px;
+      }
+    }
+
     .portal-card {
       background: var(--portal-surface);
       border-radius: var(--portal-radius);
@@ -132,21 +205,58 @@
       box-shadow: var(--portal-shadow);
       border: 1px solid var(--portal-border);
     }
+
     @media (min-width: 640px) {
-      .portal-card { padding: 32px 28px; }
+      .portal-card {
+        padding: 32px 28px;
+      }
     }
+
     @media (min-width: 1024px) {
-      .portal-card { padding: 40px 36px; }
+      .portal-card {
+        padding: 40px 36px;
+      }
     }
-    .portal-step { display: none; }
-    .portal-step.active { display: block; animation: fadeIn 0.35s ease; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-    .form-group { margin-bottom: 20px; }
-    .form-group:last-of-type { margin-bottom: 24px; }
+
+    .portal-step {
+      display: none;
+    }
+
+    .portal-step.active {
+      display: block;
+      animation: fadeIn 0.35s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group:last-of-type {
+      margin-bottom: 24px;
+    }
+
     @media (min-width: 640px) {
-      .form-group { margin-bottom: 22px; }
-      .form-group:last-of-type { margin-bottom: 28px; }
+      .form-group {
+        margin-bottom: 22px;
+      }
+
+      .form-group:last-of-type {
+        margin-bottom: 28px;
+      }
     }
+
     .form-label {
       display: block;
       font-size: 0.8125rem;
@@ -155,7 +265,9 @@
       margin-bottom: 10px;
       letter-spacing: 0.01em;
     }
-    .form-input, .form-select {
+
+    .form-input,
+    .form-select {
       width: 100%;
       padding: 14px 16px;
       font-size: 16px;
@@ -166,16 +278,36 @@
       border-radius: 12px;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
+
     @media (min-width: 640px) {
-      .form-input, .form-select { padding: 16px 18px; }
+
+      .form-input,
+      .form-select {
+        padding: 16px 18px;
+      }
     }
-    .form-input:focus, .form-select:focus {
+
+    .form-input:focus,
+    .form-select:focus {
       outline: none;
       border-color: var(--portal-primary);
       box-shadow: 0 0 0 4px color-mix(in srgb, var(--portal-primary) 0.12, transparent);
     }
-    .form-input::placeholder { color: var(--portal-text-muted); opacity: 0.85; }
-    .form-select { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236d7175' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 16px center; padding-right: 44px; }
+
+    .form-input::placeholder {
+      color: var(--portal-text-muted);
+      opacity: 0.85;
+    }
+
+    .form-select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%236d7175' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      padding-right: 44px;
+    }
+
     .btn-primary {
       width: 100%;
       padding: 18px 24px;
@@ -189,8 +321,16 @@
       cursor: pointer;
       transition: background 0.2s, transform 0.05s, box-shadow 0.2s;
     }
-    .btn-primary:hover { background: var(--portal-primary-hover); box-shadow: 0 4px 14px color-mix(in srgb, var(--portal-primary) 0.4); }
-    .btn-primary:active { transform: scale(0.99); }
+
+    .btn-primary:hover {
+      background: var(--portal-primary-hover);
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--portal-primary) 0.4);
+    }
+
+    .btn-primary:active {
+      transform: scale(0.99);
+    }
+
     .btn-secondary {
       display: inline-flex;
       align-items: center;
@@ -208,23 +348,60 @@
       text-decoration: none;
       transition: background 0.2s, border-color 0.2s;
     }
-    .btn-secondary:hover { background: color-mix(in srgb, var(--portal-primary) 0.18, transparent); border-color: var(--portal-primary); }
-    .form-error { font-size: 0.875rem; color: var(--status-error); margin-top: 10px; font-weight: 500; }
-    .return-list { margin-top: 28px; }
+
+    .btn-secondary:hover {
+      background: color-mix(in srgb, var(--portal-primary) 0.18, transparent);
+      border-color: var(--portal-primary);
+    }
+
+    .form-error {
+      font-size: 0.875rem;
+      color: var(--status-error);
+      margin-top: 10px;
+      font-weight: 500;
+    }
+
+    .return-list {
+      margin-top: 28px;
+    }
+
     .return-card {
       padding: 20px;
       background: var(--portal-bg);
       border-radius: 12px;
       border: 1px solid var(--portal-border);
       margin-bottom: 14px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
     }
+
     @media (min-width: 640px) {
-      .return-card { padding: 24px; border-radius: 16px; margin-bottom: 16px; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+      .return-card {
+        padding: 24px;
+        border-radius: 16px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+      }
     }
-    .return-card:last-child { margin-bottom: 0; }
-    .return-order { font-weight: 700; font-size: 1.125rem; margin-bottom: 10px; letter-spacing: -0.02em; }
-    .return-status-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+
+    .return-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .return-order {
+      font-weight: 700;
+      font-size: 1.125rem;
+      margin-bottom: 10px;
+      letter-spacing: -0.02em;
+    }
+
+    .return-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
     .status-badge {
       display: inline-flex;
       align-items: center;
@@ -233,53 +410,238 @@
       font-size: 0.8125rem;
       font-weight: 600;
     }
-    .status-badge.shopify { background: color-mix(in srgb, var(--portal-primary) 0.15, transparent); color: var(--portal-primary); }
-    .status-badge.fynd { background: color-mix(in srgb, #4f46e5 0.15, transparent); color: #4f46e5; }
-    .status-badge.ok { background: color-mix(in srgb, var(--status-ok) 0.15, transparent); color: var(--status-ok); }
-    .status-badge.pending { background: color-mix(in srgb, var(--status-pending) 0.15, transparent); color: var(--status-pending); }
-    .status-badge.error { background: color-mix(in srgb, var(--status-error) 0.15, transparent); color: var(--status-error); }
-    .return-meta { font-size: 0.875rem; color: var(--portal-text-muted); display: flex; flex-wrap: wrap; gap: 16px 24px; margin-bottom: 14px; }
-    .return-meta span { display: inline-flex; align-items: center; gap: 6px; }
-    .return-meta strong { color: var(--portal-text); font-weight: 600; }
-    .return-tracking-cta { margin-top: 16px; margin-bottom: 16px; }
-    .return-timeline { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--portal-border); }
-    .return-timeline-title { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--portal-text-muted); margin-bottom: 12px; }
-    .return-timeline-item { font-size: 0.875rem; padding: 10px 0; display: flex; align-items: flex-start; gap: 12px; color: var(--portal-text); }
-    .return-timeline-item time { color: var(--portal-text-muted); white-space: nowrap; font-size: 0.8125rem; }
-    .return-timeline-item .event-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--portal-primary); margin-top: 5px; flex-shrink: 0; }
-    .item-row { display: flex; align-items: center; gap: 12px; padding: 14px; background: var(--portal-bg); border-radius: 10px; margin-bottom: 10px; border: 1px solid var(--portal-border); }
-    .item-row input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
-    .item-row label { flex: 1; cursor: pointer; }
-    .item-qty { width: 64px; padding: 10px; text-align: center; border-radius: 8px; }
-    .otp-input { letter-spacing: 0.5em; text-align: center; font-size: 1.25rem; }
-    .step-label { font-size: 0.9375rem; color: var(--portal-text-muted); margin-bottom: 14px; }
-    .result-section { margin-bottom: 32px; }
-    .result-section-title { font-size: 1.125rem; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 16px; color: var(--portal-text); }
-    .order-card { padding: 20px; background: var(--portal-bg); border-radius: 12px; border: 1px solid var(--portal-border); margin-bottom: 12px; }
-    @media (min-width: 640px) {
-      .order-card { padding: 24px; }
+
+    .status-badge.shopify {
+      background: color-mix(in srgb, var(--portal-primary) 0.15, transparent);
+      color: var(--portal-primary);
     }
-    .order-card:last-child { margin-bottom: 0; }
-    .order-name { font-weight: 700; font-size: 1.0625rem; margin-bottom: 8px; }
-    .order-meta { font-size: 0.875rem; color: var(--portal-text-muted); }
-    .return-success-card { padding: 24px; background: var(--portal-surface); border-radius: 16px; border: 1px solid var(--portal-border); box-shadow: var(--portal-shadow); }
-    .return-request-id-block { margin-bottom: 20px; padding: 16px; background: color-mix(in srgb, var(--portal-text) 0.04, transparent); border-radius: 12px; }
-    .return-summary-block { padding: 16px; background: color-mix(in srgb, var(--portal-text) 0.04, transparent); border-radius: 12px; font-size: 0.9375rem; }
-    .return-summary-block .summary-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--portal-border); }
-    .return-summary-block .summary-row:last-child { border-bottom: none; }
-    .return-summary-block .summary-label { color: var(--portal-text-muted); }
-    .return-summary-block .summary-value { font-weight: 600; color: var(--portal-text); }
-    .return-summary-items { margin-top: 8px; padding-left: 16px; }
-    .return-summary-items li { margin: 4px 0; }
+
+    .status-badge.fynd {
+      background: color-mix(in srgb, #4f46e5 0.15, transparent);
+      color: #4f46e5;
+    }
+
+    .status-badge.ok {
+      background: color-mix(in srgb, var(--status-ok) 0.15, transparent);
+      color: var(--status-ok);
+    }
+
+    .status-badge.pending {
+      background: color-mix(in srgb, var(--status-pending) 0.15, transparent);
+      color: var(--status-pending);
+    }
+
+    .status-badge.error {
+      background: color-mix(in srgb, var(--status-error) 0.15, transparent);
+      color: var(--status-error);
+    }
+
+    .return-meta {
+      font-size: 0.875rem;
+      color: var(--portal-text-muted);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px 24px;
+      margin-bottom: 14px;
+    }
+
+    .return-meta span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .return-meta strong {
+      color: var(--portal-text);
+      font-weight: 600;
+    }
+
+    .return-tracking-cta {
+      margin-top: 16px;
+      margin-bottom: 16px;
+    }
+
+    .return-timeline {
+      margin-top: 18px;
+      padding-top: 18px;
+      border-top: 1px solid var(--portal-border);
+    }
+
+    .return-timeline-title {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--portal-text-muted);
+      margin-bottom: 12px;
+    }
+
+    .return-timeline-item {
+      font-size: 0.875rem;
+      padding: 10px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      color: var(--portal-text);
+    }
+
+    .return-timeline-item time {
+      color: var(--portal-text-muted);
+      white-space: nowrap;
+      font-size: 0.8125rem;
+    }
+
+    .return-timeline-item .event-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--portal-primary);
+      margin-top: 5px;
+      flex-shrink: 0;
+    }
+
+    .item-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      background: var(--portal-bg);
+      border-radius: 10px;
+      margin-bottom: 10px;
+      border: 1px solid var(--portal-border);
+    }
+
+    .item-row input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      cursor: pointer;
+    }
+
+    .item-row label {
+      flex: 1;
+      cursor: pointer;
+    }
+
+    .item-qty {
+      width: 64px;
+      padding: 10px;
+      text-align: center;
+      border-radius: 8px;
+    }
+
+    .otp-input {
+      letter-spacing: 0.5em;
+      text-align: center;
+      font-size: 1.25rem;
+    }
+
+    .step-label {
+      font-size: 0.9375rem;
+      color: var(--portal-text-muted);
+      margin-bottom: 14px;
+    }
+
+    .result-section {
+      margin-bottom: 32px;
+    }
+
+    .result-section-title {
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-bottom: 16px;
+      color: var(--portal-text);
+    }
+
+    .order-card {
+      padding: 20px;
+      background: var(--portal-bg);
+      border-radius: 12px;
+      border: 1px solid var(--portal-border);
+      margin-bottom: 12px;
+    }
+
+    @media (min-width: 640px) {
+      .order-card {
+        padding: 24px;
+      }
+    }
+
+    .order-card:last-child {
+      margin-bottom: 0;
+    }
+
+    .order-name {
+      font-weight: 700;
+      font-size: 1.0625rem;
+      margin-bottom: 8px;
+    }
+
+    .order-meta {
+      font-size: 0.875rem;
+      color: var(--portal-text-muted);
+    }
+
+    .return-success-card {
+      padding: 24px;
+      background: var(--portal-surface);
+      border-radius: 16px;
+      border: 1px solid var(--portal-border);
+      box-shadow: var(--portal-shadow);
+    }
+
+    .return-request-id-block {
+      margin-bottom: 20px;
+      padding: 16px;
+      background: color-mix(in srgb, var(--portal-text) 0.04, transparent);
+      border-radius: 12px;
+    }
+
+    .return-summary-block {
+      padding: 16px;
+      background: color-mix(in srgb, var(--portal-text) 0.04, transparent);
+      border-radius: 12px;
+      font-size: 0.9375rem;
+    }
+
+    .return-summary-block .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--portal-border);
+    }
+
+    .return-summary-block .summary-row:last-child {
+      border-bottom: none;
+    }
+
+    .return-summary-block .summary-label {
+      color: var(--portal-text-muted);
+    }
+
+    .return-summary-block .summary-value {
+      font-weight: 600;
+      color: var(--portal-text);
+    }
+
+    .return-summary-items {
+      margin-top: 8px;
+      padding-left: 16px;
+    }
+
+    .return-summary-items li {
+      margin: 4px 0;
+    }
   </style>
 </head>
+
 <body>
   <div class="portal">
     <header class="portal-header">
       <h1 id="portal-title">Track your orders &amp; returns</h1>
-      <p id="portal-subtitle">Look up by order number, return number, AWB, email, or phone to see all your orders and returns.</p>
+      <p id="portal-subtitle">Check the status of your order or start a return — it only takes a minute.</p>
       <div id="policy-banner" class="policy-banner" style="display:none;">
-        <strong>Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
+        <strong>🛡️ Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
         <div id="policy-detail" style="margin-top:8px;"></div>
       </div>
     </header>
@@ -288,25 +650,22 @@
 
     <div id="track-panel" class="portal-card">
       <div id="step1" class="portal-step active">
+        <input type="hidden" id="shop" value="%SHOP%">
         <div class="form-group">
-          <label class="form-label" for="shop">Store</label>
-          <input type="text" id="shop" class="form-input" value="%SHOP%" placeholder="your-store.myshopify.com" readonly>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="lookupType">Look up by</label>
+          <label class="form-label" for="lookupType">How would you like to search?</label>
           <select id="lookupType" class="form-select">
             <option value="order_no">Order Number</option>
+            <option value="email">Email Address</option>
+            <option value="mobile">Phone Number</option>
             <option value="return_id">Return Request ID</option>
             <option value="return_no">Return Number</option>
-            <option value="forward_awb">Forward AWB</option>
-            <option value="return_awb">Return AWB</option>
-            <option value="email">Email</option>
-            <option value="mobile">Mobile</option>
+            <option value="forward_awb">Forward AWB / Tracking</option>
+            <option value="return_awb">Return AWB / Tracking</option>
           </select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="lookupValue">Enter your details</label>
-          <input type="text" id="lookupValue" class="form-input" placeholder="Order #, Return ID (RPM-XXX), AWB, email, or phone">
+          <label class="form-label" for="lookupValue" id="lookupValueLabel">Enter your order number</label>
+          <input type="text" id="lookupValue" class="form-input" placeholder="e.g. #1001 or 1001">
         </div>
         <button type="button" id="btnLookup" class="btn-primary">Look Up</button>
         <p id="err1" class="form-error"></p>
@@ -321,24 +680,34 @@
           <h2 class="result-section-title">Your returns</h2>
           <div id="result-returns" class="return-list"></div>
         </div>
-        <div id="result-empty" class="return-empty" style="display:none; text-align:center; padding:48px 24px; color:var(--portal-text-muted); font-size:1rem;"></div>
-        <button type="button" id="btnBack" class="btn-primary" style="margin-top: 24px; background: var(--portal-text-muted);">Look up another</button>
+        <div id="result-empty" style="display:none; text-align:center; padding:48px 24px;">
+          <div style="font-size:48px; margin-bottom:16px;">🔍</div>
+          <p style="font-size:1.125rem; font-weight:600; color:var(--portal-text); margin-bottom:8px;">No results found
+          </p>
+          <p style="color:var(--portal-text-muted); font-size:0.9375rem;">We couldn't find any orders or returns
+            matching your search. Please check your details and try again.</p>
+        </div>
+        <button type="button" id="btnBack" class="btn-secondary" style="margin-top: 24px; width:100%;">← Search
+          again</button>
       </div>
     </div>
 
     <div id="create-panel" class="portal-card" style="display:none;">
       <div id="create-step1" class="portal-step active">
-        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 18px; letter-spacing: -0.02em;">Create return</h2>
+        <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 18px; letter-spacing: -0.02em;">Create return
+        </h2>
         <p class="step-label">Choose how you'd like to start your return:</p>
         <div class="form-group">
           <label class="form-label" for="createOrderNumber">Search by Order Number</label>
           <input type="text" id="createOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
           <button type="button" id="btnFetchOrder" class="btn-primary" style="margin-top: 12px;">Find Order</button>
         </div>
-        <div style="text-align: center; margin: 20px 0; color: var(--portal-text-muted); font-size: 0.875rem;">— or —</div>
+        <div style="text-align: center; margin: 20px 0; color: var(--portal-text-muted); font-size: 0.875rem;">— or —
+        </div>
         <div class="form-group">
-          <button type="button" id="btnUseManualForm" class="btn-primary" style="background: var(--portal-text-muted);">Use manual form</button>
-          <p style="font-size: 0.8125rem; color: var(--portal-text-muted); margin-top: 8px;">Can't find your order? Submit a return request manually.</p>
+          <button type="button" id="btnUseManualForm" class="btn-secondary" style="width:100%;">Use manual form</button>
+          <p style="font-size: 0.8125rem; color: var(--portal-text-muted); margin-top: 8px;">Can't find your order?
+            Submit a return request manually.</p>
         </div>
         <p id="createErr1" class="form-error"></p>
       </div>
@@ -359,17 +728,21 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="createCustomerNotes">Additional notes (optional)</label>
-          <textarea id="createCustomerNotes" class="form-input" rows="2" placeholder="Any additional details for the store"></textarea>
+          <textarea id="createCustomerNotes" class="form-input" rows="2"
+            placeholder="Any additional details for the store"></textarea>
         </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit Return Request</button>
-        <button type="button" id="btnCreateBack" class="btn-primary" style="margin-top: 12px; background: var(--portal-text-muted);">Back</button>
+        <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
+          Back</button>
         <p id="createErr2" class="form-error"></p>
       </div>
       <div id="create-step2-manual" class="portal-step">
         <h2 style="font-size: 1.125rem; margin-bottom: 16px;">Submit Return Request</h2>
-        <p id="createManualHint" style="font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 16px; display:none;"></p>
+        <p id="createManualHint"
+          style="font-size: 0.875rem; color: var(--portal-text-muted); margin-bottom: 16px; display:none;"></p>
         <div class="form-group">
-          <label class="form-label" for="createManualOrderNumber">Order Number <span style="color:#d72c0d">*</span></label>
+          <label class="form-label" for="createManualOrderNumber">Order Number <span
+              style="color:#d72c0d">*</span></label>
           <input type="text" id="createManualOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
         </div>
         <div class="form-group">
@@ -381,37 +754,52 @@
           <select id="createManualReason" class="form-select"></select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="createManualItems">Describe the item(s) you want to return <span style="color:#d72c0d">*</span></label>
-          <textarea id="createManualItems" class="form-input" rows="3" placeholder="e.g. Blue t-shirt size M, 1 unit"></textarea>
+          <label class="form-label" for="createManualItems">Describe the item(s) you want to return <span
+              style="color:#d72c0d">*</span></label>
+          <textarea id="createManualItems" class="form-input" rows="3"
+            placeholder="e.g. Blue t-shirt size M, 1 unit"></textarea>
         </div>
         <div class="form-group">
           <label class="form-label" for="createManualCustomerNotes">Additional notes (optional)</label>
-          <textarea id="createManualCustomerNotes" class="form-input" rows="2" placeholder="Any additional details for the store"></textarea>
+          <textarea id="createManualCustomerNotes" class="form-input" rows="2"
+            placeholder="Any additional details for the store"></textarea>
         </div>
         <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit Return Request</button>
-        <button type="button" id="btnManualBack" class="btn-primary" style="margin-top: 12px; background: var(--portal-text-muted);">Back</button>
+        <button type="button" id="btnManualBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
+          Back</button>
         <p id="createErrManual" class="form-error"></p>
       </div>
       <div id="create-step3" class="portal-step">
         <div id="createSuccessCard" class="return-success-card" style="display: none;">
           <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-            <div style="width: 48px; height: 48px; border-radius: 50%; background: color-mix(in srgb, var(--status-ok) 0.2, transparent); display: flex; align-items: center; justify-content: center;">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--status-ok)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <div
+              style="width: 48px; height: 48px; border-radius: 50%; background: color-mix(in srgb, var(--status-ok) 0.2, transparent); display: flex; align-items: center; justify-content: center;">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--status-ok)" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
             </div>
             <div>
-              <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; color: var(--portal-text);">Return Submitted</h2>
+              <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; color: var(--portal-text);">Return
+                Submitted</h2>
               <p id="createSuccessMsg" style="margin: 0; font-size: 0.9375rem; color: var(--portal-text-muted);"></p>
             </div>
           </div>
           <div class="return-request-id-block">
-            <label style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--portal-text-muted); margin-bottom: 6px; display: block;">Return Request ID</label>
+            <label
+              style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--portal-text-muted); margin-bottom: 6px; display: block;">Return
+              Request ID</label>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-              <code id="createReturnRequestId" style="font-size: 1.125rem; font-weight: 700; padding: 12px 16px; background: color-mix(in srgb, var(--portal-primary) 0.12, transparent); border-radius: 10px; border: 1px solid color-mix(in srgb, var(--portal-primary) 0.3, transparent); color: var(--portal-primary); letter-spacing: 0.05em;"></code>
-              <button type="button" id="btnCopyReturnId" class="btn-secondary" style="padding: 10px 16px; font-size: 0.875rem;">Copy</button>
+              <code id="createReturnRequestId"
+                style="font-size: 1.125rem; font-weight: 700; padding: 12px 16px; background: color-mix(in srgb, var(--portal-primary) 0.12, transparent); border-radius: 10px; border: 1px solid color-mix(in srgb, var(--portal-primary) 0.3, transparent); color: var(--portal-primary); letter-spacing: 0.05em;"></code>
+              <button type="button" id="btnCopyReturnId" class="btn-secondary"
+                style="padding: 10px 16px; font-size: 0.875rem;">Copy</button>
             </div>
           </div>
           <div id="createSummaryBlock" class="return-summary-block"></div>
-          <div id="createNextSteps" style="margin-top: 16px; padding: 14px 16px; background: color-mix(in srgb, var(--portal-primary) 0.08, transparent); border-radius: 10px; font-size: 0.9375rem; color: var(--portal-text); border-left: 4px solid var(--portal-primary);"></div>
+          <div id="createNextSteps"
+            style="margin-top: 16px; padding: 14px 16px; background: color-mix(in srgb, var(--portal-primary) 0.08, transparent); border-radius: 10px; font-size: 0.9375rem; color: var(--portal-text); border-left: 4px solid var(--portal-primary);">
+          </div>
           <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px;">
             <button type="button" id="btnTrackThisReturn" class="btn-primary">Track this return</button>
             <button type="button" id="btnCreateAnother" class="btn-secondary">Create another return</button>
@@ -426,12 +814,12 @@
     const RETURN_POLICY = '%RETURN_POLICY%';
     const RETURN_REASONS_JSON = '%RETURN_REASONS_JSON%' || '[]';
     const RETURN_REASONS_BY_CATEGORY_JSON = '%RETURN_REASONS_BY_CATEGORY_JSON%' || '';
-    const PORTAL_CONFIG = (function() {
+    const PORTAL_CONFIG = (function () {
       var raw = '%PORTAL_CONFIG%';
       if (raw.indexOf('showOrderTracking') === -1 && raw.indexOf('%') !== -1) raw = '{}';
       try { return JSON.parse(raw || '{}'); } catch { return { showOrderTracking: true, showReturnTracking: true, showCreateReturnTab: true, defaultTab: 'return' }; }
     })();
-    (function() {
+    (function () {
       const banner = document.getElementById('policy-banner');
       const detail = document.getElementById('policy-detail');
       banner.style.display = 'block';
@@ -458,11 +846,11 @@
       if (tabs.length === 0) { wrap.style.display = 'none'; return; }
       if (tabs.length === 1) { wrap.style.display = 'none'; return; }
       wrap.style.display = 'flex';
-      wrap.innerHTML = tabs.map(function(t, i) {
+      wrap.innerHTML = tabs.map(function (t, i) {
         const isDefault = (PORTAL_CONFIG.defaultTab === t.id) || (PORTAL_CONFIG.defaultTab === 'return' && t.id === 'track') || (i === 0);
         return '<button type="button" class="portal-tab' + (isDefault ? ' active' : '') + '" data-tab="' + escapeHtml(t.id) + '">' + escapeHtml(t.label) + '</button>';
       }).join('');
-      tabs.forEach(function(t, i) {
+      tabs.forEach(function (t, i) {
         const isDefault = (PORTAL_CONFIG.defaultTab === t.id) || (PORTAL_CONFIG.defaultTab === 'return' && t.id === 'track') || (i === 0);
         if (isDefault) { document.getElementById('track-panel').style.display = t.id === 'track' ? 'block' : 'none'; document.getElementById('create-panel').style.display = t.id === 'create' ? 'block' : 'none'; }
       });
@@ -476,7 +864,7 @@
         const byCat = JSON.parse(RETURN_REASONS_BY_CATEGORY_JSON);
         if (productType && byCat[productType] && Array.isArray(byCat[productType])) return byCat[productType];
         if (byCat['default'] && Array.isArray(byCat['default'])) return byCat['default'];
-      } catch (_) {}
+      } catch (_) { }
       return defaultReasons;
     }
 
@@ -485,8 +873,15 @@
       const lookupType = document.getElementById('lookupType').value;
       const lookupValue = document.getElementById('lookupValue').value.trim();
       const err = document.getElementById('err1');
+      const btn = document.getElementById('btnLookup');
       err.textContent = '';
-      if (!shop || !lookupValue) { err.textContent = 'Please enter your lookup details'; return; }
+      if (!lookupValue) {
+        const hints = { order_no: 'order number', return_id: 'return request ID', return_no: 'return number', forward_awb: 'AWB number', return_awb: 'AWB number', email: 'email address', mobile: 'phone number' };
+        err.textContent = 'Please enter your ' + (hints[lookupType] || 'details');
+        return;
+      }
+      if (lookupType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lookupValue)) { err.textContent = 'Please enter a valid email address'; return; }
+      btn.disabled = true; btn.textContent = 'Searching...';
       try {
         const data = await fetchJson(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) });
         const orders = data.orders || [];
@@ -504,55 +899,56 @@
         if (PORTAL_CONFIG.showOrderTracking) {
           document.getElementById('result-orders').innerHTML = orders.length === 0
             ? '<p class="return-empty" style="text-align:center;padding:24px;color:var(--portal-text-muted);font-size:0.9375rem;">No orders found.</p>'
-            : orders.map(function(o) {
-                const status = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
-                const statusClass = status.includes('fulfilled') || status.includes('paid') ? 'ok' : (status.includes('cancel') ? 'error' : 'pending');
-                let html = '<div class="order-card"><div class="order-name">' + escapeHtml(o.name || o.id) + '</div>';
-                html += '<div class="return-status-row"><span class="status-badge shopify ' + statusClass + '">' + escapeHtml(o.displayFulfillmentStatus || o.displayFinancialStatus || '—') + '</span></div>';
-                html += '<div class="order-meta">' + (o.createdAt ? 'Ordered ' + new Date(o.createdAt).toLocaleString() : '') + (o.totalPrice ? ' · ' + escapeHtml(o.totalPrice) : '') + '</div></div>';
-                return html;
-              }).join('');
+            : orders.map(function (o) {
+              const status = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
+              const statusClass = status.includes('fulfilled') || status.includes('paid') ? 'ok' : (status.includes('cancel') ? 'error' : 'pending');
+              let html = '<div class="order-card"><div class="order-name">' + escapeHtml(o.name || o.id) + '</div>';
+              html += '<div class="return-status-row"><span class="status-badge shopify ' + statusClass + '">' + escapeHtml(o.displayFulfillmentStatus || o.displayFinancialStatus || '—') + '</span></div>';
+              html += '<div class="order-meta">' + (o.createdAt ? 'Ordered ' + new Date(o.createdAt).toLocaleString() : '') + (o.totalPrice ? ' · ' + escapeHtml(o.totalPrice) : '') + '</div></div>';
+              return html;
+            }).join('');
         }
         if (PORTAL_CONFIG.showReturnTracking) {
           document.getElementById('result-returns').innerHTML = returns.length === 0
             ? '<p class="return-empty" style="text-align:center;padding:24px;color:var(--portal-text-muted);font-size:0.9375rem;">No returns found.</p>'
-            : returns.map(function(x) {
-                const orderName = x.shopifyOrderName || x.id;
-                const status = (x.status || '').toLowerCase();
-                const statusClass = status === 'approved' || status === 'completed' ? 'ok' : (status === 'rejected' ? 'error' : 'pending');
-                const ti = x.trackingInfo || {};
-                const displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
-                let html = '<div class="return-card"><div class="return-order">' + escapeHtml(displayId) + '</div>';
-                html += '<div class="return-status-row">';
-                html += '<span class="status-badge shopify ' + statusClass + '">Shopify: ' + escapeHtml(x.status || '—') + '</span>';
-                if (ti.fyndStatus) html += '<span class="status-badge fynd">Fynd: ' + escapeHtml(ti.fyndStatus) + '</span>';
+            : returns.map(function (x) {
+              const orderName = x.shopifyOrderName || x.id;
+              const status = (x.status || '').toLowerCase();
+              const statusClass = status === 'approved' || status === 'completed' ? 'ok' : (status === 'rejected' ? 'error' : 'pending');
+              const ti = x.trackingInfo || {};
+              const displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
+              let html = '<div class="return-card"><div class="return-order">' + escapeHtml(displayId) + '</div>';
+              html += '<div class="return-status-row">';
+              html += '<span class="status-badge shopify ' + statusClass + '">Shopify: ' + escapeHtml(x.status || '—') + '</span>';
+              if (ti.fyndStatus) html += '<span class="status-badge fynd">Fynd: ' + escapeHtml(ti.fyndStatus) + '</span>';
+              html += '</div>';
+              var meta = [];
+              if (x.returnRequestNo) meta.push('<span><strong>Return ID</strong> ' + escapeHtml(x.returnRequestNo) + '</span>');
+              if (x.fyndReturnNo) meta.push('<span><strong>Fynd Return #</strong> ' + escapeHtml(x.fyndReturnNo) + '</span>');
+              if (ti.awbNo) meta.push('<span><strong>AWB</strong> ' + escapeHtml(ti.awbNo) + '</span>');
+              if (x.forwardAwb) meta.push('<span><strong>Forward AWB</strong> ' + escapeHtml(x.forwardAwb) + '</span>');
+              if (x.returnAwb) meta.push('<span><strong>Return AWB</strong> ' + escapeHtml(x.returnAwb) + '</span>');
+              if (ti.logisticsPartner) meta.push('<span><strong>Courier</strong> ' + escapeHtml(ti.logisticsPartner) + '</span>');
+              if (x.createdAt) meta.push('<span><strong>Created</strong> ' + new Date(x.createdAt).toLocaleString() + '</span>');
+              if (meta.length) html += '<div class="return-meta">' + meta.join('') + '</div>';
+              if (ti.trackingUrl) html += '<div class="return-tracking-cta"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary">Track shipment →</a></div>';
+              if (x.status && status === 'rejected' && x.rejectionReason) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, #dc2626 0.08, transparent);border-radius:10px;font-size:0.875rem;color:#b91c1c;">' + escapeHtml(x.rejectionReason) + '</div>';
+              if (x.notesForCustomer) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, var(--portal-primary) 0.08, transparent);border-radius:10px;font-size:0.875rem;color:var(--portal-text);border-left:4px solid var(--portal-primary);"><strong>Message from store:</strong><div style="margin-top:8px;white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
+              var events = (x.events || []).slice().sort(function (a, b) { return new Date(a.happenedAt || 0) - new Date(b.happenedAt || 0); }).slice(-15);
+              if (events.length) {
+                html += '<div class="return-timeline"><div class="return-timeline-title">Tracking timeline</div>';
+                events.forEach(function (ev) {
+                  var time = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString() : '';
+                  var label = (ev.source ? '[' + escapeHtml(ev.source) + '] ' : '') + escapeHtml(ev.eventType || '');
+                  html += '<div class="return-timeline-item"><span class="event-dot"></span><span><time>' + escapeHtml(time) + '</time> ' + label + '</span></div>';
+                });
                 html += '</div>';
-                var meta = [];
-                if (x.returnRequestNo) meta.push('<span><strong>Return ID</strong> ' + escapeHtml(x.returnRequestNo) + '</span>');
-                if (x.fyndReturnNo) meta.push('<span><strong>Fynd Return #</strong> ' + escapeHtml(x.fyndReturnNo) + '</span>');
-                if (ti.awbNo) meta.push('<span><strong>AWB</strong> ' + escapeHtml(ti.awbNo) + '</span>');
-                if (x.forwardAwb) meta.push('<span><strong>Forward AWB</strong> ' + escapeHtml(x.forwardAwb) + '</span>');
-                if (x.returnAwb) meta.push('<span><strong>Return AWB</strong> ' + escapeHtml(x.returnAwb) + '</span>');
-                if (ti.logisticsPartner) meta.push('<span><strong>Courier</strong> ' + escapeHtml(ti.logisticsPartner) + '</span>');
-                if (x.createdAt) meta.push('<span><strong>Created</strong> ' + new Date(x.createdAt).toLocaleString() + '</span>');
-                if (meta.length) html += '<div class="return-meta">' + meta.join('') + '</div>';
-                if (ti.trackingUrl) html += '<div class="return-tracking-cta"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary">Track shipment →</a></div>';
-                if (x.status && status === 'rejected' && x.rejectionReason) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, #dc2626 0.08, transparent);border-radius:10px;font-size:0.875rem;color:#b91c1c;">' + escapeHtml(x.rejectionReason) + '</div>';
-                if (x.notesForCustomer) html += '<div style="margin-top:12px;padding:12px;background:color-mix(in srgb, var(--portal-primary) 0.08, transparent);border-radius:10px;font-size:0.875rem;color:var(--portal-text);border-left:4px solid var(--portal-primary);"><strong>Message from store:</strong><div style="margin-top:8px;white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
-                var events = (x.events || []).slice().sort(function(a,b) { return new Date(a.happenedAt||0) - new Date(b.happenedAt||0); }).slice(-15);
-                if (events.length) {
-                  html += '<div class="return-timeline"><div class="return-timeline-title">Tracking timeline</div>';
-                  events.forEach(function(ev) {
-                    var time = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString() : '';
-                    var label = (ev.source ? '[' + escapeHtml(ev.source) + '] ' : '') + escapeHtml(ev.eventType || '');
-                    html += '<div class="return-timeline-item"><span class="event-dot"></span><span><time>' + escapeHtml(time) + '</time> ' + label + '</span></div>';
-                  });
-                  html += '</div>';
-                }
-                return html + '</div>';
-              }).join('');
+              }
+              return html + '</div>';
+            }).join('');
         }
       } catch (e) { err.textContent = e.message || 'Lookup failed. Please try again.'; }
+      finally { btn.disabled = false; btn.textContent = 'Look Up'; }
     };
 
     document.getElementById('btnBack').onclick = () => {
@@ -560,19 +956,32 @@
       document.getElementById('step1').classList.add('active');
     };
 
-    const DEFAULT_REASONS = (function() { try { return JSON.parse(RETURN_REASONS_JSON || '[]'); } catch { return ['Other']; } })();
+    const DEFAULT_REASONS = (function () { try { return JSON.parse(RETURN_REASONS_JSON || '[]'); } catch { return ['Other']; } })();
     let createOrderData = null;
+
+    // Dynamic labels/placeholders for lookup type
+    const LOOKUP_LABELS = { order_no: 'Enter your order number', return_id: 'Enter your return request ID', return_no: 'Enter your return number', forward_awb: 'Enter your forward AWB / tracking number', return_awb: 'Enter your return AWB / tracking number', email: 'Enter your email address', mobile: 'Enter your phone number' };
+    const LOOKUP_PLACEHOLDERS = { order_no: 'e.g. #1001 or 1001', return_id: 'e.g. RPM-A1B2C3D4', return_no: 'e.g. RET-12345', forward_awb: 'e.g. 1234567890', return_awb: 'e.g. 1234567890', email: 'e.g. you@example.com', mobile: 'e.g. +91 9876543210' };
+    const LOOKUP_INPUT_TYPES = { email: 'email', mobile: 'tel' };
+    document.getElementById('lookupType').addEventListener('change', function () {
+      var v = this.value;
+      document.getElementById('lookupValueLabel').textContent = LOOKUP_LABELS[v] || 'Enter your details';
+      var inp = document.getElementById('lookupValue');
+      inp.placeholder = LOOKUP_PLACEHOLDERS[v] || '';
+      inp.type = LOOKUP_INPUT_TYPES[v] || 'text';
+      inp.value = '';
+    });
 
     function fillReasonSelect(selectEl, productType) {
       var reasons = getReasonsForCategory(productType || null);
       if (!reasons.length) reasons = ['Other'];
-      selectEl.innerHTML = reasons.map(function(r) { return '<option value="'+escapeHtml(r)+'">'+escapeHtml(r)+'</option>'; }).join('');
+      selectEl.innerHTML = reasons.map(function (r) { return '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + '</option>'; }).join('');
     }
 
-    document.addEventListener('click', function(e) {
+    document.addEventListener('click', function (e) {
       var tab = e.target.closest('.portal-tab');
       if (!tab) return;
-      document.querySelectorAll('.portal-tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
       tab.classList.add('active');
       document.getElementById('track-panel').style.display = tab.dataset.tab === 'track' ? 'block' : 'none';
       document.getElementById('create-panel').style.display = tab.dataset.tab === 'create' ? 'block' : 'none';
@@ -584,7 +993,7 @@
       if (fromFallback) {
         hintEl.textContent = hint || 'Complete the form below. The store will process your return manually.';
         hintEl.style.display = 'block';
-        orderInput.value = orderNumber ? '#' + orderNumber.replace(/^#/,'') : '';
+        orderInput.value = orderNumber ? '#' + orderNumber.replace(/^#/, '') : '';
       } else {
         hintEl.textContent = '';
         hintEl.style.display = 'none';
@@ -607,9 +1016,8 @@
       const err = document.getElementById('createErr1');
       const btn = document.getElementById('btnFetchOrder');
       err.textContent = '';
-      if (!shop) { err.textContent = 'Store is required'; return; }
-      if (!orderNumber) { err.textContent = 'Please enter your order number'; return; }
-      const cleanOrder = orderNumber.replace(/^#/,'').trim();
+      if (!orderNumber) { err.textContent = 'Please enter your order number (e.g. #1001)'; return; }
+      const cleanOrder = orderNumber.replace(/^#/, '').trim();
       if (!cleanOrder) { err.textContent = 'Please enter a valid order number'; return; }
       btn.disabled = true;
       btn.textContent = 'Searching...';
@@ -629,13 +1037,13 @@
         const list = document.getElementById('createItemsList');
         list.innerHTML = createOrderData.lineItems.map(li => `
           <div class="item-row">
-            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" data-price="${li.price || ''}" data-tags="${(li.productTags||[]).join(',')}">
-            <label for="item-${li.id}">${li.title} ${li.sku ? '('+li.sku+')' : ''} × ${li.quantity}</label>
+            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" data-price="${li.price || ''}" data-tags="${(li.productTags || []).join(',')}">
+            <label for="item-${li.id}">${li.title} ${li.sku ? '(' + li.sku + ')' : ''} × ${li.quantity}</label>
             <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}" data-max="${li.quantity}">
           </div>
         `).join('');
         list.querySelectorAll('.item-qty').forEach(inp => {
-          inp.addEventListener('blur', function() {
+          inp.addEventListener('blur', function () {
             const max = parseInt(this.dataset.max || '1', 10);
             let v = parseInt(this.value, 10);
             if (isNaN(v) || v < 1) v = 1;
@@ -674,12 +1082,11 @@
       const err = document.getElementById('createErrManual');
       const btn = document.getElementById('btnSubmitManualReturn');
       err.textContent = '';
-      const orderNumber = document.getElementById('createManualOrderNumber').value.replace(/^#/,'').trim();
+      const orderNumber = document.getElementById('createManualOrderNumber').value.replace(/^#/, '').trim();
       const email = document.getElementById('createManualEmail').value.trim();
       const reason = document.getElementById('createManualReason').value;
       const itemDesc = document.getElementById('createManualItems').value.trim();
-      if (!shop) { err.textContent = 'Store is required'; return; }
-      if (!orderNumber) { err.textContent = 'Please enter your order number'; return; }
+      if (!orderNumber) { err.textContent = 'Please enter your order number (e.g. #1001)'; return; }
       if (!email) { err.textContent = 'Please enter your email'; return; }
       if (!EMAIL_REGEX.test(email)) { err.textContent = 'Please enter a valid email address'; return; }
       if (!itemDesc || itemDesc.length < 3) { err.textContent = 'Please describe the item(s) you want to return (at least 3 characters)'; return; }
@@ -725,7 +1132,7 @@
       checked.forEach(cb => {
         const li = createOrderData.lineItems.find(l => l.id === cb.dataset.id);
         const maxQty = li ? li.quantity : 1;
-        const qtyInput = document.querySelector('.item-qty[data-id="'+cb.dataset.id+'"]');
+        const qtyInput = document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]');
         let qty = parseInt(qtyInput?.value || '1', 10);
         if (isNaN(qty) || qty < 1) qty = 1;
         if (qty > maxQty) qty = maxQty;
@@ -786,7 +1193,7 @@
       if (summary.itemsCount != null) summaryHtml += '<div class="summary-row"><span class="summary-label">Items</span><span class="summary-value">' + summary.itemsCount + '</span></div>';
       if (summary.items && summary.items.length) {
         summaryHtml += '<div class="summary-row"><span class="summary-label">Returning</span><span class="summary-value"></span></div><ul class="return-summary-items">';
-        summary.items.forEach(function(it) { summaryHtml += '<li>' + escapeHtml(it.title || 'Item') + (it.qty > 1 ? ' × ' + it.qty : '') + '</li>'; });
+        summary.items.forEach(function (it) { summaryHtml += '<li>' + escapeHtml(it.title || 'Item') + (it.qty > 1 ? ' × ' + it.qty : '') + '</li>'; });
         summaryHtml += '</ul>';
       }
       if (summary.status) summaryHtml += '<div class="summary-row"><span class="summary-label">Status</span><span class="summary-value">' + escapeHtml(summary.status) + '</span></div>';
@@ -797,23 +1204,23 @@
       nextStepsEl.style.display = 'block';
     }
 
-    document.getElementById('btnCopyReturnId').onclick = function() {
+    document.getElementById('btnCopyReturnId').onclick = function () {
       var el = document.getElementById('createReturnRequestId');
       if (!el || !el.textContent) return;
-      navigator.clipboard.writeText(el.textContent).then(function() {
+      navigator.clipboard.writeText(el.textContent).then(function () {
         var btn = document.getElementById('btnCopyReturnId');
         var orig = btn.textContent;
         btn.textContent = 'Copied!';
-        setTimeout(function() { btn.textContent = orig; }, 2000);
-      }).catch(function() {});
+        setTimeout(function () { btn.textContent = orig; }, 2000);
+      }).catch(function () { });
     };
 
-    document.getElementById('btnTrackThisReturn').onclick = function() {
+    document.getElementById('btnTrackThisReturn').onclick = function () {
       var idToTrack = lastCreatedReturnRequestId || lastCreatedReturnId;
       if (!idToTrack || !document.getElementById('shop').value.trim()) return;
       var trackTab = document.querySelector('.portal-tab[data-tab="track"]');
       if (trackTab) {
-        document.querySelectorAll('.portal-tab').forEach(function(t) { t.classList.remove('active'); });
+        document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
         trackTab.classList.add('active');
       }
       document.getElementById('track-panel').style.display = 'block';
@@ -846,4 +1253,5 @@
     };
   </script>
 </body>
+
 </html>

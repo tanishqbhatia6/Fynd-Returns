@@ -28,7 +28,7 @@ function toFyndOrderIdFallback(shopifyOrderName: string): string {
  * Pass affiliateOrderId when available; otherwise falls back to shopifyOrderName (may fail for Fynd integrations).
  */
 export async function createReturnOnFynd(
-  client: FyndPlatformClient,
+  client: FyndPlatformClient | import("./fynd-fdk.server").FyndPlatformClientFDK,
   returnCase: ReturnCase & { items: ReturnItem[] },
   options?: {
     affiliateOrderId?: string | null;
@@ -96,9 +96,9 @@ export async function createReturnOnFynd(
     const shipments = Array.isArray(shipmentsRes)
       ? shipmentsRes
       : (shipmentsRes as { items?: unknown[] })?.items
-        ?? (shipmentsRes as { shipments?: unknown[] })?.shipments
-        ?? (shipmentsRes as { bags?: unknown[] })?.bags
-        ?? [];
+      ?? (shipmentsRes as { shipments?: unknown[] })?.shipments
+      ?? (shipmentsRes as { bags?: unknown[] })?.bags
+      ?? [];
 
     const shipment = Array.isArray(shipments) ? shipments[0] : null;
     const fullPayload = shipmentsRes != null ? shipmentsRes : undefined;

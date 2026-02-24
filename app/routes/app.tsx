@@ -6,6 +6,17 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getAppMode } from "../lib/fynd-config.server";
 
+declare module "react" {
+  namespace JSX {
+    interface IntrinsicElements {
+      's-app-nav': any;
+      's-page': any;
+      's-section': any;
+      's-button': any;
+    }
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shopDomain = session.shop;

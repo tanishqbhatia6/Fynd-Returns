@@ -43,7 +43,7 @@ import prisma from "../db.server";
 import { createRefund, fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { sendRejectionNotification } from "../lib/notification.server";
+import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification } from "../lib/notification.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -160,7 +160,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       where: { id: shop.id },
       include: { settings: true },
     });
-    const settingsForApprove = shopWithSettings?.settings as (typeof shopWithSettings.settings) & { fyndApiType?: string | null } | undefined;
+    const settingsForApprove = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
     const fyndClientResult = settingsForApprove
       ? await createFyndClientOrError(settingsForApprove, { requirePlatform: true })
       : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations and connect Fynd with Platform API to create returns on Fynd." };
@@ -225,6 +225,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }),
       },
     });
+
+    const notifyApproved = shopWithSettings?.settings?.notificationApproved ?? true;
+    if (notifyApproved && returnCase.customerEmailNorm) {
+      try {
+        await sendApprovalNotification({
+          to: returnCase.customerEmailNorm,
+          orderName: returnCase.shopifyOrderName || "your order",
+          notes: note || undefined,
+          shopName: session.shop?.replace(".myshopify.com", ""),
+        });
+      } catch (err) {
+        console.warn("[Approve] Notification failed:", err);
+      }
+    }
     const redirectUrl = fyndError
       ? `/app/returns/${id}?fyndError=${encodeURIComponent(fyndError)}`
       : `/app/returns/${id}`;
@@ -242,7 +256,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       where: { id: shop.id },
       include: { settings: true },
     });
-    const settingsRetry = shopWithSettings?.settings as (typeof shopWithSettings.settings) & { fyndApiType?: string | null } | undefined;
+    const settingsRetry = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
     const fyndRetryResult = settingsRetry
       ? await createFyndClientOrError(settingsRetry, { requirePlatform: true })
       : { ok: false as const, error: "Fynd is not configured. Configure Fynd with Platform API in Settings → Integrations." };
@@ -310,7 +324,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       where: { id: shop.id },
       include: { settings: true },
     });
-    const settings = shopWithSettings?.settings as (typeof shopWithSettings.settings) & { fyndApiType?: string | null } | undefined;
+    const settings = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
     const fyndResult = settings
       ? await createFyndClientOrError(settings, { requirePlatform: true })
       : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations." };
@@ -482,6 +496,24 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           payloadJson: JSON.stringify({ note: "Refund created in Shopify" }),
         },
       });
+
+      const shopWithSettings = await prisma.shop.findUnique({
+        where: { id: shop.id },
+        include: { settings: true },
+      });
+      // Assuming notificationApproved or a new setting notificationRefunded? We use a default true here if missing.
+      // Usually there is a setting, but we'll default to true like the others if it's not defined, or check notificationApproved if not.
+      if (returnCase.customerEmailNorm) {
+        try {
+          await sendRefundNotification({
+            to: returnCase.customerEmailNorm,
+            orderName: returnCase.shopifyOrderName || "your order",
+            shopName: session.shop?.replace(".myshopify.com", ""),
+          });
+        } catch (err) {
+          console.warn("[process_refund] Notification failed:", err);
+        }
+      }
       throw redirect(`/app/returns/${id}`);
     } catch (err) {
       // Re-throw redirect Responses — redirect() throws a Response

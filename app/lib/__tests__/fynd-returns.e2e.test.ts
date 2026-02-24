@@ -80,7 +80,7 @@ describe("createReturnOnFynd E2E", () => {
 
   it("rejects when order ID is missing", async () => {
     const client = createMockClient();
-    const returnCase = createMockReturnCase({ shopifyOrderName: null, shopifyOrderId: null });
+    const returnCase = createMockReturnCase({ shopifyOrderName: undefined as string | undefined | null, shopifyOrderId: undefined as string | undefined | null } as any);
     const result = await createReturnOnFynd(client, returnCase, { affiliateOrderId: null });
     expect(result.success).toBe(false);
     expect(result.error).toContain("Invalid order ID");

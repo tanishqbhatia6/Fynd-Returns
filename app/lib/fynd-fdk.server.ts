@@ -2,8 +2,11 @@
  * Fynd FDK (Platform + Application/Storefront SDK) integration.
  * Uses @gofynd/fdk-client-javascript for Platform and ApplicationClient.
  */
-import { PlatformClient, ApplicationClient } from "@gofynd/fdk-client-javascript";
+import { PlatformClient, ApplicationClient, PlatformConfig, ApplicationConfig } from "@gofynd/fdk-client-javascript";
 import { getFyndBaseUrl } from "./fynd-config.server";
+
+type PlatformClientType = InstanceType<typeof PlatformClient>;
+type ApplicationClientType = InstanceType<typeof ApplicationClient>;
 
 export type FyndLogFn = (step: string, message: string, detail?: string) => void;
 
@@ -40,36 +43,35 @@ export type FyndFDKApplicationConfig = {
 };
 
 /** Create Platform SDK client (apiKey/apiSecret = Client ID/Client Secret) */
-export function createFyndPlatformClient(config: FyndFDKPlatformConfig): PlatformClient {
+export function createFyndPlatformClient(config: FyndFDKPlatformConfig): PlatformClientType {
   const domain = config.domain.replace(/\/$/, "");
-  const platformConfig = {
+  const platformConfig = new PlatformConfig({
     companyId: config.companyId,
     domain,
     apiKey: config.apiKey,
     apiSecret: config.apiSecret,
     useAutoRenewTimer: false,
-    logLevel: "ERROR" as const,
-  };
-  return new PlatformClient(platformConfig);
+  });
+  return new PlatformClient(platformConfig, {});
 }
 
 /** Create Application (Storefront) SDK client */
-export function createFyndApplicationClient(config: FyndFDKApplicationConfig): ApplicationClient {
+export function createFyndApplicationClient(config: FyndFDKApplicationConfig): ApplicationClientType {
   const domain = config.domain.replace(/\/$/, "");
-  return new ApplicationClient({
+  const appConfig = new ApplicationConfig({
     applicationID: config.applicationId,
     applicationToken: config.applicationToken,
     domain,
-    logLevel: "ERROR",
   });
+  return new ApplicationClient(appConfig, {});
 }
 
 /** FDK-backed Storefront client that matches FyndStorefrontClient interface */
 export class FyndStorefrontClientFDK {
   constructor(
-    private appClient: ApplicationClient,
+    private appClient: ApplicationClientType,
     private log?: FyndLogFn
-  ) {}
+  ) { }
 
   async getLanguages(): Promise<unknown> {
     this.log?.("fynd-fdk-storefront", "Request", "GET /languages");
@@ -111,11 +113,11 @@ export function getFyndDomain(settings: {
 /** FDK-backed Platform client that matches FyndPlatformClient interface for returns/shipments */
 export class FyndPlatformClientFDK {
   constructor(
-    private fdk: PlatformClient,
+    private fdk: PlatformClientType,
     private companyId: string,
     private applicationId: string,
     private log?: FyndLogFn
-  ) {}
+  ) { }
 
   private async request(
     method: string,

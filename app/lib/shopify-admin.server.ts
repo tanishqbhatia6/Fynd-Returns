@@ -197,7 +197,7 @@ export async function fetchOrderByOrderNumber(
     throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
   }
   const node = json.data?.orders?.nodes?.[0];
-  if (!node || !("name" in node)) return null;
+  if (!node || typeof node !== "object" || !("name" in node)) return null;
   const o = node as {
     id: string;
     name: string;
@@ -279,15 +279,19 @@ export async function fetchOrdersByCustomer(
   try {
     const res = await admin.graphql(ORDERS_BY_CUSTOMER_QUERY, { variables: { query } });
     const json = (await res.json()) as {
-      data?: { orders?: { nodes?: Array<{
-        id: string;
-        name: string;
-        createdAt: string;
-        email?: string | null;
-        totalPriceSet?: { shopMoney?: { amount?: string } };
-        displayFinancialStatus?: string;
-        displayFulfillmentStatus?: string;
-      }> } };
+      data?: {
+        orders?: {
+          nodes?: Array<{
+            id: string;
+            name: string;
+            createdAt: string;
+            email?: string | null;
+            totalPriceSet?: { shopMoney?: { amount?: string } };
+            displayFinancialStatus?: string;
+            displayFulfillmentStatus?: string;
+          }>
+        }
+      };
       errors?: Array<{ message?: string }>;
     };
     if (json.errors?.length) return [];
@@ -337,7 +341,7 @@ export async function fetchOrder(
   const res = await admin.graphql(ORDERS_QUERY, { variables: { ids: [gid] } });
   const json = (await res.json()) as { data?: { nodes?: Array<unknown> } };
   const node = json.data?.nodes?.[0];
-  if (!node || !("name" in node)) return null;
+  if (!node || typeof node !== "object" || !("name" in node)) return null;
   const order = node as {
     id: string;
     name: string;

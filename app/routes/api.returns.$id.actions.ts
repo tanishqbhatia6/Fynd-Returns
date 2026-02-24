@@ -465,8 +465,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
       }
 
+      const createFailedEvent = async (errorMsg: string) => {
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: id,
+            source: "admin",
+            eventType: "refund_failed",
+            payloadJson: JSON.stringify({ error: errorMsg, note: note || null }),
+          },
+        });
+      };
+
       if (!orderIdForRefund) {
-        return Response.json({ error: "Could not determine Shopify order. Check that the return has a valid order." }, { status: 400 });
+        const msg = "Could not determine Shopify order. Check that the return has a valid order.";
+        await createFailedEvent(msg);
+        return Response.json({ error: msg }, { status: 400 });
       }
 
       if (lineItemIds.length === 0) {
@@ -478,7 +491,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       const result = await createRefund(admin, orderIdForRefund, lineItemIds, note || returnCase.adminNotes || undefined);
       if (!result.success) {
-        return Response.json({ error: result.error ?? "Refund failed" }, { status: 400 });
+        const msg = result.error ?? "Refund failed due to an unknown Shopify error. Check Shopify Admin.";
+        await createFailedEvent(msg);
+        return Response.json({ error: msg }, { status: 400 });
       }
       await prisma.returnCase.update({
         where: { id },
@@ -521,6 +536,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (err instanceof Response) throw err;
       const message = err instanceof Error ? err.message : "Refund could not be processed. Please try again or process the refund manually in Shopify Admin.";
       console.error("[process_refund] Error:", err);
+      try {
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: id,
+            source: "admin",
+            eventType: "refund_failed",
+            payloadJson: JSON.stringify({ error: message, note: note || null }),
+          },
+        });
+      } catch (logErr) {
+        console.error("[process_refund] Failed to log refund_failed event:", logErr);
+      }
       return Response.json({ error: message }, { status: 500 });
     }
   }

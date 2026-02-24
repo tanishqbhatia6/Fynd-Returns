@@ -822,6 +822,15 @@ export default function ReturnDetail() {
                             <p style={{ color: "var(--rpm-error)", fontWeight: 500 }}>
                               This action cannot be undone. The refund will be issued to the customer's original payment method.
                             </p>
+                            {fetcher.data && (fetcher.data as any)?.error && (
+                              <div style={{ padding: 12, background: "#fee2e2", color: "#b91c1c", borderRadius: 8, marginTop: 12, fontSize: 13, border: "1px solid #fca5a5" }}>
+                                <strong>Error:</strong> {(fetcher.data as any).error}
+                                <br />
+                                <span style={{ fontSize: 12, marginTop: 4, display: "block" }}>
+                                  If this error persists, you can process the refund manually from your Shopify Orders page.
+                                </span>
+                              </div>
+                            )}
                           </div>
                           <div className="app-modal-actions">
                             <s-button

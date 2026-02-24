@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
@@ -43,49 +44,108 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 export default function Permissions() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean }>();
+  const [enabled, setEnabled] = useState(data.readAllOrdersEnabled);
+  const saved = fetcher.data && "success" in fetcher.data;
 
   return (
-    <s-page heading="All orders permission">
+    <s-page heading="Permissions">
       <div className="app-content">
-      {fetcher.data && "success" in fetcher.data && (
-        <div className="app-alert app-alert-success">Settings saved successfully.</div>
-      )}
+        {saved && (
+          <div className="app-alert app-alert-success">
+            <span>✓</span>
+            <span>Permission settings saved successfully.</span>
+          </div>
+        )}
 
-      <fetcher.Form method="post">
-        <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
-          Approve the read_all_orders permission to fetch every past order. This is required for viewing order details and processing refunds for older orders.
-        </p>
-        <s-section>
-          <div style={{ padding: 20, background: "#f9fafb", borderRadius: 12, border: "1px solid #e1e3e5", marginBottom: 16 }}>
-            <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
-              <div style={{ fontSize: 24 }}>📄</div>
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 8 }}>read_all_orders</div>
-                <p style={{ fontSize: 14, color: "#6d7175", marginBottom: 12 }}>
+        <fetcher.Form method="post">
+          <p style={{ marginBottom: 28, color: "var(--rpm-text-muted)", fontSize: 14, lineHeight: 1.6 }}>
+            Manage app permissions to control what order data can be accessed for return and refund processing.
+          </p>
+
+          <div
+            style={{
+              padding: 24,
+              background: "var(--rpm-surface)",
+              borderRadius: "var(--rpm-radius-lg)",
+              border: "var(--rpm-border)",
+              boxShadow: "var(--rpm-shadow-xs)",
+              maxWidth: 560,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>
+              <div
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: "var(--rpm-radius)",
+                  background: "var(--rpm-info-bg)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: 24,
+                  flexShrink: 0,
+                }}
+              >
+                📄
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>read_all_orders</div>
+                <p style={{ fontSize: 14, color: "var(--rpm-text-muted)", lineHeight: 1.6, marginBottom: 0 }}>
                   This permission allows the app to access all orders in your store, including those outside the default 60-day window. Required for full return and refund functionality.
                 </p>
-                {data.hasReadAllOrdersScope ? (
-                  <p style={{ fontSize: 14, color: "#008060", fontWeight: 500 }}>✓ Scope is configured in your app</p>
-                ) : (
-                  <p style={{ fontSize: 14, color: "#b98900", fontWeight: 500 }}>
-                    Add <code style={{ background: "#fef9e7", padding: "2px 6px", borderRadius: 4 }}>read_all_orders</code> to your SCOPES environment variable and reinstall the app.
-                  </p>
-                )}
               </div>
             </div>
+
+            {/* Scope status */}
+            <div
+              style={{
+                padding: "12px 16px",
+                borderRadius: "var(--rpm-radius)",
+                marginBottom: 20,
+                background: data.hasReadAllOrdersScope ? "var(--rpm-success-bg)" : "var(--rpm-warning-bg)",
+                border: `1px solid ${data.hasReadAllOrdersScope ? "var(--rpm-success-border)" : "var(--rpm-warning-border)"}`,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+              }}
+            >
+              <span style={{ fontSize: 16 }}>{data.hasReadAllOrdersScope ? "✓" : "⚠️"}</span>
+              {data.hasReadAllOrdersScope ? (
+                <span style={{ fontSize: 14, color: "#047857", fontWeight: 500 }}>Scope is configured in your app environment</span>
+              ) : (
+                <span style={{ fontSize: 13, color: "#b45309", lineHeight: 1.5 }}>
+                  Add <code style={{ background: "rgba(0,0,0,0.06)", padding: "1px 6px", borderRadius: 4, fontSize: 12 }}>read_all_orders</code> to your SCOPES environment variable and reinstall the app to enable this permission.
+                </span>
+              )}
+            </div>
+
+            {/* Toggle */}
+            <div className="app-notification-item" style={{ marginBottom: 0 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Enable read_all_orders</div>
+                <div style={{ fontSize: 13, color: "var(--rpm-text-muted)", marginTop: 2 }}>
+                  I acknowledge and want full order access for returns
+                </div>
+              </div>
+              <label className="app-toggle">
+                <input
+                  type="checkbox"
+                  name="readAllOrdersEnabled"
+                  checked={enabled}
+                  onChange={(e) => setEnabled(e.target.checked)}
+                />
+                <span className="app-toggle-track" />
+              </label>
+            </div>
           </div>
-          <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <input type="checkbox" name="readAllOrdersEnabled" defaultChecked={data.readAllOrdersEnabled} />
-            <span>I acknowledge and want to use read_all_orders for full order access</span>
-          </label>
-        </s-section>
-        <div className="app-actions">
-          <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
-          <Link to="/app/settings">
-            <s-button variant="secondary" type="button">Discard</s-button>
-          </Link>
-        </div>
-      </fetcher.Form>
+
+          <div className="app-actions">
+            <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
+            <Link to="/app/settings">
+              <s-button variant="secondary" type="button">Discard</s-button>
+            </Link>
+          </div>
+        </fetcher.Form>
       </div>
     </s-page>
   );

@@ -30,6 +30,16 @@ export function checkReturnEligibility(
 ): ReturnEligibilityResult {
   if (!settings) return { eligible: true };
 
+  // Return window check
+  const returnWindowDays = settings.returnWindowDays ?? 30;
+  if (context.orderDate) {
+    const windowEnd = new Date(context.orderDate);
+    windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
+    if (new Date() > windowEnd) {
+      return { eligible: false, reason: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.` };
+    }
+  }
+
   // No-return period
   if (settings.noReturnPeriodEnabled && settings.noReturnPeriodStart && settings.noReturnPeriodEnd && context.orderDate) {
     const start = new Date(settings.noReturnPeriodStart);

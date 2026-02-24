@@ -33,6 +33,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ? `#${shopifyOrderNameRaw}`
         : undefined;
     const customerEmail = (body.customerEmail as string | undefined)?.trim().toLowerCase();
+    const customerPhone = (body.customerPhone as string | undefined)?.trim().replace(/[^\d+]/g, '') || null;
+    const customerName = (body.customerName as string | undefined)?.trim() || null;
     const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string }> | undefined;
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
@@ -189,6 +191,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         shopifyOrderId: effectiveOrderId,
         shopifyOrderName,
         customerEmailNorm: customerEmail || null,
+        customerPhoneNorm: customerPhone || null,
         customerNotes: customerNotes || null,
         status,
         items: {
@@ -217,6 +220,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         eventType: status === "approved" ? "auto_approved" : "initiated",
         payloadJson: JSON.stringify({
           customerEmail: customerEmail || null,
+          customerPhone: customerPhone || null,
+          customerName: customerName || null,
           itemCount: itemsToCreate.length,
           manual: manualMode,
         }),

@@ -16,102 +16,104 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
   const hasFynd = !!(shop.settings?.fyndCompanyId && shop.settings?.fyndApplicationId);
-  return { hasFynd, portalUrl: `https://${session.shop}/apps/returns` };
-};
-
-const cardStyle = {
-  padding: 24,
-  background: "#fff",
-  borderRadius: 12,
-  border: "1px solid #e1e3e5",
-  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-  textDecoration: "none" as const,
-  color: "inherit",
-  display: "block",
-  transition: "border-color 0.2s, box-shadow 0.2s",
+  const hasReasons = !!(shop.settings?.returnReasonsJson && shop.settings.returnReasonsJson !== "[]");
+  const hasNotifications = !!(shop.settings?.notificationNewReturn || shop.settings?.notificationApproved || shop.settings?.notificationRejected);
+  return { hasFynd, hasReasons, hasNotifications, portalUrl: `https://${session.shop}/apps/returns` };
 };
 
 export default function SettingsDashboard() {
-  const { hasFynd } = useLoaderData<typeof loader>();
+  const { hasFynd, hasReasons } = useLoaderData<typeof loader>();
 
   const cards = [
     {
       to: "/app/settings/rules",
       icon: "📋",
+      iconBg: "#eff6ff",
       title: "Policy Rules",
-      desc: "Easily edit and add dynamic rules to your policies with simplicity.",
+      desc: "Configure return reasons, restricted regions, no-return periods, and per-category rules.",
+      badge: hasReasons ? null : "Setup needed",
     },
     {
       to: "/app/settings/return-settings",
       icon: "⚙️",
+      iconBg: "#f5f3ff",
       title: "Return Settings",
-      desc: "No-return periods, product tags, photo requirements, fees, and refund methods.",
+      desc: "Return window, minimum price, return fees, photo requirements, and refund methods.",
     },
     {
       to: "/app/settings/notifications",
       icon: "🔔",
-      title: "Notification",
-      desc: "Manage your notifications as needed.",
+      iconBg: "#fef3c7",
+      title: "Notifications",
+      desc: "Control email notifications for new returns, approvals, and rejections.",
     },
     {
       to: "/app/settings/integrations",
       icon: "🔗",
+      iconBg: "#ecfdf5",
       title: "Partner Integrations",
-      desc: hasFynd ? "Manage your Fynd integration." : "Connect Fynd for reverse logistics.",
+      desc: hasFynd ? "Fynd connected — manage credentials, test connection, and sync returns." : "Connect Fynd for reverse logistics, shipment tracking, and return sync.",
+      badge: hasFynd ? "Connected" : "Not connected",
+      badgeColor: hasFynd ? "#059669" : "#d97706",
     },
     {
       to: "/app/settings/setup",
-      icon: "📋",
+      icon: "🚀",
+      iconBg: "#eff6ff",
       title: "Fynd Setup Guide",
-      desc: "Step-by-step guided setup with webhook configuration and testing.",
+      desc: "Step-by-step guided setup with credential configuration, webhook setup, and testing.",
     },
     {
       to: "/app/settings/widget",
-      icon: "📦",
-      title: "Return Widget",
-      desc: "Manage your return portal widget settings and theme.",
+      icon: "🎨",
+      iconBg: "#fdf2f8",
+      title: "Customer Portal Widget",
+      desc: "Customize portal appearance — colors, fonts, layout — and configure which tabs to show.",
     },
     {
       to: "/app/settings/permissions",
       icon: "🔐",
-      title: "All orders permission",
-      desc: "Approve the read_all_orders permission to fetch every past order.",
+      iconBg: "#fef2f2",
+      title: "Permissions",
+      desc: "Enable read_all_orders to access full order history for returns and refunds.",
     },
   ];
 
   return (
     <s-page heading="Settings">
       <div className="app-content">
-      <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
-        Manage your settings like rules, notifications and integrations for customers.
-      </p>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-          gap: 20,
-        }}
-      >
-        {cards.map((c) => (
-          <Link
-            key={c.to}
-            to={c.to}
-            style={cardStyle}
-            onMouseOver={(e) => {
-              e.currentTarget.style.borderColor = "#005bd3";
-              e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,91,211,0.12)";
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.borderColor = "#e1e3e5";
-              e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.04)";
-            }}
-          >
-            <div style={{ fontSize: 28, marginBottom: 12 }}>{c.icon}</div>
-            <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 8 }}>{c.title}</div>
-            <div style={{ color: "#6d7175", fontSize: 14, lineHeight: 1.5 }}>{c.desc}</div>
-          </Link>
-        ))}
-      </div>
+        <p style={{ marginBottom: 28, color: "var(--rpm-text-muted)", fontSize: 14, lineHeight: 1.6 }}>
+          Configure your return policies, integrations, notifications, and customer portal to match your business needs.
+        </p>
+        <div className="app-grid-2">
+          {cards.map((c) => (
+            <Link key={c.to} to={c.to} className="app-settings-card">
+              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+                <div className="app-settings-card-icon" style={{ background: c.iconBg }}>
+                  {c.icon}
+                </div>
+                {c.badge && (
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 600,
+                      padding: "3px 10px",
+                      borderRadius: 20,
+                      background: c.badgeColor ? `${c.badgeColor}15` : "var(--rpm-warning-bg)",
+                      color: c.badgeColor || "var(--rpm-warning)",
+                      border: `1px solid ${c.badgeColor ? `${c.badgeColor}30` : "var(--rpm-warning-border)"}`,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {c.badge}
+                  </span>
+                )}
+              </div>
+              <div className="app-settings-card-title">{c.title}</div>
+              <div className="app-settings-card-desc">{c.desc}</div>
+            </Link>
+          ))}
+        </div>
       </div>
     </s-page>
   );

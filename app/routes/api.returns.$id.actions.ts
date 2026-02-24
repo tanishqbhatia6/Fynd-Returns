@@ -13,6 +13,14 @@ function enrichFyndError(msg: string): string {
   return msg;
 }
 
+/** Detect if an error is actually a redirect Response (thrown by React Router's redirect()) */
+function isRedirectResponse(err: unknown): boolean {
+  if (err instanceof Response) {
+    return err.status >= 300 && err.status < 400;
+  }
+  return false;
+}
+
 /** Extract readable error message from unknown (handles Response, Error, etc.) */
 async function extractErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error) return err.message;
@@ -353,6 +361,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
       throw redirect(`/app/returns/${id}?fyndRefresh=1`);
     } catch (err) {
+      // Re-throw redirect Responses (they're not errors)
+      if (isRedirectResponse(err)) throw err;
+      if (err instanceof Response) throw err;
       const rawMsg = await extractErrorMessage(err);
       const msg = enrichFyndError(rawMsg);
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(msg)}`);
@@ -473,6 +484,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
       throw redirect(`/app/returns/${id}`);
     } catch (err) {
+      // Re-throw redirect Responses — redirect() throws a Response
+      if (isRedirectResponse(err)) throw err;
       if (err instanceof Response) throw err;
       const message = err instanceof Error ? err.message : "Refund could not be processed. Please try again or process the refund manually in Shopify Admin.";
       console.error("[process_refund] Error:", err);

@@ -335,6 +335,7 @@ export default function ReturnDetail() {
   const fetcher = useFetcher<{ success?: boolean; error?: string; status?: string }>();
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const storeName = shopDomain.replace(".myshopify.com", "");
   const orderIdForLink = shopifyOrder?.id
     ? shopifyOrder.id.replace(/^gid:\/\/shopify\/Order\//, "")
@@ -380,505 +381,539 @@ export default function ReturnDetail() {
   return (
     <s-page heading={`Return ${returnCase.shopifyOrderName || returnRequestId}`}>
       <div className="app-content">
-      <div style={{ marginBottom: 24, padding: "20px 24px", background: "linear-gradient(135deg, var(--rpm-surface-subtle) 0%, var(--rpm-surface-elevated) 100%)", borderRadius: "var(--rpm-radius-xl)", border: "var(--rpm-border)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}>
-        <span className="app-status-badge" style={{ padding: "10px 18px", borderRadius: 20, fontSize: 15, fontWeight: 600, background: `${getStatusColor(returnCase.status)}20`, color: getStatusColor(returnCase.status), border: `2px solid ${getStatusColor(returnCase.status)}50` }}>
-          {returnCase.status}
-        </span>
-        <div>
-          <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Return Request ID</div>
-          <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.05em", fontFamily: "monospace" }}>{returnRequestId}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Order</div>
-          <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.02em" }}>{returnCase.shopifyOrderName || "—"}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Created</div>
-          <div style={{ fontSize: 14, color: "var(--rpm-text)" }}>{new Date(returnCase.createdAt).toLocaleString()}</div>
-        </div>
-        {returnCase.refundStatus && (
+        <div style={{ marginBottom: 24, padding: "20px 24px", background: "linear-gradient(135deg, var(--rpm-surface-subtle) 0%, var(--rpm-surface-elevated) 100%)", borderRadius: "var(--rpm-radius-xl)", border: "var(--rpm-border)", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 20 }}>
+          <span className="app-status-badge" style={{ padding: "10px 18px", borderRadius: 20, fontSize: 15, fontWeight: 600, background: `${getStatusColor(returnCase.status)}20`, color: getStatusColor(returnCase.status), border: `2px solid ${getStatusColor(returnCase.status)}50` }}>
+            {returnCase.status}
+          </span>
           <div>
-            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Refund</div>
-            <span style={{ color: returnCase.refundStatus === "refunded" ? "var(--rpm-success)" : "var(--rpm-text-muted)", fontWeight: 600 }}>{returnCase.refundStatus}</span>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Return Request ID</div>
+            <div style={{ fontWeight: 700, fontSize: 16, letterSpacing: "0.05em", fontFamily: "monospace" }}>{returnRequestId}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Order</div>
+            <div style={{ fontWeight: 700, fontSize: 18, letterSpacing: "-0.02em" }}>{returnCase.shopifyOrderName || "—"}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Created</div>
+            <div style={{ fontSize: 14, color: "var(--rpm-text)" }}>{new Date(returnCase.createdAt).toLocaleString()}</div>
+          </div>
+          {returnCase.refundStatus && (
+            <div>
+              <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.05em" }}>Refund</div>
+              <span style={{ color: returnCase.refundStatus === "refunded" ? "var(--rpm-success)" : "var(--rpm-text-muted)", fontWeight: 600 }}>{returnCase.refundStatus}</span>
+            </div>
+          )}
+        </div>
+        {fetcher.data?.error && (
+          <div className="app-alert app-alert-error">{fetcher.data.error}</div>
+        )}
+        {fyndError && (
+          <div className="app-alert app-alert-warning" style={{ borderLeft: "4px solid #b45309" }}>
+            <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#92400e" }}>Fynd sync issue</p>
+            <p style={{ margin: 0, color: "#78350f" }}>
+              {(() => {
+                try {
+                  const decoded = decodeURIComponent(fyndError);
+                  return decoded === "[object Response]" || decoded === "[object Object]"
+                    ? "Request failed. Please check Fynd configuration and try again."
+                    : decoded;
+                } catch {
+                  return fyndError;
+                }
+              })()}
+            </p>
+            {(fyndError.includes("404") || fyndError.includes("not found")) && (
+              <p style={{ margin: "12px 0 0 0", fontSize: 13, color: "#78350f" }}>
+                The app now uses FY-prefixed Fynd order IDs (e.g. FYMP698CC01401C9F4A1) when available. Try <strong>Retry Fynd sync</strong> again.
+              </p>
+            )}
+            {(fyndError.includes("403") || fyndError.includes("Forbidden")) && (
+              <div style={{ marginTop: 16, padding: 16, background: "rgba(255,255,255,0.5)", borderRadius: 8, border: "1px solid rgba(180,83,9,0.3)" }}>
+                <p style={{ margin: "0 0 12px 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>Sync uses the same OAuth flow as Test Platform. If you can see order/shipment details and Test Platform passes, try Retry Fynd sync again.</p>
+                <p style={{ margin: "12px 0 0 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>If 403 persists:</p>
+                <ol style={{ margin: "8px 0 0 0", paddingLeft: 20, color: "#78350f", fontSize: 13, lineHeight: 1.8 }}>
+                  <li><strong>Scopes:</strong> Ensure <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/read</code> and <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/write</code> in Fynd Partners.</li>
+                  <li><strong>Environment:</strong> UAT credentials only work on UAT. Production credentials only work on Production.</li>
+                  <li><strong>Test first:</strong> Go to <Link to="/app/settings/integrations" style={{ fontWeight: 600, color: "#b45309" }}>Settings → Integrations</Link>, click <strong>Test Platform</strong>. If that fails, fix credentials there before retrying sync.</li>
+                </ol>
+                <p style={{ margin: "12px 0 0 0", fontSize: 12, color: "#92400e" }}>
+                  <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>Fynd access scopes docs →</a>
+                </p>
+              </div>
+            )}
+            {canRetryFynd && (
+              <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 12 }}>
+                <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
+                <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                  {fetcher.state !== "idle" ? "Syncing…" : "Retry Fynd sync"}
+                </s-button>
+              </fetcher.Form>
+            )}
           </div>
         )}
-      </div>
-      {fetcher.data?.error && (
-        <div className="app-alert app-alert-error">{fetcher.data.error}</div>
-      )}
-      {fyndError && (
-        <div className="app-alert app-alert-warning" style={{ borderLeft: "4px solid #b45309" }}>
-          <p style={{ margin: "0 0 8px 0", fontWeight: 600, color: "#92400e" }}>Fynd sync issue</p>
-          <p style={{ margin: 0, color: "#78350f" }}>
-            {(() => {
-              try {
-                const decoded = decodeURIComponent(fyndError);
-                return decoded === "[object Response]" || decoded === "[object Object]"
-                  ? "Request failed. Please check Fynd configuration and try again."
-                  : decoded;
-              } catch {
-                return fyndError;
-              }
-            })()}
-          </p>
-          {(fyndError.includes("404") || fyndError.includes("not found")) && (
-            <p style={{ margin: "12px 0 0 0", fontSize: 13, color: "#78350f" }}>
-              The app now uses FY-prefixed Fynd order IDs (e.g. FYMP698CC01401C9F4A1) when available. Try <strong>Retry Fynd sync</strong> again.
-            </p>
-          )}
-          {(fyndError.includes("403") || fyndError.includes("Forbidden")) && (
-            <div style={{ marginTop: 16, padding: 16, background: "rgba(255,255,255,0.5)", borderRadius: 8, border: "1px solid rgba(180,83,9,0.3)" }}>
-              <p style={{ margin: "0 0 12px 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>Sync uses the same OAuth flow as Test Platform. If you can see order/shipment details and Test Platform passes, try Retry Fynd sync again.</p>
-              <p style={{ margin: "12px 0 0 0", fontWeight: 600, fontSize: 13, color: "#78350f" }}>If 403 persists:</p>
-              <ol style={{ margin: "8px 0 0 0", paddingLeft: 20, color: "#78350f", fontSize: 13, lineHeight: 1.8 }}>
-                <li><strong>Scopes:</strong> Ensure <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/read</code> and <code style={{ background: "rgba(0,0,0,0.06)", padding: "2px 6px", borderRadius: 4 }}>company/orders/write</code> in Fynd Partners.</li>
-                <li><strong>Environment:</strong> UAT credentials only work on UAT. Production credentials only work on Production.</li>
-                <li><strong>Test first:</strong> Go to <Link to="/app/settings/integrations" style={{ fontWeight: 600, color: "#b45309" }}>Settings → Integrations</Link>, click <strong>Test Platform</strong>. If that fails, fix credentials there before retrying sync.</li>
-              </ol>
-              <p style={{ margin: "12px 0 0 0", fontSize: 12, color: "#92400e" }}>
-                <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>Fynd access scopes docs →</a>
-              </p>
-            </div>
-          )}
-          {canRetryFynd && (
-            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 12 }}>
-              <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
-              <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
-                {fetcher.state !== "idle" ? "Syncing…" : "Retry Fynd sync"}
-              </s-button>
-            </fetcher.Form>
-          )}
-        </div>
-      )}
-      {fyndSuccess && (
-        <div className="app-alert app-alert-success">
-          {fyndSuccess === "already_synced"
-            ? "This return is already synced to Fynd."
-            : fyndSuccess === "already_exists"
-              ? "Return already exists on Fynd for this order. Details have been loaded and displayed below."
-              : "Return synced to Fynd successfully."}
-        </div>
-      )}
-      {fyndRefresh && (
-        <div className="app-alert app-alert-success">Fynd details refreshed from API.</div>
-      )}
+        {fyndSuccess && (
+          <div className="app-alert app-alert-success">
+            {fyndSuccess === "already_synced"
+              ? "This return is already synced to Fynd."
+              : fyndSuccess === "already_exists"
+                ? "Return already exists on Fynd for this order. Details have been loaded and displayed below."
+                : "Return synced to Fynd successfully."}
+          </div>
+        )}
+        {fyndRefresh && (
+          <div className="app-alert app-alert-success">Fynd details refreshed from API.</div>
+        )}
 
-      <s-section>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
-          <s-button variant="secondary" onClick={() => navigate("/app/returns")}>
-            Back to Returns
-          </s-button>
-          <a href={orderUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-            <s-button variant="secondary">{isManualReturn ? "Orders in Shopify" : "View in Shopify"}</s-button>
-          </a>
-          {isManualReturn && (
-            <span style={{ fontSize: 13, color: "#6d7175" }}>
-              Manual return — search for order <strong>{returnCase.shopifyOrderName || "—"}</strong> in Shopify Admin
-            </span>
-          )}
-        </div>
-      </s-section>
+        <s-section>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+            <s-button variant="secondary" onClick={() => navigate("/app/returns")}>
+              Back to Returns
+            </s-button>
+            <a href={orderUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+              <s-button variant="secondary">{isManualReturn ? "Orders in Shopify" : "View in Shopify"}</s-button>
+            </a>
+            {isManualReturn && (
+              <span style={{ fontSize: 13, color: "#6d7175" }}>
+                Manual return — search for order <strong>{returnCase.shopifyOrderName || "—"}</strong> in Shopify Admin
+              </span>
+            )}
+          </div>
+        </s-section>
 
-      {shopifyOrder && (
-        <s-section heading="Order from Shopify">
-          <div style={{ ...cardStyle, marginBottom: 8 }} className="app-card-interactive">
-            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 16 }}>Order {shopifyOrder.name}</div>
+        {shopifyOrder && (
+          <s-section heading="Order from Shopify">
+            <div style={{ ...cardStyle, marginBottom: 8 }} className="app-card-interactive">
+              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 16 }}>Order {shopifyOrder.name}</div>
 
-            {(shopifyOrder.email || shopifyOrder.phone) && (
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Customer</div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 14 }}>
-                  {shopifyOrder.email && <span>{shopifyOrder.email}</span>}
-                  {shopifyOrder.phone && <span>{shopifyOrder.phone}</span>}
+              {(shopifyOrder.email || shopifyOrder.phone) && (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Customer</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 14 }}>
+                    {shopifyOrder.email && <span>{shopifyOrder.email}</span>}
+                    {shopifyOrder.phone && <span>{shopifyOrder.phone}</span>}
+                  </div>
                 </div>
+              )}
+
+              {(formatAddress(shopifyOrder.shippingAddress) || formatAddress(shopifyOrder.billingAddress)) && (
+                <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 24 }}>
+                  {formatAddress(shopifyOrder.shippingAddress) && (
+                    <div>
+                      <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 6, fontWeight: 600 }}>Shipping address</div>
+                      <div style={{ fontSize: 13, lineHeight: 1.5 }}>{formatAddress(shopifyOrder.shippingAddress)}</div>
+                    </div>
+                  )}
+                  {formatAddress(shopifyOrder.billingAddress) && (
+                    <div>
+                      <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 6, fontWeight: 600 }}>Billing address</div>
+                      <div style={{ fontSize: 13, lineHeight: 1.5 }}>{formatAddress(shopifyOrder.billingAddress)}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {(shopifyOrder.lineItems ?? []).map((li) => (
+                  <div
+                    key={li.id}
+                    style={{
+                      display: "flex",
+                      gap: 16,
+                      padding: 16,
+                      background: "var(--rpm-surface-elevated)",
+                      borderRadius: "var(--rpm-radius)",
+                      border: "var(--rpm-border)",
+                      alignItems: "flex-start",
+                      transition: "box-shadow 0.2s ease",
+                    }}
+                  >
+                    {li.imageUrl ? (
+                      <img
+                        src={li.imageUrl}
+                        alt={li.title}
+                        style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, flexShrink: 0 }}
+                      />
+                    ) : (
+                      <div style={{ width: 64, height: 64, background: "#e1e3e5", borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#6d7175", fontSize: 24 }}>—</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{li.title}</div>
+                      {li.variantTitle && (
+                        <div style={{ fontSize: 13, color: "#6d7175", marginBottom: 4 }}>Variant: {li.variantTitle}</div>
+                      )}
+                      {li.sku && (
+                        <div style={{ fontSize: 12, fontFamily: "monospace", color: "#6d7175", marginBottom: 4 }}>SKU: {li.sku}</div>
+                      )}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8, fontSize: 13, alignItems: "center" }}>
+                        <span style={{ color: "#6d7175" }}>Qty: {li.quantity}</span>
+                        {(li.discountedPrice ?? li.price) != null && (li.discountedPrice ?? li.price) !== "" && (
+                          <span style={{ fontWeight: 500 }}>
+                            {formatMoney(li.discountedPrice ?? li.price)} × {li.quantity}
+                            {li.discountedPrice != null && li.price != null && li.discountedPrice !== li.price && (
+                              <span style={{ marginLeft: 8, color: "#6d7175", textDecoration: "line-through", fontWeight: 400 }}>{formatMoney(li.price)} each</span>
+                            )}
+                          </span>
+                        )}
+                        {(li.discountedTotal ?? li.originalTotal) != null && (li.discountedTotal ?? li.originalTotal) !== "" && (
+                          <span style={{ fontWeight: 600 }}>Total: {formatMoney(li.discountedTotal ?? li.originalTotal)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {(shopifyOrder.subtotalPrice != null || shopifyOrder.totalDiscounts != null || shopifyOrder.totalPrice != null || (shopifyOrder.discountCodes?.length ?? 0) > 0) && (
+                <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 320 }}>
+                    {shopifyOrder.subtotalPrice != null && shopifyOrder.subtotalPrice !== "" && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                        <span style={{ color: "#6d7175" }}>Subtotal</span>
+                        <span>{formatMoney(shopifyOrder.subtotalPrice)}</span>
+                      </div>
+                    )}
+                    {(shopifyOrder.discountCodes?.length ?? 0) > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                        <span style={{ color: "#6d7175" }}>Discount codes</span>
+                        <span>{shopifyOrder.discountCodes!.join(", ")}</span>
+                      </div>
+                    )}
+                    {shopifyOrder.totalDiscounts != null && shopifyOrder.totalDiscounts !== "" && parseFloat(shopifyOrder.totalDiscounts) !== 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#008060" }}>
+                        <span>Discounts</span>
+                        <span>−{formatMoney(shopifyOrder.totalDiscounts)}</span>
+                      </div>
+                    )}
+                    {shopifyOrder.totalPrice != null && shopifyOrder.totalPrice !== "" && (
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 600, marginTop: 4 }}>
+                        <span>Total</span>
+                        <span>{formatMoney(shopifyOrder.totalPrice)}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </s-section>
+        )}
+
+        <s-section heading="Return details">
+          <div style={{ ...cardStyle }} className="app-card-interactive">
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
+              <span
+                className="app-status-badge"
+                style={{
+                  padding: "8px 16px",
+                  borderRadius: 20,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  background: `${getStatusColor(returnCase.status)}18`,
+                  color: getStatusColor(returnCase.status),
+                  border: `1px solid ${getStatusColor(returnCase.status)}40`,
+                }}
+              >
+                {returnCase.status}
+              </span>
+              <div>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Order</div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{returnCase.shopifyOrderName || "—"}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Created</div>
+                <div style={{ fontSize: 13 }}>{new Date(returnCase.createdAt).toLocaleString()}</div>
+              </div>
+              {returnCase.refundStatus && (
+                <div>
+                  <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Refund</div>
+                  <span style={{ color: returnCase.refundStatus === "refunded" ? "#008060" : "#6d7175", fontWeight: 500 }}>{returnCase.refundStatus}</span>
+                </div>
+              )}
+              {(returnCase.forwardAwb || returnCase.returnAwb) && (
+                <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
+                  {returnCase.forwardAwb && <span><strong>Forward AWB:</strong> <code style={{ background: "#f1f2f4", padding: "2px 6px", borderRadius: 4 }}>{returnCase.forwardAwb}</code></span>}
+                  {returnCase.returnAwb && <span><strong>Return AWB:</strong> <code style={{ background: "#f1f2f4", padding: "2px 6px", borderRadius: 4 }}>{returnCase.returnAwb}</code></span>}
+                </div>
+              )}
+            </div>
+            {returnCase.status.toLowerCase() === "rejected" && returnCase.rejectionReason && (
+              <div style={{ marginTop: 16, padding: 12, background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca", color: "#991b1b", fontSize: 14 }}>
+                <strong>Rejection reason (shown to customer):</strong> {returnCase.rejectionReason}
               </div>
             )}
-
-            {(formatAddress(shopifyOrder.shippingAddress) || formatAddress(shopifyOrder.billingAddress)) && (
-              <div style={{ marginBottom: 20, display: "flex", flexWrap: "wrap", gap: 24 }}>
-                {formatAddress(shopifyOrder.shippingAddress) && (
-                  <div>
-                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 6, fontWeight: 600 }}>Shipping address</div>
-                    <div style={{ fontSize: 13, lineHeight: 1.5 }}>{formatAddress(shopifyOrder.shippingAddress)}</div>
-                  </div>
-                )}
-                {formatAddress(shopifyOrder.billingAddress) && (
-                  <div>
-                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 6, fontWeight: 600 }}>Billing address</div>
-                    <div style={{ fontSize: 13, lineHeight: 1.5 }}>{formatAddress(shopifyOrder.billingAddress)}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {(shopifyOrder.lineItems ?? []).map((li) => (
-                <div
-                  key={li.id}
-                  style={{
-                    display: "flex",
-                    gap: 16,
-                    padding: 16,
-                    background: "var(--rpm-surface-elevated)",
-                    borderRadius: "var(--rpm-radius)",
-                    border: "var(--rpm-border)",
-                    alignItems: "flex-start",
-                    transition: "box-shadow 0.2s ease",
-                  }}
-                >
-                  {li.imageUrl ? (
-                    <img
-                      src={li.imageUrl}
-                      alt={li.title}
-                      style={{ width: 64, height: 64, objectFit: "cover", borderRadius: 8, flexShrink: 0 }}
-                    />
-                  ) : (
-                    <div style={{ width: 64, height: 64, background: "#e1e3e5", borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#6d7175", fontSize: 24 }}>—</div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{li.title}</div>
-                    {li.variantTitle && (
-                      <div style={{ fontSize: 13, color: "#6d7175", marginBottom: 4 }}>Variant: {li.variantTitle}</div>
-                    )}
-                    {li.sku && (
-                      <div style={{ fontSize: 12, fontFamily: "monospace", color: "#6d7175", marginBottom: 4 }}>SKU: {li.sku}</div>
-                    )}
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 8, fontSize: 13, alignItems: "center" }}>
-                      <span style={{ color: "#6d7175" }}>Qty: {li.quantity}</span>
-                      {(li.discountedPrice ?? li.price) != null && (li.discountedPrice ?? li.price) !== "" && (
-                        <span style={{ fontWeight: 500 }}>
-                          {formatMoney(li.discountedPrice ?? li.price)} × {li.quantity}
-                          {li.discountedPrice != null && li.price != null && li.discountedPrice !== li.price && (
-                            <span style={{ marginLeft: 8, color: "#6d7175", textDecoration: "line-through", fontWeight: 400 }}>{formatMoney(li.price)} each</span>
-                          )}
-                        </span>
-                      )}
-                      {(li.discountedTotal ?? li.originalTotal) != null && (li.discountedTotal ?? li.originalTotal) !== "" && (
-                        <span style={{ fontWeight: 600 }}>Total: {formatMoney(li.discountedTotal ?? li.originalTotal)}</span>
-                      )}
-                    </div>
-                  </div>
+            {pickupAddress && (pickupAddress.formatted || pickupAddress.address1 || pickupAddress.city) && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Pickup address</div>
+                <div style={{ fontSize: 13, lineHeight: 1.5 }}>
+                  {pickupAddress.formatted ?? [pickupAddress.name, pickupAddress.address1, pickupAddress.address2, pickupAddress.city, pickupAddress.state, pickupAddress.pincode, pickupAddress.country].filter(Boolean).join(", ")}
                 </div>
-              ))}
-            </div>
-
-            {(shopifyOrder.subtotalPrice != null || shopifyOrder.totalDiscounts != null || shopifyOrder.totalPrice != null || (shopifyOrder.discountCodes?.length ?? 0) > 0) && (
-              <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, maxWidth: 320 }}>
-                  {shopifyOrder.subtotalPrice != null && shopifyOrder.subtotalPrice !== "" && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                      <span style={{ color: "#6d7175" }}>Subtotal</span>
-                      <span>{formatMoney(shopifyOrder.subtotalPrice)}</span>
-                    </div>
-                  )}
-                  {(shopifyOrder.discountCodes?.length ?? 0) > 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                      <span style={{ color: "#6d7175" }}>Discount codes</span>
-                      <span>{shopifyOrder.discountCodes!.join(", ")}</span>
-                    </div>
-                  )}
-                  {shopifyOrder.totalDiscounts != null && shopifyOrder.totalDiscounts !== "" && parseFloat(shopifyOrder.totalDiscounts) !== 0 && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#008060" }}>
-                      <span>Discounts</span>
-                      <span>−{formatMoney(shopifyOrder.totalDiscounts)}</span>
-                    </div>
-                  )}
-                  {shopifyOrder.totalPrice != null && shopifyOrder.totalPrice !== "" && (
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 600, marginTop: 4 }}>
-                      <span>Total</span>
-                      <span>{formatMoney(shopifyOrder.totalPrice)}</span>
-                    </div>
-                  )}
-                </div>
+                {pickupAddress.phone && <div style={{ marginTop: 6, fontSize: 13 }}>Phone: {pickupAddress.phone}</div>}
               </div>
             )}
           </div>
         </s-section>
-      )}
 
-      <s-section heading="Return details">
-        <div style={{ ...cardStyle }} className="app-card-interactive">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
-            <span
-              className="app-status-badge"
-              style={{
-                padding: "8px 16px",
-                borderRadius: 20,
-                fontSize: 14,
-                fontWeight: 600,
-                background: `${getStatusColor(returnCase.status)}18`,
-                color: getStatusColor(returnCase.status),
-                border: `1px solid ${getStatusColor(returnCase.status)}40`,
-              }}
-            >
-              {returnCase.status}
-            </span>
-            <div>
-              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Order</div>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{returnCase.shopifyOrderName || "—"}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Created</div>
-              <div style={{ fontSize: 13 }}>{new Date(returnCase.createdAt).toLocaleString()}</div>
-            </div>
-            {returnCase.refundStatus && (
+        <s-section heading="Fynd">
+          <div style={{ ...cardStyle, marginBottom: 0 }} className="app-card-interactive">
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, marginBottom: 16 }}>
               <div>
-                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Refund</div>
-                <span style={{ color: returnCase.refundStatus === "refunded" ? "#008060" : "#6d7175", fontWeight: 500 }}>{returnCase.refundStatus}</span>
-              </div>
-            )}
-            {(returnCase.forwardAwb || returnCase.returnAwb) && (
-              <div style={{ display: "flex", gap: 16, fontSize: 13 }}>
-                {returnCase.forwardAwb && <span><strong>Forward AWB:</strong> <code style={{ background: "#f1f2f4", padding: "2px 6px", borderRadius: 4 }}>{returnCase.forwardAwb}</code></span>}
-                {returnCase.returnAwb && <span><strong>Return AWB:</strong> <code style={{ background: "#f1f2f4", padding: "2px 6px", borderRadius: 4 }}>{returnCase.returnAwb}</code></span>}
-              </div>
-            )}
-          </div>
-          {returnCase.status.toLowerCase() === "rejected" && returnCase.rejectionReason && (
-            <div style={{ marginTop: 16, padding: 12, background: "#fef2f2", borderRadius: 8, border: "1px solid #fecaca", color: "#991b1b", fontSize: 14 }}>
-              <strong>Rejection reason (shown to customer):</strong> {returnCase.rejectionReason}
-            </div>
-          )}
-          {pickupAddress && (pickupAddress.formatted || pickupAddress.address1 || pickupAddress.city) && (
-            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
-              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 8, fontWeight: 600 }}>Pickup address</div>
-              <div style={{ fontSize: 13, lineHeight: 1.5 }}>
-                {pickupAddress.formatted ?? [pickupAddress.name, pickupAddress.address1, pickupAddress.address2, pickupAddress.city, pickupAddress.state, pickupAddress.pincode, pickupAddress.country].filter(Boolean).join(", ")}
-              </div>
-              {pickupAddress.phone && <div style={{ marginTop: 6, fontSize: 13 }}>Phone: {pickupAddress.phone}</div>}
-            </div>
-          )}
-        </div>
-      </s-section>
-
-      <s-section heading="Fynd">
-        <div style={{ ...cardStyle, marginBottom: 0 }} className="app-card-interactive">
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, marginBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
-              <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
-                {fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}
-              </div>
-            </div>
-            {(fyndOrderDetailsTab?.shipments?.[0] as { forwardShipmentId?: string | null })?.forwardShipmentId && (
-              <div>
-                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Forward Shipment ID</div>
+                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
                 <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
-                  {(fyndOrderDetailsTab?.shipments?.[0] as { forwardShipmentId?: string | null })?.forwardShipmentId}
+                  {fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim() || "—"}
                 </div>
               </div>
-            )}
-            {((returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || (fyndOrderDetailsTab?.shipments?.[0] as { shipmentId?: string })?.shipmentId) && (
-              <div>
-                <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Return Shipment ID</div>
-                <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
-                  {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || (fyndOrderDetailsTab?.shipments?.[0] as { shipmentId?: string })?.shipmentId}
-                </div>
-              </div>
-            )}
-            {((returnCase as { fyndReturnId?: string | null }).fyndReturnId || (returnCase as { fyndReturnNo?: string | null }).fyndReturnNo) && (
-              <>
-                {(returnCase as { fyndReturnId?: string | null }).fyndReturnId && (
-                  <div>
-                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Return ID</div>
-                    <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
-                      {(returnCase as { fyndReturnId?: string | null }).fyndReturnId}
-                    </div>
-                  </div>
-                )}
-                {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && (
-                  <div>
-                    <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Return #</div>
-                    <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
-                      {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: fyndOrderDetailsTab?.shipments?.length ? 16 : 0 }}>
-            {!isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) && (
-              <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                <input type="hidden" name="json" value={JSON.stringify({ action: "refresh_fynd_details" })} />
-                <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
-                  {fetcher.state !== "idle" ? "Refreshing…" : "Refresh from Fynd"}
-                </s-button>
-              </fetcher.Form>
-            )}
-          </div>
-          {fyndOrderDetailsTab && fyndOrderDetailsTab.shipments.length > 0 ? (
-            <div>
-              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 12, fontWeight: 500 }}>Shipments ({fyndOrderDetailsTab.shipments.length})</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {fyndOrderDetailsTab.shipments.map((s, idx) => (
-                  <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} formatMoney={formatMoney} shopifyLineItems={shopifyOrder?.lineItems} />
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div style={{ padding: 20, background: "var(--rpm-surface-elevated)", borderRadius: "var(--rpm-radius-lg)", color: "var(--rpm-text-muted)", fontSize: 14, border: "var(--rpm-border)" }}>
-              {!isManualReturn ? "No Fynd shipment data yet. Use Refresh from Fynd to fetch details." : "Manual return — no Fynd sync."}
-            </div>
-          )}
-          {(fyndPayloadInfo?.shipments?.length ?? 0) > 0 && (
-            <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
-              <button type="button" onClick={() => setShowRawFynd((v) => !v)} className="app-btn-text">
-                {showRawFynd ? "Hide Fynd payload" : "View Fynd payload"}
-              </button>
-              {showRawFynd && (
-                <pre style={{ marginTop: 12, padding: 16, background: "var(--rpm-surface-elevated)", borderRadius: "var(--rpm-radius)", overflow: "auto", fontSize: 11, maxHeight: 400, border: "var(--rpm-border)" }}>
-                  {fyndPayloadInfo.rawJson}
-                </pre>
-              )}
-            </div>
-          )}
-        </div>
-      </s-section>
-
-      <s-section heading="Actions">
-        <div style={{ ...cardStyle, padding: 24 }} className="app-card-interactive">
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
-          {!["approved", "rejected", "completed"].includes(returnCase.status.toLowerCase()) && (
-            <>
-              <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                <input type="hidden" name="json" value={JSON.stringify({ action: "approve" })} />
-                <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
-                  {fetcher.state !== "idle" ? "Processing..." : "Approve"}
-                </s-button>
-              </fetcher.Form>
-              {!showRejectForm ? (
-                <s-button
-                  type="button"
-                  variant="secondary"
-                  disabled={fetcher.state !== "idle"}
-                  onClick={() => setShowRejectForm(true)}
-                >
-                  Reject
-                </s-button>
-              ) : (
-                <div style={{ ...cardStyle, padding: 16, width: "100%", maxWidth: 400 }}>
-                  <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Rejection reason (required — shown to customer)</label>
-                  <textarea
-                    value={rejectReason}
-                    onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="e.g. Item is not in original condition"
-                    rows={3}
-                    style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", marginBottom: 12 }}
-                  />
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                      <input type="hidden" name="json" value={JSON.stringify({ action: "reject", rejectionReason: rejectReason.trim() })} />
-                      <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle" || !rejectReason.trim()}>
-                        {fetcher.state !== "idle" ? "Rejecting..." : "Confirm Reject"}
-                      </s-button>
-                    </fetcher.Form>
-                    <s-button type="button" variant="secondary" onClick={() => { setShowRejectForm(false); setRejectReason(""); }}>
-                      Cancel
-                    </s-button>
+              {(fyndOrderDetailsTab?.shipments?.[0] as { forwardShipmentId?: string | null })?.forwardShipmentId && (
+                <div>
+                  <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Forward Shipment ID</div>
+                  <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                    {(fyndOrderDetailsTab?.shipments?.[0] as { forwardShipmentId?: string | null })?.forwardShipmentId}
                   </div>
                 </div>
               )}
-            </>
-          )}
-          {canRetryFynd && (
-            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-              <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
-              <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
-                {fetcher.state !== "idle" ? "Syncing…" : "Sync to Fynd"}
-              </s-button>
-            </fetcher.Form>
-          )}
-          {["approved", "completed"].includes(returnCase.status.toLowerCase()) &&
-            returnCase.refundStatus !== "refunded" &&
-            (isManualReturn ? (
-              <div style={{ ...cardStyle, padding: 12, background: "#f6f6f7", borderColor: "#e1e3e5" }}>
-                <p style={{ margin: 0, fontSize: 14, color: "#1a1a1a" }}>
-                  Manual return — process the refund in Shopify Admin for order <strong>{returnCase.shopifyOrderName || "—"}</strong>.
-                </p>
+              {((returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || (fyndOrderDetailsTab?.shipments?.[0] as { shipmentId?: string })?.shipmentId) && (
+                <div>
+                  <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Return Shipment ID</div>
+                  <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                    {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId || (fyndOrderDetailsTab?.shipments?.[0] as { shipmentId?: string })?.shipmentId}
+                  </div>
+                </div>
+              )}
+              {((returnCase as { fyndReturnId?: string | null }).fyndReturnId || (returnCase as { fyndReturnNo?: string | null }).fyndReturnNo) && (
+                <>
+                  {(returnCase as { fyndReturnId?: string | null }).fyndReturnId && (
+                    <div>
+                      <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Return ID</div>
+                      <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                        {(returnCase as { fyndReturnId?: string | null }).fyndReturnId}
+                      </div>
+                    </div>
+                  )}
+                  {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && (
+                    <div>
+                      <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Return #</div>
+                      <div style={{ fontFamily: "monospace", fontSize: 14, fontWeight: 500 }}>
+                        {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16, marginBottom: fyndOrderDetailsTab?.shipments?.length ? 16 : 0 }}>
+              {!isManualReturn && ((returnCase as { fyndOrderId?: string | null }).fyndOrderId != null || (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim()) && (
+                <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                  <input type="hidden" name="json" value={JSON.stringify({ action: "refresh_fynd_details" })} />
+                  <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                    {fetcher.state !== "idle" ? "Refreshing…" : "Refresh from Fynd"}
+                  </s-button>
+                </fetcher.Form>
+              )}
+            </div>
+            {fyndOrderDetailsTab && fyndOrderDetailsTab.shipments.length > 0 ? (
+              <div>
+                <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 12, fontWeight: 500 }}>Shipments ({fyndOrderDetailsTab.shipments.length})</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {fyndOrderDetailsTab.shipments.map((s, idx) => (
+                    <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} formatMoney={formatMoney} shopifyLineItems={shopifyOrder?.lineItems} />
+                  ))}
+                </div>
               </div>
             ) : (
-              <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                <input type="hidden" name="json" value={JSON.stringify({ action: "process_refund" })} />
-                <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
-                  {fetcher.state !== "idle" ? "Processing refund..." : "Process refund in Shopify"}
-                </s-button>
-              </fetcher.Form>
-            ))}
-        </div>
-        {returnCase.customerNotes && (
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Customer notes</label>
-            <div style={{ padding: 12, background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5", whiteSpace: "pre-wrap" }}>
-              {returnCase.customerNotes}
-            </div>
-          </div>
-        )}
-        <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-          <input type="hidden" name="action" value="add_note" />
-          <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Admin notes</label>
-          <textarea
-            name="note"
-            defaultValue={returnCase.adminNotes ?? ""}
-            rows={3}
-            style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", marginBottom: 12 }}
-          />
-          <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
-            Save note
-          </s-button>
-        </fetcher.Form>
-        <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 20 }}>
-          <input type="hidden" name="action" value="save_notes_for_customer" />
-          <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Notes for Customer</label>
-          <p style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 10 }}>These notes will be published and visible to the customer when they view their return.</p>
-          <textarea
-            name="notesForCustomer"
-            defaultValue={(returnCase as { notesForCustomer?: string | null }).notesForCustomer ?? ""}
-            rows={3}
-            placeholder="e.g. Your return has been approved. Please ship the item to..."
-            style={{ width: "100%", padding: 12, borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)", marginBottom: 12, boxSizing: "border-box" }}
-          />
-          <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
-            Save & publish
-          </s-button>
-        </fetcher.Form>
-        </div>
-      </s-section>
-
-      <s-section heading="Return tracking (timeline)">
-        {(returnCase.events?.length ?? 0) === 0 ? (
-          <div style={{ padding: 24, background: "var(--rpm-surface-subtle)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)", textAlign: "center" }}>
-            <p style={{ color: "var(--rpm-text-muted)", margin: 0, fontSize: 15 }}>No events yet.</p>
-            <p style={{ color: "var(--rpm-text-muted)", margin: "8px 0 0 0", fontSize: 13 }}>Events from the portal, admin actions, and Fynd webhooks will appear here.</p>
-          </div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
-            {(returnCase.events || []).map((ev, i) => (
-              <div
-                key={ev.id}
-                style={{
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 16,
-                  padding: "14px 18px",
-                  background: i % 2 === 0 ? "var(--rpm-surface)" : "var(--rpm-surface-subtle)",
-                  borderLeft: "4px solid var(--rpm-accent)",
-                  borderRadius: "0 var(--rpm-radius) var(--rpm-radius) 0",
-                  marginLeft: 0,
-                  fontSize: 14,
-                  transition: "background 0.2s ease",
-                }}
-              >
-                <span style={{ fontWeight: 600, color: "var(--rpm-accent)", minWidth: 90 }}>
-                  {ev.source === "fynd_webhook" ? "Fynd" : ev.source.charAt(0).toUpperCase() + ev.source.slice(1)}
-                </span>
-                <span style={{ flex: 1 }}>{ev.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-                <span style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>{new Date(ev.happenedAt).toLocaleString()}</span>
+              <div style={{ padding: 20, background: "var(--rpm-surface-elevated)", borderRadius: "var(--rpm-radius-lg)", color: "var(--rpm-text-muted)", fontSize: 14, border: "var(--rpm-border)" }}>
+                {!isManualReturn ? "No Fynd shipment data yet. Use Refresh from Fynd to fetch details." : "Manual return — no Fynd sync."}
               </div>
-            ))}
+            )}
+            {(fyndPayloadInfo?.shipments?.length ?? 0) > 0 && (
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
+                <button type="button" onClick={() => setShowRawFynd((v) => !v)} className="app-btn-text">
+                  {showRawFynd ? "Hide Fynd payload" : "View Fynd payload"}
+                </button>
+                {showRawFynd && (
+                  <pre style={{ marginTop: 12, padding: 16, background: "var(--rpm-surface-elevated)", borderRadius: "var(--rpm-radius)", overflow: "auto", fontSize: 11, maxHeight: 400, border: "var(--rpm-border)" }}>
+                    {fyndPayloadInfo.rawJson}
+                  </pre>
+                )}
+              </div>
+            )}
           </div>
-        )}
-      </s-section>
+        </s-section>
+
+        <s-section heading="Actions">
+          <div style={{ ...cardStyle, padding: 24 }} className="app-card-interactive">
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+              {!["approved", "rejected", "completed"].includes(returnCase.status.toLowerCase()) && (
+                <>
+                  <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                    <input type="hidden" name="json" value={JSON.stringify({ action: "approve" })} />
+                    <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
+                      {fetcher.state !== "idle" ? "Processing..." : "Approve"}
+                    </s-button>
+                  </fetcher.Form>
+                  {!showRejectForm ? (
+                    <s-button
+                      type="button"
+                      variant="secondary"
+                      disabled={fetcher.state !== "idle"}
+                      onClick={() => setShowRejectForm(true)}
+                    >
+                      Reject
+                    </s-button>
+                  ) : (
+                    <div style={{ ...cardStyle, padding: 16, width: "100%", maxWidth: 400 }}>
+                      <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Rejection reason (required — shown to customer)</label>
+                      <textarea
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="e.g. Item is not in original condition"
+                        rows={3}
+                        style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", marginBottom: 12 }}
+                      />
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                          <input type="hidden" name="json" value={JSON.stringify({ action: "reject", rejectionReason: rejectReason.trim() })} />
+                          <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle" || !rejectReason.trim()}>
+                            {fetcher.state !== "idle" ? "Rejecting..." : "Confirm Reject"}
+                          </s-button>
+                        </fetcher.Form>
+                        <s-button type="button" variant="secondary" onClick={() => { setShowRejectForm(false); setRejectReason(""); }}>
+                          Cancel
+                        </s-button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+              {canRetryFynd && (
+                <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                  <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
+                  <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                    {fetcher.state !== "idle" ? "Syncing…" : "Sync to Fynd"}
+                  </s-button>
+                </fetcher.Form>
+              )}
+              {["approved", "completed"].includes(returnCase.status.toLowerCase()) &&
+                returnCase.refundStatus !== "refunded" &&
+                (isManualReturn ? (
+                  <div style={{ ...cardStyle, padding: 12, background: "#f6f6f7", borderColor: "#e1e3e5" }}>
+                    <p style={{ margin: 0, fontSize: 14, color: "#1a1a1a" }}>
+                      Manual return — process the refund in Shopify Admin for order <strong>{returnCase.shopifyOrderName || "—"}</strong>.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <s-button
+                      type="button"
+                      variant="primary"
+                      disabled={fetcher.state !== "idle"}
+                      onClick={() => setShowRefundConfirm(true)}
+                    >
+                      {fetcher.state !== "idle" ? "Processing refund..." : "Process refund in Shopify"}
+                    </s-button>
+                    {showRefundConfirm && (
+                      <div className="app-modal-overlay" onClick={() => setShowRefundConfirm(false)}>
+                        <div className="app-modal" onClick={(e) => e.stopPropagation()}>
+                          <div className="app-modal-title">⚠️ Confirm Refund</div>
+                          <div className="app-modal-body">
+                            <p style={{ marginBottom: 12 }}>
+                              You are about to process a refund in Shopify for order <strong>{returnCase.shopifyOrderName || "—"}</strong>.
+                            </p>
+                            <p style={{ color: "var(--rpm-error)", fontWeight: 500 }}>
+                              This action cannot be undone. The refund will be issued to the customer's original payment method.
+                            </p>
+                          </div>
+                          <div className="app-modal-actions">
+                            <s-button
+                              type="button"
+                              variant="secondary"
+                              onClick={() => setShowRefundConfirm(false)}
+                            >
+                              Cancel
+                            </s-button>
+                            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                              <input type="hidden" name="json" value={JSON.stringify({ action: "process_refund" })} />
+                              <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
+                                Yes, process refund
+                              </s-button>
+                            </fetcher.Form>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                ))}
+            </div>
+            {returnCase.customerNotes && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Customer notes</label>
+                <div style={{ padding: 12, background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5", whiteSpace: "pre-wrap" }}>
+                  {returnCase.customerNotes}
+                </div>
+              </div>
+            )}
+            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+              <input type="hidden" name="action" value="add_note" />
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600 }}>Admin notes</label>
+              <textarea
+                name="note"
+                defaultValue={returnCase.adminNotes ?? ""}
+                rows={3}
+                style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e1e3e5", marginBottom: 12 }}
+              />
+              <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                Save note
+              </s-button>
+            </fetcher.Form>
+            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 20 }}>
+              <input type="hidden" name="action" value="save_notes_for_customer" />
+              <label style={{ display: "block", marginBottom: 8, fontWeight: 600, fontSize: 14 }}>Notes for Customer</label>
+              <p style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 10 }}>These notes will be published and visible to the customer when they view their return.</p>
+              <textarea
+                name="notesForCustomer"
+                defaultValue={(returnCase as { notesForCustomer?: string | null }).notesForCustomer ?? ""}
+                rows={3}
+                placeholder="e.g. Your return has been approved. Please ship the item to..."
+                style={{ width: "100%", padding: 12, borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)", marginBottom: 12, boxSizing: "border-box" }}
+              />
+              <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>
+                Save & publish
+              </s-button>
+            </fetcher.Form>
+          </div>
+        </s-section>
+
+        <s-section heading="Return tracking (timeline)">
+          {(returnCase.events?.length ?? 0) === 0 ? (
+            <div style={{ padding: 24, background: "var(--rpm-surface-subtle)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)", textAlign: "center" }}>
+              <p style={{ color: "var(--rpm-text-muted)", margin: 0, fontSize: 15 }}>No events yet.</p>
+              <p style={{ color: "var(--rpm-text-muted)", margin: "8px 0 0 0", fontSize: 13 }}>Events from the portal, admin actions, and Fynd webhooks will appear here.</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
+              {(returnCase.events || []).map((ev, i) => (
+                <div
+                  key={ev.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 16,
+                    padding: "14px 18px",
+                    background: i % 2 === 0 ? "var(--rpm-surface)" : "var(--rpm-surface-subtle)",
+                    borderLeft: "4px solid var(--rpm-accent)",
+                    borderRadius: "0 var(--rpm-radius) var(--rpm-radius) 0",
+                    marginLeft: 0,
+                    fontSize: 14,
+                    transition: "background 0.2s ease",
+                  }}
+                >
+                  <span style={{ fontWeight: 600, color: "var(--rpm-accent)", minWidth: 90 }}>
+                    {ev.source === "fynd_webhook" ? "Fynd" : ev.source.charAt(0).toUpperCase() + ev.source.slice(1)}
+                  </span>
+                  <span style={{ flex: 1 }}>{ev.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
+                  <span style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>{new Date(ev.happenedAt).toLocaleString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </s-section>
       </div>
     </s-page>
   );

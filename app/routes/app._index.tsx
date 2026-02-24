@@ -11,11 +11,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
 } from "recharts";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -29,7 +24,7 @@ const STATUS_COLORS: Record<string, string> = {
   initiated: "#b98900",
 };
 
-const CHART_COLORS = ["#005bd3", "#008060", "#b98900", "#d72c0d", "#6d7175", "#7c3aed", "#0891b2", "#dc2626"];
+
 
 function getStatusColor(status: string): string {
   const key = status.toLowerCase().replace(/\s+/g, " ");
@@ -479,140 +474,70 @@ export default function Dashboard() {
   };
 
   const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
-  const rejectionRate = totalReturns > 0 ? Math.round((rejectedCount / totalReturns) * 100) : 0;
-  const avgItemsPerReturn = totalReturns > 0 ? (itemsCount / totalReturns).toFixed(1) : "0";
 
   return (
     <s-page heading="Dashboard">
       <div className="app-content" style={{ paddingBottom: 48 }}>
         {error && (
           <div className="app-alert app-alert-error" style={{ marginBottom: 24 }}>
-            <p style={{ marginBottom: 8, fontWeight: 500 }}>{error}</p>
-            <p style={{ fontSize: 14, opacity: 0.9 }}>
-              Some metrics may be unavailable. You can still use Returns, Settings, and the Customer Portal.
-            </p>
+            <p style={{ marginBottom: 8, fontWeight: 600 }}>⚠️ {error}</p>
+            <p style={{ fontSize: 13, opacity: 0.9 }}>Some data may be unavailable. You can still use Returns, Settings, and the Customer Portal.</p>
           </div>
         )}
 
-        {/* Date range filter */}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 24,
-            padding: "16px 20px",
-            background: "var(--rpm-surface)",
-            borderRadius: 14,
-            border: "1px solid var(--rpm-border)",
-          }}
-        >
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text)" }}>Date range:</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <select
-              value={range}
-              onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
-              style={{
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: "1px solid var(--rpm-border)",
-                fontSize: 14,
-                fontWeight: 500,
-                background: "var(--rpm-surface)",
-                color: "var(--rpm-text)",
-                minWidth: 160,
-              }}
-            >
-              {DATE_RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            {range === "custom" && (
-              <>
-                <input
-                  type="date"
-                  value={from ?? ""}
-                  onChange={(e) => handleCustomRange(e.target.value, to ?? "")}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--rpm-border)",
-                    fontSize: 14,
-                  }}
-                />
-                <span style={{ color: "var(--rpm-text-muted)" }}>to</span>
-                <input
-                  type="date"
-                  value={to ?? ""}
-                  onChange={(e) => handleCustomRange(from ?? "", e.target.value)}
-                  style={{
-                    padding: "8px 12px",
-                    borderRadius: 8,
-                    border: "1px solid var(--rpm-border)",
-                    fontSize: 14,
-                  }}
-                />
-              </>
-            )}
-          </div>
-          <span style={{ fontSize: 13, color: "var(--rpm-text-muted)", marginLeft: 8 }}>{rangeLabel}</span>
-        </div>
-
-        {/* Suggestions */}
-        {suggestions.length > 0 && (
-          <div
+        {/* ─── Date range ─── */}
+        <div style={{
+          display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
+          marginBottom: 24, padding: "14px 20px",
+          background: "var(--rpm-surface)", borderRadius: 14, border: "1px solid var(--rpm-border)",
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text)" }}>📅 Period:</span>
+          <select
+            value={range}
+            onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
             style={{
-              marginBottom: 24,
-              display: "flex",
-              flexDirection: "column",
-              gap: 12,
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--rpm-border)",
+              fontSize: 14, fontWeight: 500, background: "var(--rpm-surface)",
+              color: "var(--rpm-text)", minWidth: 160,
             }}
           >
-            <h3 style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Suggestions
-            </h3>
+            {DATE_RANGE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {range === "custom" && (
+            <>
+              <input type="date" value={from ?? ""} onChange={(e) => handleCustomRange(e.target.value, to ?? "")}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--rpm-border)", fontSize: 14 }} />
+              <span style={{ color: "var(--rpm-text-muted)" }}>to</span>
+              <input type="date" value={to ?? ""} onChange={(e) => handleCustomRange(from ?? "", e.target.value)}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--rpm-border)", fontSize: 14 }} />
+            </>
+          )}
+          <span style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>{rangeLabel}</span>
+          <Link to="/app/reports" style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
+            📊 View detailed reports →
+          </Link>
+        </div>
+
+        {/* ─── Actionable Suggestions ─── */}
+        {suggestions.length > 0 && (
+          <div style={{ marginBottom: 24, display: "flex", flexDirection: "column", gap: 10 }}>
             {suggestions.map((s, i) => (
-              <div
-                key={i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: 12,
-                  padding: "14px 18px",
-                  borderRadius: 10,
-                  background:
-                    s.type === "success"
-                      ? "var(--rpm-success-bg)"
-                      : s.type === "warning"
-                        ? "var(--rpm-warning-bg)"
-                        : "#eff6ff",
-                  border: `1px solid ${s.type === "success" ? "#a7f3d0" : s.type === "warning" ? "#fde68a" : "#bfdbfe"}`,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: 14,
-                    color: s.type === "success" ? "#047857" : s.type === "warning" ? "#b45309" : "#1e40af",
-                  }}
-                >
-                  {s.message}
+              <div key={i} style={{
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+                flexWrap: "wrap", gap: 12, padding: "14px 18px", borderRadius: 12,
+                background: s.type === "success" ? "#ecfdf5" : s.type === "warning" ? "#fffbeb" : "#eff6ff",
+                border: `1px solid ${s.type === "success" ? "#a7f3d0" : s.type === "warning" ? "#fde68a" : "#bfdbfe"}`,
+              }}>
+                <span style={{
+                  fontSize: 14, fontWeight: 500,
+                  color: s.type === "success" ? "#047857" : s.type === "warning" ? "#92400e" : "#1e40af",
+                }}>
+                  {s.type === "success" ? "✅" : s.type === "warning" ? "⚠️" : "💡"} {s.message}
                 </span>
                 {s.action && s.actionUrl && (
-                  <Link
-                    to={s.actionUrl}
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: "var(--rpm-accent)",
-                      textDecoration: "none",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
+                  <Link to={s.actionUrl} style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none", whiteSpace: "nowrap" }}>
                     {s.action} →
                   </Link>
                 )}
@@ -621,444 +546,229 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Hero metrics */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 20,
-            marginBottom: 32,
-          }}
-        >
+        {/* ─── 5 Hero KPI Cards ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 16, marginBottom: 28 }}>
           <Link to="/app/returns" style={{ textDecoration: "none" }}>
-            <MetricCard
-              label="Total returns"
-              value={totalReturns}
-              subtext={rangeLabel}
-              trend={periodChange}
-              icon="📦"
-            />
+            <MetricCard label="Total returns" value={totalReturns} subtext={rangeLabel} trend={periodChange} icon="📦" />
           </Link>
-          <MetricCard label="Approved" value={approvedCount} color="#059669" subtext={`${approvalRate}% of total`} icon="✓" />
-          <MetricCard label="Pending" value={pendingCount} color="#b98900" subtext="Awaiting review" icon="⏳" />
-          <MetricCard label="Processing" value={processingCount} color="#005bd3" subtext="In progress" icon="🔄" />
-          <MetricCard label="Rejected" value={rejectedCount} color="#d72c0d" subtext={`${rejectionRate}% of total`} icon="✕" />
-          <MetricCard label="Refunded" value={refundedCount} color="#059669" subtext="Processed" icon="💰" />
-          {hasFyndConfig && (
-            <MetricCard label="Fynd synced" value={fyndSyncedCount} subtext="With return #" icon="🔄" />
-          )}
-          <MetricCard label="Items returned" value={itemsCount} subtext={`~${avgItemsPerReturn} per return`} icon="📋" />
-          <MetricCard label="Cancelled" value={cancelledCount} color="#6d7175" subtext="Voided" icon="⊘" />
+          <Link to="/app/returns?status=pending" style={{ textDecoration: "none" }}>
+            <MetricCard label="Needs review" value={pendingCount} color="#eab308" subtext="Awaiting action" icon="⏳" />
+          </Link>
+          <Link to="/app/returns?status=approved" style={{ textDecoration: "none" }}>
+            <MetricCard label="Approved" value={approvedCount} color="#10b981" subtext={`${approvalRate}% rate`} icon="✅" />
+          </Link>
+          <MetricCard label="Refunded" value={refundedCount} color="#8b5cf6" subtext="Completed" icon="💰" />
           <MetricCard label="All time" value={allTimeReturns} subtext="Total ever" icon="📊" />
         </div>
 
-        {/* Charts row */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
-            gap: 24,
-            marginBottom: 32,
-          }}
-        >
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Returns over time
-            </h3>
-            <div style={{ height: 260 }}>
+        {/* ─── Quick Chart + Status at a Glance ─── */}
+        <div style={{
+          display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(360px, 1fr))",
+          gap: 20, marginBottom: 28,
+        }}>
+          {/* Returns trend mini */}
+          <div style={{
+            background: "var(--rpm-surface)", borderRadius: 14, padding: 24,
+            border: "1px solid var(--rpm-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Return trend</h3>
+              <Link to="/app/reports" style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
+                Full analytics →
+              </Link>
+            </div>
+            <div style={{ height: 200 }}>
               {returnsOverTime.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={returnsOverTime} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                  <AreaChart data={returnsOverTime} margin={{ top: 8, right: 8, left: -24, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="returnsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#005bd3" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#005bd3" stopOpacity={0} />
+                      <linearGradient id="dashGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.2} />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                    <Tooltip
-                      contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
-                      formatter={(value: number) => [value, "Returns"]}
-                      labelFormatter={(label) => `Date: ${label}`}
-                    />
-                    <Area type="monotone" dataKey="returns" stroke="#005bd3" strokeWidth={2} fill="url(#returnsGradient)" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #e5e7eb", fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+                      formatter={(value: number | undefined) => [value ?? 0, "Returns"]} />
+                    <Area type="monotone" dataKey="returns" stroke="#3b82f6" strokeWidth={2} fill="url(#dashGrad)" />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div
-                  style={{
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--rpm-text-muted)",
-                    fontSize: 14,
-                    textAlign: "center",
-                    padding: 24,
-                  }}
-                >
-                  No returns in selected period. Try a different date range or share your portal URL.
+                <div style={{
+                  height: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--rpm-text-muted)", fontSize: 14, textAlign: "center", padding: 24
+                }}>
+                  <div>
+                    <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.4 }}>📈</div>
+                    No returns yet. Share your <Link to="/app/portal" style={{ color: "var(--rpm-accent)" }}>portal URL</Link> to get started.
+                  </div>
                 </div>
               )}
             </div>
           </div>
 
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Returns by status
-            </h3>
-            <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {statusChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="value"
-                      nameKey="name"
-                    >
-                      {statusChartData.map((_, index) => (
-                        <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
-                      formatter={(value: number, _: string, props: { payload: { value: number } }) => {
-                        const total = statusChartData.reduce((a, d) => a + d.value, 0);
-                        const pct = total > 0 ? Math.round((props.payload.value / total) * 100) : 0;
-                        return [`${value} (${pct}%)`, ""];
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ color: "var(--rpm-text-muted)", fontSize: 14, textAlign: "center" }}>
-                  No status data in selected period
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Top return reasons - always visible */}
-        <div
-          style={{
-            background: "var(--rpm-surface)",
-            borderRadius: 14,
-            padding: 24,
-            border: "1px solid var(--rpm-border)",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            marginBottom: 32,
-          }}
-        >
-          <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-            Top return reasons
-          </h3>
-          <div style={{ height: Math.max(180, topReasons.length * 36) }}>
-            {topReasons.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={topReasons.map((r) => ({
-                    name: r.reason.length > 25 ? r.reason.slice(0, 25) + "…" : r.reason,
-                    count: r.count,
-                    fullName: r.reason,
-                  }))}
-                  layout="vertical"
-                  margin={{ top: 4, right: 24, left: 4, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} width={120} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
-                    formatter={(value: number, _: unknown, props: { payload?: { fullName?: string } }) => [
-                      value,
-                      props.payload?.fullName ?? "Returns",
-                    ]}
-                  />
-                  <Bar dataKey="count" fill="#005bd3" radius={[0, 4, 4, 0]} name="Returns" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div
-                style={{
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--rpm-text-muted)",
-                  fontSize: 14,
-                  textAlign: "center",
-                  padding: 24,
-                }}
-              >
-                No return reasons recorded yet. Reasons will appear as customers submit returns with specific reasons.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Status breakdown + Recent returns */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: 24,
-            marginBottom: 32,
-          }}
-        >
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Status breakdown
-            </h3>
+          {/* Status at a glance */}
+          <div style={{
+            background: "var(--rpm-surface)", borderRadius: 14, padding: 24,
+            border: "1px solid var(--rpm-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+          }}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Status at a glance</h3>
             {Object.keys(statusMap).length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 14 }}>
-                No returns in selected period.
+              <div style={{ padding: 32, textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 14 }}>
+                No returns in this period.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 {Object.entries(statusMap)
                   .sort(([, a], [, b]) => b - a)
-                  .map(([status, count]) => (
-                    <div key={status}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 14 }}>
-                        <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{status}</span>
-                        <span style={{ color: "var(--rpm-text-muted)", fontWeight: 600 }}>{count}</span>
-                      </div>
-                      <div
-                        style={{
-                          height: 8,
-                          background: "var(--rpm-surface-elevated)",
-                          borderRadius: 4,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            width: `${(count / maxStatusCount) * 100}%`,
-                            height: "100%",
-                            background: getStatusColor(status),
-                            borderRadius: 4,
-                            minWidth: count > 0 ? 4 : 0,
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-                Recent returns
-              </h3>
-              <Link to="/app/returns" style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
-                View all →
-              </Link>
-            </div>
-            {recentReturns.length === 0 ? (
-              <div
-                style={{
-                  padding: 32,
-                  textAlign: "center",
-                  background: "var(--rpm-surface-subtle)",
-                  borderRadius: 10,
-                  border: "1px dashed var(--rpm-border)",
-                }}
-              >
-                <p style={{ fontSize: 15, fontWeight: 500, marginBottom: 8, color: "var(--rpm-text)" }}>No returns yet</p>
-                <p style={{ color: "var(--rpm-text-muted)", marginBottom: 16, fontSize: 14 }}>
-                  Returns will appear when customers initiate them via the portal.
-                </p>
-                <Link to="/app/portal">
-                  <s-button variant="primary">Share portal URL</s-button>
-                </Link>
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--rpm-border)" }}>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Order</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Status</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Return #</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Created</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentReturns.map((r) => (
-                      <tr key={r.id} style={{ borderBottom: "1px solid var(--rpm-surface-elevated)" }}>
-                        <td style={{ padding: "12px" }}>
-                          <Link to={`/app/returns/${r.id}`} style={{ fontWeight: 500, color: "var(--rpm-text)", textDecoration: "none" }}>
-                            {r.shopifyOrderName || r.id}
-                          </Link>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "4px 10px",
-                              borderRadius: 6,
-                              fontSize: 12,
-                              fontWeight: 600,
-                              background: `${getStatusColor(r.status)}18`,
-                              color: getStatusColor(r.status),
-                              textTransform: "capitalize",
-                            }}
-                          >
-                            {r.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px", color: "var(--rpm-text-muted)" }}>{r.fyndReturnNo || "—"}</td>
-                        <td style={{ padding: "12px", color: "var(--rpm-text-muted)" }}>
-                          {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-                        </td>
-                        <td style={{ padding: "12px", textAlign: "right" }}>
-                          <Link to={`/app/returns/${r.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                  .map(([status, count]) => {
+                    const pct = totalReturns > 0 ? Math.round((count / totalReturns) * 100) : 0;
+                    return (
+                      <Link key={status} to={`/app/returns?status=${encodeURIComponent(status)}`} style={{ textDecoration: "none", color: "inherit" }}>
+                        <div>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                            <span style={{ fontWeight: 600, textTransform: "capitalize", display: "flex", alignItems: "center", gap: 6 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: "50%", background: getStatusColor(status), display: "inline-block" }} />
+                              {status}
+                            </span>
+                            <span style={{ color: "var(--rpm-text-muted)", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{count} ({pct}%)</span>
+                          </div>
+                          <div style={{ height: 6, background: "var(--rpm-surface-elevated)", borderRadius: 3, overflow: "hidden" }}>
+                            <div style={{
+                              width: `${pct}%`, height: "100%", background: getStatusColor(status),
+                              borderRadius: 3, minWidth: count > 0 ? 3 : 0, transition: "width 0.4s ease",
+                            }} />
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
               </div>
             )}
           </div>
         </div>
 
-        {/* Quick actions + Portal */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 24 }}>
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Quick actions
-            </h3>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              <Link to="/app/returns">
-                <s-button variant="primary">View all returns</s-button>
-              </Link>
-              <Link to={hasFyndConfig ? "/app/settings" : "/app/settings/integrations"}>
-                <s-button variant="secondary">{hasFyndConfig ? "Settings" : "Configure Fynd"}</s-button>
-              </Link>
-              {hasFyndConfig && (
-                <Link to="/app/settings/setup">
-                  <s-button variant="secondary">Fynd Setup Guide</s-button>
-                </Link>
-              )}
-              <Link to="/app/reports">
-                <s-button variant="secondary">Reports</s-button>
-              </Link>
-              <Link to="/app/portal">
-                <s-button variant="secondary">Customer portal</s-button>
-              </Link>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Customer portal URL
-            </h3>
-            <p style={{ marginBottom: 14, color: "var(--rpm-text-muted)", fontSize: 14 }}>
-              Share this URL so customers can initiate and track returns.
-            </p>
-            <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-              <code
-                style={{
-                  padding: "12px 16px",
-                  background: "var(--rpm-surface-subtle)",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  flex: "1 1 260px",
-                  overflow: "auto",
-                  border: "1px solid var(--rpm-border)",
-                  fontFamily: "ui-monospace, monospace",
-                }}
-              >
-                {portalUrl}
-              </code>
-              <s-button variant="secondary" onClick={() => navigator.clipboard.writeText(portalUrl)}>
-                Copy URL
-              </s-button>
-            </div>
-          </div>
-        </div>
-
-        {!hasFyndConfig && (
-          <div
-            style={{
-              marginTop: 32,
-              padding: 24,
-              background: "var(--rpm-warning-bg)",
-              borderRadius: 14,
-              border: "1px solid #fcd34d",
-            }}
-          >
-            <p style={{ marginBottom: 8, fontWeight: 600, color: "#b45309", fontSize: 15 }}>
-              Connect your Fynd account to enable full return management
-            </p>
-            <p style={{ marginBottom: 16, color: "#92400e", fontSize: 14 }}>
-              Fynd handles reverse logistics. Configure your credentials to sync returns and tracking.
-            </p>
-            <Link to="/app/settings/integrations">
-              <s-button variant="primary">Configure Fynd</s-button>
+        {/* ─── Recent Returns ─── */}
+        <div style={{
+          background: "var(--rpm-surface)", borderRadius: 14, padding: 24,
+          border: "1px solid var(--rpm-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)", marginBottom: 28,
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Recent returns</h3>
+            <Link to="/app/returns" style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
+              View all →
             </Link>
+          </div>
+          {recentReturns.length === 0 ? (
+            <div style={{
+              padding: 40, textAlign: "center", background: "var(--rpm-surface-subtle)", borderRadius: 12,
+              border: "1px dashed var(--rpm-border)",
+            }}>
+              <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>📦</div>
+              <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8, color: "var(--rpm-text)" }}>No returns yet</p>
+              <p style={{ color: "var(--rpm-text-muted)", marginBottom: 16, fontSize: 14 }}>Returns will appear here when customers submit them via the portal.</p>
+              <Link to="/app/portal"><s-button variant="primary">Share portal URL</s-button></Link>
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--rpm-border)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Order</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Status</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Return #</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Created</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px" }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentReturns.map((r) => (
+                    <tr key={r.id} style={{ borderBottom: "1px solid var(--rpm-surface-elevated)" }}>
+                      <td style={{ padding: "12px" }}>
+                        <Link to={`/app/returns/${r.id}`} style={{ fontWeight: 600, color: "var(--rpm-text)", textDecoration: "none" }}>
+                          {r.shopifyOrderName || r.id}
+                        </Link>
+                      </td>
+                      <td style={{ padding: "12px" }}>
+                        <span style={{
+                          display: "inline-flex", alignItems: "center", gap: 4,
+                          padding: "4px 10px", borderRadius: 6, fontSize: 12, fontWeight: 600,
+                          background: `${getStatusColor(r.status)}18`, color: getStatusColor(r.status),
+                          textTransform: "capitalize",
+                        }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "currentColor" }} />
+                          {r.status}
+                        </span>
+                      </td>
+                      <td style={{ padding: "12px", color: "var(--rpm-text-muted)", fontFamily: "ui-monospace, monospace", fontSize: 13 }}>
+                        {(r as { returnRequestNo?: string | null }).returnRequestNo || r.fyndReturnNo || "—"}
+                      </td>
+                      <td style={{ padding: "12px", color: "var(--rpm-text-muted)" }}>
+                        {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                      </td>
+                      <td style={{ padding: "12px", textAlign: "right" }}>
+                        <Link to={`/app/returns/${r.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
+                          View →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* ─── Quick Actions + Portal URL ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 20 }}>
+          <div style={{
+            background: "var(--rpm-surface)", borderRadius: 14, padding: 24,
+            border: "1px solid var(--rpm-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+          }}>
+            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Quick actions</h3>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+              <Link to="/app/returns"><s-button variant="primary">View all returns</s-button></Link>
+              <Link to="/app/reports"><s-button variant="secondary">📊 Reports</s-button></Link>
+              <Link to={hasFyndConfig ? "/app/settings" : "/app/settings/integrations"}>
+                <s-button variant="secondary">{hasFyndConfig ? "⚙️ Settings" : "🔗 Configure Fynd"}</s-button>
+              </Link>
+              <Link to="/app/portal"><s-button variant="secondary">🌐 Portal</s-button></Link>
+            </div>
+          </div>
+
+          <div style={{
+            background: "var(--rpm-surface)", borderRadius: 14, padding: 24,
+            border: "1px solid var(--rpm-border)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+          }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Customer portal</h3>
+            <p style={{ marginBottom: 14, color: "var(--rpm-text-muted)", fontSize: 13 }}>Share this URL so customers can initiate and track returns.</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <code style={{
+                padding: "10px 14px", background: "var(--rpm-surface-subtle)", borderRadius: 8,
+                fontSize: 12, flex: "1 1 240px", overflow: "hidden", textOverflow: "ellipsis",
+                whiteSpace: "nowrap", border: "1px solid var(--rpm-border)",
+                fontFamily: "ui-monospace, monospace", color: "var(--rpm-accent)",
+              }}>{portalUrl}</code>
+              <s-button variant="secondary" onClick={() => navigator.clipboard.writeText(portalUrl)}>Copy</s-button>
+            </div>
+          </div>
+        </div>
+
+        {/* ─── Fynd Integration Notice ─── */}
+        {!hasFyndConfig && (
+          <div style={{
+            marginTop: 28, padding: 24, background: "#fffbeb", borderRadius: 14,
+            border: "1px solid #fcd34d",
+          }}>
+            <p style={{ marginBottom: 8, fontWeight: 700, color: "#92400e", fontSize: 15 }}>
+              🔗 Connect Fynd for reverse logistics
+            </p>
+            <p style={{ marginBottom: 16, color: "#92400e", fontSize: 14, opacity: 0.9 }}>
+              Fynd handles return pickups, tracking, and delivery. Configure your credentials to automate the entire return flow.
+            </p>
+            <Link to="/app/settings/integrations"><s-button variant="primary">Configure Fynd</s-button></Link>
           </div>
         )}
       </div>

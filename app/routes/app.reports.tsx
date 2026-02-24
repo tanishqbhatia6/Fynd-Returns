@@ -3,7 +3,6 @@ import { Link, useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
-import { formatReturnRequestId } from "../lib/return-request-id";
 import {
   AreaChart,
   Area,
@@ -20,20 +19,20 @@ import {
 } from "recharts";
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "#b98900",
-  processing: "#005bd3",
-  "in progress": "#005bd3",
-  approved: "#008060",
-  completed: "#008060",
-  rejected: "#d72c0d",
-  cancelled: "#6d7175",
-  initiated: "#b98900",
+  pending: "#eab308",
+  processing: "#3b82f6",
+  "in progress": "#3b82f6",
+  approved: "#10b981",
+  completed: "#10b981",
+  rejected: "#ef4444",
+  cancelled: "#94a3b8",
+  initiated: "#f59e0b",
 };
 
-const CHART_COLORS = ["#005bd3", "#008060", "#b98900", "#d72c0d", "#6d7175", "#7c3aed", "#0891b2", "#dc2626"];
+const CHART_PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#94a3b8", "#8b5cf6", "#06b6d4", "#f43f5e"];
 
 function getStatusColor(s: string) {
-  return STATUS_COLORS[s.toLowerCase()] ?? "#6d7175";
+  return STATUS_COLORS[s.toLowerCase()] ?? "#94a3b8";
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -56,10 +55,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to);
-    const where = {
-      shopId: shop.id,
-      createdAt: { gte: rangeStart, lte: rangeEnd },
-    };
+    const where = { shopId: shop.id, createdAt: { gte: rangeStart, lte: rangeEnd } };
     const whereAll = { shopId: shop.id };
 
     const approvedStatuses = ["approved", "completed"];
@@ -77,37 +73,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       allTimeReturns,
       approvedWithEvents,
       returnsForDaily,
-      recentReturns,
     ] = await Promise.all([
       prisma.returnCase.count({ where }),
       prisma.returnCase.groupBy({ by: ["status"], where, _count: true }),
-      prisma.returnItem.groupBy({
-        by: ["reasonCode"],
-        where: { returnCase: where },
-        _count: true,
-      }),
+      prisma.returnItem.groupBy({ by: ["reasonCode"], where: { returnCase: where }, _count: true }),
       prisma.returnCase.count({ where: { ...where, refundStatus: "refunded" } }),
       prisma.returnCase.count({ where: { ...where, fyndReturnNo: { not: null } } }),
       prisma.returnCase.count({ where: { ...where, status: "pending" } }),
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
       prisma.returnItem.count({ where: { returnCase: where } }),
       prisma.returnCase.count({ where: whereAll }),
-      prisma.returnCase.findMany({
-        where: approvedWhere,
-        select: { createdAt: true, updatedAt: true },
-      }),
-      prisma.returnCase.findMany({ where, select: { createdAt: true } }),
-      prisma.returnCase.findMany({
-        where,
-        orderBy: { createdAt: "desc" },
-        take: 20,
-        include: { items: { take: 2 } },
-      }),
+      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true } }),
+      prisma.returnCase.findMany({ where, select: { createdAt: true, status: true } }),
     ]);
 
     const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
     const approvedCount = (statusMap.approved ?? 0) + (statusMap.completed ?? 0);
-    const maxStatusCount = Math.max(...Object.values(statusMap), 1);
     const processingCount = (statusMap.processing ?? 0) + (statusMap["in progress"] ?? 0) + (statusMap.initiated ?? 0);
     const cancelledCount = statusMap.cancelled ?? 0;
 
@@ -115,16 +96,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .filter((r) => r.reasonCode != null && String(r.reasonCode).trim() !== "")
       .map((r) => ({ reason: String(r.reasonCode), count: r._count }))
       .sort((a, b) => b.count - a.count)
-      .slice(0, 15);
+      .slice(0, 10);
 
+    // Daily data
     const dailyData: Record<string, number> = {};
     const daysDiff = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000));
     const numDays = Math.min(Math.max(daysDiff, 1), 90);
     for (let d = 0; d < numDays; d++) {
       const date = new Date(rangeStart);
       date.setDate(date.getDate() + d);
-      const key = date.toISOString().slice(0, 10);
-      dailyData[key] = 0;
+      dailyData[date.toISOString().slice(0, 10)] = 0;
     }
     returnsForDaily.forEach((r) => {
       const key = new Date(r.createdAt).toISOString().slice(0, 10);
@@ -144,181 +125,169 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     let avgProcessingDays: number | null = null;
     if (approvedWithEvents.length >= 1) {
-      const times: number[] = approvedWithEvents
-        .map((rc) => {
-          const created = new Date(rc.createdAt).getTime();
-          const updated = new Date(rc.updatedAt).getTime();
-          return (updated - created) / (24 * 60 * 60 * 1000);
-        })
+      const times = approvedWithEvents
+        .map((rc) => (new Date(rc.updatedAt).getTime() - new Date(rc.createdAt).getTime()) / (24 * 60 * 60 * 1000))
         .filter((t) => t >= 0);
-      if (times.length > 0) {
-        avgProcessingDays = times.reduce((a, b) => a + b, 0) / times.length;
-      }
+      if (times.length > 0) avgProcessingDays = times.reduce((a, b) => a + b, 0) / times.length;
     }
 
+    // Previous period comparison
     const prevPeriodStart = new Date(rangeStart);
     prevPeriodStart.setTime(prevPeriodStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime()));
-    const prevPeriodWhere = {
-      shopId: shop.id,
-      createdAt: { gte: prevPeriodStart, lt: rangeStart },
-    };
+    const prevPeriodWhere = { shopId: shop.id, createdAt: { gte: prevPeriodStart, lt: rangeStart } };
     const prevPeriodCount = await prisma.returnCase.count({ where: prevPeriodWhere });
-    const periodChange =
-      totalReturns > 0 && prevPeriodCount >= 0
-        ? Math.round(((totalReturns - prevPeriodCount) / Math.max(prevPeriodCount, 1)) * 100)
-        : 0;
+    const periodChange = totalReturns > 0 && prevPeriodCount >= 0
+      ? Math.round(((totalReturns - prevPeriodCount) / Math.max(prevPeriodCount, 1)) * 100) : 0;
+
+    // Daily status breakdown for stacked data
+    const dailyStatusData: Record<string, Record<string, number>> = {};
+    for (const key of Object.keys(dailyData)) {
+      dailyStatusData[key] = {};
+    }
+    returnsForDaily.forEach((r) => {
+      const key = new Date(r.createdAt).toISOString().slice(0, 10);
+      const st = (r.status || "pending").toLowerCase();
+      if (dailyStatusData[key]) {
+        dailyStatusData[key][st] = (dailyStatusData[key][st] || 0) + 1;
+      }
+    });
 
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
     return {
-      totalReturns,
-      statusMap,
-      maxStatusCount,
-      topReasons,
-      refundedCount,
-      fyndSyncedCount,
-      pendingCount,
-      rejectedCount,
-      approvedCount,
-      processingCount,
-      cancelledCount,
-      itemsCount,
-      allTimeReturns,
-      returnsOverTime,
-      statusChartData,
-      avgProcessingDays,
-      periodChange,
-      rangeLabel,
-      range,
-      from: from ?? undefined,
-      to: to ?? undefined,
-      recentReturns,
-      hasFyndConfig,
-      error: null,
+      totalReturns, statusMap, topReasons, refundedCount, fyndSyncedCount,
+      pendingCount, rejectedCount, approvedCount, processingCount, cancelledCount,
+      itemsCount, allTimeReturns, returnsOverTime, statusChartData,
+      avgProcessingDays, periodChange, rangeLabel, range,
+      from: from ?? undefined, to: to ?? undefined, hasFyndConfig, error: null,
     };
   } catch (err) {
     console.error("Reports loader error:", err);
     return {
-      totalReturns: 0,
-      statusMap: {} as Record<string, number>,
-      maxStatusCount: 1,
+      totalReturns: 0, statusMap: {} as Record<string, number>,
       topReasons: [] as { reason: string; count: number }[],
-      refundedCount: 0,
-      fyndSyncedCount: 0,
-      pendingCount: 0,
-      rejectedCount: 0,
-      approvedCount: 0,
-      processingCount: 0,
-      cancelledCount: 0,
-      itemsCount: 0,
-      allTimeReturns: 0,
+      refundedCount: 0, fyndSyncedCount: 0, pendingCount: 0,
+      rejectedCount: 0, approvedCount: 0, processingCount: 0, cancelledCount: 0,
+      itemsCount: 0, allTimeReturns: 0,
       returnsOverTime: [] as { date: string; returns: number; fullDate: string }[],
       statusChartData: [] as { name: string; value: number }[],
-      avgProcessingDays: null,
-      periodChange: 0,
-      rangeLabel: "Last 30 days",
-      range: "last_30_days",
-      from: undefined,
-      to: undefined,
-      recentReturns: [] as Awaited<ReturnType<typeof prisma.returnCase.findMany>>,
-      hasFyndConfig: false,
-      error: "Failed to load reports",
+      avgProcessingDays: null, periodChange: 0,
+      rangeLabel: "Last 30 days", range: "last_30_days",
+      from: undefined, to: undefined, hasFyndConfig: false,
+      error: "Failed to load reports. Please try again.",
     };
   }
 };
 
-function MetricCard({
-  label,
-  value,
-  subtext,
-  color,
-  icon,
-  trend,
-}: {
-  label: string;
-  value: number | string;
-  subtext?: string;
-  color?: string;
-  icon?: string;
-  trend?: number;
+// ── Reusable Components ──
+
+function KpiCard({ label, value, subtext, icon, trend, accent }: {
+  label: string; value: string | number; subtext?: string; icon: string; trend?: number; accent?: string;
 }) {
+  const col = accent || "var(--rpm-accent, #3b82f6)";
   return (
-    <div
-      style={{
-        padding: 20,
-        background: "var(--rpm-surface)",
-        borderRadius: 14,
-        border: "1px solid var(--rpm-border)",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-        transition: "box-shadow 0.2s ease",
-      }}
-    >
-      <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 6, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em" }}>
-        {icon && <span style={{ marginRight: 6 }}>{icon}</span>}
-        {label}
+    <div style={{
+      padding: "20px 18px", background: "var(--rpm-surface, white)", borderRadius: 14,
+      border: "1px solid var(--rpm-border, #e5e7eb)", position: "relative", overflow: "hidden",
+      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+    }}>
+      <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: col, opacity: 0.7 }} />
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <span style={{ fontSize: 18 }}>{icon}</span>
+        <span style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--rpm-text-muted, #64748b)" }}>{label}</span>
       </div>
-      <div style={{ fontSize: 28, fontWeight: 700, color: color ?? "var(--rpm-text)", display: "flex", alignItems: "baseline", gap: 8 }}>
+      <div style={{ fontSize: 28, fontWeight: 700, color: col, display: "flex", alignItems: "baseline", gap: 8 }}>
         {value}
         {trend !== undefined && trend !== 0 && (
-          <span style={{ fontSize: 13, fontWeight: 600, color: trend > 0 ? "#d72c0d" : "#008060" }}>
-            {trend > 0 ? `+${trend}%` : `${trend}%`}
+          <span style={{ fontSize: 12, fontWeight: 600, color: trend > 0 ? "#ef4444" : "#10b981", background: trend > 0 ? "#fef2f2" : "#ecfdf5", padding: "2px 8px", borderRadius: 6 }}>
+            {trend > 0 ? `↑ ${trend}%` : `↓ ${Math.abs(trend)}%`}
           </span>
         )}
       </div>
-      {subtext && <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 4 }}>{subtext}</div>}
+      {subtext && <div style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)", marginTop: 4 }}>{subtext}</div>}
     </div>
   );
 }
 
+function ChartCard({ title, subtitle, children, action }: {
+  title: string; subtitle?: string; children: React.ReactNode; action?: React.ReactNode;
+}) {
+  return (
+    <div style={{
+      background: "var(--rpm-surface, white)", borderRadius: 16, padding: "24px 20px",
+      border: "1px solid var(--rpm-border, #e5e7eb)", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+    }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>{title}</h3>
+          {subtitle && <p style={{ margin: "4px 0 0", fontSize: 13, color: "var(--rpm-text-muted, #64748b)" }}>{subtitle}</p>}
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function EmptyState({ icon, message }: { icon: string; message: string }) {
+  return (
+    <div style={{
+      height: "100%", minHeight: 200, display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", color: "var(--rpm-text-muted, #64748b)",
+      fontSize: 14, textAlign: "center", padding: 32,
+    }}>
+      <span style={{ fontSize: 36, marginBottom: 12, opacity: 0.5 }}>{icon}</span>
+      <p style={{ margin: 0, maxWidth: 260 }}>{message}</p>
+    </div>
+  );
+}
+
+function ProgressRing({ value, size = 90, strokeWidth = 8, color = "#3b82f6" }: {
+  value: number; size?: number; strokeWidth?: number; color?: string;
+}) {
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference - (value / 100) * circumference;
+  return (
+    <svg width={size} height={size} style={{ transform: "rotate(-90deg)" }}>
+      <circle cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke="var(--rpm-surface-elevated, #f1f5f9)" strokeWidth={strokeWidth} />
+      <circle cx={size / 2} cy={size / 2} r={radius}
+        fill="none" stroke={color} strokeWidth={strokeWidth}
+        strokeDasharray={circumference} strokeDashoffset={offset}
+        strokeLinecap="round" style={{ transition: "stroke-dashoffset 0.6s ease" }} />
+    </svg>
+  );
+}
+
+// ── Main Component ──
+
 export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
-    totalReturns,
-    statusMap,
-    maxStatusCount,
-    topReasons,
-    refundedCount,
-    fyndSyncedCount,
-    pendingCount,
-    rejectedCount,
-    approvedCount,
-    processingCount,
-    cancelledCount,
-    itemsCount,
-    allTimeReturns,
-    returnsOverTime,
-    statusChartData,
-    avgProcessingDays,
-    periodChange,
-    rangeLabel,
-    range,
-    from,
-    to,
-    recentReturns,
-    hasFyndConfig,
-    error,
+    totalReturns, statusMap, topReasons, refundedCount, fyndSyncedCount,
+    pendingCount, rejectedCount, approvedCount, processingCount, cancelledCount,
+    itemsCount, allTimeReturns, returnsOverTime, statusChartData,
+    avgProcessingDays, periodChange, rangeLabel, range, from, to,
+    hasFyndConfig, error,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
     const next = new URLSearchParams(searchParams);
     next.set("range", newRange);
-    if (newRange !== "custom") {
-      next.delete("from");
-      next.delete("to");
-    }
+    if (newRange !== "custom") { next.delete("from"); next.delete("to"); }
     setSearchParams(next);
   };
 
   const handleCustomRange = (fromVal: string, toVal: string) => {
     const next = new URLSearchParams(searchParams);
-    next.set("range", "custom");
-    next.set("from", fromVal);
-    next.set("to", toVal);
+    next.set("range", "custom"); next.set("from", fromVal); next.set("to", toVal);
     setSearchParams(next);
   };
 
   const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
   const rejectionRate = totalReturns > 0 ? Math.round((rejectedCount / totalReturns) * 100) : 0;
+  const refundRate = totalReturns > 0 ? Math.round((refundedCount / totalReturns) * 100) : 0;
   const avgItemsPerReturn = totalReturns > 0 ? (itemsCount / totalReturns).toFixed(1) : "0";
   const fyndSyncRate = approvedCount > 0 ? Math.round((fyndSyncedCount / approvedCount) * 100) : 0;
 
@@ -327,494 +296,316 @@ export default function Reports() {
   if (to) exportParams.set("to", to);
   const exportUrl = `/api/returns/export?${exportParams.toString()}`;
 
+  const maxReasonCount = topReasons.length > 0 ? Math.max(...topReasons.map((r) => r.count)) : 1;
+
   return (
-    <s-page heading="Reports">
+    <s-page heading="Reports & Analytics">
       <div className="app-content" style={{ paddingBottom: 48 }}>
         {error && (
           <div className="app-alert app-alert-error" style={{ marginBottom: 24 }}>
-            {error}
+            <p style={{ fontWeight: 600, marginBottom: 4 }}>⚠️ {error}</p>
+            <p style={{ fontSize: 13, opacity: 0.9 }}>Some charts may not load. You can still use Returns, Settings, and the Customer Portal.</p>
           </div>
         )}
 
-        {/* Date range filter */}
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: 12,
-            marginBottom: 24,
-            padding: "16px 20px",
-            background: "var(--rpm-surface)",
-            borderRadius: 14,
-            border: "1px solid var(--rpm-border)",
-          }}
-        >
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text)" }}>Date range:</span>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-            <select
-              value={range}
-              onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
-              style={{
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: "1px solid var(--rpm-border)",
-                fontSize: 14,
-                fontWeight: 500,
-                background: "var(--rpm-surface)",
-                color: "var(--rpm-text)",
-                minWidth: 160,
-              }}
-            >
-              {DATE_RANGE_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            {range === "custom" && (
-              <>
-                <input
-                  type="date"
-                  value={from ?? ""}
-                  onChange={(e) => handleCustomRange(e.target.value, to ?? "")}
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--rpm-border)", fontSize: 14 }}
-                />
-                <span style={{ color: "var(--rpm-text-muted)" }}>to</span>
-                <input
-                  type="date"
-                  value={to ?? ""}
-                  onChange={(e) => handleCustomRange(from ?? "", e.target.value)}
-                  style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--rpm-border)", fontSize: 14 }}
-                />
-              </>
-            )}
-          </div>
-          <span style={{ fontSize: 13, color: "var(--rpm-text-muted)", marginLeft: 8 }}>{rangeLabel}</span>
-          <Link to="/app" style={{ marginLeft: "auto", fontSize: 14, color: "var(--rpm-accent)", textDecoration: "none", fontWeight: 500 }}>
-            ← Back to Dashboard
-          </Link>
-        </div>
-
-        {/* Hero metrics */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            gap: 20,
-            marginBottom: 32,
-          }}
-        >
-          <Link to="/app/returns" style={{ textDecoration: "none" }}>
-            <MetricCard label="Total returns" value={totalReturns} subtext={rangeLabel} trend={periodChange} icon="📦" />
-          </Link>
-          <MetricCard label="Approved" value={approvedCount} color="#059669" subtext={`${approvalRate}% of total`} icon="✓" />
-          <MetricCard label="Pending" value={pendingCount} color="#b98900" subtext="Awaiting review" icon="⏳" />
-          <MetricCard label="Processing" value={processingCount} color="#005bd3" subtext="In progress" icon="🔄" />
-          <MetricCard label="Rejected" value={rejectedCount} color="#d72c0d" subtext={`${rejectionRate}% of total`} icon="✕" />
-          <MetricCard label="Refunded" value={refundedCount} color="#059669" subtext="Processed" icon="💰" />
-          {hasFyndConfig && (
-            <MetricCard label="Fynd synced" value={fyndSyncedCount} subtext={`${fyndSyncRate}% of approved`} icon="🔄" />
-          )}
-          <MetricCard label="Items returned" value={itemsCount} subtext={`~${avgItemsPerReturn} per return`} icon="📋" />
-          <MetricCard
-            label="Avg processing"
-            value={avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)} days` : "—"}
-            subtext="Initiated → Approved"
-            icon="⏱"
-          />
-          <MetricCard label="Cancelled" value={cancelledCount} color="#6d7175" subtext="Voided" icon="⊘" />
-          <MetricCard label="All time" value={allTimeReturns} subtext="Total ever" icon="📊" />
-        </div>
-
-        {/* Charts row */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))",
-            gap: 24,
-            marginBottom: 32,
-          }}
-        >
-          <div
+        {/* ─── Date range + Export bar ─── */}
+        <div style={{
+          display: "flex", flexWrap: "wrap", alignItems: "center", gap: 12,
+          marginBottom: 28, padding: "14px 20px", background: "var(--rpm-surface, white)",
+          borderRadius: 14, border: "1px solid var(--rpm-border, #e5e7eb)",
+        }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>📊 Reporting period:</span>
+          <select
+            value={range}
+            onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
             style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+              padding: "8px 14px", borderRadius: 8, border: "1px solid var(--rpm-border, #e5e7eb)",
+              fontSize: 14, fontWeight: 500, background: "var(--rpm-surface, white)",
+              color: "var(--rpm-text, #0f172a)", minWidth: 160,
             }}
           >
-            <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Returns over time
-            </h3>
-            <div style={{ height: 260 }}>
+            {DATE_RANGE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          {range === "custom" && (
+            <>
+              <input type="date" value={from ?? ""} onChange={(e) => handleCustomRange(e.target.value, to ?? "")}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--rpm-border, #e5e7eb)", fontSize: 14 }} />
+              <span style={{ color: "var(--rpm-text-muted, #64748b)" }}>to</span>
+              <input type="date" value={to ?? ""} onChange={(e) => handleCustomRange(from ?? "", e.target.value)}
+                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--rpm-border, #e5e7eb)", fontSize: 14 }} />
+            </>
+          )}
+          <span style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)" }}>{rangeLabel}</span>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
+            <a href={exportUrl} download style={{ textDecoration: "none" }}>
+              <s-button variant="secondary">📥 Export CSV</s-button>
+            </a>
+            <Link to="/app" style={{ textDecoration: "none" }}>
+              <s-button variant="secondary">← Dashboard</s-button>
+            </Link>
+          </div>
+        </div>
+
+        {/* ─── KPI Summary Row ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 16, marginBottom: 28 }}>
+          <KpiCard label="Total Returns" value={totalReturns} icon="📦" trend={periodChange} subtext={rangeLabel} accent="#3b82f6" />
+          <KpiCard label="Approval Rate" value={`${approvalRate}%`} icon="✅" subtext={`${approvedCount} of ${totalReturns}`} accent="#10b981" />
+          <KpiCard label="Avg Processing" value={avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)}d` : "—"} icon="⏱" subtext="Request → Approval" accent="#f59e0b" />
+          <KpiCard label="Refund Rate" value={`${refundRate}%`} icon="💰" subtext={`${refundedCount} refunded`} accent="#8b5cf6" />
+          <KpiCard label="Items Returned" value={itemsCount} icon="📋" subtext={`~${avgItemsPerReturn} per return`} accent="#06b6d4" />
+        </div>
+
+        {/* ─── Charts: Trend + Distribution ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(380px, 1fr))", gap: 20, marginBottom: 28 }}>
+          <ChartCard title="Return volume trend" subtitle="Daily return requests over the selected period">
+            <div style={{ height: 280 }}>
               {returnsOverTime.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={returnsOverTime} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="reportsReturnsGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#005bd3" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="#005bd3" stopOpacity={0} />
+                      <linearGradient id="rptGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.25} />
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
-                      contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
-                      formatter={(value: number) => [value, "Returns"]}
+                      contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+                      formatter={(value: number | undefined) => [value ?? 0, "Returns"]}
                       labelFormatter={(label) => `Date: ${label}`}
                     />
-                    <Area type="monotone" dataKey="returns" stroke="#005bd3" strokeWidth={2} fill="url(#reportsReturnsGradient)" />
+                    <Area type="monotone" dataKey="returns" stroke="#3b82f6" strokeWidth={2.5} fill="url(#rptGrad)" dot={returnsOverTime.length < 15 ? { r: 3, fill: "#3b82f6" } : false} />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div
-                  style={{
-                    height: "100%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    color: "var(--rpm-text-muted)",
-                    fontSize: 14,
-                    textAlign: "center",
-                    padding: 24,
-                  }}
-                >
-                  No returns in selected period. Try a different date range.
-                </div>
+                <EmptyState icon="📈" message="No returns during this period. Adjust the date range to see trends." />
               )}
             </div>
-          </div>
+          </ChartCard>
 
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Returns by status
-            </h3>
-            <div style={{ height: 260, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <ChartCard title="Status distribution" subtitle="Breakdown of return statuses">
+            <div style={{ height: 280, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {statusChartData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={statusChartData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={90}
-                      paddingAngle={2}
-                      dataKey="value"
-                      nameKey="name"
-                    >
-                      {statusChartData.map((_, index) => (
-                        <Cell key={index} fill={CHART_COLORS[index % CHART_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
-                      formatter={(value: number, _: string, props: { payload: { value: number } }) => {
-                        const total = statusChartData.reduce((a, d) => a + d.value, 0);
-                        const pct = total > 0 ? Math.round((props.payload.value / total) * 100) : 0;
-                        return [`${value} (${pct}%)`, ""];
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              ) : (
-                <div style={{ color: "var(--rpm-text-muted)", fontSize: 14, textAlign: "center" }}>
-                  No status data in selected period
+                <div style={{ display: "flex", alignItems: "center", gap: 24, width: "100%" }}>
+                  <div style={{ flex: "0 0 180px" }}>
+                    <ResponsiveContainer width={180} height={180}>
+                      <PieChart>
+                        <Pie data={statusChartData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={2} dataKey="value" nameKey="name">
+                          {statusChartData.map((entry, i) => (
+                            <Cell key={i} fill={getStatusColor(entry.name.toLowerCase())} />
+                          ))}
+                        </Pie>
+                        <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
+                          formatter={((value: number | undefined, _: string | undefined, props: { payload?: { value: number } }) => {
+                            const total = statusChartData.reduce((a, d) => a + d.value, 0);
+                            const pct = total > 0 && props.payload ? Math.round((props.payload.value / total) * 100) : 0;
+                            return [`${value ?? 0} (${pct}%)`, ""];
+                          }) as never} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                    {statusChartData.map((d, i) => {
+                      const total = statusChartData.reduce((a, x) => a + x.value, 0);
+                      const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                      return (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <div style={{ width: 10, height: 10, borderRadius: 3, background: getStatusColor(d.name.toLowerCase()), flexShrink: 0 }} />
+                          <span style={{ fontSize: 13, flex: 1 }}>{d.name}</span>
+                          <span style={{ fontSize: 13, fontWeight: 700, minWidth: 28, textAlign: "right" }}>{d.value}</span>
+                          <span style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)", minWidth: 36, textAlign: "right" }}>{pct}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              ) : (
+                <EmptyState icon="🍩" message="No status data available for this period." />
               )}
             </div>
-          </div>
+          </ChartCard>
         </div>
 
-        {/* Top return reasons */}
-        <div
-          style={{
-            background: "var(--rpm-surface)",
-            borderRadius: 14,
-            padding: 24,
-            border: "1px solid var(--rpm-border)",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            marginBottom: 32,
-          }}
-        >
-          <h3 style={{ margin: "0 0 20px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-            Top return reasons
-          </h3>
-          <div style={{ height: Math.max(200, topReasons.length * 32) }}>
-            {topReasons.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={topReasons.map((r) => ({
-                    name: r.reason.length > 28 ? r.reason.slice(0, 28) + "…" : r.reason,
-                    count: r.count,
-                    fullName: r.reason,
-                  }))}
-                  layout="vertical"
-                  margin={{ top: 4, right: 24, left: 4, bottom: 4 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" horizontal={false} />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: "#64748b" }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 12, fill: "#64748b" }} width={140} axisLine={false} tickLine={false} />
-                  <Tooltip
-                    contentStyle={{ borderRadius: 10, border: "1px solid #e5e7eb", fontSize: 13 }}
-                    formatter={(value: number, _: unknown, props: { payload?: { fullName?: string } }) => [
-                      value,
-                      props.payload?.fullName ?? "Returns",
-                    ]}
-                  />
-                  <Bar dataKey="count" fill="#005bd3" radius={[0, 4, 4, 0]} name="Returns" />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div
-                style={{
-                  height: "100%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--rpm-text-muted)",
-                  fontSize: 14,
-                  textAlign: "center",
-                  padding: 24,
-                }}
-              >
-                No return reasons recorded yet.
+        {/* ─── Performance Gauges ─── */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 20, marginBottom: 28 }}>
+          {[
+            { label: "Approval Rate", value: approvalRate, color: "#10b981", desc: `${approvedCount} approved of ${totalReturns}` },
+            { label: "Rejection Rate", value: rejectionRate, color: "#ef4444", desc: `${rejectedCount} rejected of ${totalReturns}` },
+            { label: "Refund Rate", value: refundRate, color: "#8b5cf6", desc: `${refundedCount} refunded of ${totalReturns}` },
+            ...(hasFyndConfig ? [{ label: "Fynd Sync Rate", value: fyndSyncRate, color: "#06b6d4", desc: `${fyndSyncedCount} synced of ${approvedCount} approved` }] : []),
+          ].map((g, i) => (
+            <div key={i} style={{
+              background: "var(--rpm-surface, white)", borderRadius: 14,
+              border: "1px solid var(--rpm-border, #e5e7eb)", padding: "24px 20px",
+              display: "flex", flexDirection: "column", alignItems: "center",
+              textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+            }}>
+              <div style={{ position: "relative", marginBottom: 12 }}>
+                <ProgressRing value={g.value} color={g.color} />
+                <div style={{
+                  position: "absolute", inset: 0, display: "flex", alignItems: "center",
+                  justifyContent: "center", fontSize: 20, fontWeight: 700, color: g.color,
+                }}>{g.value}%</div>
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Status breakdown + Recent returns */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
-            gap: 24,
-            marginBottom: 32,
-          }}
-        >
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Status breakdown
-            </h3>
-            {Object.keys(statusMap).length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 14 }}>
-                No returns in selected period.
-              </div>
-            ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-                {Object.entries(statusMap)
-                  .sort(([, a], [, b]) => b - a)
-                  .map(([status, count]) => (
-                    <Link
-                      key={status}
-                      to={`/app/returns?status=${encodeURIComponent(status)}`}
-                      style={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      <div>
-                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 14 }}>
-                          <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{status}</span>
-                          <span style={{ color: "var(--rpm-text-muted)", fontWeight: 600 }}>{count}</span>
-                        </div>
-                        <div
-                          style={{
-                            height: 8,
-                            background: "var(--rpm-surface-elevated)",
-                            borderRadius: 4,
-                            overflow: "hidden",
-                          }}
-                        >
-                          <div
-                            style={{
-                              width: `${(count / maxStatusCount) * 100}%`,
-                              height: "100%",
-                              background: getStatusColor(status),
-                              borderRadius: 4,
-                              minWidth: count > 0 ? 4 : 0,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </Link>
-                  ))}
-              </div>
-            )}
-          </div>
-
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-                Recent returns
-              </h3>
-              <Link to="/app/returns" style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
-                View all →
-              </Link>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>{g.label}</div>
+              <div style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)" }}>{g.desc}</div>
             </div>
-            {recentReturns.length === 0 ? (
-              <div
-                style={{
-                  padding: 32,
-                  textAlign: "center",
-                  background: "var(--rpm-surface-subtle)",
-                  borderRadius: 10,
-                  border: "1px dashed var(--rpm-border)",
-                }}
-              >
-                <p style={{ fontSize: 15, fontWeight: 500, marginBottom: 8, color: "var(--rpm-text)" }}>No returns yet</p>
-                <p style={{ color: "var(--rpm-text-muted)", fontSize: 14 }}>Returns will appear when customers initiate them via the portal.</p>
-              </div>
+          ))}
+        </div>
+
+        {/* ─── Top Return Reasons ─── */}
+        <ChartCard
+          title="Top return reasons"
+          subtitle="Most common reasons customers request returns"
+          action={
+            <Link to="/app/settings/rules" style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent, #3b82f6)", textDecoration: "none" }}>
+              Manage reasons →
+            </Link>
+          }
+        >
+          {topReasons.length > 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              {topReasons.map((r, i) => {
+                const pct = Math.round((r.count / maxReasonCount) * 100);
+                return (
+                  <div key={i}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6, fontSize: 13 }}>
+                      <span style={{ fontWeight: 500 }}>{r.reason}</span>
+                      <span style={{ fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>{r.count}</span>
+                    </div>
+                    <div style={{ height: 8, background: "var(--rpm-surface-elevated, #f1f5f9)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{
+                        width: `${pct}%`, height: "100%", borderRadius: 4, minWidth: r.count > 0 ? 4 : 0,
+                        background: `linear-gradient(90deg, ${CHART_PALETTE[i % CHART_PALETTE.length]}, ${CHART_PALETTE[(i + 1) % CHART_PALETTE.length]})`,
+                        transition: "width 0.4s ease",
+                      }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState icon="📝" message="No return reasons recorded yet. Add specific reasons in Settings → Policy Rules for better insights." />
+          )}
+        </ChartCard>
+
+        <div style={{ height: 28 }} />
+
+        {/* ─── Detailed Status Table ─── */}
+        <ChartCard
+          title="Status breakdown"
+          subtitle="Click any status to view those returns"
+          action={
+            <Link to="/app/returns" style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent, #3b82f6)", textDecoration: "none" }}>
+              View all returns →
+            </Link>
+          }
+        >
+          {Object.keys(statusMap).length === 0 ? (
+            <EmptyState icon="📊" message="No returns in the selected period. Try expanding the date range." />
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--rpm-border, #e5e7eb)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Status</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>Count</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>% of Total</th>
+                    <th style={{ padding: "10px 12px", minWidth: 180 }}></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Object.entries(statusMap)
+                    .sort(([, a], [, b]) => b - a)
+                    .map(([status, count]) => {
+                      const pct = totalReturns > 0 ? Math.round((count / totalReturns) * 100) : 0;
+                      return (
+                        <tr key={status} style={{ borderBottom: "1px solid var(--rpm-surface-elevated, #f1f5f9)" }}>
+                          <td style={{ padding: "12px" }}>
+                            <Link to={`/app/returns?status=${encodeURIComponent(status)}`} style={{ textDecoration: "none", color: "inherit", display: "flex", alignItems: "center", gap: 8 }}>
+                              <div style={{ width: 8, height: 8, borderRadius: "50%", background: getStatusColor(status) }} />
+                              <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{status}</span>
+                            </Link>
+                          </td>
+                          <td style={{ padding: "12px", textAlign: "right", fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{count}</td>
+                          <td style={{ padding: "12px", textAlign: "right", color: "var(--rpm-text-muted)", fontVariantNumeric: "tabular-nums" }}>{pct}%</td>
+                          <td style={{ padding: "12px" }}>
+                            <div style={{ height: 6, background: "var(--rpm-surface-elevated, #f1f5f9)", borderRadius: 3, overflow: "hidden" }}>
+                              <div style={{ width: `${pct}%`, height: "100%", background: getStatusColor(status), borderRadius: 3, minWidth: count > 0 ? 3 : 0, transition: "width 0.4s ease" }} />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  <tr style={{ borderTop: "2px solid var(--rpm-border, #e5e7eb)", fontWeight: 700 }}>
+                    <td style={{ padding: "12px" }}>Total</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{totalReturns}</td>
+                    <td style={{ padding: "12px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>100%</td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </ChartCard>
+
+        <div style={{ height: 28 }} />
+
+        {/* ─── Key Insights ─── */}
+        <ChartCard title="Key insights" subtitle="Automated observations based on your data">
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {totalReturns === 0 ? (
+              <EmptyState icon="💡" message="No data to generate insights. Returns will be analyzed as they come in." />
             ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--rpm-border)" }}>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>
-                        Return ID
-                      </th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>
-                        Order
-                      </th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>
-                        Status
-                      </th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}>
-                        Created
-                      </th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600, fontSize: 12, color: "var(--rpm-text-muted)", textTransform: "uppercase" }}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {recentReturns.map((r) => (
-                      <tr key={r.id} style={{ borderBottom: "1px solid var(--rpm-surface-elevated)" }}>
-                        <td style={{ padding: "12px", fontFamily: "monospace", fontSize: 13, fontWeight: 600 }}>
-                          <Link to={`/app/returns/${r.id}`} style={{ color: "var(--rpm-text)", textDecoration: "none" }}>
-                            {(r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)}
-                          </Link>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <Link to={`/app/returns/${r.id}`} style={{ fontWeight: 500, color: "var(--rpm-text)", textDecoration: "none" }}>
-                            {r.shopifyOrderName || r.id}
-                          </Link>
-                        </td>
-                        <td style={{ padding: "12px" }}>
-                          <span
-                            style={{
-                              display: "inline-block",
-                              padding: "4px 10px",
-                              borderRadius: 6,
-                              fontSize: 12,
-                              fontWeight: 600,
-                              background: `${getStatusColor(r.status)}18`,
-                              color: getStatusColor(r.status),
-                              textTransform: "capitalize",
-                            }}
-                          >
-                            {r.status}
-                          </span>
-                        </td>
-                        <td style={{ padding: "12px", color: "var(--rpm-text-muted)" }}>
-                          {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-                        </td>
-                        <td style={{ padding: "12px", textAlign: "right" }}>
-                          <Link to={`/app/returns/${r.id}`} style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
-                            View
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                {approvalRate >= 80 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 14, color: "#047857" }}>
+                    ✅ <strong>High approval rate ({approvalRate}%)</strong> — Your return policy is well-calibrated. Customers are submitting valid requests.
+                  </div>
+                )}
+                {approvalRate > 0 && approvalRate < 50 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 14, color: "#b91c1c" }}>
+                    ⚠️ <strong>Low approval rate ({approvalRate}%)</strong> — Consider reviewing your return policy. A high rejection rate may hurt customer satisfaction.
+                  </div>
+                )}
+                {avgProcessingDays !== null && avgProcessingDays > 3 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fffbeb", border: "1px solid #fde68a", fontSize: 14, color: "#92400e" }}>
+                    ⏱ <strong>Avg processing: {avgProcessingDays.toFixed(1)} days</strong> — Consider speeding up approvals. Faster processing improves customer retention.
+                  </div>
+                )}
+                {avgProcessingDays !== null && avgProcessingDays <= 1 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 14, color: "#047857" }}>
+                    ⚡ <strong>Fast processing ({avgProcessingDays.toFixed(1)} days)</strong> — Great job! Your team is resolving returns quickly.
+                  </div>
+                )}
+                {refundedCount === 0 && approvedCount > 0 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 14, color: "#1e40af" }}>
+                    💰 <strong>{approvedCount} approved returns awaiting refund</strong> — Process refunds in Shopify to complete the return cycle.
+                  </div>
+                )}
+                {topReasons.length > 0 && topReasons[0].count >= 2 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 14, color: "#1e40af" }}>
+                    📝 <strong>Top reason: "{topReasons[0].reason}"</strong> ({topReasons[0].count} times) — This might indicate a product quality or description issue worth investigating.
+                  </div>
+                )}
+                {periodChange > 50 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 14, color: "#b91c1c" }}>
+                    📈 <strong>Returns up {periodChange}% vs previous period</strong> — Monitor if this trend continues. Could indicate a product or fulfillment issue.
+                  </div>
+                )}
+                {periodChange < -20 && (
+                  <div style={{ padding: "12px 16px", borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 14, color: "#047857" }}>
+                    📉 <strong>Returns down {Math.abs(periodChange)}%</strong> — Great trend! Your return rate is decreasing compared to the previous period.
+                  </div>
+                )}
+              </>
             )}
           </div>
-        </div>
-
-        {/* Quick actions & Export */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
-            gap: 24,
-          }}
-        >
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Quick links
-            </h3>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-              <Link to="/app/returns">
-                <s-button variant="primary">View all returns</s-button>
-              </Link>
-              <Link to="/app/returns?status=pending">
-                <s-button variant="secondary">Pending returns</s-button>
-              </Link>
-              <Link to="/app/returns?status=approved">
-                <s-button variant="secondary">Approved returns</s-button>
-              </Link>
-              <Link to="/app/returns?status=rejected">
-                <s-button variant="secondary">Rejected returns</s-button>
-              </Link>
-              <Link to="/app">
-                <s-button variant="secondary">Dashboard</s-button>
-              </Link>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 14,
-              padding: 24,
-              border: "1px solid var(--rpm-border)",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text)" }}>
-              Export
-            </h3>
-            <p style={{ marginBottom: 16, color: "var(--rpm-text-muted)", fontSize: 14 }}>
-              Download returns data as CSV for the selected date range.
-            </p>
-            <a href={exportUrl} download style={{ textDecoration: "none" }}>
-              <s-button variant="secondary">Export to CSV</s-button>
-            </a>
-          </div>
-        </div>
+        </ChartCard>
       </div>
     </s-page>
   );

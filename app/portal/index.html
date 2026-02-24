@@ -632,6 +632,63 @@
     .return-summary-items li {
       margin: 4px 0;
     }
+
+    /* Upload Area */
+    .upload-area {
+      border: 2px dashed var(--portal-border);
+      border-radius: var(--portal-radius);
+      padding: 24px;
+      text-align: center;
+      background: color-mix(in srgb, var(--portal-surface) 95%, var(--portal-primary));
+      transition: all 0.2s;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .upload-area:hover,
+    .upload-area.drag-over {
+      border-color: var(--portal-primary);
+      background: color-mix(in srgb, var(--portal-primary) 0.05, transparent);
+    }
+
+    .upload-icon {
+      font-size: 28px;
+      margin-bottom: 8px;
+      display: block;
+    }
+
+    .file-input-hidden {
+      position: absolute;
+      width: 0;
+      height: 0;
+      opacity: 0;
+      overflow: hidden;
+    }
+
+    .upload-preview-list {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .upload-preview-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      background: var(--portal-surface);
+      border: 1px solid var(--portal-border);
+      padding: 6px 10px;
+      border-radius: 6px;
+    }
+
+    .upload-preview-remove {
+      color: var(--status-error);
+      cursor: pointer;
+      font-weight: 700;
+    }
   </style>
 </head>
 
@@ -748,6 +805,20 @@
           <textarea id="createCustomerNotes" class="form-input" rows="2"
             placeholder="Any additional details about your return"></textarea>
         </div>
+
+        <div class="form-group" id="uploadContainerStandard">
+          <label class="form-label">Upload product condition images or video <span
+              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
+          <div class="upload-area" id="uploadAreaStandard">
+            <span class="upload-icon">📸</span>
+            <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
+              drop</div>
+            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB) or Video
+              (max 50MB)</div>
+            <input type="file" id="mediaStandard" class="file-input-hidden" multiple accept="image/*,video/*" />
+          </div>
+          <div class="upload-preview-list" id="uploadPreviewStandard"></div>
+        </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
           Back</button>
@@ -783,17 +854,31 @@
           <select id="createManualReason" class="form-select"></select>
         </div>
         <div class="form-group">
-          <label class="form-label" for="createManualItems">Items to return <span style="color:#d72c0d">*</span></label>
+          <label class="form-label" for="createManualItems">Which items are you returning? <span
+              style="color:#d72c0d">*</span></label>
           <textarea id="createManualItems" class="form-input" rows="3"
-            placeholder="Describe each item — e.g. Blue t-shirt size M, qty 1"></textarea>
-          <p style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:6px;">Please include product name,
-            size/color, and quantity.</p>
+            placeholder="e.g. Black t-shirt (Size M) - 1 unit" required></textarea>
         </div>
+
+        <div class="form-group" id="uploadContainerManual">
+          <label class="form-label">Upload product condition images or video <span
+              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
+          <div class="upload-area" id="uploadAreaManual">
+            <span class="upload-icon">📸</span>
+            <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
+              drop</div>
+            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB) or Video
+              (max 50MB)</div>
+            <input type="file" id="mediaManual" class="file-input-hidden" multiple accept="image/*,video/*" />
+          </div>
+          <div class="upload-preview-list" id="uploadPreviewManual"></div>
+        </div>
+
         <div class="form-group">
           <label class="form-label" for="createManualCustomerNotes">Additional notes <span
               style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
           <textarea id="createManualCustomerNotes" class="form-input" rows="2"
-            placeholder="Any other details that might help us process your return"></textarea>
+            placeholder="Any other details we should know"></textarea>
         </div>
         <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnManualBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
@@ -957,21 +1042,34 @@
     (function buildTabs() {
       const wrap = document.getElementById('portal-tabs-wrap');
       const tabs = [];
-      if (PORTAL_CONFIG.showOrderTracking || PORTAL_CONFIG.showReturnTracking) {
-        tabs.push({ id: 'track', label: PORTAL_CONFIG.showOrderTracking && PORTAL_CONFIG.showReturnTracking ? 'Track orders & returns' : (PORTAL_CONFIG.showOrderTracking ? 'Track orders' : 'Track returns') });
+      if (PORTAL_CONFIG.showOrderTracking) {
+        tabs.push({ id: 'track_order', label: 'Track Order' });
       }
-      if (PORTAL_CONFIG.showCreateReturnTab) tabs.push({ id: 'create', label: 'Create return' });
+      if (PORTAL_CONFIG.showReturnTracking) {
+        tabs.push({ id: 'track_return', label: 'Track Return' });
+      }
+      if (PORTAL_CONFIG.showCreateReturnTab) {
+        tabs.push({ id: 'create', label: 'Create Return' });
+      }
       if (tabs.length === 0) { wrap.style.display = 'none'; return; }
       if (tabs.length === 1) { wrap.style.display = 'none'; return; }
       wrap.style.display = 'flex';
       wrap.innerHTML = tabs.map(function (t, i) {
-        const isDefault = (PORTAL_CONFIG.defaultTab === t.id) || (PORTAL_CONFIG.defaultTab === 'return' && t.id === 'track') || (i === 0);
+        const isDefault = (PORTAL_CONFIG.defaultTab === 'return' && t.id === 'track_return') || (PORTAL_CONFIG.defaultTab === 'track' && t.id === 'track_order') || (PORTAL_CONFIG.defaultTab === t.id) || (i === 0);
         return '<button type="button" class="portal-tab' + (isDefault ? ' active' : '') + '" data-tab="' + escapeHtml(t.id) + '">' + escapeHtml(t.label) + '</button>';
       }).join('');
-      tabs.forEach(function (t, i) {
-        const isDefault = (PORTAL_CONFIG.defaultTab === t.id) || (PORTAL_CONFIG.defaultTab === 'return' && t.id === 'track') || (i === 0);
-        if (isDefault) { document.getElementById('track-panel').style.display = t.id === 'track' ? 'block' : 'none'; document.getElementById('create-panel').style.display = t.id === 'create' ? 'block' : 'none'; }
-      });
+
+      const activeTabBtn = wrap.querySelector('.portal-tab.active') || wrap.querySelector('.portal-tab');
+      if (activeTabBtn) {
+        applyTabState(activeTabBtn.dataset.tab);
+      }
+
+      if (PORTAL_CONFIG.allowMediaUploads === false) {
+        var stdContainer = document.getElementById('uploadContainerStandard');
+        if (stdContainer) stdContainer.style.display = 'none';
+        var manContainer = document.getElementById('uploadContainerManual');
+        if (manContainer) manContainer.style.display = 'none';
+      }
     })();
 
     function getReasonsForCategory(productType) {
@@ -1019,16 +1117,52 @@
             : orders.map(function (o) {
               var status = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
               var friendlyStatus = friendlyOrderStatus(status);
-              var statusClass = friendlyStatus.cls;
+
+              var dStatus = friendlyStatus.label;
+              var dClass = friendlyStatus.cls;
+              var fyndHtml = '';
+
+              if (o.fyndData && o.fyndData.shipments && o.fyndData.shipments.length > 0) {
+                var ship = o.fyndData.shipments[0];
+                if (ship.shipmentStatus) {
+                  dStatus = ship.shipmentStatus;
+                  dClass = 'status-ok'; // default green unless matched otherwise
+                }
+                fyndHtml += '<div style="margin-top:16px;">';
+                // Timeline
+                if (true) {
+                  var unified = unifiedReturnStatus("approved", (ship.shipmentStatus || '').toLowerCase());
+                  fyndHtml += renderProgressSteps(unified.step);
+                }
+                var info = [];
+                if (ship.cpName) info.push(['Courier', ship.cpName]);
+                if (ship.forwardAwb) info.push(['Tracking #', ship.forwardAwb]);
+                if (ship.invoiceNumber) info.push(['Invoice', ship.invoiceNumber]);
+
+                if (info.length) {
+                  fyndHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:16px 0;padding:14px;background:color-mix(in srgb, var(--portal-text) 0.03, transparent);border-radius:10px;">';
+                  info.forEach(function (pair) {
+                    fyndHtml += '<div><div style="font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--portal-text-muted);margin-bottom:3px;">' + escapeHtml(pair[0]) + '</div>';
+                    fyndHtml += '<div style="font-size:0.875rem;font-weight:600;color:var(--portal-text);">' + escapeHtml(pair[1]) + '</div></div>';
+                  });
+                  fyndHtml += '</div>';
+                }
+                if (ship.trackingUrl) {
+                  fyndHtml += '<div style="margin:14px 0;"><a href="' + escapeHtml(ship.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="width:100%;justify-content:center;">📦 Track your shipment →</a></div>';
+                }
+                fyndHtml += '</div>';
+              }
+
               var html = '<div class="order-card">';
               html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">';
               html += '<div class="order-name" style="margin:0;">' + escapeHtml(o.name || o.id) + '</div>';
-              html += '<span class="status-badge ' + statusClass + '">' + escapeHtml(friendlyStatus.label) + '</span>';
+              html += '<span class="status-badge ' + dClass + '">' + escapeHtml(dStatus) + '</span>';
               html += '</div>';
               var details = [];
               if (o.createdAt) details.push('<span>📅 Ordered ' + new Date(o.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + '</span>');
               if (o.totalPrice) details.push('<span>💰 ' + escapeHtml(o.totalPrice) + '</span>');
               if (details.length) html += '<div class="order-meta">' + details.join('') + '</div>';
+              html += fyndHtml;
               html += '</div>';
               return html;
             }).join('');
@@ -1137,14 +1271,97 @@
       selectEl.innerHTML = reasons.map(function (r) { return '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + '</option>'; }).join('');
     }
 
+    function applyTabState(tabId) {
+      document.getElementById('track-panel').style.display = (tabId === 'track_order' || tabId === 'track_return') ? 'block' : 'none';
+      document.getElementById('create-panel').style.display = tabId === 'create' ? 'block' : 'none';
+
+      var select = document.getElementById('lookupType');
+      var lookupLabel = document.getElementById('lookupValueLabel');
+      var lookupInp = document.getElementById('lookupValue');
+
+      if (tabId === 'track_order') {
+        select.innerHTML = '<option value="order_no">Order Number</option><option value="email">Email Address</option><option value="mobile">Phone Number</option><option value="forward_awb">Forward AWB / Tracking</option>';
+        lookupLabel.textContent = 'Enter your order number';
+        lookupInp.placeholder = 'e.g. #1001 or 1001';
+      } else if (tabId === 'track_return') {
+        select.innerHTML = '<option value="return_id">Return Request ID</option><option value="return_no">Return Number</option><option value="email">Email Address</option><option value="mobile">Phone Number</option><option value="return_awb">Return AWB / Tracking</option>';
+        lookupLabel.textContent = 'Enter your return request ID';
+        lookupInp.placeholder = 'e.g. RPM-A1B2C3D4';
+      }
+
+      if (tabId === 'track_order' || tabId === 'track_return') {
+        document.getElementById('result-orders-wrap').style.display = tabId === 'track_order' ? 'block' : 'none';
+        document.getElementById('result-returns-wrap').style.display = tabId === 'track_return' ? 'block' : 'none';
+        document.getElementById('result-empty').style.display = 'none';
+        document.getElementById('step1').classList.add('active');
+        document.getElementById('step2').classList.remove('active');
+      }
+    }
+
     document.addEventListener('click', function (e) {
+      if (e.target.closest('.upload-preview-remove')) {
+        var el = e.target.closest('.upload-preview-remove');
+        var list = el.closest('.upload-preview-list');
+        var iStr = el.dataset.idx;
+        if (list.id === 'uploadPreviewStandard') {
+          filesStandard.splice(parseInt(iStr, 10), 1);
+          renderFiles(filesStandard, 'uploadPreviewStandard', 'mediaStandard');
+        } else {
+          filesManual.splice(parseInt(iStr, 10), 1);
+          renderFiles(filesManual, 'uploadPreviewManual', 'mediaManual');
+        }
+        return;
+      }
+
       var tab = e.target.closest('.portal-tab');
       if (!tab) return;
       document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
       tab.classList.add('active');
-      document.getElementById('track-panel').style.display = tab.dataset.tab === 'track' ? 'block' : 'none';
-      document.getElementById('create-panel').style.display = tab.dataset.tab === 'create' ? 'block' : 'none';
+      applyTabState(tab.dataset.tab);
     });
+
+    let filesStandard = [];
+    let filesManual = [];
+
+    function processFiles(files, targetArr, previewId, fileInputId) {
+      const MAX_IMG = 5 * 1024 * 1024; // 5MB
+      const MAX_VID = 50 * 1024 * 1024; // 50MB
+      let errs = [];
+      Array.from(files).forEach(f => {
+        if (f.type.startsWith('image/') && f.size > MAX_IMG) {
+          errs.push(f.name + ' exceeds 5MB limit.');
+        } else if (f.type.startsWith('video/') && f.size > MAX_VID) {
+          errs.push(f.name + ' exceeds 50MB limit.');
+        } else {
+          targetArr.push(f);
+        }
+      });
+      if (errs.length > 0) alert(errs.join('\n'));
+      renderFiles(targetArr, previewId, fileInputId);
+    }
+
+    function renderFiles(arr, previewId, inputId) {
+      var html = arr.map((f, i) => {
+        var icon = f.type.startsWith('video/') ? '🎥' : '🖼️';
+        return '<div class="upload-preview-item">' + icon + ' ' + Math.round(f.size / 1024) + 'KB ' + escapeHtml(f.name.substring(0, 15)) + '... <span class="upload-preview-remove" data-idx="' + i + '">×</span></div>';
+      }).join('');
+      document.getElementById(previewId).innerHTML = html;
+      const dt = new DataTransfer();
+      arr.forEach(f => dt.items.add(f));
+      document.getElementById(inputId).files = dt.files;
+    }
+
+    function setupDragDrop(areaId, inputId, destArr, previewId) {
+      var area = document.getElementById(areaId);
+      var inp = document.getElementById(inputId);
+      area.onclick = () => inp.click();
+      inp.onchange = (e) => processFiles(e.target.files, destArr, previewId, inputId);
+      area.ondragover = (e) => { e.preventDefault(); area.classList.add('drag-over'); };
+      area.ondragleave = (e) => { e.preventDefault(); area.classList.remove('drag-over'); };
+      area.ondrop = (e) => { e.preventDefault(); area.classList.remove('drag-over'); processFiles(e.dataTransfer.files, destArr, previewId, inputId); };
+    }
+    setupDragDrop('uploadAreaStandard', 'mediaStandard', filesStandard, 'uploadPreviewStandard');
+    setupDragDrop('uploadAreaManual', 'mediaManual', filesManual, 'uploadPreviewManual');
 
     function showManualForm(fromFallback, orderNumber, hint) {
       const hintEl = document.getElementById('createManualHint');
@@ -1161,30 +1378,26 @@
       fillReasonSelect(document.getElementById('createManualReason'), null);
       document.getElementById('create-step1').classList.remove('active');
       document.getElementById('create-step2').classList.remove('active');
+      document.getElementById('create-step3').classList.remove('active');
       document.getElementById('create-step2-manual').classList.add('active');
     }
 
-    document.getElementById('btnUseManualForm').onclick = () => {
-      document.getElementById('createErr1').textContent = '';
-      showManualForm(false, null, null);
-    };
+    document.getElementById('btnUseManualForm').onclick = () => showManualForm(false);
 
     document.getElementById('btnFetchOrder').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
-      const orderNumber = document.getElementById('createOrderNumber').value.trim();
+      const lookVal = document.getElementById('createOrderNumber').value.trim();
       const err = document.getElementById('createErr1');
       const btn = document.getElementById('btnFetchOrder');
       err.textContent = '';
-      if (!orderNumber) { err.textContent = 'Please enter your order number (e.g. #1001)'; return; }
-      const cleanOrder = orderNumber.replace(/^#/, '').trim();
-      if (!cleanOrder) { err.textContent = 'Please enter a valid order number'; return; }
+      if (!lookVal) { err.textContent = 'Please enter your order number'; return; }
       btn.disabled = true;
-      btn.textContent = 'Searching...';
+      btn.textContent = 'Looking up...';
       try {
-        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(cleanOrder));
+        const orderNumber = lookVal.replace(/^#/, '');
+        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber));
         if (data.fallback) {
-          createOrderData = { manual: true, orderNumber: data.orderNumber || cleanOrder, name: '#' + (data.orderNumber || cleanOrder) };
-          showManualForm(true, data.orderNumber || cleanOrder, data.error);
+          showManualForm(true, data.orderNumber, data.error);
           return;
         }
         if (!data.order) throw new Error('Order not found');
@@ -1192,11 +1405,13 @@
         if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
           throw new Error('This order has no items to return.');
         }
-        document.getElementById('createOrderName').textContent = 'Order ' + (createOrderData.name || '');
+        const nameEl = document.getElementById('createOrderName');
+        nameEl.textContent = 'Order ' + escapeHtml(createOrderData.name);
         const list = document.getElementById('createItemsList');
+        // Render returnable items
         list.innerHTML = createOrderData.lineItems.map(li => `
-          <div class="item-row">
-            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" data-price="${li.price || ''}" data-tags="${(li.productTags || []).join(',')}">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;border:1px solid var(--portal-border);border-radius:var(--portal-radius);margin-bottom:8px;background:var(--portal-surface);">
+            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" style="width:16px;height:16px;">
             <label for="item-${li.id}">${li.title} ${li.sku ? '(' + li.sku + ')' : ''} × ${li.quantity}</label>
             <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}" data-max="${li.quantity}">
           </div>
@@ -1219,7 +1434,7 @@
         err.textContent = e.message || 'Something went wrong. Please try again or use the manual form.';
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Find Order';
+        btn.textContent = 'Find my order';
       }
     };
 
@@ -1245,6 +1460,12 @@
       const email = document.getElementById('createManualEmail').value.trim();
       const reason = document.getElementById('createManualReason').value;
       const itemDesc = document.getElementById('createManualItems').value.trim();
+
+      var customNodesRaw = document.getElementById('createManualCustomerNotes').value.trim();
+      if (filesManual.length > 0) {
+        customNodesRaw += '\n\n[Attached Files: ' + filesManual.map(f => f.name).join(', ') + ']';
+      }
+
       if (!orderNumber) { err.textContent = 'Please enter your order number (e.g. #1001)'; return; }
       if (!email) { err.textContent = 'Please enter your email'; return; }
       if (!EMAIL_REGEX.test(email)) { err.textContent = 'Please enter a valid email address'; return; }
@@ -1262,7 +1483,7 @@
             manual: true,
             reasonCode: reason,
             manualItemDescription: itemDesc,
-            customerNotes: document.getElementById('createManualCustomerNotes').value.trim() || undefined
+            customerNotes: customNodesRaw || undefined
           })
         });
         document.getElementById('create-step2-manual').classList.remove('active');
@@ -1303,6 +1524,12 @@
         price: li.price,
         productTags: li.productTags || []
       }));
+
+      var customNodesRaw = document.getElementById('createCustomerNotes').value.trim();
+      if (filesStandard.length > 0) {
+        customNodesRaw += '\n\n[Attached Files: ' + filesStandard.map(f => f.name).join(', ') + ']';
+      }
+
       btn.disabled = true;
       btn.textContent = 'Submitting...';
       try {
@@ -1314,7 +1541,7 @@
             orderId: createOrderData.id,
             shopifyOrderName: createOrderData.name,
             customerEmail: document.getElementById('createEmail').value.trim() || undefined,
-            customerNotes: document.getElementById('createCustomerNotes').value.trim() || undefined,
+            customerNotes: customNodesRaw || undefined,
             orderCreatedAt: createOrderData.createdAt,
             shippingCountry: createOrderData.shippingCountry,
             shippingProvince: createOrderData.shippingProvince,
@@ -1377,17 +1604,14 @@
     document.getElementById('btnTrackThisReturn').onclick = function () {
       var idToTrack = lastCreatedReturnRequestId || lastCreatedReturnId;
       if (!idToTrack || !document.getElementById('shop').value.trim()) return;
-      var trackTab = document.querySelector('.portal-tab[data-tab="track"]');
+      var trackTab = document.querySelector('.portal-tab[data-tab="track_return"]');
       if (trackTab) {
         document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
         trackTab.classList.add('active');
+        applyTabState('track_return');
       }
-      document.getElementById('track-panel').style.display = 'block';
-      document.getElementById('create-panel').style.display = 'none';
       document.getElementById('lookupType').value = 'return_id';
       document.getElementById('lookupValue').value = idToTrack;
-      document.getElementById('step1').classList.add('active');
-      document.getElementById('step2').classList.remove('active');
       document.getElementById('btnLookup').click();
     };
 
@@ -1395,6 +1619,10 @@
       createOrderData = null;
       lastCreatedReturnId = null;
       lastCreatedReturnRequestId = null;
+      filesStandard = [];
+      filesManual = [];
+      document.getElementById('uploadPreviewStandard').innerHTML = '';
+      document.getElementById('uploadPreviewManual').innerHTML = '';
       document.getElementById('createOrderNumber').value = '';
       document.getElementById('createManualOrderNumber').value = '';
       document.getElementById('createManualEmail').value = '';

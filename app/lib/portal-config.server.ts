@@ -7,6 +7,7 @@ export type PortalConfig = {
   showReturnTracking: boolean;
   showCreateReturnTab: boolean;
   defaultTab: "order" | "return" | "create";
+  allowMediaUploads: boolean;
 };
 
 const DEFAULT_PORTAL_CONFIG: PortalConfig = {
@@ -14,6 +15,7 @@ const DEFAULT_PORTAL_CONFIG: PortalConfig = {
   showReturnTracking: true,
   showCreateReturnTab: true,
   defaultTab: "return",
+  allowMediaUploads: true,
 };
 
 export function parsePortalConfig(json: string | null | undefined): PortalConfig {
@@ -24,6 +26,7 @@ export function parsePortalConfig(json: string | null | undefined): PortalConfig
       showOrderTracking: parsed.showOrderTracking ?? true,
       showReturnTracking: parsed.showReturnTracking ?? true,
       showCreateReturnTab: parsed.showCreateReturnTab ?? true,
+      allowMediaUploads: parsed.allowMediaUploads ?? true,
       defaultTab: ["order", "return", "create"].includes(parsed.defaultTab ?? "")
         ? parsed.defaultTab!
         : "return",

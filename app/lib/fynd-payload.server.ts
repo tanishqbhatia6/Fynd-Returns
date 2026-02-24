@@ -565,3 +565,76 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
     return null;
   }
 }
+
+/** Status step from Fynd bag_status (forward or return journey) */
+export type FyndJourneyStep = {
+  status: string;
+  displayName: string;
+  time: string;
+  journeyType: "forward" | "return";
+};
+
+/**
+ * Extract shipment journey (forward or return) from Fynd payload.
+ * Reads bag_status from bags, filters by journey_type, sorts by updated_at.
+ */
+export function extractFyndJourney(
+  fyndPayloadJson: string | null | undefined,
+  journeyType: "forward" | "return"
+): FyndJourneyStep[] {
+  if (!fyndPayloadJson || typeof fyndPayloadJson !== "string") return [];
+  try {
+    const payload = JSON.parse(fyndPayloadJson) as unknown;
+    const o = payload as Record<string, unknown>;
+    const order = o.order as Record<string, unknown> | undefined;
+    const list = normalizeFyndPayload(payload);
+    const steps: FyndJourneyStep[] = [];
+    const seen = new Set<string>();
+
+    const processBag = (bag: Record<string, unknown>) => {
+      const bagStatusList = (bag.bag_status ?? bag.status_updates ?? []) as Record<string, unknown>[];
+      for (const bs of bagStatusList) {
+        const mapper = (bs.bag_state_mapper ?? bs.state_mapper ?? {}) as Record<string, unknown>;
+        const jt = String(mapper.journey_type ?? mapper.journeyType ?? "").toLowerCase();
+        if (jt !== journeyType) continue;
+        const status = String(bs.status ?? bs.shipment_status ?? "").trim();
+        const displayName = String(
+          mapper.display_name ?? mapper.displayName ?? mapper.app_display_name ?? mapper.name ?? status
+        ).trim();
+        const updatedAt = bs.updated_at ?? bs.created_at ?? bs.updated_ts ?? bs.created_ts ?? "";
+        const timeStr = typeof updatedAt === "string" ? updatedAt : "";
+        const key = `${status}-${timeStr}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        steps.push({
+          status,
+          displayName: displayName || status || "—",
+          time: timeStr,
+          journeyType: journeyType as "forward" | "return",
+        });
+      }
+    };
+
+    if (order && Array.isArray(order.bags)) {
+      for (const bag of order.bags as Record<string, unknown>[]) {
+        if (bag && typeof bag === "object") processBag(bag);
+      }
+    }
+    for (const item of list) {
+      const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
+      const bags = (raw.bags ?? raw.shipments ?? []) as Record<string, unknown>[];
+      for (const bag of bags) {
+        if (bag && typeof bag === "object") processBag(bag);
+      }
+    }
+
+    steps.sort((a, b) => {
+      const ta = a.time ? new Date(a.time).getTime() : 0;
+      const tb = b.time ? new Date(b.time).getTime() : 0;
+      return ta - tb;
+    });
+    return steps;
+  } catch {
+    return [];
+  }
+}

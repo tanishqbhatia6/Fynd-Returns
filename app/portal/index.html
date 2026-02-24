@@ -689,6 +689,44 @@
       cursor: pointer;
       font-weight: 700;
     }
+
+    .portal-sub-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      padding: 6px;
+      background: color-mix(in srgb, var(--portal-text) 0.04, transparent);
+      border-radius: 10px;
+    }
+
+    .portal-sub-tab {
+      flex: 1;
+      padding: 10px 16px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      color: var(--portal-text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .portal-sub-tab.active {
+      background: var(--portal-surface);
+      color: var(--portal-primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    .portal-sub-tab:hover:not(.active) {
+      color: var(--portal-text);
+    }
+
+    .upload-error-inline {
+      font-size: 0.8125rem;
+      color: var(--status-error);
+      margin-top: 8px;
+    }
   </style>
 </head>
 
@@ -704,6 +742,11 @@
     </header>
 
     <div id="portal-tabs-wrap" class="portal-tabs" style="display:none;"></div>
+
+    <div id="track-return-sub-tabs" class="portal-sub-tabs" style="display:none;">
+      <button type="button" class="portal-sub-tab active" data-sub="track">Track existing return</button>
+      <button type="button" class="portal-sub-tab" data-sub="create">Create new return</button>
+    </div>
 
     <div id="track-panel" class="portal-card">
       <div id="step1" class="portal-step active">
@@ -813,11 +856,12 @@
             <span class="upload-icon">📸</span>
             <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
               drop</div>
-            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB) or Video
-              (max 50MB)</div>
-            <input type="file" id="mediaStandard" class="file-input-hidden" multiple accept="image/*,video/*" />
+            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or Video</div>
+            <div style="font-size: 0.75rem; color:var(--portal-text-muted); margin-top:2px;">(max 50MB)</div>
+            <input type="file" id="mediaStandard" class="file-input-hidden" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
           </div>
           <div class="upload-preview-list" id="uploadPreviewStandard"></div>
+          <p id="uploadErrStandard" class="upload-error-inline" style="display:none;"></p>
         </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
@@ -867,11 +911,12 @@
             <span class="upload-icon">📸</span>
             <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
               drop</div>
-            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB) or Video
-              (max 50MB)</div>
-            <input type="file" id="mediaManual" class="file-input-hidden" multiple accept="image/*,video/*" />
+            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or Video</div>
+            <div style="font-size: 0.75rem; color:var(--portal-text-muted); margin-top:2px;">(max 50MB)</div>
+            <input type="file" id="mediaManual" class="file-input-hidden" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
           </div>
           <div class="upload-preview-list" id="uploadPreviewManual"></div>
+          <p id="uploadErrManual" class="upload-error-inline" style="display:none;"></p>
         </div>
 
         <div class="form-group">
@@ -1134,8 +1179,18 @@
                   dClass = 'status-ok'; // default green unless matched otherwise
                 }
                 fyndHtml += '<div style="margin-top:16px;">';
-                // Timeline
-                if (true) {
+                // Fynd Forward Shipment Journey progress bar
+                var forwardJourney = o.fyndData.forwardJourney || [];
+                if (forwardJourney.length > 0) {
+                  fyndHtml += '<div class="return-timeline" style="margin-bottom:16px;"><div class="return-timeline-title">Forward Shipment Journey</div>';
+                  forwardJourney.forEach(function (step, idx) {
+                    var time = step.time ? new Date(step.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    var isLast = idx === forwardJourney.length - 1;
+                    var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
+                    fyndHtml += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(step.displayName || step.status || '—') + '</span></div>';
+                  });
+                  fyndHtml += '</div>';
+                } else {
                   var unified = unifiedReturnStatus("approved", (ship.shipmentStatus || '').toLowerCase());
                   fyndHtml += renderProgressSteps(unified.step);
                 }
@@ -1207,9 +1262,11 @@
               // Progress steps
               html += renderProgressSteps(unified.step);
 
-              // Key details grid
+              // Key details grid: Shopify Order, Return ID, Fynd shipment, tracking
               var info = [];
+              if (x.shopifyOrderName) info.push(['Shopify Order', x.shopifyOrderName]);
               if (x.returnRequestNo) info.push(['Return ID', x.returnRequestNo]);
+              if (x.fyndShipmentId) info.push(['Fynd Shipment ID', x.fyndShipmentId]);
               if (ti.awbNo || x.returnAwb) info.push(['Tracking #', ti.awbNo || x.returnAwb]);
               if (ti.logisticsPartner) info.push(['Courier', ti.logisticsPartner]);
               if (x.createdAt) info.push(['Submitted', new Date(x.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })]);
@@ -1239,11 +1296,21 @@
                 html += '<div style="white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
               }
 
-              // Timeline
+              // Timeline: prefer Fynd return journey, then tracking details + DB events
+              var returnJourney = x.returnJourney || [];
               var fyndUpdates = ti.trackingDetails || [];
               var dbEvents = (x.events || []).slice();
 
-              if (fyndUpdates.length || dbEvents.length) {
+              if (returnJourney.length > 0) {
+                html += '<div class="return-timeline"><div class="return-timeline-title">Return Journey (End to End)</div>';
+                returnJourney.forEach(function (step, idx) {
+                  var time = step.time ? new Date(step.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                  var isLast = idx === returnJourney.length - 1;
+                  var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
+                  html += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(step.displayName || step.status || '—') + '</span></div>';
+                });
+                html += '</div>';
+              } else if (fyndUpdates.length || dbEvents.length) {
                 html += '<div class="return-timeline"><div class="return-timeline-title">Activity</div>';
                 var allActivity = [];
                 dbEvents.forEach(function (ev) {
@@ -1303,6 +1370,9 @@
     }
 
     function applyTabState(tabId) {
+      var subTabsWrap = document.getElementById('track-return-sub-tabs');
+      subTabsWrap.style.display = (tabId === 'track_return' && PORTAL_CONFIG.showCreateReturnTab) ? 'flex' : 'none';
+
       document.getElementById('track-panel').style.display = (tabId === 'track_order' || tabId === 'track_return') ? 'block' : 'none';
       document.getElementById('create-panel').style.display = tabId === 'create' ? 'block' : 'none';
 
@@ -1315,9 +1385,9 @@
         lookupLabel.textContent = 'Enter your order number';
         lookupInp.placeholder = 'e.g. #1001 or 1001';
       } else if (tabId === 'track_return') {
-        select.innerHTML = '<option value="return_id">Return Request ID</option><option value="return_no">Return Number</option><option value="email">Email Address</option><option value="mobile">Phone Number</option><option value="return_awb">Return AWB / Tracking</option>';
-        lookupLabel.textContent = 'Enter your return request ID';
-        lookupInp.placeholder = 'e.g. RPM-A1B2C3D4';
+        select.innerHTML = '<option value="order_no">Order Number</option><option value="return_id">Return Request ID</option><option value="return_no">Return Number</option><option value="email">Email Address</option><option value="mobile">Phone Number</option><option value="return_awb">Return AWB / Tracking</option>';
+        lookupLabel.textContent = 'Enter your order number or return ID';
+        lookupInp.placeholder = 'e.g. #1001 or RPM-A1B2C3D4';
       }
 
       if (tabId === 'track_order' || tabId === 'track_return') {
@@ -1330,6 +1400,21 @@
     }
 
     document.addEventListener('click', function (e) {
+      var subTab = e.target.closest('.portal-sub-tab');
+      if (subTab) {
+        document.querySelectorAll('.portal-sub-tab').forEach(function (t) { t.classList.remove('active'); });
+        subTab.classList.add('active');
+        if (subTab.dataset.sub === 'create') {
+          var createTab = document.querySelector('.portal-tab[data-tab="create"]');
+          if (createTab) {
+            document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
+            createTab.classList.add('active');
+            applyTabState('create');
+          }
+        }
+        return;
+      }
+
       if (e.target.closest('.upload-preview-remove')) {
         var el = e.target.closest('.upload-preview-remove');
         var list = el.closest('.upload-preview-list');
@@ -1337,37 +1422,69 @@
         if (list.id === 'uploadPreviewStandard') {
           filesStandard.splice(parseInt(iStr, 10), 1);
           renderFiles(filesStandard, 'uploadPreviewStandard', 'mediaStandard');
+          var errStd = document.getElementById('uploadErrStandard');
+          if (errStd) { errStd.textContent = ''; errStd.style.display = 'none'; }
         } else {
           filesManual.splice(parseInt(iStr, 10), 1);
           renderFiles(filesManual, 'uploadPreviewManual', 'mediaManual');
+          var errMan = document.getElementById('uploadErrManual');
+          if (errMan) { errMan.textContent = ''; errMan.style.display = 'none'; }
         }
         return;
       }
 
       var tab = e.target.closest('.portal-tab');
-      if (!tab) return;
-      document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
-      tab.classList.add('active');
-      applyTabState(tab.dataset.tab);
+      if (tab) {
+        document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
+        tab.classList.add('active');
+        applyTabState(tab.dataset.tab);
+        if (tab.dataset.tab === 'track_return') {
+          document.querySelectorAll('.portal-sub-tab').forEach(function (t) {
+            t.classList.toggle('active', t.dataset.sub === 'track');
+          });
+        }
+        return;
+      }
     });
 
     let filesStandard = [];
     let filesManual = [];
 
-    function processFiles(files, targetArr, previewId, fileInputId) {
+    function processFiles(files, targetArr, previewId, fileInputId, errorElId) {
       const MAX_IMG = 5 * 1024 * 1024; // 5MB
       const MAX_VID = 50 * 1024 * 1024; // 50MB
+      const ALLOWED_IMG = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+      const ALLOWED_VID = ['video/mp4', 'video/webm', 'video/quicktime'];
       let errs = [];
+      const existingNames = new Set(targetArr.map(f => f.name + '-' + f.size));
       Array.from(files).forEach(f => {
-        if (f.type.startsWith('image/') && f.size > MAX_IMG) {
-          errs.push(f.name + ' exceeds 5MB limit.');
-        } else if (f.type.startsWith('video/') && f.size > MAX_VID) {
-          errs.push(f.name + ' exceeds 50MB limit.');
-        } else {
-          targetArr.push(f);
+        if (f.size === 0) { errs.push(f.name + ' is empty.'); return; }
+        const isImg = f.type.startsWith('image/') || ALLOWED_IMG.includes(f.type);
+        const isVid = f.type.startsWith('video/') || ALLOWED_VID.includes(f.type);
+        if (!isImg && !isVid) {
+          errs.push(f.name + ' is not a supported format. Use images (JPEG, PNG, GIF, WebP) or video (MP4, WebM).');
+          return;
         }
+        const key = f.name + '-' + f.size;
+        if (existingNames.has(key)) { return; }
+        if (isImg && f.size > MAX_IMG) {
+          errs.push(f.name + ' exceeds 5MB limit.');
+          return;
+        }
+        if (isVid && f.size > MAX_VID) {
+          errs.push(f.name + ' exceeds 50MB limit.');
+          return;
+        }
+        existingNames.add(key);
+        targetArr.push(f);
       });
-      if (errs.length > 0) alert(errs.join('\n'));
+      var errEl = errorElId ? document.getElementById(errorElId) : null;
+      if (errEl) {
+        errEl.textContent = errs.length > 0 ? errs.join(' ') : '';
+        errEl.style.display = errs.length > 0 ? 'block' : 'none';
+      } else if (errs.length > 0) {
+        alert(errs.join('\n'));
+      }
       renderFiles(targetArr, previewId, fileInputId);
     }
 
@@ -1382,17 +1499,17 @@
       document.getElementById(inputId).files = dt.files;
     }
 
-    function setupDragDrop(areaId, inputId, destArr, previewId) {
+    function setupDragDrop(areaId, inputId, destArr, previewId, errorElId) {
       var area = document.getElementById(areaId);
       var inp = document.getElementById(inputId);
       area.onclick = () => inp.click();
-      inp.onchange = (e) => processFiles(e.target.files, destArr, previewId, inputId);
+      inp.onchange = (e) => processFiles(e.target.files, destArr, previewId, inputId, errorElId);
       area.ondragover = (e) => { e.preventDefault(); area.classList.add('drag-over'); };
       area.ondragleave = (e) => { e.preventDefault(); area.classList.remove('drag-over'); };
-      area.ondrop = (e) => { e.preventDefault(); area.classList.remove('drag-over'); processFiles(e.dataTransfer.files, destArr, previewId, inputId); };
+      area.ondrop = (e) => { e.preventDefault(); area.classList.remove('drag-over'); processFiles(e.dataTransfer.files, destArr, previewId, inputId, errorElId); };
     }
-    setupDragDrop('uploadAreaStandard', 'mediaStandard', filesStandard, 'uploadPreviewStandard');
-    setupDragDrop('uploadAreaManual', 'mediaManual', filesManual, 'uploadPreviewManual');
+    setupDragDrop('uploadAreaStandard', 'mediaStandard', filesStandard, 'uploadPreviewStandard', 'uploadErrStandard');
+    setupDragDrop('uploadAreaManual', 'mediaManual', filesManual, 'uploadPreviewManual', 'uploadErrManual');
 
     function showManualForm(fromFallback, orderNumber, hint) {
       const hintEl = document.getElementById('createManualHint');

@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { hashLookupValue } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
-import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab } from "../lib/fynd-payload.server";
+import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab, extractFyndJourney } from "../lib/fynd-payload.server";
 import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import shopify from "../shopify.server";
@@ -105,9 +105,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       const trackingInfo = getTrackingInfoFromFyndPayload(payload);
+      const returnJourney = payload ? extractFyndJourney(payload, "return") : [];
       return {
         ...r,
         trackingInfo: trackingInfo ?? undefined,
+        returnJourney,
       };
     }));
 
@@ -159,6 +161,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const payloadJson = searchResult != null ? JSON.stringify(searchResult) : null;
               if (payloadJson && items.length > 0) {
                 fyndData = parseFyndOrderDetailsForTab(payloadJson);
+                if (fyndData) {
+                  (fyndData as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+                }
               }
             } catch (fErr) {
               console.warn("Fynd search shipment error for order", orderNumber, fErr);

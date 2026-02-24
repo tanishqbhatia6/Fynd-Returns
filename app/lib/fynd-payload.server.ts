@@ -175,6 +175,10 @@ export function normalizeFyndPayload(payload: unknown): unknown[] {
   const o = payload as Record<string, unknown>;
   if (Array.isArray(o.items)) return o.items;
   if (Array.isArray(o.shipments)) return o.shipments;
+  if (Array.isArray(o.results)) return o.results;
+  const dataExt = o.data as Record<string, unknown> | undefined;
+  if (dataExt && Array.isArray(dataExt.items)) return dataExt.items;
+
   const order = o.order as Record<string, unknown> | undefined;
   if (order && typeof order === "object" && Array.isArray(order.shipments)) return order.shipments;
   if (order && typeof order === "object" && Array.isArray(order.bags)) return order.bags;

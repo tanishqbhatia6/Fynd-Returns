@@ -129,14 +129,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (order) {
           if (fyndClient && "searchShipmentsByExternalOrderId" in fyndClient) {
             try {
-              const searchResult = await fyndClient.searchShipmentsByExternalOrderId(orderNumber, {
+              let searchResult = await fyndClient.searchShipmentsByExternalOrderId(orderNumber, {
                 fulfillmentType: "FULFILLMENT",
                 parentViewSlug: "all",
                 childViewSlug: "all"
               });
+              let items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
 
-              let payloadJson = searchResult != null ? JSON.stringify(searchResult) : null;
-              if (payloadJson) {
+              if (items.length === 0 && order.affiliateOrderId) {
+                searchResult = await fyndClient.searchShipmentsByExternalOrderId(order.affiliateOrderId, {
+                  fulfillmentType: "FULFILLMENT",
+                  parentViewSlug: "all",
+                  childViewSlug: "all",
+                  searchType: "channel_order_id"
+                });
+                items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
+              }
+
+              if (items.length === 0 && order.id) {
+                searchResult = await fyndClient.searchShipmentsByExternalOrderId(order.id.split("/").pop() || "", {
+                  fulfillmentType: "FULFILLMENT",
+                  parentViewSlug: "all",
+                  childViewSlug: "all",
+                  searchType: "order_id"
+                });
+                items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
+              }
+
+              const payloadJson = searchResult != null ? JSON.stringify(searchResult) : null;
+              if (payloadJson && items.length > 0) {
                 fyndData = parseFyndOrderDetailsForTab(payloadJson);
               }
             } catch (fErr) {

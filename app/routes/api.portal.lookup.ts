@@ -2,8 +2,9 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { hashLookupValue } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
-import { getTrackingInfoFromFyndPayload } from "../lib/fynd-payload.server";
-import { fetchOrdersByCustomer } from "../lib/shopify-admin.server";
+import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab } from "../lib/fynd-payload.server";
+import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { createFyndClientOrError } from "../lib/fynd.server";
 import shopify from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -64,31 +65,92 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const returnsRaw =
       matchedReturnIds.length > 0
         ? await prisma.returnCase.findMany({
-            where: { id: { in: matchedReturnIds }, shopId: shopRecord.id },
-            include: {
-              items: true,
-              events: { orderBy: { happenedAt: "desc" }, take: 10 },
-            },
-            orderBy: { createdAt: "desc" },
-          })
+          where: { id: { in: matchedReturnIds }, shopId: shopRecord.id },
+          include: {
+            items: true,
+            events: { orderBy: { happenedAt: "desc" }, take: 10 },
+          },
+          orderBy: { createdAt: "desc" },
+        })
         : [];
 
-    const returns = returnsRaw.map((r) => {
-      const payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+    const shopWithSettings = await prisma.shop.findUnique({
+      where: { shopDomain },
+      include: { settings: true },
+    });
+    const settingsForFynd = shopWithSettings?.settings as Parameters<typeof createFyndClientOrError>[0] | null;
+    let fyndClient: any = null;
+    if (settingsForFynd) {
+      const fyndResult = await createFyndClientOrError(settingsForFynd, { requirePlatform: true });
+      if (fyndResult.ok) fyndClient = fyndResult.client;
+    }
+
+    const returns = await Promise.all(returnsRaw.map(async (r) => {
+      let payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+
+      if (fyndClient && r.shopifyOrderName && r.fyndShipmentId) {
+        try {
+          const orderNumber = r.shopifyOrderName.replace(/^#/, "");
+          const searchResult = await fyndClient.searchShipmentsByExternalOrderId(orderNumber, {
+            fulfillmentType: "RETURN"
+          });
+          const items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
+          const matchedShipment = items.find((s: any) => String(s.shipment_id || s.id) === String(r.fyndShipmentId));
+          if (matchedShipment) {
+            payload = JSON.stringify([matchedShipment]);
+          }
+        } catch (fErr) {
+          console.warn("Could not fetch realtime tracking for return", r.id, fErr);
+        }
+      }
+
       const trackingInfo = getTrackingInfoFromFyndPayload(payload);
       return {
         ...r,
         trackingInfo: trackingInfo ?? undefined,
       };
-    });
+    }));
 
-    let orders: Array<{ id: string; name: string; createdAt: string; email?: string | null; totalPrice?: string; displayFinancialStatus?: string; displayFulfillmentStatus?: string }> = [];
+    let orders: Array<{ id: string; name: string; createdAt: string; email?: string | null; totalPrice?: string; displayFinancialStatus?: string; displayFulfillmentStatus?: string; fyndData?: any }> = [];
     if (lookupType === "email" && norm.includes("@")) {
       try {
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
         orders = await fetchOrdersByCustomer(admin, norm);
       } catch (err) {
         console.error("Portal lookup orders by email:", err);
+      }
+    } else if (lookupType === "order_no") {
+      try {
+        const orderNumber = norm.replace(/^#/, "");
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const order = await fetchOrderByOrderNumber(admin, orderNumber);
+
+        let fyndData = null;
+        if (order) {
+          if (fyndClient && "searchShipmentsByExternalOrderId" in fyndClient) {
+            try {
+              const searchResult = await fyndClient.searchShipmentsByExternalOrderId(orderNumber, {
+                fulfillmentType: "FULFILLMENT",
+                parentViewSlug: "all",
+                childViewSlug: "all"
+              });
+
+              let payloadJson = searchResult != null ? JSON.stringify(searchResult) : null;
+              if (payloadJson) {
+                fyndData = parseFyndOrderDetailsForTab(payloadJson);
+              }
+            } catch (fErr) {
+              console.warn("Fynd search shipment error for order", orderNumber, fErr);
+            }
+          }
+
+          orders.push({
+            ...order,
+            fyndData
+          });
+        }
+      } catch (err) {
+        console.error("Portal lookup order by order_no:", err);
       }
     }
 

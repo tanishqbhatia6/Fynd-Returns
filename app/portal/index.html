@@ -1105,11 +1105,16 @@
         document.getElementById('step1').classList.remove('active');
         document.getElementById('step2').classList.add('active');
 
-        const showOrders = PORTAL_CONFIG.showOrderTracking && orders.length > 0;
-        const showReturns = PORTAL_CONFIG.showReturnTracking && returns.length > 0;
-        document.getElementById('result-orders-wrap').style.display = PORTAL_CONFIG.showOrderTracking ? 'block' : 'none';
-        document.getElementById('result-returns-wrap').style.display = PORTAL_CONFIG.showReturnTracking ? 'block' : 'none';
-        document.getElementById('result-empty').style.display = (orders.length === 0 && returns.length === 0) ? 'block' : 'none';
+        const activeTabBtn = document.querySelector('.portal-tab.active');
+        const activeTabId = activeTabBtn ? activeTabBtn.dataset.tab : (PORTAL_CONFIG.defaultTab === 'order' ? 'track_order' : 'track_return');
+
+        const showOrders = PORTAL_CONFIG.showOrderTracking && activeTabId === 'track_order';
+        const showReturns = PORTAL_CONFIG.showReturnTracking && activeTabId === 'track_return';
+        document.getElementById('result-orders-wrap').style.display = showOrders ? 'block' : 'none';
+        document.getElementById('result-returns-wrap').style.display = showReturns ? 'block' : 'none';
+
+        const isEmpty = (activeTabId === 'track_order' && orders.length === 0) || (activeTabId === 'track_return' && returns.length === 0);
+        document.getElementById('result-empty').style.display = isEmpty ? 'block' : 'none';
 
         if (PORTAL_CONFIG.showOrderTracking) {
           document.getElementById('result-orders').innerHTML = orders.length === 0
@@ -1149,6 +1154,17 @@
                 }
                 if (ship.trackingUrl) {
                   fyndHtml += '<div style="margin:14px 0;"><a href="' + escapeHtml(ship.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="width:100%;justify-content:center;">📦 Track your shipment →</a></div>';
+                }
+                if (ship.trackingDetails && ship.trackingDetails.length > 0) {
+                  fyndHtml += '<div class="return-timeline"><div class="return-timeline-title">Tracking History</div>';
+                  ship.trackingDetails.forEach(function (ev, idx) {
+                    var time = ev.time ? new Date(ev.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                    var label = ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '');
+                    var isLast = idx === 0;
+                    var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
+                    fyndHtml += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(label) + '</span></div>';
+                  });
+                  fyndHtml += '</div>';
                 }
                 fyndHtml += '</div>';
               }
@@ -1224,15 +1240,30 @@
               }
 
               // Timeline
-              var events = (x.events || []).slice().sort(function (a, b) { return new Date(a.happenedAt || 0) - new Date(b.happenedAt || 0); }).slice(-10);
-              if (events.length) {
+              var fyndUpdates = ti.trackingDetails || [];
+              var dbEvents = (x.events || []).slice();
+
+              if (fyndUpdates.length || dbEvents.length) {
                 html += '<div class="return-timeline"><div class="return-timeline-title">Activity</div>';
-                events.forEach(function (ev, idx) {
-                  var time = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                var allActivity = [];
+                dbEvents.forEach(function (ev) {
+                  var tVal = ev.happenedAt ? new Date(ev.happenedAt).getTime() : 0;
+                  var tStr = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
                   var label = friendlyEventLabel(ev.eventType || '', ev.source || '');
-                  var isLast = idx === events.length - 1;
+                  allActivity.push({ timeVal: tVal, timeStr: tStr, label: label });
+                });
+                fyndUpdates.forEach(function (ev) {
+                  var tVal = ev.time ? new Date(ev.time).getTime() : 0;
+                  var tStr = ev.time ? new Date(ev.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+                  var label = ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '');
+                  allActivity.push({ timeVal: tVal, timeStr: tStr, label: label });
+                });
+                allActivity.sort(function (a, b) { return a.timeVal - b.timeVal; });
+                allActivity = allActivity.slice(-15);
+                allActivity.forEach(function (ev, idx) {
+                  var isLast = idx === allActivity.length - 1;
                   var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
-                  html += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(label) + '</span></div>';
+                  html += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(ev.timeStr) + '</time> ' + escapeHtml(ev.label) + '</span></div>';
                 });
                 html += '</div>';
               }

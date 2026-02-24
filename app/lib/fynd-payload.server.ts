@@ -332,6 +332,11 @@ export type FyndOrderDetailsTab = {
       promotions?: string;
       coupon?: string;
     };
+    trackingDetails?: Array<{
+      status: string;
+      time: string;
+      message?: string;
+    }>;
     items: Array<{
       sku?: string;
       itemId?: string;
@@ -362,8 +367,8 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
     const orderFromFirst = (first?.order as Record<string, unknown>) ?? {};
     const fyndOrderId = first
       ? String(
-          first.order_id ?? first.orderId ?? first.channel_order_id ?? orderFromFirst.fynd_order_id ?? orderFromFirst.affiliate_order_id ?? first.affiliate_order_id ?? first.id ?? ""
-        )
+        first.order_id ?? first.orderId ?? first.channel_order_id ?? orderFromFirst.fynd_order_id ?? orderFromFirst.affiliate_order_id ?? first.affiliate_order_id ?? first.id ?? ""
+      )
       : null;
     const shipments = list.map((item) => {
       const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
@@ -431,15 +436,15 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const shipmentPricing =
         subtotalStr || totalStr || toNumStr(discountVal) || toNumStr(deliveryVal) || toNumStr(codVal) || toNumStr(promoVal) || toNumStr(couponVal) || currency
           ? {
-              subtotal: subtotalStr ?? undefined,
-              total: totalStr ?? undefined,
-              currency: currency ?? undefined,
-              discount: toNumStr(discountVal) ?? undefined,
-              deliveryCharges: toNumStr(deliveryVal) ?? undefined,
-              codAmount: toNumStr(codVal) ?? undefined,
-              promotions: toNumStr(promoVal) ?? undefined,
-              coupon: toNumStr(couponVal) ?? undefined,
-            }
+            subtotal: subtotalStr ?? undefined,
+            total: totalStr ?? undefined,
+            currency: currency ?? undefined,
+            discount: toNumStr(discountVal) ?? undefined,
+            deliveryCharges: toNumStr(deliveryVal) ?? undefined,
+            codAmount: toNumStr(codVal) ?? undefined,
+            promotions: toNumStr(promoVal) ?? undefined,
+            coupon: toNumStr(couponVal) ?? undefined,
+          }
           : undefined;
 
       const rawOrderItems = raw.orderItems ?? raw.order_items ?? raw.items ?? [];
@@ -524,6 +529,17 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const forwardShipmentIdVal = raw.forward_shipment_id ?? raw.forwardShipmentId;
       const forwardShipmentIdStr = forwardShipmentIdVal != null ? String(forwardShipmentIdVal).trim() : null;
       const returnShipmentId = raw.shipment_id ?? raw.shipmentId ?? raw.id ?? raw.channel_shipment_id;
+
+      let trackingDetails: Array<{ status: string, time: string, message?: string }> = [];
+      const trackingList = raw.tracking_details ?? raw.shipment_status_updates;
+      if (Array.isArray(trackingList)) {
+        trackingDetails = trackingList.map((t: Record<string, unknown>) => ({
+          status: String(t.status || t.shipment_status || t.state || ""),
+          time: String(t.time || t.created_at || t.timestamp || ""),
+          message: typeof t.message === "string" ? t.message : (typeof t.tracking_details === "string" ? t.tracking_details : undefined)
+        })).filter(t => t.status || t.time);
+      }
+
       return {
         shipmentId: String(returnShipmentId ?? "—"),
         forwardShipmentId: forwardShipmentIdStr || null,
@@ -536,6 +552,7 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         fulfillmentOptions: fulfillOpts ?? null,
         shipmentStatus: shipmentStatusStr ?? null,
         pricing: shipmentPricing,
+        trackingDetails,
         items,
       };
     });

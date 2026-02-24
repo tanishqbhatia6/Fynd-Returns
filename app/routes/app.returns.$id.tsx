@@ -599,21 +599,24 @@ export default function ReturnDetail() {
 
         <s-section heading="Return details">
           <div style={{ ...cardStyle }} className="app-card-interactive">
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "center" }}>
-              <span
-                className="app-status-badge"
-                style={{
-                  padding: "8px 16px",
-                  borderRadius: 20,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  background: `${getStatusColor(returnCase.status)}18`,
-                  color: getStatusColor(returnCase.status),
-                  border: `1px solid ${getStatusColor(returnCase.status)}40`,
-                }}
-              >
-                {returnCase.status}
-              </span>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 24, alignItems: "center" }}>
+              <div>
+                <span
+                  className="app-status-badge"
+                  style={{
+                    padding: "6px 14px",
+                    borderRadius: 24,
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: `${getStatusColor(returnCase.status)}18`,
+                    color: getStatusColor(returnCase.status),
+                    border: `1px solid ${getStatusColor(returnCase.status)}40`,
+                    display: "inline-block",
+                  }}
+                >
+                  {returnCase.status}
+                </span>
+              </div>
               <div>
                 <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 2 }}>Order</div>
                 <div style={{ fontWeight: 600, fontSize: 14 }}>{returnCase.shopifyOrderName || "—"}</div>
@@ -729,7 +732,7 @@ export default function ReturnDetail() {
                 </button>
                 {showRawFynd && (
                   <pre style={{ marginTop: 12, padding: 16, background: "var(--rpm-surface-elevated)", borderRadius: "var(--rpm-radius)", overflow: "auto", fontSize: 11, maxHeight: 400, border: "var(--rpm-border)" }}>
-                    {fyndPayloadInfo.rawJson}
+                    {fyndPayloadInfo?.rawJson}
                   </pre>
                 )}
               </div>
@@ -739,7 +742,7 @@ export default function ReturnDetail() {
 
         <s-section heading="Actions">
           <div style={{ ...cardStyle, padding: 24 }} className="app-card-interactive">
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
               {!["approved", "rejected", "completed"].includes(returnCase.status.toLowerCase()) && (
                 <>
                   <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
@@ -887,28 +890,39 @@ export default function ReturnDetail() {
               <p style={{ color: "var(--rpm-text-muted)", margin: "8px 0 0 0", fontSize: 13 }}>Events from the portal, admin actions, and Fynd webhooks will appear here.</p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 0, position: "relative" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "relative" }}>
               {(returnCase.events || []).map((ev, i) => (
                 <div
                   key={ev.id}
                   style={{
                     display: "flex",
-                    alignItems: "flex-start",
+                    alignItems: "center",
                     gap: 16,
-                    padding: "14px 18px",
-                    background: i % 2 === 0 ? "var(--rpm-surface)" : "var(--rpm-surface-subtle)",
-                    borderLeft: "4px solid var(--rpm-accent)",
-                    borderRadius: "0 var(--rpm-radius) var(--rpm-radius) 0",
-                    marginLeft: 0,
+                    padding: "16px 20px",
+                    background: "var(--rpm-surface)",
+                    boxShadow: "var(--rpm-shadow-sm)",
+                    borderLeft: `4px solid ${i === 0 ? "var(--rpm-accent)" : "var(--rpm-border-strong)"}`,
+                    borderRadius: "var(--rpm-radius-lg)",
+                    opacity: i === 0 ? 1 : 0.85,
                     fontSize: 14,
-                    transition: "background 0.2s ease",
+                    transition: "var(--rpm-transition)",
                   }}
                 >
-                  <span style={{ fontWeight: 600, color: "var(--rpm-accent)", minWidth: 90 }}>
-                    {ev.source === "fynd_webhook" ? "Fynd" : ev.source.charAt(0).toUpperCase() + ev.source.slice(1)}
-                  </span>
-                  <span style={{ flex: 1 }}>{ev.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}</span>
-                  <span style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>{new Date(ev.happenedAt).toLocaleString()}</span>
+                  <div style={{ width: 40, height: 40, borderRadius: 20, background: "var(--rpm-surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    {ev.source === "fynd_webhook" ? "🔄" : (ev.source === "portal" ? "🌐" : "👤")}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, color: "var(--rpm-text)", marginBottom: 4 }}>
+                      {ev.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
+                    </div>
+                    <div style={{ color: "var(--rpm-text-subtle)", fontSize: 13, display: "flex", gap: 8 }}>
+                      <span style={{ fontWeight: 500 }}>
+                        {ev.source === "fynd_webhook" ? "Fynd" : ev.source.charAt(0).toUpperCase() + ev.source.slice(1)}
+                      </span>
+                      &bull;
+                      <span>{new Date(ev.happenedAt).toLocaleString()}</span>
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>

@@ -163,7 +163,7 @@ export default function PortalInfo() {
               {[
                 { icon: "🔍", title: "Look up their order", desc: "Search by order number, email, phone, or tracking number" },
                 { icon: "📦", title: "Select items to return", desc: "Choose products, pick a reason, and submit the request" },
-                { icon: "�", title: "Track return status", desc: "Real-time updates from Shopify and Fynd shown on a timeline" },
+                { icon: "📍", title: "Track return status", desc: "Real-time updates from Shopify and Fynd shown on a timeline" },
                 { icon: "✉️", title: "Get notified", desc: "Email updates when their return is approved, shipped, or refunded" },
               ].map((item, i) => (
                 <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>

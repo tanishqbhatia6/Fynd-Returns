@@ -82,10 +82,21 @@ export default function SettingsDashboard() {
   return (
     <s-page heading="Settings">
       <div className="app-content">
-        <p style={{ marginBottom: 28, color: "var(--rpm-text-muted)", fontSize: 14, lineHeight: 1.6 }}>
-          Configure your return policies, integrations, notifications, and customer portal to match your business needs.
-        </p>
-        <div className="app-grid-2">
+        <div style={{
+          marginBottom: 28, padding: "20px 24px",
+          background: "var(--rpm-surface)", borderRadius: 14,
+          border: "1px solid var(--rpm-border)",
+          display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
+        }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>⚙️</div>
+          <div style={{ flex: 1 }}>
+            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Configuration</h2>
+            <p style={{ margin: "4px 0 0", color: "var(--rpm-text-muted)", fontSize: 13, lineHeight: 1.5 }}>
+              Configure your return policies, integrations, notifications, and customer portal to match your business needs.
+            </p>
+          </div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
           {cards.map((c) => (
             <Link key={c.to} to={c.to} className="app-settings-card">
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>

@@ -104,7 +104,7 @@ export default function ReturnsList() {
           <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
             <span>⚠️</span>
             <div>
-              <p style={{ fontWeight: 500, marginBottom: 4 }}>{error}</p>
+              <p style={{ fontWeight: 600, marginBottom: 4 }}>{error}</p>
               <p style={{ fontSize: 13, opacity: 0.85 }}>Try refreshing the page or contact support if the issue persists.</p>
             </div>
           </div>
@@ -184,17 +184,22 @@ export default function ReturnsList() {
 
         {/* Returns Table */}
         {returns.length === 0 ? (
-          <div className="app-empty-state">
-            <div className="app-empty-state-icon">📦</div>
-            <p className="app-empty-state-title">No returns found</p>
-            <p className="app-empty-state-desc">
+          <div className="app-empty-state" style={{ padding: 48 }}>
+            <div style={{ fontSize: 48, marginBottom: 16, opacity: 0.4 }}>📦</div>
+            <p className="app-empty-state-title" style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>No returns found</p>
+            <p className="app-empty-state-desc" style={{ maxWidth: 360, margin: "0 auto 20px", lineHeight: 1.6 }}>
               {query || status
-                ? "No returns match your search criteria. Try adjusting your filters."
-                : "Returns will appear here when customers initiate them via the customer portal. Share your portal URL to get started."}
+                ? "No returns match your search criteria. Try adjusting your filters or clearing them."
+                : "Returns will appear here when customers submit them via your portal. Share your portal URL to get started."}
             </p>
             {!query && !status && (
               <Link to="/app/portal" style={{ textDecoration: "none" }}>
-                <s-button variant="primary">View Customer Portal URL</s-button>
+                <s-button variant="primary">🌐 View Customer Portal</s-button>
+              </Link>
+            )}
+            {(query || status) && (
+              <Link to="/app/returns" style={{ textDecoration: "none" }}>
+                <s-button variant="secondary">Clear all filters</s-button>
               </Link>
             )}
           </div>

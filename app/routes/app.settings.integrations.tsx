@@ -124,7 +124,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
       const fyndClientId = String(formData.get("fyndClientId") ?? "").trim();
       const fyndClientSecret = String(formData.get("fyndClientSecret") ?? "").trim();
-      const fyndApplicationToken = String(formData.get("fyndApplicationToken") ?? "").trim();
+      // fyndApplicationToken is not used for Platform API (OAuth only)
 
       let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
       if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
@@ -166,20 +166,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
         return { success: false, error: rawResult.error, testResult: false, debugLogs: logs };
       }
-
-      if (requirePlatform) {
-        const rawResult = await testPlatformConnectionRaw(
-          { ...envSettings, fyndCompanyId: companyId, fyndApplicationId: applicationId, fyndCredentials: creds },
-          log
-        );
-        if (rawResult.ok) {
-          const msg = rawResult.warning
-            ? `Platform API connection successful. ${rawResult.warning}`
-            : "Platform API connection successful.";
-          return { success: true, testResult: true, testMessage: msg, debugLogs: logs };
-        }
-        return { success: false, error: rawResult.error, testResult: false, debugLogs: logs };
-      }
     }
 
     if (intent === "clear_token") {
@@ -201,7 +187,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const fyndApplicationId = String(formData.get("fyndApplicationId") ?? "").trim();
     const fyndClientId = String(formData.get("fyndClientId") ?? "").trim();
     const fyndClientSecret = String(formData.get("fyndClientSecret") ?? "").trim();
-    const fyndApplicationToken = String(formData.get("fyndApplicationToken") ?? "").trim();
+    // fyndApplicationToken is not used for Platform API (OAuth only)
     const policyJson = buildPolicyJson(formData);
 
     const validation = sanitizeCredentialInputs({
@@ -209,7 +195,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndApplicationId: fyndApplicationId || undefined,
       fyndClientId: fyndClientId || undefined,
       fyndClientSecret: fyndClientSecret || undefined,
-      fyndApplicationToken: fyndApplicationToken || undefined,
       fyndCustomBaseUrl: fyndCustomBaseUrl || undefined,
       policyJson: policyJson || undefined,
     });
@@ -296,206 +281,206 @@ export default function Integrations() {
   return (
     <s-page heading="Partner Integrations">
       <div className="app-content">
-      {fetcher.data?.error && !showTestError && (
-        <div className="app-alert app-alert-error">{fetcher.data.error}</div>
-      )}
-      {showSaveSuccess && (
-        <div className="app-alert app-alert-success">
-          {fetcher.data?.tokenUpdated ? "Credentials saved successfully." : "Settings saved successfully."}
-        </div>
-      )}
-      {showCleared && (
-        <div className="app-alert app-alert-success">Credentials cleared. Enter new values and Save.</div>
-      )}
-      {showTestSuccess && (
-        <div className="app-alert app-alert-success">✓ {fetcher.data?.testMessage ?? "Connection successful."}</div>
-      )}
-      {showTestError && (
-        <div className="app-alert app-alert-error" style={{ borderLeft: "4px solid #d72c0d" }}>
-          <div style={{ fontWeight: 500, marginBottom: 6 }}>Connection failed: {fetcher.data?.error}</div>
-          {(fetcher.data?.error?.includes("403") || fetcher.data?.error?.includes("Forbidden")) && (
-            <div style={{ marginTop: 12, padding: 12, background: "rgba(255,255,255,0.5)", borderRadius: 8, fontSize: 13 }}>
-              <strong>403 = Missing scopes.</strong> In Fynd Partners, your OAuth app needs <code>company/orders/read</code> and <code>company/orders/write</code>. Also verify: correct environment (UAT vs Prod), Company ID, Application ID. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3", textDecoration: "underline" }}>Scopes docs</a>
-            </div>
-          )}
-        </div>
-      )}
+        {fetcher.data?.error && !showTestError && (
+          <div className="app-alert app-alert-error">{fetcher.data.error}</div>
+        )}
+        {showSaveSuccess && (
+          <div className="app-alert app-alert-success">
+            {fetcher.data?.tokenUpdated ? "Credentials saved successfully." : "Settings saved successfully."}
+          </div>
+        )}
+        {showCleared && (
+          <div className="app-alert app-alert-success">Credentials cleared. Enter new values and Save.</div>
+        )}
+        {showTestSuccess && (
+          <div className="app-alert app-alert-success">✓ {fetcher.data?.testMessage ?? "Connection successful."}</div>
+        )}
+        {showTestError && (
+          <div className="app-alert app-alert-error" style={{ borderLeft: "4px solid #d72c0d" }}>
+            <div style={{ fontWeight: 500, marginBottom: 6 }}>Connection failed: {fetcher.data?.error}</div>
+            {(fetcher.data?.error?.includes("403") || fetcher.data?.error?.includes("Forbidden")) && (
+              <div style={{ marginTop: 12, padding: 12, background: "rgba(255,255,255,0.5)", borderRadius: 8, fontSize: 13 }}>
+                <strong>403 = Missing scopes.</strong> In Fynd Partners, your OAuth app needs <code>company/orders/read</code> and <code>company/orders/write</code>. Also verify: correct environment (UAT vs Prod), Company ID, Application ID. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3", textDecoration: "underline" }}>Scopes docs</a>
+              </div>
+            )}
+          </div>
+        )}
 
-      {fetcher.data?.debugLogs && fetcher.data.debugLogs.length > 0 && (
-        <details className="app-details" open={!!showTestError}>
-          <summary>Debug logs ({fetcher.data.debugLogs.length})</summary>
-          <pre style={{ margin: 0, padding: 16, background: "#1e1e1e", color: "#d4d4d4", fontSize: 12, overflow: "auto", maxHeight: 300 }}>
-            {fetcher.data.debugLogs.map((e, i) => (
-              <div key={i}>[{e.ts}] {e.step}: {e.message}{e.detail ? ` | ${e.detail}` : ""}</div>
-            ))}
-          </pre>
-        </details>
-      )}
+        {fetcher.data?.debugLogs && fetcher.data.debugLogs.length > 0 && (
+          <details className="app-details" open={!!showTestError}>
+            <summary>Debug logs ({fetcher.data.debugLogs.length})</summary>
+            <pre style={{ margin: 0, padding: 16, background: "#1e1e1e", color: "#d4d4d4", fontSize: 12, overflow: "auto", maxHeight: 300 }}>
+              {fetcher.data.debugLogs.map((e, i) => (
+                <div key={i}>[{e.ts}] {e.step}: {e.message}{e.detail ? ` | ${e.detail}` : ""}</div>
+              ))}
+            </pre>
+          </details>
+        )}
 
-      <fetcher.Form method="post">
-        <div style={{ marginBottom: 24, padding: "12px 16px", background: "#e8f4fc", borderRadius: 8, border: "1px solid #b6d4fe" }}>
-          <p className="app-field-helper" style={{ margin: 0, fontSize: 14 }}>
-            <strong>New to Fynd?</strong> Use the{" "}
-            <Link to="/app/settings/setup" style={{ color: "#005bd3", fontWeight: 600 }}>
-              Fynd Setup Guide
-            </Link>{" "}
-            for step-by-step onboarding with webhook configuration and testing.
+        <fetcher.Form method="post">
+          <div style={{ marginBottom: 24, padding: "12px 16px", background: "#e8f4fc", borderRadius: 8, border: "1px solid #b6d4fe" }}>
+            <p className="app-field-helper" style={{ margin: 0, fontSize: 14 }}>
+              <strong>New to Fynd?</strong> Use the{" "}
+              <Link to="/app/settings/setup" style={{ color: "#005bd3", fontWeight: 600 }}>
+                Fynd Setup Guide
+              </Link>{" "}
+              for step-by-step onboarding with webhook configuration and testing.
+            </p>
+          </div>
+          <p className="app-field-helper" style={{ marginBottom: 24, fontSize: 14 }}>
+            Connect Fynd for reverse logistics. All Fynd operations use <strong>Platform API only</strong> (OAuth). Storefront API is not used. From <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
           </p>
-        </div>
-        <p className="app-field-helper" style={{ marginBottom: 24, fontSize: 14 }}>
-          Connect Fynd for reverse logistics. All Fynd operations use <strong>Platform API only</strong> (OAuth). Storefront API is not used. From <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
-        </p>
 
-        <s-section heading="App Mode">
-          <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="radio" name="appMode" value="dev" checked={appMode === "dev"} onChange={() => setAppMode("dev")} />
-              <span><strong>Dev</strong> — Test mode. Shows dev banner. Use with UAT credentials.</span>
-            </label>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-              <input type="radio" name="appMode" value="prod" checked={appMode === "prod"} onChange={() => setAppMode("prod")} />
-              <span><strong>Prod Live</strong> — Live mode. Real operations. Use with production credentials.</span>
-            </label>
-          </div>
-        </s-section>
-
-        <s-section heading="Fynd Environment">
-          <div className="app-field">
-            <label>API Base URL</label>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 8 }}>
+          <s-section heading="App Mode">
+            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="fyndEnvironment" value="uat" checked={fyndEnvironment === "uat"} onChange={() => setFyndEnvironment("uat")} />
-                <span>UAT (Sandbox)</span>
+                <input type="radio" name="appMode" value="dev" checked={appMode === "dev"} onChange={() => setAppMode("dev")} />
+                <span><strong>Dev</strong> — Test mode. Shows dev banner. Use with UAT credentials.</span>
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="fyndEnvironment" value="prod" checked={fyndEnvironment === "prod"} onChange={() => setFyndEnvironment("prod")} />
-                <span>Production</span>
+                <input type="radio" name="appMode" value="prod" checked={appMode === "prod"} onChange={() => setAppMode("prod")} />
+                <span><strong>Prod Live</strong> — Live mode. Real operations. Use with production credentials.</span>
               </label>
             </div>
-            <p className="app-field-helper">
-              UAT: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.uat ?? "https://api.uat.fyndx1.de"}</code>
-              {" · "}
-              Prod: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.prod ?? "https://api.fynd.com"}</code>
-            </p>
-            <p className="app-field-helper">UAT and Prod use different credentials. Use credentials from the matching Fynd environment.</p>
-          </div>
-          <div className="app-field">
-            <label>Custom URL (optional override)</label>
-            <input type="text" name="fyndCustomBaseUrl" defaultValue={data.fyndCustomBaseUrl} placeholder="e.g. https://api.custom.fynd.com" autoComplete="off" className="app-input" />
-            <p className="app-field-helper">Leave empty to use preset. Include https://</p>
-          </div>
-        </s-section>
+          </s-section>
 
-        <s-section heading="Credentials">
-          <div className="app-field">
-            <label>Application ID</label>
-            <input type="text" name="fyndApplicationId" defaultValue={data.fyndApplicationId} placeholder="e.g. 67a09b70c8ea7c9123f00fab" autoComplete="off" className="app-input" />
-            <p className="app-field-helper">Shared by both APIs. From Company → Settings → Developers or your sales channel.</p>
-          </div>
-
-          <div className="app-card">
-            <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Platform API (required)</div>
-            <p className="app-field-helper" style={{ marginBottom: 8 }}>All Fynd operations use Platform API. Company ID + Client ID & Secret (OAuth).</p>
-            <p className="app-field-helper" style={{ marginBottom: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 8, border: "1px solid #fcd34d", fontSize: 13 }}>
-              <strong>Getting 403 Forbidden?</strong> Your OAuth app in Fynd Partners must have <code>company/orders/read</code> and <code>company/orders/write</code> scopes. Enable them in your extension/app config, then re-authorize. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>Fynd scopes docs</a>
-            </p>
+          <s-section heading="Fynd Environment">
             <div className="app-field">
-              <label>Company ID</label>
-              <input type="text" name="fyndCompanyId" defaultValue={data.fyndCompanyId} placeholder="e.g. 2263" autoComplete="off" className="app-input" />
+              <label>API Base URL</label>
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 8 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input type="radio" name="fyndEnvironment" value="uat" checked={fyndEnvironment === "uat"} onChange={() => setFyndEnvironment("uat")} />
+                  <span>UAT (Sandbox)</span>
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                  <input type="radio" name="fyndEnvironment" value="prod" checked={fyndEnvironment === "prod"} onChange={() => setFyndEnvironment("prod")} />
+                  <span>Production</span>
+                </label>
+              </div>
+              <p className="app-field-helper">
+                UAT: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.uat ?? "https://api.uat.fyndx1.de"}</code>
+                {" · "}
+                Prod: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.prod ?? "https://api.fynd.com"}</code>
+              </p>
+              <p className="app-field-helper">UAT and Prod use different credentials. Use credentials from the matching Fynd environment.</p>
             </div>
             <div className="app-field">
-              <label>Client ID</label>
-              <input type="text" name="fyndClientId" placeholder="Client ID" autoComplete="off" className="app-input" />
+              <label>Custom URL (optional override)</label>
+              <input type="text" name="fyndCustomBaseUrl" defaultValue={data.fyndCustomBaseUrl} placeholder="e.g. https://api.custom.fynd.com" autoComplete="off" className="app-input" />
+              <p className="app-field-helper">Leave empty to use preset. Include https://</p>
             </div>
+          </s-section>
+
+          <s-section heading="Credentials">
             <div className="app-field">
-              <label>Client Secret</label>
-              <input type="text" name="fyndClientSecret" placeholder="Client Secret" autoComplete="off" className="app-input" />
+              <label>Application ID</label>
+              <input type="text" name="fyndApplicationId" defaultValue={data.fyndApplicationId} placeholder="e.g. 67a09b70c8ea7c9123f00fab" autoComplete="off" className="app-input" />
+              <p className="app-field-helper">Shared by both APIs. From Company → Settings → Developers or your sales channel.</p>
             </div>
-          </div>
 
-          {data.fyndCredentials && (
-            <p style={{ fontSize: 13, color: "#008060", marginTop: 16, fontWeight: 500 }}>
-              ✓ Platform credentials configured. Enter new values to replace; leave blank to keep existing.
-            </p>
-          )}
-        </s-section>
-
-        <details className="app-details">
-          <summary>Advanced — Policy</summary>
-          <div className="app-details-content">
-            <p className="app-field-helper" style={{ marginBottom: 16 }}>Configure return policy rules. Values are stored as JSON.</p>
-            <div className="app-grid" style={{ marginBottom: 16 }}>
+            <div className="app-card">
+              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Platform API (required)</div>
+              <p className="app-field-helper" style={{ marginBottom: 8 }}>All Fynd operations use Platform API. Company ID + Client ID & Secret (OAuth).</p>
+              <p className="app-field-helper" style={{ marginBottom: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 8, border: "1px solid #fcd34d", fontSize: 13 }}>
+                <strong>Getting 403 Forbidden?</strong> Your OAuth app in Fynd Partners must have <code>company/orders/read</code> and <code>company/orders/write</code> scopes. Enable them in your extension/app config, then re-authorize. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>Fynd scopes docs</a>
+              </p>
               <div className="app-field">
-                <label>Return window (days)</label>
-                <input type="number" name="policyReturnWindowDays" min={1} max={365} defaultValue={data.policy.returnWindowDays} className="app-input" />
+                <label>Company ID</label>
+                <input type="text" name="fyndCompanyId" defaultValue={data.fyndCompanyId} placeholder="e.g. 2263" autoComplete="off" className="app-input" />
               </div>
               <div className="app-field">
-                <label>Min order value</label>
-                <input type="number" name="policyMinOrderValue" min={0} step={1} defaultValue={data.policy.minOrderValue} className="app-input" />
+                <label>Client ID</label>
+                <input type="text" name="fyndClientId" placeholder="Client ID" autoComplete="off" className="app-input" />
               </div>
               <div className="app-field">
-                <label>Restock fee (%)</label>
-                <input type="number" name="policyRestockFeePercent" min={0} max={100} step={0.5} defaultValue={data.policy.restockFeePercent} className="app-input" />
+                <label>Client Secret</label>
+                <input type="text" name="fyndClientSecret" placeholder="Client Secret" autoComplete="off" className="app-input" />
               </div>
             </div>
-            <div className="app-field" style={{ marginBottom: 16 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 500 }}>
-                <input type="checkbox" name="policyAllowExchange" defaultChecked={data.policy.allowExchange} />
-                <span>Allow exchange</span>
-              </label>
-            </div>
-            <div className="app-field" style={{ marginBottom: 16 }}>
-              <label>Refund methods</label>
-              <select name="policyRefundMethods" multiple size={3} defaultValue={data.policy.refundMethods} className="app-input">
-                {REFUND_METHOD_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <p className="app-field-helper">Ctrl/Cmd+click to select multiple</p>
-            </div>
-            <div className="app-field" style={{ marginBottom: 16 }}>
-              <label>Default refund method</label>
-              <select name="policyDefaultRefundMethod" defaultValue={data.policy.defaultRefundMethod} className="app-input">
-                {REFUND_METHOD_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-            <div className="app-field" style={{ marginBottom: 16 }}>
-              <label>Excluded tags (comma-separated)</label>
-              <input type="text" name="policyExcludedTags" placeholder="e.g. final-sale, no-return" defaultValue={data.policy.excludedTags.join(", ")} className="app-input" />
-            </div>
-            <div className="app-field">
-              <label>Allowed categories (comma-separated)</label>
-              <input type="text" name="policyAllowedCategories" placeholder="e.g. Apparel, Footwear" defaultValue={data.policy.allowedCategories.join(", ")} className="app-input" />
-            </div>
+
             {data.fyndCredentials && (
-              <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #e1e3e5" }}>
-                <div className="app-field-helper" style={{ marginBottom: 8 }}>Danger zone</div>
-                <button type="submit" name="intent" value="clear_token" disabled={fetcher.state !== "idle"} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d72c0d", background: "#fff", color: "#d72c0d", fontSize: 13, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>
-                  {fetcher.state !== "idle" ? "Please wait..." : "Clear credentials"}
-                </button>
-              </div>
+              <p style={{ fontSize: 13, color: "#008060", marginTop: 16, fontWeight: 500 }}>
+                ✓ Platform credentials configured. Enter new values to replace; leave blank to keep existing.
+              </p>
             )}
-          </div>
-        </details>
+          </s-section>
 
-        <div className="app-actions">
-          <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
-          <Link to="/app/settings">
-            <s-button variant="secondary" type="button">Discard</s-button>
-          </Link>
-          <span style={{ flex: 1, minWidth: 8 }} />
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            {data.hasPlatformCreds && (
-              <button type="submit" name="intent" value="test_platform" disabled={fetcher.state !== "idle"} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer", minHeight: 40 }}>{fetcher.state !== "idle" ? "Please wait…" : "Test Platform"}</button>
-            )}
-            {!data.hasPlatformCreds && (
-              <button type="submit" name="intent" value="test" disabled={fetcher.state !== "idle"} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer", minHeight: 40 }}>{fetcher.state !== "idle" ? "Please wait…" : "Test connection"}</button>
-            )}
+          <details className="app-details">
+            <summary>Advanced — Policy</summary>
+            <div className="app-details-content">
+              <p className="app-field-helper" style={{ marginBottom: 16 }}>Configure return policy rules. Values are stored as JSON.</p>
+              <div className="app-grid" style={{ marginBottom: 16 }}>
+                <div className="app-field">
+                  <label>Return window (days)</label>
+                  <input type="number" name="policyReturnWindowDays" min={1} max={365} defaultValue={data.policy.returnWindowDays} className="app-input" />
+                </div>
+                <div className="app-field">
+                  <label>Min order value</label>
+                  <input type="number" name="policyMinOrderValue" min={0} step={1} defaultValue={data.policy.minOrderValue} className="app-input" />
+                </div>
+                <div className="app-field">
+                  <label>Restock fee (%)</label>
+                  <input type="number" name="policyRestockFeePercent" min={0} max={100} step={0.5} defaultValue={data.policy.restockFeePercent} className="app-input" />
+                </div>
+              </div>
+              <div className="app-field" style={{ marginBottom: 16 }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 500 }}>
+                  <input type="checkbox" name="policyAllowExchange" defaultChecked={data.policy.allowExchange} />
+                  <span>Allow exchange</span>
+                </label>
+              </div>
+              <div className="app-field" style={{ marginBottom: 16 }}>
+                <label>Refund methods</label>
+                <select name="policyRefundMethods" multiple size={3} defaultValue={data.policy.refundMethods} className="app-input">
+                  {REFUND_METHOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+                <p className="app-field-helper">Ctrl/Cmd+click to select multiple</p>
+              </div>
+              <div className="app-field" style={{ marginBottom: 16 }}>
+                <label>Default refund method</label>
+                <select name="policyDefaultRefundMethod" defaultValue={data.policy.defaultRefundMethod} className="app-input">
+                  {REFUND_METHOD_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="app-field" style={{ marginBottom: 16 }}>
+                <label>Excluded tags (comma-separated)</label>
+                <input type="text" name="policyExcludedTags" placeholder="e.g. final-sale, no-return" defaultValue={data.policy.excludedTags.join(", ")} className="app-input" />
+              </div>
+              <div className="app-field">
+                <label>Allowed categories (comma-separated)</label>
+                <input type="text" name="policyAllowedCategories" placeholder="e.g. Apparel, Footwear" defaultValue={data.policy.allowedCategories.join(", ")} className="app-input" />
+              </div>
+              {data.fyndCredentials && (
+                <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #e1e3e5" }}>
+                  <div className="app-field-helper" style={{ marginBottom: 8 }}>Danger zone</div>
+                  <button type="submit" name="intent" value="clear_token" disabled={fetcher.state !== "idle"} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d72c0d", background: "#fff", color: "#d72c0d", fontSize: 13, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>
+                    {fetcher.state !== "idle" ? "Please wait..." : "Clear credentials"}
+                  </button>
+                </div>
+              )}
+            </div>
+          </details>
+
+          <div className="app-actions">
+            <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
+            <Link to="/app/settings">
+              <s-button variant="secondary" type="button">Discard</s-button>
+            </Link>
+            <span style={{ flex: 1, minWidth: 8 }} />
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              {data.hasPlatformCreds && (
+                <button type="submit" name="intent" value="test_platform" disabled={fetcher.state !== "idle"} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer", minHeight: 40 }}>{fetcher.state !== "idle" ? "Please wait…" : "Test Platform"}</button>
+              )}
+              {!data.hasPlatformCreds && (
+                <button type="submit" name="intent" value="test" disabled={fetcher.state !== "idle"} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer", minHeight: 40 }}>{fetcher.state !== "idle" ? "Please wait…" : "Test connection"}</button>
+              )}
+            </div>
           </div>
-        </div>
-      </fetcher.Form>
+        </fetcher.Form>
       </div>
     </s-page>
   );

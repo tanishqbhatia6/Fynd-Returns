@@ -48,10 +48,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const portalConfig = parsePortalConfig(portalConfigJson);
 
-  let portalHtml = readFileSync(
-    join(process.cwd(), "app", "portal", "index.html"),
-    "utf-8"
-  );
+  let portalHtml: string;
+  try {
+    portalHtml = readFileSync(
+      join(process.cwd(), "app", "portal", "index.html"),
+      "utf-8"
+    );
+  } catch (fsErr) {
+    const msg = fsErr instanceof Error ? fsErr.message : String(fsErr);
+    return new Response(`Portal template not found: ${msg}`, {
+      status: 500,
+      headers: { "Content-Type": "text/plain" },
+    });
+  }
   portalHtml = applyPortalThemeToHtml(portalHtml, theme);
   portalHtml = portalHtml
     .replace("%SHOP%", shopDomain)

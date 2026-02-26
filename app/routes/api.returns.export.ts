@@ -23,9 +23,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopId: shop.id,
     createdAt: { gte: rangeStart, lte: rangeEnd },
   };
-  if (status) (where as Record<string, unknown>).status = status;
+  if (status) where.status = status;
   if (query.trim()) {
-    (where as Record<string, unknown>).OR = [
+    where.OR = [
       { shopifyOrderName: { contains: query.trim(), mode: "insensitive" } },
       { forwardAwb: { contains: query.trim(), mode: "insensitive" } },
       { returnAwb: { contains: query.trim(), mode: "insensitive" } },

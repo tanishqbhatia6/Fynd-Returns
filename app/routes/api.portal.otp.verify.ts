@@ -17,16 +17,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { sessionId, otp } = await request.json();
     if (!sessionId || !otp) {
-      return Response.json({ error: "sessionId and otp required" }, { status: 400 });
+      return withCors(Response.json({ error: "sessionId and otp required" }, { status: 400 }), request);
     }
 
     const session = await prisma.lookupSession.findUnique({ where: { id: sessionId } });
     if (!session || session.expiresAt < new Date()) {
-      return Response.json({ error: "Invalid or expired session" }, { status: 400 });
+      return withCors(Response.json({ error: "Invalid or expired session" }, { status: 400 }), request);
     }
 
     if (session.otpTarget !== String(otp)) {
-      return Response.json({ error: "Invalid OTP" }, { status: 400 });
+      return withCors(Response.json({ error: "Invalid OTP" }, { status: 400 }), request);
     }
 
     const portalToken = createPortalToken({

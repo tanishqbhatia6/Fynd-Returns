@@ -16,15 +16,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { sessionId } = await request.json();
     if (!sessionId) {
-      return Response.json({ error: "sessionId required" }, { status: 400 });
+      return withCors(Response.json({ error: "sessionId required" }, { status: 400 }), request);
     }
 
     const session = await prisma.lookupSession.findUnique({ where: { id: sessionId } });
     if (!session || session.expiresAt < new Date()) {
-      return Response.json({ error: "Invalid or expired session" }, { status: 400 });
+      return withCors(Response.json({ error: "Invalid or expired session" }, { status: 400 }), request);
     }
     if (session.attemptsCount >= 5) {
-      return Response.json({ error: "Too many OTP attempts" }, { status: 429 });
+      return withCors(Response.json({ error: "Too many OTP attempts" }, { status: 429 }), request);
     }
 
     const otp = String(Math.floor(100000 + Math.random() * 900000));

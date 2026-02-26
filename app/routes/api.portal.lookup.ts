@@ -2,10 +2,12 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { hashLookupValue } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
-import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab, extractFyndJourney } from "../lib/fynd-payload.server";
+import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab, extractFyndJourney, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
 import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
-import { createFyndClientOrError } from "../lib/fynd.server";
+import { createFyndClientOrError, type FyndClientResult } from "../lib/fynd.server";
 import shopify from "../shopify.server";
+
+type FyndClient = Extract<FyndClientResult, { ok: true }>["client"];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -79,7 +81,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       include: { settings: true },
     });
     const settingsForFynd = shopWithSettings?.settings as Parameters<typeof createFyndClientOrError>[0] | null;
-    let fyndClient: any = null;
+    let fyndClient: FyndClient | null = null;
     if (settingsForFynd) {
       const fyndResult = await createFyndClientOrError(settingsForFynd, { requirePlatform: true });
       if (fyndResult.ok) fyndClient = fyndResult.client;
@@ -88,14 +90,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const returns = await Promise.all(returnsRaw.map(async (r) => {
       let payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
 
-      if (fyndClient && r.shopifyOrderName && r.fyndShipmentId) {
+      if (fyndClient && "searchShipmentsByExternalOrderId" in fyndClient && r.shopifyOrderName && r.fyndShipmentId) {
         try {
           const orderNumber = r.shopifyOrderName.replace(/^#/, "");
           const searchResult = await fyndClient.searchShipmentsByExternalOrderId(orderNumber, {
             fulfillmentType: "RETURN"
           });
-          const items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
-          const matchedShipment = items.find((s: any) => String(s.shipment_id || s.id) === String(r.fyndShipmentId));
+          const items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || (searchResult as Record<string, unknown>)?.results || [];
+          const matchedShipment = (items as Record<string, unknown>[]).find((s) => String(s.shipment_id || s.id) === String(r.fyndShipmentId));
           if (matchedShipment) {
             payload = JSON.stringify([matchedShipment]);
           }
@@ -113,7 +115,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
     }));
 
-    let orders: Array<{ id: string; name: string; createdAt: string; email?: string | null; totalPrice?: string; displayFinancialStatus?: string; displayFulfillmentStatus?: string; fyndData?: any }> = [];
+    let orders: Array<{ id: string; name: string; createdAt: string; email?: string | null; totalPrice?: string; displayFinancialStatus?: string; displayFulfillmentStatus?: string; fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null }> = [];
     if (lookupType === "email" && norm.includes("@")) {
       try {
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
@@ -136,7 +138,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 parentViewSlug: "all",
                 childViewSlug: "all"
               });
-              let items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
+              const extractSearchItems = (res: Record<string, unknown>): unknown[] => {
+                const candidates = [res?.items, res?.shipments, (res?.data as Record<string, unknown>)?.items, res?.results];
+                for (const c of candidates) { if (Array.isArray(c) && c.length > 0) return c; }
+                return [];
+              };
+              let items = extractSearchItems(searchResult as Record<string, unknown>);
 
               if (items.length === 0 && order.affiliateOrderId) {
                 searchResult = await fyndClient.searchShipmentsByExternalOrderId(order.affiliateOrderId, {
@@ -145,7 +152,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   childViewSlug: "all",
                   searchType: "channel_order_id"
                 });
-                items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
+                items = extractSearchItems(searchResult as Record<string, unknown>);
               }
 
               if (items.length === 0 && order.id) {
@@ -155,7 +162,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   childViewSlug: "all",
                   searchType: "order_id"
                 });
-                items = searchResult?.items || searchResult?.shipments || searchResult?.data?.items || searchResult?.results || [];
+                items = extractSearchItems(searchResult as Record<string, unknown>);
               }
 
               const payloadJson = searchResult != null ? JSON.stringify(searchResult) : null;

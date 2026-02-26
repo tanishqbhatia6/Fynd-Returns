@@ -715,7 +715,7 @@
     .portal-sub-tab.active {
       background: var(--portal-surface);
       color: var(--portal-primary);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
 
     .portal-sub-tab:hover:not(.active) {
@@ -856,9 +856,11 @@
             <span class="upload-icon">📸</span>
             <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
               drop</div>
-            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or Video</div>
+            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or
+              Video</div>
             <div style="font-size: 0.75rem; color:var(--portal-text-muted); margin-top:2px;">(max 50MB)</div>
-            <input type="file" id="mediaStandard" class="file-input-hidden" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
+            <input type="file" id="mediaStandard" class="file-input-hidden" multiple
+              accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
           </div>
           <div class="upload-preview-list" id="uploadPreviewStandard"></div>
           <p id="uploadErrStandard" class="upload-error-inline" style="display:none;"></p>
@@ -911,9 +913,11 @@
             <span class="upload-icon">📸</span>
             <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
               drop</div>
-            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or Video</div>
+            <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or
+              Video</div>
             <div style="font-size: 0.75rem; color:var(--portal-text-muted); margin-top:2px;">(max 50MB)</div>
-            <input type="file" id="mediaManual" class="file-input-hidden" multiple accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
+            <input type="file" id="mediaManual" class="file-input-hidden" multiple
+              accept="image/jpeg,image/png,image/gif,image/webp,video/mp4,video/webm,video/quicktime" />
           </div>
           <div class="upload-preview-list" id="uploadPreviewManual"></div>
           <p id="uploadErrManual" class="upload-error-inline" style="display:none;"></p>
@@ -1609,9 +1613,9 @@
       const reason = document.getElementById('createManualReason').value;
       const itemDesc = document.getElementById('createManualItems').value.trim();
 
-      var customNodesRaw = document.getElementById('createManualCustomerNotes').value.trim();
+      var customNotesRaw = document.getElementById('createManualCustomerNotes').value.trim();
       if (filesManual.length > 0) {
-        customNodesRaw += '\n\n[Attached Files: ' + filesManual.map(f => f.name).join(', ') + ']';
+        customNotesRaw += '\n\n[Attached Files: ' + filesManual.map(f => f.name).join(', ') + ']';
       }
 
       if (!orderNumber) { err.textContent = 'Please enter your order number (e.g. #1001)'; return; }
@@ -1631,7 +1635,7 @@
             manual: true,
             reasonCode: reason,
             manualItemDescription: itemDesc,
-            customerNotes: customNodesRaw || undefined
+            customerNotes: customNotesRaw || undefined
           })
         });
         document.getElementById('create-step2-manual').classList.remove('active');
@@ -1673,9 +1677,9 @@
         productTags: li.productTags || []
       }));
 
-      var customNodesRaw = document.getElementById('createCustomerNotes').value.trim();
+      var customNotesRaw = document.getElementById('createCustomerNotes').value.trim();
       if (filesStandard.length > 0) {
-        customNodesRaw += '\n\n[Attached Files: ' + filesStandard.map(f => f.name).join(', ') + ']';
+        customNotesRaw += '\n\n[Attached Files: ' + filesStandard.map(f => f.name).join(', ') + ']';
       }
 
       btn.disabled = true;
@@ -1689,7 +1693,7 @@
             orderId: createOrderData.id,
             shopifyOrderName: createOrderData.name,
             customerEmail: document.getElementById('createEmail').value.trim() || undefined,
-            customerNotes: customNodesRaw || undefined,
+            customerNotes: customNotesRaw || undefined,
             orderCreatedAt: createOrderData.createdAt,
             shippingCountry: createOrderData.shippingCountry,
             shippingProvince: createOrderData.shippingProvince,

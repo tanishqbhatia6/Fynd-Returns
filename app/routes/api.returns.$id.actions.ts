@@ -454,7 +454,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const isGid = orderIdForRefund?.startsWith("gid://");
       const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
       if (!isGid && !isNumericId) {
-        const { fetchOrderByOrderNumber } = await import("../lib/shopify-admin.server");
         const orderNumber = (returnCase.shopifyOrderName ?? orderIdForRefund ?? "").replace(/^#/, "").trim();
         const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
         if (orderByNumber?.id) {

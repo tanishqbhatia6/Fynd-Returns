@@ -231,13 +231,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // When auto-approved, sync to Fynd so webhook can match returns
     if (status === "approved" && !manualMode && orderId) {
       try {
-        const shopDomain = shopRecord.shopDomain;
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
         const order = await fetchOrder(admin, orderId);
         const affiliateOrderId = order?.affiliateOrderId ?? null;
-        const settings = shopRecord.settings as Parameters<typeof createFyndClientOrError>[0] | null;
-        const fyndResult = settings
-          ? await createFyndClientOrError(settings, { requirePlatform: true })
+        const fyndSettings = shopRecord.settings as Parameters<typeof createFyndClientOrError>[0] | null;
+        const fyndResult = fyndSettings
+          ? await createFyndClientOrError(fyndSettings, { requirePlatform: true })
           : { ok: false as const, error: "Fynd not configured" };
         if (fyndResult.ok && "getShipments" in fyndResult.client) {
           const fyndSync = await createReturnOnFynd(fyndResult.client, returnCase, { affiliateOrderId });

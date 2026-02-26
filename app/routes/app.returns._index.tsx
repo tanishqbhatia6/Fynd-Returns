@@ -14,30 +14,31 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "#64748b",
   initiated: "#f59e0b",
 };
+
+const STATUS_BG: Record<string, string> = {
+  pending: "#fffbeb",
+  processing: "#eff6ff",
+  "in progress": "#eff6ff",
+  approved: "#ecfdf5",
+  completed: "#ecfdf5",
+  rejected: "#fef2f2",
+  cancelled: "#f8fafc",
+  initiated: "#fffbeb",
+};
+
 function getStatusColor(s: string) {
   return STATUS_COLORS[s.toLowerCase()] ?? "#64748b";
 }
 
-const STATUS_ICONS: Record<string, string> = {
-  pending: "⏳",
-  processing: "🔄",
-  "in progress": "🔄",
-  approved: "✅",
-  completed: "✅",
-  rejected: "❌",
-  cancelled: "🚫",
-  initiated: "📝",
-};
-
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
-  { value: "initiated", label: "📝 Initiated" },
-  { value: "pending", label: "⏳ Pending" },
-  { value: "processing", label: "🔄 Processing" },
-  { value: "approved", label: "✅ Approved" },
-  { value: "completed", label: "✅ Completed" },
-  { value: "rejected", label: "❌ Rejected" },
-  { value: "cancelled", label: "🚫 Cancelled" },
+  { value: "initiated", label: "Initiated" },
+  { value: "pending", label: "Pending" },
+  { value: "processing", label: "Processing" },
+  { value: "approved", label: "Approved" },
+  { value: "completed", label: "Completed" },
+  { value: "rejected", label: "Rejected" },
+  { value: "cancelled", label: "Cancelled" },
 ];
 
 const PAGE_SIZE = 25;
@@ -82,7 +83,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where,
         include: {
           items: { take: 3 },
-          events: { orderBy: { happenedAt: "desc" }, take: 3 },
         },
         orderBy: { createdAt: "desc" },
         skip: (page - 1) * PAGE_SIZE,
@@ -113,202 +113,237 @@ export default function ReturnsList() {
     setSearchParams(next);
   };
 
-  const processingCount = allCount - pendingCount - approvedCount - rejectedCount;
+  const inProgressCount = Math.max(0, allCount - pendingCount - approvedCount - rejectedCount);
 
   return (
     <s-page heading="Returns">
       <div className="app-content">
         {error && (
-          <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
+          <div className="app-alert app-alert-error" style={{ marginBottom: 16 }}>
             <span>⚠️</span>
             <div>
               <p style={{ fontWeight: 600, marginBottom: 4 }}>{error}</p>
-              <p style={{ fontSize: 13, opacity: 0.85 }}>Try refreshing the page or contact support if the issue persists.</p>
+              <p style={{ fontSize: 13, opacity: 0.85 }}>Try refreshing the page or contact support.</p>
             </div>
           </div>
         )}
 
-        {/* ── Summary Stats ── */}
-        <div className="app-stats-row">
-          <div className="app-stat-pill">
-            <span className="app-stat-pill-value" style={{ color: "#3b82f6" }}>{allCount}</span>
-            <span className="app-stat-pill-label">Total</span>
-          </div>
-          <div className="app-stat-pill" style={{ cursor: pendingCount > 0 ? "pointer" : "default" }} onClick={() => pendingCount > 0 && setSearchParams({ status: "pending" })}>
-            <span className="app-stat-pill-value" style={{ color: "#d97706" }}>{pendingCount}</span>
-            <span className="app-stat-pill-label">Pending</span>
-          </div>
-          <div className="app-stat-pill" style={{ cursor: processingCount > 0 ? "pointer" : "default" }} onClick={() => processingCount > 0 && setSearchParams({ status: "processing" })}>
-            <span className="app-stat-pill-value" style={{ color: "#3b82f6" }}>{processingCount > 0 ? processingCount : 0}</span>
-            <span className="app-stat-pill-label">In Progress</span>
-          </div>
-          <div className="app-stat-pill" style={{ cursor: approvedCount > 0 ? "pointer" : "default" }} onClick={() => approvedCount > 0 && setSearchParams({ status: "approved" })}>
-            <span className="app-stat-pill-value" style={{ color: "#059669" }}>{approvedCount}</span>
-            <span className="app-stat-pill-label">Approved</span>
-          </div>
-          <div className="app-stat-pill" style={{ cursor: rejectedCount > 0 ? "pointer" : "default" }} onClick={() => rejectedCount > 0 && setSearchParams({ status: "rejected" })}>
-            <span className="app-stat-pill-value" style={{ color: "#dc2626" }}>{rejectedCount}</span>
-            <span className="app-stat-pill-label">Rejected</span>
-          </div>
+        {/* ── Compact Stats Bar ── */}
+        <div style={{
+          display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap",
+        }}>
+          {[
+            { label: "Total", value: allCount, color: "#334155", bg: "#f1f5f9", border: "#e2e8f0", filterStatus: "" },
+            { label: "Pending", value: pendingCount, color: "#d97706", bg: "#fffbeb", border: "#fde68a", filterStatus: "pending" },
+            { label: "In Progress", value: inProgressCount, color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", filterStatus: "processing" },
+            { label: "Approved", value: approvedCount, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", filterStatus: "approved" },
+            { label: "Rejected", value: rejectedCount, color: "#dc2626", bg: "#fef2f2", border: "#fecaca", filterStatus: "rejected" },
+          ].map(s => (
+            <div
+              key={s.label}
+              onClick={() => s.value > 0 ? setSearchParams(s.filterStatus ? { status: s.filterStatus } : {}) : undefined}
+              style={{
+                flex: "1 1 100px",
+                minWidth: 100,
+                padding: "12px 14px",
+                background: s.bg,
+                borderRadius: 10,
+                border: `1px solid ${s.border}`,
+                cursor: s.value > 0 ? "pointer" : "default",
+                textAlign: "center",
+                transition: "transform 0.15s, box-shadow 0.15s",
+              }}
+            >
+              <div style={{ fontSize: 20, fontWeight: 800, color: s.color, lineHeight: 1, marginBottom: 2, fontVariantNumeric: "tabular-nums" }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: 10, fontWeight: 700, color: s.color, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* ── Search & Filter Bar ── */}
-        <div className="app-search-bar">
-          <Form method="get" style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 320px" }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                🔍 Search
+        {/* ── Search & Filter ── */}
+        <div style={{
+          padding: "14px 16px",
+          background: "var(--rpm-surface)",
+          borderRadius: 12,
+          border: "var(--rpm-border)",
+          marginBottom: 16,
+        }}>
+          <Form method="get" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div style={{ flex: "1 1 220px" }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                Search
               </label>
               <input
                 name="query"
                 type="text"
-                placeholder="Order #, Return ID, AWB, Email, Phone..."
+                placeholder="Order #, Return ID, AWB, Email..."
                 defaultValue={query}
                 className="app-input"
-                style={{ maxWidth: "100%", fontSize: 14 }}
+                style={{ maxWidth: "100%", padding: "8px 12px", fontSize: 13 }}
               />
             </div>
-            <div style={{ flex: "0 0 200px" }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            <div style={{ flex: "0 0 160px" }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Status
               </label>
-              <select name="status" defaultValue={status} className="app-select" style={{ maxWidth: "100%" }}>
+              <select name="status" defaultValue={status} className="app-select" style={{ maxWidth: "100%", padding: "8px 12px", fontSize: 13 }}>
                 {STATUS_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <s-button type="submit" variant="primary">Search</s-button>
               {(query || status) && (
-                <Link to="/app/returns">
-                  <s-button variant="secondary">Clear</s-button>
-                </Link>
+                <Link to="/app/returns"><s-button variant="secondary">Clear</s-button></Link>
               )}
             </div>
             {totalCount > 0 && (
               <a
                 href={`/api/returns/export?${new URLSearchParams({ query, status }).toString()}`}
-                target="_blank"
-                rel="noopener noreferrer"
+                target="_blank" rel="noopener noreferrer"
                 style={{ textDecoration: "none", marginLeft: "auto" }}
               >
-                <s-button variant="secondary">📥 Export CSV</s-button>
+                <s-button variant="secondary">📥 CSV</s-button>
               </a>
             )}
           </Form>
         </div>
 
-        {/* ── Results Summary ── */}
+        {/* ── Count + Active Filter ── */}
         {totalCount > 0 && (
-          <div className="app-results-bar">
-            <span style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>
-              Showing <strong style={{ color: "var(--rpm-text)", fontWeight: 700 }}>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</strong> of{" "}
-              <strong style={{ color: "var(--rpm-text)", fontWeight: 700 }}>{totalCount}</strong> returns
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, padding: "0 2px", flexWrap: "wrap", gap: 6 }}>
+            <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
+              Showing <strong style={{ color: "var(--rpm-text)" }}>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</strong> of <strong style={{ color: "var(--rpm-text)" }}>{totalCount}</strong>
             </span>
             {status && (
-              <span className="app-chip">
-                {STATUS_ICONS[status] || "📋"} {status}
-                <Link to={`/app/returns${query ? `?query=${query}` : ""}`} className="app-chip-remove" title="Clear status filter">×</Link>
+              <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "var(--rpm-accent-subtle)", color: "var(--rpm-accent)", border: "1px solid var(--rpm-accent-light)" }}>
+                {status} <Link to={`/app/returns${query ? `?query=${query}` : ""}`} style={{ textDecoration: "none", color: "inherit", marginLeft: 4 }}>×</Link>
               </span>
             )}
           </div>
         )}
 
-        {/* ── Returns Table or Empty State ── */}
+        {/* ── Table or Empty ── */}
         {returns.length === 0 ? (
-          <div className="app-empty-state">
-            <div style={{ fontSize: 56, marginBottom: 16, opacity: 0.4 }}>📦</div>
-            <p className="app-empty-state-title">No returns found</p>
-            <p className="app-empty-state-desc" style={{ maxWidth: 400, margin: "0 auto 24px" }}>
+          <div className="app-empty-state" style={{ padding: 48 }}>
+            <div style={{ fontSize: 48, marginBottom: 14, opacity: 0.4 }}>📦</div>
+            <p className="app-empty-state-title" style={{ fontSize: 17, fontWeight: 700, marginBottom: 8 }}>No returns found</p>
+            <p className="app-empty-state-desc" style={{ maxWidth: 360, margin: "0 auto 20px" }}>
               {query || status
-                ? "No returns match your search criteria. Try adjusting your filters or clearing them."
-                : "Returns will appear here when customers submit them via your portal. Share your portal URL to get started."}
+                ? "No returns match your criteria. Try adjusting your filters."
+                : "Returns will appear here when customers submit them via your portal."}
             </p>
             {!query && !status && (
-              <Link to="/app/portal" style={{ textDecoration: "none" }}>
-                <s-button variant="primary">🌐 View Customer Portal</s-button>
-              </Link>
+              <Link to="/app/portal" style={{ textDecoration: "none" }}><s-button variant="primary">View Portal</s-button></Link>
             )}
             {(query || status) && (
-              <Link to="/app/returns" style={{ textDecoration: "none" }}>
-                <s-button variant="secondary">Clear all filters</s-button>
-              </Link>
+              <Link to="/app/returns" style={{ textDecoration: "none" }}><s-button variant="secondary">Clear filters</s-button></Link>
             )}
           </div>
         ) : (
           <>
-            <div className="app-table-wrapper">
-              <div className="app-table-responsive">
-                <table className="app-table">
+            {/* Card-wrapped table */}
+            <div style={{
+              background: "var(--rpm-surface)",
+              borderRadius: 12,
+              border: "var(--rpm-border)",
+              overflow: "hidden",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+            }}>
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
-                    <tr>
-                      <th>Return ID</th>
-                      <th>Order</th>
-                      <th className="app-hide-mobile">Fynd Order</th>
-                      <th className="app-hide-mobile">Forward AWB</th>
-                      <th className="app-hide-mobile">Return AWB</th>
-                      <th>Status</th>
-                      <th className="app-hide-mobile">Email</th>
-                      <th>Created</th>
+                    <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
+                      <th style={thStyle}>Return ID</th>
+                      <th style={thStyle}>Order</th>
+                      <th style={thStyle}>Status</th>
+                      <th style={{ ...thStyle }} className="app-hide-mobile">Return AWB</th>
+                      <th style={{ ...thStyle }} className="app-hide-mobile">Customer</th>
+                      <th style={thStyle}>Created</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {returns.map((r) => (
-                      <tr
-                        key={r.id}
-                        onClick={() => navigate(`/app/returns/${r.id}`)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <td>
-                          <Link
-                            to={`/app/returns/${r.id}`}
-                            className="app-link"
-                            style={{ fontFamily: "var(--rpm-font-mono)", fontSize: 12.5, fontWeight: 700, letterSpacing: "0.02em" }}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {(r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)}
-                          </Link>
-                        </td>
-                        <td>
-                          <span style={{ fontWeight: 600, color: "var(--rpm-text)", fontSize: 13.5 }}>
-                            {r.shopifyOrderName || "—"}
-                          </span>
-                        </td>
-                        <td className="app-hide-mobile" style={{ fontFamily: "var(--rpm-font-mono)", fontSize: 12, color: "var(--rpm-text-subtle)" }}>
-                          {(r as { fyndOrderId?: string | null }).fyndOrderId
-                            ? String((r as { fyndOrderId: string }).fyndOrderId).length > 18
-                              ? String((r as { fyndOrderId: string }).fyndOrderId).slice(0, 18) + "…"
-                              : (r as { fyndOrderId: string }).fyndOrderId
-                            : "—"}
-                        </td>
-                        <td className="app-hide-mobile" style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>{r.forwardAwb || "—"}</td>
-                        <td className="app-hide-mobile" style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>{r.returnAwb || "—"}</td>
-                        <td>
-                          <span
-                            className="app-status-badge"
-                            style={{
-                              background: `${getStatusColor(r.status)}14`,
+                    {returns.map((r, i) => {
+                      const statusBg = STATUS_BG[r.status.toLowerCase()] ?? "#f8fafc";
+                      return (
+                        <tr
+                          key={r.id}
+                          onClick={() => navigate(`/app/returns/${r.id}`)}
+                          style={{
+                            borderBottom: "1px solid #f1f5f9",
+                            cursor: "pointer",
+                            transition: "background 0.12s",
+                            background: i % 2 === 1 ? "#fafbfc" : "white",
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = "#eef4ff")}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 1 ? "#fafbfc" : "white")}
+                        >
+                          <td style={tdStyle}>
+                            <Link
+                              to={`/app/returns/${r.id}`}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ color: "var(--rpm-accent)", fontWeight: 700, textDecoration: "none", fontSize: 12, fontFamily: "var(--rpm-font-mono, monospace)", letterSpacing: "0.01em" }}
+                            >
+                              {(r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)}
+                            </Link>
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{ fontWeight: 600, color: "var(--rpm-text)", fontSize: 13 }}>
+                              {r.shopifyOrderName || "—"}
+                            </span>
+                            {(r as { fyndOrderId?: string | null }).fyndOrderId && (
+                              <div style={{ fontSize: 10, color: "var(--rpm-text-subtle)", marginTop: 1, fontFamily: "var(--rpm-font-mono, monospace)" }}>
+                                Fynd: {String((r as { fyndOrderId: string }).fyndOrderId).slice(0, 16)}{String((r as { fyndOrderId: string }).fyndOrderId).length > 16 ? "…" : ""}
+                              </div>
+                            )}
+                          </td>
+                          <td style={tdStyle}>
+                            <span style={{
+                              display: "inline-flex", alignItems: "center", gap: 5,
+                              padding: "4px 10px", borderRadius: 6,
+                              fontSize: 11, fontWeight: 700,
+                              background: statusBg,
                               color: getStatusColor(r.status),
-                              border: `1px solid ${getStatusColor(r.status)}35`,
-                            }}
-                          >
-                            <span className="app-status-dot" style={{ background: getStatusColor(r.status) }} />
-                            {r.status}
-                          </span>
-                        </td>
-                        <td className="app-hide-mobile" style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>
-                          {r.customerEmailNorm
-                            ? r.customerEmailNorm.length > 22
-                              ? r.customerEmailNorm.slice(0, 22) + "…"
-                              : r.customerEmailNorm
-                            : "—"}
-                        </td>
-                        <td style={{ color: "var(--rpm-text-muted)", fontSize: 13, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                          {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "2-digit" })}
-                        </td>
-                      </tr>
-                    ))}
+                              textTransform: "capitalize",
+                              whiteSpace: "nowrap",
+                            }}>
+                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: getStatusColor(r.status), flexShrink: 0 }} />
+                              {r.status}
+                            </span>
+                            {r.refundStatus && r.refundStatus !== "none" && (
+                              <div style={{ fontSize: 10, color: "#7c3aed", marginTop: 2 }}>💰 {r.refundStatus}</div>
+                            )}
+                          </td>
+                          <td style={tdStyle} className="app-hide-mobile">
+                            <span style={{ fontSize: 12, color: r.returnAwb ? "var(--rpm-text)" : "var(--rpm-text-subtle)" }}>
+                              {r.returnAwb || "—"}
+                            </span>
+                            {(r as { fyndShipmentId?: string | null }).fyndShipmentId && !r.returnAwb && (
+                              <div style={{ fontSize: 10, color: "var(--rpm-text-subtle)", fontFamily: "var(--rpm-font-mono, monospace)" }}>
+                                Fynd #{String((r as { fyndShipmentId: string }).fyndShipmentId).slice(0, 14)}
+                              </div>
+                            )}
+                          </td>
+                          <td style={tdStyle} className="app-hide-mobile">
+                            <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
+                              {r.customerEmailNorm
+                                ? r.customerEmailNorm.length > 20 ? r.customerEmailNorm.slice(0, 20) + "…" : r.customerEmailNorm
+                                : "—"}
+                            </span>
+                          </td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                            <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
+                              {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "2-digit" })}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -316,42 +351,19 @@ export default function ReturnsList() {
 
             {/* ── Pagination ── */}
             {totalPages > 1 && (
-              <div className="app-pagination">
-                <button
-                  className="app-pagination-btn"
-                  disabled={page <= 1}
-                  onClick={() => goToPage(page - 1)}
-                >
-                  ← Prev
-                </button>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 16, padding: "12px 0" }}>
+                <button className="app-pagination-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}>←</button>
                 {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                   let p: number;
-                  if (totalPages <= 7) {
-                    p = i + 1;
-                  } else if (page <= 4) {
-                    p = i + 1;
-                  } else if (page >= totalPages - 3) {
-                    p = totalPages - 6 + i;
-                  } else {
-                    p = page - 3 + i;
-                  }
+                  if (totalPages <= 7) p = i + 1;
+                  else if (page <= 4) p = i + 1;
+                  else if (page >= totalPages - 3) p = totalPages - 6 + i;
+                  else p = page - 3 + i;
                   return (
-                    <button
-                      key={p}
-                      className={`app-pagination-btn ${p === page ? "active" : ""}`}
-                      onClick={() => goToPage(p)}
-                    >
-                      {p}
-                    </button>
+                    <button key={p} className={`app-pagination-btn ${p === page ? "active" : ""}`} onClick={() => goToPage(p)}>{p}</button>
                   );
                 })}
-                <button
-                  className="app-pagination-btn"
-                  disabled={page >= totalPages}
-                  onClick={() => goToPage(page + 1)}
-                >
-                  Next →
-                </button>
+                <button className="app-pagination-btn" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>→</button>
               </div>
             )}
           </>
@@ -360,3 +372,20 @@ export default function ReturnsList() {
     </s-page>
   );
 }
+
+const thStyle: React.CSSProperties = {
+  textAlign: "left",
+  padding: "10px 14px",
+  fontWeight: 700,
+  fontSize: 10,
+  color: "#64748b",
+  textTransform: "uppercase",
+  letterSpacing: "0.07em",
+  background: "#f8fafc",
+  whiteSpace: "nowrap",
+};
+
+const tdStyle: React.CSSProperties = {
+  padding: "10px 14px",
+  verticalAlign: "middle",
+};

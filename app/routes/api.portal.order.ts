@@ -3,7 +3,14 @@ import prisma from "../db.server";
 import { fetchOrderByOrderNumber, OrderAccessError } from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
+import { formatReturnRequestId } from "../lib/return-request-id";
 
+/**
+ * Portal order lookup API.
+ * Returns order details + any existing return cases for the order.
+ * This allows the portal to show existing return status instead of
+ * allowing duplicate return creation.
+ */
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: getPortalCorsHeaders(request) });
@@ -24,13 +31,57 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
   }
 
+  // Check for existing return cases for this order (by order name)
+  const existingReturns = await prisma.returnCase.findMany({
+    where: {
+      shopId: shopRecord.id,
+      shopifyOrderName: { in: [`#${orderNumber}`, orderNumber] },
+    },
+    include: {
+      items: true,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+  });
+
+  // Format existing returns for the portal
+  const formattedReturns = existingReturns.map((r) => ({
+    id: r.id,
+    returnRequestId: r.returnRequestNo ?? formatReturnRequestId(r.id),
+    status: r.status,
+    refundStatus: r.refundStatus,
+    createdAt: r.createdAt,
+    fyndReturnNo: r.fyndReturnNo,
+    items: r.items.map((i) => ({
+      lineItemId: i.shopifyLineItemId,
+      title: i.notes || i.sku || i.shopifyLineItemId,
+      sku: i.sku,
+      qty: i.qty,
+      reasonCode: i.reasonCode,
+    })),
+  }));
+
+  // Active returns = non-terminal statuses
+  const ACTIVE_STATUSES = ["initiated", "pending", "processing", "in progress", "approved"];
+  const activeReturns = formattedReturns.filter((r) =>
+    ACTIVE_STATUSES.includes(r.status?.toLowerCase() ?? "")
+  );
+
   try {
     const { admin } = await shopify.unauthenticated.admin(shopDomain);
     const order = await fetchOrderByOrderNumber(admin, orderNumber);
     if (!order) {
-      return withCors(Response.json({ error: "Order not found" }, { status: 404 }), request);
+      return withCors(Response.json({
+        error: "Order not found",
+        existingReturns: formattedReturns,
+        activeReturns,
+      }, { status: 404 }), request);
     }
-    return withCors(Response.json({ order }), request);
+    return withCors(Response.json({
+      order,
+      existingReturns: formattedReturns,
+      activeReturns,
+    }), request);
   } catch (err) {
     console.error("Portal order fetch:", err);
     if ((err as { name?: string }).name === "SessionNotFoundError") {
@@ -42,6 +93,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           fallback: true,
           orderNumber: orderNumber?.replace(/^#/, "").trim(),
           error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
+          existingReturns: formattedReturns,
+          activeReturns,
         }, { status: 200 }),
         request
       );
@@ -53,6 +106,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           fallback: true,
           orderNumber: orderNumber?.replace(/^#/, "").trim(),
           error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
+          existingReturns: formattedReturns,
+          activeReturns,
         }, { status: 200 }),
         request
       );

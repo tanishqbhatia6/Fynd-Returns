@@ -817,6 +817,24 @@
         <button type="button" id="btnUseManualForm" class="btn-secondary" style="width:100%;">Submit manually without
           order lookup</button>
       </div>
+      <!-- Existing return view: shown when an active return already exists for this order -->
+      <div id="create-step-existing" class="portal-step">
+        <div style="text-align:center;margin-bottom:24px;">
+          <div
+            style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px;box-shadow:0 4px 12px rgba(5,150,105,0.15);">
+            ✅</div>
+          <h2 style="font-size:1.25rem;font-weight:700;margin:0 0 6px;letter-spacing:-0.02em;color:var(--portal-text);">
+            Return already submitted</h2>
+          <p
+            style="font-size:0.875rem;color:var(--portal-text-muted);margin:0;max-width:400px;display:inline-block;line-height:1.5;">
+            A return request for this order is already in progress. You can track its status below.</p>
+        </div>
+        <div id="existingReturnsContainer"></div>
+        <div style="margin-top:24px;display:flex;flex-direction:column;gap:10px;">
+          <button type="button" id="btnExistingBack" class="btn-secondary" style="width:100%;">← Search for a different
+            order</button>
+        </div>
+      </div>
       <div id="create-step2" class="portal-step">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
           <div
@@ -1536,6 +1554,60 @@
 
     document.getElementById('btnUseManualForm').onclick = () => showManualForm(false);
 
+    function getStatusLabel(status) {
+      var map = { initiated: '📝 Initiated', pending: '⏳ Pending Review', processing: '🔄 Processing', 'in progress': '🔄 In Progress', approved: '✅ Approved', completed: '✅ Completed', rejected: '❌ Rejected', cancelled: '🚫 Cancelled' };
+      return map[(status || '').toLowerCase()] || status;
+    }
+    function getStatusBg(status) {
+      var map = { initiated: '#fffbeb', pending: '#fffbeb', processing: '#eff6ff', 'in progress': '#eff6ff', approved: '#ecfdf5', completed: '#ecfdf5', rejected: '#fef2f2', cancelled: '#f8fafc' };
+      return map[(status || '').toLowerCase()] || '#f8fafc';
+    }
+    function getStatusBorder(status) {
+      var map = { initiated: '#fde68a', pending: '#fde68a', processing: '#bfdbfe', 'in progress': '#bfdbfe', approved: '#a7f3d0', completed: '#a7f3d0', rejected: '#fecaca', cancelled: '#e2e8f0' };
+      return map[(status || '').toLowerCase()] || '#e2e8f0';
+    }
+    function getStatusTextColor(status) {
+      var map = { initiated: '#92400e', pending: '#92400e', processing: '#1e40af', 'in progress': '#1e40af', approved: '#065f46', completed: '#065f46', rejected: '#991b1b', cancelled: '#475569' };
+      return map[(status || '').toLowerCase()] || '#475569';
+    }
+
+    function renderExistingReturns(returns, container) {
+      container.innerHTML = returns.map(function (r) {
+        var itemsHtml = r.items && r.items.length > 0 ? r.items.map(function (i) {
+          return '<div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-radius:8px;font-size:0.8125rem;">' +
+            '<span style="flex:1;">' + escapeHtml(i.title || i.sku || i.lineItemId) + ' × ' + (i.qty || 1) + '</span>' +
+            (i.reasonCode ? '<span style="color:var(--portal-text-muted);font-size:0.75rem;">' + escapeHtml(i.reasonCode) + '</span>' : '') +
+            '</div>';
+        }).join('') : '<div style="font-size:0.8125rem;color:var(--portal-text-muted);padding:8px 12px;">Return items on file</div>';
+
+        var dateStr = r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+        var refundHtml = r.refundStatus && r.refundStatus !== 'none' ? '<div style="font-size:0.75rem;margin-top:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;color:#5b21b6;">💰 Refund: ' + escapeHtml(r.refundStatus) + '</div>' : '';
+
+        return '<div style="background:' + getStatusBg(r.status) + ';border:1px solid ' + getStatusBorder(r.status) + ';border-radius:var(--portal-radius);padding:20px;margin-bottom:12px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' +
+          '<div>' +
+          '<div style="font-weight:700;font-size:0.9375rem;color:' + getStatusTextColor(r.status) + ';margin-bottom:2px;">' + getStatusLabel(r.status) + '</div>' +
+          '<div style="font-size:0.8125rem;color:var(--portal-text-muted);">Return ID: <strong>' + escapeHtml(r.returnRequestId || r.id) + '</strong></div>' +
+          (r.fyndReturnNo ? '<div style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:2px;">Fynd #' + escapeHtml(r.fyndReturnNo) + '</div>' : '') +
+          '</div>' +
+          '<div style="font-size:0.75rem;color:var(--portal-text-muted);text-align:right;">' +
+          (dateStr ? 'Submitted ' + dateStr : '') +
+          '</div>' +
+          '</div>' +
+          '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">' + itemsHtml + '</div>' +
+          refundHtml +
+          '<div style="margin-top:14px;padding-top:14px;border-top:1px solid ' + getStatusBorder(r.status) + ';">' +
+          '<p style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;line-height:1.5;">Your return is being handled by the store. You\'ll receive email updates when the status changes.</p>' +
+          '</div>' +
+          '</div>';
+      }).join('');
+    }
+
+    document.getElementById('btnExistingBack').onclick = function () {
+      document.getElementById('create-step-existing').classList.remove('active');
+      document.getElementById('create-step1').classList.add('active');
+    };
+
     document.getElementById('btnFetchOrder').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
       const lookVal = document.getElementById('createOrderNumber').value.trim();
@@ -1548,6 +1620,18 @@
       try {
         const orderNumber = lookVal.replace(/^#/, '');
         const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber));
+
+        // Check for active returns BEFORE showing create form
+        if (data.activeReturns && data.activeReturns.length > 0) {
+          var container = document.getElementById('existingReturnsContainer');
+          renderExistingReturns(data.activeReturns, container);
+          document.getElementById('create-step1').classList.remove('active');
+          document.getElementById('create-step2').classList.remove('active');
+          document.getElementById('create-step2-manual').classList.remove('active');
+          document.getElementById('create-step-existing').classList.add('active');
+          return;
+        }
+
         if (data.fallback) {
           showManualForm(true, data.orderNumber, data.error);
           return;
@@ -1581,6 +1665,7 @@
         fillReasonSelect(document.getElementById('createReason'), productType);
         document.getElementById('create-step1').classList.remove('active');
         document.getElementById('create-step2-manual').classList.remove('active');
+        document.getElementById('create-step-existing').classList.remove('active');
         document.getElementById('create-step2').classList.add('active');
       } catch (e) {
         err.textContent = e.message || 'Something went wrong. Please try again or use the manual form.';
@@ -1642,7 +1727,12 @@
         document.getElementById('create-step3').classList.add('active');
         showReturnSuccessCard(data);
       } catch (e) {
-        err.textContent = e.message || 'Failed to submit. Please try again.';
+        var msg = e.message || 'Failed to submit. Please try again.';
+        if (msg.toLowerCase().includes('already pending') || msg.toLowerCase().includes('already')) {
+          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong>✅ Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
+        } else {
+          err.textContent = msg;
+        }
       } finally {
         btn.disabled = false;
         btn.textContent = 'Submit Return Request';
@@ -1705,7 +1795,12 @@
         document.getElementById('create-step3').classList.add('active');
         showReturnSuccessCard(data);
       } catch (e) {
-        err.textContent = e.message || 'Failed to submit. Please try again.';
+        var msg = e.message || 'Failed to submit. Please try again.';
+        if (msg.toLowerCase().includes('already pending') || msg.toLowerCase().includes('already')) {
+          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong>✅ Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
+        } else {
+          err.textContent = msg;
+        }
       } finally {
         btn.disabled = false;
         btn.textContent = 'Submit Return Request';
@@ -1787,6 +1882,7 @@
       document.getElementById('create-step2').classList.remove('active');
       document.getElementById('create-step2-manual').classList.remove('active');
       document.getElementById('create-step3').classList.remove('active');
+      document.getElementById('create-step-existing').classList.remove('active');
       document.getElementById('create-step1').classList.add('active');
       document.getElementById('createSuccessCard').style.display = 'none';
     };

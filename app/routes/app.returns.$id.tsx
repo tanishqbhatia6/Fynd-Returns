@@ -5,14 +5,14 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "#b98900",
-  processing: "#005bd3",
-  "in progress": "#005bd3",
-  approved: "#008060",
-  completed: "#008060",
-  rejected: "#d72c0d",
-  cancelled: "#6d7175",
-  initiated: "#b98900",
+  pending: "#d97706",
+  processing: "#3b82f6",
+  "in progress": "#3b82f6",
+  approved: "#059669",
+  completed: "#059669",
+  rejected: "#dc2626",
+  cancelled: "#64748b",
+  initiated: "#f59e0b",
 };
 
 function getStatusColor(s: string) {

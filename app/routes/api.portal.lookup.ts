@@ -110,11 +110,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     type PortalOrder = {
       id: string; name: string; createdAt: string; email?: string | null;
+      processedAt?: string | null; closedAt?: string | null; cancelledAt?: string | null;
       totalPrice?: string; subtotalPrice?: string; totalDiscounts?: string;
       currencyCode?: string;
       displayFinancialStatus?: string; displayFulfillmentStatus?: string;
       lineItems?: Array<{ id: string; title: string; variantTitle?: string | null; quantity: number; price?: string | null; discountedPrice?: string | null; imageUrl?: string | null }>;
       shippingAddress?: Record<string, string | null | undefined> | null;
+      fulfillments?: Array<{
+        id: string; status: string; createdAt: string;
+        updatedAt?: string | null; deliveredAt?: string | null;
+        displayStatus?: string | null; estimatedDeliveryAt?: string | null;
+        inTransitAt?: string | null; totalQuantity?: number | null;
+        trackingInfo: Array<{ number?: string | null; url?: string | null; company?: string | null }>;
+      }>;
       fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null;
       _needsFyndEnrich?: boolean;
     };

@@ -27,6 +27,9 @@ const ORDERS_QUERY = `#graphql
         id
         name
         createdAt
+        processedAt
+        closedAt
+        cancelledAt
         email
         phone
         totalPriceSet { shopMoney { amount currencyCode } }
@@ -35,9 +38,26 @@ const ORDERS_QUERY = `#graphql
         displayFinancialStatus
         displayFulfillmentStatus
         discountCodes
+        note
         shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         customAttributes { key value }
+        fulfillments(first: 10) {
+          id
+          status
+          createdAt
+          updatedAt
+          deliveredAt
+          displayStatus
+          estimatedDeliveryAt
+          inTransitAt
+          totalQuantity
+          trackingInfo(first: 5) {
+            number
+            url
+            company
+          }
+        }
         lineItems(first: 50) {
           nodes {
             id
@@ -64,6 +84,9 @@ const ORDERS_BY_NAME_QUERY = `#graphql
         id
         name
         createdAt
+        processedAt
+        closedAt
+        cancelledAt
         email
         phone
         totalPriceSet { shopMoney { amount currencyCode } }
@@ -72,9 +95,26 @@ const ORDERS_BY_NAME_QUERY = `#graphql
         displayFinancialStatus
         displayFulfillmentStatus
         discountCodes
+        note
         shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         customAttributes { key value }
+        fulfillments(first: 10) {
+          id
+          status
+          createdAt
+          updatedAt
+          deliveredAt
+          displayStatus
+          estimatedDeliveryAt
+          inTransitAt
+          totalQuantity
+          trackingInfo(first: 5) {
+            number
+            url
+            company
+          }
+        }
         lineItems(first: 50) {
           nodes {
             id
@@ -102,10 +142,32 @@ const ORDERS_BY_CUSTOMER_QUERY = `#graphql
         id
         name
         createdAt
+        processedAt
+        closedAt
+        cancelledAt
         email
         totalPriceSet { shopMoney { amount currencyCode } }
+        subtotalPriceSet { shopMoney { amount } }
+        totalDiscountsSet { shopMoney { amount } }
         displayFinancialStatus
         displayFulfillmentStatus
+        shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
+        fulfillments(first: 10) {
+          id
+          status
+          createdAt
+          updatedAt
+          deliveredAt
+          displayStatus
+          estimatedDeliveryAt
+          inTransitAt
+          totalQuantity
+          trackingInfo(first: 5) {
+            number
+            url
+            company
+          }
+        }
         lineItems(first: 5) {
           nodes {
             id
@@ -161,10 +223,30 @@ export type OrderLineItemForDisplay = {
   productType?: string | null;
 };
 
+export type ShopifyFulfillment = {
+  id: string;
+  status: string;
+  createdAt: string;
+  updatedAt?: string | null;
+  deliveredAt?: string | null;
+  displayStatus?: string | null;
+  estimatedDeliveryAt?: string | null;
+  inTransitAt?: string | null;
+  totalQuantity?: number | null;
+  trackingInfo: Array<{
+    number?: string | null;
+    url?: string | null;
+    company?: string | null;
+  }>;
+};
+
 export type OrderForPortal = {
   id: string;
   name: string;
   createdAt: string;
+  processedAt?: string | null;
+  closedAt?: string | null;
+  cancelledAt?: string | null;
   email?: string | null;
   phone?: string | null;
   totalPrice?: string;
@@ -180,6 +262,7 @@ export type OrderForPortal = {
   shippingProvince?: string | null;
   displayFinancialStatus?: string;
   displayFulfillmentStatus?: string;
+  fulfillments?: ShopifyFulfillment[];
 };
 
 export class OrderAccessError extends Error {
@@ -217,6 +300,9 @@ export async function fetchOrderByOrderNumber(
     id: string;
     name: string;
     createdAt: string;
+    processedAt?: string | null;
+    closedAt?: string | null;
+    cancelledAt?: string | null;
     email?: string | null;
     phone?: string | null;
     totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
@@ -225,9 +311,26 @@ export async function fetchOrderByOrderNumber(
     displayFinancialStatus?: string;
     displayFulfillmentStatus?: string;
     discountCodes?: string[];
+    note?: string | null;
     customAttributes?: Array<{ key: string; value: string }>;
     shippingAddress?: MailingAddressDisplay;
     billingAddress?: MailingAddressDisplay;
+    fulfillments?: Array<{
+      id: string;
+      status: string;
+      createdAt: string;
+      updatedAt?: string | null;
+      deliveredAt?: string | null;
+      displayStatus?: string | null;
+      estimatedDeliveryAt?: string | null;
+      inTransitAt?: string | null;
+      totalQuantity?: number | null;
+      trackingInfo?: Array<{
+        number?: string | null;
+        url?: string | null;
+        company?: string | null;
+      }>;
+    }>;
     lineItems?: {
       nodes?: Array<{
         id: string;
@@ -278,6 +381,25 @@ export async function fetchOrderByOrderNumber(
     shippingProvince: o.shippingAddress?.provinceCode ?? null,
     displayFinancialStatus: o.displayFinancialStatus ?? undefined,
     displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
+    processedAt: o.processedAt ?? null,
+    closedAt: o.closedAt ?? null,
+    cancelledAt: o.cancelledAt ?? null,
+    fulfillments: (o.fulfillments ?? []).map((f) => ({
+      id: f.id,
+      status: f.status,
+      createdAt: f.createdAt,
+      updatedAt: f.updatedAt ?? null,
+      deliveredAt: f.deliveredAt ?? null,
+      displayStatus: f.displayStatus ?? null,
+      estimatedDeliveryAt: f.estimatedDeliveryAt ?? null,
+      inTransitAt: f.inTransitAt ?? null,
+      totalQuantity: f.totalQuantity ?? null,
+      trackingInfo: (f.trackingInfo ?? []).map((ti) => ({
+        number: ti.number ?? null,
+        url: ti.url ?? null,
+        company: ti.company ?? null,
+      })),
+    })),
   };
 }
 
@@ -294,12 +416,19 @@ export type OrderSummaryForPortal = {
   id: string;
   name: string;
   createdAt: string;
+  processedAt?: string | null;
+  closedAt?: string | null;
+  cancelledAt?: string | null;
   email?: string | null;
   totalPrice?: string;
+  subtotalPrice?: string;
+  totalDiscounts?: string;
   currencyCode?: string;
   displayFinancialStatus?: string;
   displayFulfillmentStatus?: string;
   lineItems?: OrderSummaryLineItem[];
+  shippingAddress?: MailingAddressDisplay | null;
+  fulfillments?: ShopifyFulfillment[];
 };
 
 export async function fetchOrdersByCustomer(
@@ -318,10 +447,32 @@ export async function fetchOrdersByCustomer(
             id: string;
             name: string;
             createdAt: string;
+            processedAt?: string | null;
+            closedAt?: string | null;
+            cancelledAt?: string | null;
             email?: string | null;
             totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+            subtotalPriceSet?: { shopMoney?: { amount?: string } };
+            totalDiscountsSet?: { shopMoney?: { amount?: string } };
             displayFinancialStatus?: string;
             displayFulfillmentStatus?: string;
+            shippingAddress?: MailingAddressDisplay;
+            fulfillments?: Array<{
+              id: string;
+              status: string;
+              createdAt: string;
+              updatedAt?: string | null;
+              deliveredAt?: string | null;
+              displayStatus?: string | null;
+              estimatedDeliveryAt?: string | null;
+              inTransitAt?: string | null;
+              totalQuantity?: number | null;
+              trackingInfo?: Array<{
+                number?: string | null;
+                url?: string | null;
+                company?: string | null;
+              }>;
+            }>;
             lineItems?: {
               nodes?: Array<{
                 id: string;
@@ -346,11 +497,33 @@ export async function fetchOrdersByCustomer(
       id: o.id,
       name: o.name,
       createdAt: o.createdAt,
+      processedAt: o.processedAt ?? null,
+      closedAt: o.closedAt ?? null,
+      cancelledAt: o.cancelledAt ?? null,
       email: o.email ?? null,
       totalPrice: o.totalPriceSet?.shopMoney?.amount,
+      subtotalPrice: o.subtotalPriceSet?.shopMoney?.amount,
+      totalDiscounts: o.totalDiscountsSet?.shopMoney?.amount,
       currencyCode: o.totalPriceSet?.shopMoney?.currencyCode ?? undefined,
       displayFinancialStatus: o.displayFinancialStatus ?? undefined,
       displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
+      shippingAddress: o.shippingAddress ?? null,
+      fulfillments: (o.fulfillments ?? []).map((f) => ({
+        id: f.id,
+        status: f.status,
+        createdAt: f.createdAt,
+        updatedAt: f.updatedAt ?? null,
+        deliveredAt: f.deliveredAt ?? null,
+        displayStatus: f.displayStatus ?? null,
+        estimatedDeliveryAt: f.estimatedDeliveryAt ?? null,
+        inTransitAt: f.inTransitAt ?? null,
+        totalQuantity: f.totalQuantity ?? null,
+        trackingInfo: (f.trackingInfo ?? []).map((ti) => ({
+          number: ti.number ?? null,
+          url: ti.url ?? null,
+          company: ti.company ?? null,
+        })),
+      })),
       lineItems: (o.lineItems?.nodes ?? []).map((li) => ({
         id: li.id,
         title: li.title,
@@ -402,6 +575,9 @@ export async function fetchOrder(
     id: string;
     name: string;
     createdAt?: string;
+    processedAt?: string | null;
+    closedAt?: string | null;
+    cancelledAt?: string | null;
     email?: string | null;
     phone?: string | null;
     totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
@@ -413,6 +589,22 @@ export async function fetchOrder(
     customAttributes?: Array<{ key: string; value: string }>;
     shippingAddress?: MailingAddressDisplay;
     billingAddress?: MailingAddressDisplay;
+    fulfillments?: Array<{
+      id: string;
+      status: string;
+      createdAt: string;
+      updatedAt?: string | null;
+      deliveredAt?: string | null;
+      displayStatus?: string | null;
+      estimatedDeliveryAt?: string | null;
+      inTransitAt?: string | null;
+      totalQuantity?: number | null;
+      trackingInfo?: Array<{
+        number?: string | null;
+        url?: string | null;
+        company?: string | null;
+      }>;
+    }>;
     lineItems?: {
       nodes?: Array<{
         id: string;
@@ -460,6 +652,25 @@ export async function fetchOrder(
     shippingProvince: order.shippingAddress?.provinceCode ?? null,
     displayFinancialStatus: order.displayFinancialStatus ?? undefined,
     displayFulfillmentStatus: order.displayFulfillmentStatus ?? undefined,
+    processedAt: order.processedAt ?? null,
+    closedAt: order.closedAt ?? null,
+    cancelledAt: order.cancelledAt ?? null,
+    fulfillments: (order.fulfillments ?? []).map((f) => ({
+      id: f.id,
+      status: f.status,
+      createdAt: f.createdAt,
+      updatedAt: f.updatedAt ?? null,
+      deliveredAt: f.deliveredAt ?? null,
+      displayStatus: f.displayStatus ?? null,
+      estimatedDeliveryAt: f.estimatedDeliveryAt ?? null,
+      inTransitAt: f.inTransitAt ?? null,
+      totalQuantity: f.totalQuantity ?? null,
+      trackingInfo: (f.trackingInfo ?? []).map((ti) => ({
+        number: ti.number ?? null,
+        url: ti.url ?? null,
+        company: ti.company ?? null,
+      })),
+    })),
   };
 }
 

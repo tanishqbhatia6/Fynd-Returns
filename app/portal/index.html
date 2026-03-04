@@ -1074,6 +1074,14 @@
       color: var(--portal-primary);
     }
 
+    .oc-progress-time {
+      font-size: 0.5rem;
+      color: var(--portal-text-muted);
+      margin-top: 2px;
+      white-space: nowrap;
+      opacity: 0.8;
+    }
+
     .oc-progress-line {
       flex: 1;
       height: 2px;
@@ -2091,6 +2099,7 @@
         html += done ? '&#10003;' : st.num;
         html += '</div>';
         html += '<div class="oc-progress-label ' + labelClass + '">' + st.label + '</div>';
+        if (st.time) html += '<div class="oc-progress-time">' + formatDateTime(st.time) + '</div>';
         html += '</div>';
         if (i < steps.length - 1) {
           html += '<div class="oc-progress-line ' + (activeStep > st.num ? 'done' : '') + '"></div>';
@@ -2100,32 +2109,65 @@
       return html;
     }
 
-    function renderOrderProgressSteps(fulfillmentStatus) {
+    function getActiveStepFromStatus(s) {
+      if (s.includes('delivery_done') || s === 'delivered' || (s.includes('fulfilled') && !s.includes('unfulfilled'))) return 5;
+      if (s.includes('out_for_delivery')) return 4;
+      if (s.includes('in_transit') || s.includes('shipped') || s.includes('dp_assigned') || s.includes('manifest') || s.includes('partial') || s.includes('bag_packed') || s.includes('handed_over') || s.includes('ready_to_dispatch')) return 3;
+      if (s.includes('bag_confirmed') || s.includes('bag_invoiced') || s.includes('confirmed') || s.includes('paid') || s.includes('placed')) return 2;
+      return 1;
+    }
+
+    function renderOrderProgressSteps(fulfillmentStatus, orderData) {
       var s = (fulfillmentStatus || '').toLowerCase().replace(/\s+/g, '_');
+      var activeStep = getActiveStepFromStatus(s);
+
       var steps = [
-        { num: 1, label: 'Placed' },
-        { num: 2, label: 'Confirmed' },
-        { num: 3, label: 'Shipped' },
-        { num: 4, label: 'Out for delivery' },
-        { num: 5, label: 'Delivered' }
+        { num: 1, label: 'Placed', time: null },
+        { num: 2, label: 'Confirmed', time: null },
+        { num: 3, label: 'Shipped', time: null },
+        { num: 4, label: 'Out for delivery', time: null },
+        { num: 5, label: 'Delivered', time: null }
       ];
-      var activeStep = 1;
-      if (s.includes('delivery_done') || s === 'delivered' || (s.includes('fulfilled') && !s.includes('unfulfilled'))) activeStep = 5;
-      else if (s.includes('out_for_delivery')) activeStep = 4;
-      else if (s.includes('in_transit') || s.includes('shipped') || s.includes('dp_assigned') || s.includes('manifest') || s.includes('partial') || s.includes('bag_packed') || s.includes('handed_over') || s.includes('ready_to_dispatch')) activeStep = 3;
-      else if (s.includes('bag_confirmed') || s.includes('bag_invoiced') || s.includes('confirmed') || s.includes('paid') || s.includes('placed')) activeStep = 2;
+
+      if (orderData) {
+        steps[0].time = orderData.createdAt || orderData.processedAt || null;
+        if (activeStep >= 2) steps[1].time = orderData.processedAt || orderData.createdAt || null;
+        var ff = (orderData.fulfillments && orderData.fulfillments.length > 0) ? orderData.fulfillments[0] : null;
+        if (ff) {
+          if (activeStep >= 3) steps[2].time = ff.inTransitAt || ff.createdAt || null;
+          if (activeStep >= 5) steps[4].time = ff.deliveredAt || ff.updatedAt || null;
+        }
+      }
+
       return renderProgressSteps(activeStep, steps);
     }
 
     function renderDynamicProgressFromJourney(journeySteps) {
-      // Don't use raw Fynd journey steps for the progress bar — they contain
-      // dozens of internal statuses (Pending, Placed, Bag Invoiced, DP Assigned, etc.)
-      // that are unreadable to customers. Instead, determine current step from the
-      // latest journey status and use the clean 5-step progress bar.
       if (!journeySteps || journeySteps.length === 0) return '';
       var latest = journeySteps[journeySteps.length - 1];
       var latestStatus = (latest.status || latest.displayName || '').toLowerCase();
-      return renderOrderProgressSteps(latestStatus);
+      var s = latestStatus.replace(/\s+/g, '_');
+      var activeStep = getActiveStepFromStatus(s);
+
+      var steps = [
+        { num: 1, label: 'Placed', time: null },
+        { num: 2, label: 'Confirmed', time: null },
+        { num: 3, label: 'Shipped', time: null },
+        { num: 4, label: 'Out for delivery', time: null },
+        { num: 5, label: 'Delivered', time: null }
+      ];
+      var statusToStep = { placed: 0, confirmed: 1, bag_confirmed: 1, bag_invoiced: 1, bag_packed: 2, ready_to_dispatch: 2, handed_over: 2, dp_assigned: 2, shipped: 2, in_transit: 2, out_for_delivery: 3, delivery_done: 4, delivered: 4 };
+      journeySteps.forEach(function (step) {
+        var st = (step.status || '').toLowerCase().replace(/\s+/g, '_');
+        for (var key in statusToStep) {
+          if (st.includes(key) && step.time) {
+            var idx = statusToStep[key];
+            if (!steps[idx].time) steps[idx].time = step.time;
+          }
+        }
+      });
+
+      return renderProgressSteps(activeStep, steps);
     }
 
     var COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
@@ -2450,16 +2492,22 @@
       if (statusDesc) html += '<div class="oc-status-hero-desc">' + escapeHtml(statusDesc) + '</div>';
       html += '</div></div>';
 
-      // ── ETA from Fynd (if available, shown prominently) ──
+      // ── ETA (Fynd or Shopify fulfillment) ──
+      var etaDate = null;
       if (fyndShipments.length > 0 && fyndShipments[0].estimatedDelivery) {
+        etaDate = fyndShipments[0].estimatedDelivery;
+      } else if (o.fulfillments && o.fulfillments.length > 0 && o.fulfillments[0].estimatedDeliveryAt) {
+        etaDate = o.fulfillments[0].estimatedDeliveryAt;
+      }
+      if (etaDate && !latestStatus.includes('delivered') && !latestStatus.includes('fulfilled') && !latestStatus.includes('cancel')) {
         html += '<div class="oc-eta">';
         html += '<div class="oc-eta-icon">' + TRUCK_SVG + '</div>';
         html += '<div><div class="oc-eta-label">Estimated delivery</div>';
-        html += '<div class="oc-eta-date">' + formatDate(fyndShipments[0].estimatedDelivery) + '</div></div></div>';
+        html += '<div class="oc-eta-date">' + formatDate(etaDate) + '</div></div></div>';
       }
 
-      // ── Progress bar — always use clean 5-step bar ──
-      html += '<div style="padding:0 20px;">' + renderOrderProgressSteps(latestStatus || o.displayFulfillmentStatus || status) + '</div>';
+      // ── Progress bar with timestamps ──
+      html += '<div style="padding:0 20px;">' + renderOrderProgressSteps(latestStatus || o.displayFulfillmentStatus || status, o) + '</div>';
 
       // ── Status-specific callouts ──
       if (latestStatus.includes('delivery_failed') || latestStatus.includes('rto') || latestStatus.includes('undelivered')) {
@@ -2517,24 +2565,95 @@
       }
       html += '</div>';
 
-      // ── Multi-shipment / single-shipment sections ──
-      if (fyndShipments.length > 1) {
-        html += '<div class="oc-shipment-tabs" id="oc-ship-tabs-' + orderIdx + '">';
-        fyndShipments.forEach(function (s, i) {
-          var tabFriendly = friendlyOrderStatus(s.shipmentStatus || '');
-          html += '<button type="button" class="oc-shipment-tab' + (i === 0 ? ' active' : '') + '" data-ship-idx="' + i + '" data-order-idx="' + orderIdx + '" onclick="switchShipmentTab(this)">';
-          html += 'Shipment ' + (i + 1);
-          if (s.shipmentStatus) html += ' — ' + escapeHtml(tabFriendly.label);
-          html += '</button>';
-        });
-        html += '</div>';
-        fyndShipments.forEach(function (s, i) {
-          html += '<div class="oc-shipment-panel' + (i === 0 ? ' active' : '') + '" data-ship-panel="' + orderIdx + '-' + i + '">';
-          html += renderShipmentSection(s, i, i === 0 ? forwardJourney : [], currency, false);
+      // ── Shopify fulfillment tracking info (when no Fynd data) ──
+      var shopifyFulfillments = o.fulfillments || [];
+      var hasShopifyTracking = !hasFynd && shopifyFulfillments.length > 0;
+
+      if (hasFynd) {
+        // ── Multi-shipment / single-shipment sections (Fynd) ──
+        if (fyndShipments.length > 1) {
+          html += '<div class="oc-shipment-tabs" id="oc-ship-tabs-' + orderIdx + '">';
+          fyndShipments.forEach(function (s, i) {
+            var tabFriendly = friendlyOrderStatus(s.shipmentStatus || '');
+            html += '<button type="button" class="oc-shipment-tab' + (i === 0 ? ' active' : '') + '" data-ship-idx="' + i + '" data-order-idx="' + orderIdx + '" onclick="switchShipmentTab(this)">';
+            html += 'Shipment ' + (i + 1);
+            if (s.shipmentStatus) html += ' — ' + escapeHtml(tabFriendly.label);
+            html += '</button>';
+          });
           html += '</div>';
+          fyndShipments.forEach(function (s, i) {
+            html += '<div class="oc-shipment-panel' + (i === 0 ? ' active' : '') + '" data-ship-panel="' + orderIdx + '-' + i + '">';
+            html += renderShipmentSection(s, i, i === 0 ? forwardJourney : [], currency, false);
+            html += '</div>';
+          });
+        } else if (fyndShipments.length === 1) {
+          html += renderShipmentSection(fyndShipments[0], 0, forwardJourney, currency, false);
+        }
+      } else if (hasShopifyTracking) {
+        // ── Shopify fulfillment tracking ──
+        shopifyFulfillments.forEach(function (ff, ffIdx) {
+          var trackingItems = ff.trackingInfo || [];
+          var info = [];
+          if (trackingItems.length > 0) {
+            trackingItems.forEach(function (ti) {
+              if (ti.company) info.push({ l: 'Courier', v: ti.company, copy: false });
+              if (ti.number) info.push({ l: 'Tracking No.', v: ti.number, copy: true });
+            });
+          }
+          var ffStatus = (ff.displayStatus || ff.status || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+          if (ffStatus) info.push({ l: 'Fulfillment status', v: ffStatus, copy: false });
+          if (ff.createdAt) info.push({ l: 'Shipped on', v: formatDate(ff.createdAt), copy: false });
+          if (ff.deliveredAt) info.push({ l: 'Delivered on', v: formatDate(ff.deliveredAt), copy: false });
+          if (ff.estimatedDeliveryAt && !ff.deliveredAt) info.push({ l: 'Estimated delivery', v: formatDate(ff.estimatedDeliveryAt), copy: false });
+
+          if (info.length > 0) {
+            if (shopifyFulfillments.length > 1) {
+              html += '<div style="padding:14px 20px 0;"><div style="font-weight:600;font-size:0.8125rem;color:var(--portal-text);margin-bottom:8px;">Shipment ' + (ffIdx + 1) + '</div>';
+            } else {
+              html += '<div style="padding:14px 20px 0;">';
+            }
+            html += '<div class="oc-info-grid">';
+            info.forEach(function (item) { html += renderInfoGridRow(item.l, item.v, item.copy); });
+            html += '</div></div>';
+          }
+
+          // Tracking URL button
+          var trackUrl = null;
+          if (trackingItems.length > 0 && trackingItems[0].url) trackUrl = trackingItems[0].url;
+          if (trackUrl) {
+            html += '<div style="padding:14px 20px 0;">';
+            html += '<a href="' + escapeHtml(trackUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-track-btn">';
+            html += TRUCK_SVG + ' Track shipment</a></div>';
+          }
         });
-      } else if (fyndShipments.length === 1) {
-        html += renderShipmentSection(fyndShipments[0], 0, forwardJourney, currency, false);
+
+        // ── Order timeline from Shopify fulfillment milestones ──
+        var orderTimeline = [];
+        if (o.createdAt) orderTimeline.push({ time: o.createdAt, label: 'Order placed' });
+        if (o.processedAt && o.processedAt !== o.createdAt) orderTimeline.push({ time: o.processedAt, label: 'Order confirmed' });
+        shopifyFulfillments.forEach(function (ff) {
+          if (ff.createdAt) orderTimeline.push({ time: ff.createdAt, label: 'Shipped' });
+          if (ff.inTransitAt) orderTimeline.push({ time: ff.inTransitAt, label: 'In transit' });
+          if (ff.deliveredAt) orderTimeline.push({ time: ff.deliveredAt, label: 'Delivered' });
+        });
+        if (o.cancelledAt) orderTimeline.push({ time: o.cancelledAt, label: 'Cancelled' });
+        orderTimeline.sort(function (a, b) { return new Date(a.time).getTime() - new Date(b.time).getTime(); });
+
+        if (orderTimeline.length > 1) {
+          html += '<div style="padding:16px 20px 0;">';
+          html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
+          html += 'Order timeline (' + orderTimeline.length + ')' + CHEVRON_SVG + '</button>';
+          html += '<div class="oc-collapsible-body"><div class="oc-timeline">';
+          orderTimeline.forEach(function (ev, idx) {
+            var isLast = idx === orderTimeline.length - 1;
+            html += '<div class="oc-timeline-event">';
+            html += '<span class="oc-timeline-dot ' + (isLast ? 'latest' : '') + '"></span>';
+            html += '<span class="oc-timeline-time">' + formatDateTime(ev.time) + '</span>';
+            html += '<span class="oc-timeline-label">' + escapeHtml(ev.label) + '</span>';
+            html += '</div>';
+          });
+          html += '</div></div></div>';
+        }
       }
 
       // ── Shipping address (always show if available — from Fynd or Shopify) ──
@@ -2547,8 +2666,12 @@
       }
 
       // ── No tracking info placeholder ──
-      if (!hasFynd && !latestStatus.includes('cancel') && !latestStatus.includes('delivered')) {
-        if (o._needsFyndEnrich) {
+      var isDelivered = latestStatus.includes('delivered') || latestStatus.includes('fulfilled') || latestStatus.includes('delivery_done');
+      var isCancelled = latestStatus.includes('cancel');
+      if (!hasFynd && !hasShopifyTracking && !isCancelled) {
+        if (isDelivered) {
+          // Delivered but no tracking data — don't show "will be available once shipped"
+        } else if (o._needsFyndEnrich) {
           html += '<div class="oc-no-tracking oc-fynd-loading" data-order-name="' + escapeHtml(o.name || '') + '">';
           html += '<div class="oc-no-tracking-icon"><div class="oc-spinner"></div></div>';
           html += '<div class="oc-no-tracking-text">Loading tracking details...</div>';

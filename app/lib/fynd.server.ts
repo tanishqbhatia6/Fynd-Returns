@@ -91,6 +91,9 @@ export async function fetchFyndPlatformToken(
   const url = `${baseUrl}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   log?.("fynd-platform-oauth", "Fetching token", `url=${url}`);
+  const OAUTH_TIMEOUT_MS = 5_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), OAUTH_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(url, {
@@ -100,14 +103,20 @@ export async function fetchFyndPlatformToken(
         "Authorization": `Basic ${basicAuth}`,
       },
       body: JSON.stringify({ grant_type: "client_credentials" }),
+      signal: controller.signal,
     });
   } catch (netErr) {
+    clearTimeout(timer);
+    if (netErr instanceof Error && netErr.name === "AbortError") {
+      throw new Error(`Fynd OAuth timed out after ${OAUTH_TIMEOUT_MS}ms`);
+    }
     const m = netErr instanceof Error ? netErr.message : String(netErr);
     if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
       throw new Error("Network error: Could not reach Fynd OAuth. Check base URL and internet connection.");
     }
     throw netErr;
   }
+  clearTimeout(timer);
   const body = await res.text();
   log?.("fynd-platform-oauth", "Response", `status=${res.status}`);
   if (!res.ok) {
@@ -199,6 +208,8 @@ export class FyndPlatformClient {
     return `/service/platform/order-manage/v1.0/company/${this.companyId}`;
   }
 
+  private static readonly REQUEST_TIMEOUT_MS = 5_000;
+
   private async request(method: string, path: string, body?: unknown) {
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = {
@@ -206,20 +217,28 @@ export class FyndPlatformClient {
       "Authorization": `Bearer ${this.accessToken}`,
     };
     this.log?.("fynd-platform", "Request", `${method} ${path}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FyndPlatformClient.REQUEST_TIMEOUT_MS);
     let res: Response;
     try {
       res = await fetch(url, {
         method,
         headers,
+        signal: controller.signal,
         ...(body !== undefined && { body: JSON.stringify(body) }),
       });
     } catch (netErr) {
+      clearTimeout(timer);
       const m = netErr instanceof Error ? netErr.message : String(netErr);
+      if (netErr instanceof Error && netErr.name === "AbortError") {
+        throw new Error(`Fynd API timed out after ${FyndPlatformClient.REQUEST_TIMEOUT_MS}ms: ${method} ${path}`);
+      }
       if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
         throw new Error("Network error: Could not reach Fynd API. Check base URL, firewall, and internet connection.");
       }
       throw netErr;
     }
+    clearTimeout(timer);
     const text = await res.text();
     if (!res.ok) {
       const hint =
@@ -342,6 +361,8 @@ export class FyndStorefrontClient {
     return Buffer.from(`${this.applicationId}:${this.applicationToken}`).toString("base64");
   }
 
+  private static readonly REQUEST_TIMEOUT_MS = 5_000;
+
   private async request(method: string, path: string) {
     const url = `${this.baseUrl}${path}`;
     const headers = {
@@ -349,16 +370,23 @@ export class FyndStorefrontClient {
       "Authorization": `Basic ${this.basicAuth}`,
     };
     this.log?.("fynd-storefront", "Request", `${method} ${path}`);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), FyndStorefrontClient.REQUEST_TIMEOUT_MS);
     let res: Response;
     try {
-      res = await fetch(url, { method, headers });
+      res = await fetch(url, { method, headers, signal: controller.signal });
     } catch (netErr) {
+      clearTimeout(timer);
+      if (netErr instanceof Error && netErr.name === "AbortError") {
+        throw new Error(`Fynd Storefront API timed out after ${FyndStorefrontClient.REQUEST_TIMEOUT_MS}ms: ${method} ${path}`);
+      }
       const m = netErr instanceof Error ? netErr.message : String(netErr);
       if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
         throw new Error("Network error: Could not reach Fynd API. Check base URL and internet connection.");
       }
       throw netErr;
     }
+    clearTimeout(timer);
     const body = await res.text();
     if (!res.ok) {
       const hint =

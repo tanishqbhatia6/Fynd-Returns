@@ -1556,6 +1556,16 @@
       pointer-events: none;
     }
 
+    /* Inline spinner for Fynd loading */
+    @keyframes ocSpin { to { transform: rotate(360deg); } }
+    .oc-spinner {
+      width: 20px; height: 20px;
+      border: 2px solid var(--portal-border);
+      border-top-color: var(--portal-primary);
+      border-radius: 50%;
+      animation: ocSpin 0.6s linear infinite;
+    }
+
     /* Order summary section */
     .oc-order-summary {
       margin: 16px 20px 0;
@@ -2195,9 +2205,9 @@
       if (m.includes('cod') || m.includes('cash')) return '<span class="oc-payment-badge cod">COD</span>';
       return '<span class="oc-payment-badge prepaid">Prepaid</span>';
     }
-    async function fetchJson(url, opts) {
+    async function fetchJson(url, opts, timeoutMs) {
       var controller = new AbortController();
-      var timeout = setTimeout(function () { controller.abort(); }, 20000);
+      var timeout = setTimeout(function () { controller.abort(); }, timeoutMs || 8000);
       var fetchOpts = Object.assign({}, opts || {}, { signal: controller.signal });
       let res;
       try { res = await fetch(url, fetchOpts); } catch (e) {
@@ -2536,12 +2546,19 @@
         }
       }
 
-      // ── No tracking info placeholder (when no Fynd data but order is in transit) ──
+      // ── No tracking info placeholder ──
       if (!hasFynd && !latestStatus.includes('cancel') && !latestStatus.includes('delivered')) {
-        html += '<div class="oc-no-tracking">';
-        html += '<div class="oc-no-tracking-icon">' + TRUCK_SVG + '</div>';
-        html += '<div class="oc-no-tracking-text">Tracking details will be available once your order ships.</div>';
-        html += '</div>';
+        if (o._needsFyndEnrich) {
+          html += '<div class="oc-no-tracking oc-fynd-loading" data-order-name="' + escapeHtml(o.name || '') + '">';
+          html += '<div class="oc-no-tracking-icon"><div class="oc-spinner"></div></div>';
+          html += '<div class="oc-no-tracking-text">Loading tracking details...</div>';
+          html += '</div>';
+        } else {
+          html += '<div class="oc-no-tracking">';
+          html += '<div class="oc-no-tracking-icon">' + TRUCK_SVG + '</div>';
+          html += '<div class="oc-no-tracking-text">Tracking details will be available once your order ships.</div>';
+          html += '</div>';
+        }
       }
 
       // ── Support URL ──
@@ -2848,27 +2865,85 @@
         const isEmpty = (activeTabId === 'track_order' && orders.length === 0) || (activeTabId === 'track_return' && returns.length === 0);
         document.getElementById('result-empty').style.display = isEmpty ? 'block' : 'none';
 
-        if (PORTAL_CONFIG.showOrderTracking) {
+        function renderOrdersToDOM(ordersList) {
+          if (!PORTAL_CONFIG.showOrderTracking) return;
           try {
-            document.getElementById('result-orders').innerHTML = orders.length === 0
+            document.getElementById('result-orders').innerHTML = ordersList.length === 0
               ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">No orders found for this search.</p>'
-              : orders.map(function (o, orderIdx) {
+              : ordersList.map(function (o, orderIdx) {
                 try { return renderOrderCardV3(o, orderIdx); }
                 catch (renderErr) { console.error('Order render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Order ' + escapeHtml(o.name || o.id || '') + '</p></div>'; }
               }).join('');
           } catch (re) { console.error('Order list render error:', re); }
           initCollapsibles();
         }
-        if (PORTAL_CONFIG.showReturnTracking) {
+        function renderReturnsToDOM(returnsList) {
+          if (!PORTAL_CONFIG.showReturnTracking) return;
           try {
-            document.getElementById('result-returns').innerHTML = returns.length === 0
+            document.getElementById('result-returns').innerHTML = returnsList.length === 0
               ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">No returns found for this search.</p>'
-              : returns.map(function (x) {
+              : returnsList.map(function (x) {
                 try { return renderReturnCardV3(x); }
                 catch (renderErr) { console.error('Return render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Return ' + escapeHtml(x.returnRequestNo || x.id || '') + '</p></div>'; }
               }).join('');
           } catch (re) { console.error('Return list render error:', re); }
           initCollapsibles();
+        }
+
+        renderOrdersToDOM(orders);
+        renderReturnsToDOM(returns);
+
+        // Phase 2: Background Fynd enrichment (non-blocking)
+        var ordersNeedingFynd = orders.filter(function (o) { return o._needsFyndEnrich && o.name; });
+        var returnsNeedingFynd = returns.filter(function (r) { return r._needsFyndEnrich && r.id; });
+        if (ordersNeedingFynd.length > 0 || returnsNeedingFynd.length > 0) {
+          (async function () {
+            try {
+              var enrichPromises = [];
+              ordersNeedingFynd.forEach(function (o) {
+                enrichPromises.push(
+                  fetchJson(API + '/fynd-enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: shop, type: 'order', orderName: o.name }) }, 12000)
+                    .then(function (res) { return { orderName: o.name, fyndData: res.fyndData }; })
+                    .catch(function () { return { orderName: o.name, fyndData: null }; })
+                );
+              });
+              if (returnsNeedingFynd.length > 0) {
+                enrichPromises.push(
+                  fetchJson(API + '/fynd-enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: shop, type: 'returns', returnIds: returnsNeedingFynd.map(function (r) { return r.id; }) }) }, 12000)
+                    .then(function (res) { return { returnEnrichments: res.returnEnrichments || {} }; })
+                    .catch(function () { return { returnEnrichments: {} }; })
+                );
+              }
+              var enrichResults = await Promise.all(enrichPromises);
+              var anyOrderEnriched = false;
+              var anyReturnEnriched = false;
+              enrichResults.forEach(function (er) {
+                if (er.orderName) {
+                  var matchedOrder = orders.find(function (o) { return o.name === er.orderName; });
+                  if (matchedOrder && er.fyndData) {
+                    matchedOrder.fyndData = er.fyndData;
+                    matchedOrder._needsFyndEnrich = false;
+                    anyOrderEnriched = true;
+                  }
+                }
+                if (er.returnEnrichments) {
+                  Object.keys(er.returnEnrichments).forEach(function (retId) {
+                    var matchedReturn = returns.find(function (r) { return r.id === retId; });
+                    if (matchedReturn) {
+                      var enr = er.returnEnrichments[retId];
+                      if (enr.trackingInfo) matchedReturn.trackingInfo = enr.trackingInfo;
+                      if (enr.returnJourney) matchedReturn.returnJourney = enr.returnJourney;
+                      if (enr.pickupAddress) matchedReturn.pickupAddress = enr.pickupAddress;
+                      matchedReturn._needsFyndEnrich = false;
+                      anyReturnEnriched = true;
+                    }
+                  });
+                }
+              });
+              if (anyOrderEnriched) renderOrdersToDOM(orders);
+              if (anyReturnEnriched) renderReturnsToDOM(returns);
+            } catch (_) { /* Fynd enrichment is non-fatal */ }
+          })();
         }
 
         // Start auto-refresh if any shipment is in transit

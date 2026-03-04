@@ -4,7 +4,7 @@ import { hashLookupValue } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab, extractFyndJourney, getPickupAddressFromFyndPayload, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
 import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
-import { createFyndClientOrError, type FyndClientResult } from "../lib/fynd.server";
+import { createFyndClientOrError, type FyndClientResult, type ShipmentsListingSearchType } from "../lib/fynd.server";
 import shopify from "../shopify.server";
 
 type FyndClient = Extract<FyndClientResult, { ok: true }>["client"];
@@ -143,9 +143,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     type PortalOrder = {
       id: string; name: string; createdAt: string; email?: string | null;
-      totalPrice?: string; currencyCode?: string;
+      totalPrice?: string; subtotalPrice?: string; totalDiscounts?: string;
+      currencyCode?: string;
       displayFinancialStatus?: string; displayFulfillmentStatus?: string;
-      lineItems?: Array<{ id: string; title: string; variantTitle?: string | null; quantity: number; price?: string | null; imageUrl?: string | null }>;
+      lineItems?: Array<{ id: string; title: string; variantTitle?: string | null; quantity: number; price?: string | null; discountedPrice?: string | null; imageUrl?: string | null }>;
       shippingAddress?: Record<string, string | null | undefined> | null;
       fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null;
     };
@@ -166,48 +167,66 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         let fyndData = null;
         if (order) {
           if (fyndClient && "searchShipmentsByExternalOrderId" in fyndClient) {
-            try {
-              let searchResult = await fyndClient.searchShipmentsByExternalOrderId(orderNumber, {
-                fulfillmentType: "FULFILLMENT",
-                parentViewSlug: "all",
-                childViewSlug: "all"
-              });
+            const FYND_ENRICH_TIMEOUT = 12_000;
+            const enrichPromise = (async () => {
               const extractSearchItems = (res: Record<string, unknown>): unknown[] => {
                 const candidates = [res?.items, res?.shipments, (res?.data as Record<string, unknown>)?.items, res?.results];
                 for (const c of candidates) { if (Array.isArray(c) && c.length > 0) return c; }
                 return [];
               };
-              let items = extractSearchItems(searchResult as Record<string, unknown>);
 
-              if (items.length === 0 && order.affiliateOrderId) {
-                searchResult = await fyndClient.searchShipmentsByExternalOrderId(order.affiliateOrderId, {
-                  fulfillmentType: "FULFILLMENT",
-                  parentViewSlug: "all",
-                  childViewSlug: "all",
-                  searchType: "channel_order_id"
-                });
-                items = extractSearchItems(searchResult as Record<string, unknown>);
+              // Build all search candidates upfront
+              const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType }> = [
+                { value: orderNumber, type: "external_order_id" },
+              ];
+              // Strip common Fynd prefixes (e.g. "FYNDSHOPIFYX14050" → "14050")
+              const numericPart = orderNumber.replace(/^[A-Za-z]+/i, "");
+              if (numericPart && numericPart !== orderNumber) {
+                searchCandidates.push({ value: numericPart, type: "external_order_id" });
+              }
+              // Also search by the full order name as channel_order_id
+              if (order.name) {
+                searchCandidates.push({ value: order.name.replace(/^#/, ""), type: "channel_order_id" });
+              }
+              if (order.affiliateOrderId) {
+                searchCandidates.push({ value: order.affiliateOrderId, type: "channel_order_id" });
+              }
+              if (order.id) {
+                searchCandidates.push({ value: order.id.split("/").pop() || "", type: "order_id" });
               }
 
-              if (items.length === 0 && order.id) {
-                searchResult = await fyndClient.searchShipmentsByExternalOrderId(order.id.split("/").pop() || "", {
-                  fulfillmentType: "FULFILLMENT",
-                  parentViewSlug: "all",
-                  childViewSlug: "all",
-                  searchType: "order_id"
-                });
-                items = extractSearchItems(searchResult as Record<string, unknown>);
-              }
-
-              const payloadJson = searchResult != null ? JSON.stringify(searchResult) : null;
-              if (payloadJson && items.length > 0) {
-                fyndData = parseFyndOrderDetailsForTab(payloadJson);
-                if (fyndData) {
-                  (fyndData as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+              for (const candidate of searchCandidates) {
+                if (!candidate.value) continue;
+                try {
+                  const searchResult = await fyndClient.searchShipmentsByExternalOrderId(candidate.value, {
+                    fulfillmentType: "FULFILLMENT",
+                    parentViewSlug: "all",
+                    childViewSlug: "all",
+                    searchType: candidate.type,
+                  });
+                  const items = extractSearchItems(searchResult as Record<string, unknown>);
+                  if (items.length > 0) {
+                    const payloadJson = JSON.stringify(searchResult);
+                    const parsed = parseFyndOrderDetailsForTab(payloadJson);
+                    if (parsed) {
+                      (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+                    }
+                    return parsed;
+                  }
+                } catch {
+                  continue;
                 }
               }
+              return null;
+            })();
+
+            try {
+              fyndData = await Promise.race([
+                enrichPromise,
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), FYND_ENRICH_TIMEOUT)),
+              ]);
             } catch (fErr) {
-              console.warn("Fynd search shipment error for order", orderNumber, fErr);
+              console.warn("Fynd enrichment failed for order", orderNumber, fErr);
             }
           }
 

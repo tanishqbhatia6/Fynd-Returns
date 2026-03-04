@@ -29,7 +29,7 @@ const ORDERS_QUERY = `#graphql
         createdAt
         email
         phone
-        totalPriceSet { shopMoney { amount } }
+        totalPriceSet { shopMoney { amount currencyCode } }
         totalDiscountsSet { shopMoney { amount } }
         subtotalPriceSet { shopMoney { amount } }
         displayFinancialStatus
@@ -66,7 +66,7 @@ const ORDERS_BY_NAME_QUERY = `#graphql
         createdAt
         email
         phone
-        totalPriceSet { shopMoney { amount } }
+        totalPriceSet { shopMoney { amount currencyCode } }
         totalDiscountsSet { shopMoney { amount } }
         subtotalPriceSet { shopMoney { amount } }
         displayFinancialStatus
@@ -103,9 +103,19 @@ const ORDERS_BY_CUSTOMER_QUERY = `#graphql
         name
         createdAt
         email
-        totalPriceSet { shopMoney { amount } }
+        totalPriceSet { shopMoney { amount currencyCode } }
         displayFinancialStatus
         displayFulfillmentStatus
+        lineItems(first: 5) {
+          nodes {
+            id
+            title
+            variantTitle
+            quantity
+            originalUnitPriceSet { shopMoney { amount } }
+            image { url }
+          }
+        }
       }
     }
   }
@@ -156,6 +166,7 @@ export type OrderForPortal = {
   email?: string | null;
   phone?: string | null;
   totalPrice?: string;
+  currencyCode?: string;
   totalDiscounts?: string;
   subtotalPrice?: string;
   discountCodes?: string[];
@@ -165,6 +176,8 @@ export type OrderForPortal = {
   billingAddress?: MailingAddressDisplay | null;
   shippingCountry?: string | null;
   shippingProvince?: string | null;
+  displayFinancialStatus?: string;
+  displayFulfillmentStatus?: string;
 };
 
 export class OrderAccessError extends Error {
@@ -204,9 +217,11 @@ export async function fetchOrderByOrderNumber(
     createdAt: string;
     email?: string | null;
     phone?: string | null;
-    totalPriceSet?: { shopMoney?: { amount?: string } };
+    totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
     totalDiscountsSet?: { shopMoney?: { amount?: string } };
     subtotalPriceSet?: { shopMoney?: { amount?: string } };
+    displayFinancialStatus?: string;
+    displayFulfillmentStatus?: string;
     discountCodes?: string[];
     customAttributes?: Array<{ key: string; value: string }>;
     shippingAddress?: MailingAddressDisplay;
@@ -247,6 +262,7 @@ export async function fetchOrderByOrderNumber(
     email: o.email ?? null,
     phone: o.phone ?? null,
     totalPrice: o.totalPriceSet?.shopMoney?.amount,
+    currencyCode: o.totalPriceSet?.shopMoney?.currencyCode ?? undefined,
     totalDiscounts: o.totalDiscountsSet?.shopMoney?.amount,
     subtotalPrice: o.subtotalPriceSet?.shopMoney?.amount,
     discountCodes: o.discountCodes ?? undefined,
@@ -256,8 +272,19 @@ export async function fetchOrderByOrderNumber(
     billingAddress: o.billingAddress ?? null,
     shippingCountry: o.shippingAddress?.countryCode ?? null,
     shippingProvince: o.shippingAddress?.provinceCode ?? null,
+    displayFinancialStatus: o.displayFinancialStatus ?? undefined,
+    displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
   };
 }
+
+export type OrderSummaryLineItem = {
+  id: string;
+  title: string;
+  variantTitle?: string | null;
+  quantity: number;
+  price?: string | null;
+  imageUrl?: string | null;
+};
 
 export type OrderSummaryForPortal = {
   id: string;
@@ -265,8 +292,10 @@ export type OrderSummaryForPortal = {
   createdAt: string;
   email?: string | null;
   totalPrice?: string;
+  currencyCode?: string;
   displayFinancialStatus?: string;
   displayFulfillmentStatus?: string;
+  lineItems?: OrderSummaryLineItem[];
 };
 
 export async function fetchOrdersByCustomer(
@@ -286,9 +315,19 @@ export async function fetchOrdersByCustomer(
             name: string;
             createdAt: string;
             email?: string | null;
-            totalPriceSet?: { shopMoney?: { amount?: string } };
+            totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
             displayFinancialStatus?: string;
             displayFulfillmentStatus?: string;
+            lineItems?: {
+              nodes?: Array<{
+                id: string;
+                title: string;
+                variantTitle?: string | null;
+                quantity: number;
+                originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+                image?: { url?: string } | null;
+              }>;
+            };
           }>
         }
       };
@@ -305,8 +344,17 @@ export async function fetchOrdersByCustomer(
       createdAt: o.createdAt,
       email: o.email ?? null,
       totalPrice: o.totalPriceSet?.shopMoney?.amount,
+      currencyCode: o.totalPriceSet?.shopMoney?.currencyCode ?? undefined,
       displayFinancialStatus: o.displayFinancialStatus ?? undefined,
       displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
+      lineItems: (o.lineItems?.nodes ?? []).map((li) => ({
+        id: li.id,
+        title: li.title,
+        variantTitle: li.variantTitle ?? null,
+        quantity: li.quantity,
+        price: li.originalUnitPriceSet?.shopMoney?.amount ?? null,
+        imageUrl: li.image?.url ?? null,
+      })),
     }));
   } catch (err) {
     console.error("[fetchOrdersByCustomer] Error:", err instanceof Error ? err.message : err);
@@ -352,7 +400,7 @@ export async function fetchOrder(
     createdAt?: string;
     email?: string | null;
     phone?: string | null;
-    totalPriceSet?: { shopMoney?: { amount?: string } };
+    totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
     totalDiscountsSet?: { shopMoney?: { amount?: string } };
     subtotalPriceSet?: { shopMoney?: { amount?: string } };
     discountCodes?: string[];
@@ -394,6 +442,7 @@ export async function fetchOrder(
     email: order.email ?? null,
     phone: order.phone ?? null,
     totalPrice: order.totalPriceSet?.shopMoney?.amount,
+    currencyCode: order.totalPriceSet?.shopMoney?.currencyCode ?? undefined,
     totalDiscounts: order.totalDiscountsSet?.shopMoney?.amount,
     subtotalPrice: order.subtotalPriceSet?.shopMoney?.amount,
     discountCodes: order.discountCodes ?? undefined,

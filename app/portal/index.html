@@ -727,6 +727,455 @@
       color: var(--status-error);
       margin-top: 8px;
     }
+
+    /* ── Redesigned order card ── */
+    .order-card-v2 {
+      background: var(--portal-surface);
+      border-radius: 16px;
+      border: 1px solid var(--portal-border);
+      margin-bottom: 16px;
+      overflow: hidden;
+      transition: box-shadow 0.2s;
+    }
+
+    .order-card-v2:hover {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+    }
+
+    .order-card-v2:last-child {
+      margin-bottom: 0;
+    }
+
+    .oc-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 20px 20px 0;
+    }
+
+    @media (min-width: 640px) {
+      .oc-header {
+        padding: 24px 24px 0;
+      }
+    }
+
+    .oc-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .oc-order-name {
+      font-family: var(--portal-heading-font);
+      font-size: 1.125rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--portal-text);
+      line-height: 1.3;
+    }
+
+    .oc-order-date {
+      font-size: 0.8125rem;
+      color: var(--portal-text-muted);
+    }
+
+    .oc-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .oc-status-pill .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .oc-status-pill.s-ok {
+      background: #ecfdf5;
+      color: #065f46;
+    }
+
+    .oc-status-pill.s-ok .status-dot {
+      background: #059669;
+    }
+
+    .oc-status-pill.s-pending {
+      background: #fffbeb;
+      color: #92400e;
+    }
+
+    .oc-status-pill.s-pending .status-dot {
+      background: #d97706;
+    }
+
+    .oc-status-pill.s-error {
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .oc-status-pill.s-error .status-dot {
+      background: #dc2626;
+    }
+
+    .oc-items {
+      padding: 16px 20px;
+    }
+
+    @media (min-width: 640px) {
+      .oc-items {
+        padding: 20px 24px;
+      }
+    }
+
+    .oc-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 12px 0;
+      border-bottom: 1px solid color-mix(in srgb, var(--portal-border) 60%, transparent);
+    }
+
+    .oc-item:last-child {
+      border-bottom: none;
+    }
+
+    .oc-item-img {
+      width: 56px;
+      height: 56px;
+      border-radius: 10px;
+      background: var(--portal-bg);
+      border: 1px solid var(--portal-border);
+      overflow: hidden;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .oc-item-img img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .oc-item-img-placeholder {
+      font-size: 20px;
+      color: var(--portal-text-muted);
+      opacity: 0.4;
+    }
+
+    .oc-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .oc-item-title {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--portal-text);
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .oc-item-variant {
+      font-size: 0.75rem;
+      color: var(--portal-text-muted);
+      margin-top: 2px;
+    }
+
+    .oc-item-price {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--portal-text);
+      white-space: nowrap;
+      text-align: right;
+    }
+
+    .oc-item-qty {
+      font-size: 0.75rem;
+      color: var(--portal-text-muted);
+      text-align: right;
+      margin-top: 1px;
+    }
+
+    .oc-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 14px 20px;
+      background: color-mix(in srgb, var(--portal-text) 0.025, transparent);
+      border-top: 1px solid var(--portal-border);
+    }
+
+    @media (min-width: 640px) {
+      .oc-footer {
+        padding: 16px 24px;
+      }
+    }
+
+    .oc-total {
+      font-size: 0.9375rem;
+      font-weight: 700;
+      color: var(--portal-text);
+    }
+
+    .oc-total-label {
+      font-size: 0.8125rem;
+      font-weight: 400;
+      color: var(--portal-text-muted);
+      margin-right: 6px;
+    }
+
+    /* Tracking section inside order card */
+    .oc-tracking {
+      padding: 0 20px 20px;
+    }
+
+    @media (min-width: 640px) {
+      .oc-tracking {
+        padding: 0 24px 24px;
+      }
+    }
+
+    .oc-tracking-header {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--portal-text-muted);
+      margin-bottom: 12px;
+    }
+
+    .oc-info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--portal-bg);
+      border-radius: 12px;
+      border: 1px solid var(--portal-border);
+      margin-bottom: 14px;
+    }
+
+    .oc-info-item-label {
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--portal-text-muted);
+      margin-bottom: 3px;
+    }
+
+    .oc-info-item-value {
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--portal-text);
+      word-break: break-all;
+    }
+
+    .oc-track-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 12px 20px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      font-family: inherit;
+      color: var(--portal-surface);
+      background: var(--portal-primary);
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, box-shadow 0.2s;
+    }
+
+    .oc-track-btn:hover {
+      background: var(--portal-primary-hover);
+      box-shadow: 0 4px 14px color-mix(in srgb, var(--portal-primary) 0.35, transparent);
+    }
+
+    /* Shipping progress bar */
+    .oc-progress {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin: 18px 0 6px;
+      padding: 0 4px;
+    }
+
+    .oc-progress-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 0 0 auto;
+      z-index: 1;
+    }
+
+    .oc-progress-circle {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 700;
+      border: 2px solid var(--portal-border);
+      background: var(--portal-surface);
+      color: var(--portal-text-muted);
+      transition: all 0.3s;
+    }
+
+    .oc-progress-circle.done {
+      background: var(--portal-primary);
+      border-color: var(--portal-primary);
+      color: white;
+    }
+
+    .oc-progress-circle.active {
+      width: 28px;
+      height: 28px;
+      font-size: 11px;
+      border-color: var(--portal-primary);
+      background: var(--portal-primary);
+      color: white;
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--portal-primary) 0.15, transparent);
+    }
+
+    .oc-progress-label {
+      font-size: 0.5625rem;
+      margin-top: 5px;
+      font-weight: 500;
+      white-space: nowrap;
+      color: var(--portal-text-muted);
+      transition: color 0.2s;
+    }
+
+    .oc-progress-label.active {
+      font-weight: 700;
+      color: var(--portal-primary);
+    }
+
+    .oc-progress-line {
+      flex: 1;
+      height: 2px;
+      background: var(--portal-border);
+      margin: 0 -2px;
+      margin-bottom: 20px;
+      transition: background 0.3s;
+    }
+
+    .oc-progress-line.done {
+      background: var(--portal-primary);
+    }
+
+    /* Timeline redesign */
+    .oc-timeline {
+      margin-top: 16px;
+      position: relative;
+      padding-left: 20px;
+    }
+
+    .oc-timeline::before {
+      content: '';
+      position: absolute;
+      left: 5px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: var(--portal-border);
+      border-radius: 1px;
+    }
+
+    .oc-timeline-event {
+      position: relative;
+      padding: 6px 0 14px 0;
+      font-size: 0.8125rem;
+      color: var(--portal-text);
+      line-height: 1.5;
+    }
+
+    .oc-timeline-event:last-child {
+      padding-bottom: 0;
+    }
+
+    .oc-timeline-dot {
+      position: absolute;
+      left: -20px;
+      top: 10px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--portal-border);
+      border: 2px solid var(--portal-surface);
+    }
+
+    .oc-timeline-dot.latest {
+      background: var(--portal-primary);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--portal-primary) 0.15, transparent);
+    }
+
+    .oc-timeline-time {
+      font-size: 0.6875rem;
+      color: var(--portal-text-muted);
+      display: block;
+      margin-bottom: 2px;
+    }
+
+    .oc-timeline-label {
+      font-weight: 500;
+    }
+
+    /* Delivery address */
+    .oc-address {
+      font-size: 0.8125rem;
+      color: var(--portal-text-muted);
+      line-height: 1.6;
+      padding: 12px 14px;
+      background: var(--portal-bg);
+      border-radius: 10px;
+      border: 1px solid var(--portal-border);
+      margin-top: 12px;
+    }
+
+    .oc-address-label {
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--portal-text-muted);
+      margin-bottom: 4px;
+    }
+
+    .oc-section-divider {
+      height: 1px;
+      background: var(--portal-border);
+      margin: 0 20px;
+    }
+
+    @media (min-width: 640px) {
+      .oc-section-divider {
+        margin: 0 24px;
+      }
+    }
   </style>
 </head>
 
@@ -1011,6 +1460,28 @@
     const API = APP_URL + '/api/portal';
     function escapeHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+    // ── Currency formatting ──
+    function formatMoney(amount, currency) {
+      if (!amount && amount !== 0) return '';
+      var num = typeof amount === 'string' ? parseFloat(amount) : amount;
+      if (isNaN(num)) return String(amount);
+      try {
+        return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(num);
+      } catch (_) {
+        return (currency || '') + ' ' + num.toFixed(2);
+      }
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '';
+      return new Date(dateStr).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function formatDateTime(dateStr) {
+      if (!dateStr) return '';
+      return new Date(dateStr).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    }
+
     // ── Customer-friendly status helpers ──
     function friendlyOrderStatus(raw) {
       var s = (raw || '').toLowerCase();
@@ -1067,35 +1538,47 @@
       return cleaned;
     }
 
-    function renderProgressSteps(activeStep) {
-      if (activeStep < 0) return ''; // rejected/cancelled — no progress bar
-      var steps = [
+    function renderProgressSteps(activeStep, stepLabels) {
+      if (activeStep < 0) return '';
+      var steps = stepLabels || [
         { num: 1, label: 'Submitted' },
         { num: 2, label: 'Approved' },
         { num: 3, label: 'Received' },
         { num: 4, label: 'Refunded' }
       ];
-      var html = '<div style="display:flex;align-items:center;gap:0;margin:16px 0;padding:0 4px;">';
+      var html = '<div class="oc-progress">';
       steps.forEach(function (st, i) {
         var done = activeStep >= st.num;
         var current = activeStep === st.num;
-        var color = done ? 'var(--portal-primary)' : 'var(--portal-border)';
-        var textColor = done ? 'var(--portal-primary)' : 'var(--portal-text-muted)';
-        var weight = current ? '700' : (done ? '600' : '400');
-        // Circle
-        html += '<div style="display:flex;flex-direction:column;align-items:center;flex:0 0 auto;z-index:1;">';
-        html += '<div style="width:' + (current ? '28px' : '22px') + ';height:' + (current ? '28px' : '22px') + ';border-radius:50%;background:' + (done ? color : 'var(--portal-surface)') + ';border:2px solid ' + color + ';display:flex;align-items:center;justify-content:center;font-size:' + (current ? '12px' : '10px') + ';color:' + (done ? 'white' : textColor) + ';font-weight:700;transition:all 0.3s;">';
-        html += done ? '✓' : st.num;
+        var circleClass = done ? (current ? 'active' : 'done') : '';
+        var labelClass = (done || current) ? 'active' : '';
+        html += '<div class="oc-progress-step">';
+        html += '<div class="oc-progress-circle ' + circleClass + '">';
+        html += done ? '&#10003;' : st.num;
         html += '</div>';
-        html += '<div style="font-size:0.625rem;margin-top:4px;color:' + textColor + ';font-weight:' + weight + ';white-space:nowrap;">' + st.label + '</div>';
+        html += '<div class="oc-progress-label ' + labelClass + '">' + st.label + '</div>';
         html += '</div>';
-        // Connector line
         if (i < steps.length - 1) {
-          html += '<div style="flex:1;height:2px;background:' + (activeStep > st.num ? 'var(--portal-primary)' : 'var(--portal-border)') + ';margin:0 -2px;margin-bottom:18px;"></div>';
+          html += '<div class="oc-progress-line ' + (activeStep > st.num ? 'done' : '') + '"></div>';
         }
       });
       html += '</div>';
       return html;
+    }
+
+    function renderOrderProgressSteps(fulfillmentStatus) {
+      var s = (fulfillmentStatus || '').toLowerCase();
+      var steps = [
+        { num: 1, label: 'Placed' },
+        { num: 2, label: 'Confirmed' },
+        { num: 3, label: 'Shipped' },
+        { num: 4, label: 'Delivered' }
+      ];
+      var activeStep = 1;
+      if (s.includes('fulfilled') && !s.includes('unfulfilled')) activeStep = 4;
+      else if (s.includes('in_transit') || s.includes('shipped') || s.includes('partial')) activeStep = 3;
+      else if (s.includes('confirmed') || s.includes('paid')) activeStep = 2;
+      return renderProgressSteps(activeStep, steps);
     }
     async function fetchJson(url, opts) {
       let res;
@@ -1189,73 +1672,143 @@
             : orders.map(function (o) {
               var status = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
               var friendlyStatus = friendlyOrderStatus(status);
-
               var dStatus = friendlyStatus.label;
               var dClass = friendlyStatus.cls;
-              var fyndHtml = '';
+              var currency = o.currencyCode || 'INR';
 
+              // Override status with Fynd data if available
               if (o.fyndData && o.fyndData.shipments && o.fyndData.shipments.length > 0) {
                 var ship = o.fyndData.shipments[0];
                 if (ship.shipmentStatus) {
-                  dStatus = ship.shipmentStatus;
-                  dClass = 'status-ok'; // default green unless matched otherwise
+                  var fyndFriendly = friendlyOrderStatus(ship.shipmentStatus);
+                  dStatus = fyndFriendly.label !== ship.shipmentStatus ? fyndFriendly.label : ship.shipmentStatus;
+                  dClass = fyndFriendly.cls;
                 }
-                fyndHtml += '<div style="margin-top:16px;">';
-                // Fynd Forward Shipment Journey progress bar
-                var forwardJourney = o.fyndData.forwardJourney || [];
-                if (forwardJourney.length > 0) {
-                  fyndHtml += '<div class="return-timeline" style="margin-bottom:16px;"><div class="return-timeline-title">Forward Shipment Journey</div>';
-                  forwardJourney.forEach(function (step, idx) {
-                    var time = step.time ? new Date(step.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                    var isLast = idx === forwardJourney.length - 1;
-                    var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
-                    fyndHtml += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(step.displayName || step.status || '—') + '</span></div>';
-                  });
-                  fyndHtml += '</div>';
-                } else {
-                  var unified = unifiedReturnStatus("approved", (ship.shipmentStatus || '').toLowerCase());
-                  fyndHtml += renderProgressSteps(unified.step);
-                }
-                var info = [];
-                if (ship.cpName) info.push(['Courier', ship.cpName]);
-                if (ship.forwardAwb) info.push(['Tracking #', ship.forwardAwb]);
-                if (ship.invoiceNumber) info.push(['Invoice', ship.invoiceNumber]);
-
-                if (info.length) {
-                  fyndHtml += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:16px 0;padding:14px;background:color-mix(in srgb, var(--portal-text) 0.03, transparent);border-radius:10px;">';
-                  info.forEach(function (pair) {
-                    fyndHtml += '<div><div style="font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--portal-text-muted);margin-bottom:3px;">' + escapeHtml(pair[0]) + '</div>';
-                    fyndHtml += '<div style="font-size:0.875rem;font-weight:600;color:var(--portal-text);">' + escapeHtml(pair[1]) + '</div></div>';
-                  });
-                  fyndHtml += '</div>';
-                }
-                if (ship.trackingUrl) {
-                  fyndHtml += '<div style="margin:14px 0;"><a href="' + escapeHtml(ship.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="width:100%;justify-content:center;">📦 Track your shipment →</a></div>';
-                }
-                if (ship.trackingDetails && ship.trackingDetails.length > 0) {
-                  fyndHtml += '<div class="return-timeline"><div class="return-timeline-title">Tracking History</div>';
-                  ship.trackingDetails.forEach(function (ev, idx) {
-                    var time = ev.time ? new Date(ev.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                    var label = ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '');
-                    var isLast = idx === 0;
-                    var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
-                    fyndHtml += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(label) + '</span></div>';
-                  });
-                  fyndHtml += '</div>';
-                }
-                fyndHtml += '</div>';
               }
 
-              var html = '<div class="order-card">';
-              html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">';
-              html += '<div class="order-name" style="margin:0;">' + escapeHtml(o.name || o.id) + '</div>';
-              html += '<span class="status-badge ' + dClass + '">' + escapeHtml(dStatus) + '</span>';
+              var html = '<div class="order-card-v2">';
+
+              // Header: order name + date | status pill
+              html += '<div class="oc-header">';
+              html += '<div class="oc-title-group">';
+              html += '<div class="oc-order-name">Order ' + escapeHtml(o.name || o.id) + '</div>';
+              if (o.createdAt) html += '<div class="oc-order-date">Placed on ' + formatDate(o.createdAt) + '</div>';
               html += '</div>';
-              var details = [];
-              if (o.createdAt) details.push('<span>📅 Ordered ' + new Date(o.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) + '</span>');
-              if (o.totalPrice) details.push('<span>💰 ' + escapeHtml(o.totalPrice) + '</span>');
-              if (details.length) html += '<div class="order-meta">' + details.join('') + '</div>';
-              html += fyndHtml;
+              html += '<span class="oc-status-pill s-' + dClass + '"><span class="status-dot"></span>' + escapeHtml(dStatus) + '</span>';
+              html += '</div>';
+
+              // Order progress bar
+              html += '<div style="padding:0 20px;">' + renderOrderProgressSteps(o.displayFulfillmentStatus || status) + '</div>';
+
+              // Line items (if available)
+              var items = o.lineItems || [];
+              if (items.length > 0) {
+                html += '<div class="oc-items">';
+                items.forEach(function (li) {
+                  html += '<div class="oc-item">';
+                  html += '<div class="oc-item-img">';
+                  if (li.imageUrl) {
+                    html += '<img src="' + escapeHtml(li.imageUrl) + '&width=120" alt="' + escapeHtml(li.title) + '" loading="lazy">';
+                  } else {
+                    html += '<span class="oc-item-img-placeholder">&#9634;</span>';
+                  }
+                  html += '</div>';
+                  html += '<div class="oc-item-info">';
+                  html += '<div class="oc-item-title">' + escapeHtml(li.title) + '</div>';
+                  if (li.variantTitle) html += '<div class="oc-item-variant">' + escapeHtml(li.variantTitle) + '</div>';
+                  html += '</div>';
+                  html += '<div>';
+                  var itemPrice = li.price || li.discountedPrice;
+                  if (itemPrice) html += '<div class="oc-item-price">' + formatMoney(itemPrice, currency) + '</div>';
+                  if (li.quantity > 1) html += '<div class="oc-item-qty">Qty: ' + li.quantity + '</div>';
+                  html += '</div>';
+                  html += '</div>';
+                });
+                html += '</div>';
+              }
+
+              // Footer: total price
+              if (o.totalPrice) {
+                html += '<div class="oc-footer">';
+                html += '<div class="oc-total"><span class="oc-total-label">Total</span>' + formatMoney(o.totalPrice, currency) + '</div>';
+                html += '</div>';
+              }
+
+              // Fynd tracking section
+              if (o.fyndData && o.fyndData.shipments && o.fyndData.shipments.length > 0) {
+                var ship = o.fyndData.shipments[0];
+
+                html += '<div class="oc-tracking">';
+
+                // Shipping info grid
+                var info = [];
+                if (ship.cpName) info.push(['Courier', ship.cpName]);
+                if (ship.forwardAwb) info.push(['Tracking No.', ship.forwardAwb]);
+                if (ship.invoiceNumber) info.push(['Invoice', ship.invoiceNumber]);
+                if (ship.shipmentStatus) info.push(['Status', ship.shipmentStatus]);
+
+                if (info.length > 0) {
+                  html += '<div class="oc-info-grid">';
+                  info.forEach(function (pair) {
+                    html += '<div><div class="oc-info-item-label">' + escapeHtml(pair[0]) + '</div>';
+                    html += '<div class="oc-info-item-value">' + escapeHtml(pair[1]) + '</div></div>';
+                  });
+                  html += '</div>';
+                }
+
+                // Track shipment CTA
+                if (ship.trackingUrl) {
+                  html += '<a href="' + escapeHtml(ship.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-track-btn">';
+                  html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M1 10h22"/></svg>';
+                  html += 'Track shipment</a>';
+                }
+
+                // Forward journey timeline
+                var forwardJourney = o.fyndData.forwardJourney || [];
+                if (forwardJourney.length > 0) {
+                  html += '<div style="margin-top:18px;"><div class="oc-tracking-header">Shipment Journey</div>';
+                  html += '<div class="oc-timeline">';
+                  forwardJourney.forEach(function (step, idx) {
+                    var isLast = idx === forwardJourney.length - 1;
+                    html += '<div class="oc-timeline-event">';
+                    html += '<span class="oc-timeline-dot ' + (isLast ? 'latest' : '') + '"></span>';
+                    if (step.time) html += '<span class="oc-timeline-time">' + formatDateTime(step.time) + '</span>';
+                    html += '<span class="oc-timeline-label">' + escapeHtml(step.displayName || step.status || '') + '</span>';
+                    html += '</div>';
+                  });
+                  html += '</div></div>';
+                }
+
+                // Tracking history
+                if (ship.trackingDetails && ship.trackingDetails.length > 0) {
+                  html += '<div style="margin-top:18px;"><div class="oc-tracking-header">Tracking Updates</div>';
+                  html += '<div class="oc-timeline">';
+                  ship.trackingDetails.forEach(function (ev, idx) {
+                    var label = ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '');
+                    html += '<div class="oc-timeline-event">';
+                    html += '<span class="oc-timeline-dot ' + (idx === 0 ? 'latest' : '') + '"></span>';
+                    if (ev.time) html += '<span class="oc-timeline-time">' + formatDateTime(ev.time) + '</span>';
+                    html += '<span class="oc-timeline-label">' + escapeHtml(label) + '</span>';
+                    html += '</div>';
+                  });
+                  html += '</div></div>';
+                }
+
+                html += '</div>';
+              }
+
+              // Shipping address (if available and no fynd data)
+              if (o.shippingAddress && !(o.fyndData && o.fyndData.shipments && o.fyndData.shipments.length > 0)) {
+                var addr = o.shippingAddress;
+                var addrParts = [addr.name, addr.address1, addr.address2, [addr.city, addr.province].filter(Boolean).join(', '), [addr.zip, addr.country].filter(Boolean).join(' ')].filter(Boolean);
+                if (addrParts.length > 0) {
+                  html += '<div class="oc-tracking">';
+                  html += '<div class="oc-address-label">Delivery address</div>';
+                  html += '<div class="oc-address">' + addrParts.map(function (p) { return escapeHtml(p); }).join('<br>') + '</div>';
+                  html += '</div>';
+                }
+              }
+
               html += '</div>';
               return html;
             }).join('');
@@ -1271,90 +1824,106 @@
               var unified = unifiedReturnStatus(status, fyndSt);
               var displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
 
-              var html = '<div class="return-card">';
-              // Header row
-              html += '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:14px;">';
-              html += '<div>';
-              html += '<div class="return-order" style="margin-bottom:2px;">Return ' + escapeHtml(displayId) + '</div>';
-              if (orderName !== displayId) html += '<div style="font-size:0.8125rem;color:var(--portal-text-muted);">Order ' + escapeHtml(orderName) + '</div>';
+              var html = '<div class="order-card-v2">';
+
+              // Header
+              html += '<div class="oc-header">';
+              html += '<div class="oc-title-group">';
+              html += '<div class="oc-order-name">Return ' + escapeHtml(displayId) + '</div>';
+              var subParts = [];
+              if (orderName !== displayId) subParts.push('Order ' + escapeHtml(orderName));
+              if (x.createdAt) subParts.push('Submitted ' + formatDate(x.createdAt));
+              if (subParts.length) html += '<div class="oc-order-date">' + subParts.join(' &middot; ') + '</div>';
               html += '</div>';
-              html += '<span class="status-badge ' + unified.cls + '">' + unified.icon + ' ' + escapeHtml(unified.label) + '</span>';
+              html += '<span class="oc-status-pill s-' + unified.cls + '"><span class="status-dot"></span>' + escapeHtml(unified.label) + '</span>';
               html += '</div>';
 
               // Progress steps
-              html += renderProgressSteps(unified.step);
+              html += '<div style="padding:0 20px;">' + renderProgressSteps(unified.step) + '</div>';
 
-              // Key details grid: Shopify Order, Return ID, Fynd shipment, tracking
+              // Info grid
               var info = [];
-              if (x.shopifyOrderName) info.push(['Shopify Order', x.shopifyOrderName]);
               if (x.returnRequestNo) info.push(['Return ID', x.returnRequestNo]);
-              if (x.fyndShipmentId) info.push(['Fynd Shipment ID', x.fyndShipmentId]);
-              if (ti.awbNo || x.returnAwb) info.push(['Tracking #', ti.awbNo || x.returnAwb]);
+              if (x.shopifyOrderName) info.push(['Order', x.shopifyOrderName]);
+              if (ti.awbNo || x.returnAwb) info.push(['Tracking No.', ti.awbNo || x.returnAwb]);
               if (ti.logisticsPartner) info.push(['Courier', ti.logisticsPartner]);
-              if (x.createdAt) info.push(['Submitted', new Date(x.createdAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })]);
+              if (x.fyndShipmentId) info.push(['Shipment ID', x.fyndShipmentId]);
               if (info.length) {
-                html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:16px 0;padding:14px;background:color-mix(in srgb, var(--portal-text) 0.03, transparent);border-radius:10px;">';
+                html += '<div class="oc-tracking"><div class="oc-info-grid">';
                 info.forEach(function (pair) {
-                  html += '<div><div style="font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:var(--portal-text-muted);margin-bottom:3px;">' + escapeHtml(pair[0]) + '</div>';
-                  html += '<div style="font-size:0.875rem;font-weight:600;color:var(--portal-text);">' + escapeHtml(pair[1]) + '</div></div>';
+                  html += '<div><div class="oc-info-item-label">' + escapeHtml(pair[0]) + '</div>';
+                  html += '<div class="oc-info-item-value">' + escapeHtml(pair[1]) + '</div></div>';
                 });
-                html += '</div>';
+                html += '</div></div>';
               }
 
               // Track shipment CTA
-              if (ti.trackingUrl) html += '<div style="margin:14px 0;"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="btn-secondary" style="width:100%;justify-content:center;">📦 Track your shipment →</a></div>';
+              if (ti.trackingUrl) {
+                html += '<div style="padding:0 20px 16px;"><a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-track-btn">';
+                html += '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="22" height="12" rx="2"/><path d="M1 10h22"/></svg>';
+                html += 'Track return shipment</a></div>';
+              }
 
               // Rejection reason
               if (status === 'rejected' && x.rejectionReason) {
-                html += '<div style="margin-top:14px;padding:14px 16px;background:color-mix(in srgb, var(--status-error) 0.06, transparent);border-radius:10px;font-size:0.875rem;color:#b91c1c;border-left:3px solid var(--status-error);">';
-                html += '<div style="font-weight:600;margin-bottom:4px;">Return declined</div>';
-                html += escapeHtml(x.rejectionReason) + '</div>';
+                html += '<div style="margin:0 20px 16px;padding:14px 16px;background:#fef2f2;border-radius:10px;font-size:0.875rem;color:#991b1b;border-left:3px solid #dc2626;">';
+                html += '<div style="font-weight:700;margin-bottom:4px;">Return declined</div>';
+                html += '<div>' + escapeHtml(x.rejectionReason) + '</div></div>';
               }
 
               // Store message
               if (x.notesForCustomer) {
-                html += '<div style="margin-top:14px;padding:14px 16px;background:color-mix(in srgb, var(--portal-primary) 0.06, transparent);border-radius:10px;font-size:0.875rem;color:var(--portal-text);border-left:3px solid var(--portal-primary);">';
-                html += '<div style="font-weight:600;margin-bottom:4px;">Message from the store</div>';
+                html += '<div style="margin:0 20px 16px;padding:14px 16px;background:color-mix(in srgb, var(--portal-primary) 0.06, transparent);border-radius:10px;font-size:0.875rem;color:var(--portal-text);border-left:3px solid var(--portal-primary);">';
+                html += '<div style="font-weight:700;margin-bottom:4px;">Message from the store</div>';
                 html += '<div style="white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
               }
 
-              // Timeline: prefer Fynd return journey, then tracking details + DB events
+              // Timeline
               var returnJourney = x.returnJourney || [];
               var fyndUpdates = ti.trackingDetails || [];
               var dbEvents = (x.events || []).slice();
 
               if (returnJourney.length > 0) {
-                html += '<div class="return-timeline"><div class="return-timeline-title">Return Journey (End to End)</div>';
+                html += '<div class="oc-tracking"><div class="oc-tracking-header">Return Journey</div>';
+                html += '<div class="oc-timeline">';
                 returnJourney.forEach(function (step, idx) {
-                  var time = step.time ? new Date(step.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
                   var isLast = idx === returnJourney.length - 1;
-                  var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
-                  html += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(time) + '</time> ' + escapeHtml(step.displayName || step.status || '—') + '</span></div>';
+                  html += '<div class="oc-timeline-event">';
+                  html += '<span class="oc-timeline-dot ' + (isLast ? 'latest' : '') + '"></span>';
+                  if (step.time) html += '<span class="oc-timeline-time">' + formatDateTime(step.time) + '</span>';
+                  html += '<span class="oc-timeline-label">' + escapeHtml(step.displayName || step.status || '') + '</span>';
+                  html += '</div>';
                 });
-                html += '</div>';
+                html += '</div></div>';
               } else if (fyndUpdates.length || dbEvents.length) {
-                html += '<div class="return-timeline"><div class="return-timeline-title">Activity</div>';
+                html += '<div class="oc-tracking"><div class="oc-tracking-header">Activity</div>';
+                html += '<div class="oc-timeline">';
                 var allActivity = [];
                 dbEvents.forEach(function (ev) {
-                  var tVal = ev.happenedAt ? new Date(ev.happenedAt).getTime() : 0;
-                  var tStr = ev.happenedAt ? new Date(ev.happenedAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                  var label = friendlyEventLabel(ev.eventType || '', ev.source || '');
-                  allActivity.push({ timeVal: tVal, timeStr: tStr, label: label });
+                  allActivity.push({
+                    timeVal: ev.happenedAt ? new Date(ev.happenedAt).getTime() : 0,
+                    timeStr: ev.happenedAt ? formatDateTime(ev.happenedAt) : '',
+                    label: friendlyEventLabel(ev.eventType || '', ev.source || '')
+                  });
                 });
                 fyndUpdates.forEach(function (ev) {
-                  var tVal = ev.time ? new Date(ev.time).getTime() : 0;
-                  var tStr = ev.time ? new Date(ev.time).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
-                  var label = ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '');
-                  allActivity.push({ timeVal: tVal, timeStr: tStr, label: label });
+                  allActivity.push({
+                    timeVal: ev.time ? new Date(ev.time).getTime() : 0,
+                    timeStr: ev.time ? formatDateTime(ev.time) : '',
+                    label: ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '')
+                  });
                 });
                 allActivity.sort(function (a, b) { return a.timeVal - b.timeVal; });
                 allActivity = allActivity.slice(-15);
                 allActivity.forEach(function (ev, idx) {
                   var isLast = idx === allActivity.length - 1;
-                  var dotColor = isLast ? 'var(--portal-primary)' : 'var(--portal-border)';
-                  html += '<div class="return-timeline-item"><span class="event-dot" style="background:' + dotColor + ';"></span><span><time>' + escapeHtml(ev.timeStr) + '</time> ' + escapeHtml(ev.label) + '</span></div>';
+                  html += '<div class="oc-timeline-event">';
+                  html += '<span class="oc-timeline-dot ' + (isLast ? 'latest' : '') + '"></span>';
+                  if (ev.timeStr) html += '<span class="oc-timeline-time">' + escapeHtml(ev.timeStr) + '</span>';
+                  html += '<span class="oc-timeline-label">' + escapeHtml(ev.label) + '</span>';
+                  html += '</div>';
                 });
-                html += '</div>';
+                html += '</div></div>';
               }
 
               return html + '</div>';

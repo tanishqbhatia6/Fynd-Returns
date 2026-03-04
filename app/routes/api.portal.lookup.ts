@@ -138,7 +138,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     returns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    let orders: Array<{ id: string; name: string; createdAt: string; email?: string | null; totalPrice?: string; displayFinancialStatus?: string; displayFulfillmentStatus?: string; fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null }> = [];
+    type PortalOrder = {
+      id: string; name: string; createdAt: string; email?: string | null;
+      totalPrice?: string; currencyCode?: string;
+      displayFinancialStatus?: string; displayFulfillmentStatus?: string;
+      lineItems?: Array<{ id: string; title: string; variantTitle?: string | null; quantity: number; price?: string | null; imageUrl?: string | null }>;
+      shippingAddress?: Record<string, string | null | undefined> | null;
+      fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null;
+    };
+    let orders: PortalOrder[] = [];
     if (lookupType === "email" && norm.includes("@")) {
       try {
         const { admin } = await shopify.unauthenticated.admin(shopDomain);

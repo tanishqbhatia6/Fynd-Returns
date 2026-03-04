@@ -962,30 +962,58 @@
     }
 
     .oc-info-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 12px;
-      padding: 14px 16px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
       background: var(--portal-bg);
       border-radius: 12px;
       border: 1px solid var(--portal-border);
       margin-bottom: 14px;
+      overflow: hidden;
+    }
+
+    .oc-info-grid > div {
+      flex: 1 1 auto;
+      min-width: 0;
+      padding: 12px 16px;
+      border-right: 1px solid var(--portal-border);
+    }
+
+    .oc-info-grid > div:last-child {
+      border-right: none;
+    }
+
+    @media (max-width: 480px) {
+      .oc-info-grid > div {
+        flex-basis: 50%;
+        border-right: none;
+        border-bottom: 1px solid var(--portal-border);
+      }
+      .oc-info-grid > div:last-child {
+        border-bottom: none;
+      }
     }
 
     .oc-info-item-label {
-      font-size: 0.6875rem;
+      font-size: 0.625rem;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
       color: var(--portal-text-muted);
-      margin-bottom: 3px;
+      margin-bottom: 4px;
+      white-space: nowrap;
     }
 
     .oc-info-item-value {
-      font-size: 0.875rem;
+      font-size: 0.8125rem;
       font-weight: 600;
       color: var(--portal-text);
-      word-break: break-all;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
 
     .oc-track-btn {
@@ -1384,11 +1412,12 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
       border: 1px solid var(--portal-border);
       background: var(--portal-surface);
+      flex-shrink: 0;
       cursor: pointer;
       transition: all 0.15s;
       margin-left: 6px;
@@ -1402,8 +1431,8 @@
     }
 
     .oc-copy-btn svg {
-      width: 14px;
-      height: 14px;
+      width: 12px;
+      height: 12px;
       color: var(--portal-text-muted);
     }
 
@@ -2193,7 +2222,7 @@
 
     function renderInfoGridRow(label, value, copyable) {
       var html = '<div><div class="oc-info-item-label">' + escapeHtml(label) + '</div>';
-      html += '<div class="oc-info-item-value">' + escapeHtml(value);
+      html += '<div class="oc-info-item-value"><span style="overflow:hidden;text-overflow:ellipsis;min-width:0">' + escapeHtml(value) + '</span>';
       if (copyable) html += '<button type="button" class="oc-copy-btn" onclick="copyToClipboard(\'' + escapeHtml(value).replace(/'/g, "\\'") + '\', this)">' + COPY_SVG + '</button>';
       html += '</div></div>';
       return html;
@@ -2760,6 +2789,26 @@
         html += '</div></div>';
       }
 
+      // Returned items
+      var returnItems = x.items || [];
+      if (returnItems.length > 0) {
+        html += '<div class="oc-items-v2">';
+        returnItems.forEach(function (ri) {
+          html += '<div class="oc-item-v2">';
+          html += '<div class="oc-item-img"><span class="oc-item-img-placeholder">' + PACKAGE_SVG + '</span></div>';
+          html += '<div class="oc-item-info">';
+          html += '<div class="oc-item-title">' + escapeHtml(ri.title || ri.productTitle || 'Item') + '</div>';
+          var meta = [];
+          if (ri.variantTitle) meta.push(escapeHtml(ri.variantTitle));
+          if (ri.quantity && ri.quantity > 1) meta.push('Qty: ' + ri.quantity);
+          if (ri.reason) meta.push('<span style="color:var(--portal-text-muted);font-size:0.75rem;">Reason: ' + escapeHtml(ri.reason) + '</span>');
+          if (meta.length) html += '<div class="oc-item-variant">' + meta.join(' · ') + '</div>';
+          html += '</div>';
+          html += '</div>';
+        });
+        html += '</div>';
+      }
+
       // Track shipment CTA
       if (ti.trackingUrl) {
         html += '<div style="padding:14px 20px 0;">';
@@ -2834,6 +2883,7 @@
         html += '</div>';
       }
 
+      html += '<div class="oc-bottom-pad"></div>';
       html += '</div>';
       return html;
     }

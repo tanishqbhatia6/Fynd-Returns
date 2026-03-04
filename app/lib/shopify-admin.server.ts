@@ -405,7 +405,7 @@ export async function fetchOrder(
 export async function createRefund(
   admin: AdminGraphQL,
   orderId: string,
-  lineItemIds: string[],
+  lineItems: Array<{ id: string; quantity: number }> | string[],
   note?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -414,14 +414,20 @@ export async function createRefund(
       orderId: gid,
       note: note || "Return processed via Return Pro Max",
     };
-    if (lineItemIds.length > 0) {
-      refundInput.refundLineItems = lineItemIds.map((id) => ({
-        lineItemId: id.startsWith("gid://") ? id : `gid://shopify/LineItem/${id}`,
-        quantity: 1,
+    const normalized = lineItems.map((item) => {
+      if (typeof item === "string") {
+        return { id: item, quantity: 1 };
+      }
+      return item;
+    });
+    if (normalized.length > 0) {
+      refundInput.refundLineItems = normalized.map((item) => ({
+        lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+        quantity: item.quantity,
         restockType: "RETURN",
       }));
     } else {
-      refundInput.refundLineItems = [{ quantity: 1, restockType: "RETURN" }];
+      return { success: false, error: "No line items specified for refund. Please select items to refund." };
     }
     const res = await admin.graphql(REFUND_MUTATION, { variables: { refund: refundInput } });
     let json: { data?: { refundCreate?: { userErrors?: Array<{ message: string }> } }; errors?: Array<{ message?: string }> };

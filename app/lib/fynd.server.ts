@@ -39,6 +39,9 @@ export type ShipmentsListingParams = {
 
 // --- Platform API (OAuth client_credentials) ---
 
+const tokenCache = new Map<string, { token: string; expiresAt: number }>();
+const TOKEN_CACHE_TTL_MS = 50 * 60 * 1000;
+
 export async function fetchFyndPlatformToken(
   baseUrl: string,
   companyId: string,
@@ -46,6 +49,12 @@ export async function fetchFyndPlatformToken(
   clientSecret: string,
   log?: FyndLogFn
 ): Promise<string> {
+  const cacheKey = `${baseUrl}:${companyId}:${clientId}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached && cached.expiresAt > Date.now()) {
+    log?.("fynd-platform-oauth", "Using cached token", `expires in ${Math.round((cached.expiresAt - Date.now()) / 1000)}s`);
+    return cached.token;
+  }
   const url = `${baseUrl}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
   const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
   log?.("fynd-platform-oauth", "Fetching token", `url=${url}`);
@@ -72,8 +81,10 @@ export async function fetchFyndPlatformToken(
     const hint = res.status === 401 ? " Check Company ID, Client ID & Secret." : res.status >= 500 ? " Fynd server error. Try again later." : "";
     throw new Error(`Fynd Platform OAuth error ${res.status}: ${(body || "Unknown error").slice(0, 200)}${hint}`);
   }
-  const data = JSON.parse(body) as { access_token?: string };
+  const data = JSON.parse(body) as { access_token?: string; expires_in?: number };
   if (!data.access_token) throw new Error("No access_token in OAuth response");
+  const ttl = data.expires_in ? Math.min(data.expires_in * 1000, TOKEN_CACHE_TTL_MS) : TOKEN_CACHE_TTL_MS;
+  tokenCache.set(cacheKey, { token: data.access_token, expiresAt: Date.now() + ttl });
   return data.access_token;
 }
 
@@ -216,7 +227,7 @@ export class FyndPlatformClient {
     const endDate = params?.endDate ?? now.toISOString();
     const startDate = params?.startDate ?? (() => {
       const d = new Date(now);
-      d.setMonth(d.getMonth() - 1);
+      d.setMonth(d.getMonth() - 6);
       return d.toISOString();
     })();
     const searchParams = new URLSearchParams({

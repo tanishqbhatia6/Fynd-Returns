@@ -115,6 +115,40 @@ export async function sendRefundNotification(params: {
   return sendRawEmail(to, subject, html);
 }
 
+export async function sendNewReturnNotification(params: {
+  to: string;
+  orderName: string;
+  customerEmail?: string;
+  itemCount: number;
+  returnRequestId: string;
+  shopName?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!RESEND_API_KEY) return { success: true };
+  const { to, orderName, customerEmail, itemCount, returnRequestId, shopName } = params;
+  if (!to) return { success: false };
+
+  const subject = `New return request ${returnRequestId} for ${orderName}`;
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>New Return Request</title></head>
+<body style="font-family: system-ui, sans-serif; line-height: 1.6; color: #1a1a1a; max-width: 560px; margin: 0 auto; padding: 24px;">
+  <h2 style="color: #d97706; margin-bottom: 16px;">New Return Request</h2>
+  <p>A customer has submitted a return request that needs your attention.</p>
+  <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 16px; margin: 20px 0;">
+    <p style="margin: 0;"><strong>Request ID:</strong> ${escapeHtml(returnRequestId)}</p>
+    <p style="margin: 8px 0 0 0;"><strong>Order:</strong> ${escapeHtml(orderName)}</p>
+    ${customerEmail ? `<p style="margin: 8px 0 0 0;"><strong>Customer:</strong> ${escapeHtml(customerEmail)}</p>` : ""}
+    <p style="margin: 8px 0 0 0;"><strong>Items:</strong> ${itemCount} item(s)</p>
+  </div>
+  <p>Log in to Return Pro Max to review and approve or reject this request.</p>
+  ${shopName ? `<p style="color: #6d7175; font-size: 14px;">— ${escapeHtml(shopName)}</p>` : ""}
+</body>
+</html>
+`;
+  return sendRawEmail(to, subject, html);
+}
+
 async function sendRawEmail(to: string, subject: string, html: string) {
   try {
     const res = await fetch("https://api.resend.com/emails", {

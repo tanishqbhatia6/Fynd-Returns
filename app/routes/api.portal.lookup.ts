@@ -87,7 +87,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (fyndResult.ok) fyndClient = fyndResult.client;
     }
 
-    const returns = await Promise.all(returnsRaw.map(async (r) => {
+    const FYND_CONCURRENCY = 3;
+    const MAX_FYND_LOOKUPS = 10;
+
+    async function enrichReturn(r: typeof returnsRaw[0]) {
       let payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
 
       if (fyndClient && "searchShipmentsByExternalOrderId" in fyndClient && r.shopifyOrderName && r.fyndShipmentId) {
@@ -113,7 +116,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         trackingInfo: trackingInfo ?? undefined,
         returnJourney,
       };
-    }));
+    }
+
+    const returnsNeedingFynd = returnsRaw.filter((r) => r.shopifyOrderName && r.fyndShipmentId).slice(0, MAX_FYND_LOOKUPS);
+    const returnsWithoutFynd = returnsRaw.filter((r) => !returnsNeedingFynd.includes(r));
+
+    const returns: Awaited<ReturnType<typeof enrichReturn>>[] = [];
+
+    for (let i = 0; i < returnsNeedingFynd.length; i += FYND_CONCURRENCY) {
+      const batch = returnsNeedingFynd.slice(i, i + FYND_CONCURRENCY);
+      const results = await Promise.all(batch.map(enrichReturn));
+      returns.push(...results);
+    }
+
+    for (const r of returnsWithoutFynd) {
+      const payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+      const trackingInfo = getTrackingInfoFromFyndPayload(payload);
+      const returnJourney = payload ? extractFyndJourney(payload, "return") : [];
+      returns.push({ ...r, trackingInfo: trackingInfo ?? undefined, returnJourney });
+    }
+
+    returns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     let orders: Array<{ id: string; name: string; createdAt: string; email?: string | null; totalPrice?: string; displayFinancialStatus?: string; displayFulfillmentStatus?: string; fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null }> = [];
     if (lookupType === "email" && norm.includes("@")) {
@@ -190,6 +213,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(Response.json({ orders, returns }), request);
   } catch (err) {
     console.error("Portal lookup:", err);
-    return withCors(Response.json({ error: (err as Error).message }, { status: 500 }), request);
+    return withCors(Response.json({ error: "Something went wrong. Please try again." }, { status: 500 }), request);
   }
 };

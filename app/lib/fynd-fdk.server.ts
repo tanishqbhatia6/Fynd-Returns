@@ -203,7 +203,7 @@ export class FyndPlatformClientFDK {
     const endDate = params?.endDate ?? now.toISOString();
     const startDate = params?.startDate ?? (() => {
       const d = new Date(now);
-      d.setMonth(d.getMonth() - 1);
+      d.setMonth(d.getMonth() - 6);
       return d.toISOString();
     })();
     const searchParams = new URLSearchParams({

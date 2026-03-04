@@ -13,18 +13,8 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import type { FyndWebhookPayload } from "../lib/fynd-webhook.server";
 
-/** GET returns 200 with info — allows URL verification (e.g. Fynd or health checks). No heavy imports. */
 export const loader = async (_args: LoaderFunctionArgs) => {
-  try {
-    return Response.json({
-      ok: true,
-      message: "Fynd webhook endpoint. Use POST with JSON payload.",
-      path: "/api/webhooks/fynd",
-    });
-  } catch (err) {
-    console.error("[Fynd webhook loader]", err);
-    return Response.json({ error: "Webhook endpoint error" }, { status: 500 });
-  }
+  return Response.json({ ok: true, method: "POST" });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -57,14 +47,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  // Optional: verify webhook signature if FYND_WEBHOOK_SECRET is set
   const secret = process.env.FYND_WEBHOOK_SECRET;
   if (secret) {
     const signature = request.headers.get("x-fynd-signature") ?? request.headers.get("x-webhook-signature");
-    if (signature) {
-      // Fynd may use HMAC-SHA256. If they document the format, implement verification here.
-      // For now we accept the webhook if secret is set and signature header exists (placeholder).
-      // TODO: Implement HMAC verification when Fynd documents their webhook signing.
+    if (!signature) {
+      return Response.json({ error: "Missing webhook signature" }, { status: 401 });
+    }
+    const { createHmac, timingSafeEqual } = await import("crypto");
+    const rawBody = JSON.stringify(payload);
+    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+    const sigClean = signature.replace(/^sha256=/, "");
+    try {
+      const sigBuf = Buffer.from(sigClean, "hex");
+      const expBuf = Buffer.from(expected, "hex");
+      if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+        console.warn("[Fynd webhook] Signature mismatch");
+        return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
+      }
+    } catch {
+      console.warn("[Fynd webhook] Signature verification error");
+      return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
     }
   }
 

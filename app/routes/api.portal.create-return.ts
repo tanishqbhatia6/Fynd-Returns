@@ -6,7 +6,7 @@ import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { fetchOrder } from "../lib/shopify-admin.server";
-
+import { sendNewReturnNotification } from "../lib/notification.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 
 const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress"];
@@ -228,6 +228,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
+    if (settings?.notificationNewReturn !== false) {
+      const shopOwnerSessions = await prisma.session.findMany({
+        where: { shop: shopDomain, isOnline: false },
+        select: { email: true },
+        take: 1,
+      });
+      const ownerEmail = shopOwnerSessions[0]?.email;
+      if (ownerEmail) {
+        try {
+          await sendNewReturnNotification({
+            to: ownerEmail,
+            orderName: shopifyOrderName,
+            customerEmail: customerEmail || undefined,
+            itemCount: itemsToCreate.length,
+            returnRequestId: returnRequestNo,
+            shopName: shopDomain.replace(".myshopify.com", ""),
+          });
+        } catch (notifyErr) {
+          console.warn("[Portal create-return] New return notification failed:", notifyErr);
+        }
+      }
+    }
+
     // When auto-approved, sync to Fynd so webhook can match returns
     if (status === "approved" && !manualMode && orderId) {
       try {
@@ -315,8 +338,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   } catch (err) {
     console.error("Portal create return:", err);
+    const isClientFacing = err instanceof Error && /order|item|email|required|invalid|expired/i.test(err.message);
     return withCors(
-      Response.json({ error: err instanceof Error ? err.message : "Failed to create return" }, { status: 500 }),
+      Response.json({
+        error: isClientFacing ? err.message : "Something went wrong. Please try again later.",
+      }, { status: 500 }),
       request
     );
   }

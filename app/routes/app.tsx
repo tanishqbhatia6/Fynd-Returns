@@ -111,10 +111,10 @@ export default function App() {
       {!isDashboard && breadcrumb && (
         <div
           style={{
-            padding: "10px 24px 4px",
+            padding: "12px 28px 6px",
             display: "flex",
             alignItems: "center",
-            gap: 6,
+            gap: 8,
             fontSize: 13,
           }}
         >
@@ -123,14 +123,19 @@ export default function App() {
             style={{
               color: "var(--rpm-accent, #005bd3)",
               textDecoration: "none",
-              fontWeight: 500,
-              transition: "opacity 0.15s",
+              fontWeight: 600,
+              transition: "color 0.15s",
+              fontSize: 13,
             }}
           >
             {breadcrumb.parentLabel}
           </Link>
-          <span style={{ color: "var(--rpm-text-subtle, #94a3b8)" }}>›</span>
-          <span style={{ color: "var(--rpm-text-muted, #64748b)", fontWeight: 500 }}>
+          <span style={{ color: "var(--rpm-text-subtle, #94a3b8)", fontSize: 11 }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ display: "block" }}>
+              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </span>
+          <span style={{ color: "var(--rpm-text-muted, #64748b)", fontWeight: 600 }}>
             {breadcrumb.label}
           </span>
         </div>

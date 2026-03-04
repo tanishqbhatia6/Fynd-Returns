@@ -3,21 +3,11 @@ import { Link, useLoaderData, useNavigate, useFetcher, useSearchParams, isRouteE
 import { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#d97706",
-  processing: "#3b82f6",
-  "in progress": "#3b82f6",
-  approved: "#059669",
-  completed: "#059669",
-  rejected: "#dc2626",
-  cancelled: "#64748b",
-  initiated: "#f59e0b",
-};
-
-function getStatusColor(s: string) {
-  return STATUS_COLORS[s.toLowerCase()] ?? "#6d7175";
-}
+import { getStatusColor } from "../lib/status-colors";
+import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { formatReturnRequestId } from "../lib/return-request-id";
+import type { MailingAddressDisplay } from "../lib/shopify-admin.server";
+import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload } from "../lib/fynd-payload.server";
 
 /** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
 function safeStr(v: unknown): string {
@@ -236,11 +226,6 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
   );
 }
 
-import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
-import { formatReturnRequestId } from "../lib/return-request-id";
-import type { MailingAddressDisplay } from "../lib/shopify-admin.server";
-import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload } from "../lib/fynd-payload.server";
-
 function formatAddress(addr: MailingAddressDisplay | null | undefined): string {
   if (!addr) return "";
   const parts = [
@@ -404,8 +389,13 @@ export default function ReturnDetail() {
             </div>
           )}
         </div>
+        {fetcher.data?.success && !fetcher.data?.error && (
+          <div className="app-alert app-alert-success" style={{ animation: "app-slideDown 0.3s ease" }}>
+            ✓ Action completed successfully{fetcher.data.status ? ` — Status: ${fetcher.data.status}` : ""}
+          </div>
+        )}
         {fetcher.data?.error && (
-          <div className="app-alert app-alert-error">{fetcher.data.error}</div>
+          <div className="app-alert app-alert-error" style={{ animation: "app-slideDown 0.3s ease" }}>{fetcher.data.error}</div>
         )}
         {fyndError && (
           <div className="app-alert app-alert-warning" style={{ borderLeft: "4px solid #b45309" }}>
@@ -482,7 +472,7 @@ export default function ReturnDetail() {
 
         {shopifyOrder && (
           <s-section heading="Order from Shopify">
-            <div style={{ ...cardStyle, marginBottom: 8 }} className="app-card-interactive">
+            <div style={{ ...cardStyle, marginBottom: 8 }}>
               <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 16 }}>Order {shopifyOrder.name}</div>
 
               {(shopifyOrder.email || shopifyOrder.phone) && (
@@ -598,7 +588,7 @@ export default function ReturnDetail() {
         )}
 
         <s-section heading="Return details">
-          <div style={{ ...cardStyle }} className="app-card-interactive">
+          <div style={{ ...cardStyle }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 24, alignItems: "center" }}>
               <div>
                 <span
@@ -656,7 +646,7 @@ export default function ReturnDetail() {
         </s-section>
 
         <s-section heading="Fynd">
-          <div style={{ ...cardStyle, marginBottom: 0 }} className="app-card-interactive">
+          <div style={{ ...cardStyle, marginBottom: 0 }}>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 16, marginBottom: 16 }}>
               <div>
                 <div style={{ fontSize: 11, color: "#6d7175", marginBottom: 4 }}>Fynd Order ID</div>
@@ -741,7 +731,7 @@ export default function ReturnDetail() {
         </s-section>
 
         <s-section heading="Actions">
-          <div style={{ ...cardStyle, padding: 24 }} className="app-card-interactive">
+          <div style={{ ...cardStyle, padding: 24 }}>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 24 }}>
               {!["approved", "rejected", "completed"].includes(returnCase.status.toLowerCase()) && (
                 <>
@@ -899,37 +889,37 @@ export default function ReturnDetail() {
               <p style={{ color: "var(--rpm-text-muted)", margin: "8px 0 0 0", fontSize: 13 }}>Events from the portal, admin actions, and Fynd webhooks will appear here.</p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12, position: "relative" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {(returnCase.events || []).map((ev, i) => (
                 <div
                   key={ev.id}
+                  className="app-timeline-item"
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 16,
-                    padding: "16px 20px",
-                    background: "var(--rpm-surface)",
-                    boxShadow: "var(--rpm-shadow-sm)",
-                    borderLeft: `4px solid ${i === 0 ? "var(--rpm-accent)" : "var(--rpm-border-strong)"}`,
-                    borderRadius: "var(--rpm-radius-lg)",
-                    opacity: i === 0 ? 1 : 0.85,
-                    fontSize: 14,
-                    transition: "var(--rpm-transition)",
+                    borderLeftColor: i === 0 ? "var(--rpm-accent)" : undefined,
+                    opacity: i === 0 ? 1 : 0.88,
+                    animationDelay: `${i * 0.05}s`,
+                    animation: "app-slideUp 0.3s ease backwards",
                   }}
                 >
-                  <div style={{ width: 40, height: 40, borderRadius: 20, background: "var(--rpm-surface-subtle)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <div className="app-timeline-icon">
                     {ev.source === "fynd_webhook" ? "🔄" : (ev.source === "portal" ? "🌐" : "👤")}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, color: "var(--rpm-text)", marginBottom: 4 }}>
+                    <div style={{ fontWeight: 600, color: "var(--rpm-text)", marginBottom: 3, fontSize: 14 }}>
                       {ev.eventType.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())}
                     </div>
-                    <div style={{ color: "var(--rpm-text-subtle)", fontSize: 13, display: "flex", gap: 8 }}>
-                      <span style={{ fontWeight: 500 }}>
+                    <div style={{ color: "var(--rpm-text-subtle)", fontSize: 12, display: "flex", alignItems: "center", gap: 8 }}>
+                      <span style={{
+                        fontWeight: 600,
+                        fontSize: 11,
+                        padding: "1px 8px",
+                        borderRadius: 4,
+                        background: ev.source === "fynd_webhook" ? "#ecfdf5" : ev.source === "portal" ? "#eff6ff" : "#f8fafc",
+                        color: ev.source === "fynd_webhook" ? "#059669" : ev.source === "portal" ? "#2563eb" : "#64748b",
+                      }}>
                         {ev.source === "fynd_webhook" ? "Fynd" : ev.source.charAt(0).toUpperCase() + ev.source.slice(1)}
                       </span>
-                      &bull;
-                      <span>{new Date(ev.happenedAt).toLocaleString()}</span>
+                      <span style={{ color: "var(--rpm-text-subtle)" }}>{new Date(ev.happenedAt).toLocaleString()}</span>
                     </div>
                   </div>
                 </div>

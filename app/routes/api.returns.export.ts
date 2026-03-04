@@ -35,10 +35,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ];
   }
 
+  const MAX_EXPORT_ROWS = 10000;
+  const count = await prisma.returnCase.count({ where });
+  if (count > MAX_EXPORT_ROWS) {
+    return new Response(
+      `Export limit exceeded. Found ${count} rows (max ${MAX_EXPORT_ROWS}). Please narrow your date range or filters.`,
+      { status: 400, headers: { "Content-Type": "text/plain" } }
+    );
+  }
   const returns = await prisma.returnCase.findMany({
     where,
     orderBy: { createdAt: "desc" },
-    take: 5000,
+    take: MAX_EXPORT_ROWS,
   });
 
   const escape = (v: string | null | undefined) => {

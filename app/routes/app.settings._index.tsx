@@ -18,11 +18,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const hasFynd = !!(shop.settings?.fyndCompanyId && shop.settings?.fyndApplicationId);
   const hasReasons = !!(shop.settings?.returnReasonsJson && shop.settings.returnReasonsJson !== "[]");
   const hasNotifications = !!(shop.settings?.notificationNewReturn || shop.settings?.notificationApproved || shop.settings?.notificationRejected);
-  return { hasFynd, hasReasons, hasNotifications, portalUrl: `https://${session.shop}/apps/returns` };
+  const hasPortalTheme = !!shop.settings?.portalThemeJson;
+  const completedSteps = [hasFynd, hasReasons, hasNotifications, hasPortalTheme].filter(Boolean).length;
+  return { hasFynd, hasReasons, hasNotifications, hasPortalTheme, completedSteps, portalUrl: `https://${session.shop}/apps/returns` };
 };
 
 export default function SettingsDashboard() {
-  const { hasFynd, hasReasons } = useLoaderData<typeof loader>();
+  const { hasFynd, hasReasons, completedSteps } = useLoaderData<typeof loader>();
+  const totalSteps = 4;
+  const progressPct = Math.round((completedSteps / totalSteps) * 100);
 
   const cards = [
     {
@@ -83,17 +87,25 @@ export default function SettingsDashboard() {
     <s-page heading="Settings">
       <div className="app-content">
         <div style={{
-          marginBottom: 28, padding: "20px 24px",
+          marginBottom: 28, padding: "22px 24px",
           background: "var(--rpm-surface)", borderRadius: 14,
-          border: "1px solid var(--rpm-border)",
+          border: "var(--rpm-border)",
           display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
         }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>⚙️</div>
-          <div style={{ flex: 1 }}>
+          <div style={{ width: 46, height: 46, borderRadius: 12, background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>⚙️</div>
+          <div style={{ flex: 1, minWidth: 200 }}>
             <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Configuration</h2>
             <p style={{ margin: "4px 0 0", color: "var(--rpm-text-muted)", fontSize: 13, lineHeight: 1.5 }}>
-              Configure your return policies, integrations, notifications, and customer portal to match your business needs.
+              Configure your return policies, integrations, notifications, and customer portal.
             </p>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", background: "var(--rpm-surface-subtle)", borderRadius: 10 }}>
+            <div style={{ width: 100, height: 6, background: "var(--rpm-surface-elevated)", borderRadius: 3, overflow: "hidden" }}>
+              <div style={{ width: `${progressPct}%`, height: "100%", background: progressPct === 100 ? "var(--rpm-success)" : "var(--rpm-accent)", borderRadius: 3, transition: "width 0.5s ease" }} />
+            </div>
+            <span style={{ fontSize: 12, fontWeight: 700, color: progressPct === 100 ? "var(--rpm-success)" : "var(--rpm-accent)", whiteSpace: "nowrap" }}>
+              {completedSteps}/{totalSteps} done
+            </span>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 16 }}>
@@ -112,7 +124,7 @@ export default function SettingsDashboard() {
                       borderRadius: 20,
                       background: c.badgeColor ? `${c.badgeColor}15` : "var(--rpm-warning-bg)",
                       color: c.badgeColor || "var(--rpm-warning)",
-                      border: `1px solid ${c.badgeColor ? `${c.badgeColor}30` : "var(--rpm-warning-border)"}`,
+                      border: `1px solid ${c.badgeColor ? `${c.badgeColor}30` : "var(--rpm-warning-border)"}` as string,
                       whiteSpace: "nowrap",
                     }}
                   >

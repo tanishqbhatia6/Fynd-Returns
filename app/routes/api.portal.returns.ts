@@ -24,6 +24,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (!session?.verifiedAt) {
     return withCors(Response.json({ error: "Session not verified" }, { status: 401 }), request);
   }
+  if (session.expiresAt < new Date()) {
+    return withCors(Response.json({ error: "Session expired. Please look up your return again." }, { status: 401 }), request);
+  }
 
   let returnIds: string[] = [];
   try {

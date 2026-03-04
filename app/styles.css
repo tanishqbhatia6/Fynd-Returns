@@ -1,5 +1,5 @@
-/* ReturnProMax — Enterprise Design System v3.0 */
-/* Premium admin UI with refined visual hierarchy */
+/* ReturnProMax — Enterprise Design System v4.0 */
+/* Premium admin UI — exceeds native Shopify visual quality */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -26,7 +26,11 @@
   --rpm-radius-2xl: 24px;
   --rpm-radius-full: 9999px;
 
-  /* Borders */
+  /* Border color (raw — use in border shorthand) */
+  --rpm-border-color: #e2e8f0;
+  --rpm-border-color-strong: #cbd5e1;
+
+  /* Borders (shorthand for direct use) */
   --rpm-border: 1px solid #e2e8f0;
   --rpm-border-strong: 1px solid #cbd5e1;
   --rpm-border-focus: 2px solid #3b82f6;
@@ -37,7 +41,7 @@
   --rpm-surface-elevated: #f1f5f9;
   --rpm-surface-hover: #e2e8f0;
   --rpm-surface-selected: #eff6ff;
-  --rpm-surface-overlay: rgba(15, 23, 42, 0.6);
+  --rpm-surface-overlay: rgba(15, 23, 42, 0.55);
 
   /* Text */
   --rpm-text: #0f172a;
@@ -51,13 +55,13 @@
   --rpm-content-max: 720px;
 
   /* Shadows — refined depth system */
-  --rpm-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --rpm-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04);
-  --rpm-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.08), 0 2px 4px -2px rgba(15, 23, 42, 0.05);
-  --rpm-shadow-md: 0 6px 12px -2px rgba(15, 23, 42, 0.1), 0 3px 7px -3px rgba(15, 23, 42, 0.06);
-  --rpm-shadow-lg: 0 12px 20px -4px rgba(15, 23, 42, 0.1), 0 4px 8px -4px rgba(15, 23, 42, 0.06);
-  --rpm-shadow-xl: 0 20px 28px -6px rgba(15, 23, 42, 0.12), 0 8px 12px -6px rgba(15, 23, 42, 0.08);
-  --rpm-shadow-colored: 0 4px 14px -2px rgba(59, 130, 246, 0.2);
+  --rpm-shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --rpm-shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.03);
+  --rpm-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.07), 0 2px 4px -2px rgba(15, 23, 42, 0.04);
+  --rpm-shadow-md: 0 6px 16px -3px rgba(15, 23, 42, 0.1), 0 3px 8px -3px rgba(15, 23, 42, 0.05);
+  --rpm-shadow-lg: 0 12px 24px -6px rgba(15, 23, 42, 0.1), 0 4px 10px -4px rgba(15, 23, 42, 0.05);
+  --rpm-shadow-xl: 0 24px 48px -12px rgba(15, 23, 42, 0.15), 0 8px 16px -6px rgba(15, 23, 42, 0.08);
+  --rpm-shadow-colored: 0 4px 14px -2px rgba(59, 130, 246, 0.18);
 
   /* Transitions */
   --rpm-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
@@ -201,13 +205,13 @@ s-page s-section {
 
 .app-card-interactive:hover {
   box-shadow: var(--rpm-shadow-md);
-  border-color: #94a3b8;
-  transform: translateY(-2px);
+  border-color: var(--rpm-border-color-strong);
+  transform: translateY(-1px);
 }
 
 .app-card-interactive:active {
   transform: translateY(0);
-  box-shadow: var(--rpm-shadow-sm);
+  box-shadow: var(--rpm-shadow-xs);
 }
 
 /* ────── Form Fields ────── */
@@ -594,18 +598,20 @@ s-page s-section {
   transition: background var(--rpm-transition-fast), box-shadow var(--rpm-transition-fast);
   background: var(--rpm-surface);
   cursor: pointer;
+  position: relative;
 }
 
 .app-table tbody tr:nth-child(even) {
-  background: #fafbfc;
+  background: #fafbfd;
 }
 
 .app-table tbody tr:hover {
-  background: #eef5ff;
+  background: var(--rpm-accent-subtle);
+  box-shadow: inset 3px 0 0 var(--rpm-accent);
 }
 
 .app-table tbody tr:active {
-  background: #e0ecff;
+  background: var(--rpm-accent-light);
 }
 
 .app-table tbody tr:last-child td {
@@ -694,7 +700,7 @@ s-page s-section {
 .app-settings-card:hover {
   border-color: var(--rpm-accent);
   box-shadow: var(--rpm-shadow-md), var(--rpm-shadow-colored);
-  transform: translateY(-3px);
+  transform: translateY(-2px);
 }
 
 .app-settings-card:hover::before {
@@ -702,7 +708,7 @@ s-page s-section {
 }
 
 .app-settings-card:active {
-  transform: translateY(-1px);
+  transform: translateY(0);
   box-shadow: var(--rpm-shadow-sm);
 }
 
@@ -798,22 +804,6 @@ s-page s-section {
 @keyframes app-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }
-}
-
-/* ────── Dashboard Metric Card ────── */
-.dashboard-metric-card {
-  background: var(--rpm-surface);
-  border-radius: var(--rpm-radius-lg);
-  padding: 20px 22px;
-  border: var(--rpm-border);
-  box-shadow: var(--rpm-shadow-xs);
-  transition: box-shadow var(--rpm-transition), transform var(--rpm-transition), border-color var(--rpm-transition);
-}
-
-.dashboard-metric-card:hover {
-  box-shadow: var(--rpm-shadow-md);
-  transform: translateY(-2px);
-  border-color: #94a3b8;
 }
 
 /* ────── Chart Panel ────── */
@@ -967,18 +957,20 @@ s-section[heading]::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: app-fadeIn 0.15s ease;
-  backdrop-filter: blur(6px);
+  animation: app-fadeIn 0.2s ease;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }
 
 .app-modal {
   background: var(--rpm-surface);
   border-radius: var(--rpm-radius-xl);
-  padding: 28px;
+  padding: 32px;
   max-width: 480px;
   width: 90%;
   box-shadow: var(--rpm-shadow-xl);
-  animation: app-scaleIn 0.2s ease;
+  animation: app-scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+  border: var(--rpm-border);
 }
 
 .app-modal-title {
@@ -1119,6 +1111,175 @@ s-section[heading]::before {
     padding: 14px 16px;
     border-radius: var(--rpm-radius-lg);
   }
+
+  .app-grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .app-grid-3 {
+    grid-template-columns: 1fr;
+  }
+
+  .app-modal {
+    width: 95%;
+    padding: 24px;
+  }
+
+  .dashboard-metric-card {
+    padding: 16px 18px;
+  }
+
+  .app-settings-card {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-content {
+    padding: 0 12px 24px;
+  }
+
+  .app-table thead th {
+    padding: 10px 12px;
+    font-size: 10px;
+  }
+
+  .app-table tbody td {
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .app-pagination-btn {
+    padding: 6px 10px;
+    min-width: 32px;
+    font-size: 12px;
+  }
+}
+
+/* ────── Page Loading Indicator ────── */
+.app-page-loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 10001;
+  background: linear-gradient(90deg, transparent, var(--rpm-accent), transparent);
+  background-size: 200% 100%;
+  animation: app-loadingBar 1.2s ease-in-out infinite;
+}
+
+@keyframes app-loadingBar {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ────── Success/Action Feedback Toast ────── */
+.app-action-feedback {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-radius: var(--rpm-radius);
+  font-size: 13px;
+  font-weight: 600;
+  animation: app-slideUp 0.3s ease;
+}
+
+.app-action-feedback-success {
+  background: var(--rpm-success-bg);
+  color: var(--rpm-success);
+  border: 1px solid var(--rpm-success-border);
+}
+
+.app-action-feedback-error {
+  background: var(--rpm-error-bg);
+  color: var(--rpm-error);
+  border: 1px solid var(--rpm-error-border);
+}
+
+/* ────── Better Detail Section Cards ────── */
+.app-detail-card {
+  padding: var(--rpm-space-lg);
+  background: var(--rpm-surface);
+  border: var(--rpm-border);
+  border-radius: var(--rpm-radius-lg);
+  margin-bottom: var(--rpm-space-md);
+  box-shadow: var(--rpm-shadow-xs);
+  transition: border-color var(--rpm-transition-fast);
+}
+
+.app-detail-card:hover {
+  border-color: var(--rpm-border-color-strong);
+}
+
+/* ────── Timeline Polish ────── */
+.app-timeline-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--rpm-surface);
+  box-shadow: var(--rpm-shadow-xs);
+  border-radius: var(--rpm-radius-lg);
+  border-left: 3px solid var(--rpm-border-color-strong);
+  font-size: 14px;
+  transition: border-color var(--rpm-transition-fast), box-shadow var(--rpm-transition-fast);
+}
+
+.app-timeline-item:first-child {
+  border-left-color: var(--rpm-accent);
+}
+
+.app-timeline-item:hover {
+  box-shadow: var(--rpm-shadow-sm);
+  border-left-color: var(--rpm-accent);
+}
+
+.app-timeline-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--rpm-radius);
+  background: var(--rpm-surface-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+
+/* ────── Premium Metric Card ────── */
+.dashboard-metric-card {
+  background: var(--rpm-surface);
+  border-radius: var(--rpm-radius-lg);
+  padding: 20px 22px;
+  border: var(--rpm-border);
+  box-shadow: var(--rpm-shadow-xs);
+  transition: box-shadow var(--rpm-transition), transform var(--rpm-transition), border-color var(--rpm-transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.dashboard-metric-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--rpm-accent-light), transparent);
+  opacity: 0;
+  transition: opacity var(--rpm-transition);
+}
+
+.dashboard-metric-card:hover {
+  box-shadow: var(--rpm-shadow-md);
+  transform: translateY(-2px);
+  border-color: var(--rpm-border-color-strong);
+}
+
+.dashboard-metric-card:hover::after {
+  opacity: 1;
 }
 
 /* ────── Scrollbar ────── */
@@ -1220,4 +1381,82 @@ s-section[heading]::before {
   flex-wrap: wrap;
   gap: 8px;
   padding: 0 4px;
+}
+
+/* ────── Smooth page transitions ────── */
+.app-content {
+  animation: app-fadeIn 0.2s ease;
+}
+
+/* ────── Better action section divider ────── */
+.app-action-divider {
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--rpm-border-color), transparent);
+  margin: var(--rpm-space-lg) 0;
+}
+
+/* ────── Notification dot (for nav) ────── */
+.app-nav-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  background: var(--rpm-error);
+  color: white;
+  margin-left: 4px;
+  animation: app-scaleIn 0.3s ease;
+}
+
+/* ────── Premium hover glow for key actions ────── */
+.app-glow-hover {
+  transition: box-shadow var(--rpm-transition);
+}
+
+.app-glow-hover:hover {
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), var(--rpm-shadow-md);
+}
+
+/* ────── Section heading underline ────── */
+.app-section-heading {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--rpm-text);
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--rpm-space-md);
+  padding-bottom: var(--rpm-space-sm);
+  border-bottom: 2px solid var(--rpm-surface-elevated);
+}
+
+/* ────── Status pill animation ────── */
+.app-status-badge {
+  animation: app-fadeIn 0.25s ease;
+}
+
+/* ────── Better textarea ────── */
+.app-content textarea {
+  font-family: var(--rpm-font);
+  resize: vertical;
+  transition: border-color var(--rpm-transition-fast), box-shadow var(--rpm-transition-fast);
+}
+
+.app-content textarea:focus {
+  outline: none;
+  border-color: var(--rpm-accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+/* ────── Micro interactions ────── */
+@media (prefers-reduced-motion: no-preference) {
+  .app-settings-card,
+  .dashboard-metric-card,
+  .app-stat-pill,
+  .app-pagination-btn {
+    will-change: transform;
+  }
 }

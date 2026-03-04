@@ -3,6 +3,7 @@ import { Link, useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
+import { getStatusColor } from "../lib/status-colors";
 import {
   AreaChart,
   Area,
@@ -12,24 +13,6 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#d97706",
-  processing: "#3b82f6",
-  "in progress": "#3b82f6",
-  completed: "#059669",
-  approved: "#059669",
-  rejected: "#dc2626",
-  cancelled: "#64748b",
-  initiated: "#f59e0b",
-};
-
-
-
-function getStatusColor(status: string): string {
-  const key = status.toLowerCase().replace(/\s+/g, " ");
-  return STATUS_COLORS[key] ?? "#6d7175";
-}
 
 function buildSuggestions(data: {
   totalReturns: number;
@@ -141,12 +124,22 @@ function buildSuggestions(data: {
   return suggestions;
 }
 
+let lastSessionCleanup = 0;
+const SESSION_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const range = url.searchParams.get("range") || "last_30_days";
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
+
+  if (Date.now() - lastSessionCleanup > SESSION_CLEANUP_INTERVAL_MS) {
+    lastSessionCleanup = Date.now();
+    prisma.lookupSession.deleteMany({
+      where: { expiresAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+    }).catch((err: unknown) => console.warn("[cleanup] Failed to clean expired sessions:", err));
+  }
 
   try {
     let shop = await prisma.shop.findUnique({
@@ -365,65 +358,70 @@ const MetricCard = ({
   trend?: number;
   color?: string;
   icon?: string;
-}) => (
-  <div
-    className="dashboard-metric-card"
-    style={{
-      background: "var(--rpm-surface)",
-      borderRadius: 14,
-      padding: "20px 22px",
-      border: "1px solid var(--rpm-border)",
-      boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-      transition: "box-shadow 0.2s, transform 0.2s",
-    }}
-  >
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
-      <span
-        style={{
-          fontSize: 12,
-          fontWeight: 600,
-          color: "var(--rpm-text-muted)",
-          textTransform: "uppercase",
-          letterSpacing: "0.06em",
-        }}
-      >
-        {label}
-      </span>
-      {icon && (
-        <span style={{ fontSize: 20, opacity: 0.6 }} role="img" aria-hidden>
-          {icon}
-        </span>
-      )}
-    </div>
-    <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-      <span
-        style={{
-          fontSize: 32,
-          fontWeight: 700,
-          color: color ?? "var(--rpm-text)",
-          letterSpacing: "-0.02em",
-          lineHeight: 1.1,
-        }}
-      >
-        {typeof value === "number" ? value.toLocaleString() : value}
-      </span>
-      {trend !== undefined && trend !== 0 && (
+}) => {
+  const accentColor = color ?? "var(--rpm-accent)";
+  return (
+    <div
+      className="dashboard-metric-card"
+      style={{ position: "relative", overflow: "hidden" }}
+    >
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 3,
+        background: accentColor, opacity: 0.6, borderRadius: "14px 14px 0 0",
+      }} />
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
         <span
           style={{
-            fontSize: 13,
-            fontWeight: 600,
-            color: trend > 0 ? "#dc2626" : "#059669",
+            fontSize: 11,
+            fontWeight: 700,
+            color: "var(--rpm-text-muted)",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
           }}
         >
-          {trend > 0 ? "↑" : "↓"} {Math.abs(trend)}%
+          {label}
         </span>
+        {icon && (
+          <span style={{ fontSize: 20, opacity: 0.5 }} role="img" aria-hidden>
+            {icon}
+          </span>
+        )}
+      </div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <span
+          style={{
+            fontSize: 30,
+            fontWeight: 800,
+            color: accentColor,
+            letterSpacing: "-0.03em",
+            lineHeight: 1.1,
+            fontVariantNumeric: "tabular-nums",
+          }}
+        >
+          {typeof value === "number" ? value.toLocaleString() : value}
+        </span>
+        {trend !== undefined && trend !== 0 && (
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: trend > 0 ? "#dc2626" : "#059669",
+              background: trend > 0 ? "#fef2f2" : "#ecfdf5",
+              padding: "2px 8px",
+              borderRadius: 6,
+              border: `1px solid ${trend > 0 ? "#fecaca" : "#a7f3d0"}`,
+            }}
+          >
+            {trend > 0 ? "↑" : "↓"} {Math.abs(trend)}%
+          </span>
+        )}
+      </div>
+      {subtext && (
+        <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 8 }}>{subtext}</div>
       )}
     </div>
-    {subtext && (
-      <div style={{ fontSize: 13, color: "var(--rpm-text-muted)", marginTop: 6 }}>{subtext}</div>
-    )}
-  </div>
-);
+  );
+};
 
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -662,13 +660,10 @@ export default function Dashboard() {
             </Link>
           </div>
           {recentReturns.length === 0 ? (
-            <div style={{
-              padding: 40, textAlign: "center", background: "var(--rpm-surface-subtle)", borderRadius: 12,
-              border: "1px dashed var(--rpm-border)",
-            }}>
-              <div style={{ fontSize: 40, marginBottom: 12, opacity: 0.4 }}>📦</div>
-              <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 8, color: "var(--rpm-text)" }}>No returns yet</p>
-              <p style={{ color: "var(--rpm-text-muted)", marginBottom: 16, fontSize: 14 }}>Returns will appear here when customers submit them via the portal.</p>
+            <div className="app-empty-state" style={{ padding: 48 }}>
+              <div style={{ fontSize: 48, marginBottom: 14, opacity: 0.35 }}>📦</div>
+              <p className="app-empty-state-title">No returns yet</p>
+              <p className="app-empty-state-desc">Returns will appear here when customers submit them via the portal.</p>
               <Link to="/app/portal"><s-button variant="primary">Share portal URL</s-button></Link>
             </div>
           ) : (

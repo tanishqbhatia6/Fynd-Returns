@@ -3,32 +3,7 @@ import { Form, Link, useLoaderData, useSearchParams, useNavigate } from "react-r
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
-
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#d97706",
-  processing: "#3b82f6",
-  "in progress": "#3b82f6",
-  approved: "#059669",
-  completed: "#059669",
-  rejected: "#dc2626",
-  cancelled: "#64748b",
-  initiated: "#f59e0b",
-};
-
-const STATUS_BG: Record<string, string> = {
-  pending: "#fffbeb",
-  processing: "#eff6ff",
-  "in progress": "#eff6ff",
-  approved: "#ecfdf5",
-  completed: "#ecfdf5",
-  rejected: "#fef2f2",
-  cancelled: "#f8fafc",
-  initiated: "#fffbeb",
-};
-
-function getStatusColor(s: string) {
-  return STATUS_COLORS[s.toLowerCase()] ?? "#64748b";
-}
+import { getStatusColor, getStatusBg } from "../lib/status-colors";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -165,38 +140,32 @@ export default function ReturnsList() {
         </div>
 
         {/* ── Search & Filter ── */}
-        <div style={{
-          padding: "14px 16px",
-          background: "var(--rpm-surface)",
-          borderRadius: 12,
-          border: "var(--rpm-border)",
-          marginBottom: 16,
-        }}>
+        <div className="app-search-bar">
           <Form method="get" style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div style={{ flex: "1 1 220px" }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <div style={{ flex: "1 1 260px" }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Search
               </label>
               <input
                 name="query"
                 type="text"
-                placeholder="Order #, Return ID, AWB, Email..."
+                placeholder="Order #, Return ID, AWB, Email, Phone..."
                 defaultValue={query}
                 className="app-input"
-                style={{ maxWidth: "100%", padding: "8px 12px", fontSize: 13 }}
+                style={{ maxWidth: "100%", padding: "10px 14px", fontSize: 13 }}
               />
             </div>
-            <div style={{ flex: "0 0 160px" }}>
-              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <div style={{ flex: "0 0 170px" }}>
+              <label style={{ display: "block", fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                 Status
               </label>
-              <select name="status" defaultValue={status} className="app-select" style={{ maxWidth: "100%", padding: "8px 12px", fontSize: 13 }}>
+              <select name="status" defaultValue={status} className="app-select" style={{ maxWidth: "100%", padding: "10px 14px", fontSize: 13 }}>
                 {STATUS_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <s-button type="submit" variant="primary">Search</s-button>
               {(query || status) && (
                 <Link to="/app/returns"><s-button variant="secondary">Clear</s-button></Link>
@@ -208,7 +177,7 @@ export default function ReturnsList() {
                 target="_blank" rel="noopener noreferrer"
                 style={{ textDecoration: "none", marginLeft: "auto" }}
               >
-                <s-button variant="secondary">📥 CSV</s-button>
+                <s-button variant="secondary">📥 Export CSV</s-button>
               </a>
             )}
           </Form>
@@ -247,43 +216,28 @@ export default function ReturnsList() {
           </div>
         ) : (
           <>
-            {/* Card-wrapped table */}
-            <div style={{
-              background: "var(--rpm-surface)",
-              borderRadius: 12,
-              border: "var(--rpm-border)",
-              overflow: "hidden",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
-            }}>
+            <div className="app-table-wrapper">
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <table className="app-table">
                   <thead>
-                    <tr style={{ borderBottom: "2px solid #e2e8f0" }}>
-                      <th style={thStyle}>Return ID</th>
-                      <th style={thStyle}>Order</th>
-                      <th style={thStyle}>Status</th>
-                      <th style={{ ...thStyle }} className="app-hide-mobile">Return AWB</th>
-                      <th style={{ ...thStyle }} className="app-hide-mobile">Customer</th>
-                      <th style={thStyle}>Created</th>
+                    <tr>
+                      <th>Return ID</th>
+                      <th>Order</th>
+                      <th>Status</th>
+                      <th className="app-hide-mobile">Return AWB</th>
+                      <th className="app-hide-mobile">Customer</th>
+                      <th>Created</th>
                     </tr>
                   </thead>
                   <tbody>
                     {returns.map((r, i) => {
-                      const statusBg = STATUS_BG[r.status.toLowerCase()] ?? "#f8fafc";
+                      const statusBg = getStatusBg(r.status);
                       return (
                         <tr
                           key={r.id}
                           onClick={() => navigate(`/app/returns/${r.id}`)}
-                          style={{
-                            borderBottom: "1px solid #f1f5f9",
-                            cursor: "pointer",
-                            transition: "background 0.12s",
-                            background: i % 2 === 1 ? "#fafbfc" : "white",
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = "#eef4ff")}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = i % 2 === 1 ? "#fafbfc" : "white")}
                         >
-                          <td style={tdStyle}>
+                          <td>
                             <Link
                               to={`/app/returns/${r.id}`}
                               onClick={(e) => e.stopPropagation()}
@@ -292,51 +246,48 @@ export default function ReturnsList() {
                               {(r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)}
                             </Link>
                           </td>
-                          <td style={tdStyle}>
+                          <td>
                             <span style={{ fontWeight: 600, color: "var(--rpm-text)", fontSize: 13 }}>
                               {r.shopifyOrderName || "—"}
                             </span>
                             {(r as { fyndOrderId?: string | null }).fyndOrderId && (
-                              <div style={{ fontSize: 10, color: "var(--rpm-text-subtle)", marginTop: 1, fontFamily: "var(--rpm-font-mono, monospace)" }}>
+                              <div style={{ fontSize: 10, color: "var(--rpm-text-subtle)", marginTop: 2, fontFamily: "var(--rpm-font-mono, monospace)" }}>
                                 Fynd: {String((r as { fyndOrderId: string }).fyndOrderId).slice(0, 16)}{String((r as { fyndOrderId: string }).fyndOrderId).length > 16 ? "…" : ""}
                               </div>
                             )}
                           </td>
-                          <td style={tdStyle}>
-                            <span style={{
-                              display: "inline-flex", alignItems: "center", gap: 5,
+                          <td>
+                            <span className="app-status-badge" style={{
                               padding: "4px 10px", borderRadius: 6,
                               fontSize: 11, fontWeight: 700,
                               background: statusBg,
                               color: getStatusColor(r.status),
-                              textTransform: "capitalize",
-                              whiteSpace: "nowrap",
                             }}>
-                              <span style={{ width: 6, height: 6, borderRadius: "50%", background: getStatusColor(r.status), flexShrink: 0 }} />
+                              <span className="app-status-dot" style={{ background: getStatusColor(r.status) }} />
                               {r.status}
                             </span>
                             {r.refundStatus && r.refundStatus !== "none" && (
-                              <div style={{ fontSize: 10, color: "#7c3aed", marginTop: 2 }}>💰 {r.refundStatus}</div>
+                              <div style={{ fontSize: 10, color: "#7c3aed", marginTop: 3, fontWeight: 600 }}>💰 {r.refundStatus}</div>
                             )}
                           </td>
-                          <td style={tdStyle} className="app-hide-mobile">
-                            <span style={{ fontSize: 12, color: r.returnAwb ? "var(--rpm-text)" : "var(--rpm-text-subtle)" }}>
+                          <td className="app-hide-mobile">
+                            <span style={{ fontSize: 12, color: r.returnAwb ? "var(--rpm-text)" : "var(--rpm-text-subtle)", fontFamily: r.returnAwb ? "var(--rpm-font-mono, monospace)" : "inherit" }}>
                               {r.returnAwb || "—"}
                             </span>
                             {(r as { fyndShipmentId?: string | null }).fyndShipmentId && !r.returnAwb && (
-                              <div style={{ fontSize: 10, color: "var(--rpm-text-subtle)", fontFamily: "var(--rpm-font-mono, monospace)" }}>
+                              <div style={{ fontSize: 10, color: "var(--rpm-text-subtle)", fontFamily: "var(--rpm-font-mono, monospace)", marginTop: 2 }}>
                                 Fynd #{String((r as { fyndShipmentId: string }).fyndShipmentId).slice(0, 14)}
                               </div>
                             )}
                           </td>
-                          <td style={tdStyle} className="app-hide-mobile">
+                          <td className="app-hide-mobile">
                             <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
                               {r.customerEmailNorm
-                                ? r.customerEmailNorm.length > 20 ? r.customerEmailNorm.slice(0, 20) + "…" : r.customerEmailNorm
+                                ? r.customerEmailNorm.length > 24 ? r.customerEmailNorm.slice(0, 24) + "…" : r.customerEmailNorm
                                 : "—"}
                             </span>
                           </td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                          <td style={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                             <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
                               {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "2-digit" })}
                             </span>
@@ -373,19 +324,3 @@ export default function ReturnsList() {
   );
 }
 
-const thStyle: React.CSSProperties = {
-  textAlign: "left",
-  padding: "10px 14px",
-  fontWeight: 700,
-  fontSize: 10,
-  color: "#64748b",
-  textTransform: "uppercase",
-  letterSpacing: "0.07em",
-  background: "#f8fafc",
-  whiteSpace: "nowrap",
-};
-
-const tdStyle: React.CSSProperties = {
-  padding: "10px 14px",
-  verticalAlign: "middle",
-};

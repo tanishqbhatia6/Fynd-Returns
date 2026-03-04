@@ -1,8 +1,12 @@
 import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
+import { createRefund, fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { createFyndClientOrError } from "../lib/fynd.server";
+import { createReturnOnFynd } from "../lib/fynd-returns.server";
+import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification } from "../lib/notification.server";
 
-/** Ensure 403/Forbidden errors include actionable guidance (URL may truncate long messages) */
 function enrichFyndError(msg: string): string {
   if (!msg) return msg;
   const is403 = /403|forbidden/i.test(msg);
@@ -13,7 +17,6 @@ function enrichFyndError(msg: string): string {
   return msg;
 }
 
-/** Detect if an error is actually a redirect Response (thrown by React Router's redirect()) */
 function isRedirectResponse(err: unknown): boolean {
   if (err instanceof Response) {
     return err.status >= 300 && err.status < 400;
@@ -21,7 +24,6 @@ function isRedirectResponse(err: unknown): boolean {
   return false;
 }
 
-/** Extract readable error message from unknown (handles Response, Error, etc.) */
 async function extractErrorMessage(err: unknown): Promise<string> {
   if (err instanceof Error) return err.message;
   if (typeof err === "object" && err !== null && "ok" in err && typeof (err as Response).json === "function") {
@@ -39,11 +41,6 @@ async function extractErrorMessage(err: unknown): Promise<string> {
   if (s === "[object Response]" || s === "[object Object]") return "Request failed. Please check Fynd configuration and try again.";
   return s;
 }
-import prisma from "../db.server";
-import { createRefund, fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
-import { createFyndClientOrError } from "../lib/fynd.server";
-import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification } from "../lib/notification.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -447,9 +444,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
 
       let orderIdForRefund = returnCase.shopifyOrderId;
-      let lineItemIds = (returnCase.items ?? [])
-        .map((i) => i.shopifyLineItemId)
-        .filter((x): x is string => !!x && x !== "manual");
+      let lineItemsForRefund: Array<{ id: string; quantity: number }> = (returnCase.items ?? [])
+        .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
+        .map((i) => ({ id: i.shopifyLineItemId, quantity: i.qty }));
 
       const isGid = orderIdForRefund?.startsWith("gid://");
       const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
@@ -458,8 +455,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
         if (orderByNumber?.id) {
           orderIdForRefund = orderByNumber.id;
-          if (lineItemIds.length === 0 && orderByNumber.lineItems?.length) {
-            lineItemIds = orderByNumber.lineItems.map((li) => li.id);
+          if (lineItemsForRefund.length === 0 && orderByNumber.lineItems?.length) {
+            lineItemsForRefund = orderByNumber.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           }
         }
       }
@@ -481,14 +478,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         return Response.json({ error: msg }, { status: 400 });
       }
 
-      if (lineItemIds.length === 0) {
+      if (lineItemsForRefund.length === 0) {
         const order = await fetchOrder(admin, orderIdForRefund);
         if (order?.lineItems?.length) {
-          lineItemIds = order.lineItems.map((li) => li.id);
+          lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
         }
       }
 
-      const result = await createRefund(admin, orderIdForRefund, lineItemIds, note || returnCase.adminNotes || undefined);
+      const result = await createRefund(admin, orderIdForRefund, lineItemsForRefund, note || returnCase.adminNotes || undefined);
       if (!result.success) {
         const msg = result.error ?? "Refund failed due to an unknown Shopify error. Check Shopify Admin.";
         await createFailedEvent(msg);
@@ -530,10 +527,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
       throw redirect(`/app/returns/${id}`);
     } catch (err) {
-      // Re-throw redirect Responses — redirect() throws a Response
       if (isRedirectResponse(err)) throw err;
       if (err instanceof Response) throw err;
-      const message = err instanceof Error ? err.message : "Refund could not be processed. Please try again or process the refund manually in Shopify Admin.";
+      const rawMessage = await extractErrorMessage(err);
+      const message = rawMessage || "Refund could not be processed. Please try again or process the refund manually in Shopify Admin.";
       console.error("[process_refund] Error:", err);
       try {
         await prisma.returnEvent.create({

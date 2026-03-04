@@ -3,6 +3,7 @@ import { Link, useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
+import { getStatusColor } from "../lib/status-colors";
 import {
   AreaChart,
   Area,
@@ -18,22 +19,7 @@ import {
   Bar,
 } from "recharts";
 
-const STATUS_COLORS: Record<string, string> = {
-  pending: "#eab308",
-  processing: "#3b82f6",
-  "in progress": "#3b82f6",
-  approved: "#10b981",
-  completed: "#10b981",
-  rejected: "#ef4444",
-  cancelled: "#94a3b8",
-  initiated: "#f59e0b",
-};
-
 const CHART_PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#94a3b8", "#8b5cf6", "#06b6d4", "#f43f5e"];
-
-function getStatusColor(s: string) {
-  return STATUS_COLORS[s.toLowerCase()] ?? "#94a3b8";
-}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);

@@ -192,14 +192,22 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
 
-  // Backfill fyndShipmentId when we found by order_id and payload has shipment_id
+  const backfillData: Record<string, string> = {};
   if (shipmentId && !returnCase.fyndShipmentId) {
+    backfillData.fyndShipmentId = shipmentId;
+  }
+  if (orderId && !returnCase.fyndOrderId) {
+    backfillData.fyndOrderId = orderId;
+  } else if (affiliateOrderId && !returnCase.fyndOrderId) {
+    backfillData.fyndOrderId = affiliateOrderId;
+  }
+  if (Object.keys(backfillData).length > 0) {
     try {
       await prisma.returnCase.update({
         where: { id: returnCase.id },
-        data: { fyndShipmentId: shipmentId },
+        data: backfillData,
       });
-      returnCase = { ...returnCase, fyndShipmentId: shipmentId };
+      returnCase = { ...returnCase, ...backfillData };
     } catch {
       // Non-fatal
     }
@@ -235,16 +243,19 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
   const isComplete = REFUND_COMPLETE.some((s) => statusLower === s.toLowerCase()) || /refund.?done|refunded/i.test(refundStatus ?? "");
 
   if (isInProgress) {
-    await prisma.returnCase.update({
-      where: { id: returnCase.id },
-      data: { refundStatus: "in_progress" },
-    });
+    const alreadyInProgress = returnCase.refundStatus === "in_progress" || returnCase.refundStatus === "refunded";
+    if (!alreadyInProgress) {
+      await prisma.returnCase.update({
+        where: { id: returnCase.id },
+        data: { refundStatus: "in_progress" },
+      });
+    }
     await prisma.returnEvent.create({
       data: {
         returnCaseId: returnCase.id,
         source: "fynd_webhook",
         eventType: "refund_in_progress",
-        payloadJson: JSON.stringify({ fynd_refund_status: refundStatus, shipment_id: shipmentId }),
+        payloadJson: JSON.stringify({ fynd_refund_status: refundStatus, shipment_id: shipmentId, idempotent: alreadyInProgress }),
       },
     });
     await logWebhook({
@@ -283,9 +294,9 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     }
 
     let orderIdForRefund = returnCase.shopifyOrderId;
-    let lineItemIds = (returnCase.items ?? [])
-      .map((i) => i.shopifyLineItemId)
-      .filter((x): x is string => !!x && x !== "manual");
+    let lineItemsForRefund: Array<{ id: string; quantity: number }> = (returnCase.items ?? [])
+      .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
+      .map((i) => ({ id: i.shopifyLineItemId, quantity: i.qty }));
 
     const isGid = orderIdForRefund?.startsWith("gid://");
     const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
@@ -294,8 +305,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
       if (orderByNumber?.id) {
         orderIdForRefund = orderByNumber.id;
-        if (lineItemIds.length === 0 && orderByNumber.lineItems?.length) {
-          lineItemIds = orderByNumber.lineItems.map((li) => li.id);
+        if (lineItemsForRefund.length === 0 && orderByNumber.lineItems?.length) {
+          lineItemsForRefund = orderByNumber.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
         }
       }
     }
@@ -313,17 +324,17 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       return { ok: false, error: errMsg };
     }
 
-    if (lineItemIds.length === 0) {
+    if (lineItemsForRefund.length === 0) {
       const order = await fetchOrder(admin, orderIdForRefund);
       if (order?.lineItems?.length) {
-        lineItemIds = order.lineItems.map((li) => li.id);
+        lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
       }
     }
 
     const result = await createRefund(
       admin,
       orderIdForRefund,
-      lineItemIds,
+      lineItemsForRefund,
       `Refund processed via Fynd webhook (shipment ${shipmentId})`
     );
     if (!result.success) {

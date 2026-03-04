@@ -156,35 +156,36 @@ export default function PortalInfo() {
               boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
             }}
           >
-            <h3 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>
+            <h3 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
               How your customers use the portal
             </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                { icon: "🔍", title: "Look up their order", desc: "Search by order number, email, phone, or tracking number" },
-                { icon: "📦", title: "Select items to return", desc: "Choose products, pick a reason, and submit the request" },
-                { icon: "📍", title: "Track return status", desc: "Real-time updates from Shopify and Fynd shown on a timeline" },
-                { icon: "✉️", title: "Get notified", desc: "Email updates when their return is approved, shipped, or refunded" },
+                { icon: "🔍", title: "Look up their order", desc: "Search by order number, email, phone, or tracking number", step: "1" },
+                { icon: "📦", title: "Select items to return", desc: "Choose products, pick a reason, and submit the request", step: "2" },
+                { icon: "📍", title: "Track return status", desc: "Real-time updates from Shopify and Fynd shown on a timeline", step: "3" },
+                { icon: "✉️", title: "Get notified", desc: "Email updates when their return is approved, shipped, or refunded", step: "4" },
               ].map((item, i) => (
-                <div key={i} style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                   <div
                     style={{
-                      width: 34,
-                      height: 34,
-                      borderRadius: 8,
-                      background: "var(--rpm-surface-elevated, #f1f5f9)",
+                      width: 36,
+                      height: 36,
+                      borderRadius: 10,
+                      background: "linear-gradient(135deg, var(--rpm-accent-subtle, #eff6ff), var(--rpm-accent-light, #dbeafe))",
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: 16,
                       flexShrink: 0,
+                      border: "1px solid var(--rpm-accent-light, #dbeafe)",
                     }}
                   >
                     {item.icon}
                   </div>
                   <div>
-                    <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2 }}>{item.title}</div>
-                    <div style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.5 }}>{item.desc}</div>
+                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3, color: "var(--rpm-text)" }}>{item.title}</div>
+                    <div style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.5 }}>{item.desc}</div>
                   </div>
                 </div>
               ))}
@@ -203,7 +204,7 @@ export default function PortalInfo() {
                 boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
               }}
             >
-              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
                 📌 Add to your store
               </h3>
               <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 14 }}>
@@ -211,12 +212,12 @@ export default function PortalInfo() {
               </p>
               <div
                 style={{
-                  padding: "12px 14px",
+                  padding: "14px 16px",
                   background: "var(--rpm-accent-subtle, #eff6ff)",
-                  borderRadius: 8,
-                  fontSize: 12,
+                  borderRadius: 10,
+                  fontSize: 13,
                   color: "var(--rpm-text-secondary, #334155)",
-                  lineHeight: 1.6,
+                  lineHeight: 1.7,
                   borderLeft: "3px solid var(--rpm-accent, #005bd3)",
                 }}
               >
@@ -234,7 +235,7 @@ export default function PortalInfo() {
                 boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
               }}
             >
-              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>
+              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
                 🎨 Customize appearance
               </h3>
               <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 14 }}>
@@ -255,21 +256,22 @@ export default function PortalInfo() {
                 boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
               }}
             >
-              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>
-                ⚙️ App Proxy
+              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
+                ⚙️ App Proxy configuration
               </h3>
               <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 12 }}>
                 The portal is served through Shopify's App Proxy. Ensure this is configured in your app settings:
               </p>
               <div
                 style={{
-                  padding: "10px 14px",
+                  padding: "12px 16px",
                   background: "var(--rpm-surface-elevated, #f1f5f9)",
-                  borderRadius: 8,
-                  fontSize: 12,
+                  borderRadius: 10,
+                  fontSize: 13,
                   fontFamily: "ui-monospace, SFMono-Regular, monospace",
                   color: "var(--rpm-text-secondary, #334155)",
-                  lineHeight: 1.7,
+                  lineHeight: 1.8,
+                  border: "var(--rpm-border, 1px solid #e5e7eb)",
                 }}
               >
                 Sub path: <strong>/apps/returns</strong>

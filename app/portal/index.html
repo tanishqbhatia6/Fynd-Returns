@@ -1988,15 +1988,18 @@
 
     // ── Customer-friendly status helpers ──
     function friendlyOrderStatus(raw) {
-      var s = (raw || '').toLowerCase();
+      // Normalize: lowercase + replace spaces with underscores for consistent matching
+      var s = (raw || '').toLowerCase().replace(/\s+/g, '_');
       // Fynd detailed statuses
       if (s.includes('delivery_done') || s === 'delivered') return { label: 'Delivered', cls: 'ok', icon: DELIVERED_ICON, desc: 'Your order has been delivered successfully.' };
       if (s.includes('out_for_delivery')) return { label: 'Out for delivery', cls: 'pending', icon: DELIVERY_ICON, desc: 'Your package is on its way to you today.' };
       if (s.includes('in_transit') || s === 'shipped') return { label: 'In transit', cls: 'pending', icon: TRANSIT_ICON, desc: 'Your package is on its way.' };
       if (s.includes('out_for_pickup')) return { label: 'Out for pickup', cls: 'pending', icon: TRANSIT_ICON, desc: 'Courier is en route to pick up your package.' };
       if (s.includes('dp_assigned')) return { label: 'Courier assigned', cls: 'pending', icon: TRANSIT_ICON, desc: 'A delivery partner has been assigned.' };
-      if (s.includes('manifest') || s.includes('ready_to_dispatch') || s.includes('handover')) return { label: 'Ready to ship', cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: 'Your package is packed and ready to ship.' };
-      if (s.includes('bag_confirmed') || s.includes('placed')) return { label: 'Order confirmed', cls: 'ok', icon: CONFIRMED_ICON, desc: 'Your order has been confirmed.' };
+      if (s.includes('bag_packed')) return { label: 'Packed & ready', cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: 'Your order is packed and ready to ship.' };
+      if (s.includes('manifest') || s.includes('ready_to_dispatch') || s.includes('handover') || s.includes('handed_over')) return { label: 'Ready to ship', cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: 'Your package is packed and ready to ship.' };
+      if (s.includes('bag_confirmed') || s === 'confirmed' || s.includes('bag_invoiced')) return { label: 'Order confirmed', cls: 'ok', icon: CONFIRMED_ICON, desc: 'Your order has been confirmed.' };
+      if (s === 'placed') return { label: 'Order placed', cls: 'ok', icon: CONFIRMED_ICON, desc: 'Your order has been placed.' };
       if (s.includes('delivery_failed') || s.includes('undelivered')) return { label: 'Delivery attempted', cls: 'error', icon: ALERT_ICON, desc: 'Delivery was attempted but could not be completed.' };
       if (s.includes('rto')) return { label: 'Returning to seller', cls: 'error', icon: ALERT_ICON, desc: 'Package is being returned to the seller.' };
       // Shopify statuses
@@ -2088,7 +2091,7 @@
     }
 
     function renderOrderProgressSteps(fulfillmentStatus) {
-      var s = (fulfillmentStatus || '').toLowerCase();
+      var s = (fulfillmentStatus || '').toLowerCase().replace(/\s+/g, '_');
       var steps = [
         { num: 1, label: 'Placed' },
         { num: 2, label: 'Confirmed' },
@@ -2099,17 +2102,20 @@
       var activeStep = 1;
       if (s.includes('delivery_done') || s === 'delivered' || (s.includes('fulfilled') && !s.includes('unfulfilled'))) activeStep = 5;
       else if (s.includes('out_for_delivery')) activeStep = 4;
-      else if (s.includes('in_transit') || s.includes('shipped') || s.includes('dp_assigned') || s.includes('manifest') || s.includes('partial')) activeStep = 3;
-      else if (s.includes('bag_confirmed') || s.includes('confirmed') || s.includes('paid') || s.includes('ready_to_dispatch') || s.includes('placed')) activeStep = 2;
+      else if (s.includes('in_transit') || s.includes('shipped') || s.includes('dp_assigned') || s.includes('manifest') || s.includes('partial') || s.includes('bag_packed') || s.includes('handed_over') || s.includes('ready_to_dispatch')) activeStep = 3;
+      else if (s.includes('bag_confirmed') || s.includes('bag_invoiced') || s.includes('confirmed') || s.includes('paid') || s.includes('placed')) activeStep = 2;
       return renderProgressSteps(activeStep, steps);
     }
 
     function renderDynamicProgressFromJourney(journeySteps) {
+      // Don't use raw Fynd journey steps for the progress bar — they contain
+      // dozens of internal statuses (Pending, Placed, Bag Invoiced, DP Assigned, etc.)
+      // that are unreadable to customers. Instead, determine current step from the
+      // latest journey status and use the clean 5-step progress bar.
       if (!journeySteps || journeySteps.length === 0) return '';
-      var steps = journeySteps.map(function (s, i) {
-        return { num: i + 1, label: s.displayName || s.status || '' };
-      });
-      return renderProgressSteps(steps.length, steps);
+      var latest = journeySteps[journeySteps.length - 1];
+      var latestStatus = (latest.status || latest.displayName || '').toLowerCase();
+      return renderOrderProgressSteps(latestStatus);
     }
 
     var COPY_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
@@ -2177,10 +2183,10 @@
     }
 
     function isInTransit(status) {
-      var s = (status || '').toLowerCase();
+      var s = (status || '').toLowerCase().replace(/\s+/g, '_');
       return s.includes('transit') || s.includes('shipped') || s.includes('dispatch')
         || s.includes('out_for') || s.includes('picked') || s.includes('dp_assigned')
-        || s.includes('manifest') || s === 'processing' || s === 'in progress';
+        || s.includes('manifest') || s === 'processing' || s === 'in_progress';
     }
 
     function getPaymentBadge(method) {
@@ -2206,9 +2212,55 @@
       return data;
     }
 
+    // Filter raw Fynd journey steps to only customer-relevant ones
+    var CUSTOMER_VISIBLE_STATUSES = [
+      'placed', 'confirmed', 'bag_confirmed', 'bag_packed',
+      'handed_over_to_customer', 'ready_to_dispatch', 'handed_over_to_dg',
+      'dp_assigned', 'shipped', 'in_transit', 'out_for_delivery',
+      'delivered', 'delivery_done',
+      'return_initiated', 'return_accepted', 'picked_up',
+      'out_for_pickup', 'return_in_transit', 'return_delivered',
+      'refund_initiated', 'refund_completed', 'refund_done',
+      'cancelled', 'delivery_failed', 'rto_initiated', 'rto_delivered'
+    ];
+    function filterJourneyForCustomer(journeySteps) {
+      if (!journeySteps || journeySteps.length === 0) return [];
+      var seen = {};
+      return journeySteps.filter(function (step) {
+        var s = (step.status || '').toLowerCase().replace(/\s+/g, '_');
+        var isVisible = CUSTOMER_VISIBLE_STATUSES.some(function (cs) { return s.includes(cs); });
+        if (!isVisible) return false;
+        if (seen[s]) return false;
+        seen[s] = true;
+        return true;
+      });
+    }
+    function friendlyJourneyLabel(status) {
+      var s = (status || '').toLowerCase();
+      if (s.includes('delivery_done') || s === 'delivered') return 'Delivered';
+      if (s.includes('out_for_delivery')) return 'Out for delivery';
+      if (s.includes('in_transit') || s === 'shipped') return 'In transit';
+      if (s.includes('dp_assigned')) return 'Courier assigned';
+      if (s.includes('handed_over') || s.includes('ready_to_dispatch')) return 'Ready to ship';
+      if (s.includes('bag_packed')) return 'Packed';
+      if (s.includes('bag_confirmed') || s === 'confirmed') return 'Order confirmed';
+      if (s === 'placed') return 'Order placed';
+      if (s.includes('return_initiated')) return 'Return initiated';
+      if (s.includes('return_accepted')) return 'Return accepted';
+      if (s.includes('picked_up')) return 'Picked up';
+      if (s.includes('out_for_pickup')) return 'Out for pickup';
+      if (s.includes('return_in_transit')) return 'Return in transit';
+      if (s.includes('return_delivered')) return 'Return received';
+      if (s.includes('refund_done') || s.includes('refund_completed')) return 'Refund processed';
+      if (s.includes('refund_initiated')) return 'Refund initiated';
+      if (s.includes('cancel')) return 'Cancelled';
+      if (s.includes('delivery_failed')) return 'Delivery attempted';
+      if (s.includes('rto')) return 'Returning to seller';
+      return status.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+    }
+
     function renderShipmentSection(ship, shipIdx, forwardJourney, currency, isReturn) {
       var html = '';
-      var prefix = isReturn ? 'ret' : 'fwd';
 
       // Estimated delivery
       if (ship.estimatedDelivery && !isReturn) {
@@ -2218,17 +2270,12 @@
         html += '<div class="oc-eta-date">' + formatDate(ship.estimatedDelivery) + '</div></div></div>';
       }
 
-      // Dynamic progress from journey steps (if available)
-      if (forwardJourney && forwardJourney.length > 0) {
-        html += '<div style="padding:4px 20px 0;">' + renderDynamicProgressFromJourney(forwardJourney) + '</div>';
-      }
-
       // Shipping info grid
       var info = [];
       if (ship.cpName) info.push({ l: 'Courier', v: ship.cpName, copy: false });
       if (ship.forwardAwb) info.push({ l: 'Tracking No.', v: ship.forwardAwb, copy: true });
       if (ship.invoiceNumber) info.push({ l: 'Invoice', v: ship.invoiceNumber, copy: true });
-      if (ship.shipmentStatus) info.push({ l: 'Status', v: ship.shipmentStatus, copy: false });
+      if (ship.shipmentStatus) info.push({ l: 'Status', v: friendlyOrderStatus(ship.shipmentStatus).label, copy: false });
       if (ship.shipmentId && ship.shipmentId !== '—') info.push({ l: 'Shipment ID', v: ship.shipmentId, copy: true });
       if (ship.weightInfo) info.push({ l: 'Weight', v: ship.weightInfo, copy: false });
       if (ship.fulfillmentStore) info.push({ l: 'Shipped from', v: ship.fulfillmentStore, copy: false });
@@ -2255,19 +2302,28 @@
         html += '<div style="padding:14px 20px 0;">' + renderAddress(ship.returnPickupAddress, 'Pickup / return address') + '</div>';
       }
 
-      // Fynd shipment items
+      // Fynd shipment items — clean up raw SKUs for display
       if (ship.items && ship.items.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
         html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
         html += 'Items in this shipment (' + ship.items.length + ')' + CHEVRON_SVG + '</button>';
         html += '<div class="oc-collapsible-body">';
         ship.items.forEach(function (si) {
+          // Clean up display name: prefer title, fall back to cleaned SKU
+          var displayName = si.title || '';
+          if (!displayName || displayName === si.sku || displayName === si.identifier) {
+            // SKU-like strings (e.g. EAN_S_FORWARD_TOWELS_0104140512) — humanize them
+            displayName = (si.sku || si.identifier || 'Item')
+              .replace(/^EAN_[A-Z]_/i, '')
+              .replace(/_\d{6,}$/g, '')
+              .replace(/_/g, ' ')
+              .replace(/\b\w/g, function (c) { return c.toUpperCase(); });
+          }
           html += '<div class="oc-item">';
           html += '<div class="oc-item-img"><span class="oc-item-img-placeholder">' + PACKAGE_SVG + '</span></div>';
           html += '<div class="oc-item-info">';
-          html += '<div class="oc-item-title">' + escapeHtml(si.title || si.sku || si.identifier || 'Item') + '</div>';
+          html += '<div class="oc-item-title">' + escapeHtml(displayName) + '</div>';
           var sub = [];
-          if (si.sku) sub.push('SKU: ' + si.sku);
           if (si.quantity && si.quantity > 1) sub.push('Qty: ' + si.quantity);
           if (sub.length) html += '<div class="oc-item-variant">' + escapeHtml(sub.join(' · ')) + '</div>';
           html += '</div>';
@@ -2286,18 +2342,20 @@
         html += '</div>';
       }
 
-      // Forward journey timeline
-      if (forwardJourney && forwardJourney.length > 0) {
+      // Forward journey timeline — filtered and customer-friendly
+      var filteredJourney = filterJourneyForCustomer(forwardJourney);
+      if (filteredJourney.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
-        html += '<button type="button" class="oc-collapsible-header open" onclick="toggleCollapsible(this)">';
-        html += (isReturn ? 'Return journey' : 'Shipment journey') + CHEVRON_SVG + '</button>';
-        html += '<div class="oc-collapsible-body open"><div class="oc-timeline">';
-        forwardJourney.forEach(function (step, idx) {
-          var isLast = idx === forwardJourney.length - 1;
+        html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
+        html += (isReturn ? 'Return journey' : 'Shipment journey') + ' (' + filteredJourney.length + ')' + CHEVRON_SVG + '</button>';
+        html += '<div class="oc-collapsible-body"><div class="oc-timeline">';
+        filteredJourney.forEach(function (step, idx) {
+          var isLast = idx === filteredJourney.length - 1;
+          var label = friendlyJourneyLabel(step.status || step.displayName || '');
           html += '<div class="oc-timeline-event">';
           html += '<span class="oc-timeline-dot ' + (isLast ? 'latest' : '') + '"></span>';
           if (step.time) html += '<span class="oc-timeline-time">' + formatDateTime(step.time) + '</span>';
-          html += '<span class="oc-timeline-label">' + escapeHtml(step.displayName || step.status || '') + '</span>';
+          html += '<span class="oc-timeline-label">' + escapeHtml(label) + '</span>';
           html += '</div>';
         });
         html += '</div></div></div>';
@@ -2390,12 +2448,8 @@
         html += '<div class="oc-eta-date">' + formatDate(fyndShipments[0].estimatedDelivery) + '</div></div></div>';
       }
 
-      // ── Progress bar (from journey if available, else generic) ──
-      if (forwardJourney.length > 0) {
-        html += '<div style="padding:0 20px;">' + renderDynamicProgressFromJourney(forwardJourney) + '</div>';
-      } else {
-        html += '<div style="padding:0 20px;">' + renderOrderProgressSteps(latestStatus || o.displayFulfillmentStatus || status) + '</div>';
-      }
+      // ── Progress bar — always use clean 5-step bar ──
+      html += '<div style="padding:0 20px;">' + renderOrderProgressSteps(latestStatus || o.displayFulfillmentStatus || status) + '</div>';
 
       // ── Status-specific callouts ──
       if (latestStatus.includes('delivery_failed') || latestStatus.includes('rto') || latestStatus.includes('undelivered')) {

@@ -2794,15 +2794,26 @@
       if (returnItems.length > 0) {
         html += '<div class="oc-items-v2">';
         returnItems.forEach(function (ri) {
+          var itemTitle = ri.title || ri.notes || ri.sku || 'Item';
           html += '<div class="oc-item-v2">';
-          html += '<div class="oc-item-img"><span class="oc-item-img-placeholder">' + PACKAGE_SVG + '</span></div>';
+          html += '<div class="oc-item-img">';
+          if (ri.imageUrl) {
+            html += '<img src="' + escapeHtml(ri.imageUrl) + '&width=160" alt="' + escapeHtml(itemTitle) + '" loading="lazy">';
+          } else {
+            html += '<span class="oc-item-img-placeholder">' + PACKAGE_SVG + '</span>';
+          }
+          html += '</div>';
           html += '<div class="oc-item-info">';
-          html += '<div class="oc-item-title">' + escapeHtml(ri.title || ri.productTitle || 'Item') + '</div>';
-          var meta = [];
-          if (ri.variantTitle) meta.push(escapeHtml(ri.variantTitle));
-          if (ri.quantity && ri.quantity > 1) meta.push('Qty: ' + ri.quantity);
-          if (ri.reason) meta.push('<span style="color:var(--portal-text-muted);font-size:0.75rem;">Reason: ' + escapeHtml(ri.reason) + '</span>');
-          if (meta.length) html += '<div class="oc-item-variant">' + meta.join(' · ') + '</div>';
+          html += '<div class="oc-item-title">' + escapeHtml(itemTitle) + '</div>';
+          if (ri.variantTitle) html += '<div class="oc-item-variant">' + escapeHtml(ri.variantTitle) + '</div>';
+          html += '<div class="oc-item-meta">';
+          if (ri.price) html += '<span class="oc-item-price-tag">' + formatMoney(ri.price, 'INR') + '</span>';
+          var qty = ri.qty || ri.quantity || 1;
+          if (qty > 1) html += '<span class="oc-item-qty-tag">Qty: ' + qty + '</span>';
+          html += '</div>';
+          if (ri.reasonCode) {
+            html += '<div style="margin-top:4px;"><span style="font-size:0.6875rem;padding:2px 8px;border-radius:6px;background:#fef3c7;color:#92400e;font-weight:500;">' + escapeHtml(ri.reasonCode) + '</span></div>';
+          }
           html += '</div>';
           html += '</div>';
         });
@@ -3600,7 +3611,9 @@
       const lineItemsWithPrice = createOrderData.lineItems.map(li => ({
         id: li.id,
         title: li.title,
-        price: li.price,
+        variantTitle: li.variantTitle || null,
+        price: li.price || li.discountedPrice || null,
+        imageUrl: li.imageUrl || null,
         productTags: li.productTags || []
       }));
 

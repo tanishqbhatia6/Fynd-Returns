@@ -79,6 +79,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const effectiveOrderId = manualMode ? `manual:${shopifyOrderName}` : orderId!;
     let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string }>;
+    let lineItemsWithPrice: Array<{
+      id: string;
+      title?: string;
+      variantTitle?: string;
+      price?: string;
+      imageUrl?: string;
+      productTags?: string[];
+    }> = [];
 
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (manualMode) {
@@ -232,9 +240,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
 
-      const lineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
+      lineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
         id: string;
+        title?: string;
+        variantTitle?: string;
         price?: string;
+        imageUrl?: string;
         productTags?: string[];
       }>;
       const validLineIds = new Set(lineItemsWithPrice.map((l) => l.id));
@@ -294,12 +305,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             status,
             fyndSyncStatus: settings?.autoApproveEnabled ? "pending" : null,
             items: {
-              create: itemsToCreate.map((it) => ({
-                shopifyLineItemId: it.lineItemId,
-                qty: it.qty,
-                reasonCode: it.reasonCode || null,
-                notes: it.notes || null,
-              })),
+              create: itemsToCreate.map((it) => {
+                const liInfo = lineItemsWithPrice?.find((l) => l.id === it.lineItemId);
+                return {
+                  shopifyLineItemId: it.lineItemId,
+                  title: liInfo?.title || it.notes || null,
+                  variantTitle: liInfo?.variantTitle || null,
+                  sku: null,
+                  price: liInfo?.price || null,
+                  imageUrl: liInfo?.imageUrl || null,
+                  qty: it.qty,
+                  reasonCode: it.reasonCode || null,
+                  notes: it.notes || null,
+                };
+              }),
             },
           },
           include: { items: true },
@@ -421,12 +440,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    const lineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
-      id?: string;
-      title?: string;
-      price?: string;
-      productTags?: string[];
-    }>;
     const itemSummaries = itemsToCreate.map((it) => {
       if (it.lineItemId === "manual") {
         return { title: it.notes ?? "Manual return", qty: it.qty };

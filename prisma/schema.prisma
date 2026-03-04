@@ -132,7 +132,11 @@ model ReturnItem {
   returnCaseId     String
   returnCase       ReturnCase @relation(fields: [returnCaseId], references: [id], onDelete: Cascade)
   shopifyLineItemId String
+  title            String?
+  variantTitle     String?
   sku              String?
+  price            String?
+  imageUrl         String?
   qty              Int       @default(1)
   reasonCode       String?
   notes            String?

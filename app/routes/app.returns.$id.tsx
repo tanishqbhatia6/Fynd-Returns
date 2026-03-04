@@ -458,10 +458,10 @@ export default function ReturnDetail() {
                       li.id === item.shopifyLineItemId ||
                       (li.sku && item.sku && li.sku.toLowerCase() === item.sku.toLowerCase())
                     );
-                    const title = shopifyItem?.title || item.notes || item.sku || item.shopifyLineItemId || "Item";
-                    const variant = shopifyItem?.variantTitle;
-                    const imageUrl = shopifyItem?.imageUrl;
-                    const price = shopifyItem?.discountedPrice ?? shopifyItem?.price;
+                    const title = (item as { title?: string | null }).title || shopifyItem?.title || item.notes || item.sku || item.shopifyLineItemId || "Item";
+                    const variant = (item as { variantTitle?: string | null }).variantTitle || shopifyItem?.variantTitle;
+                    const imageUrl = (item as { imageUrl?: string | null }).imageUrl || shopifyItem?.imageUrl;
+                    const price = (item as { price?: string | null }).price || (shopifyItem?.discountedPrice ?? shopifyItem?.price);
                     return (
                       <div key={item.id} style={{ display: "flex", gap: 14, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
                         {imageUrl ? (

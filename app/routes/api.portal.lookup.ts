@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { hashLookupValue } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
-import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab, extractFyndJourney, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
+import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab, extractFyndJourney, getPickupAddressFromFyndPayload, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
 import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { createFyndClientOrError, type FyndClientResult } from "../lib/fynd.server";
 import shopify from "../shopify.server";
@@ -111,10 +111,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       const trackingInfo = getTrackingInfoFromFyndPayload(payload);
       const returnJourney = payload ? extractFyndJourney(payload, "return") : [];
+      const pickupAddress = getPickupAddressFromFyndPayload(payload);
       return {
         ...r,
         trackingInfo: trackingInfo ?? undefined,
         returnJourney,
+        pickupAddress: pickupAddress ?? undefined,
       };
     }
 
@@ -133,7 +135,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
       const trackingInfo = getTrackingInfoFromFyndPayload(payload);
       const returnJourney = payload ? extractFyndJourney(payload, "return") : [];
-      returns.push({ ...r, trackingInfo: trackingInfo ?? undefined, returnJourney });
+      const pickupAddress = getPickupAddressFromFyndPayload(payload);
+      returns.push({ ...r, trackingInfo: trackingInfo ?? undefined, returnJourney, pickupAddress: pickupAddress ?? undefined });
     }
 
     returns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());

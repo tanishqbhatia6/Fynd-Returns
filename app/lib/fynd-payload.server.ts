@@ -309,13 +309,52 @@ export function getPickupAddressFromFyndPayload(fyndPayloadJson: string | null |
   }
 }
 
+export type FyndAddress = {
+  name?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  pincode?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  formatted?: string;
+};
+
+export type FyndShipmentPricing = {
+  subtotal?: string;
+  total?: string;
+  currency?: string;
+  discount?: string;
+  deliveryCharges?: string;
+  codAmount?: string;
+  promotions?: string;
+  coupon?: string;
+};
+
+export type FyndShipmentItem = {
+  sku?: string;
+  itemId?: string;
+  affiliateLineNo?: string;
+  title?: string;
+  quantity?: number;
+  identifier?: string;
+  price?: string;
+  discountedPrice?: string;
+  discount?: string;
+  total?: string;
+  originalPrice?: string;
+  markedPrice?: string;
+  transferPrice?: string;
+  shippingCharges?: string;
+};
+
 /** Structured Fynd Order details for the tab */
 export type FyndOrderDetailsTab = {
   fyndOrderId: string | null;
+  paymentMethod?: string | null;
+  supportUrl?: string | null;
   shipments: Array<{
-    /** Return/current shipment ID (shipment_id in API) */
     shipmentId: string;
-    /** Original forward delivery shipment ID (forward_shipment_id in API) */
     forwardShipmentId: string | null;
     cpName: string | null;
     forwardAwb: string | null;
@@ -325,41 +364,40 @@ export type FyndOrderDetailsTab = {
     fulfillmentStore: string | null;
     fulfillmentOptions: string | null;
     shipmentStatus: string | null;
-    /** Shipment-level pricing (Fynd Konnect orderPrice, breakup, etc.) */
-    pricing?: {
-      subtotal?: string;
-      total?: string;
-      currency?: string;
-      discount?: string;
-      deliveryCharges?: string;
-      codAmount?: string;
-      promotions?: string;
-      coupon?: string;
-    };
+    estimatedDelivery?: string | null;
+    deliveryAddress?: FyndAddress | null;
+    returnPickupAddress?: FyndAddress | null;
+    weightInfo?: string | null;
+    pricing?: FyndShipmentPricing;
     trackingDetails?: Array<{
       status: string;
       time: string;
       message?: string;
     }>;
-    items: Array<{
-      sku?: string;
-      itemId?: string;
-      affiliateLineNo?: string;
-      title?: string;
-      quantity?: number;
-      identifier?: string;
-      price?: string;
-      discountedPrice?: string;
-      discount?: string;
-      total?: string;
-      originalPrice?: string;
-      /** Fynd Konnect orderItemPrice fields */
-      markedPrice?: string;
-      transferPrice?: string;
-      shippingCharges?: string;
-    }>;
+    items: FyndShipmentItem[];
   }>;
 };
+
+function extractAddressFields(addrObj: Record<string, unknown> | undefined): FyndAddress | null {
+  if (!addrObj || typeof addrObj !== "object") return null;
+  const name = toDisplayString(addrObj.name ?? addrObj.contact_name ?? addrObj.contact_person);
+  const a1 = toDisplayString(addrObj.address1 ?? addrObj.address ?? addrObj.street);
+  const a2 = toDisplayString(addrObj.address2 ?? addrObj.area ?? addrObj.landmark);
+  const city = toDisplayString(addrObj.city);
+  const state = toDisplayString(addrObj.state ?? addrObj.province);
+  const pincode = toDisplayString(addrObj.pincode ?? addrObj.zip ?? addrObj.postal_code);
+  const country = toDisplayString(addrObj.country ?? addrObj.country_code);
+  const phone = toDisplayString(addrObj.phone ?? addrObj.mobile ?? addrObj.contact_phone);
+  const addressLine = [a1, a2].filter(Boolean).join(", ");
+  const parts = [name, addressLine, city, state, pincode, country].filter(Boolean);
+  if (parts.length === 0) return null;
+  return {
+    name: name ?? null, address: addressLine || null,
+    city: city ?? null, state: state ?? null, pincode: pincode ?? null,
+    country: country ?? null, phone: phone ?? null,
+    formatted: parts.join(", "),
+  };
+}
 
 /** Extract structured Fynd Order details for the tab (order id, shipment ids, CP name, AWB, invoice, fulfillment, status, items) */
 export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | undefined): FyndOrderDetailsTab | null {
@@ -544,6 +582,27 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         })).filter(t => t.status || t.time);
       }
 
+      // Estimated delivery date
+      const promiseObj = raw.promise as Record<string, unknown> | undefined;
+      const slaObj = raw.sla as Record<string, unknown> | undefined;
+      const estDeliveryRaw = promiseObj?.timestamp ?? promiseObj?.max ?? promiseObj?.expected_delivery_date
+        ?? slaObj?.expected_delivery_date ?? slaObj?.delivery_date
+        ?? raw.delivery_date ?? raw.expected_delivery_date ?? raw.estimated_delivery_date
+        ?? raw.expected_at ?? raw.delivery_promise;
+      const estimatedDelivery = typeof estDeliveryRaw === "string" ? estDeliveryRaw : null;
+
+      // Delivery address (for forward shipments)
+      const deliveryAddrRaw = (raw.delivery_address ?? raw.shipping_address ?? raw.deliveryAddress ?? raw.shippingAddress) as Record<string, unknown> | undefined;
+      const deliveryAddress = extractAddressFields(deliveryAddrRaw);
+
+      // Return pickup address
+      const returnAddrRaw = (raw.return_address ?? raw.pickup_address ?? raw.pickupAddress ?? raw.returnAddress) as Record<string, unknown> | undefined;
+      const returnPickupAddress = extractAddressFields(returnAddrRaw);
+
+      // Weight info
+      const weightRaw = raw.weight ?? (raw.size_info as Record<string, unknown>)?.weight;
+      const weightInfo = weightRaw != null ? String(typeof weightRaw === "number" ? `${weightRaw} kg` : weightRaw) : null;
+
       return {
         shipmentId: String(returnShipmentId ?? "—"),
         forwardShipmentId: forwardShipmentIdStr || null,
@@ -555,12 +614,24 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         fulfillmentStore: fulfillStore ?? null,
         fulfillmentOptions: fulfillOpts ?? null,
         shipmentStatus: shipmentStatusStr ?? null,
+        estimatedDelivery,
+        deliveryAddress,
+        returnPickupAddress,
+        weightInfo,
         pricing: shipmentPricing,
         trackingDetails,
         items,
       };
     });
-    return { fyndOrderId: fyndOrderId || null, shipments };
+
+    // Order-level fields from first shipment
+    const firstRaw = (list[0] && typeof list[0] === "object" ? list[0] : {}) as Record<string, unknown>;
+    const paymentModeRaw = firstRaw.payment_mode ?? firstRaw.paymentType ?? firstRaw.payment_type ?? firstRaw.mode_of_payment ?? (firstRaw.order as Record<string, unknown>)?.payment_mode;
+    const paymentMethod = toDisplayString(paymentModeRaw);
+    const supportUrlRaw = firstRaw.need_help_url ?? firstRaw.support_url ?? firstRaw.needHelpUrl;
+    const supportUrl = typeof supportUrlRaw === "string" ? supportUrlRaw : null;
+
+    return { fyndOrderId: fyndOrderId || null, paymentMethod: paymentMethod ?? null, supportUrl, shipments };
   } catch {
     return null;
   }

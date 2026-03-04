@@ -4,19 +4,11 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parsePortalTheme, DEFAULT_PORTAL_THEME, FONT_OPTIONS } from "../lib/portal-theme.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
+import { findOrCreateShop } from "../lib/shop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  let shop = await prisma.shop.findUnique({
-    where: { shopDomain: session.shop },
-    include: { settings: true },
-  });
-  if (!shop) {
-    shop = await prisma.shop.create({
-      data: { shopDomain: session.shop },
-      include: { settings: true },
-    });
-  }
+  const shop = await findOrCreateShop(session.shop);
   const theme = parsePortalTheme(shop.settings?.portalThemeJson);
   const portalConfig = parsePortalConfig(shop.settings?.portalConfigJson);
   return { portalTheme: theme, portalConfig, fontOptions: FONT_OPTIONS, portalUrl: `https://${session.shop}/apps/returns` };
@@ -66,8 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
-  if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+  const shop = await findOrCreateShop(session.shop);
 
   await prisma.shopSettings.upsert({
     where: { shopId: shop.id },

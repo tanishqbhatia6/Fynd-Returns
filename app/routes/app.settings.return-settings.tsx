@@ -3,33 +3,16 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-
-function parseJson<T>(val: string | null, fallback: T): T {
-  if (!val || !val.trim()) return fallback;
-  try {
-    const parsed = JSON.parse(val) as T;
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-}
+import { parseJsonArray } from "../lib/parse-json";
+import { findOrCreateShop } from "../lib/shop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  let shop = await prisma.shop.findUnique({
-    where: { shopDomain: session.shop },
-    include: { settings: true },
-  });
-  if (!shop) {
-    shop = await prisma.shop.create({
-      data: { shopDomain: session.shop },
-      include: { settings: true },
-    });
-  }
+  const shop = await findOrCreateShop(session.shop);
   const s = shop.settings;
-  const tags = parseJson<string[]>(s?.restrictedProductTagsJson ?? null, []);
-  const refundPrepaid = parseJson<string[]>(s?.refundMethodPrepaidJson ?? null, ["bank_details"]);
-  const refundCOD = parseJson<string[]>(s?.refundMethodCODJson ?? null, []);
+  const tags = parseJsonArray<string>(s?.restrictedProductTagsJson ?? null, []);
+  const refundPrepaid = parseJsonArray<string>(s?.refundMethodPrepaidJson ?? null, ["bank_details"]);
+  const refundCOD = parseJsonArray<string>(s?.refundMethodCODJson ?? null, []);
 
   return {
     noReturnPeriodEnabled: s?.noReturnPeriodEnabled ?? false,
@@ -59,8 +42,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const refundMethodCODJson = formData.get("refundMethodCODJson") as string | null;
   const autoApproveEnabled = formData.get("autoApproveEnabled") === "on";
 
-  let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
+  const shop = await findOrCreateShop(session.shop);
 
   let tagsStr: string | undefined;
   let prepaidStr: string | undefined;

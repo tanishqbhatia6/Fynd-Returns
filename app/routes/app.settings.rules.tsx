@@ -3,6 +3,8 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { parseJsonArray, parseJsonObject } from "../lib/parse-json";
+import { findOrCreateShop } from "../lib/shop.server";
 
 const DEFAULT_REASONS = [
   "It's too loose",
@@ -19,33 +21,14 @@ const DEFAULT_REASONS = [
   "Other",
 ];
 
-function parseJson<T>(val: string | null, fallback: T): T {
-  if (!val || !val.trim()) return fallback;
-  try {
-    const parsed = JSON.parse(val) as T;
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  let shop = await prisma.shop.findUnique({
-    where: { shopDomain: session.shop },
-    include: { settings: true },
-  });
-  if (!shop) {
-    shop = await prisma.shop.create({
-      data: { shopDomain: session.shop },
-      include: { settings: true },
-    });
-  }
+  const shop = await findOrCreateShop(session.shop);
   const s = shop.settings;
-  const reasons = parseJson<string[]>(s?.returnReasonsJson ?? null, DEFAULT_REASONS);
-  const regions = parseJson<Array<{ country?: string; province?: string }>>(s?.restrictedRegionsJson ?? null, []);
-  const offers = parseJson<Array<{ id?: string; reason?: string; tag?: string; discount?: string }>>(s?.returnOffersJson ?? null, []);
-  const reasonsByCategoryRaw = parseJson<Record<string, string[]>>(s?.returnReasonsByCategoryJson ?? null, {});
+  const reasons = parseJsonArray<string>(s?.returnReasonsJson ?? null, DEFAULT_REASONS);
+  const regions = parseJsonArray<{ country?: string; province?: string }>(s?.restrictedRegionsJson ?? null, []);
+  const offers = parseJsonArray<{ id?: string; reason?: string; tag?: string; discount?: string }>(s?.returnOffersJson ?? null, []);
+  const reasonsByCategoryRaw = parseJsonObject<Record<string, string[]>>(s?.returnReasonsByCategoryJson ?? null, {});
   const reasonsByCategory = Object.entries(reasonsByCategoryRaw).filter(([k]) => k && typeof k === "string").map(([category, r]) => ({ category, reasons: Array.isArray(r) ? r : [] }));
 
   return {
@@ -69,8 +52,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const restrictedRegionsJson = formData.get("restrictedRegionsJson") as string | null;
   const returnOffersJson = formData.get("returnOffersJson") as string | null;
 
-  let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
+  const shop = await findOrCreateShop(session.shop);
 
   let returnReasonsStr: string | undefined;
   let returnReasonsByCategoryStr: string | undefined;

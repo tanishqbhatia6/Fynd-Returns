@@ -1,17 +1,5 @@
-/**
- * Return rules validation - enterprise-grade eligibility checks
- */
 import type { ShopSettings } from "@prisma/client";
-
-function parseJson<T>(val: string | null, fallback: T): T {
-  if (!val || !val.trim()) return fallback;
-  try {
-    const parsed = JSON.parse(val) as T;
-    return Array.isArray(parsed) ? parsed : fallback;
-  } catch {
-    return fallback;
-  }
-}
+import { parseJsonArray } from "./parse-json";
 
 export interface ReturnEligibilityResult {
   eligible: boolean;
@@ -56,7 +44,7 @@ export function checkReturnEligibility(
   }
 
   // Restricted product tags
-  const restrictedTags = parseJson<string[]>(settings.restrictedProductTagsJson, []);
+  const restrictedTags = parseJsonArray<string>(settings.restrictedProductTagsJson, []);
   if (restrictedTags.length > 0 && context.productTags?.length) {
     const hasRestricted = context.productTags.some((t) =>
       restrictedTags.some((r) => r.toLowerCase() === t.toLowerCase())
@@ -67,7 +55,7 @@ export function checkReturnEligibility(
   }
 
   // Restricted regions
-  const regions = parseJson<Array<{ country?: string; province?: string }>>(settings.restrictedRegionsJson, []);
+  const regions = parseJsonArray<{ country?: string; province?: string }>(settings.restrictedRegionsJson, []);
   if (regions.length > 0 && (context.customerCountry || context.customerProvince)) {
     const match = regions.some((r) => {
       const countryMatch = !r.country || r.country.toLowerCase() === (context.customerCountry ?? "").toLowerCase();

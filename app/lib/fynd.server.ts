@@ -37,10 +37,43 @@ export type ShipmentsListingParams = {
   locationCode?: string;
 };
 
+/** Extract Fynd internal order/shipment IDs from a shipment object. Prefers FY-prefixed IDs. */
+export function parseShipmentInternalIds(obj: Record<string, unknown> | null): { orderId: string | null; shipmentId: string | null } {
+  if (!obj) return { orderId: null, shipmentId: null };
+  const str = (v: unknown) => (v != null && typeof v === "string" ? v.trim() : null);
+  const orderRaw = [
+    str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.bagId ?? obj.channel_bag_id ?? obj.channel_order_id),
+  ].filter((x): x is string => !!x);
+  const shipmentRaw = [
+    str(obj.id ?? obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id),
+  ].filter((x): x is string => !!x);
+  const fyOrderId = orderRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s));
+  const numericOrderId = orderRaw.find((s) => /^\d+$/.test(s));
+  const orderId = fyOrderId ?? numericOrderId ?? orderRaw[0] ?? null;
+  const shipmentId = shipmentRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s))
+    ?? shipmentRaw.find((s) => /^\d+$/.test(s))
+    ?? shipmentRaw[0]
+    ?? null;
+  return { orderId, shipmentId };
+}
+
 // --- Platform API (OAuth client_credentials) ---
 
+const TOKEN_CACHE_MAX_SIZE = 50;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 const TOKEN_CACHE_TTL_MS = 50 * 60 * 1000;
+
+function pruneTokenCache() {
+  if (tokenCache.size <= TOKEN_CACHE_MAX_SIZE) return;
+  const now = Date.now();
+  for (const [key, val] of tokenCache) {
+    if (val.expiresAt < now) tokenCache.delete(key);
+  }
+  if (tokenCache.size <= TOKEN_CACHE_MAX_SIZE) return;
+  const entries = [...tokenCache.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+  const toRemove = entries.slice(0, entries.length - TOKEN_CACHE_MAX_SIZE);
+  for (const [key] of toRemove) tokenCache.delete(key);
+}
 
 export async function fetchFyndPlatformToken(
   baseUrl: string,
@@ -85,6 +118,7 @@ export async function fetchFyndPlatformToken(
   if (!data.access_token) throw new Error("No access_token in OAuth response");
   const ttl = data.expires_in ? Math.min(data.expires_in * 1000, TOKEN_CACHE_TTL_MS) : TOKEN_CACHE_TTL_MS;
   tokenCache.set(cacheKey, { token: data.access_token, expiresAt: Date.now() + ttl });
+  pruneTokenCache();
   return data.access_token;
 }
 
@@ -255,24 +289,8 @@ export class FyndPlatformClient {
     };
   }
 
-  /** Prefer FY-prefixed order IDs (e.g. FYMP698CC01401C9F4A1) for platform API; fall back to numeric if FY not available. */
   private parseInternalIdsFromShipment(obj: Record<string, unknown> | null): { orderId: string | null; shipmentId: string | null } {
-    if (!obj) return { orderId: null, shipmentId: null };
-    const str = (v: unknown) => (v != null && typeof v === "string" ? v.trim() : null);
-    const orderRaw = [
-      str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.bagId ?? obj.channel_bag_id ?? obj.channel_order_id),
-    ].filter((x): x is string => !!x);
-    const shipmentRaw = [
-      str(obj.id ?? obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id),
-    ].filter((x): x is string => !!x);
-    const fyOrderId = orderRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s));
-    const numericOrderId = orderRaw.find((s) => /^\d+$/.test(s));
-    const orderId = fyOrderId ?? numericOrderId ?? orderRaw[0] ?? null;
-    const shipmentId = shipmentRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s))
-      ?? shipmentRaw.find((s) => /^\d+$/.test(s))
-      ?? shipmentRaw[0]
-      ?? null;
-    return { orderId, shipmentId };
+    return parseShipmentInternalIds(obj);
   }
 
   /** Update shipment status (e.g. return_initiated to create return on Fynd). Uses Platform Order API: PUT shipment/status-internal. */
@@ -330,7 +348,7 @@ export class FyndStorefrontClient {
       "Content-Type": "application/json",
       "Authorization": `Basic ${this.basicAuth}`,
     };
-    this.log?.("fynd-storefront", "Request", `GET ${path}`);
+    this.log?.("fynd-storefront", "Request", `${method} ${path}`);
     let res: Response;
     try {
       res = await fetch(url, { method, headers });

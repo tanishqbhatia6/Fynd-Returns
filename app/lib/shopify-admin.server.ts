@@ -294,7 +294,10 @@ export async function fetchOrdersByCustomer(
       };
       errors?: Array<{ message?: string }>;
     };
-    if (json.errors?.length) return [];
+    if (json.errors?.length) {
+      console.warn("[fetchOrdersByCustomer] GraphQL errors:", json.errors.map((e) => e.message).join(", "));
+      return [];
+    }
     const nodes = json.data?.orders?.nodes ?? [];
     return nodes.map((o) => ({
       id: o.id,
@@ -305,7 +308,8 @@ export async function fetchOrdersByCustomer(
       displayFinancialStatus: o.displayFinancialStatus ?? undefined,
       displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
     }));
-  } catch {
+  } catch (err) {
+    console.error("[fetchOrdersByCustomer] Error:", err instanceof Error ? err.message : err);
     return [];
   }
 }

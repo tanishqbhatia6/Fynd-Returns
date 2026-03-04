@@ -26,17 +26,17 @@ export function parsePortalTheme(json: string | null | undefined): PortalTheme {
 
 export function applyPortalThemeToHtml(html: string, theme: PortalTheme): string {
   return html
-    .replace("%PRIMARY_COLOR%", theme.primaryColor)
-    .replace("%PRIMARY_HOVER%", theme.primaryHoverColor)
-    .replace("%BG_COLOR%", theme.backgroundColor)
-    .replace("%SURFACE_COLOR%", theme.surfaceColor)
-    .replace("%TEXT_COLOR%", theme.textColor)
-    .replace("%TEXT_MUTED%", theme.textMutedColor)
-    .replace("%BORDER_COLOR%", theme.borderColor)
-    .replace("%FONT_FAMILY%", theme.fontFamily)
-    .replace("%HEADING_FONT%", theme.headingFont)
-    .replace("%BORDER_RADIUS%", theme.borderRadius)
-    .replace("%SHADOW%", theme.shadow);
+    .replaceAll("%PRIMARY_COLOR%", theme.primaryColor)
+    .replaceAll("%PRIMARY_HOVER%", theme.primaryHoverColor)
+    .replaceAll("%BG_COLOR%", theme.backgroundColor)
+    .replaceAll("%SURFACE_COLOR%", theme.surfaceColor)
+    .replaceAll("%TEXT_COLOR%", theme.textColor)
+    .replaceAll("%TEXT_MUTED%", theme.textMutedColor)
+    .replaceAll("%BORDER_COLOR%", theme.borderColor)
+    .replaceAll("%FONT_FAMILY%", theme.fontFamily)
+    .replaceAll("%HEADING_FONT%", theme.headingFont)
+    .replaceAll("%BORDER_RADIUS%", theme.borderRadius)
+    .replaceAll("%SHADOW%", theme.shadow);
 }
 
 export const FONT_OPTIONS = [

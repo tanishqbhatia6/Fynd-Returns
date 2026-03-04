@@ -1,17 +1,45 @@
-/**
- * App Proxy route - Customer returns portal
- * Accessed at: https://store.myshopify.com/apps/returns
- * Shopify App Proxy adds ?shop=store.myshopify.com to the request
- */
 import type { LoaderFunctionArgs } from "react-router";
 import { readFileSync } from "fs";
-import { join } from "path";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 import prisma from "../db.server";
 import {
   parsePortalTheme,
   applyPortalThemeToHtml,
 } from "../lib/portal-theme.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
+
+let cachedTemplate: string | null = null;
+
+function getPortalTemplate(): string {
+  if (cachedTemplate && process.env.NODE_ENV === "production") return cachedTemplate;
+  const dir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const paths = [
+    join(dir, "..", "portal", "index.html"),
+    join(process.cwd(), "app", "portal", "index.html"),
+  ];
+  for (const p of paths) {
+    try {
+      cachedTemplate = readFileSync(p, "utf-8");
+      return cachedTemplate;
+    } catch {
+      continue;
+    }
+  }
+  throw new Error("Portal template not found");
+}
+
+function escapeHtmlAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeHtmlContent(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function escapeJsonInHtml(s: string): string {
+  return s.replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -50,10 +78,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   let portalHtml: string;
   try {
-    portalHtml = readFileSync(
-      join(process.cwd(), "app", "portal", "index.html"),
-      "utf-8"
-    );
+    portalHtml = getPortalTemplate();
   } catch (fsErr) {
     const msg = fsErr instanceof Error ? fsErr.message : String(fsErr);
     return new Response(`Portal template not found: ${msg}`, {
@@ -63,13 +88,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
   portalHtml = applyPortalThemeToHtml(portalHtml, theme);
   portalHtml = portalHtml
-    .replace("%SHOP%", shopDomain)
-    .replace("%APP_URL%", appUrl)
+    .replace("%SHOP%", escapeHtmlAttr(shopDomain))
+    .replace("%APP_URL%", escapeHtmlAttr(appUrl))
     .replace("%RETURN_WINDOW%", String(returnWindowDays))
-    .replace("%RETURN_POLICY%", returnPolicyText.replace(/</g, "&lt;").replace(/>/g, "&gt;"))
-    .replace("%RETURN_REASONS_JSON%", returnReasonsJson)
-    .replace("%RETURN_REASONS_BY_CATEGORY_JSON%", (returnReasonsByCategoryJson || "{}").replace(/</g, "\\u003c").replace(/>/g, "\\u003e"))
-    .replace("%PORTAL_CONFIG%", JSON.stringify(portalConfig));
+    .replace("%RETURN_POLICY%", escapeHtmlContent(returnPolicyText))
+    .replace("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))
+    .replace("%RETURN_REASONS_BY_CATEGORY_JSON%", escapeJsonInHtml(returnReasonsByCategoryJson || "{}"))
+    .replace("%PORTAL_CONFIG%", escapeJsonInHtml(JSON.stringify(portalConfig)));
 
   return new Response(portalHtml, {
     headers: { "Content-Type": "text/html" },

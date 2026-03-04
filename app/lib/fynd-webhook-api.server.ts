@@ -83,6 +83,7 @@ export async function listFyndWebhookSubscribers(
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
+      signal: AbortSignal.timeout(30_000),
     });
 
     const text = await res.text();
@@ -206,6 +207,7 @@ export async function registerFyndWebhook(
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
     });
 
     const text = await res.text();

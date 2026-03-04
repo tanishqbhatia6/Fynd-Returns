@@ -4,6 +4,7 @@
  */
 import { PlatformClient, ApplicationClient, PlatformConfig, ApplicationConfig } from "@gofynd/fdk-client-javascript";
 import { getFyndBaseUrl } from "./fynd-config.server";
+import { parseShipmentInternalIds } from "./fynd.server";
 
 type PlatformClientType = InstanceType<typeof PlatformClient>;
 type ApplicationClientType = InstanceType<typeof ApplicationClient>;
@@ -156,23 +157,8 @@ export class FyndPlatformClientFDK {
    * Validate connection via orders-listing; callers use admin-configured reasons.
    */
   async getReturnReasons(): Promise<unknown> {
-    this.log?.("fynd-fdk", "Request", "GET orders-listing (validate connection)");
-    try {
-      await this.request("GET", `/service/platform/order/v1.0/company/${this.companyId}/orders-listing?page_no=1&page_size=1`);
-      return null;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      const status = (err as { response?: { status?: number } })?.response?.status;
-      const desc = (err as { response?: { data?: { message?: string; description?: string } } })?.response?.data;
-      const apiMsg = desc?.message ?? desc?.description ?? msg;
-      let fullMsg = status ? `Fynd Platform API error ${status}: ${apiMsg}` : msg;
-      if (status === 403) {
-        fullMsg += " Fynd returned 403 Forbidden—your app may lack required scopes. In Fynd Platform, ensure the extension has company/orders/read and company/orders/write. Re-save credentials in Settings → Integrations.";
-      } else if (status === 401) {
-        fullMsg += " Verify Company ID, Client ID and Secret in Settings → Integrations.";
-      }
-      throw new Error(fullMsg);
-    }
+    await this.request("GET", `/service/platform/order/v1.0/company/${this.companyId}/orders-listing?page_no=1&page_size=1`);
+    return null;
   }
 
   async testConnection(): Promise<{ ok: true; warning?: string }> {
@@ -222,31 +208,12 @@ export class FyndPlatformClientFDK {
     const items = res?.items ?? res?.shipments ?? res?.data?.items ?? res?.results ?? [];
     const first = Array.isArray(items) ? items[0] : null;
     const firstObj = first && typeof first === "object" ? first as Record<string, unknown> : null;
-    const { orderId, shipmentId } = this.parseInternalIds(firstObj);
+    const { orderId, shipmentId } = parseShipmentInternalIds(firstObj);
     return {
       ...res,
       orderId: orderId ?? undefined,
       shipmentId: shipmentId ?? undefined,
     };
-  }
-
-  private parseInternalIds(obj: Record<string, unknown> | null): { orderId: string | null; shipmentId: string | null } {
-    if (!obj) return { orderId: null, shipmentId: null };
-    const str = (v: unknown) => (v != null && typeof v === "string" ? v.trim() : null);
-    const orderRaw = [
-      str(obj.order_id ?? obj.orderId ?? obj.bag_id ?? obj.bagId ?? obj.channel_bag_id ?? obj.channel_order_id),
-    ].filter((x): x is string => !!x);
-    const shipmentRaw = [
-      str(obj.id ?? obj.shipment_id ?? obj.shipmentId ?? obj.channel_shipment_id),
-    ].filter((x): x is string => !!x);
-    const fyOrderId = orderRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s));
-    const numericOrderId = orderRaw.find((s) => /^\d+$/.test(s));
-    const orderId = fyOrderId ?? numericOrderId ?? orderRaw[0] ?? null;
-    const shipmentId = shipmentRaw.find((s) => /^FY[A-Z0-9]{10,}/i.test(s))
-      ?? shipmentRaw.find((s) => /^\d+$/.test(s))
-      ?? shipmentRaw[0]
-      ?? null;
-    return { orderId, shipmentId };
   }
 
   /** Platform Order API: PUT shipment/status-internal (orderId kept for backward compat, not used in path) */

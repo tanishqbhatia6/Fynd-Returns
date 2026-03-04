@@ -50,11 +50,12 @@ export async function sendRejectionNotification(params: {
         subject,
         html,
       }),
+      signal: AbortSignal.timeout(15_000),
     });
 
     if (!res.ok) {
-      const err = await res.text();
-      console.error("[Notification] Resend error:", res.status, err);
+      const errText = await res.text();
+      console.error("[Notification] Resend error:", res.status, errText);
       return { success: false, error: `Email failed: ${res.status}` };
     }
     return { success: true };
@@ -163,6 +164,7 @@ async function sendRawEmail(to: string, subject: string, html: string) {
         subject,
         html,
       }),
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       return { success: false, error: `Email failed: ${res.status}` };

@@ -36,7 +36,7 @@ export function sanitizeCredentialInputs(values: {
   if (values.fyndApplicationId !== undefined) {
     const v = values.fyndApplicationId.trim();
     if (v.length > MAX_LENGTH.applicationId) return { valid: false, error: "Application ID too long" };
-    if (v && !/^[a-zA-Z0-9_-]+$/.test(v)) return { valid: false, error: "Application ID contains invalid characters" };
+    if (v && !ID_PATTERN.test(v)) return { valid: false, error: "Application ID contains invalid characters" };
     sanitized.fyndApplicationId = v;
   }
 

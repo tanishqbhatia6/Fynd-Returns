@@ -3,19 +3,11 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { findOrCreateShop } from "../lib/shop.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  let shop = await prisma.shop.findUnique({
-    where: { shopDomain: session.shop },
-    include: { settings: true },
-  });
-  if (!shop) {
-    shop = await prisma.shop.create({
-      data: { shopDomain: session.shop },
-      include: { settings: true },
-    });
-  }
+  const shop = await findOrCreateShop(session.shop);
   const s = shop.settings;
   return {
     notificationNewReturn: s?.notificationNewReturn ?? true,
@@ -32,8 +24,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const notificationApproved = formData.get("notificationApproved") === "on";
   const notificationRejected = formData.get("notificationRejected") === "on";
 
-  let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
+  const shop = await findOrCreateShop(session.shop);
 
   await prisma.shopSettings.upsert({
     where: { shopId: shop.id },

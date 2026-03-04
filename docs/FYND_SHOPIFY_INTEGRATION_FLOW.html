@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fynd ↔ Shopify Return App — Integration Flow</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0e17;
+  --surface: #111827;
+  --surface2: #1a2234;
+  --border: #1f2937;
+  --text: #e5e7eb;
+  --muted: #6b7280;
+  --accent: #6366f1;
+  --accent2: #a78bfa;
+  --green: #10b981;
+  --orange: #f59e0b;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --cyan: #06b6d4;
+  --pink: #ec4899;
+  --shopify: #96bf48;
+  --fynd: #6366f1;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.6;
+  padding: 48px 32px;
+  min-height: 100vh;
+}
+code { font-family: 'JetBrains Mono', monospace; font-size: 0.8em; background: rgba(99,102,241,0.1); padding: 1px 5px; border-radius: 4px; color: var(--accent2); }
+.page-title {
+  font-size: 2.5rem; font-weight: 800; text-align: center; margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--accent2), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  letter-spacing: -0.03em;
+}
+.page-sub { text-align: center; color: var(--muted); font-size: 1rem; margin-bottom: 48px; }
+
+.section { max-width: 1100px; margin: 0 auto 56px; }
+.section-title {
+  font-size: 1.375rem; font-weight: 700; margin-bottom: 24px;
+  display: flex; align-items: center; gap: 10px;
+}
+.section-title .num {
+  width: 32px; height: 32px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.875rem; font-weight: 700; background: var(--accent); color: white; flex-shrink: 0;
+}
+
+.h-flow { display: flex; align-items: center; gap: 0; overflow-x: auto; padding: 8px 0; }
+.flow-step {
+  flex: 1; min-width: 200px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 20px; transition: transform 0.2s, box-shadow 0.2s;
+}
+.flow-step:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+.flow-step-title { font-weight: 700; font-size: 0.9375rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.flow-step-desc { font-size: 0.8125rem; color: var(--muted); line-height: 1.5; }
+.flow-step-file {
+  font-family: 'JetBrains Mono', monospace; font-size: 0.6875rem; color: var(--accent2);
+  margin-top: 8px; padding: 4px 8px; background: rgba(99,102,241,0.08); border-radius: 6px; display: inline-block;
+}
+.flow-arrow {
+  display: flex; align-items: center; justify-content: center;
+  width: 48px; flex-shrink: 0; position: relative;
+}
+.flow-arrow::before { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: var(--border); }
+.flow-arrow svg { position: relative; z-index: 1; background: var(--bg); }
+
+.tag {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px;
+  font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+}
+.tag-shopify { background: rgba(150,191,72,0.15); color: var(--shopify); }
+.tag-fynd { background: rgba(99,102,241,0.15); color: var(--fynd); }
+.tag-app { background: rgba(6,182,212,0.15); color: var(--cyan); }
+.tag-portal { background: rgba(236,72,153,0.15); color: var(--pink); }
+.tag-webhook { background: rgba(245,158,11,0.15); color: var(--orange); }
+
+.gaps-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; }
+.gap-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+  padding: 20px; border-left: 3px solid; transition: transform 0.15s;
+}
+.gap-card:hover { transform: translateY(-2px); }
+.gap-card.critical { border-left-color: var(--red); }
+.gap-card.high { border-left-color: var(--orange); }
+.gap-card.medium { border-left-color: var(--blue); }
+.gap-card.low { border-left-color: var(--muted); }
+.gap-severity { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.gap-card.critical .gap-severity { color: var(--red); }
+.gap-card.high .gap-severity { color: var(--orange); }
+.gap-card.medium .gap-severity { color: var(--blue); }
+.gap-card.low .gap-severity { color: var(--muted); }
+.gap-title { font-weight: 700; font-size: 0.9375rem; margin-bottom: 4px; }
+.gap-desc { font-size: 0.8125rem; color: var(--muted); line-height: 1.5; }
+
+.data-table { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 0.8125rem; }
+.data-table th {
+  text-align: left; padding: 10px 14px; background: var(--surface2); font-weight: 600;
+  color: var(--muted); font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.06em;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(99,102,241,0.03); }
+.dir-arrow { font-family: 'JetBrains Mono', monospace; font-weight: 700; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; }
+.dir-arrow.right { color: var(--green); background: rgba(16,185,129,0.1); }
+.dir-arrow.left { color: var(--orange); background: rgba(245,158,11,0.1); }
+.dir-arrow.both { color: var(--cyan); background: rgba(6,182,212,0.1); }
+
+.systems { display: flex; justify-content: center; gap: 24px; margin-bottom: 40px; flex-wrap: wrap; }
+.system-box {
+  padding: 20px 32px; border-radius: 16px; text-align: center;
+  font-weight: 700; font-size: 1rem; min-width: 180px; border: 2px solid;
+}
+.system-box.shopify { background: rgba(150,191,72,0.08); border-color: rgba(150,191,72,0.3); color: var(--shopify); }
+.system-box.app { background: rgba(6,182,212,0.08); border-color: rgba(6,182,212,0.3); color: var(--cyan); }
+.system-box.fynd { background: rgba(99,102,241,0.08); border-color: rgba(99,102,241,0.3); color: var(--fynd); }
+.system-box.portal { background: rgba(236,72,153,0.08); border-color: rgba(236,72,153,0.3); color: var(--pink); }
+.system-box small { display: block; font-weight: 400; font-size: 0.75rem; color: var(--muted); margin-top: 4px; }
+
+.stats { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 32px; max-width: 1100px; margin-left: auto; margin-right: auto; margin-bottom: 48px; }
+.stat {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px 24px; text-align: center; flex: 1; min-width: 120px;
+}
+.stat-num {
+  font-size: 2rem; font-weight: 800;
+  background: linear-gradient(135deg, var(--accent), var(--cyan));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.stat-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
+
+.connector { text-align: center; padding: 4px; color: var(--muted); font-size: 0.8125rem; font-weight: 600; }
+.connector svg { vertical-align: middle; }
+</style>
+</head>
+<body>
+
+<h1 class="page-title">Fynd &#x2194; Shopify Return App</h1>
+<p class="page-sub">Complete integration architecture, data flows, and gap analysis</p>
+
+<div class="stats">
+  <div class="stat"><div class="stat-num">4</div><div class="stat-label">Systems</div></div>
+  <div class="stat"><div class="stat-num">5</div><div class="stat-label">Data Flows</div></div>
+  <div class="stat"><div class="stat-num">15</div><div class="stat-label">Integration Files</div></div>
+  <div class="stat"><div class="stat-num">7</div><div class="stat-label">Gaps Found</div></div>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num">0</span> Systems Overview</div>
+  <div class="systems">
+    <div class="system-box shopify">Shopify<small>Orders, Refunds, GraphQL API</small></div>
+    <div class="system-box app">Return Pro Max App<small>Remix + Prisma + PostgreSQL</small></div>
+    <div class="system-box fynd">Fynd Platform<small>Logistics, Tracking, Shipments</small></div>
+    <div class="system-box portal">Customer Portal<small>Vanilla JS, Server-rendered HTML</small></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num">1</span> Return Creation Flow (Customer Portal &#x2192; App &#x2192; Fynd)</div>
+  <div class="h-flow">
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-portal">Portal</span> Customer submits return</div>
+      <div class="flow-step-desc">Customer enters order number, selects items, provides reason. <strong>Fulfillment status checked</strong> &mdash; unfulfilled orders blocked.</div>
+      <div class="flow-step-file">app/portal/index.html</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-app">App</span> Validate &amp; create ReturnCase</div>
+      <div class="flow-step-desc">Server-side checks: fulfillment status (live Shopify), return window, eligibility rules, duplicates. Creates record in PostgreSQL.</div>
+      <div class="flow-step-file">api.portal.create-return.ts</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-shopify">Shopify</span> Fetch order details</div>
+      <div class="flow-step-desc">Admin GraphQL query fetches order to get <code>affiliate_order_id</code> (custom attribute set by Fynd Konnect during order sync).</div>
+      <div class="flow-step-file">shopify-admin.server.ts</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-fynd">Fynd</span> Create return on Fynd</div>
+      <div class="flow-step-desc">Searches shipments by <code>affiliate_order_id</code>, then calls <code>PUT shipment/status-internal</code> with <code>status: "return_initiated"</code>.</div>
+      <div class="flow-step-file">fynd-returns.server.ts</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num">2</span> Refund Webhook Flow (Fynd &#x2192; App &#x2192; Shopify)</div>
+  <div class="h-flow">
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-fynd">Fynd</span> Refund status change</div>
+      <div class="flow-step-desc">Fynd processes return logistics. Triggers webhook on <code>refund_initiated</code>, <code>refund_pending</code>, <code>refund_done</code>, <code>refund_failed</code>.</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-webhook">Webhook</span> Receive &amp; verify</div>
+      <div class="flow-step-desc">POST to <code>/api/webhooks/fynd</code>. Verifies <code>X-Fynd-Signature</code> (if secret configured). Finds matching ReturnCase by fyndShipmentId.</div>
+      <div class="flow-step-file">api.webhooks.fynd.ts</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-app">App</span> Update ReturnCase</div>
+      <div class="flow-step-desc">Maps Fynd status &#x2192; internal status. If <code>refund_done</code>: triggers Shopify refund. Creates ReturnEvent for timeline.</div>
+      <div class="flow-step-file">fynd-webhook.server.ts</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#96bf48" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-shopify">Shopify</span> Create refund</div>
+      <div class="flow-step-desc">Calls <code>refundCreate</code> GraphQL mutation on Shopify Admin API to refund the customer.</div>
+      <div class="flow-step-file">shopify-admin.server.ts</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num">3</span> Tracking Data Flow (Portal &#x2194; App &#x2194; Fynd)</div>
+  <div class="h-flow">
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-portal">Portal</span> Customer lookup</div>
+      <div class="flow-step-desc">Customer enters order number, email, or AWB on the tracking portal.</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-app">App</span> Lookup API</div>
+      <div class="flow-step-desc">Fetches order from Shopify + returns from DB. Enriches with live Fynd tracking (12s timeout, 5 search strategies).</div>
+      <div class="flow-step-file">api.portal.lookup.ts</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-fynd">Fynd</span> Live shipment data</div>
+      <div class="flow-step-desc"><code>searchShipmentsByExternalOrderId</code> returns: ETA, AWB, courier, journey steps, tracking URL, delivery address, pricing.</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ec4899" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-portal">Portal</span> Rich tracking UI</div>
+      <div class="flow-step-desc">Renders: status hero, 5-step progress bar, timeline, ETA, courier info, tracking CTA, auto-refresh every 60s.</div>
+      <div class="flow-step-file">app/portal/index.html</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num">4</span> Admin Actions Flow</div>
+  <div class="h-flow">
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-app">Admin UI</span> Review return</div>
+      <div class="flow-step-desc">Store admin sees return details, Fynd status, customer info. Can approve, reject, refund, or retry sync.</div>
+      <div class="flow-step-file">app.returns.$id.tsx</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-app">App</span> Process action</div>
+      <div class="flow-step-desc"><strong>Approve</strong> &#x2192; sync to Fynd. <strong>Reject</strong> &#x2192; update status. <strong>Refund</strong> &#x2192; Shopify API. <strong>Refresh</strong> &#x2192; fetch Fynd.</div>
+      <div class="flow-step-file">api.returns.$id.actions.ts</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-fynd">Fynd</span> / <span class="tag tag-shopify">Shopify</span></div>
+      <div class="flow-step-desc">Fynd: <code>createReturnOnFynd()</code> via Platform API. Shopify: <code>createRefund()</code> via Admin GraphQL.</div>
+      <div class="flow-step-file">fynd-returns.server.ts</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num">5</span> Setup &amp; Webhook Registration</div>
+  <div class="h-flow">
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-app">Admin</span> Settings &#x2192; Integrations</div>
+      <div class="flow-step-desc">Enter Fynd credentials: Company ID, App ID, Client ID/Secret. Test connection via OAuth token fetch.</div>
+      <div class="flow-step-file">app.settings.integrations.tsx</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-app">Admin</span> Settings &#x2192; Setup</div>
+      <div class="flow-step-desc">Register webhook URL with Fynd Platform. Test webhook delivery with sample payload.</div>
+      <div class="flow-step-file">app.settings.setup.tsx</div>
+    </div>
+    <div class="flow-arrow"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg></div>
+    <div class="flow-step">
+      <div class="flow-step-title"><span class="tag tag-fynd">Fynd</span> Webhook subscriber</div>
+      <div class="flow-step-desc">Events: <code>refund_initiated</code>, <code>refund_pending</code>, <code>refund_done</code>, <code>refund_failed</code>, shipment update, shipment data_update.</div>
+      <div class="flow-step-file">fynd-webhook-api.server.ts</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num">6</span> Complete Data Flow Map</div>
+  <table class="data-table">
+    <thead><tr><th>Data</th><th>Direction</th><th>Source &#x2192; Target</th><th>Mechanism</th><th>Key File</th></tr></thead>
+    <tbody>
+      <tr><td>Order data</td><td><span class="dir-arrow left">&#x2190;</span></td><td>Shopify &#x2192; App</td><td>Admin GraphQL API (on-demand)</td><td><code>shopify-admin.server.ts</code></td></tr>
+      <tr><td>Order sync (external)</td><td><span class="dir-arrow left">&#x2190;</span></td><td>Fynd &#x2192; Shopify</td><td>Fynd Konnect (external, not in app)</td><td><code style="color:var(--muted)">external</code></td></tr>
+      <tr><td>Return creation</td><td><span class="dir-arrow right">&#x2192;</span></td><td>App &#x2192; Fynd</td><td>Platform API PUT shipment/status-internal</td><td><code>fynd-returns.server.ts</code></td></tr>
+      <tr><td>Refund events</td><td><span class="dir-arrow left">&#x2190;</span></td><td>Fynd &#x2192; App</td><td>Webhook POST /api/webhooks/fynd</td><td><code>api.webhooks.fynd.ts</code></td></tr>
+      <tr><td>Refund execution</td><td><span class="dir-arrow right">&#x2192;</span></td><td>App &#x2192; Shopify</td><td>Admin GraphQL refundCreate mutation</td><td><code>shopify-admin.server.ts</code></td></tr>
+      <tr><td>Tracking data</td><td><span class="dir-arrow left">&#x2190;</span></td><td>Fynd &#x2192; App</td><td>Platform API GET shipments-listing</td><td><code>fynd.server.ts</code></td></tr>
+      <tr><td>Webhook registration</td><td><span class="dir-arrow right">&#x2192;</span></td><td>App &#x2192; Fynd</td><td>Platform API PUT subscriber</td><td><code>fynd-webhook-api.server.ts</code></td></tr>
+      <tr><td>Portal tracking</td><td><span class="dir-arrow both">&#x2194;</span></td><td>Portal &#x2194; App &#x2194; Fynd+Shopify</td><td>REST + GraphQL + Platform API</td><td><code>api.portal.lookup.ts</code></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-title"><span class="num" style="background:var(--red)">!</span> Gaps &amp; Risks Identified</div>
+  <div class="gaps-grid">
+    <div class="gap-card critical">
+      <div class="gap-severity">Critical</div>
+      <div class="gap-title">No Shopify order/fulfillment webhooks</div>
+      <div class="gap-desc">The app doesn't subscribe to Shopify's <code>orders/fulfilled</code> or <code>fulfillments/create</code> webhooks. It cannot proactively know when an order is shipped/delivered. Fulfillment status is checked on-demand only when a customer tries to create a return. <strong>Impact:</strong> Can't send proactive "your order is delivered, need to return?" notifications.</div>
+    </div>
+    <div class="gap-card critical">
+      <div class="gap-severity">Critical</div>
+      <div class="gap-title">No background sync or retry queue</div>
+      <div class="gap-desc">If a Fynd sync fails during return creation, there is no automatic retry. Admin must manually click "Retry Fynd sync". Failed webhooks are logged but not retried. No dead-letter queue exists. <strong>Impact:</strong> Returns can get stuck in a half-synced state indefinitely.</div>
+    </div>
+    <div class="gap-card high">
+      <div class="gap-severity">High</div>
+      <div class="gap-title">Webhook signature verification is optional</div>
+      <div class="gap-desc">The <code>FYND_WEBHOOK_SECRET</code> env var is optional. If not set, any POST to <code>/api/webhooks/fynd</code> is accepted without verification. <strong>Impact:</strong> An attacker could forge refund webhooks and trigger unauthorized Shopify refunds.</div>
+    </div>
+    <div class="gap-card high">
+      <div class="gap-severity">High</div>
+      <div class="gap-title">Order-to-Fynd mapping is fragile</div>
+      <div class="gap-desc">The app tries up to 5 different search strategies to match a Shopify order to Fynd (<code>external_order_id</code>, stripped prefix, <code>channel_order_id</code>, <code>affiliate_order_id</code>, <code>order_id</code>). If none match, tracking data is completely absent. <strong>Impact:</strong> Some orders may never show tracking data on the portal.</div>
+    </div>
+    <div class="gap-card medium">
+      <div class="gap-severity">Medium</div>
+      <div class="gap-title">No expired session cleanup</div>
+      <div class="gap-desc"><code>cleanupExpiredSessions()</code> is defined in <code>portal-auth.server.ts</code> but never called. Expired OTP sessions accumulate in the database. <strong>Impact:</strong> Database bloat over time.</div>
+    </div>
+    <div class="gap-card medium">
+      <div class="gap-severity">Medium</div>
+      <div class="gap-title">No server-side Fynd status polling</div>
+      <div class="gap-desc">Between webhook events, return status is stale. The portal uses 60s client-side auto-refresh, but the admin panel only updates when manually refreshed. No server-side cron to poll Fynd for status changes. <strong>Impact:</strong> Admin sees stale data; delays in processing returns.</div>
+    </div>
+    <div class="gap-card low">
+      <div class="gap-severity">Low</div>
+      <div class="gap-title">Product tags not passed for eligibility</div>
+      <div class="gap-desc"><code>ORDERS_BY_NAME_QUERY</code> fetches <code>variant.product.tags</code> but <code>fetchOrderByOrderNumber()</code> doesn't include them in the mapped response. Restricted product tag rules may not work correctly for the Create Return flow. <strong>Impact:</strong> Non-returnable products might slip through.</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

@@ -3109,6 +3109,52 @@
           return;
         }
         if (!data.order) throw new Error('Order not found');
+
+        // Fulfillment eligibility check — block unfulfilled, refunded, cancelled orders
+        if (data.returnEligibility && !data.returnEligibility.eligible) {
+          var reason = data.returnEligibility.reason || 'This order is not eligible for a return.';
+          var fulfillStatus = (data.order.displayFulfillmentStatus || '').toUpperCase();
+          var finStatus = (data.order.displayFinancialStatus || '').toUpperCase();
+
+          var iconSvg = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+          if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '' || fulfillStatus === 'SCHEDULED') {
+            iconSvg = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M12.89 1.45l8 4A2 2 0 0122 7.24v9.53a2 2 0 01-1.11 1.79l-8 4a2 2 0 01-1.79 0l-8-4a2 2 0 01-1.1-1.8V7.24a2 2 0 011.11-1.79l8-4a2 2 0 011.78 0z"/><polyline points="2.32 6.16 12 11 21.68 6.16"/><line x1="12" y1="22.76" x2="12" y2="11"/></svg>';
+          }
+
+          var statusLabel = '';
+          if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '') statusLabel = 'Not yet shipped';
+          else if (fulfillStatus === 'SCHEDULED') statusLabel = 'Scheduled for shipment';
+          else if (fulfillStatus === 'ON_HOLD') statusLabel = 'On hold';
+          else if (finStatus === 'REFUNDED') statusLabel = 'Already refunded';
+          else if (finStatus === 'VOIDED') statusLabel = 'Voided';
+          else statusLabel = 'Not eligible';
+
+          err.innerHTML = '';
+          var ineligibleHtml = '<div style="text-align:center;padding:32px 20px;">';
+          ineligibleHtml += '<div style="margin-bottom:16px;">' + iconSvg + '</div>';
+          ineligibleHtml += '<div style="font-size:1.125rem;font-weight:700;color:var(--portal-text);margin-bottom:4px;">Return not available</div>';
+          ineligibleHtml += '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text-muted);margin-bottom:12px;">Order ' + escapeHtml(data.order.name) + ' · ' + escapeHtml(statusLabel) + '</div>';
+          ineligibleHtml += '<div style="font-size:0.9375rem;color:var(--portal-text-muted);line-height:1.6;max-width:400px;margin:0 auto 20px;">' + escapeHtml(reason) + '</div>';
+          ineligibleHtml += '<button type="button" class="btn-secondary" onclick="document.getElementById(\'create-step-ineligible\').classList.remove(\'active\');document.getElementById(\'create-step1\').classList.add(\'active\');" style="width:100%;">Back to search</button>';
+          ineligibleHtml += '</div>';
+
+          var ineligibleStep = document.getElementById('create-step-ineligible');
+          if (!ineligibleStep) {
+            ineligibleStep = document.createElement('div');
+            ineligibleStep.id = 'create-step-ineligible';
+            ineligibleStep.className = 'portal-step';
+            document.getElementById('create-step1').parentElement.appendChild(ineligibleStep);
+          }
+          ineligibleStep.innerHTML = ineligibleHtml;
+
+          document.getElementById('create-step1').classList.remove('active');
+          document.getElementById('create-step2').classList.remove('active');
+          document.getElementById('create-step2-manual').classList.remove('active');
+          document.getElementById('create-step-existing').classList.remove('active');
+          ineligibleStep.classList.add('active');
+          return;
+        }
+
         createOrderData = data.order;
         if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
           throw new Error('This order has no items to return.');
@@ -3116,12 +3162,18 @@
         const nameEl = document.getElementById('createOrderName');
         nameEl.textContent = 'Order ' + escapeHtml(createOrderData.name);
         const list = document.getElementById('createItemsList');
-        // Render returnable items
+        // Render returnable items with images
         list.innerHTML = createOrderData.lineItems.map(li => `
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px;border:1px solid var(--portal-border);border-radius:var(--portal-radius);margin-bottom:8px;background:var(--portal-surface);">
-            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" style="width:16px;height:16px;">
-            <label for="item-${li.id}">${li.title} ${li.sku ? '(' + li.sku + ')' : ''} × ${li.quantity}</label>
-            <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}" data-max="${li.quantity}">
+          <div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:var(--portal-surface);">
+            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;">
+            ${li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : ''}
+            <label for="item-${li.id}" style="flex:1;cursor:pointer;font-size:0.875rem;font-weight:500;line-height:1.4;">
+              ${escapeHtml(li.title)}${li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : ''}${li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : ''}
+            </label>
+            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+              <span style="font-size:0.75rem;color:var(--portal-text-muted);">Qty</span>
+              <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}" data-max="${li.quantity}" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">
+            </div>
           </div>
         `).join('');
         list.querySelectorAll('.item-qty').forEach(inp => {

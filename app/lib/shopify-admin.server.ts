@@ -403,6 +403,8 @@ export async function fetchOrder(
     totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
     totalDiscountsSet?: { shopMoney?: { amount?: string } };
     subtotalPriceSet?: { shopMoney?: { amount?: string } };
+    displayFinancialStatus?: string;
+    displayFulfillmentStatus?: string;
     discountCodes?: string[];
     customAttributes?: Array<{ key: string; value: string }>;
     shippingAddress?: MailingAddressDisplay;
@@ -452,6 +454,8 @@ export async function fetchOrder(
     billingAddress: order.billingAddress ?? null,
     shippingCountry: order.shippingAddress?.countryCode ?? null,
     shippingProvince: order.shippingAddress?.provinceCode ?? null,
+    displayFinancialStatus: order.displayFinancialStatus ?? undefined,
+    displayFulfillmentStatus: order.displayFulfillmentStatus ?? undefined,
   };
 }
 

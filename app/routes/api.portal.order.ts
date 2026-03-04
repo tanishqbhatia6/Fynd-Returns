@@ -77,10 +77,56 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         activeReturns,
       }, { status: 404 }), request);
     }
+
+    // Fulfillment status gate: only allow returns for fulfilled orders
+    const fulfillmentStatus = (order.displayFulfillmentStatus ?? "").toUpperCase();
+    const financialStatus = (order.displayFinancialStatus ?? "").toUpperCase();
+
+    const FULFILLED_STATUSES = ["FULFILLED", "PARTIALLY_FULFILLED"];
+    const BLOCKED_FINANCIAL = ["REFUNDED", "VOIDED"];
+    const BLOCKED_FULFILLMENT = ["UNFULFILLED", "SCHEDULED", "ON_HOLD"];
+
+    const isFulfilled = FULFILLED_STATUSES.includes(fulfillmentStatus);
+    const isBlocked = BLOCKED_FULFILLMENT.includes(fulfillmentStatus) || BLOCKED_FINANCIAL.includes(financialStatus);
+
+    let returnEligibility: { eligible: boolean; reason?: string } = { eligible: true };
+
+    if (!isFulfilled || isBlocked) {
+      if (financialStatus === "REFUNDED" || financialStatus === "VOIDED") {
+        returnEligibility = {
+          eligible: false,
+          reason: "This order has already been refunded and is not eligible for a return.",
+        };
+      } else if (fulfillmentStatus === "UNFULFILLED" || fulfillmentStatus === "") {
+        returnEligibility = {
+          eligible: false,
+          reason: "This order has not been shipped yet. Returns can only be created for orders that have been delivered.",
+        };
+      } else if (fulfillmentStatus === "ON_HOLD") {
+        returnEligibility = {
+          eligible: false,
+          reason: "This order is currently on hold. Please contact support for assistance.",
+        };
+      } else if (fulfillmentStatus === "SCHEDULED") {
+        returnEligibility = {
+          eligible: false,
+          reason: "This order is scheduled for fulfillment but has not shipped yet. Returns can only be created after delivery.",
+        };
+      } else if (fulfillmentStatus === "PARTIALLY_FULFILLED") {
+        returnEligibility = { eligible: true };
+      } else {
+        returnEligibility = {
+          eligible: false,
+          reason: "This order is not eligible for a return at this time.",
+        };
+      }
+    }
+
     return withCors(Response.json({
       order,
       existingReturns: formattedReturns,
       activeReturns,
+      returnEligibility,
     }), request);
   } catch (err) {
     console.error("Portal order fetch:", err);

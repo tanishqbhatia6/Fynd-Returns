@@ -5,7 +5,7 @@ import { checkReturnEligibility } from "../lib/return-rules.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { fetchOrder } from "../lib/shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { sendNewReturnNotification } from "../lib/notification.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 
@@ -102,6 +102,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
       itemsToCreate = [{ lineItemId: "manual", qty: 1, reasonCode: body.reasonCode || "Other", notes: manualItemDescription }];
+
+      // Best-effort fulfillment check for manual returns
+      try {
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const manualOrderLookup = await fetchOrderByOrderNumber(admin, orderNameClean);
+        if (manualOrderLookup) {
+          const manualFulfill = (manualOrderLookup.displayFulfillmentStatus ?? "").toUpperCase();
+          const manualFinancial = (manualOrderLookup.displayFinancialStatus ?? "").toUpperCase();
+          if (manualFulfill === "UNFULFILLED" || manualFulfill === "" || manualFulfill === "SCHEDULED" || manualFulfill === "ON_HOLD") {
+            return withCors(
+              Response.json({
+                error: "This order has not been fulfilled yet. Returns can only be created for orders that have been shipped and delivered.",
+              }, { status: 400 }),
+              request
+            );
+          }
+          if (manualFinancial === "REFUNDED" || manualFinancial === "VOIDED") {
+            return withCors(
+              Response.json({
+                error: "This order has already been refunded and is not eligible for a return.",
+              }, { status: 400 }),
+              request
+            );
+          }
+        }
+      } catch {
+        // If lookup fails (e.g., PCDA, session not found), allow manual submission — admin will review
+      }
     } else {
       if (!items || !Array.isArray(items) || items.length === 0) {
         return withCors(
@@ -134,6 +162,38 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }, { status: 409 }),
         request
       );
+    }
+
+    // Server-side fulfillment status validation (non-manual mode)
+    if (!manualMode && orderId) {
+      try {
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const liveOrder = await fetchOrder(admin, orderId);
+        if (liveOrder) {
+          const fulfillStatus = (liveOrder.displayFulfillmentStatus ?? "").toUpperCase();
+          const finStatus = (liveOrder.displayFinancialStatus ?? "").toUpperCase();
+
+          if (fulfillStatus === "UNFULFILLED" || fulfillStatus === "" || fulfillStatus === "SCHEDULED" || fulfillStatus === "ON_HOLD") {
+            return withCors(
+              Response.json({
+                error: "This order has not been fulfilled yet. Returns can only be created for orders that have been shipped and delivered.",
+              }, { status: 400 }),
+              request
+            );
+          }
+          if (finStatus === "REFUNDED" || finStatus === "VOIDED") {
+            return withCors(
+              Response.json({
+                error: "This order has already been refunded and is not eligible for a return.",
+              }, { status: 400 }),
+              request
+            );
+          }
+        }
+      } catch (fulfillErr) {
+        console.warn("[Portal create-return] Fulfillment status check failed:", fulfillErr);
+        // If we can't verify, fall through — the order lookup would have already blocked in the portal
+      }
     }
 
     if (!manualMode) {

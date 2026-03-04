@@ -2790,9 +2790,20 @@
       if (tabs.length === 0) { wrap.style.display = 'none'; return; }
       if (tabs.length === 1) { wrap.style.display = 'none'; return; }
       wrap.style.display = 'flex';
-      wrap.innerHTML = tabs.map(function (t, i) {
-        const isDefault = (PORTAL_CONFIG.defaultTab === 'return' && t.id === 'track_return') || (PORTAL_CONFIG.defaultTab === 'track' && t.id === 'track_order') || (PORTAL_CONFIG.defaultTab === t.id) || (i === 0);
-        return '<button type="button" class="portal-tab' + (isDefault ? ' active' : '') + '" data-tab="' + escapeHtml(t.id) + '">' + escapeHtml(t.label) + '</button>';
+      var defaultTabId = null;
+      for (var di = 0; di < tabs.length; di++) {
+        var dt = tabs[di];
+        if ((PORTAL_CONFIG.defaultTab === 'return' && dt.id === 'track_return') ||
+            (PORTAL_CONFIG.defaultTab === 'track' && dt.id === 'track_order') ||
+            (PORTAL_CONFIG.defaultTab === 'order' && dt.id === 'track_order') ||
+            (PORTAL_CONFIG.defaultTab === dt.id)) {
+          defaultTabId = dt.id;
+          break;
+        }
+      }
+      if (!defaultTabId) defaultTabId = tabs[0].id;
+      wrap.innerHTML = tabs.map(function (t) {
+        return '<button type="button" class="portal-tab' + (t.id === defaultTabId ? ' active' : '') + '" data-tab="' + escapeHtml(t.id) + '">' + escapeHtml(t.label) + '</button>';
       }).join('');
 
       const activeTabBtn = wrap.querySelector('.portal-tab.active') || wrap.querySelector('.portal-tab');

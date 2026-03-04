@@ -3,6 +3,7 @@ import crypto from "crypto";
 import prisma from "../db.server";
 import { createPortalToken } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
@@ -22,6 +23,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
+
+  const rl = checkRateLimit(request, "portal.otp.verify");
+  if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
+
   try {
     const { sessionId, otp } = await request.json();
     if (!sessionId || !otp) {

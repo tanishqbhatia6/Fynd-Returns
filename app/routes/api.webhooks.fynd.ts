@@ -47,10 +47,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  // Signature verification — required in production when FYND_WEBHOOK_SECRET is set
   const secret = process.env.FYND_WEBHOOK_SECRET;
+  const isProd = process.env.NODE_ENV === "production";
   if (secret) {
     const signature = request.headers.get("x-fynd-signature") ?? request.headers.get("x-webhook-signature");
     if (!signature) {
+      console.warn("[Fynd webhook] Missing signature header — rejecting");
       return Response.json({ error: "Missing webhook signature" }, { status: 401 });
     }
     const { createHmac, timingSafeEqual } = await import("crypto");
@@ -61,13 +64,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const sigBuf = Buffer.from(sigClean, "hex");
       const expBuf = Buffer.from(expected, "hex");
       if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-        console.warn("[Fynd webhook] Signature mismatch");
+        console.warn("[Fynd webhook] Signature mismatch — rejecting");
         return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
       }
     } catch {
-      console.warn("[Fynd webhook] Signature verification error");
+      console.warn("[Fynd webhook] Signature verification error — rejecting");
       return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
     }
+  } else if (isProd) {
+    console.warn("[Fynd webhook] FYND_WEBHOOK_SECRET not set in production — webhook accepted without verification. Set FYND_WEBHOOK_SECRET for security.");
+  }
+
+  // Replay protection: reject webhooks with timestamps older than 5 minutes
+  const webhookTimestamp = request.headers.get("x-webhook-timestamp") ?? request.headers.get("x-fynd-timestamp");
+  if (webhookTimestamp) {
+    const ts = new Date(webhookTimestamp).getTime();
+    if (!isNaN(ts) && Math.abs(Date.now() - ts) > 5 * 60_000) {
+      console.warn("[Fynd webhook] Stale webhook rejected (timestamp drift:", Math.abs(Date.now() - ts), "ms)");
+      return Response.json({ error: "Webhook timestamp too old" }, { status: 401 });
+    }
+  }
+
+  // Idempotency: check for duplicate webhook by shipment+status combo
+  const shipIdForDedup = payload.shipment_id ?? payload.shipmentId ?? payload.id;
+  const statusForDedup = payload.refund_status ?? payload.status;
+  if (shipIdForDedup && statusForDedup) {
+    try {
+      const { default: prismaClient } = await import("../db.server");
+      const recentDup = await prismaClient.fyndWebhookLog.findFirst({
+        where: {
+          shipmentId: String(shipIdForDedup),
+          refundStatus: String(statusForDedup),
+          createdAt: { gte: new Date(Date.now() - 60_000) },
+        },
+      });
+      if (recentDup) {
+        return Response.json({ ok: true, action: "duplicate_ignored" });
+      }
+    } catch { /* Non-fatal: proceed without dedup check */ }
   }
 
   try {

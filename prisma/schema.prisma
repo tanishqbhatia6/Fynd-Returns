@@ -104,6 +104,11 @@ model ReturnCase {
   notesForCustomer  String?   // published notes visible to customer in portal
   customerNotes     String?
   rejectionReason   String?
+  fyndSyncStatus    String?   // "pending" | "synced" | "failed" | "retry_scheduled"
+  fyndSyncRetries   Int      @default(0)
+  fyndSyncError     String?  @db.Text
+  fyndSyncNextRetry DateTime?
+  lastFyndStatusCheck DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -119,6 +124,7 @@ model ReturnCase {
   @@index([shopId, returnRequestNo])
   @@index([shopId, customerEmailNorm])
   @@index([shopId, customerPhoneNorm])
+  @@index([fyndSyncStatus, fyndSyncNextRetry])
 }
 
 model ReturnItem {
@@ -164,6 +170,22 @@ model FyndWebhookLog {
   @@index([orderId])
   @@index([returnCaseId])
   @@index([createdAt])
+}
+
+model FyndOrderMapping {
+  id                String   @id @default(cuid())
+  shopId            String
+  shopifyOrderName  String
+  shopifyOrderId    String?
+  fyndOrderId       String?
+  fyndShipmentId    String?
+  searchStrategy    String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([shopId, shopifyOrderName])
+  @@index([shopId, fyndOrderId])
+  @@index([shopId, fyndShipmentId])
 }
 
 model LookupSession {

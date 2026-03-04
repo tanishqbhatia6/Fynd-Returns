@@ -8,6 +8,7 @@ import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { sendNewReturnNotification } from "../lib/notification.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
+import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress"];
 
@@ -22,6 +23,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
+
+  const rl = checkRateLimit(request, "portal.create-return");
+  if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
+
   try {
     const body = await request.json();
     const shop = body.shop as string | undefined;
@@ -144,18 +149,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             request
           );
         }
+        if (it.qty > 999) {
+          return withCors(
+            Response.json({ error: "Item quantity exceeds maximum allowed" }, { status: 400 }),
+            request
+          );
+        }
       }
-      itemsToCreate = items.map((it) => ({ lineItemId: it.lineItemId, qty: it.qty, reasonCode: it.reasonCode }));
+      if (items.length > 100) {
+        return withCors(
+          Response.json({ error: "Too many items in return request" }, { status: 400 }),
+          request
+        );
+      }
+      itemsToCreate = items.map((it) => ({
+        lineItemId: String(it.lineItemId).slice(0, 256),
+        qty: Math.min(Math.max(1, Math.floor(it.qty)), 999),
+        reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
+      }));
     }
 
-    const existing = await prisma.returnCase.findFirst({
+    // Race-safe duplicate check: will be re-checked inside transaction
+    const existingPreCheck = await prisma.returnCase.findFirst({
       where: {
         shopId: shopRecord.id,
         shopifyOrderId: effectiveOrderId,
         status: { in: NON_TERMINAL_STATUSES },
       },
     });
-    if (existing) {
+    if (existingPreCheck) {
       return withCors(
         Response.json({
           error: "A return request for this order is already pending. Please wait for approval or rejection.",
@@ -245,48 +267,78 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const status = settings?.autoApproveEnabled ? "approved" : "initiated";
 
-    let returnCase = await prisma.returnCase.create({
-      data: {
-        shopId: shopRecord.id,
-        shopifyOrderId: effectiveOrderId,
-        shopifyOrderName,
-        customerEmailNorm: customerEmail || null,
-        customerPhoneNorm: customerPhone || null,
-        customerNotes: customerNotes || null,
-        status,
-        items: {
-          create: itemsToCreate.map((it) => ({
-            shopifyLineItemId: it.lineItemId,
-            qty: it.qty,
-            reasonCode: it.reasonCode || null,
-            notes: it.notes || null,
-          })),
-        },
-      },
-      include: { items: true },
-    });
+    // Atomic transaction: re-check for duplicates + create return + event in one go
+    let returnCase: Awaited<ReturnType<typeof prisma.returnCase.create>> & { returnRequestNo?: string | null };
+    try {
+      returnCase = await prisma.$transaction(async (tx) => {
+        // Re-check inside transaction to prevent race conditions
+        const dup = await tx.returnCase.findFirst({
+          where: {
+            shopId: shopRecord.id,
+            shopifyOrderId: effectiveOrderId,
+            status: { in: NON_TERMINAL_STATUSES },
+          },
+        });
+        if (dup) {
+          throw new Error("DUPLICATE_RETURN");
+        }
 
-    const returnRequestNo = formatReturnRequestId(returnCase.id);
-    await prisma.returnCase.update({
-      where: { id: returnCase.id },
-      data: { returnRequestNo },
-    });
-    returnCase = { ...returnCase, returnRequestNo };
+        const rc = await tx.returnCase.create({
+          data: {
+            shopId: shopRecord.id,
+            shopifyOrderId: effectiveOrderId,
+            shopifyOrderName,
+            customerEmailNorm: customerEmail || null,
+            customerPhoneNorm: customerPhone || null,
+            customerNotes: customerNotes || null,
+            status,
+            fyndSyncStatus: settings?.autoApproveEnabled ? "pending" : null,
+            items: {
+              create: itemsToCreate.map((it) => ({
+                shopifyLineItemId: it.lineItemId,
+                qty: it.qty,
+                reasonCode: it.reasonCode || null,
+                notes: it.notes || null,
+              })),
+            },
+          },
+          include: { items: true },
+        });
 
-    await prisma.returnEvent.create({
-      data: {
-        returnCaseId: returnCase.id,
-        source: "portal",
-        eventType: status === "approved" ? "auto_approved" : "initiated",
-        payloadJson: JSON.stringify({
-          customerEmail: customerEmail || null,
-          customerPhone: customerPhone || null,
-          customerName: customerName || null,
-          itemCount: itemsToCreate.length,
-          manual: manualMode,
-        }),
-      },
-    });
+        const returnRequestNo = formatReturnRequestId(rc.id);
+        await tx.returnCase.update({
+          where: { id: rc.id },
+          data: { returnRequestNo },
+        });
+
+        await tx.returnEvent.create({
+          data: {
+            returnCaseId: rc.id,
+            source: "portal",
+            eventType: status === "approved" ? "auto_approved" : "initiated",
+            payloadJson: JSON.stringify({
+              customerEmail: customerEmail || null,
+              customerPhone: customerPhone || null,
+              customerName: customerName || null,
+              itemCount: itemsToCreate.length,
+              manual: manualMode,
+            }),
+          },
+        });
+
+        return { ...rc, returnRequestNo };
+      });
+    } catch (txErr) {
+      if (txErr instanceof Error && txErr.message === "DUPLICATE_RETURN") {
+        return withCors(
+          Response.json({
+            error: "A return request for this order is already pending. Please wait for approval or rejection.",
+          }, { status: 409 }),
+          request
+        );
+      }
+      throw txErr;
+    }
 
     if (settings?.notificationNewReturn !== false) {
       const shopOwnerSessions = await prisma.session.findMany({
@@ -302,7 +354,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             orderName: shopifyOrderName,
             customerEmail: customerEmail || undefined,
             itemCount: itemsToCreate.length,
-            returnRequestId: returnRequestNo,
+            returnRequestId: returnCase.returnRequestNo ?? "",
             shopName: shopDomain.replace(".myshopify.com", ""),
           });
         } catch (notifyErr) {
@@ -322,11 +374,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           ? await createFyndClientOrError(fyndSettings, { requirePlatform: true })
           : { ok: false as const, error: "Fynd not configured" };
         if (fyndResult.ok && "getShipments" in fyndResult.client) {
-          const fyndSync = await createReturnOnFynd(fyndResult.client, returnCase, { affiliateOrderId });
+          // Re-fetch with items for Fynd sync
+          const rcWithItems = await prisma.returnCase.findUnique({
+            where: { id: returnCase.id },
+            include: { items: true },
+          });
+          if (!rcWithItems) throw new Error("Return case not found after creation");
+          const fyndSync = await createReturnOnFynd(fyndResult.client, rcWithItems, { affiliateOrderId });
           if (fyndSync.success && (fyndSync.fyndReturnId ?? fyndSync.fyndShipmentId ?? fyndSync.alreadyExists)) {
             await prisma.returnCase.update({
               where: { id: returnCase.id },
               data: {
+                fyndSyncStatus: "synced",
+                fyndSyncError: null,
                 ...(fyndSync.fyndReturnId && { fyndReturnId: fyndSync.fyndReturnId }),
                 ...(fyndSync.fyndReturnNo && { fyndReturnNo: fyndSync.fyndReturnNo }),
                 ...(fyndSync.fyndOrderId && { fyndOrderId: fyndSync.fyndOrderId }),
@@ -351,8 +411,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         }
       } catch (fyndErr) {
-        console.warn("[Portal create-return] Fynd sync failed:", fyndErr);
-        // Non-fatal: return is created and approved; admin can retry sync from UI
+        const errMsg = fyndErr instanceof Error ? fyndErr.message : String(fyndErr);
+        console.warn("[Portal create-return] Fynd sync failed:", errMsg);
+        // Schedule automatic retry instead of requiring manual admin intervention
+        try {
+          const { scheduleRetry } = await import("../lib/fynd-retry.server");
+          await scheduleRetry(returnCase.id, errMsg);
+        } catch { /* Non-fatal */ }
       }
     }
 
@@ -398,10 +463,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     );
   } catch (err) {
     console.error("Portal create return:", err);
-    const isClientFacing = err instanceof Error && /order|item|email|required|invalid|expired/i.test(err.message);
+    // Only expose safe, customer-facing error messages — never internal details
+    const SAFE_PATTERNS = [
+      /order has not been fulfilled/i,
+      /already been refunded/i,
+      /at least one item/i,
+      /return window/i,
+      /not eligible/i,
+      /already pending/i,
+      /required/i,
+      /invalid.*email/i,
+      /expired/i,
+    ];
+    const errMsg = err instanceof Error ? err.message : "";
+    const isSafe = SAFE_PATTERNS.some((p) => p.test(errMsg));
     return withCors(
       Response.json({
-        error: isClientFacing ? err.message : "Something went wrong. Please try again later.",
+        error: isSafe ? errMsg : "Something went wrong. Please try again later.",
       }, { status: 500 }),
       request
     );

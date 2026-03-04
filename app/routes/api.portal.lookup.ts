@@ -6,6 +6,7 @@ import { getTrackingInfoFromFyndPayload, parseFyndOrderDetailsForTab, extractFyn
 import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { createFyndClientOrError, type FyndClientResult, type ShipmentsListingSearchType } from "../lib/fynd.server";
 import shopify from "../shopify.server";
+import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 type FyndClient = Extract<FyndClientResult, { ok: true }>["client"];
 
@@ -21,10 +22,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const res = Response.json({ error: "Method not allowed" }, { status: 405 });
     return withCors(res, request);
   }
+
+  const rl = checkRateLimit(request, "portal.lookup");
+  if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
+
   try {
     const { shop, lookupType, lookupValue } = await request.json();
     if (!shop || !lookupType || !lookupValue) {
       return withCors(Response.json({ error: "shop, lookupType, lookupValue required" }, { status: 400 }), request);
+    }
+
+    // Input validation
+    const VALID_LOOKUP_TYPES = ["email", "phone", "order_no", "return_no", "return_id", "forward_awb", "return_awb"];
+    if (!VALID_LOOKUP_TYPES.includes(lookupType)) {
+      return withCors(Response.json({ error: "Invalid lookup type" }, { status: 400 }), request);
+    }
+    const lookupStr = String(lookupValue).trim();
+    if (lookupStr.length > 256) {
+      return withCors(Response.json({ error: "Lookup value too long" }, { status: 400 }), request);
+    }
+    if (lookupStr.length < 2) {
+      return withCors(Response.json({ error: "Lookup value too short" }, { status: 400 }), request);
     }
 
     const shopDomain = shop.includes(".") ? shop : `${shop}.myshopify.com`;
@@ -175,24 +193,38 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 return [];
               };
 
+              // Check persistent cache first
+              let cachedMapping: { fyndOrderId?: string | null; fyndShipmentId?: string | null; searchStrategy?: string | null } | null = null;
+              try {
+                cachedMapping = await prisma.fyndOrderMapping.findUnique({
+                  where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: order.name } },
+                });
+              } catch { /* cache miss is fine */ }
+
               // Build all search candidates upfront
-              const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType }> = [
-                { value: orderNumber, type: "external_order_id" },
-              ];
-              // Strip common Fynd prefixes (e.g. "FYNDSHOPIFYX14050" → "14050")
+              const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType; strategy: string }> = [];
+
+              // If we have a cached mapping, try it first
+              if (cachedMapping?.fyndOrderId) {
+                searchCandidates.push({ value: cachedMapping.fyndOrderId, type: "order_id" as ShipmentsListingSearchType, strategy: "cached_order_id" });
+              }
+              if (cachedMapping?.fyndShipmentId) {
+                searchCandidates.push({ value: cachedMapping.fyndShipmentId, type: "shipment_id" as ShipmentsListingSearchType, strategy: "cached_shipment_id" });
+              }
+
+              searchCandidates.push({ value: orderNumber, type: "external_order_id", strategy: "external_order_id" });
               const numericPart = orderNumber.replace(/^[A-Za-z]+/i, "");
               if (numericPart && numericPart !== orderNumber) {
-                searchCandidates.push({ value: numericPart, type: "external_order_id" });
+                searchCandidates.push({ value: numericPart, type: "external_order_id", strategy: "stripped_prefix" });
               }
-              // Also search by the full order name as channel_order_id
               if (order.name) {
-                searchCandidates.push({ value: order.name.replace(/^#/, ""), type: "channel_order_id" });
+                searchCandidates.push({ value: order.name.replace(/^#/, ""), type: "channel_order_id", strategy: "channel_order_id" });
               }
               if (order.affiliateOrderId) {
-                searchCandidates.push({ value: order.affiliateOrderId, type: "channel_order_id" });
+                searchCandidates.push({ value: order.affiliateOrderId, type: "channel_order_id", strategy: "affiliate_order_id" });
               }
               if (order.id) {
-                searchCandidates.push({ value: order.id.split("/").pop() || "", type: "order_id" });
+                searchCandidates.push({ value: order.id.split("/").pop() || "", type: "order_id", strategy: "shopify_gid" });
               }
 
               for (const candidate of searchCandidates) {
@@ -211,6 +243,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                     if (parsed) {
                       (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
                     }
+
+                    // Cache successful mapping for future lookups
+                    const firstItem = items[0] as Record<string, unknown>;
+                    const mappedFyndOrderId = String(firstItem?.order_id ?? firstItem?.fynd_order_id ?? candidate.value ?? "");
+                    const mappedFyndShipmentId = String(firstItem?.shipment_id ?? firstItem?.id ?? "");
+                    if (mappedFyndOrderId || mappedFyndShipmentId) {
+                      prisma.fyndOrderMapping.upsert({
+                        where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: order.name } },
+                        create: {
+                          shopId: shopRecord.id,
+                          shopifyOrderName: order.name,
+                          shopifyOrderId: order.id,
+                          fyndOrderId: mappedFyndOrderId || null,
+                          fyndShipmentId: mappedFyndShipmentId || null,
+                          searchStrategy: candidate.strategy,
+                        },
+                        update: {
+                          fyndOrderId: mappedFyndOrderId || undefined,
+                          fyndShipmentId: mappedFyndShipmentId || undefined,
+                          searchStrategy: candidate.strategy,
+                        },
+                      }).catch(() => { /* Non-fatal cache write */ });
+                    }
+
                     return parsed;
                   }
                 } catch {

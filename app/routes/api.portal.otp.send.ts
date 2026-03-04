@@ -2,6 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import crypto from "crypto";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 const OTP_COOLDOWN_MS = 60_000;
 const MAX_OTP_ATTEMPTS = 5;
@@ -21,6 +22,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
+
+  const rl = checkRateLimit(request, "portal.otp.send");
+  if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
+
   try {
     const { sessionId } = await request.json();
     if (!sessionId) {

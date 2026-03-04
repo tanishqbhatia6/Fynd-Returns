@@ -139,7 +139,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     prisma.lookupSession.deleteMany({
       where: { expiresAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
     }).catch((err: unknown) => console.warn("[cleanup] Failed to clean expired sessions:", err));
+
+    // Gap 5: Also clean up stale webhook logs older than 90 days
+    prisma.fyndWebhookLog.deleteMany({
+      where: { createdAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
+    }).catch((err: unknown) => console.warn("[cleanup] Failed to clean old webhook logs:", err));
   }
+
+  // Gap 2: Run background Fynd sync retry queue (throttled internally)
+  import("../lib/fynd-retry.server").then(({ runFyndRetryQueue }) =>
+    runFyndRetryQueue().catch((err: unknown) => console.warn("[retry] Queue error:", err))
+  );
+
+  // Gap 6: Poll Fynd for stale return statuses (throttled internally)
+  import("../lib/fynd-status-poll.server").then(({ pollStaleReturns }) =>
+    pollStaleReturns().catch((err: unknown) => console.warn("[poll] Status poll error:", err))
+  );
 
   try {
     let shop = await prisma.shop.findUnique({

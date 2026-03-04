@@ -4,6 +4,8 @@ import { fetchOrderByOrderNumber, OrderAccessError } from "../lib/shopify-admin.
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
+import { checkReturnEligibility } from "../lib/return-rules.server";
+import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 /**
  * Portal order lookup API.
@@ -15,6 +17,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: getPortalCorsHeaders(request) });
   }
+
+  const rl = checkRateLimit(request, "portal.order");
+  if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
+
   const url = new URL(request.url);
   const shopParam = url.searchParams.get("shop");
   const orderNumber = (url.searchParams.get("orderNumber") ?? "").replace(/^#/, "").replace(/[^\w\-]/g, "").trim();
@@ -122,11 +128,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
+    // Product-level eligibility: check tags, return window, region restrictions
+    if (returnEligibility.eligible) {
+      const settings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+      const allProductTags = (order.lineItems ?? []).flatMap((li) => li.productTags ?? []);
+      const ruleCheck = checkReturnEligibility(settings, {
+        orderDate: order.createdAt ? new Date(order.createdAt) : undefined,
+        productTags: allProductTags,
+        customerCountry: order.shippingCountry ?? undefined,
+        customerProvince: order.shippingProvince ?? undefined,
+      });
+      if (!ruleCheck.eligible) {
+        returnEligibility = ruleCheck;
+      }
+    }
+
+    // Per-item eligibility: mark items with restricted tags as non-returnable
+    const settings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+    const itemEligibility = (order.lineItems ?? []).map((li) => {
+      const itemCheck = checkReturnEligibility(settings, {
+        orderDate: order.createdAt ? new Date(order.createdAt) : undefined,
+        productTags: li.productTags ?? [],
+        productPrice: li.price ? parseFloat(li.price) : undefined,
+        customerCountry: order.shippingCountry ?? undefined,
+        customerProvince: order.shippingProvince ?? undefined,
+      });
+      return { lineItemId: li.id, eligible: itemCheck.eligible, reason: itemCheck.reason };
+    });
+
     return withCors(Response.json({
       order,
       existingReturns: formattedReturns,
       activeReturns,
       returnEligibility,
+      itemEligibility,
     }), request);
   } catch (err) {
     console.error("Portal order fetch:", err);
@@ -159,7 +194,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       );
     }
     return withCors(
-      Response.json({ error: err instanceof Error ? err.message : "Failed to fetch order" }, { status: 500 }),
+      Response.json({ error: "Failed to fetch order. Please try again or contact the store." }, { status: 500 }),
       request
     );
   }

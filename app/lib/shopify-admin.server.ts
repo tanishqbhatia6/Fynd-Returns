@@ -157,6 +157,8 @@ export type OrderLineItemForDisplay = {
   originalTotal?: string | null;
   discountedTotal?: string | null;
   imageUrl?: string | null;
+  productTags?: string[];
+  productType?: string | null;
 };
 
 export type OrderForPortal = {
@@ -254,6 +256,8 @@ export async function fetchOrderByOrderNumber(
     originalTotal: li.originalTotalSet?.shopMoney?.amount ?? null,
     discountedTotal: li.discountedTotalSet?.shopMoney?.amount ?? null,
     imageUrl: li.image?.url ?? null,
+    productTags: li.variant?.product?.tags ?? [],
+    productType: li.variant?.product?.productType ?? null,
   }));
   return {
     id: o.id,

@@ -13,9 +13,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = await findOrCreateShop(session.shop);
   const s = shop.settings;
   const tags = parseJsonArray<string>(s?.restrictedProductTagsJson ?? null, []);
-  const refundPrepaid = parseJsonArray<string>(s?.refundMethodPrepaidJson ?? null, ["bank_details"]);
-  const refundCOD = parseJsonArray<string>(s?.refundMethodCODJson ?? null, []);
-
   let shopLocations: ShopLocation[] = [];
   try {
     shopLocations = await fetchAllLocations(admin);
@@ -34,8 +31,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     photoRequired: s?.photoRequired ?? false,
     returnFeeAmount: s?.returnFeeAmount != null ? String(s.returnFeeAmount) : "0",
     returnFeeCurrency: s?.returnFeeCurrency ?? "USD",
-    refundMethodPrepaid: refundPrepaid,
-    refundMethodCOD: refundCOD,
     autoApproveEnabled: s?.autoApproveEnabled ?? false,
     autoRefundEnabled: s?.autoRefundEnabled ?? false,
     refundLocationMode,
@@ -56,8 +51,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const photoRequired = (formData.get("photoRequired") as string) === "on";
   const returnFeeAmount = Math.max(0, parseFloat(String(formData.get("returnFeeAmount") ?? "0")) || 0);
   const returnFeeCurrency = String(formData.get("returnFeeCurrency") ?? "USD").trim() || "USD";
-  const refundMethodPrepaidJson = formData.get("refundMethodPrepaidJson") as string | null;
-  const refundMethodCODJson = formData.get("refundMethodCODJson") as string | null;
   const autoApproveEnabled = formData.get("autoApproveEnabled") === "on";
   const autoRefundEnabled = formData.get("autoRefundEnabled") === "on";
   const refundLocationMode = (formData.get("refundLocationMode") as string) ?? "auto";
@@ -68,28 +61,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const shop = await findOrCreateShop(session.shop);
 
   let tagsStr: string | undefined;
-  let prepaidStr: string | undefined;
-  let codStr: string | undefined;
   try {
     if (restrictedProductTagsJson != null) {
       const arr = JSON.parse(restrictedProductTagsJson) as unknown;
       tagsStr = Array.isArray(arr) ? JSON.stringify(arr) : undefined;
-    }
-  } catch {
-    /* keep existing */
-  }
-  try {
-    if (refundMethodPrepaidJson != null) {
-      const arr = JSON.parse(refundMethodPrepaidJson) as unknown;
-      prepaidStr = Array.isArray(arr) ? JSON.stringify(arr) : undefined;
-    }
-  } catch {
-    /* keep existing */
-  }
-  try {
-    if (refundMethodCODJson != null) {
-      const arr = JSON.parse(refundMethodCODJson) as unknown;
-      codStr = Array.isArray(arr) ? JSON.stringify(arr) : undefined;
     }
   } catch {
     /* keep existing */
@@ -109,8 +84,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       photoRequired,
       returnFeeAmount,
       returnFeeCurrency,
-      refundMethodPrepaidJson: prepaidStr,
-      refundMethodCODJson: codStr,
       autoApproveEnabled,
       autoRefundEnabled,
       refundLocationMode,
@@ -126,8 +99,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       photoRequired,
       returnFeeAmount,
       returnFeeCurrency,
-      refundMethodPrepaidJson: prepaidStr ?? undefined,
-      refundMethodCODJson: codStr ?? undefined,
       autoApproveEnabled,
       autoRefundEnabled,
       refundLocationMode,
@@ -144,9 +115,6 @@ export default function ReturnSettings() {
   const fetcher = useFetcher<{ success?: boolean }>();
   const [tags, setTags] = React.useState<string[]>(data.restrictedProductTags);
   const [tagInput, setTagInput] = React.useState("");
-  const [prepaid, setPrepaid] = React.useState<string[]>(data.refundMethodPrepaid);
-  const [cod, setCod] = React.useState<string[]>(data.refundMethodCOD);
-  const [activeTab, setActiveTab] = React.useState<"prepaid" | "cod">("prepaid");
   const [locationMode, setLocationMode] = React.useState<"auto" | "manual">(data.refundLocationMode === "manual" ? "manual" : "auto");
   const [selectedLocId, setSelectedLocId] = React.useState(data.refundLocationId ?? "");
   const [paymentMethod, setPaymentMethod] = React.useState<"original" | "store_credit" | "both">(
@@ -156,13 +124,11 @@ export default function ReturnSettings() {
 
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
-    setPrepaid(data.refundMethodPrepaid);
-    setCod(data.refundMethodCOD);
     setLocationMode(data.refundLocationMode === "manual" ? "manual" : "auto");
     setSelectedLocId(data.refundLocationId ?? "");
     setPaymentMethod((["original", "store_credit", "both"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both");
     setStoreCreditPct(data.refundStoreCreditPct ?? 100);
-  }, [data.restrictedProductTags, data.refundMethodPrepaid, data.refundMethodCOD, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct]);
+  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -174,30 +140,17 @@ export default function ReturnSettings() {
 
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
 
-  const togglePrepaid = (opt: string) => {
-    setPrepaid((prev) => (prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]));
-  };
-
-  const toggleCOD = (opt: string) => {
-    setCod((prev) => (prev.includes(opt) ? prev.filter((x) => x !== opt) : [...prev, opt]));
-  };
-
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const form = e.currentTarget;
     const fd = new FormData(form);
     fd.set("restrictedProductTagsJson", JSON.stringify(tags));
-    fd.set("refundMethodPrepaidJson", JSON.stringify(prepaid));
-    fd.set("refundMethodCODJson", JSON.stringify(cod));
     fd.set("refundLocationMode", locationMode);
     fd.set("refundLocationId", selectedLocId);
     fd.set("refundPaymentMethod", paymentMethod);
     fd.set("refundStoreCreditPct", String(storeCreditPct));
     fetcher.submit(fd, { method: "post" });
   };
-
-  const prepaidOpts = ["bank_details", "origin_source", "others"];
-  const codOpts = ["bank_details", "origin_source", "others"];
 
   return (
     <s-page heading="Return Settings">
@@ -317,42 +270,6 @@ export default function ReturnSettings() {
                 style={{ width: 120, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}
               />
             </div>
-          </s-section>
-
-          {/* Payment methods of return process */}
-          <s-section>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Payment methods of return process</div>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
-              Customers can choose refund method based on original payment type.
-            </p>
-            <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
-              <button type="button" onClick={() => setActiveTab("prepaid")} style={{ padding: "8px 16px", borderRadius: 6, border: activeTab === "prepaid" ? "2px solid #005bd3" : "1px solid #e1e3e5", background: activeTab === "prepaid" ? "#f0f6ff" : "#fff", cursor: "pointer", fontWeight: 500 }}>
-                Prepaid/Online paid orders
-              </button>
-              <button type="button" onClick={() => setActiveTab("cod")} style={{ padding: "8px 16px", borderRadius: 6, border: activeTab === "cod" ? "2px solid #005bd3" : "1px solid #e1e3e5", background: activeTab === "cod" ? "#f0f6ff" : "#fff", cursor: "pointer", fontWeight: 500 }}>
-                Bank Transfer, Cheque, COD
-              </button>
-            </div>
-            {activeTab === "prepaid" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {prepaidOpts.map((opt) => (
-                  <label key={opt} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="checkbox" checked={prepaid.includes(opt)} onChange={() => togglePrepaid(opt)} />
-                    <span style={{ textTransform: "capitalize" }}>{opt.replace(/_/g, " ")}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-            {activeTab === "cod" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {codOpts.map((opt) => (
-                  <label key={opt} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <input type="checkbox" checked={cod.includes(opt)} onChange={() => toggleCOD(opt)} />
-                    <span style={{ textTransform: "capitalize" }}>{opt.replace(/_/g, " ")}</span>
-                  </label>
-                ))}
-              </div>
-            )}
           </s-section>
 
           {/* Auto Approval */}

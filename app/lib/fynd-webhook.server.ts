@@ -408,7 +408,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       amount: result.refundAmount ?? null,
       currency: result.refundCurrency ?? null,
       createdAt: result.refundCreatedAt ?? new Date().toISOString(),
-      method: "original_payment_method",
+      method: result.refundMethod ?? "original",
       source: "fynd_webhook",
     };
     await prisma.returnCase.update({

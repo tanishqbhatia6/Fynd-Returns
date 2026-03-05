@@ -1282,6 +1282,38 @@ s-section[heading]::before {
   opacity: 1;
 }
 
+/* ────── Dashboard Grid Layouts ────── */
+.dashboard-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.dashboard-chart-row {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .dashboard-chart-row {
+    grid-template-columns: 1fr;
+  }
+  .dashboard-gauge-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+}
+
 /* ────── Scrollbar ────── */
 .app-content::-webkit-scrollbar {
   width: 6px;

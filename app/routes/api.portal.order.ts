@@ -231,7 +231,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       );
     }
     return withCors(
-      Response.json({ error: "Failed to fetch order. Please try again or contact the store." }, { status: 500 }),
+      Response.json({
+        fallback: true,
+        orderNumber: orderNumber?.replace(/^#/, "").trim(),
+        error: "We couldn't find this order automatically. Please use the form below to submit your return request.",
+        existingReturns: formattedReturns,
+        activeReturns,
+      }, { status: 200 }),
       request
     );
   }

@@ -44,6 +44,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
     const customerNotes = (body.customerNotes as string | undefined)?.trim();
+    const customerMediaRaw = body.customerMedia as Array<{ name?: string; mimeType?: string; size?: number; dataUrl?: string }> | undefined;
 
     if (!shop || !shopifyOrderName) {
       return withCors(
@@ -276,6 +277,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    // Validate and sanitize uploaded media (max 5 files, images only for DB storage, max 5MB each)
+    const MAX_MEDIA_FILES = 5;
+    const MAX_MEDIA_SIZE = 5 * 1024 * 1024;
+    const ALLOWED_MEDIA_PREFIXES = ["data:image/jpeg", "data:image/png", "data:image/gif", "data:image/webp"];
+    let customerMediaJson: string | null = null;
+    if (Array.isArray(customerMediaRaw) && customerMediaRaw.length > 0) {
+      const validMedia = customerMediaRaw
+        .slice(0, MAX_MEDIA_FILES)
+        .filter((m) => {
+          if (!m?.dataUrl || typeof m.dataUrl !== "string") return false;
+          if (!ALLOWED_MEDIA_PREFIXES.some((p) => m.dataUrl!.startsWith(p))) return false;
+          const sizeEstimate = Math.ceil((m.dataUrl.length * 3) / 4);
+          if (sizeEstimate > MAX_MEDIA_SIZE) return false;
+          return true;
+        })
+        .map((m) => ({
+          name: String(m.name ?? "upload").slice(0, 255),
+          mimeType: String(m.mimeType ?? "image/jpeg").slice(0, 64),
+          dataUrl: m.dataUrl,
+        }));
+      if (validMedia.length > 0) {
+        customerMediaJson = JSON.stringify(validMedia);
+      }
+    }
+
     const status = settings?.autoApproveEnabled ? "approved" : "initiated";
 
     // Atomic transaction: re-check for duplicates + create return + event in one go
@@ -302,6 +328,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             customerEmailNorm: customerEmail || null,
             customerPhoneNorm: customerPhone || null,
             customerNotes: customerNotes || null,
+            customerMediaJson: customerMediaJson,
             status,
             fyndSyncStatus: settings?.autoApproveEnabled ? "pending" : null,
             items: {

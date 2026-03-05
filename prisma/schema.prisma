@@ -103,6 +103,7 @@ model ReturnCase {
   adminNotes        String?
   notesForCustomer  String?   // published notes visible to customer in portal
   customerNotes     String?
+  customerMediaJson String?   @db.Text  // JSON array of { name, mimeType, dataUrl } uploaded by customer
   rejectionReason   String?
   fyndSyncStatus    String?   // "pending" | "synced" | "failed" | "retry_scheduled"
   fyndSyncRetries   Int      @default(0)

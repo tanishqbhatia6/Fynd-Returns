@@ -760,9 +760,44 @@ export default function ReturnDetail() {
               {returnCase.customerNotes && (
                 <div style={{ marginBottom: 14 }}>
                   <div style={{ ...C.label, marginBottom: 6 }}>Customer notes</div>
-                  <div style={{ padding: 10, background: "#FEF3C7", borderRadius: 8, fontSize: 13, whiteSpace: "pre-wrap", color: "#92400E" }}>{returnCase.customerNotes}</div>
+                  <div style={{ padding: 10, background: "#FEF3C7", borderRadius: 8, fontSize: 13, whiteSpace: "pre-wrap", color: "#92400E" }}>
+                    {(returnCase.customerNotes ?? "").replace(/\n\n\[Attached Files:.*\]$/s, "")}
+                  </div>
                 </div>
               )}
+              {(() => {
+                const mediaJson = (returnCase as { customerMediaJson?: string | null }).customerMediaJson;
+                if (!mediaJson) return null;
+                let media: Array<{ name?: string; mimeType?: string; dataUrl?: string }> = [];
+                try { media = JSON.parse(mediaJson); } catch { return null; }
+                if (!Array.isArray(media) || media.length === 0) return null;
+                return (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ ...C.label, marginBottom: 8 }}>Customer uploads</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+                      {media.map((m, idx) => (
+                        <a
+                          key={idx}
+                          href={m.dataUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={m.name || `Upload ${idx + 1}`}
+                          style={{ display: "block", borderRadius: 8, overflow: "hidden", border: "1px solid #E5E7EB", background: "#F9FAFB" }}
+                        >
+                          <img
+                            src={m.dataUrl}
+                            alt={m.name || `Upload ${idx + 1}`}
+                            style={{ width: 120, height: 120, objectFit: "cover", display: "block" }}
+                          />
+                          <div style={{ padding: "4px 8px", fontSize: 11, color: "#6B7280", textAlign: "center", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {m.name || `Upload ${idx + 1}`}
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
                 <input type="hidden" name="action" value="add_note" />
                 <div style={{ ...C.label, marginBottom: 6 }}>Internal notes</div>

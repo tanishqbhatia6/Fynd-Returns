@@ -361,9 +361,12 @@ export type FyndOrderDetailsTab = {
     trackingUrl: string | null;
     invoiceNumber: string | null;
     invoiceId: string | null;
+    invoiceUrl: string | null;
     fulfillmentStore: string | null;
     fulfillmentOptions: string | null;
     shipmentStatus: string | null;
+    creditNoteId: string | null;
+    journeyType: string | null;
     estimatedDelivery?: string | null;
     deliveryAddress?: FyndAddress | null;
     returnPickupAddress?: FyndAddress | null;
@@ -437,16 +440,39 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       if (!trackingUrlStr && awbStr && cpName) {
         trackingUrlStr = buildTrackingUrlFromCourierAndAwb(cpName, awbStr);
       }
-      const invNum = toDisplayString(raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ?? meta.invoice_number ?? raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id);
+      const invoiceObj = (raw.invoice != null && typeof raw.invoice === "object") ? raw.invoice as Record<string, unknown> : null;
+      const invNum = toDisplayString(
+        invoiceObj?.store_invoice_id ?? invoiceObj?.external_invoice_id ??
+        raw.invoice_number ?? raw.invoiceNumber ?? raw.marketplaceInvoiceNumber ??
+        meta.invoice_number ?? raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id
+      );
       const invId = toDisplayString(raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id ?? raw.invoice_number ?? meta.invoice_number);
-      const fulfillStore = toDisplayString(raw.fulfilling_store ?? raw.fulfilling_store_name ?? raw.fulfilling_company);
+      const invoiceUrlRaw = invoiceObj?.invoice_url ?? (invoiceObj?.links as Record<string, unknown> | undefined)?.invoice_a4;
+      const invoiceUrl = typeof invoiceUrlRaw === "string" && invoiceUrlRaw ? invoiceUrlRaw : null;
+
+      const fulfillStoreObj = (raw.fulfilling_store != null && typeof raw.fulfilling_store === "object") ? raw.fulfilling_store as Record<string, unknown> : null;
+      const fulfillStoreName = fulfillStoreObj
+        ? (toDisplayString(fulfillStoreObj.store_name ?? fulfillStoreObj.name ?? fulfillStoreObj.display_name ?? (fulfillStoreObj.meta as Record<string, unknown> | undefined)?.display_name))
+        : toDisplayString(raw.fulfilling_store ?? raw.fulfilling_store_name ?? raw.fulfilling_company);
+      const fulfillStoreCity = fulfillStoreObj ? toDisplayString(fulfillStoreObj.city) : null;
+      const fulfillStore = fulfillStoreName
+        ? (fulfillStoreCity ? `${fulfillStoreName}, ${fulfillStoreCity}` : fulfillStoreName)
+        : null;
+
+      const fulfillOptionObj = (raw.fulfillment_option != null && typeof raw.fulfillment_option === "object") ? raw.fulfillment_option as Record<string, unknown> : null;
+      const orderObj = (raw.order != null && typeof raw.order === "object") ? raw.order as Record<string, unknown> : null;
       const fulfillOptsRaw = [
-        raw.ordering_source,
-        raw.ordering_channel ?? raw.orderingChannel,
-        raw.channel,
-        raw.fulfillmentType ?? raw.fulfillment_type,
-      ].map(toDisplayString).filter(Boolean);
+        fulfillOptionObj ? toDisplayString(fulfillOptionObj.name ?? fulfillOptionObj.slug) : null,
+        toDisplayString(raw.ordering_source ?? orderObj?.ordering_source),
+        toDisplayString(raw.ordering_channel ?? raw.orderingChannel ?? orderObj?.ordering_channel),
+        toDisplayString(raw.channel),
+        toDisplayString(raw.fulfillmentType ?? raw.fulfillment_type),
+      ].filter(Boolean) as string[];
       const fulfillOpts = fulfillOptsRaw.length > 0 ? fulfillOptsRaw.join(" · ") : null;
+
+      const creditNoteIdRaw = raw.credit_note_id ?? invoiceObj?.credit_note_id;
+      const creditNoteId = typeof creditNoteIdRaw === "string" && creditNoteIdRaw ? creditNoteIdRaw : null;
+      const journeyType = typeof raw.journey_type === "string" ? raw.journey_type : null;
       const status = raw.shipment_status ?? raw.orderStatus ?? raw.status;
       const statusTitle = status && typeof status === "object" && status !== null && "title" in (status as object)
         ? (status as { title?: string }).title
@@ -611,9 +637,12 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         trackingUrl: trackingUrlStr,
         invoiceNumber: invNum ?? null,
         invoiceId: invId ?? null,
+        invoiceUrl,
         fulfillmentStore: fulfillStore ?? null,
         fulfillmentOptions: fulfillOpts ?? null,
         shipmentStatus: shipmentStatusStr ?? null,
+        creditNoteId,
+        journeyType,
         estimatedDelivery,
         deliveryAddress,
         returnPickupAddress,

@@ -138,9 +138,12 @@ type ShipmentForRow = {
   trackingUrl: string | null;
   invoiceNumber: string | null;
   invoiceId: string | null;
+  invoiceUrl: string | null;
   fulfillmentStore: string | null;
   fulfillmentOptions: string | null;
   shipmentStatus: string | null;
+  creditNoteId: string | null;
+  journeyType: string | null;
   pricing?: ShipmentPricing;
   items: ShipmentItem[];
 };
@@ -197,10 +200,19 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Tracking</div><div style={{ fontSize: 13 }}>
               {s.trackingUrl ? <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 600 }}>Track shipment →</a> : "—"}
             </div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice</div><div style={{ fontSize: 13 }}>{safeStr(s.invoiceNumber) || safeStr(s.invoiceId) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice</div><div style={{ fontSize: 13 }}>
+              {(safeStr(s.invoiceNumber) || safeStr(s.invoiceId))
+                ? (s.invoiceUrl
+                  ? <a href={s.invoiceUrl} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 500 }}>{safeStr(s.invoiceNumber) || safeStr(s.invoiceId)}</a>
+                  : (safeStr(s.invoiceNumber) || safeStr(s.invoiceId)))
+                : "—"}
+            </div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentStore) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentOptions) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Status</div><div style={{ fontSize: 13 }}>{safeStr(s.shipmentStatus) || "—"}</div></div>
+            {s.creditNoteId && s.journeyType === "return" && (
+              <div><div style={{ fontSize: 11, color: "#6d7175" }}>Credit Note ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.creditNoteId}</div></div>
+            )}
           </div>
           {s.pricing && (s.pricing.subtotal || s.pricing.total || s.pricing.discount || s.pricing.deliveryCharges || s.pricing.codAmount || s.pricing.promotions || s.pricing.coupon) && (
             <div style={{ marginBottom: 16, padding: 16, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)" }}>

@@ -60,10 +60,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { returnRequestNo: returnIdUpper },
       ];
     } else if (["return_no", "order_no"].includes(lookupType)) {
+      const normNoHash = norm.replace(/^#/, "");
       where.OR = [
-        { fyndReturnNo: { contains: norm, mode: "insensitive" } },
-        { shopifyOrderName: { contains: norm, mode: "insensitive" } },
-        { fyndOrderId: { contains: norm, mode: "insensitive" } },
+        { fyndReturnNo: { contains: normNoHash, mode: "insensitive" } },
+        { shopifyOrderName: { contains: normNoHash, mode: "insensitive" } },
+        { shopifyOrderName: { contains: `#${normNoHash}`, mode: "insensitive" } },
+        { fyndOrderId: { contains: normNoHash, mode: "insensitive" } },
       ];
     } else if (["forward_awb", "return_awb"].includes(lookupType)) {
       where.OR = [
@@ -170,13 +172,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.error("Portal lookup order by order_no (direct):", err);
       }
 
-      // If Shopify name search didn't find it, try FyndOrderMapping + ReturnCase by fyndOrderId
+      // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName
       if (orders.length === 0) {
         try {
           const fyndMapping = await prisma.fyndOrderMapping.findFirst({
             where: {
               shopId: shopRecord.id,
-              fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+              OR: [
+                { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+                { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+              ],
             },
           });
           if (fyndMapping?.shopifyOrderName) {
@@ -191,13 +196,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       }
 
-      // Also try matching ReturnCase.fyndOrderId to build order data from stored payloads
+      // Also try matching ReturnCase by fyndOrderId or shopifyOrderName to build order data
       if (orders.length === 0) {
         try {
           const fyndCases = await prisma.returnCase.findMany({
             where: {
               shopId: shopRecord.id,
-              fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+              OR: [
+                { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+                { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+              ],
             },
             include: { items: true },
             orderBy: { createdAt: "desc" },

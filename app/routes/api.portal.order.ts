@@ -38,11 +38,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
   }
 
-  // Check for existing return cases for this order (by order name)
+  // Check for existing return cases for this order (by order name, fyndOrderId, or fyndShipmentId)
   const existingReturns = await prisma.returnCase.findMany({
     where: {
       shopId: shopRecord.id,
-      shopifyOrderName: { in: [`#${orderNumber}`, orderNumber] },
+      OR: [
+        { shopifyOrderName: { in: [`#${orderNumber}`, orderNumber] } },
+        { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+      ],
     },
     include: {
       items: true,
@@ -78,12 +81,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const { admin } = await shopify.unauthenticated.admin(shopDomain);
     let order = await fetchOrderByOrderNumber(admin, orderNumber);
 
-    // If Shopify name search didn't find it, try FyndOrderMapping to resolve Shopify order name
+    // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName
     if (!order) {
       const fyndMapping = await prisma.fyndOrderMapping.findFirst({
         where: {
           shopId: shopRecord.id,
-          fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+          OR: [
+            { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+            { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+          ],
         },
       });
       if (fyndMapping?.shopifyOrderName) {
@@ -91,12 +97,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
-    // Also try ReturnCase.fyndOrderId -> shopifyOrderName
+    // Also try ReturnCase.fyndOrderId or shopifyOrderName -> resolve Shopify order
     if (!order) {
       const fyndCase = await prisma.returnCase.findFirst({
         where: {
           shopId: shopRecord.id,
-          fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+          OR: [
+            { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+            { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+          ],
         },
         select: { shopifyOrderName: true },
       });

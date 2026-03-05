@@ -296,20 +296,32 @@ export async function fetchOrderByOrderNumber(
 ): Promise<OrderForPortal | null> {
   const clean = orderNumber.replace(/^#/, "").trim();
   if (!clean) return null;
-  const query = /^\d+$/.test(clean) ? `name:#${clean}` : `name:${clean}`;
-  const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query } });
-  const json = (await res.json()) as {
-    data?: { orders?: { nodes?: Array<unknown> } };
-    errors?: Array<{ message?: string }>;
-  };
-  const errMsg = json.errors?.[0]?.message ?? "";
-  if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
-    throw new OrderAccessError(errMsg, "PCDA");
+
+  // Try multiple name formats: #VALUE (Shopify default), VALUE (bare), and for pure digits #VALUE
+  const queries = /^\d+$/.test(clean)
+    ? [`name:#${clean}`]
+    : [`name:#${clean}`, `name:${clean}`];
+
+  let node: unknown = null;
+  for (const query of queries) {
+    const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query } });
+    const json = (await res.json()) as {
+      data?: { orders?: { nodes?: Array<unknown> } };
+      errors?: Array<{ message?: string }>;
+    };
+    const errMsg = json.errors?.[0]?.message ?? "";
+    if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
+      throw new OrderAccessError(errMsg, "PCDA");
+    }
+    if (json.errors?.length) {
+      throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
+    }
+    const found = json.data?.orders?.nodes?.[0];
+    if (found && typeof found === "object" && "name" in found) {
+      node = found;
+      break;
+    }
   }
-  if (json.errors?.length) {
-    throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
-  }
-  const node = json.data?.orders?.nodes?.[0];
   if (!node || typeof node !== "object" || !("name" in node)) return null;
   const o = node as {
     id: string;

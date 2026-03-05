@@ -121,6 +121,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const customerEmail = (body.customerEmail as string | undefined)?.trim().toLowerCase();
     const customerPhone = (body.customerPhone as string | undefined)?.trim().replace(/[^\d+]/g, '') || null;
     const customerName = (body.customerName as string | undefined)?.trim() || null;
+    const customerCity = (body.customerCity as string | undefined)?.trim() || null;
+    const customerCountry = (body.customerCountry as string | undefined)?.trim() || null;
     const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string }> | undefined;
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
@@ -547,6 +549,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             shopifyOrderName,
             customerEmailNorm: customerEmail || null,
             customerPhoneNorm: customerPhone || null,
+            customerName: customerName || null,
+            customerCity: customerCity || null,
+            customerCountry: customerCountry || null,
             customerNotes: customerNotes || null,
             customerMediaJson: customerMediaJson,
             status,

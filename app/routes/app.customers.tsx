@@ -55,6 +55,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where.OR = [
       { customerEmailNorm: { contains: query, mode: "insensitive" } },
       { customerPhoneNorm: { contains: query, mode: "insensitive" } },
+      { customerName: { contains: query, mode: "insensitive" } },
       { shopifyOrderName: { contains: query, mode: "insensitive" } },
     ];
   }
@@ -68,6 +69,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopifyOrderId: true,
       customerEmailNorm: true,
       customerPhoneNorm: true,
+      customerName: true,
+      customerCity: true,
+      customerCountry: true,
       status: true,
       refundJson: true,
       refundStatus: true,
@@ -87,6 +91,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const grouped = new Map<string, {
     email: string;
     phone: string | null;
+    name: string | null;
+    city: string | null;
+    country: string | null;
     orderIds: Set<string>;
     returns: typeof allReturns;
   }>();
@@ -96,10 +103,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!email) continue;
     let group = grouped.get(email);
     if (!group) {
-      group = { email, phone: r.customerPhoneNorm || null, orderIds: new Set(), returns: [] };
+      group = {
+        email,
+        phone: r.customerPhoneNorm || null,
+        name: r.customerName || null,
+        city: r.customerCity || null,
+        country: r.customerCountry || null,
+        orderIds: new Set(),
+        returns: [],
+      };
       grouped.set(email, group);
     }
     if (!group.phone && r.customerPhoneNorm) group.phone = r.customerPhoneNorm;
+    if (!group.name && r.customerName) group.name = r.customerName;
+    if (!group.city && r.customerCity) group.city = r.customerCity;
+    if (!group.country && r.customerCountry) group.country = r.customerCountry;
     if (r.shopifyOrderId) group.orderIds.add(r.shopifyOrderId);
     group.returns.push(r);
   }
@@ -126,6 +144,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  // Backfill missing customer data from Shopify into DB (fire-and-forget)
+  const backfillUpdates: Array<{ id: string; data: Record<string, string | null> }> = [];
+
   // Build enriched customer summaries
   const customers: CustomerSummary[] = [];
 
@@ -142,12 +163,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
 
-    // Extract best customer info from Shopify data
+    // Extract best customer info from Shopify data, then fallback to DB
     const firstOrder = shopifyOrders[0];
-    const custName = firstOrder?.customerName || null;
+    const custName = firstOrder?.customerName || group.name || null;
     const custPhone = firstOrder?.customerPhone || group.phone || null;
-    const custCity = firstOrder?.customerCity || null;
-    const custCountry = firstOrder?.customerCountry || null;
+    const custCity = firstOrder?.customerCity || group.city || null;
+    const custCountry = firstOrder?.customerCountry || group.country || null;
     const lifetimeOrderCount = firstOrder?.lifetimeOrderCount ?? null;
     const lifetimeSpent = firstOrder?.lifetimeSpent ?? null;
 
@@ -174,7 +195,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         refundCurrency = shopifyRefund.currency;
         totalOrderValue += shopifyRefund.orderTotal;
       } else {
-        // Fallback to DB data
+        // Fallback to DB refundJson
         if (r.refundJson) {
           try {
             const refund = JSON.parse(r.refundJson) as { amount?: string; currency?: string };
@@ -187,6 +208,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
         if (refundAmount === 0 && r.bonusCreditAmount) {
           refundAmount = parseFloat(r.bonusCreditAmount) || 0;
+        }
+        // If still no refund data, compute estimated from item prices for completed/refunded returns
+        const isRefunded = ["completed", "refunded"].includes((r.status || "").toLowerCase())
+          || (r.refundStatus || "").toLowerCase() === "refunded";
+        if (refundAmount === 0 && isRefunded) {
+          for (const item of r.items) {
+            if (item.price) {
+              refundAmount += (parseFloat(item.price) || 0) * item.qty;
+            }
+          }
         }
       }
 
@@ -222,6 +253,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
 
+    // Queue backfill for return cases missing customer data
+    if (custPhone || custName || custCity || custCountry) {
+      for (const r of group.returns) {
+        const updates: Record<string, string | null> = {};
+        if (!r.customerPhoneNorm && custPhone) updates.customerPhoneNorm = custPhone;
+        if (!r.customerName && custName) updates.customerName = custName;
+        if (!r.customerCity && custCity) updates.customerCity = custCity;
+        if (!r.customerCountry && custCountry) updates.customerCountry = custCountry;
+        if (Object.keys(updates).length > 0) {
+          backfillUpdates.push({ id: r.id, data: updates });
+        }
+      }
+    }
+
     customers.push({
       email,
       name: custName,
@@ -241,6 +286,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       resolutionBreakdown,
       returns: returnRows,
     });
+  }
+
+  // Fire-and-forget: backfill missing customer data into DB
+  if (backfillUpdates.length > 0) {
+    Promise.allSettled(
+      backfillUpdates.slice(0, 100).map(({ id, data }) =>
+        prisma.returnCase.update({ where: { id }, data })
+      )
+    ).catch(() => {});
   }
 
   if (sortBy === "amount") {

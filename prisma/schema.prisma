@@ -157,6 +157,9 @@ model ReturnCase {
   returnAwb         String?
   customerEmailNorm String?
   customerPhoneNorm String?
+  customerName      String?
+  customerCity      String?
+  customerCountry   String?
   status            String
   refundStatus      String?
   refundJson        String?   @db.Text  // JSON: { refundId, amount, currency, createdAt, method }

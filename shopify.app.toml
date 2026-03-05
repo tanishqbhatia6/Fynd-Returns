@@ -24,6 +24,10 @@ topics = ["app/uninstalled"]
 uri = "/webhooks/app/scopes_update"
 topics = ["app/scopes_update"]
 
+[[webhooks.subscriptions]]
+uri = "/webhooks/orders/create"
+topics = ["orders/create"]
+
 [app_proxy]
 url = "https://YOUR_APP_URL/apps/returns"
 subpath = "returns"

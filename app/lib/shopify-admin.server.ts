@@ -516,15 +516,20 @@ const ORDERS_CUSTOM_ATTR_SEARCH_QUERY = `#graphql
 `;
 
 /**
- * Searches recent orders looking for one whose custom attribute
- * (e.g. affiliate_order_id) matches the given value. Returns the Shopify
- * order { id, name } if found. This is a last-resort fallback; prefer DB
- * lookups (FyndOrderMapping / ReturnCase) or Shopify filters when possible.
+ * FALLBACK ONLY — Scans recent orders by custom attribute.
  *
- * Scans up to 500 orders (10 pages × 50). Shopify does NOT index
- * customAttributes for search, so this pagination scan is unavoidable
- * for orders placed through Fynd or other platforms that store their
- * order ID in customAttributes rather than as source_identifier/tag.
+ * Shopify does NOT index customAttributes for search, so this must
+ * paginate through orders one page at a time. This is inherently
+ * O(N) and does NOT scale to high-volume stores.
+ *
+ * The correct solution is:
+ *   1. orders/create webhook → caches FyndOrderMapping on order creation
+ *   2. POST /api/admin/backfill-fynd-mappings → indexes all historical orders
+ *
+ * This scan exists only as a grace-period fallback for stores that haven't
+ * run the backfill yet. It scans up to 500 recent orders (10 pages × 50).
+ * Once a match is found, the caller must cache it in FyndOrderMapping so
+ * this scan is never repeated for the same order.
  */
 export async function findOrderNameByCustomAttribute(
   admin: AdminGraphQL,

@@ -18,6 +18,10 @@ const shopify = shopifyApp({
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
   webhooks: {
+    ORDERS_CREATE: {
+      deliveryMethod: DeliveryMethod.Http,
+      callbackUrl: "/webhooks/orders/create",
+    },
     ORDERS_FULFILLED: {
       deliveryMethod: DeliveryMethod.Http,
       callbackUrl: "/webhooks/orders/fulfilled",

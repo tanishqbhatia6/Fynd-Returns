@@ -90,6 +90,9 @@ const EN: Record<string, string> = {
   // Create return – Manual form
   "portal.create.manualTitle": "Manual return request",
   "portal.create.manualDesc": "Fill in the details below and we'll process your return.",
+  "portal.create.findOrderToSelectItems": "Find my order to select items",
+  "portal.create.manualItemsFallbackLabel": "Order not found? Describe the items you're returning",
+  "portal.create.manualItemsFallbackHint": "Only if we couldn't find your order above, list the items here (e.g. Black t-shirt Size M – 1 unit).",
   "portal.create.manualItemsLabel": "Which items are you returning?",
   "portal.create.manualItemsPlaceholder": "e.g. Black t-shirt (Size M) - 1 unit",
 

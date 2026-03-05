@@ -2094,7 +2094,11 @@
         <div class="form-group">
           <label class="form-label" for="createManualOrderNumber">Order number <span
               style="color:#d72c0d">*</span></label>
-          <input type="text" id="createManualOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <input type="text" id="createManualOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001" style="flex:1;min-width:180px;">
+            <button type="button" id="btnManualFindOrder" class="btn-primary" style="flex-shrink:0;">Find my order to select items</button>
+          </div>
+          <p style="font-size:0.8125rem;color:var(--portal-text-muted);margin-top:8px;">We'll look up your order so you can pick items from the list — no typing required.</p>
         </div>
         <div class="form-group">
           <label class="form-label" for="createManualEmail">Your email <span style="color:#d72c0d">*</span></label>
@@ -2106,9 +2110,10 @@
           <label class="form-label" for="createManualReason">Reason for return</label>
           <select id="createManualReason" class="form-select"></select>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="createManualItems">Which items are you returning? <span
+        <div class="form-group" id="manualItemsFallbackGroup">
+          <label class="form-label" for="createManualItems">Order not found? Describe the items you're returning <span
               style="color:#d72c0d">*</span></label>
+          <p style="font-size:0.8125rem;color:var(--portal-text-muted);margin-bottom:8px;">Only if we couldn't find your order above, list the items here (e.g. Black t-shirt Size M – 1 unit).</p>
           <textarea id="createManualItems" class="form-input" rows="3"
             placeholder="e.g. Black t-shirt (Size M) - 1 unit" required></textarea>
         </div>
@@ -4296,86 +4301,57 @@
       document.getElementById('create-step1').classList.add('active');
     };
 
-    document.getElementById('btnFetchOrder').onclick = async () => {
-      const shop = document.getElementById('shop').value.trim();
-      const lookVal = document.getElementById('createOrderNumber').value.trim();
-      const err = document.getElementById('createErr1');
-      const btn = document.getElementById('btnFetchOrder');
-      err.textContent = '';
-      if (!lookVal) { err.textContent = t('portal.error.enterOrderNumber'); return; }
-      btn.disabled = true;
-      btn.textContent = t('portal.create.lookingUp');
-      function resetBtn() { btn.disabled = false; btn.textContent = t('portal.create.findOrder'); }
-      try {
-        const orderNumber = lookVal.replace(/^#/, '');
-        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber), null, 20000);
-
-        // Check for active returns BEFORE showing create form
-        if (data.activeReturns && data.activeReturns.length > 0) {
-          var container = document.getElementById('existingReturnsContainer');
-          renderExistingReturns(data.activeReturns, container);
-          document.getElementById('create-step1').classList.remove('active');
-          document.getElementById('create-step2').classList.remove('active');
-          document.getElementById('create-step2-manual').classList.remove('active');
-          document.getElementById('create-step-existing').classList.add('active');
-          resetBtn();
-          return;
+    /** Shared: given API response from /order, show existing returns / ineligible / or step2 with item selector. Returns true if step2 was shown. */
+    function applyOrderDataAndShowStep2(data) {
+      if (data.activeReturns && data.activeReturns.length > 0) {
+        var container = document.getElementById('existingReturnsContainer');
+        renderExistingReturns(data.activeReturns, container);
+        document.getElementById('create-step1').classList.remove('active');
+        document.getElementById('create-step2').classList.remove('active');
+        document.getElementById('create-step2-manual').classList.remove('active');
+        document.getElementById('create-step-existing').classList.add('active');
+        return false;
+      }
+      if (!data.order) return false;
+      if (data.returnEligibility && !data.returnEligibility.eligible) {
+        var reason = data.returnEligibility.reason || t('portal.error.notEligible');
+        var fulfillStatus = (data.order.displayFulfillmentStatus || '').toUpperCase();
+        var finStatus = (data.order.displayFinancialStatus || '').toUpperCase();
+        var iconSvg = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+        if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '' || fulfillStatus === 'SCHEDULED') {
+          iconSvg = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M12.89 1.45l8 4A2 2 0 0122 7.24v9.53a2 2 0 01-1.11 1.79l-8 4a2 2 0 01-1.79 0l-8-4a2 2 0 01-1.1-1.8V7.24a2 2 0 011.11-1.79l8-4a2 2 0 011.78 0z"/><polyline points="2.32 6.16 12 11 21.68 6.16"/><line x1="12" y1="22.76" x2="12" y2="11"/></svg>';
         }
-
-        if (data.fallback) {
-          showManualForm(true, data.orderNumber, data.error);
-          resetBtn();
-          return;
+        var statusLabel = '';
+        if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '') statusLabel = t('portal.eligibility.notShipped');
+        else if (fulfillStatus === 'SCHEDULED') statusLabel = t('portal.eligibility.scheduled');
+        else if (fulfillStatus === 'ON_HOLD') statusLabel = t('portal.eligibility.onHold');
+        else if (finStatus === 'REFUNDED') statusLabel = t('portal.eligibility.alreadyRefunded');
+        else if (finStatus === 'VOIDED') statusLabel = t('portal.eligibility.voided');
+        else statusLabel = t('portal.eligibility.notEligible');
+        var ineligibleHtml = '<div style="text-align:center;padding:32px 20px;">';
+        ineligibleHtml += '<div style="margin-bottom:16px;">' + iconSvg + '</div>';
+        ineligibleHtml += '<div style="font-size:1.125rem;font-weight:700;color:var(--portal-text);margin-bottom:4px;">' + t('portal.create.notAvailable') + '</div>';
+        ineligibleHtml += '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text-muted);margin-bottom:12px;">' + t('portal.common.order') + ' ' + escapeHtml(data.order.name) + ' · ' + escapeHtml(statusLabel) + '</div>';
+        ineligibleHtml += '<div style="font-size:0.9375rem;color:var(--portal-text-muted);line-height:1.6;max-width:400px;margin:0 auto 20px;">' + escapeHtml(reason) + '</div>';
+        ineligibleHtml += '<button type="button" class="btn-secondary" onclick="document.getElementById(\'create-step-ineligible\').classList.remove(\'active\');document.getElementById(\'create-step1\').classList.add(\'active\');" style="width:100%;">' + t('portal.create.backToSearch') + '</button>';
+        ineligibleHtml += '</div>';
+        var ineligibleStep = document.getElementById('create-step-ineligible');
+        if (!ineligibleStep) {
+          ineligibleStep = document.createElement('div');
+          ineligibleStep.id = 'create-step-ineligible';
+          ineligibleStep.className = 'portal-step';
+          document.getElementById('create-step1').parentElement.appendChild(ineligibleStep);
         }
-        if (!data.order) throw new Error(t('portal.error.orderNotFound'));
+        ineligibleStep.innerHTML = ineligibleHtml;
+        document.getElementById('create-step1').classList.remove('active');
+        document.getElementById('create-step2').classList.remove('active');
+        document.getElementById('create-step2-manual').classList.remove('active');
+        document.getElementById('create-step-existing').classList.remove('active');
+        ineligibleStep.classList.add('active');
+        return false;
+      }
 
-        // Fulfillment eligibility check — block unfulfilled, refunded, cancelled orders
-        if (data.returnEligibility && !data.returnEligibility.eligible) {
-          var reason = data.returnEligibility.reason || t('portal.error.notEligible');
-          var fulfillStatus = (data.order.displayFulfillmentStatus || '').toUpperCase();
-          var finStatus = (data.order.displayFinancialStatus || '').toUpperCase();
-
-          var iconSvg = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
-          if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '' || fulfillStatus === 'SCHEDULED') {
-            iconSvg = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d97706" stroke-width="1.5"><path d="M12.89 1.45l8 4A2 2 0 0122 7.24v9.53a2 2 0 01-1.11 1.79l-8 4a2 2 0 01-1.79 0l-8-4a2 2 0 01-1.1-1.8V7.24a2 2 0 011.11-1.79l8-4a2 2 0 011.78 0z"/><polyline points="2.32 6.16 12 11 21.68 6.16"/><line x1="12" y1="22.76" x2="12" y2="11"/></svg>';
-          }
-
-          var statusLabel = '';
-          if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '') statusLabel = t('portal.eligibility.notShipped');
-          else if (fulfillStatus === 'SCHEDULED') statusLabel = t('portal.eligibility.scheduled');
-          else if (fulfillStatus === 'ON_HOLD') statusLabel = t('portal.eligibility.onHold');
-          else if (finStatus === 'REFUNDED') statusLabel = t('portal.eligibility.alreadyRefunded');
-          else if (finStatus === 'VOIDED') statusLabel = t('portal.eligibility.voided');
-          else statusLabel = t('portal.eligibility.notEligible');
-
-          err.innerHTML = '';
-          var ineligibleHtml = '<div style="text-align:center;padding:32px 20px;">';
-          ineligibleHtml += '<div style="margin-bottom:16px;">' + iconSvg + '</div>';
-          ineligibleHtml += '<div style="font-size:1.125rem;font-weight:700;color:var(--portal-text);margin-bottom:4px;">' + t('portal.create.notAvailable') + '</div>';
-          ineligibleHtml += '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text-muted);margin-bottom:12px;">' + t('portal.common.order') + ' ' + escapeHtml(data.order.name) + ' · ' + escapeHtml(statusLabel) + '</div>';
-          ineligibleHtml += '<div style="font-size:0.9375rem;color:var(--portal-text-muted);line-height:1.6;max-width:400px;margin:0 auto 20px;">' + escapeHtml(reason) + '</div>';
-          ineligibleHtml += '<button type="button" class="btn-secondary" onclick="document.getElementById(\'create-step-ineligible\').classList.remove(\'active\');document.getElementById(\'create-step1\').classList.add(\'active\');" style="width:100%;">' + t('portal.create.backToSearch') + '</button>';
-          ineligibleHtml += '</div>';
-
-          var ineligibleStep = document.getElementById('create-step-ineligible');
-          if (!ineligibleStep) {
-            ineligibleStep = document.createElement('div');
-            ineligibleStep.id = 'create-step-ineligible';
-            ineligibleStep.className = 'portal-step';
-            document.getElementById('create-step1').parentElement.appendChild(ineligibleStep);
-          }
-          ineligibleStep.innerHTML = ineligibleHtml;
-
-          document.getElementById('create-step1').classList.remove('active');
-          document.getElementById('create-step2').classList.remove('active');
-          document.getElementById('create-step2-manual').classList.remove('active');
-          document.getElementById('create-step-existing').classList.remove('active');
-          ineligibleStep.classList.add('active');
-          resetBtn();
-          return;
-        }
-
-        createOrderData = data.order;
+      createOrderData = data.order;
         createOrderData._returnFee = data.returnFee || null;
         createOrderData._lineItemEstimates = data.lineItemEstimates || [];
         createOrderData._estimatedRefundTotal = data.estimatedRefundTotal || 0;
@@ -4490,11 +4466,59 @@
         document.getElementById('create-step2-manual').classList.remove('active');
         document.getElementById('create-step-existing').classList.remove('active');
         document.getElementById('create-step2').classList.add('active');
+        return true;
+    }
+
+    document.getElementById('btnFetchOrder').onclick = async () => {
+      const shop = document.getElementById('shop').value.trim();
+      const lookVal = document.getElementById('createOrderNumber').value.trim();
+      const err = document.getElementById('createErr1');
+      const btn = document.getElementById('btnFetchOrder');
+      err.textContent = '';
+      if (!lookVal) { err.textContent = t('portal.error.enterOrderNumber'); return; }
+      btn.disabled = true;
+      btn.textContent = t('portal.create.lookingUp');
+      function resetBtn() { btn.disabled = false; btn.textContent = t('portal.create.findOrder'); }
+      try {
+        const orderNumber = lookVal.replace(/^#/, '');
+        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber), null, 20000);
+        if (data.fallback) {
+          showManualForm(true, data.orderNumber, data.error);
+          resetBtn();
+          return;
+        }
+        if (!data.order) throw new Error(t('portal.error.orderNotFound'));
+        applyOrderDataAndShowStep2(data);
+        resetBtn();
       } catch (e) {
         err.textContent = e.message || t('portal.common.error');
       } finally {
         btn.disabled = false;
         btn.textContent = t('portal.create.findOrder');
+      }
+    };
+
+    document.getElementById('btnManualFindOrder').onclick = async () => {
+      const shop = document.getElementById('shop').value.trim();
+      const orderNumber = document.getElementById('createManualOrderNumber').value.replace(/^#/, '').trim();
+      const err = document.getElementById('createErrManual');
+      const btn = document.getElementById('btnManualFindOrder');
+      err.textContent = '';
+      if (!orderNumber) { err.textContent = t('portal.error.enterOrderNumber'); return; }
+      btn.disabled = true;
+      btn.textContent = t('portal.create.lookingUp');
+      try {
+        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber), null, 20000);
+        if (data.fallback || !data.order) {
+          err.textContent = data.error || t('portal.error.orderNotFound');
+          return;
+        }
+        applyOrderDataAndShowStep2(data);
+      } catch (e) {
+        err.textContent = e.message || t('portal.common.error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Find my order to select items';
       }
     };
 

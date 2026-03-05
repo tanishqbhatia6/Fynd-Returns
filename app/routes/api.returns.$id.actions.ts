@@ -491,6 +491,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         if (["original", "store_credit", "both"].includes(settingsMethod)) {
           refundMethodCfg = { method: settingsMethod as "original" | "store_credit" | "both", storeCreditPct: settingsPct };
         }
+        const COD_RE = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
+        try {
+          const orderForCod = await fetchOrder(admin, orderIdForRefund);
+          const isCod = (orderForCod?.paymentGatewayNames ?? []).some((g: string) => COD_RE.test(g))
+            || orderForCod?.displayFinancialStatus === "PENDING";
+          if (isCod && refundMethodCfg?.method === "original") {
+            refundMethodCfg = { method: "store_credit" };
+          }
+        } catch { /* non-fatal; proceed with configured method */ }
       }
 
       const result = await createRefund(admin, orderIdForRefund, lineItemsForRefund, note || returnCase.adminNotes || undefined, requestedLocationId || undefined, refundMethodCfg);

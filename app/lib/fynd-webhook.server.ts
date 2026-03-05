@@ -353,9 +353,16 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       if (["original", "store_credit", "both"].includes(pm)) {
         refundMethodCfg = { method: pm as "original" | "store_credit" | "both", storeCreditPct: pct };
       }
-      if (!webhookRefundLocationId && orderIdForRefund) {
-        const orderForLoc = await fetchOrder(admin, orderIdForRefund);
-        webhookRefundLocationId = orderForLoc?.fulfillments?.[0]?.location?.id ?? null;
+
+      const orderForRefund = orderIdForRefund ? await fetchOrder(admin, orderIdForRefund) : null;
+      if (!webhookRefundLocationId && orderForRefund?.fulfillments?.[0]?.location?.id) {
+        webhookRefundLocationId = orderForRefund.fulfillments[0].location.id;
+      }
+      const COD_RE = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
+      const isCod = (orderForRefund?.paymentGatewayNames ?? []).some((g) => COD_RE.test(g))
+        || orderForRefund?.displayFinancialStatus === "PENDING";
+      if (isCod && refundMethodCfg?.method === "original") {
+        refundMethodCfg = { method: "store_credit" };
       }
     } catch { /* fallback to createRefund's auto-fetch */ }
 
@@ -477,10 +484,13 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         }
 
         let autoRefundLocationId: string | null = (shopSettings as { refundLocationId?: string | null }).refundLocationId ?? null;
-        if (!autoRefundLocationId && orderIdForRefund) {
+        let autoOrderData: Awaited<ReturnType<typeof fetchOrder>> | null = null;
+        if (orderIdForRefund) {
           try {
-            const orderForLoc = await fetchOrder(admin, orderIdForRefund);
-            autoRefundLocationId = orderForLoc?.fulfillments?.[0]?.location?.id ?? null;
+            autoOrderData = await fetchOrder(admin, orderIdForRefund);
+            if (!autoRefundLocationId) {
+              autoRefundLocationId = autoOrderData?.fulfillments?.[0]?.location?.id ?? null;
+            }
           } catch { /* fallback to createRefund's own location fetch */ }
         }
 
@@ -489,6 +499,13 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         const autoRpct = (shopSettings as { refundStoreCreditPct?: number | null }).refundStoreCreditPct ?? 100;
         if (["original", "store_credit", "both"].includes(autoRpm)) {
           autoRefundMethodCfg = { method: autoRpm as "original" | "store_credit" | "both", storeCreditPct: autoRpct };
+        }
+
+        const COD_RE = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
+        const isCodAuto = (autoOrderData?.paymentGatewayNames ?? []).some((g) => COD_RE.test(g))
+          || autoOrderData?.displayFinancialStatus === "PENDING";
+        if (isCodAuto && autoRefundMethodCfg?.method === "original") {
+          autoRefundMethodCfg = { method: "store_credit" };
         }
 
         if (orderIdForRefund && lineItemsForRefund.length > 0) {

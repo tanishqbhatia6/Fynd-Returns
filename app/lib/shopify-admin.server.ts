@@ -38,6 +38,7 @@ const ORDERS_QUERY = `#graphql
         displayFinancialStatus
         displayFulfillmentStatus
         discountCodes
+        paymentGatewayNames
         note
         shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
@@ -96,6 +97,7 @@ const ORDERS_BY_NAME_QUERY = `#graphql
         displayFinancialStatus
         displayFulfillmentStatus
         discountCodes
+        paymentGatewayNames
         note
         shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
@@ -274,6 +276,7 @@ export type OrderForPortal = {
   shippingProvince?: string | null;
   displayFinancialStatus?: string;
   displayFulfillmentStatus?: string;
+  paymentGatewayNames?: string[];
   fulfillments?: ShopifyFulfillment[];
 };
 
@@ -323,6 +326,7 @@ export async function fetchOrderByOrderNumber(
     displayFinancialStatus?: string;
     displayFulfillmentStatus?: string;
     discountCodes?: string[];
+    paymentGatewayNames?: string[];
     note?: string | null;
     customAttributes?: Array<{ key: string; value: string }>;
     shippingAddress?: MailingAddressDisplay;
@@ -394,6 +398,7 @@ export async function fetchOrderByOrderNumber(
     shippingProvince: o.shippingAddress?.provinceCode ?? null,
     displayFinancialStatus: o.displayFinancialStatus ?? undefined,
     displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
+    paymentGatewayNames: o.paymentGatewayNames ?? [],
     processedAt: o.processedAt ?? null,
     closedAt: o.closedAt ?? null,
     cancelledAt: o.cancelledAt ?? null,
@@ -602,6 +607,7 @@ export async function fetchOrder(
     displayFinancialStatus?: string;
     displayFulfillmentStatus?: string;
     discountCodes?: string[];
+    paymentGatewayNames?: string[];
     customAttributes?: Array<{ key: string; value: string }>;
     shippingAddress?: MailingAddressDisplay;
     billingAddress?: MailingAddressDisplay;
@@ -669,6 +675,7 @@ export async function fetchOrder(
     shippingProvince: order.shippingAddress?.provinceCode ?? null,
     displayFinancialStatus: order.displayFinancialStatus ?? undefined,
     displayFulfillmentStatus: order.displayFulfillmentStatus ?? undefined,
+    paymentGatewayNames: order.paymentGatewayNames ?? [],
     processedAt: order.processedAt ?? null,
     closedAt: order.closedAt ?? null,
     cancelledAt: order.cancelledAt ?? null,

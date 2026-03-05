@@ -412,11 +412,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       refundStoreCreditPct = (shopSettings as { refundStoreCreditPct?: number | null } | null)?.refundStoreCreditPct ?? 100;
     }
 
+    const COD_PATTERNS = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
+    const isCodOrder = (shopifyOrder?.paymentGatewayNames ?? []).some((g) => COD_PATTERNS.test(g))
+      || shopifyOrder?.displayFinancialStatus === "PENDING";
+
     return {
       returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn,
       fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
       shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
-      refundPaymentMethod, refundStoreCreditPct,
+      refundPaymentMethod, refundStoreCreditPct, isCodOrder,
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -429,7 +433,7 @@ export default function ReturnDetail() {
   const {
     returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
     shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
-    refundPaymentMethod, refundStoreCreditPct,
+    refundPaymentMethod, refundStoreCreditPct, isCodOrder,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -440,9 +444,10 @@ export default function ReturnDetail() {
   const [rejectReason, setRejectReason] = useState("");
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string>(fulfillmentLocationId ?? shopLocations[0]?.id ?? "");
-  const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both">(
-    (["original", "store_credit", "both"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both"
-  );
+  const defaultRefundMethod = isCodOrder
+    ? "store_credit" as const
+    : (["original", "store_credit", "both"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both";
+  const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both">(defaultRefundMethod);
   const [modalStoreCreditPct, setModalStoreCreditPct] = useState(refundStoreCreditPct ?? 100);
   const storeName = shopDomain.replace(".myshopify.com", "");
   const orderIdForLink = shopifyOrder?.id
@@ -741,6 +746,17 @@ export default function ReturnDetail() {
                   {shopifyOrder.phone && <div><div style={C.label}>Phone</div><div style={C.val}>{shopifyOrder.phone}</div></div>}
                   {shopifyOrder.displayFulfillmentStatus && <div><div style={C.label}>Fulfillment</div><div style={C.val}>{shopifyOrder.displayFulfillmentStatus.replace(/_/g, " ")}</div></div>}
                   {shopifyOrder.displayFinancialStatus && <div><div style={C.label}>Payment</div><div style={C.val}>{shopifyOrder.displayFinancialStatus.replace(/_/g, " ")}</div></div>}
+                  {shopifyOrder.paymentGatewayNames && shopifyOrder.paymentGatewayNames.length > 0 && (
+                    <div>
+                      <div style={C.label}>Payment method</div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span style={C.val}>{shopifyOrder.paymentGatewayNames.join(", ")}</span>
+                        {isCodOrder && (
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 6px", background: "#FEF3C7", borderRadius: 4, color: "#92400E", textTransform: "uppercase", letterSpacing: "0.3px" }}>COD</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {(formatAddress(shopifyOrder.shippingAddress)) && (
                   <div style={{ marginBottom: 16 }}>
@@ -931,6 +947,12 @@ export default function ReturnDetail() {
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
                                 Refund method
                               </div>
+                              {isCodOrder && (
+                                <div style={{ marginBottom: 8, padding: "6px 10px", background: "#FEF3C7", borderRadius: 6, fontSize: 11.5, color: "#92400E", display: "flex", alignItems: "center", gap: 6 }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                                  COD order detected — Store credit is recommended
+                                </div>
+                              )}
                               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                 {([
                                   { value: "original" as const, label: "Original payment", desc: "Refund to customer's original payment method", color: "#3B82F6", bg: "#EFF6FF", border: "#3B82F6" },
@@ -945,8 +967,13 @@ export default function ReturnDetail() {
                                     transition: "all 0.12s",
                                   }}>
                                     <input type="radio" checked={modalRefundMethod === opt.value} onChange={() => setModalRefundMethod(opt.value)} style={{ accentColor: opt.color }} />
-                                    <div>
-                                      <div style={{ fontWeight: 600, fontSize: 12.5, color: modalRefundMethod === opt.value ? opt.color : "#374151" }}>{opt.label}</div>
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontWeight: 600, fontSize: 12.5, color: modalRefundMethod === opt.value ? opt.color : "#374151", display: "flex", alignItems: "center", gap: 6 }}>
+                                        {opt.label}
+                                        {opt.value === "store_credit" && isCodOrder && (
+                                          <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", background: "#DCFCE7", borderRadius: 4, color: "#166534", textTransform: "uppercase", letterSpacing: "0.3px" }}>Preferred</span>
+                                        )}
+                                      </div>
                                       <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>{opt.desc}</div>
                                     </div>
                                   </label>

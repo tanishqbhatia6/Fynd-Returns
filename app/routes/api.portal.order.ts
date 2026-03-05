@@ -43,7 +43,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where: {
       shopId: shopRecord.id,
       OR: [
-        { shopifyOrderName: { in: [`#${orderNumber}`, orderNumber] } },
+        { shopifyOrderName: { equals: `#${orderNumber}`, mode: "insensitive" } },
+        { shopifyOrderName: { equals: orderNumber, mode: "insensitive" } },
         { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
       ],
     },
@@ -88,7 +89,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shopId: shopRecord.id,
           OR: [
             { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
-            { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+            { shopifyOrderName: { equals: orderNumber, mode: "insensitive" } },
+            { shopifyOrderName: { equals: `#${orderNumber}`, mode: "insensitive" } },
           ],
         },
       });
@@ -118,7 +120,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           shopId: shopRecord.id,
           OR: [
             { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
-            { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+            { shopifyOrderName: { equals: orderNumber, mode: "insensitive" } },
+            { shopifyOrderName: { equals: `#${orderNumber}`, mode: "insensitive" } },
           ],
         },
         select: { shopifyOrderId: true, shopifyOrderName: true },

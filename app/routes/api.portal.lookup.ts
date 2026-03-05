@@ -195,18 +195,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopId: shopRecord.id,
               OR: [
                 { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
-                { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+                { shopifyOrderName: { equals: orderNumber, mode: "insensitive" } },
+                { shopifyOrderName: { equals: `#${orderNumber}`, mode: "insensitive" } },
               ],
             },
           });
-          if (!fyndMapping) {
-            fyndMapping = await prisma.fyndOrderMapping.findFirst({
-              where: {
-                shopId: shopRecord.id,
-                fyndOrderId: { equals: `#${orderNumber}`, mode: "insensitive" },
-              },
-            });
-          }
           if (fyndMapping) {
             const { admin } = await shopify.unauthenticated.admin(shopDomain);
             // Fast path: direct GID lookup via orderByIdentifier
@@ -232,7 +225,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopId: shopRecord.id,
               OR: [
                 { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
-                { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
+                { shopifyOrderName: { equals: orderNumber, mode: "insensitive" } },
+                { shopifyOrderName: { equals: `#${orderNumber}`, mode: "insensitive" } },
               ],
             },
             include: { items: true },

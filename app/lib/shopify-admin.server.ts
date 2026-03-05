@@ -143,6 +143,22 @@ const ORDERS_BY_NAME_QUERY = `#graphql
   }
 `;
 
+/** Paginated orders without search filter — use when search is unreliable (e.g. Fynd order names). */
+const ORDERS_PAGINATED_QUERY = `#graphql
+  query getOrdersPaginated($first: Int!, $after: String) {
+    orders(first: $first, sortKey: CREATED_AT, reverse: true, after: $after) {
+      nodes {
+        id
+        name
+      }
+      pageInfo {
+        endCursor
+        hasNextPage
+      }
+    }
+  }
+`;
+
 const ORDER_BY_IDENTIFIER_QUERY = `#graphql
   query getOrderByIdentifier($id: ID!) {
     orderByIdentifier(identifier: { id: $id }) {
@@ -329,6 +345,41 @@ export async function fetchOrderByNameRest(
 }
 
 /**
+ * Find order GID by scanning recent orders (no search filter). Shopify's search
+ * is unreliable for non-standard names (e.g. FYNDSHOPIFYX14122). This paginates
+ * orders(first: 250, sortKey: CREATED_AT, reverse: true) and exact-matches name.
+ */
+async function findOrderGidByExactNameScan(
+  admin: AdminGraphQL,
+  orderName: string,
+  maxPages = 5
+): Promise<string | null> {
+  const norm = orderName.replace(/^#/, "").trim().toLowerCase();
+  if (!norm) return null;
+  const pageSize = 250;
+  let after: string | null = null;
+  for (let page = 0; page < maxPages; page++) {
+    const res = await admin.graphql(ORDERS_PAGINATED_QUERY, {
+      variables: { first: pageSize, after },
+    });
+    const json = (await res.json()) as {
+      data?: { orders?: { nodes?: Array<{ id?: string; name?: string }>; pageInfo?: { endCursor?: string; hasNextPage?: boolean } } };
+      errors?: Array<{ message?: string }>;
+    };
+    if (json.errors?.length) return null;
+    const nodes = json.data?.orders?.nodes ?? [];
+    const pageInfo = json.data?.orders?.pageInfo;
+    for (const node of nodes) {
+      const name = (node.name ?? "").replace(/^#/, "").toLowerCase();
+      if (name === norm && node.id) return node.id;
+    }
+    if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
+    after = pageInfo.endCursor;
+  }
+  return null;
+}
+
+/**
  * Search Shopify orders by query string. When `exactName` is provided,
  * fetches up to 50 candidates and returns only the one whose `name`
  * matches exactly (case-insensitive, ignoring leading #). This prevents
@@ -403,10 +454,16 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1: REST API exact name match — the ONLY reliable way.
-  // GraphQL orders(query: "name:...") uses a fuzzy search engine that
-  // returns wrong results for non-standard names like FYNDSHOPIFYX14122.
-  // The REST API name parameter does TRUE exact matching.
+  // Strategy 1: Pagination scan — no search filter. Shopify search is unreliable
+  // for names like FYNDSHOPIFYX14122; this scans recent orders and exact-matches name.
+  try {
+    const gid = await findOrderGidByExactNameScan(admin, clean, 5);
+    if (gid) return fetchOrderByGid(admin, gid);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+
+  // Strategy 2: REST (query= not supported on GET orders; name= broken for #). Kept for non-# names.
   if (restContext) {
     try {
       const restResult = await fetchOrderByNameRest(restContext.shopDomain, restContext.accessToken, clean);
@@ -418,11 +475,11 @@ export async function fetchOrderByOrderNumber(
         }
       }
     } catch (err) {
-      console.error("[fetchOrderByOrderNumber] REST lookup error:", err instanceof Error ? err.message : err);
+      if (err instanceof OrderAccessError) throw err;
     }
   }
 
-  // Strategy 2: GraphQL name: filter with quoted exact match + verification.
+  // Strategy 3: GraphQL name: filter (unreliable for Fynd names; fallback only).
   for (const q of [`name:"#${clean}"`, `name:"${clean}"`, `name:#${clean}`, `name:${clean}`]) {
     try {
       const node = await searchOrders(admin, q, false, clean);

@@ -10,6 +10,86 @@ import { sendNewReturnNotification } from "../lib/notification.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
+import { parseJsonArray } from "../lib/parse-json";
+
+type ReturnOffer = {
+  reasonCode?: string;
+  tag?: string;
+  offerType: "discount_pct" | "discount_flat";
+  offerValue: number;
+  message: string;
+};
+
+function matchReturnOffers(
+  offers: ReturnOffer[],
+  reasonCode: string | undefined,
+  productTags: string[],
+): ReturnOffer | null {
+  if (!offers || offers.length === 0) return null;
+  const tagsLower = productTags.map((t) => t.toLowerCase());
+  for (const offer of offers) {
+    const reasonMatch = !offer.reasonCode || offer.reasonCode === reasonCode;
+    const tagMatch = !offer.tag || tagsLower.includes(offer.tag.toLowerCase());
+    if (reasonMatch && tagMatch) return offer;
+  }
+  return null;
+}
+
+async function createDiscountCode(
+  admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
+  offer: ReturnOffer,
+  shopDomain: string,
+): Promise<{ code: string; error?: string }> {
+  const code = `KEEP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
+  const isPercentage = offer.offerType === "discount_pct";
+  const endsAt = new Date();
+  endsAt.setDate(endsAt.getDate() + 90);
+
+  const MUTATION = `#graphql
+    mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+      discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+        codeDiscountNode { id codeDiscount { ... on DiscountCodeBasic { codes(first: 1) { nodes { code } } } } }
+        userErrors { field message }
+      }
+    }
+  `;
+
+  const variables = {
+    basicCodeDiscount: {
+      title: `Return Offer - ${code}`,
+      code,
+      startsAt: new Date().toISOString(),
+      endsAt: endsAt.toISOString(),
+      usageLimit: 1,
+      customerSelection: { all: true },
+      customerGets: {
+        value: isPercentage
+          ? { percentage: offer.offerValue / 100 }
+          : { discountAmount: { amount: offer.offerValue, appliesOnEachItem: false } },
+        items: { all: true },
+      },
+    },
+  };
+
+  try {
+    const res = await admin.graphql(MUTATION, { variables });
+    const json = (await res.json()) as {
+      data?: {
+        discountCodeBasicCreate?: {
+          codeDiscountNode?: { id: string };
+          userErrors?: Array<{ field?: string[]; message: string }>;
+        };
+      };
+    };
+    const errors = json.data?.discountCodeBasicCreate?.userErrors ?? [];
+    if (errors.length > 0) {
+      return { code: "", error: errors.map((e) => e.message).join("; ") };
+    }
+    return { code };
+  } catch (err) {
+    return { code: "", error: err instanceof Error ? err.message : "Failed to create discount code" };
+  }
+}
 
 const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress"];
 
@@ -101,6 +181,42 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             request,
           );
         }
+      }
+    }
+
+    // Return offer: if customer is accepting an offer, generate discount code instead of creating return
+    const acceptOffer = body.acceptOffer === true;
+    if (acceptOffer && !manualMode) {
+      if (!settings?.returnOffersEnabled) {
+        return withCors(Response.json({ error: "Return offers are not enabled" }, { status: 400 }), request);
+      }
+      const offersArr = parseJsonArray<ReturnOffer>(settings.returnOffersJson ?? null, []);
+      const firstReasonCode = (body.items as Array<{ reasonCode?: string }> | undefined)?.[0]?.reasonCode;
+      const allTags = ((body.lineItemsWithPrice ?? []) as Array<{ productTags?: string[] }>).flatMap((li) => li.productTags ?? []);
+      const matchedOffer = matchReturnOffers(offersArr, firstReasonCode, allTags);
+      if (!matchedOffer) {
+        return withCors(Response.json({ error: "No matching offer found" }, { status: 400 }), request);
+      }
+      try {
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const discountResult = await createDiscountCode(admin, matchedOffer, shopDomain);
+        if (discountResult.error || !discountResult.code) {
+          return withCors(Response.json({ error: discountResult.error || "Failed to generate discount code" }, { status: 500 }), request);
+        }
+        return withCors(
+          Response.json({
+            success: true,
+            offerAccepted: true,
+            discountCode: discountResult.code,
+            offerMessage: matchedOffer.message,
+            offerValue: matchedOffer.offerValue,
+            offerType: matchedOffer.offerType,
+          }),
+          request,
+        );
+      } catch (err) {
+        console.error("[Portal create-return] Offer discount code error:", err);
+        return withCors(Response.json({ error: "Could not generate discount code. Please try again." }, { status: 500 }), request);
       }
     }
 
@@ -418,6 +534,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           throw new Error("DUPLICATE_RETURN");
         }
 
+        const orderCreatedAtValue = body.orderCreatedAt
+          ? new Date(body.orderCreatedAt as string)
+          : body.orderProcessedAt
+            ? new Date(body.orderProcessedAt as string)
+            : null;
+
         const rc = await tx.returnCase.create({
           data: {
             shopId: shopRecord.id,
@@ -430,6 +552,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             status,
             isGreenReturn: qualifiesForGreenReturn,
             fyndSyncStatus: status === "approved" && !qualifiesForGreenReturn ? "pending" : null,
+            orderProcessedAt: orderCreatedAtValue,
             items: {
               create: itemsToCreate.map((it) => {
                 const liInfo = lineItemsWithPrice?.find((l) => l.id === it.lineItemId);

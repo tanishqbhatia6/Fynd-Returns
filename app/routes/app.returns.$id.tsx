@@ -401,6 +401,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     bonusCreditEnabled = shopSettings?.bonusCreditEnabled ?? false;
     bonusCreditPct = shopSettings?.bonusCreditPct ?? 10;
 
+    const discountCodeRefundEnabled = shopSettings?.discountCodeRefundEnabled ?? false;
+    const discountCodePrefix = shopSettings?.discountCodePrefix ?? "RETURN";
+    const discountCodeExpiryDays = shopSettings?.discountCodeExpiryDays ?? 90;
+
     if (isRefundEligible) {
       const isGreenReturn = returnCase.isGreenReturn === true;
       if (!isGreenReturn) {
@@ -463,6 +467,19 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       }
     } catch { /* non-fatal */ }
 
+    const returnWindowDays = shopSettings?.returnWindowDays ?? 30;
+    const orderDateStr = shopifyOrder?.processedAt ?? shopifyOrder?.createdAt ?? returnCase.orderProcessedAt?.toISOString() ?? null;
+    let daysRemaining: number | null = null;
+    let returnDeadline: string | null = null;
+    if (orderDateStr) {
+      const orderDate = new Date(orderDateStr);
+      const deadline = new Date(orderDate);
+      deadline.setDate(deadline.getDate() + returnWindowDays);
+      returnDeadline = deadline.toISOString();
+      const now = new Date();
+      daysRemaining = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    }
+
     return {
       returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn,
       fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
@@ -470,6 +487,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       refundPaymentMethod, refundStoreCreditPct, isCodOrder,
       returnLabelInfo, defaultReturnInstructions, customerReturnCount, customerEmail,
       bonusCreditEnabled, bonusCreditPct, isBlocklisted,
+      daysRemaining, returnDeadline,
+      discountCodeRefundEnabled, discountCodePrefix, discountCodeExpiryDays,
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -485,6 +504,8 @@ export default function ReturnDetail() {
     refundPaymentMethod, refundStoreCreditPct, isCodOrder,
     returnLabelInfo, defaultReturnInstructions, customerReturnCount, customerEmail,
     bonusCreditEnabled, bonusCreditPct, isBlocklisted,
+    daysRemaining, returnDeadline,
+    discountCodeRefundEnabled, discountCodePrefix, discountCodeExpiryDays,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -497,11 +518,15 @@ export default function ReturnDetail() {
   const [selectedResolutionType, setSelectedResolutionType] = useState<string>("refund");
   const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+  const [showCancelOrder, setShowCancelOrder] = useState(false);
+  const [cancelReason, setCancelReason] = useState("OTHER");
+  const [cancelRefund, setCancelRefund] = useState(true);
+  const [cancelRestock, setCancelRestock] = useState(true);
   const [selectedLocationId, setSelectedLocationId] = useState<string>(fulfillmentLocationId ?? shopLocations[0]?.id ?? "");
   const defaultRefundMethod = isCodOrder
     ? "store_credit" as const
-    : (["original", "store_credit", "both"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both";
-  const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both">(defaultRefundMethod);
+    : (["original", "store_credit", "both", "discount_code"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both" | "discount_code";
+  const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both" | "discount_code">(defaultRefundMethod);
   const [modalStoreCreditPct, setModalStoreCreditPct] = useState(refundStoreCreditPct ?? 100);
   const storeName = shopDomain.replace(".myshopify.com", "");
   const orderIdForLink = shopifyOrder?.id
@@ -548,6 +573,11 @@ export default function ReturnDetail() {
   const isCompleted = statusLower === "completed";
   const isRefunded = returnCase.refundStatus === "refunded";
   const isGreenReturn = returnCase.isGreenReturn === true;
+  const fulfillmentStatusUpper = (shopifyOrder?.displayFulfillmentStatus ?? "").toUpperCase();
+  const isOrderCancellable = !isManualReturn
+    && !isRefunded
+    && statusLower !== "cancelled"
+    && ["UNFULFILLED", "", "SCHEDULED", "ON_HOLD"].includes(fulfillmentStatusUpper);
   const fyndSyncStatus = (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus;
   const fyndSyncRetries = (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0;
   const fyndSyncError = (returnCase as { fyndSyncError?: string | null }).fyndSyncError;
@@ -627,6 +657,25 @@ export default function ReturnDetail() {
                   }}>
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     Flagged customer
+                  </div>
+                )}
+                {daysRemaining != null && (
+                  <div
+                    title={returnDeadline ? `Return window expires ${new Date(returnDeadline).toLocaleDateString()}` : undefined}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
+                      padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                      ...(daysRemaining <= 0
+                        ? { background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA" }
+                        : daysRemaining <= 7
+                          ? { background: "#FFFBEB", color: "#B45309", border: "1px solid #FDE68A" }
+                          : { background: "#ECFDF5", color: "#065F46", border: "1px solid #A7F3D0" }),
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                    {daysRemaining <= 0 ? "Expired" : `${daysRemaining} day${daysRemaining === 1 ? "" : "s"} remaining`}
                   </div>
                 )}
               </div>
@@ -1228,6 +1277,12 @@ export default function ReturnDetail() {
                                   { value: "original" as const, label: "Original payment", desc: "Refund to customer's original payment method", color: "#3B82F6", bg: "#EFF6FF", border: "#3B82F6" },
                                   { value: "store_credit" as const, label: "Store credit", desc: "Issue as store credit to customer's account", color: "#22C55E", bg: "#F0FDF4", border: "#22C55E" },
                                   { value: "both" as const, label: "Split refund", desc: "Split between original payment and store credit", color: "#F59E0B", bg: "#FFFBEB", border: "#F59E0B" },
+                                  ...(discountCodeRefundEnabled ? [{
+                                    value: "discount_code" as const,
+                                    label: "Discount code",
+                                    desc: `Generate a single-use discount code (${discountCodePrefix}-...) valid for ${discountCodeExpiryDays} days`,
+                                    color: "#8B5CF6", bg: "#F5F3FF", border: "#8B5CF6",
+                                  }] : []),
                                 ]).map((opt) => (
                                   <label key={opt.value} style={{
                                     display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", cursor: "pointer",
@@ -1239,6 +1294,9 @@ export default function ReturnDetail() {
                                     <input type="radio" checked={modalRefundMethod === opt.value} onChange={() => setModalRefundMethod(opt.value)} style={{ accentColor: opt.color }} />
                                     <div style={{ flex: 1 }}>
                                       <div style={{ fontWeight: 600, fontSize: 12.5, color: modalRefundMethod === opt.value ? opt.color : "#374151", display: "flex", alignItems: "center", gap: 6 }}>
+                                        {opt.value === "discount_code" && (
+                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={modalRefundMethod === "discount_code" ? "#8B5CF6" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                        )}
                                         {opt.label}
                                         {opt.value === "store_credit" && isCodOrder && (
                                           <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", background: "#DCFCE7", borderRadius: 4, color: "#166534", textTransform: "uppercase", letterSpacing: "0.3px" }}>Preferred</span>
@@ -1267,6 +1325,15 @@ export default function ReturnDetail() {
                               {modalRefundMethod === "store_credit" && (
                                 <div style={{ marginTop: 8, fontSize: 11, color: "#166534", background: "#DCFCE7", padding: "6px 10px", borderRadius: 6 }}>
                                   Requires new customer accounts in Shopify. Order must have an associated customer.
+                                </div>
+                              )}
+                              {modalRefundMethod === "discount_code" && (
+                                <div style={{ marginTop: 8, fontSize: 11, color: "#5B21B6", background: "#EDE9FE", padding: "8px 10px", borderRadius: 6 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                                    <strong>Code: {discountCodePrefix}-{(returnCase as { returnRequestNo?: string | null }).returnRequestNo || "..."}</strong>
+                                  </div>
+                                  Single-use, fixed amount, expires in {discountCodeExpiryDays} days. Customer can apply at checkout.
                                 </div>
                               )}
                             </div>
@@ -1371,6 +1438,7 @@ export default function ReturnDetail() {
                               <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
                                 {modalRefundMethod === "original" ? "Refund to original payment" :
                                  modalRefundMethod === "store_credit" ? "Issue store credit" :
+                                 modalRefundMethod === "discount_code" ? "Generate discount code" :
                                  "Process split refund"}
                               </s-button>
                             </fetcher.Form>
@@ -1454,23 +1522,96 @@ export default function ReturnDetail() {
                     </div>
                   );
                 })()}
+                {isOrderCancellable && (
+                  <>
+                    <s-button type="button" variant="secondary" disabled={fetcher.state !== "idle"} onClick={() => setShowCancelOrder(true)} style={{ width: "100%", borderColor: "#FECACA", color: "#DC2626" }}>
+                      Cancel Order
+                    </s-button>
+                    {showCancelOrder && (
+                      <div className="app-modal-overlay" onClick={() => setShowCancelOrder(false)}>
+                        <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+                          <div className="app-modal-title">Cancel Order</div>
+                          <div className="app-modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                            <p style={{ margin: 0 }}>
+                              Cancel the Shopify order for <strong>{returnCase.shopifyOrderName || "--"}</strong>. This will cancel the order directly in Shopify.
+                            </p>
+                            <div style={{ padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
+                              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Cancellation reason</div>
+                              <select value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, background: "#fff", marginBottom: 12 }}>
+                                <option value="CUSTOMER">Customer request</option>
+                                <option value="FRAUD">Fraud</option>
+                                <option value="INVENTORY">Inventory</option>
+                                <option value="DECLINED">Declined</option>
+                                <option value="OTHER">Other</option>
+                              </select>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                                  <input type="checkbox" checked={cancelRefund} onChange={(e) => setCancelRefund(e.target.checked)} style={{ width: 16, height: 16 }} />
+                                  Issue refund to customer
+                                </label>
+                                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                                  <input type="checkbox" checked={cancelRestock} onChange={(e) => setCancelRestock(e.target.checked)} style={{ width: 16, height: 16 }} />
+                                  Restock inventory
+                                </label>
+                              </div>
+                            </div>
+                            <p style={{ color: "#DC2626", fontWeight: 500, fontSize: 13, margin: 0 }}>This action cannot be undone.</p>
+                          </div>
+                          <div className="app-modal-actions">
+                            <s-button type="button" variant="secondary" onClick={() => setShowCancelOrder(false)}>Go Back</s-button>
+                            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                              <input type="hidden" name="json" value={JSON.stringify({ action: "cancel_order", cancelReason, refund: cancelRefund, restock: cancelRestock })} />
+                              <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"} style={{ background: "#DC2626", borderColor: "#DC2626" }}>
+                                {fetcher.state !== "idle" ? "Cancelling..." : "Cancel Order"}
+                              </s-button>
+                            </fetcher.Form>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
                 {isRefunded && (() => {
-                  let refundInfo: { refundId?: string; amount?: string; currency?: string; createdAt?: string; method?: string; source?: string; bonusCreditAmount?: string; greenReturn?: boolean } | null = null;
+                  let refundInfo: { refundId?: string; amount?: string; currency?: string; createdAt?: string; method?: string; source?: string; bonusCreditAmount?: string; greenReturn?: boolean; discountCode?: string } | null = null;
                   try {
                     const raw = (returnCase as { refundJson?: string | null }).refundJson;
                     if (raw) refundInfo = JSON.parse(raw);
                   } catch { /* no refund details */ }
                   const storedBonusAmount = (returnCase as { bonusCreditAmount?: string | null }).bonusCreditAmount;
                   const displayBonus = refundInfo?.bonusCreditAmount ?? storedBonusAmount;
+                  const storedDiscountCode = (returnCase as { discountCode?: string | null }).discountCode;
+                  const storedDiscountValue = (returnCase as { discountCodeValue?: string | null }).discountCodeValue;
+                  const isDiscountRefund = refundInfo?.method === "discount_code" || !!storedDiscountCode;
+                  const displayDiscountCode = refundInfo?.discountCode ?? storedDiscountCode;
                   return (
-                    <div style={{ padding: 14, background: "#DCFCE7", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                    <div style={{ padding: 14, background: isDiscountRefund ? "#EDE9FE" : "#DCFCE7", borderRadius: 10, border: isDiscountRefund ? "1px solid #C4B5FD" : "1px solid #BBF7D0" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: refundInfo ? 10 : 0 }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: "#166534" }}>Refund processed</span>
+                        {isDiscountRefund ? (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" strokeWidth="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                        ) : (
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        )}
+                        <span style={{ fontWeight: 700, fontSize: 14, color: isDiscountRefund ? "#5B21B6" : "#166534" }}>
+                          {isDiscountRefund ? "Discount code issued" : "Refund processed"}
+                        </span>
                       </div>
+                      {displayDiscountCode && (
+                        <div style={{ padding: "10px 14px", background: isDiscountRefund ? "#F5F3FF" : "#F0FDF4", borderRadius: 8, marginBottom: 10, border: isDiscountRefund ? "1px dashed #A78BFA" : "1px dashed #86EFAC" }}>
+                          <div style={{ fontSize: 11, color: isDiscountRefund ? "#7C3AED" : "#166534", fontWeight: 500, marginBottom: 4 }}>Discount Code</div>
+                          <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 700, color: isDiscountRefund ? "#5B21B6" : "#166534", letterSpacing: "0.05em" }}>
+                            {displayDiscountCode}
+                          </div>
+                          {storedDiscountValue && (
+                            <div style={{ fontSize: 12, color: isDiscountRefund ? "#7C3AED" : "#166534", marginTop: 4 }}>
+                              Value: {parseFloat(storedDiscountValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              {refundInfo?.currency ? ` ${refundInfo.currency}` : ""}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       {refundInfo && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {refundInfo.amount && (
+                          {refundInfo.amount && !isDiscountRefund && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                               <span style={{ color: "#166534" }}>Amount</span>
                               <span style={{ fontWeight: 700, color: "#166534" }}>
@@ -1487,14 +1628,14 @@ export default function ReturnDetail() {
                           )}
                           {refundInfo.createdAt && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                              <span style={{ color: "#166534" }}>Processed</span>
-                              <span style={{ color: "#166534" }}>{new Date(refundInfo.createdAt).toLocaleString()}</span>
+                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>Processed</span>
+                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{new Date(refundInfo.createdAt).toLocaleString()}</span>
                             </div>
                           )}
                           {refundInfo.source && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                              <span style={{ color: "#166534" }}>Triggered by</span>
-                              <span style={{ color: "#166534" }}>{refundInfo.source === "admin" ? "Admin" : refundInfo.source === "fynd_webhook" ? "Fynd" : refundInfo.source === "auto_fynd_credit_note" ? "Auto (Credit Note)" : refundInfo.source}</span>
+                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>Triggered by</span>
+                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{refundInfo.source === "admin" ? "Admin" : refundInfo.source === "fynd_webhook" ? "Fynd" : refundInfo.source === "auto_fynd_credit_note" ? "Auto (Credit Note)" : refundInfo.source}</span>
                             </div>
                           )}
                           {refundInfo.refundId && (

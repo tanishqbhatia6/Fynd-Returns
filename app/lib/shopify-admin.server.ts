@@ -751,9 +751,131 @@ export type RefundResult = {
 };
 
 export type RefundMethodConfig = {
-  method: "original" | "store_credit" | "both";
+  method: "original" | "store_credit" | "both" | "discount_code";
   storeCreditPct?: number;
 };
+
+const DISCOUNT_CODE_CREATE_MUTATION = `#graphql
+  mutation discountCodeBasicCreate($basicCodeDiscount: DiscountCodeBasicInput!) {
+    discountCodeBasicCreate(basicCodeDiscount: $basicCodeDiscount) {
+      codeDiscountNode {
+        id
+        codeDiscount {
+          ... on DiscountCodeBasic {
+            codes(first: 1) { nodes { code } }
+          }
+        }
+      }
+      userErrors { field message }
+    }
+  }
+`;
+
+export type DiscountCodeRefundResult = {
+  success: boolean;
+  error?: string;
+  discountCode?: string;
+  discountValue?: string;
+  discountCurrency?: string;
+};
+
+export async function createDiscountCodeRefund(
+  admin: AdminGraphQL,
+  opts: {
+    orderId: string;
+    lineItems: Array<{ id: string; quantity: number }>;
+    returnRequestNo: string;
+    prefix?: string;
+    expiryDays?: number;
+    note?: string;
+  },
+): Promise<DiscountCodeRefundResult> {
+  try {
+    const gid = opts.orderId.startsWith("gid://") ? opts.orderId : `gid://shopify/Order/${opts.orderId}`;
+    const prefix = (opts.prefix || "RETURN").toUpperCase();
+    const expiryDays = opts.expiryDays ?? 90;
+    const code = `${prefix}-${opts.returnRequestNo}`;
+
+    const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
+      variables: {
+        orderId: gid,
+        refundLineItems: opts.lineItems.map((item) => ({
+          lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+          quantity: item.quantity,
+        })),
+      },
+    });
+    const suggestJson = (await suggestRes.json()) as {
+      data?: {
+        order?: {
+          suggestedRefund?: {
+            amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+          };
+        };
+      };
+    };
+    const totalAmount = parseFloat(suggestJson.data?.order?.suggestedRefund?.amountSet?.shopMoney?.amount ?? "0");
+    const currency = suggestJson.data?.order?.suggestedRefund?.amountSet?.shopMoney?.currencyCode ?? "USD";
+
+    if (totalAmount <= 0) {
+      return { success: false, error: "Could not determine refund amount for discount code." };
+    }
+
+    const startsAt = new Date().toISOString();
+    const endsAt = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000).toISOString();
+
+    const discountInput = {
+      title: `Return refund ${code}`,
+      code,
+      startsAt,
+      endsAt,
+      usageLimit: 1,
+      customerSelection: { all: true },
+      customerGets: {
+        value: { discountAmount: { amount: totalAmount.toFixed(2), appliesOnEachItem: false } },
+        items: { all: true },
+      },
+    };
+
+    const res = await admin.graphql(DISCOUNT_CODE_CREATE_MUTATION, {
+      variables: { basicCodeDiscount: discountInput },
+    });
+    const json = (await res.json()) as {
+      data?: {
+        discountCodeBasicCreate?: {
+          codeDiscountNode?: {
+            id?: string;
+            codeDiscount?: { codes?: { nodes?: Array<{ code?: string }> } };
+          };
+          userErrors?: Array<{ field?: string[]; message: string }>;
+        };
+      };
+      errors?: Array<{ message?: string }>;
+    };
+
+    const gqlErrors = json.errors ?? [];
+    if (gqlErrors.length > 0) {
+      return { success: false, error: gqlErrors.map((e) => e.message ?? "GraphQL error").join(", ") };
+    }
+
+    const userErrors = json.data?.discountCodeBasicCreate?.userErrors ?? [];
+    if (userErrors.length > 0) {
+      return { success: false, error: userErrors.map((e) => e.message).join(", ") };
+    }
+
+    const createdCode = json.data?.discountCodeBasicCreate?.codeDiscountNode?.codeDiscount?.codes?.nodes?.[0]?.code ?? code;
+
+    return {
+      success: true,
+      discountCode: createdCode,
+      discountValue: totalAmount.toFixed(2),
+      discountCurrency: currency,
+    };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Failed to create discount code";
+    return { success: false, error: msg };
+  }
+}
 
 type RefundJson = {
   data?: {

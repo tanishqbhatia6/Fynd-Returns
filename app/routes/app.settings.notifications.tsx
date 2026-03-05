@@ -10,6 +10,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await findOrCreateShop(session.shop);
   const s = shop.settings;
+
+  let emailTemplatesJson: Record<string, { subject: string; bodyHtml: string }> = {};
+  if ((s as { emailTemplatesJson?: string | null } | null)?.emailTemplatesJson) {
+    try { emailTemplatesJson = JSON.parse((s as { emailTemplatesJson: string }).emailTemplatesJson); } catch { /* ignore */ }
+  }
+
   return {
     notificationNewReturn: s?.notificationNewReturn ?? true,
     notificationApproved: s?.notificationApproved ?? true,
@@ -25,6 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     adminNotifyEmail: s?.adminNotifyEmail ?? "",
     adminSoundEnabled: s?.adminSoundEnabled ?? true,
     smtpConfigured: !!(s?.smtpHost && s?.smtpUser && s?.smtpPass),
+    emailTemplatesJson,
   };
 };
 
@@ -47,6 +54,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
     const result = await testSmtpConnection({ host, port, secure, user, pass });
     return { testResult: result };
+  }
+
+  if (intent === "save_email_templates") {
+    const raw = String(fd.get("emailTemplatesJson") || "{}");
+    let parsed: Record<string, unknown> = {};
+    try { parsed = JSON.parse(raw); } catch { return { error: "Invalid template JSON" }; }
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: { shopId: shop.id, emailTemplatesJson: JSON.stringify(parsed) },
+      update: { emailTemplatesJson: JSON.stringify(parsed) },
+    });
+    return { templatesSaved: true };
   }
 
   const data = {
@@ -183,7 +202,82 @@ export default function Notifications() {
 
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
 
+  const templateFetcher = useFetcher<{ templatesSaved?: boolean; error?: string }>();
+  type TemplateData = { subject: string; bodyHtml: string };
+  const [emailTemplates, setEmailTemplates] = useState<Record<string, TemplateData>>(data.emailTemplatesJson ?? {});
+  const [editingTemplate, setEditingTemplate] = useState<string | null>(null);
+  const [templateSubject, setTemplateSubject] = useState("");
+  const [templateBody, setTemplateBody] = useState("");
+  const [showTemplatePreview, setShowTemplatePreview] = useState(false);
+  const templateBodyRef = React.useRef<HTMLTextAreaElement>(null);
+
+  const TEMPLATE_EVENTS: { key: string; label: string; color: string; defaultSubject: string; defaultBody: string }[] = [
+    { key: "new_return", label: "New Return", color: "#D97706", defaultSubject: "New return request {{returnId}} for {{orderName}}", defaultBody: "<h2>New Return Request</h2><p>A return request <strong>{{returnId}}</strong> has been submitted for order <strong>{{orderName}}</strong> by {{customerEmail}}.</p><p>Please review this return in your admin panel.</p>" },
+    { key: "approved", label: "Approved", color: "#059669", defaultSubject: "Your return for {{orderName}} has been approved", defaultBody: "<h2>Return Approved</h2><p>Your return request for order <strong>{{orderName}}</strong> has been approved and is being processed.</p><p>We will notify you with further updates.</p>" },
+    { key: "rejected", label: "Rejected", color: "#DC2626", defaultSubject: "Your return for {{orderName}} has been declined", defaultBody: "<h2>Return Declined</h2><p>Your return request for order <strong>{{orderName}}</strong> has been declined.</p><p><strong>Reason:</strong> {{rejectionReason}}</p><p>If you have questions, please contact the store.</p>" },
+    { key: "refunded", label: "Refunded", color: "#7C3AED", defaultSubject: "Your refund for {{orderName}} has been processed", defaultBody: "<h2>Refund Processed</h2><p>Your refund of <strong>{{refundAmount}}</strong> for order <strong>{{orderName}}</strong> has been processed.</p><p>It may take a few business days for the funds to appear.</p>" },
+  ];
+
+  const TEMPLATE_VARS = [
+    { key: "orderName", label: "Order Name" },
+    { key: "customerEmail", label: "Customer Email" },
+    { key: "shopName", label: "Shop Name" },
+    { key: "returnId", label: "Return ID" },
+    { key: "status", label: "Status" },
+    { key: "refundAmount", label: "Refund Amount" },
+  ];
+
+  const startEditing = useCallback((key: string) => {
+    const event = TEMPLATE_EVENTS.find((e) => e.key === key);
+    const existing = emailTemplates[key];
+    setEditingTemplate(key);
+    setTemplateSubject(existing?.subject ?? event?.defaultSubject ?? "");
+    setTemplateBody(existing?.bodyHtml ?? event?.defaultBody ?? "");
+    setShowTemplatePreview(false);
+  }, [emailTemplates]);
+
+  const insertVariable = useCallback((varKey: string) => {
+    const tag = `{{${varKey}}}`;
+    const textarea = templateBodyRef.current;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const val = templateBody;
+      setTemplateBody(val.substring(0, start) + tag + val.substring(end));
+      setTimeout(() => {
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + tag.length;
+      }, 0);
+    } else {
+      setTemplateBody((prev) => prev + tag);
+    }
+  }, [templateBody]);
+
+  const saveTemplate = useCallback((key: string) => {
+    const updated = { ...emailTemplates, [key]: { subject: templateSubject, bodyHtml: templateBody } };
+    setEmailTemplates(updated);
+    const fd = new FormData();
+    fd.set("intent", "save_email_templates");
+    fd.set("emailTemplatesJson", JSON.stringify(updated));
+    templateFetcher.submit(fd, { method: "post" });
+    setEditingTemplate(null);
+  }, [emailTemplates, templateSubject, templateBody, templateFetcher]);
+
+  const resetTemplate = useCallback((key: string) => {
+    const updated = { ...emailTemplates };
+    delete updated[key];
+    setEmailTemplates(updated);
+    const event = TEMPLATE_EVENTS.find((e) => e.key === key);
+    setTemplateSubject(event?.defaultSubject ?? "");
+    setTemplateBody(event?.defaultBody ?? "");
+    const fd = new FormData();
+    fd.set("intent", "save_email_templates");
+    fd.set("emailTemplatesJson", JSON.stringify(updated));
+    templateFetcher.submit(fd, { method: "post" });
+  }, [emailTemplates, templateFetcher]);
+
   const saved = saveFetcher.data && "success" in saveFetcher.data;
+  const templatesSaved = templateFetcher.data && "templatesSaved" in templateFetcher.data;
   const testResult = testFetcher.data?.testResult;
   const smtpFilled = !!(smtpHost && smtpUser && smtpPass);
 
@@ -462,8 +556,8 @@ export default function Notifications() {
           }}>
             <SectionHeader
               icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/></svg>}
-              title="Email Templates"
-              subtitle="Preview the email templates that are sent for each notification event."
+              title="Default Email Previews"
+              subtitle="Preview the built-in email templates that are sent for each notification event."
             />
 
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16 }}>
@@ -507,6 +601,172 @@ export default function Notifications() {
                 Click a template above to preview
               </div>
             )}
+          </div>
+
+          {/* ────── Customizable Email Templates ────── */}
+          <div style={{
+            background: "var(--rpm-surface)", border: "var(--rpm-border)", borderRadius: "var(--rpm-radius-lg)",
+            padding: "24px 28px", marginBottom: 24,
+          }}>
+            <SectionHeader
+              icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>}
+              title="Email Templates"
+              subtitle="Customize the subject and body HTML for each notification event. Custom templates override the built-in defaults."
+            />
+
+            {templatesSaved && (
+              <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Email templates saved.</span>
+              </div>
+            )}
+
+            <div style={{ display: "grid", gap: 12 }}>
+              {TEMPLATE_EVENTS.map((evt) => {
+                const hasCustom = !!emailTemplates[evt.key];
+                const isEditing = editingTemplate === evt.key;
+
+                return (
+                  <div key={evt.key} style={{
+                    border: isEditing ? `2px solid ${evt.color}44` : "var(--rpm-border)",
+                    borderRadius: "var(--rpm-radius)", overflow: "hidden",
+                    transition: "var(--rpm-transition)",
+                  }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 12, padding: "14px 18px",
+                      background: isEditing ? evt.color + "08" : "var(--rpm-surface-subtle)",
+                    }}>
+                      <div style={{
+                        width: 10, height: 10, borderRadius: "50%", background: evt.color, flexShrink: 0,
+                      }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ fontWeight: 600, fontSize: 14, color: "var(--rpm-text)" }}>{evt.label}</span>
+                        {hasCustom && (
+                          <span style={{
+                            marginLeft: 8, fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 8,
+                            background: evt.color + "18", color: evt.color, textTransform: "uppercase",
+                          }}>Customized</span>
+                        )}
+                      </div>
+                      {!isEditing && (
+                        <button type="button" onClick={() => startEditing(evt.key)}
+                          style={{
+                            padding: "6px 14px", fontSize: 12, fontWeight: 600, borderRadius: "var(--rpm-radius-sm)",
+                            border: "var(--rpm-border)", background: "var(--rpm-surface)", color: "var(--rpm-text-secondary)",
+                            cursor: "pointer", transition: "var(--rpm-transition)",
+                          }}>
+                          Customize
+                        </button>
+                      )}
+                    </div>
+
+                    {isEditing && (
+                      <div style={{ padding: "16px 18px", background: "var(--rpm-surface)" }}>
+                        <div style={{ marginBottom: 14 }}>
+                          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-secondary)", marginBottom: 5 }}>Subject line</label>
+                          <input
+                            type="text" value={templateSubject} onChange={(e) => setTemplateSubject(e.target.value)}
+                            placeholder={evt.defaultSubject}
+                            style={{
+                              width: "100%", padding: "9px 12px", fontSize: 14, borderRadius: "var(--rpm-radius-sm)",
+                              border: "var(--rpm-border)", background: "var(--rpm-surface)", color: "var(--rpm-text)",
+                              outline: "none", boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
+
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "var(--rpm-text-secondary)", marginBottom: 5 }}>
+                            Body HTML
+                          </label>
+                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                            <span style={{ fontSize: 11, color: "var(--rpm-text-muted)", lineHeight: "28px" }}>Insert variable:</span>
+                            {TEMPLATE_VARS.map((v) => (
+                              <button key={v.key} type="button" onClick={() => insertVariable(v.key)}
+                                style={{
+                                  padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 14,
+                                  border: "1px solid var(--rpm-border-color)", background: "var(--rpm-surface-elevated)",
+                                  color: evt.color, cursor: "pointer", transition: "var(--rpm-transition)",
+                                  display: "inline-flex", alignItems: "center", gap: 4,
+                                }}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                {`{{${v.key}}}`}
+                              </button>
+                            ))}
+                          </div>
+                          {!showTemplatePreview ? (
+                            <textarea
+                              ref={templateBodyRef}
+                              value={templateBody} onChange={(e) => setTemplateBody(e.target.value)}
+                              placeholder={evt.defaultBody}
+                              rows={10}
+                              style={{
+                                width: "100%", padding: "10px 12px", fontSize: 13, borderRadius: "var(--rpm-radius-sm)",
+                                border: "var(--rpm-border)", background: "var(--rpm-surface)", color: "var(--rpm-text)",
+                                outline: "none", boxSizing: "border-box", fontFamily: "var(--rpm-font-mono)",
+                                resize: "vertical", lineHeight: 1.6,
+                              }}
+                            />
+                          ) : (
+                            <div style={{
+                              minHeight: 160, padding: 16, border: "var(--rpm-border)", borderRadius: "var(--rpm-radius-sm)",
+                              background: "#fff", fontSize: 14, lineHeight: 1.7,
+                            }}>
+                              <div dangerouslySetInnerHTML={{ __html: templateBody }} />
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <button type="button" onClick={() => setShowTemplatePreview(!showTemplatePreview)}
+                            style={{
+                              padding: "6px 14px", fontSize: 12, fontWeight: 600, borderRadius: "var(--rpm-radius-sm)",
+                              border: "var(--rpm-border)", background: "var(--rpm-surface-elevated)", color: "var(--rpm-text-secondary)",
+                              cursor: "pointer", display: "flex", alignItems: "center", gap: 5,
+                            }}>
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              {showTemplatePreview
+                                ? <><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></>
+                                : <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>
+                              }
+                            </svg>
+                            {showTemplatePreview ? "Edit" : "Preview"}
+                          </button>
+
+                          <div style={{ flex: 1 }} />
+
+                          <button type="button" onClick={() => resetTemplate(evt.key)}
+                            style={{
+                              padding: "6px 14px", fontSize: 12, fontWeight: 600, borderRadius: "var(--rpm-radius-sm)",
+                              border: "1px solid #FECACA", background: "#FEF2F2", color: "#DC2626",
+                              cursor: "pointer",
+                            }}>
+                            Reset to Default
+                          </button>
+                          <button type="button" onClick={() => setEditingTemplate(null)}
+                            style={{
+                              padding: "6px 14px", fontSize: 12, fontWeight: 600, borderRadius: "var(--rpm-radius-sm)",
+                              border: "var(--rpm-border)", background: "var(--rpm-surface)", color: "var(--rpm-text-muted)",
+                              cursor: "pointer",
+                            }}>
+                            Cancel
+                          </button>
+                          <button type="button" onClick={() => saveTemplate(evt.key)}
+                            disabled={templateFetcher.state !== "idle"}
+                            style={{
+                              padding: "6px 16px", fontSize: 12, fontWeight: 700, borderRadius: "var(--rpm-radius-sm)",
+                              border: "none", background: evt.color, color: "#fff",
+                              cursor: "pointer", opacity: templateFetcher.state !== "idle" ? 0.7 : 1,
+                            }}>
+                            {templateFetcher.state !== "idle" ? "Saving..." : "Save Template"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* ────── Actions ────── */}

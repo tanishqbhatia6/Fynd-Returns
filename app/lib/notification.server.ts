@@ -34,12 +34,26 @@ function createTransport(cfg: SmtpConfig) {
   });
 }
 
-async function getSmtpConfig(shopDomain: string): Promise<{ smtp: SmtpConfig | null; toggles: NotifToggles; adminEmail: string | null }> {
+type CustomEmailTemplate = { subject: string; bodyHtml: string };
+type EmailTemplatesMap = Record<string, CustomEmailTemplate>;
+
+async function getSmtpConfig(shopDomain: string): Promise<{
+  smtp: SmtpConfig | null;
+  toggles: NotifToggles;
+  adminEmail: string | null;
+  emailTemplates: EmailTemplatesMap;
+}> {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
     include: { settings: true },
   });
   const s = shop?.settings;
+
+  let emailTemplates: EmailTemplatesMap = {};
+  if (s?.emailTemplatesJson) {
+    try { emailTemplates = JSON.parse(s.emailTemplatesJson); } catch { /* invalid JSON */ }
+  }
+
   if (!s?.smtpHost || !s?.smtpUser || !s?.smtpPass) {
     return {
       smtp: null,
@@ -50,6 +64,7 @@ async function getSmtpConfig(shopDomain: string): Promise<{ smtp: SmtpConfig | n
         notificationRefunded: s?.notificationRefunded ?? true,
       },
       adminEmail: s?.adminNotifyEmail ?? null,
+      emailTemplates,
     };
   }
   return {
@@ -69,7 +84,12 @@ async function getSmtpConfig(shopDomain: string): Promise<{ smtp: SmtpConfig | n
       notificationRefunded: s.notificationRefunded ?? true,
     },
     adminEmail: s.adminNotifyEmail ?? null,
+    emailTemplates,
   };
+}
+
+function replaceTemplateVars(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? "");
 }
 
 async function sendEmail(smtp: SmtpConfig, to: string, subject: string, html: string): Promise<SendResult> {
@@ -211,12 +231,26 @@ export async function sendNewReturnNotification(params: {
   returnRequestId: string;
   shopName?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles, adminEmail } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, adminEmail, emailTemplates } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationNewReturn) return { success: true };
   if (!smtp) { console.warn("[Email] SMTP not configured — skipping new return email"); return { success: true }; }
 
   const recipient = params.to || adminEmail;
   if (!recipient) return { success: false, error: "No admin email configured" };
+
+  const custom = emailTemplates.new_return;
+  if (custom?.subject && custom?.bodyHtml) {
+    const vars: Record<string, string> = {
+      orderName: params.orderName,
+      customerEmail: params.customerEmail ?? "",
+      shopName: params.shopName ?? "",
+      returnId: params.returnRequestId,
+      status: "new",
+      refundAmount: "",
+      rejectionReason: "",
+    };
+    return sendEmail(smtp, recipient, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+  }
 
   const { subject, html } = newReturnEmail({
     orderName: params.orderName,
@@ -233,11 +267,26 @@ export async function sendApprovalNotification(params: {
   orderName: string;
   shopName?: string;
   notes?: string;
+  returnId?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, emailTemplates } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationApproved) return { success: true };
   if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
+
+  const custom = emailTemplates.approved;
+  if (custom?.subject && custom?.bodyHtml) {
+    const vars: Record<string, string> = {
+      orderName: params.orderName,
+      customerEmail: params.to,
+      shopName: params.shopName ?? "",
+      returnId: params.returnId ?? "",
+      status: "approved",
+      refundAmount: "",
+      rejectionReason: "",
+    };
+    return sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+  }
 
   const { subject, html } = approvedEmail({ orderName: params.orderName, notes: params.notes, shopName: params.shopName });
   return sendEmail(smtp, params.to, subject, html);
@@ -249,11 +298,26 @@ export async function sendRejectionNotification(params: {
   orderName: string;
   rejectionReason: string;
   shopName?: string;
+  returnId?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, emailTemplates } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationRejected) return { success: true };
   if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
+
+  const custom = emailTemplates.rejected;
+  if (custom?.subject && custom?.bodyHtml) {
+    const vars: Record<string, string> = {
+      orderName: params.orderName,
+      customerEmail: params.to,
+      shopName: params.shopName ?? "",
+      returnId: params.returnId ?? "",
+      status: "rejected",
+      refundAmount: "",
+      rejectionReason: params.rejectionReason,
+    };
+    return sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+  }
 
   const { subject, html } = rejectedEmail({ orderName: params.orderName, reason: params.rejectionReason, shopName: params.shopName });
   return sendEmail(smtp, params.to, subject, html);
@@ -266,11 +330,27 @@ export async function sendRefundNotification(params: {
   amount?: string;
   currency?: string;
   shopName?: string;
+  returnId?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, emailTemplates } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationRefunded) return { success: true };
   if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
+
+  const custom = emailTemplates.refunded;
+  if (custom?.subject && custom?.bodyHtml) {
+    const refundAmount = params.amount && params.currency ? `${params.currency} ${params.amount}` : params.amount ?? "";
+    const vars: Record<string, string> = {
+      orderName: params.orderName,
+      customerEmail: params.to,
+      shopName: params.shopName ?? "",
+      returnId: params.returnId ?? "",
+      status: "refunded",
+      refundAmount,
+      rejectionReason: "",
+    };
+    return sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+  }
 
   const { subject, html } = refundedEmail({ orderName: params.orderName, amount: params.amount, currency: params.currency, shopName: params.shopName });
   return sendEmail(smtp, params.to, subject, html);

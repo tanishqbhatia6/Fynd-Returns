@@ -6,25 +6,101 @@ export interface ReturnEligibilityResult {
   reason?: string;
 }
 
+export type ProductPolicyRule = {
+  id: string;
+  matchType: "tags" | "product_type" | "collection";
+  matchValue: string;
+  windowDays: number;
+  policyText?: string;
+  returnable: boolean;
+};
+
+function matchesProductPolicy(
+  rule: ProductPolicyRule,
+  productTags?: string[],
+  productType?: string | null,
+): boolean {
+  if (rule.matchType === "tags") {
+    if (!productTags?.length) return false;
+    const ruleValues = rule.matchValue.split(",").map((v) => v.trim().toLowerCase()).filter(Boolean);
+    return ruleValues.some((rv) => productTags.some((t) => t.toLowerCase() === rv));
+  }
+  if (rule.matchType === "product_type") {
+    if (!productType) return false;
+    return rule.matchValue.trim().toLowerCase() === productType.trim().toLowerCase();
+  }
+  if (rule.matchType === "collection") {
+    if (!productTags?.length) return false;
+    const collectionHandle = rule.matchValue.trim().toLowerCase();
+    return productTags.some((t) => t.toLowerCase() === collectionHandle);
+  }
+  return false;
+}
+
+function findMatchingProductPolicy(
+  settings: ShopSettings,
+  productTags?: string[],
+  productType?: string | null,
+): ProductPolicyRule | null {
+  const policiesJson = (settings as { productPoliciesJson?: string | null }).productPoliciesJson;
+  if (!policiesJson) return null;
+
+  let rules: ProductPolicyRule[] = [];
+  try {
+    const parsed = JSON.parse(policiesJson);
+    if (Array.isArray(parsed)) rules = parsed;
+  } catch { return null; }
+
+  for (const rule of rules) {
+    if (matchesProductPolicy(rule, productTags, productType)) {
+      return rule;
+    }
+  }
+  return null;
+}
+
 export function checkReturnEligibility(
   settings: ShopSettings | null,
   context: {
     orderDate?: Date;
     productPrice?: number;
     productTags?: string[];
+    productType?: string | null;
     customerCountry?: string;
     customerProvince?: string;
   }
 ): ReturnEligibilityResult {
   if (!settings) return { eligible: true };
 
-  // Return window check
-  const returnWindowDays = settings.returnWindowDays ?? 30;
-  if (context.orderDate) {
-    const windowEnd = new Date(context.orderDate);
-    windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
-    if (new Date() > windowEnd) {
-      return { eligible: false, reason: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.` };
+  // Product-level policy check (first match wins, before global window)
+  const productPolicy = findMatchingProductPolicy(settings, context.productTags, context.productType);
+  if (productPolicy) {
+    if (!productPolicy.returnable) {
+      return {
+        eligible: false,
+        reason: productPolicy.policyText || "This product is not eligible for return.",
+      };
+    }
+    if (context.orderDate && productPolicy.windowDays > 0) {
+      const windowEnd = new Date(context.orderDate);
+      windowEnd.setDate(windowEnd.getDate() + productPolicy.windowDays);
+      if (new Date() > windowEnd) {
+        return {
+          eligible: false,
+          reason: productPolicy.policyText || `Return window has expired. Returns for this product are accepted within ${productPolicy.windowDays} days of order date.`,
+        };
+      }
+    }
+    // Product matched a policy that says returnable and within window -- skip global window check
+  } else {
+    // No product policy matched -- use global return window
+    const returnWindowDays = settings.returnWindowDays ?? 30;
+    if (context.orderDate) {
+      const windowEnd = new Date(context.orderDate);
+      windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
+      if (new Date() > windowEnd) {
+        return { eligible: false, reason: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.` };
+      }
     }
   }
 

@@ -67,6 +67,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const hasDefaultReturnInstructions = !!(s?.defaultReturnInstructions && s.defaultReturnInstructions.trim().length > 0);
   const portalLanguage = s?.portalLanguage ?? "en";
 
+  let productPolicyCount = 0;
+  try {
+    const arr = JSON.parse(s?.productPoliciesJson ?? "[]");
+    if (Array.isArray(arr)) productPolicyCount = arr.length;
+  } catch { /* */ }
+
+  const discountCodeRefundEnabled = s?.discountCodeRefundEnabled ?? false;
+
   return {
     hasFynd, hasReasons, hasPortalTheme, readAllOrders,
     notifCount, smtpConfigured, returnWindowDays, autoApprove, autoRefund,
@@ -75,6 +83,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     blocklistEnabled, blocklistCount, autoRulesCount,
     bonusCreditEnabled, bonusCreditPct, greenReturnsEnabled,
     greenReturnsThreshold, hasDefaultReturnInstructions, portalLanguage,
+    productPolicyCount, discountCodeRefundEnabled,
   };
 };
 
@@ -146,7 +155,20 @@ export default function SettingsDashboard() {
             d.autoRefund ? { label: "Auto-refund", variant: "ok" } : { label: "Manual refund", variant: "off" },
             ...(d.hasReturnFee ? [{ label: `${d.returnFeeCurrency} ${d.returnFeeAmount} fee`, variant: "info" as const }] : []),
             ...(d.photoRequired ? [{ label: "Photo required", variant: "info" as const }] : []),
-            { label: d.refundPaymentMethod === "store_credit" ? "Store credit" : d.refundPaymentMethod === "both" ? "Split refund" : "Original payment", variant: "info" as const },
+            { label: d.refundPaymentMethod === "store_credit" ? "Store credit" : d.refundPaymentMethod === "both" ? "Split refund" : d.refundPaymentMethod === "discount_code" ? "Discount code" : "Original payment", variant: "info" as const },
+            ...(d.discountCodeRefundEnabled ? [{ label: "Discount codes", variant: "ok" as const }] : []),
+          ],
+        },
+        {
+          to: "/app/settings/product-policies",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>,
+          iconBg: "#FDF2F8", iconStroke: "#DB2777",
+          title: "Product Policies",
+          desc: "Define per-product return policies based on tags, type, or collection. First matching rule overrides the global return window.",
+          status: [
+            d.productPolicyCount > 0
+              ? { label: `${d.productPolicyCount} rule${d.productPolicyCount !== 1 ? "s" : ""}`, variant: "ok" }
+              : { label: "No rules", variant: "off" },
           ],
         },
         {

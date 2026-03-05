@@ -6,6 +6,7 @@ import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { checkReturnEligibility } from "../lib/return-rules.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { parseJsonArray } from "../lib/parse-json";
 
 /**
  * Portal order lookup API.
@@ -156,12 +157,48 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       return { lineItemId: li.id, eligible: itemCheck.eligible, reason: itemCheck.reason };
     });
 
+    const returnWindowDays = settings?.returnWindowDays ?? 30;
+    const orderDateStr = order.processedAt ?? order.createdAt;
+    let returnDeadline: string | null = null;
+    let daysRemaining: number | null = null;
+    if (orderDateStr) {
+      const orderDate = new Date(orderDateStr);
+      const deadline = new Date(orderDate);
+      deadline.setDate(deadline.getDate() + returnWindowDays);
+      returnDeadline = deadline.toISOString();
+      daysRemaining = Math.ceil((deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    }
+
+    // Estimated refund amounts per line item
+    const returnFeeAmount = settings?.returnFeeAmount ? Number(settings.returnFeeAmount) : 0;
+    const returnFeeCurrency = settings?.returnFeeCurrency ?? "USD";
+    const lineItemEstimates = (order.lineItems ?? []).map((li) => {
+      const price = li.price ? parseFloat(li.price) : 0;
+      const qty = li.quantity ?? 1;
+      return { lineItemId: li.id, unitPrice: price, quantity: qty, subtotal: price * qty };
+    });
+    const itemsTotal = lineItemEstimates.reduce((s, e) => s + e.subtotal, 0);
+    const estimatedRefundTotal = Math.max(0, itemsTotal - returnFeeAmount);
+
+    // Return offers data
+    let returnOffersData: { enabled: boolean; offers: Array<{ reasonCode?: string; tag?: string; offerType: string; offerValue: number; message: string }> } = { enabled: false, offers: [] };
+    if (settings?.returnOffersEnabled) {
+      const offersArr = parseJsonArray<{ reasonCode?: string; tag?: string; offerType: string; offerValue: number; message: string }>(settings.returnOffersJson ?? null, []);
+      returnOffersData = { enabled: true, offers: offersArr };
+    }
+
     return withCors(Response.json({
       order,
       existingReturns: formattedReturns,
       activeReturns,
       returnEligibility,
       itemEligibility,
+      returnDeadline,
+      daysRemaining,
+      returnFee: returnFeeAmount > 0 ? { amount: returnFeeAmount, currency: returnFeeCurrency } : null,
+      estimatedRefundTotal,
+      lineItemEstimates,
+      returnOffers: returnOffersData,
     }), request);
   } catch (err) {
     console.error("Portal order fetch:", err);

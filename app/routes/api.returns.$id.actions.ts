@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, fetchOrder, fetchOrderByOrderNumber, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNumber, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification } from "../lib/notification.server";
@@ -500,6 +500,81 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const bonusCreditPct = shopSettings?.bonusCreditPct ?? 10;
       const isGreenReturn = returnCase.isGreenReturn === true;
 
+      if (bodyRefundMethod === "discount_code") {
+        const shopSettingsForDiscount = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+        const prefix = shopSettingsForDiscount?.discountCodePrefix || "RETURN";
+        const expiryDays = shopSettingsForDiscount?.discountCodeExpiryDays ?? 90;
+        const returnRequestNo = (returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id.slice(0, 8).toUpperCase();
+
+        const dcResult = await createDiscountCodeRefund(admin, {
+          orderId: orderIdForRefund,
+          lineItems: lineItemsForRefund,
+          returnRequestNo,
+          prefix,
+          expiryDays,
+          note: note || returnCase.adminNotes || undefined,
+        });
+
+        if (!dcResult.success) {
+          const msg = dcResult.error ?? "Failed to create discount code.";
+          await prisma.returnEvent.create({
+            data: {
+              returnCaseId: id,
+              source: "admin",
+              eventType: "refund_failed",
+              payloadJson: JSON.stringify({ error: msg, method: "discount_code" }),
+            },
+          });
+          return Response.json({ error: msg }, { status: 400 });
+        }
+
+        const refundDetails = {
+          method: "discount_code",
+          discountCode: dcResult.discountCode,
+          amount: dcResult.discountValue,
+          currency: dcResult.discountCurrency,
+          createdAt: new Date().toISOString(),
+          source: "admin",
+          expiryDays,
+        };
+
+        await prisma.returnCase.update({
+          where: { id },
+          data: {
+            refundStatus: "refunded",
+            refundJson: JSON.stringify(refundDetails),
+            status: "completed",
+            adminNotes: note || returnCase.adminNotes,
+            discountCode: dcResult.discountCode,
+            discountCodeValue: dcResult.discountValue,
+          },
+        });
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: id,
+            source: "admin",
+            eventType: "refund_processed",
+            payloadJson: JSON.stringify({ ...refundDetails, note: "Discount code refund created" }),
+          },
+        });
+
+        if (returnCase.customerEmailNorm) {
+          try {
+            await sendRefundNotification({
+              shopDomain: session.shop,
+              to: returnCase.customerEmailNorm,
+              orderName: returnCase.shopifyOrderName || "your order",
+              amount: dcResult.discountValue,
+              currency: dcResult.discountCurrency,
+              shopName: session.shop?.replace(".myshopify.com", ""),
+            });
+          } catch (err) {
+            console.warn("[process_refund] Discount code notification failed:", err);
+          }
+        }
+        throw redirect(`/app/returns/${id}`);
+      }
+
       let refundMethodCfg: RefundMethodConfig | null = null;
       if (bodyRefundMethod && ["original", "store_credit", "both"].includes(bodyRefundMethod)) {
         refundMethodCfg = { method: bodyRefundMethod as "original" | "store_credit" | "both", storeCreditPct: bodyStoreCreditPct };
@@ -832,6 +907,97 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       },
     });
     throw redirect(`/app/returns/${id}`);
+  }
+
+  if (actionType === "cancel_order") {
+    try {
+      const cancelReason = ((body as { cancelReason?: string }).cancelReason ?? "OTHER").toUpperCase();
+      const validReasons = ["CUSTOMER", "FRAUD", "INVENTORY", "DECLINED", "OTHER"];
+      if (!validReasons.includes(cancelReason)) {
+        return Response.json({ error: `Invalid cancel reason: ${cancelReason}` }, { status: 400 });
+      }
+      const doRefundCancel = (body as { refund?: boolean }).refund !== false;
+      const doRestock = (body as { restock?: boolean }).restock !== false;
+
+      if (!returnCase.shopifyOrderId || returnCase.shopifyOrderId.startsWith("manual:")) {
+        return Response.json({ error: "Cannot cancel: no valid Shopify order linked" }, { status: 400 });
+      }
+
+      let orderGid = returnCase.shopifyOrderId;
+      if (!orderGid.startsWith("gid://")) {
+        if (/^\d+$/.test(orderGid)) {
+          orderGid = `gid://shopify/Order/${orderGid}`;
+        } else {
+          const orderByName = returnCase.shopifyOrderName
+            ? await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim())
+            : null;
+          if (!orderByName?.id) {
+            return Response.json({ error: "Could not resolve Shopify order for cancellation" }, { status: 400 });
+          }
+          orderGid = orderByName.id;
+        }
+      }
+
+      const ORDER_CANCEL_MUTATION = `#graphql
+        mutation orderCancel($orderId: ID!, $reason: OrderCancelReason!, $refund: Boolean!, $restock: Boolean!) {
+          orderCancel(orderId: $orderId, reason: $reason, refund: $refund, restock: $restock) {
+            orderCancelUserErrors { field message }
+          }
+        }
+      `;
+
+      const cancelRes = await admin.graphql(ORDER_CANCEL_MUTATION, {
+        variables: {
+          orderId: orderGid,
+          reason: cancelReason,
+          refund: doRefundCancel,
+          restock: doRestock,
+        },
+      });
+      const cancelJson = (await cancelRes.json()) as {
+        data?: {
+          orderCancel?: {
+            orderCancelUserErrors?: Array<{ field?: string[]; message: string }>;
+          };
+        };
+      };
+      const cancelErrors = cancelJson.data?.orderCancel?.orderCancelUserErrors ?? [];
+      if (cancelErrors.length > 0) {
+        const errMsg = cancelErrors.map((e) => e.message).join("; ");
+        return Response.json({ error: `Order cancellation failed: ${errMsg}` }, { status: 400 });
+      }
+
+      await prisma.returnCase.update({
+        where: { id },
+        data: {
+          status: "cancelled",
+          adminNotes: note || returnCase.adminNotes,
+        },
+      });
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "order_cancelled",
+          payloadJson: JSON.stringify({
+            orderId: orderGid,
+            reason: cancelReason,
+            refund: doRefundCancel,
+            restock: doRestock,
+            note: note || null,
+          }),
+        },
+      });
+
+      throw redirect(`/app/returns/${id}`);
+    } catch (err) {
+      if (isRedirectResponse(err)) throw err;
+      if (err instanceof Response) throw err;
+      const rawMessage = await extractErrorMessage(err);
+      const message = rawMessage || "Order cancellation failed. Please try again or cancel manually in Shopify Admin.";
+      console.error("[cancel_order] Error:", err);
+      return Response.json({ error: message }, { status: 500 });
+    }
   }
 
   return Response.json({ error: "Unknown action" }, { status: 400 });

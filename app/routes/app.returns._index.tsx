@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Form, Link, useLoaderData, useSearchParams, useNavigate } from "react-router";
+import { Form, Link, useLoaderData, useSearchParams, useNavigate, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -82,6 +82,127 @@ export default function ReturnsList() {
   const { returns, query, status, page, totalCount, totalPages, pendingCount, approvedCount, rejectedCount, allCount, error } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
+
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectionReason, setRejectionReason] = useState("");
+  const rejectInputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, status, query]);
+
+  useEffect(() => {
+    if (showRejectModal && rejectInputRef.current) {
+      rejectInputRef.current.focus();
+    }
+  }, [showRejectModal]);
+
+  useEffect(() => {
+    if (bulkSuccess || bulkError) {
+      const timer = setTimeout(() => {
+        setBulkSuccess(null);
+        setBulkError(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [bulkSuccess, bulkError]);
+
+  const selectableReturns = returns.filter(
+    (r) => !["approved", "rejected", "completed", "cancelled"].includes(r.status.toLowerCase()),
+  );
+  const selectableIds = new Set(selectableReturns.map((r) => r.id));
+
+  const toggleSelection = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      const allSelected = selectableReturns.length > 0 && selectableReturns.every((r) => prev.has(r.id));
+      if (allSelected) return new Set();
+      return new Set(selectableReturns.map((r) => r.id));
+    });
+  }, [selectableReturns]);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
+  }, []);
+
+  const executeBulkAction = useCallback(
+    async (action: "bulk_approve" | "bulk_reject", reason?: string) => {
+      const ids = Array.from(selectedIds);
+      if (ids.length === 0) return;
+
+      setBulkLoading(true);
+      setBulkError(null);
+      setBulkSuccess(null);
+
+      try {
+        const res = await fetch("/api/returns/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action,
+            returnIds: ids,
+            ...(reason ? { rejectionReason: reason } : {}),
+          }),
+        });
+
+        const data = (await res.json()) as {
+          successCount?: number;
+          errorCount?: number;
+          error?: string;
+          results?: Array<{ id: string; success: boolean; error?: string }>;
+        };
+
+        if (!res.ok) {
+          setBulkError(data.error || "Bulk action failed");
+          return;
+        }
+
+        const label = action === "bulk_approve" ? "approved" : "rejected";
+        if (data.errorCount && data.errorCount > 0) {
+          const failedItems = (data.results ?? []).filter((r) => !r.success);
+          const firstError = failedItems[0]?.error ?? "Unknown error";
+          setBulkSuccess(
+            `${data.successCount} ${label}, ${data.errorCount} failed: ${firstError}`,
+          );
+        } else {
+          setBulkSuccess(`${data.successCount} return${data.successCount === 1 ? "" : "s"} ${label} successfully`);
+        }
+
+        setSelectedIds(new Set());
+        revalidator.revalidate();
+      } catch (err) {
+        setBulkError(err instanceof Error ? err.message : "Network error");
+      } finally {
+        setBulkLoading(false);
+      }
+    },
+    [selectedIds, revalidator],
+  );
+
+  const handleBulkApprove = useCallback(() => {
+    executeBulkAction("bulk_approve");
+  }, [executeBulkAction]);
+
+  const handleBulkRejectConfirm = useCallback(() => {
+    const reason = rejectionReason.trim();
+    if (!reason) return;
+    setShowRejectModal(false);
+    setRejectionReason("");
+    executeBulkAction("bulk_reject", reason);
+  }, [rejectionReason, executeBulkAction]);
 
   const goToPage = (p: number) => {
     const next = new URLSearchParams(searchParams);
@@ -89,6 +210,8 @@ export default function ReturnsList() {
     setSearchParams(next);
   };
 
+  const allSelectableSelected = selectableReturns.length > 0 && selectableReturns.every((r) => selectedIds.has(r.id));
+  const someSelected = selectedIds.size > 0;
   const inProgressCount = Math.max(0, allCount - pendingCount - approvedCount - rejectedCount);
 
   return (
@@ -222,6 +345,16 @@ export default function ReturnsList() {
                 <table className="app-table">
                   <thead>
                     <tr>
+                      <th style={{ width: 36, padding: "8px 6px", textAlign: "center" }}>
+                        <input
+                          type="checkbox"
+                          checked={allSelectableSelected}
+                          onChange={toggleSelectAll}
+                          disabled={selectableReturns.length === 0}
+                          title={allSelectableSelected ? "Deselect all" : "Select all actionable returns"}
+                          style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#4f46e5" }}
+                        />
+                      </th>
                       <th>Return ID</th>
                       <th>Order</th>
                       <th>Status</th>
@@ -238,11 +371,31 @@ export default function ReturnsList() {
                       const fyndShipId = (r as { fyndShipmentId?: string | null }).fyndShipmentId;
                       const fyndOrdId = (r as { fyndOrderId?: string | null }).fyndOrderId;
                       const hasFynd = !!(fyndRetId || fyndRetNo || fyndShipId);
+                      const isSelectable = selectableIds.has(r.id);
+                      const isSelected = selectedIds.has(r.id);
                       return (
                         <tr
                           key={r.id}
                           onClick={() => navigate(`/app/returns/${r.id}`)}
+                          style={isSelected ? { background: "rgba(79, 70, 229, 0.06)" } : undefined}
                         >
+                          <td style={{ width: 36, padding: "8px 6px", textAlign: "center" }} onClick={(e) => e.stopPropagation()}>
+                            {isSelectable ? (
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelection(r.id)}
+                                style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#4f46e5" }}
+                              />
+                            ) : (
+                              <input
+                                type="checkbox"
+                                disabled
+                                title={`Cannot select: return is ${r.status}`}
+                                style={{ width: 16, height: 16, opacity: 0.3 }}
+                              />
+                            )}
+                          </td>
                           <td>
                             <Link
                               to={`/app/returns/${r.id}`}
@@ -353,7 +506,183 @@ export default function ReturnsList() {
             )}
           </>
         )}
+        {/* Bulk action success/error banner */}
+        {bulkSuccess && (
+          <div style={{
+            padding: "10px 16px", marginTop: 12, borderRadius: 8,
+            background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46",
+            fontSize: 13, fontWeight: 600,
+          }}>
+            {bulkSuccess}
+          </div>
+        )}
+        {bulkError && (
+          <div style={{
+            padding: "10px 16px", marginTop: 12, borderRadius: 8,
+            background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b",
+            fontSize: 13, fontWeight: 600,
+          }}>
+            {bulkError}
+          </div>
+        )}
       </div>
+
+      {/* Floating bulk action bar */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: someSelected ? 24 : -80,
+          left: "50%",
+          transform: "translateX(-50%)",
+          background: "#1F2937",
+          color: "#fff",
+          borderRadius: 12,
+          padding: "12px 20px",
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          boxShadow: "0 8px 32px rgba(0,0,0,0.28), 0 2px 8px rgba(0,0,0,0.12)",
+          zIndex: 1000,
+          transition: "bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          whiteSpace: "nowrap",
+          maxWidth: "calc(100vw - 48px)",
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.95 }}>
+          {selectedIds.size} return{selectedIds.size === 1 ? "" : "s"} selected
+        </span>
+        <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.2)" }} />
+        <button
+          onClick={handleBulkApprove}
+          disabled={bulkLoading}
+          style={{
+            padding: "7px 16px", borderRadius: 7, border: "none",
+            background: "#059669", color: "#fff",
+            fontSize: 13, fontWeight: 700, cursor: bulkLoading ? "wait" : "pointer",
+            opacity: bulkLoading ? 0.6 : 1,
+            transition: "opacity 0.15s, background 0.15s",
+          }}
+          onMouseEnter={(e) => { if (!bulkLoading) (e.target as HTMLButtonElement).style.background = "#047857"; }}
+          onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "#059669"; }}
+        >
+          {bulkLoading ? "Processing..." : "Approve Selected"}
+        </button>
+        <button
+          onClick={() => setShowRejectModal(true)}
+          disabled={bulkLoading}
+          style={{
+            padding: "7px 16px", borderRadius: 7, border: "none",
+            background: "#dc2626", color: "#fff",
+            fontSize: 13, fontWeight: 700, cursor: bulkLoading ? "wait" : "pointer",
+            opacity: bulkLoading ? 0.6 : 1,
+            transition: "opacity 0.15s, background 0.15s",
+          }}
+          onMouseEnter={(e) => { if (!bulkLoading) (e.target as HTMLButtonElement).style.background = "#b91c1c"; }}
+          onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "#dc2626"; }}
+        >
+          Reject Selected
+        </button>
+        <button
+          onClick={clearSelection}
+          disabled={bulkLoading}
+          style={{
+            padding: "7px 14px", borderRadius: 7,
+            border: "1px solid rgba(255,255,255,0.25)", background: "transparent",
+            color: "rgba(255,255,255,0.85)",
+            fontSize: 12, fontWeight: 600, cursor: "pointer",
+            transition: "background 0.15s",
+          }}
+          onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.background = "rgba(255,255,255,0.1)"; }}
+          onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "transparent"; }}
+        >
+          Clear Selection
+        </button>
+      </div>
+
+      {/* Rejection reason modal */}
+      {showRejectModal && (
+        <div
+          style={{
+            position: "fixed", inset: 0, zIndex: 1100,
+            background: "rgba(0,0,0,0.45)", backdropFilter: "blur(2px)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+          onClick={() => { setShowRejectModal(false); setRejectionReason(""); }}
+        >
+          <div
+            style={{
+              background: "#fff", borderRadius: 14, padding: "28px 28px 24px",
+              width: "100%", maxWidth: 460,
+              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
+              animation: "fadeInScale 0.2s ease-out",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 700, color: "#1e293b" }}>
+              Reject {selectedIds.size} Return{selectedIds.size === 1 ? "" : "s"}
+            </h3>
+            <p style={{ margin: "0 0 16px", fontSize: 13, color: "#64748b" }}>
+              Provide a reason that will be shown to affected customers.
+            </p>
+            <textarea
+              ref={rejectInputRef}
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Rejection reason (required)..."
+              maxLength={500}
+              rows={3}
+              style={{
+                width: "100%", padding: "10px 14px", borderRadius: 8,
+                border: "1px solid #d1d5db", fontSize: 13, resize: "vertical",
+                fontFamily: "inherit", outline: "none",
+                boxSizing: "border-box",
+              }}
+              onFocus={(e) => { e.target.style.borderColor = "#6366f1"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.15)"; }}
+              onBlur={(e) => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleBulkRejectConfirm();
+                if (e.key === "Escape") { setShowRejectModal(false); setRejectionReason(""); }
+              }}
+            />
+            <div style={{ fontSize: 11, color: "#94a3b8", textAlign: "right", marginTop: 4 }}>
+              {rejectionReason.length}/500
+            </div>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
+              <button
+                onClick={() => { setShowRejectModal(false); setRejectionReason(""); }}
+                style={{
+                  padding: "8px 18px", borderRadius: 7, border: "1px solid #d1d5db",
+                  background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkRejectConfirm}
+                disabled={!rejectionReason.trim()}
+                style={{
+                  padding: "8px 18px", borderRadius: 7, border: "none",
+                  background: rejectionReason.trim() ? "#dc2626" : "#e5e7eb",
+                  color: rejectionReason.trim() ? "#fff" : "#9ca3af",
+                  fontSize: 13, fontWeight: 700,
+                  cursor: rejectionReason.trim() ? "pointer" : "not-allowed",
+                  transition: "background 0.15s",
+                }}
+              >
+                Reject All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes fadeInScale {
+          from { opacity: 0; transform: scale(0.95); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
     </s-page>
   );
 }

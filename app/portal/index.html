@@ -2032,6 +2032,43 @@
           <div class="upload-preview-list" id="uploadPreviewStandard"></div>
           <p id="uploadErrStandard" class="upload-error-inline" style="display:none;"></p>
         </div>
+        <div id="estimatedRefundBox" style="display:none;padding:14px 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #a7f3d0;border-radius:12px;margin-bottom:14px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:0.8125rem;font-weight:600;color:#065f46;">Estimated refund</span>
+            <span id="estimatedRefundAmount" style="font-size:1.125rem;font-weight:700;color:#059669;"></span>
+          </div>
+          <div id="estimatedRefundFee" style="font-size:0.75rem;color:#6b7280;display:none;"></div>
+          <div style="font-size:0.6875rem;color:#9ca3af;margin-top:4px;">Final refund amount may vary based on item condition</div>
+        </div>
+        <div id="returnOfferBox" style="display:none;padding:16px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:12px;margin-bottom:14px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <div style="width:40px;height:40px;border-radius:50%;background:#2563eb;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:0.9375rem;font-weight:700;color:#1e40af;margin-bottom:4px;">Special offer for you!</div>
+              <div id="returnOfferMessage" style="font-size:0.875rem;color:#1e3a8a;line-height:1.5;margin-bottom:12px;"></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button type="button" id="btnAcceptOffer" class="btn-primary" style="font-size:0.875rem;padding:10px 20px;">Accept Offer</button>
+                <button type="button" id="btnDeclineOffer" class="btn-secondary" style="font-size:0.875rem;padding:10px 20px;">Continue with Return</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="offerAcceptedBox" style="display:none;padding:20px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #a7f3d0;border-radius:12px;margin-bottom:14px;text-align:center;">
+          <div style="width:52px;height:52px;border-radius:50%;background:#059669;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <div style="font-size:1.125rem;font-weight:700;color:#065f46;margin-bottom:6px;">Offer accepted!</div>
+          <div id="offerAcceptedMessage" style="font-size:0.875rem;color:#047857;margin-bottom:12px;"></div>
+          <div style="padding:12px 16px;background:#fff;border-radius:10px;border:1px solid #a7f3d0;display:inline-block;">
+            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:4px;">Your discount code</div>
+            <code id="offerDiscountCode" style="font-size:1.25rem;font-weight:700;color:#059669;letter-spacing:0.05em;"></code>
+          </div>
+          <div style="margin-top:12px;">
+            <button type="button" id="btnCopyOfferCode" class="btn-secondary" style="font-size:0.8125rem;padding:8px 16px;">Copy Code</button>
+          </div>
+        </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
           Back</button>
@@ -3705,6 +3742,7 @@
 
     const DEFAULT_REASONS = (function () { try { return JSON.parse(RETURN_REASONS_JSON || '[]'); } catch { return ['Other']; } })();
     let createOrderData = null;
+    var currentMatchedOffer = null;
 
     // Dynamic labels/placeholders for lookup type
     const LOOKUP_LABELS = { order_no: 'Enter your order number', return_id: 'Enter your return request ID', return_no: 'Enter your return number', forward_awb: 'Enter your forward AWB / tracking number', return_awb: 'Enter your return AWB / tracking number', email: 'Enter your email address', mobile: 'Enter your phone number' };
@@ -4035,6 +4073,10 @@
         }
 
         createOrderData = data.order;
+        createOrderData._returnFee = data.returnFee || null;
+        createOrderData._lineItemEstimates = data.lineItemEstimates || [];
+        createOrderData._estimatedRefundTotal = data.estimatedRefundTotal || 0;
+        createOrderData._returnOffers = data.returnOffers || { enabled: false, offers: [] };
         if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
           throw new Error('This order has no items to return.');
         }
@@ -4064,6 +4106,80 @@
             this.value = v;
           });
         });
+        // Estimated refund: update as items are checked/unchecked
+        function updateEstimatedRefund() {
+          var box = document.getElementById('estimatedRefundBox');
+          var amountEl = document.getElementById('estimatedRefundAmount');
+          var feeEl = document.getElementById('estimatedRefundFee');
+          if (!createOrderData || !box) return;
+          var checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
+          if (checked.length === 0) { box.style.display = 'none'; return; }
+          var total = 0;
+          checked.forEach(function(cb) {
+            var est = (createOrderData._lineItemEstimates || []).find(function(e) { return e.lineItemId === cb.dataset.id; });
+            var qtyInput = document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]');
+            var qty = parseInt(qtyInput ? qtyInput.value : '1', 10) || 1;
+            var unitPrice = est ? est.unitPrice : 0;
+            total += unitPrice * qty;
+          });
+          var fee = createOrderData._returnFee ? createOrderData._returnFee.amount : 0;
+          var refund = Math.max(0, total - fee);
+          box.style.display = 'block';
+          amountEl.textContent = '$' + refund.toFixed(2);
+          if (fee > 0) {
+            feeEl.style.display = 'block';
+            feeEl.textContent = 'Return fee: $' + fee.toFixed(2) + ' ' + (createOrderData._returnFee.currency || '');
+          } else {
+            feeEl.style.display = 'none';
+          }
+        }
+        list.addEventListener('change', function(e) {
+          if (e.target && (e.target.type === 'checkbox' || e.target.classList.contains('item-qty'))) {
+            updateEstimatedRefund();
+            checkAndShowOffer();
+          }
+        });
+        list.addEventListener('input', function(e) {
+          if (e.target && e.target.classList.contains('item-qty')) {
+            updateEstimatedRefund();
+          }
+        });
+
+        // Return offer matching (uses module-level currentMatchedOffer)
+        function checkAndShowOffer() {
+          var offerBox = document.getElementById('returnOfferBox');
+          if (!createOrderData || !createOrderData._returnOffers || !createOrderData._returnOffers.enabled) {
+            if (offerBox) offerBox.style.display = 'none';
+            currentMatchedOffer = null;
+            return;
+          }
+          var checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
+          if (checked.length === 0) { offerBox.style.display = 'none'; currentMatchedOffer = null; return; }
+          var reasonCode = document.getElementById('createReason').value;
+          var allTags = [];
+          checked.forEach(function(cb) {
+            var li = createOrderData.lineItems.find(function(l) { return l.id === cb.dataset.id; });
+            if (li && li.productTags) allTags = allTags.concat(li.productTags);
+          });
+          var tagsLower = allTags.map(function(t) { return t.toLowerCase(); });
+          var offers = createOrderData._returnOffers.offers || [];
+          var match = null;
+          for (var i = 0; i < offers.length; i++) {
+            var o = offers[i];
+            var reasonMatch = !o.reasonCode || o.reasonCode === reasonCode;
+            var tagMatch = !o.tag || tagsLower.indexOf(o.tag.toLowerCase()) >= 0;
+            if (reasonMatch && tagMatch) { match = o; break; }
+          }
+          currentMatchedOffer = match;
+          if (match) {
+            document.getElementById('returnOfferMessage').textContent = match.message;
+            offerBox.style.display = 'block';
+          } else {
+            offerBox.style.display = 'none';
+          }
+        }
+        document.getElementById('createReason').addEventListener('change', function() { checkAndShowOffer(); });
+
         var productType = (createOrderData.lineItems && createOrderData.lineItems[0]) ? (createOrderData.lineItems[0].productType || null) : null;
         fillReasonSelect(document.getElementById('createReason'), productType);
         document.getElementById('create-step1').classList.remove('active');
@@ -4083,6 +4199,14 @@
       document.getElementById('create-step2-manual').classList.remove('active');
       document.getElementById('create-step3').classList.remove('active');
       document.getElementById('create-step1').classList.add('active');
+      currentMatchedOffer = null;
+      var offerBox = document.getElementById('returnOfferBox');
+      if (offerBox) offerBox.style.display = 'none';
+      var acceptedBox = document.getElementById('offerAcceptedBox');
+      if (acceptedBox) acceptedBox.style.display = 'none';
+      var estimBox = document.getElementById('estimatedRefundBox');
+      if (estimBox) estimBox.style.display = 'none';
+      document.getElementById('btnSubmitReturn').style.display = '';
     };
 
     document.getElementById('btnManualBack').onclick = () => {
@@ -4142,6 +4266,71 @@
         btn.disabled = false;
         btn.textContent = 'Submit Return Request';
       }
+    };
+
+    // Return offer: accept
+    document.getElementById('btnAcceptOffer').onclick = async function() {
+      if (!createOrderData || !currentMatchedOffer) return;
+      var shop = document.getElementById('shop').value.trim();
+      var btn = this;
+      btn.disabled = true;
+      btn.textContent = 'Processing...';
+      try {
+        var checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
+        var reasonCode = document.getElementById('createReason').value;
+        var items = [];
+        checked.forEach(function(cb) {
+          var qtyInput = document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]');
+          items.push({ lineItemId: cb.dataset.id, qty: parseInt(qtyInput?.value || '1', 10), reasonCode: reasonCode });
+        });
+        var lineItemsWithPrice = createOrderData.lineItems.map(function(li) {
+          return { id: li.id, title: li.title, variantTitle: li.variantTitle || null, price: li.price || li.discountedPrice || null, imageUrl: li.imageUrl || null, productTags: li.productTags || [] };
+        });
+        var data = await fetchJson(API + '/create-return', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            shop: shop,
+            orderId: createOrderData.id,
+            shopifyOrderName: createOrderData.name,
+            orderCreatedAt: createOrderData.createdAt,
+            items: items,
+            lineItemsWithPrice: lineItemsWithPrice,
+            acceptOffer: true
+          })
+        });
+        if (data.offerAccepted && data.discountCode) {
+          document.getElementById('returnOfferBox').style.display = 'none';
+          document.getElementById('btnSubmitReturn').style.display = 'none';
+          document.getElementById('estimatedRefundBox').style.display = 'none';
+          var acceptedBox = document.getElementById('offerAcceptedBox');
+          document.getElementById('offerAcceptedMessage').textContent = data.offerMessage || 'Keep your item and enjoy your discount!';
+          document.getElementById('offerDiscountCode').textContent = data.discountCode;
+          acceptedBox.style.display = 'block';
+        }
+      } catch (e) {
+        document.getElementById('createErr2').textContent = e.message || 'Could not process offer. Please try again.';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Accept Offer';
+      }
+    };
+
+    // Return offer: decline (continue with normal return)
+    document.getElementById('btnDeclineOffer').onclick = function() {
+      document.getElementById('returnOfferBox').style.display = 'none';
+      currentMatchedOffer = null;
+    };
+
+    // Copy offer discount code
+    document.getElementById('btnCopyOfferCode').onclick = function() {
+      var code = document.getElementById('offerDiscountCode').textContent;
+      if (!code) return;
+      navigator.clipboard.writeText(code).then(function() {
+        var btn = document.getElementById('btnCopyOfferCode');
+        btn.textContent = 'Copied!';
+        setTimeout(function() { btn.textContent = 'Copy Code'; }, 2000);
+      }).catch(function() {});
     };
 
     document.getElementById('btnSubmitReturn').onclick = async () => {
@@ -4274,6 +4463,7 @@
 
     document.getElementById('btnCreateAnother').onclick = () => {
       createOrderData = null;
+      currentMatchedOffer = null;
       lastCreatedReturnId = null;
       lastCreatedReturnRequestId = null;
       filesStandard = [];

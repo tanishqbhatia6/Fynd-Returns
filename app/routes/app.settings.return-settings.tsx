@@ -23,6 +23,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const refundPaymentMethod = (s as { refundPaymentMethod?: string } | null | undefined)?.refundPaymentMethod ?? "original";
   const refundStoreCreditPct = (s as { refundStoreCreditPct?: number | null } | null | undefined)?.refundStoreCreditPct ?? 100;
 
+  const discountCodeRefundEnabled = s?.discountCodeRefundEnabled ?? false;
+  const discountCodePrefix = s?.discountCodePrefix ?? "RETURN";
+  const discountCodeExpiryDays = s?.discountCodeExpiryDays ?? 90;
+
   return {
     noReturnPeriodEnabled: s?.noReturnPeriodEnabled ?? false,
     noReturnPeriodStart: s?.noReturnPeriodStart ? new Date(s.noReturnPeriodStart).toISOString().slice(0, 10) : "",
@@ -38,6 +42,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     refundPaymentMethod,
     refundStoreCreditPct,
     shopLocations,
+    discountCodeRefundEnabled,
+    discountCodePrefix,
+    discountCodeExpiryDays,
   };
 };
 
@@ -57,6 +64,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const refundLocationId = (formData.get("refundLocationId") as string | null) || null;
   const refundPaymentMethod = (formData.get("refundPaymentMethod") as string) ?? "original";
   const refundStoreCreditPct = Math.min(100, Math.max(0, parseInt(String(formData.get("refundStoreCreditPct") ?? "100"), 10) || 100));
+  const discountCodeRefundEnabled = formData.get("discountCodeRefundEnabled") === "on";
+  const discountCodePrefix = (formData.get("discountCodePrefix") as string | null)?.trim() || "RETURN";
+  const discountCodeExpiryDays = Math.max(1, parseInt(String(formData.get("discountCodeExpiryDays") ?? "90"), 10) || 90);
 
   const shop = await findOrCreateShop(session.shop);
 
@@ -90,6 +100,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       refundLocationId,
       refundPaymentMethod,
       refundStoreCreditPct,
+      discountCodeRefundEnabled,
+      discountCodePrefix,
+      discountCodeExpiryDays,
     },
     update: {
       noReturnPeriodEnabled,
@@ -105,6 +118,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       refundLocationId,
       refundPaymentMethod,
       refundStoreCreditPct,
+      discountCodeRefundEnabled,
+      discountCodePrefix,
+      discountCodeExpiryDays,
     },
   });
   return { success: true };
@@ -117,24 +133,30 @@ export default function ReturnSettings() {
   const [tagInput, setTagInput] = React.useState("");
   const [locationMode, setLocationMode] = React.useState<"auto" | "manual">(data.refundLocationMode === "manual" ? "manual" : "auto");
   const [selectedLocId, setSelectedLocId] = React.useState(data.refundLocationId ?? "");
-  const [paymentMethod, setPaymentMethod] = React.useState<"original" | "store_credit" | "both">(
-    (["original", "store_credit", "both"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both"
+  const [paymentMethod, setPaymentMethod] = React.useState<"original" | "store_credit" | "both" | "discount_code">(
+    (["original", "store_credit", "both", "discount_code"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both" | "discount_code"
   );
   const [storeCreditPct, setStoreCreditPct] = React.useState(data.refundStoreCreditPct ?? 100);
   const [photoRequired, setPhotoRequired] = React.useState(data.photoRequired);
   const [autoApproveEnabled, setAutoApproveEnabled] = React.useState(data.autoApproveEnabled);
   const [autoRefundEnabled, setAutoRefundEnabled] = React.useState(data.autoRefundEnabled);
+  const [dcEnabled, setDcEnabled] = React.useState(data.discountCodeRefundEnabled);
+  const [dcPrefix, setDcPrefix] = React.useState(data.discountCodePrefix);
+  const [dcExpiryDays, setDcExpiryDays] = React.useState(data.discountCodeExpiryDays);
 
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
     setLocationMode(data.refundLocationMode === "manual" ? "manual" : "auto");
     setSelectedLocId(data.refundLocationId ?? "");
-    setPaymentMethod((["original", "store_credit", "both"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both");
+    setPaymentMethod((["original", "store_credit", "both", "discount_code"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both" | "discount_code");
     setStoreCreditPct(data.refundStoreCreditPct ?? 100);
     setPhotoRequired(data.photoRequired);
     setAutoApproveEnabled(data.autoApproveEnabled);
     setAutoRefundEnabled(data.autoRefundEnabled);
-  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled]);
+    setDcEnabled(data.discountCodeRefundEnabled);
+    setDcPrefix(data.discountCodePrefix);
+    setDcExpiryDays(data.discountCodeExpiryDays);
+  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -158,6 +180,9 @@ export default function ReturnSettings() {
     fd.set("refundLocationId", selectedLocId);
     fd.set("refundPaymentMethod", paymentMethod);
     fd.set("refundStoreCreditPct", String(storeCreditPct));
+    fd.set("discountCodeRefundEnabled", dcEnabled ? "on" : "off");
+    fd.set("discountCodePrefix", dcPrefix);
+    fd.set("discountCodeExpiryDays", String(dcExpiryDays));
     fetcher.submit(fd, { method: "post" });
   };
 
@@ -408,6 +433,23 @@ export default function ReturnSettings() {
                   </div>
                 </div>
               </label>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14,
+                background: paymentMethod === "discount_code" ? "#F5F3FF" : "#F9FAFB",
+                borderRadius: 10, border: paymentMethod === "discount_code" ? "2px solid #8B5CF6" : "1px solid #E5E7EB",
+                transition: "all 0.15s",
+              }}>
+                <input type="radio" checked={paymentMethod === "discount_code"} onChange={() => { setPaymentMethod("discount_code"); setDcEnabled(true); }} style={{ marginTop: 3 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                    Discount code
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4, lineHeight: 1.5 }}>
+                    Generate a single-use Shopify discount code for the refund amount. The customer can apply it at checkout on their next order.
+                  </div>
+                </div>
+              </label>
             </div>
             {paymentMethod === "both" && (
               <div style={{ padding: 16, background: "#FFFBEB", borderRadius: 10, border: "1px solid #FDE68A" }}>
@@ -445,6 +487,55 @@ export default function ReturnSettings() {
               <div style={{ marginTop: 12, padding: 12, background: "#F0FDF4", borderRadius: 8, fontSize: 12, color: "#166534", display: "flex", alignItems: "flex-start", gap: 8 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                 <span>Store credit requires new customer accounts to be enabled in Shopify Settings. The order must also be associated with a customer.</span>
+              </div>
+            )}
+            {(paymentMethod === "discount_code" || dcEnabled) && (
+              <div style={{ marginTop: 16, padding: 16, background: "#F5F3FF", borderRadius: 10, border: "1px solid #DDD6FE" }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, display: "flex", alignItems: "center", gap: 8, color: "#5B21B6" }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                  Discount Code Settings
+                </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                  <div>
+                    <div style={{ fontWeight: 500, fontSize: 13 }}>Enable discount code refund</div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>Show as a refund method option in the refund modal</div>
+                  </div>
+                  <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                    <input type="checkbox" checked={dcEnabled} onChange={(e) => setDcEnabled(e.target.checked)}
+                      style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                    <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: dcEnabled ? "#8B5CF6" : "#cbd5e1" }}>
+                      <span style={{ position: "absolute", left: dcEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                    </span>
+                  </label>
+                </div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 160 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 4 }}>Code prefix</label>
+                    <input
+                      type="text"
+                      value={dcPrefix}
+                      onChange={(e) => setDcPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
+                      placeholder="RETURN"
+                      maxLength={20}
+                      style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, boxSizing: "border-box", fontFamily: "monospace" }}
+                    />
+                    <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 4 }}>e.g. {dcPrefix}-RPM-A1B2C3D4</div>
+                  </div>
+                  <div style={{ minWidth: 120 }}>
+                    <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 4 }}>Expiry (days)</label>
+                    <input
+                      type="number"
+                      value={dcExpiryDays}
+                      onChange={(e) => setDcExpiryDays(Math.max(1, parseInt(e.target.value, 10) || 90))}
+                      min={1}
+                      max={365}
+                      style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, boxSizing: "border-box" }}
+                    />
+                  </div>
+                </div>
+                <input type="hidden" name="discountCodeRefundEnabled" value={dcEnabled ? "on" : "off"} />
+                <input type="hidden" name="discountCodePrefix" value={dcPrefix} />
+                <input type="hidden" name="discountCodeExpiryDays" value={String(dcExpiryDays)} />
               </div>
             )}
           </s-section>

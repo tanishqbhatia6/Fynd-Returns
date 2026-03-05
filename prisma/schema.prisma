@@ -115,6 +115,20 @@ model ShopSettings {
   // Return shipping label
   defaultReturnInstructions  String?  @db.Text // Default instructions shown to customer after approval
 
+  // Customizable email templates
+  emailTemplatesJson         String?  @db.Text // JSON { eventType: { subject, bodyHtml } }
+
+  // Product-level return policies
+  productPoliciesJson        String?  @db.Text // JSON array: [{ match: {tags?, collections?, productTypes?}, windowDays, policyText? }]
+
+  // Discount code refund
+  discountCodeRefundEnabled  Boolean  @default(false)
+  discountCodePrefix         String?  @default("RETURN")
+  discountCodeExpiryDays     Int      @default(90)
+
+  // Return offers / incentives
+  returnOffersEnabled        Boolean  @default(false) // Offer discounts to keep item instead of returning
+
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 
@@ -154,6 +168,9 @@ model ReturnCase {
   returnLabelJson   String?   @db.Text // JSON: { carrier, trackingNumber, labelUrl, qrCodeUrl }
   isGreenReturn     Boolean   @default(false) // Customer keeps item
   bonusCreditAmount String?   // Extra bonus credit applied
+  discountCode      String?   // Generated discount code for refund
+  discountCodeValue String?   // Amount of the discount code
+  orderProcessedAt  DateTime? // Original order processed date (for deadline calculation)
   fyndSyncStatus    String?   // "pending" | "synced" | "failed" | "retry_scheduled"
   fyndSyncRetries   Int      @default(0)
   fyndSyncError     String?  @db.Text

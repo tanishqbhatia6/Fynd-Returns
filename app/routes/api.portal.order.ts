@@ -79,8 +79,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   try {
-    const { admin } = await shopify.unauthenticated.admin(shopDomain);
-    let order = await fetchOrderByOrderNumber(admin, orderNumber);
+    const { admin, session } = await shopify.unauthenticated.admin(shopDomain);
+    const restCtx = { shopDomain, accessToken: (session as { accessToken?: string }).accessToken ?? "" };
+    let order = await fetchOrderByOrderNumber(admin, orderNumber, restCtx);
 
     // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName
     if (!order) {

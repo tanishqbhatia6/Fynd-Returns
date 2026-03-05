@@ -178,8 +178,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } else if (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") {
       const orderNumber = rawValue.replace(/^#/, "");
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
-        const order = await fetchOrderByOrderNumber(admin, orderNumber);
+        const { admin, session } = await shopify.unauthenticated.admin(shopDomain);
+        const restCtx = { shopDomain, accessToken: (session as { accessToken?: string }).accessToken ?? "" };
+        const order = await fetchOrderByOrderNumber(admin, orderNumber, restCtx);
         if (order) {
           orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
         }

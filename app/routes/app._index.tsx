@@ -20,6 +20,7 @@ function buildSuggestions(data: {
   pendingCount: number;
   rejectedCount: number;
   approvedCount: number;
+  approvedNotRefundedCount: number;
   topReasons: { reason: string; count: number }[];
   hasFyndConfig: boolean;
   fyndSyncedCount: number;
@@ -49,12 +50,12 @@ function buildSuggestions(data: {
     });
   }
 
-  if (data.refundedCount < data.approvedCount && data.approvedCount > 0) {
+  if (data.approvedNotRefundedCount > 0) {
     suggestions.push({
       type: "info",
-      message: `${data.approvedCount - data.refundedCount} approved return${data.approvedCount - data.refundedCount > 1 ? "s" : ""} not yet refunded.`,
+      message: `${data.approvedNotRefundedCount} approved return${data.approvedNotRefundedCount > 1 ? "s" : ""} awaiting refund.`,
       action: "View returns",
-      actionUrl: "/app/returns",
+      actionUrl: "/app/returns?status=approved",
     });
   }
 
@@ -128,7 +129,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const [
       totalReturns, returnsByStatus, recentReturns, reasonAggregation,
       refundedCount, fyndSyncedCount, pendingCount, rejectedCount,
-      allTimeReturns, approvedWithEvents, returnsForDaily,
+      allTimeReturns, approvedWithEvents, returnsForDaily, approvedNotRefundedCount,
     ] = await Promise.all([
       prisma.returnCase.count({ where }),
       prisma.returnCase.groupBy({ by: ["status"], where, _count: true }),
@@ -141,6 +142,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: whereAll }),
       prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true } }),
       prisma.returnCase.findMany({ where, select: { createdAt: true } }),
+      prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
     ]);
 
     const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
@@ -193,6 +195,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const suggestions = buildSuggestions({
       totalReturns, pendingCount, rejectedCount, approvedCount,
+      approvedNotRefundedCount,
       topReasons, hasFyndConfig, fyndSyncedCount, refundedCount,
       avgProcessingDays, rangeLabel,
     });

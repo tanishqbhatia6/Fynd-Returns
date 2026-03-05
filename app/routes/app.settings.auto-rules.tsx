@@ -237,7 +237,7 @@ export default function AutoApproveRulesSettings() {
                           <select
                             value={rule.field}
                             onChange={(e) => updateRule(rule._key, { field: e.target.value as AutoApproveRule["field"] })}
-                            style={{ padding: 8, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, width: "100%" }}
+                            style={{ padding: "8px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, width: "100%", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                           >
                             {FIELD_OPTIONS.map((f) => (
                               <option key={f.value} value={f.value}>{f.label}</option>
@@ -249,7 +249,7 @@ export default function AutoApproveRulesSettings() {
                           <select
                             value={rule.operator}
                             onChange={(e) => updateRule(rule._key, { operator: e.target.value as AutoApproveRule["operator"] })}
-                            style={{ padding: 8, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, width: "100%" }}
+                            style={{ padding: "8px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, width: "100%", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                           >
                             {(OPERATOR_OPTIONS[rule.field] ?? []).map((o) => (
                               <option key={o.value} value={o.value}>{o.label}</option>
@@ -268,7 +268,7 @@ export default function AutoApproveRulesSettings() {
                               rule.field === "productTag" ? "easy-return" :
                               "3"
                             }
-                            style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, boxSizing: "border-box" }}
+                            style={{ width: "100%", padding: "8px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, boxSizing: "border-box", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                           />
                         </div>
                         <div style={{ minWidth: 170 }}>
@@ -277,7 +277,7 @@ export default function AutoApproveRulesSettings() {
                             value={rule.action}
                             onChange={(e) => updateRule(rule._key, { action: e.target.value as AutoApproveRule["action"] })}
                             style={{
-                              padding: 8, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, width: "100%",
+                              padding: "8px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px solid #e1e3e5", fontSize: 13, width: "100%",
                               background: rule.action === "manual_review" ? "#FEF2F2" : "#F0FDF4",
                               color: rule.action === "manual_review" ? "#DC2626" : "#166534",
                               fontWeight: 600,
@@ -297,9 +297,9 @@ export default function AutoApproveRulesSettings() {
                 type="button"
                 onClick={addRule}
                 style={{
-                  padding: "10px 16px", borderRadius: 8, border: "1px dashed #e1e3e5",
-                  background: "#fff", color: "#6d7175", fontSize: 14, cursor: "pointer",
-                  width: "100%",
+                  padding: "10px 16px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px dashed var(--rpm-border-color, #e1e3e5)",
+                  background: "var(--rpm-surface, #fff)", color: "var(--rpm-text-muted, #6d7175)", fontSize: 14, cursor: "pointer",
+                  width: "100%", transition: "var(--rpm-transition, all 0.15s)",
                 }}
               >
                 + Add rule

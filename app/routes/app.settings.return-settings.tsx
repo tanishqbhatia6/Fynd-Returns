@@ -121,6 +121,9 @@ export default function ReturnSettings() {
     (["original", "store_credit", "both"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both"
   );
   const [storeCreditPct, setStoreCreditPct] = React.useState(data.refundStoreCreditPct ?? 100);
+  const [photoRequired, setPhotoRequired] = React.useState(data.photoRequired);
+  const [autoApproveEnabled, setAutoApproveEnabled] = React.useState(data.autoApproveEnabled);
+  const [autoRefundEnabled, setAutoRefundEnabled] = React.useState(data.autoRefundEnabled);
 
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
@@ -128,7 +131,10 @@ export default function ReturnSettings() {
     setSelectedLocId(data.refundLocationId ?? "");
     setPaymentMethod((["original", "store_credit", "both"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both");
     setStoreCreditPct(data.refundStoreCreditPct ?? 100);
-  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct]);
+    setPhotoRequired(data.photoRequired);
+    setAutoApproveEnabled(data.autoApproveEnabled);
+    setAutoRefundEnabled(data.autoRefundEnabled);
+  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -145,6 +151,9 @@ export default function ReturnSettings() {
     const form = e.currentTarget;
     const fd = new FormData(form);
     fd.set("restrictedProductTagsJson", JSON.stringify(tags));
+    fd.set("photoRequired", photoRequired ? "on" : "off");
+    fd.set("autoApproveEnabled", autoApproveEnabled ? "on" : "off");
+    fd.set("autoRefundEnabled", autoRefundEnabled ? "on" : "off");
     fd.set("refundLocationMode", locationMode);
     fd.set("refundLocationId", selectedLocId);
     fd.set("refundPaymentMethod", paymentMethod);
@@ -231,21 +240,31 @@ export default function ReturnSettings() {
 
           {/* Photo Required */}
           <s-section>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Photo Required</div>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
-              Set up exchange settings that benefit both customers and the business for maximum convenience.
-            </p>
-            <p style={{ fontSize: 13, marginBottom: 12 }}>Please share item photos for better assistance with inquiries or concerns.</p>
-            <div style={{ display: "flex", gap: 16 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="photoRequired" value="on" defaultChecked={data.photoRequired} />
-                <span>Yes</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="photoRequired" value="off" defaultChecked={!data.photoRequired} />
-                <span>No</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: photoRequired ? "#EFF6FF" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={photoRequired ? "#3B82F6" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.15s" }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Photo Required</div>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" checked={photoRequired} onChange={(e) => setPhotoRequired(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: photoRequired ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: photoRequired ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
               </label>
             </div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 10 }}>
+              Require customers to upload item photos for better assistance with return inquiries or concerns.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: photoRequired ? "#22C55E" : "#D1D5DB", transition: "background 0.15s" }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: photoRequired ? "#15803D" : "#6B7280", transition: "color 0.15s" }}>
+                {photoRequired ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+            <input type="hidden" name="photoRequired" value={photoRequired ? "on" : "off"} />
           </s-section>
 
           {/* Return Fee */}
@@ -274,39 +293,61 @@ export default function ReturnSettings() {
 
           {/* Auto Approval */}
           <s-section>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto Approval</div>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
-              You have the flexibility to either manually approve return requests or opt for an automatic approval process.
-            </p>
-            <div style={{ display: "flex", gap: 16 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="autoApproveEnabled" value="on" defaultChecked={data.autoApproveEnabled} />
-                <span>Return request approve automatically — Yes</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="autoApproveEnabled" value="off" defaultChecked={!data.autoApproveEnabled} />
-                <span>No</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: autoApproveEnabled ? "#F0FDF4" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={autoApproveEnabled ? "#22C55E" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.15s" }}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Auto Approval</div>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" checked={autoApproveEnabled} onChange={(e) => setAutoApproveEnabled(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: autoApproveEnabled ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: autoApproveEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
               </label>
             </div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 10 }}>
+              You have the flexibility to either manually approve return requests or opt for an automatic approval process.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: autoApproveEnabled ? "#22C55E" : "#D1D5DB", transition: "background 0.15s" }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: autoApproveEnabled ? "#15803D" : "#6B7280", transition: "color 0.15s" }}>
+                {autoApproveEnabled ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+            <input type="hidden" name="autoApproveEnabled" value={autoApproveEnabled ? "on" : "off"} />
           </s-section>
 
           {/* Auto Refund */}
           <s-section>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto Refund on Credit Note</div>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
-              When Fynd generates a credit note (status: credit_note_generated), automatically trigger a Shopify refund.
-              If disabled, refunds must be processed manually from the return detail page.
-            </p>
-            <div style={{ display: "flex", gap: 16 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="autoRefundEnabled" value="on" defaultChecked={data.autoRefundEnabled} />
-                <span>Auto-refund on credit note — Yes</span>
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="autoRefundEnabled" value="off" defaultChecked={!data.autoRefundEnabled} />
-                <span>No</span>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: autoRefundEnabled ? "#FFFBEB" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={autoRefundEnabled ? "#F59E0B" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.15s" }}><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Auto Refund on Credit Note</div>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" checked={autoRefundEnabled} onChange={(e) => setAutoRefundEnabled(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: autoRefundEnabled ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: autoRefundEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
               </label>
             </div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 10 }}>
+              When Fynd generates a credit note, automatically trigger a Shopify refund.
+              If disabled, refunds must be processed manually from the return detail page.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: autoRefundEnabled ? "#22C55E" : "#D1D5DB", transition: "background 0.15s" }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: autoRefundEnabled ? "#15803D" : "#6B7280", transition: "color 0.15s" }}>
+                {autoRefundEnabled ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+            <input type="hidden" name="autoRefundEnabled" value={autoRefundEnabled ? "on" : "off"} />
           </s-section>
 
           {/* Refund Payment Method */}

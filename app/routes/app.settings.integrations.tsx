@@ -337,14 +337,43 @@ export default function Integrations() {
           </p>
 
           <s-section heading="App Mode">
-            <div style={{ display: "flex", gap: 24, flexWrap: "wrap" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="appMode" value="dev" checked={appMode === "dev"} onChange={() => setAppMode("dev")} />
-                <span><strong>Dev</strong> — Test mode. Shows dev banner. Use with UAT credentials.</span>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 220px",
+                background: appMode === "dev" ? "#FFFBEB" : "#F9FAFB",
+                borderRadius: 10, border: appMode === "dev" ? "2px solid #F59E0B" : "1px solid #E5E7EB",
+                transition: "all 0.15s",
+              }}>
+                <input type="radio" name="appMode" value="dev" checked={appMode === "dev"} onChange={() => setAppMode("dev")} style={{ marginTop: 3 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={appMode === "dev" ? "#D97706" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+                    </svg>
+                    Development
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Test mode with dev banner. Use with UAT credentials.</div>
+                </div>
               </label>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input type="radio" name="appMode" value="prod" checked={appMode === "prod"} onChange={() => setAppMode("prod")} />
-                <span><strong>Prod Live</strong> — Live mode. Real operations. Use with production credentials.</span>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 220px",
+                background: appMode === "prod" ? "#F0FDF4" : "#F9FAFB",
+                borderRadius: 10, border: appMode === "prod" ? "2px solid #22C55E" : "1px solid #E5E7EB",
+                transition: "all 0.15s",
+              }}>
+                <input type="radio" name="appMode" value="prod" checked={appMode === "prod"} onChange={() => setAppMode("prod")} style={{ marginTop: 3 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={appMode === "prod" ? "#16A34A" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
+                      <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
+                      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
+                      <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
+                    </svg>
+                    Production
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Live mode with real operations. Use with production credentials.</div>
+                </div>
               </label>
             </div>
           </s-section>
@@ -352,14 +381,41 @@ export default function Integrations() {
           <s-section heading="Fynd Environment">
             <div className="app-field">
               <label>API Base URL</label>
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start", marginBottom: 8 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                  <input type="radio" name="fyndEnvironment" value="uat" checked={fyndEnvironment === "uat"} onChange={() => setFyndEnvironment("uat")} />
-                  <span>UAT (Sandbox)</span>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+                <label style={{
+                  display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 200px",
+                  background: fyndEnvironment === "uat" ? "#FFFBEB" : "#F9FAFB",
+                  borderRadius: 10, border: fyndEnvironment === "uat" ? "2px solid #F59E0B" : "1px solid #E5E7EB",
+                  transition: "all 0.15s",
+                }}>
+                  <input type="radio" name="fyndEnvironment" value="uat" checked={fyndEnvironment === "uat"} onChange={() => setFyndEnvironment("uat")} style={{ marginTop: 3 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={fyndEnvironment === "uat" ? "#D97706" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 3h6l2 7H7L9 3z" /><path d="M7 10l-2 8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1l-2-8" /><path d="M12 3v7" />
+                      </svg>
+                      UAT (Sandbox)
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Test environment for development and staging</div>
+                  </div>
                 </label>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                  <input type="radio" name="fyndEnvironment" value="prod" checked={fyndEnvironment === "prod"} onChange={() => setFyndEnvironment("prod")} />
-                  <span>Production</span>
+                <label style={{
+                  display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 200px",
+                  background: fyndEnvironment === "prod" ? "#F0FDF4" : "#F9FAFB",
+                  borderRadius: 10, border: fyndEnvironment === "prod" ? "2px solid #22C55E" : "1px solid #E5E7EB",
+                  transition: "all 0.15s",
+                }}>
+                  <input type="radio" name="fyndEnvironment" value="prod" checked={fyndEnvironment === "prod"} onChange={() => setFyndEnvironment("prod")} style={{ marginTop: 3 }} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={fyndEnvironment === "prod" ? "#16A34A" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                        <line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" />
+                      </svg>
+                      Production
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Live Fynd environment for real operations</div>
+                  </div>
                 </label>
               </div>
               <p className="app-field-helper">
@@ -432,8 +488,31 @@ export default function Integrations() {
                 </div>
               </div>
               <div className="app-field" style={{ marginBottom: 16 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontWeight: 500 }}>
-                  <input type="checkbox" name="policyAllowExchange" defaultChecked={data.policy.allowExchange} />
+                <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontWeight: 500 }}>
+                  <span style={{ position: "relative", display: "inline-block", width: 40, height: 22, flexShrink: 0 }}>
+                    <input type="checkbox" name="policyAllowExchange" defaultChecked={data.policy.allowExchange} style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+                      onChange={(e) => {
+                        const track = e.target.nextElementSibling as HTMLElement;
+                        if (track) {
+                          track.style.background = e.target.checked ? "#22C55E" : "#D1D5DB";
+                          const knob = track.firstElementChild as HTMLElement;
+                          if (knob) knob.style.transform = e.target.checked ? "translateX(18px)" : "translateX(0)";
+                        }
+                      }}
+                    />
+                    <span style={{
+                      position: "absolute", inset: 0, borderRadius: 11,
+                      background: data.policy.allowExchange ? "#22C55E" : "#D1D5DB",
+                      transition: "background 0.2s", cursor: "pointer",
+                    }}>
+                      <span style={{
+                        position: "absolute", left: 2, top: 2, width: 18, height: 18, borderRadius: "50%",
+                        background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                        transition: "transform 0.2s",
+                        transform: data.policy.allowExchange ? "translateX(18px)" : "translateX(0)",
+                      }} />
+                    </span>
+                  </span>
                   <span>Allow exchange</span>
                 </label>
               </div>

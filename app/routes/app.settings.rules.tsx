@@ -210,12 +210,12 @@ export default function ReturnRules() {
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Offers</h3>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Offer discounts during Return to reduce RTO by encouraging customers to keep the product. This lowers Return costs and boosts future purchases.
+              Offer discounts during returns to encourage customers to keep the product, reducing return costs.
             </p>
           </div>
           <s-section heading="Return Offers">
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
-              Configure and manage Return offers based on specific reasons and order tags conditions
+              Configure offers based on return reasons and order tags.
             </p>
             <s-button variant="secondary" type="button">Add New Offer</s-button>
           </s-section>
@@ -223,7 +223,7 @@ export default function ReturnRules() {
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Price Rules</h3>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              To initiate a Return, product price must be greater than minimum price.
+              Products below this price are not eligible for returns.
             </p>
           </div>
           <s-section heading="Minimum Price">
@@ -233,7 +233,7 @@ export default function ReturnRules() {
               defaultValue={data.minimumReturnPrice}
               min={0}
               step="0.01"
-              style={{ width: 120, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}
+              style={{ width: 120, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)", boxSizing: "border-box" }}
             />
           </s-section>
 
@@ -251,7 +251,7 @@ export default function ReturnRules() {
                 value={reasonInput}
                 onChange={(e) => setReasonInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addReason())}
-                style={{ flex: 1, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}
+                style={{ flex: 1, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
               />
               <s-button type="button" variant="secondary" onClick={addReason}>Add</s-button>
             </div>
@@ -286,7 +286,7 @@ export default function ReturnRules() {
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return reasons by category</h3>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Optionally show different reasons per product type (e.g. Apparel vs Electronics). Category name should match your Shopify product type. If no category matches, the default reasons above are used.
+              Show different reasons per product type. Category names must match your Shopify product types.
             </p>
           </div>
           <s-section heading="Category-specific reasons">
@@ -298,9 +298,9 @@ export default function ReturnRules() {
                     placeholder="Category / Product type (e.g. Apparel)"
                     value={cat.category}
                     onChange={(e) => setCategoryName(idx, e.target.value)}
-                    style={{ flex: 1, maxWidth: 240, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 14 }}
+                    style={{ flex: 1, maxWidth: 240, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                   />
-                  <button type="button" onClick={() => removeCategory(idx)} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #d72c0d", background: "#fff", color: "#d72c0d", fontSize: 13, cursor: "pointer" }}>Remove category</button>
+                  <button type="button" onClick={() => removeCategory(idx)} style={{ padding: "8px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px solid #FECACA", background: "var(--rpm-surface, #fff)", color: "#DC2626", fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "var(--rpm-transition, all 0.15s)" }}>Remove</button>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
                   {cat.reasons.map((r) => (
@@ -315,19 +315,19 @@ export default function ReturnRules() {
                     value={categoryReasonInputs[idx] ?? ""}
                     onChange={(e) => setCategoryReasonInputs((prev) => ({ ...prev, [idx]: e.target.value }))}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReasonToCategory(idx, (e.target as HTMLInputElement).value); } }}
-                    style={{ width: 120, padding: "6px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}
+                    style={{ width: 120, padding: "6px 10px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                   />
-                  <button type="button" onClick={() => addReasonToCategory(idx, categoryReasonInputs[idx] ?? "")} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid #e1e3e5", background: "#fff", fontSize: 13, cursor: "pointer" }}>Add</button>
+                  <button type="button" onClick={() => addReasonToCategory(idx, categoryReasonInputs[idx] ?? "")} style={{ padding: "6px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", background: "var(--rpm-surface, #fff)", fontSize: 13, fontWeight: 500, cursor: "pointer", color: "var(--rpm-text-secondary, #374151)", transition: "var(--rpm-transition, all 0.15s)" }}>Add</button>
                 </div>
               </div>
             ))}
-            <button type="button" onClick={addCategory} style={{ padding: "10px 16px", borderRadius: 8, border: "1px dashed #e1e3e5", background: "#fff", color: "#6d7175", fontSize: 14, cursor: "pointer" }}>+ Add category</button>
+            <button type="button" onClick={addCategory} style={{ padding: "10px 16px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px dashed var(--rpm-border-color, #e1e3e5)", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text-muted, #6d7175)", fontSize: 14, cursor: "pointer", transition: "var(--rpm-transition, all 0.15s)", width: "100%" }}>+ Add category</button>
           </s-section>
 
           <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return restrict countries and provinces</h3>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Restricted regions</h3>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Orders not returnable from selected countries and provinces
+              Orders from these countries or provinces are not eligible for returns.
             </p>
           </div>
           <s-section heading="Search country">
@@ -338,7 +338,7 @@ export default function ReturnRules() {
                 value={regionInput}
                 onChange={(e) => setRegionInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRegion())}
-                style={{ flex: 1, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}
+                style={{ flex: 1, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
               />
               <s-button type="button" variant="secondary" onClick={addRegion}>Add</s-button>
             </div>
@@ -373,7 +373,7 @@ export default function ReturnRules() {
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Days</h3>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Establish the return window as the designated time frame during which customers can initiate a return.
+              Number of days after purchase within which customers can initiate a return.
             </p>
           </div>
           <s-section heading="Return Policy Duration">
@@ -383,7 +383,7 @@ export default function ReturnRules() {
               defaultValue={data.returnWindowDays}
               min={1}
               max={365}
-              style={{ width: 120, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}
+              style={{ width: 120, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)", boxSizing: "border-box" }}
             />
             <span style={{ marginLeft: 8, fontSize: 14, color: "#6d7175" }}>days</span>
           </s-section>

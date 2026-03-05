@@ -181,7 +181,7 @@ export default function BlocklistSettings() {
                     name="type"
                     value={type}
                     onChange={(e) => setType(e.target.value)}
-                    style={{ padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, minWidth: 140 }}
+                    style={{ padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, minWidth: 140, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                   >
                     <option value="email">Email</option>
                     <option value="phone">Phone</option>
@@ -197,7 +197,7 @@ export default function BlocklistSettings() {
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     placeholder={type === "email" ? "customer@example.com" : type === "phone" ? "+1234567890" : type === "order_name" ? "#1234" : "192.168.1.1"}
-                    style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, boxSizing: "border-box", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                     required
                   />
                 </div>
@@ -209,7 +209,7 @@ export default function BlocklistSettings() {
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="e.g. Suspected fraud"
-                    style={{ width: "100%", padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, boxSizing: "border-box" }}
+                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, boxSizing: "border-box", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
                   />
                 </div>
                 <s-button type="submit" variant="primary" disabled={isSubmitting || !value.trim()}>Add</s-button>

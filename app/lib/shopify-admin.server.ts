@@ -79,114 +79,79 @@ const ORDERS_QUERY = `#graphql
   }
 `;
 
+const ORDER_FIELDS_FRAGMENT = `
+  id
+  name
+  createdAt
+  processedAt
+  closedAt
+  cancelledAt
+  email
+  phone
+  totalPriceSet { shopMoney { amount currencyCode } }
+  totalDiscountsSet { shopMoney { amount } }
+  subtotalPriceSet { shopMoney { amount } }
+  displayFinancialStatus
+  displayFulfillmentStatus
+  discountCodes
+  paymentGatewayNames
+  note
+  shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
+  billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
+  customAttributes { key value }
+  fulfillments(first: 10) {
+    id
+    status
+    createdAt
+    updatedAt
+    deliveredAt
+    displayStatus
+    estimatedDeliveryAt
+    inTransitAt
+    totalQuantity
+    location { id name }
+    trackingInfo(first: 5) {
+      number
+      url
+      company
+    }
+  }
+  lineItems(first: 50) {
+    nodes {
+      id
+      title
+      variantTitle
+      sku
+      quantity
+      originalUnitPriceSet { shopMoney { amount } }
+      discountedUnitPriceSet { shopMoney { amount } }
+      originalTotalSet { shopMoney { amount } }
+      discountedTotalSet { shopMoney { amount } }
+      image { url }
+      variant { product { tags, productType } }
+    }
+  }
+`;
+
 const ORDERS_BY_NAME_QUERY = `#graphql
   query getOrdersByName($query: String!) {
     orders(first: 1, query: $query, sortKey: CREATED_AT, reverse: true) {
       nodes {
-        id
-        name
-        createdAt
-        processedAt
-        closedAt
-        cancelledAt
-        email
-        phone
-        totalPriceSet { shopMoney { amount currencyCode } }
-        totalDiscountsSet { shopMoney { amount } }
-        subtotalPriceSet { shopMoney { amount } }
-        displayFinancialStatus
-        displayFulfillmentStatus
-        discountCodes
-        paymentGatewayNames
-        note
-        shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
-        billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
-        customAttributes { key value }
-        fulfillments(first: 10) {
-          id
-          status
-          createdAt
-          updatedAt
-          deliveredAt
-          displayStatus
-          estimatedDeliveryAt
-          inTransitAt
-          totalQuantity
-          location { id name }
-          trackingInfo(first: 5) {
-            number
-            url
-            company
-          }
-        }
-        lineItems(first: 50) {
-          nodes {
-            id
-            title
-            variantTitle
-            sku
-            quantity
-            originalUnitPriceSet { shopMoney { amount } }
-            discountedUnitPriceSet { shopMoney { amount } }
-            originalTotalSet { shopMoney { amount } }
-            discountedTotalSet { shopMoney { amount } }
-            image { url }
-            variant { product { tags, productType } }
-          }
-        }
+        ${ORDER_FIELDS_FRAGMENT}
       }
     }
   }
 `;
 
-const ORDERS_BY_CUSTOMER_QUERY = `#graphql
-  query getOrdersByCustomer($query: String!) {
-    orders(first: 50, query: $query, sortKey: CREATED_AT, reverse: true) {
-      nodes {
-        id
-        name
-        createdAt
-        processedAt
-        closedAt
-        cancelledAt
-        email
-        totalPriceSet { shopMoney { amount currencyCode } }
-        subtotalPriceSet { shopMoney { amount } }
-        totalDiscountsSet { shopMoney { amount } }
-        displayFinancialStatus
-        displayFulfillmentStatus
-        shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
-        fulfillments(first: 10) {
-          id
-          status
-          createdAt
-          updatedAt
-          deliveredAt
-          displayStatus
-          estimatedDeliveryAt
-          inTransitAt
-          totalQuantity
-          location { id name }
-          trackingInfo(first: 5) {
-            number
-            url
-            company
-          }
-        }
-        lineItems(first: 5) {
-          nodes {
-            id
-            title
-            variantTitle
-            quantity
-            originalUnitPriceSet { shopMoney { amount } }
-            image { url }
-          }
-        }
-      }
+const ORDER_BY_IDENTIFIER_QUERY = `#graphql
+  query getOrderByIdentifier($id: ID!) {
+    orderByIdentifier(identifier: { id: $id }) {
+      ${ORDER_FIELDS_FRAGMENT}
     }
   }
 `;
+
+/* All multi-order queries now use fetchOrdersByFilter() with inline GQL */
 
 const REFUND_MUTATION = `#graphql
   mutation refundCreate($input: RefundInput!) {
@@ -290,6 +255,73 @@ export class OrderAccessError extends Error {
   }
 }
 
+/**
+ * Direct O(1) lookup by Shopify GID using orderByIdentifier.
+ * Faster than search when we already have the GID (e.g. from DB cache).
+ */
+export async function fetchOrderByGid(
+  admin: AdminGraphQL,
+  gid: string
+): Promise<OrderForPortal | null> {
+  if (!gid || !gid.startsWith("gid://")) return null;
+  try {
+    const res = await admin.graphql(ORDER_BY_IDENTIFIER_QUERY, { variables: { id: gid } });
+    const json = (await res.json()) as {
+      data?: { orderByIdentifier?: Record<string, unknown> | null };
+      errors?: Array<{ message?: string }>;
+    };
+    const errMsg = json.errors?.[0]?.message ?? "";
+    if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
+      throw new OrderAccessError(errMsg, "PCDA");
+    }
+    if (json.errors?.length) return null;
+    const node = json.data?.orderByIdentifier;
+    if (!node || !("name" in node)) return null;
+    return parseOrderNode(node);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+    return null;
+  }
+}
+
+/**
+ * Search orders using a single Shopify Admin GraphQL call.
+ * Handles PCDA errors and returns the first matching order node.
+ */
+async function searchOrders(
+  admin: AdminGraphQL,
+  query: string,
+  throwOnError = true
+): Promise<unknown | null> {
+  const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query } });
+  const json = (await res.json()) as {
+    data?: { orders?: { nodes?: Array<unknown> } };
+    errors?: Array<{ message?: string }>;
+  };
+  const errMsg = json.errors?.[0]?.message ?? "";
+  if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
+    throw new OrderAccessError(errMsg, "PCDA");
+  }
+  if (json.errors?.length) {
+    if (!throwOnError) return null;
+    throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
+  }
+  const found = json.data?.orders?.nodes?.[0];
+  return (found && typeof found === "object" && "name" in found) ? found : null;
+}
+
+/**
+ * Look up a Shopify order by number/identifier. Uses the official Shopify
+ * Admin GraphQL filters documented at:
+ * https://shopify.dev/docs/api/admin-graphql/latest/queries/orders
+ *
+ * Strategy (in order of priority):
+ * 1. orderByIdentifier — O(1) direct GID lookup
+ * 2. name: — standard Shopify order name filter
+ * 3. source_identifier: — third-party/external order IDs (Fynd, POS, etc.)
+ * 4. confirmation_number: — alternate customer-facing order identifier
+ * 5. tag: — tagged orders
+ */
 export async function fetchOrderByOrderNumber(
   admin: AdminGraphQL,
   orderNumber: string
@@ -297,85 +329,121 @@ export async function fetchOrderByOrderNumber(
   const clean = orderNumber.replace(/^#/, "").trim();
   if (!clean) return null;
 
-  // Try multiple name formats: #VALUE (Shopify default), VALUE (bare), and for pure digits #VALUE
-  const queries = /^\d+$/.test(clean)
-    ? [`name:#${clean}`]
+  // Direct GID lookup via orderByIdentifier
+  if (clean.startsWith("gid://shopify/Order/")) {
+    return fetchOrderByGid(admin, clean);
+  }
+
+  // Strategy 1: name: filter (primary for standard order names like #1001)
+  // The Shopify docs show name:1001-A — try both with and without #
+  const nameQueries = /^\d+$/.test(clean)
+    ? [`name:#${clean}`, `name:${clean}`]
     : [`name:#${clean}`, `name:${clean}`];
 
-  let node: unknown = null;
-  for (const query of queries) {
-    const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query } });
-    const json = (await res.json()) as {
-      data?: { orders?: { nodes?: Array<unknown> } };
-      errors?: Array<{ message?: string }>;
-    };
-    const errMsg = json.errors?.[0]?.message ?? "";
-    if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
-      throw new OrderAccessError(errMsg, "PCDA");
-    }
-    if (json.errors?.length) {
-      throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
-    }
-    const found = json.data?.orders?.nodes?.[0];
-    if (found && typeof found === "object" && "name" in found) {
-      node = found;
-      break;
+  for (const q of nameQueries) {
+    try {
+      const node = await searchOrders(admin, q);
+      if (node) return parseOrderNode(node);
+    } catch (err) {
+      if (err instanceof OrderAccessError) throw err;
     }
   }
-  if (!node || typeof node !== "object" || !("name" in node)) return null;
-  const o = node as {
+
+  // For pure numeric order names, no further strategies needed
+  if (/^\d+$/.test(clean)) return null;
+
+  // Strategy 2: source_identifier: — for third-party order IDs (Fynd affiliate_order_id, POS IDs)
+  // Documented at https://shopify.dev/docs/api/admin-graphql/latest/queries/orders
+  try {
+    const node = await searchOrders(admin, `source_identifier:${clean}`, false);
+    if (node) return parseOrderNode(node);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+
+  // Strategy 3: confirmation_number: — alternate customer-facing identifier
+  try {
+    const node = await searchOrders(admin, `confirmation_number:${clean}`, false);
+    if (node) return parseOrderNode(node);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+
+  // Strategy 4: tag: — orders tagged with external IDs
+  try {
+    const node = await searchOrders(admin, `tag:${clean}`, false);
+    if (node) return parseOrderNode(node);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+
+  // Strategy 5: default/free-text search (catches notes, etc.)
+  try {
+    const node = await searchOrders(admin, clean, false);
+    if (node) return parseOrderNode(node);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+
+  return null;
+}
+
+type RawOrderNode = {
+  id: string;
+  name: string;
+  createdAt: string;
+  processedAt?: string | null;
+  closedAt?: string | null;
+  cancelledAt?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+  totalDiscountsSet?: { shopMoney?: { amount?: string } };
+  subtotalPriceSet?: { shopMoney?: { amount?: string } };
+  displayFinancialStatus?: string;
+  displayFulfillmentStatus?: string;
+  discountCodes?: string[];
+  paymentGatewayNames?: string[];
+  note?: string | null;
+  customAttributes?: Array<{ key: string; value: string }>;
+  shippingAddress?: MailingAddressDisplay;
+  billingAddress?: MailingAddressDisplay;
+  fulfillments?: Array<{
     id: string;
-    name: string;
+    status: string;
     createdAt: string;
-    processedAt?: string | null;
-    closedAt?: string | null;
-    cancelledAt?: string | null;
-    email?: string | null;
-    phone?: string | null;
-    totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
-    totalDiscountsSet?: { shopMoney?: { amount?: string } };
-    subtotalPriceSet?: { shopMoney?: { amount?: string } };
-    displayFinancialStatus?: string;
-    displayFulfillmentStatus?: string;
-    discountCodes?: string[];
-    paymentGatewayNames?: string[];
-    note?: string | null;
-    customAttributes?: Array<{ key: string; value: string }>;
-    shippingAddress?: MailingAddressDisplay;
-    billingAddress?: MailingAddressDisplay;
-    fulfillments?: Array<{
-      id: string;
-      status: string;
-      createdAt: string;
-      updatedAt?: string | null;
-      deliveredAt?: string | null;
-      displayStatus?: string | null;
-      estimatedDeliveryAt?: string | null;
-      inTransitAt?: string | null;
-      totalQuantity?: number | null;
-      location?: { id: string; name: string } | null;
-      trackingInfo?: Array<{
-        number?: string | null;
-        url?: string | null;
-        company?: string | null;
-      }>;
+    updatedAt?: string | null;
+    deliveredAt?: string | null;
+    displayStatus?: string | null;
+    estimatedDeliveryAt?: string | null;
+    inTransitAt?: string | null;
+    totalQuantity?: number | null;
+    location?: { id: string; name: string } | null;
+    trackingInfo?: Array<{
+      number?: string | null;
+      url?: string | null;
+      company?: string | null;
     }>;
-    lineItems?: {
-      nodes?: Array<{
-        id: string;
-        title: string;
-        variantTitle?: string | null;
-        sku: string | null;
-        quantity: number;
-        originalUnitPriceSet?: { shopMoney?: { amount?: string } };
-        discountedUnitPriceSet?: { shopMoney?: { amount?: string } };
-        originalTotalSet?: { shopMoney?: { amount?: string } };
-        discountedTotalSet?: { shopMoney?: { amount?: string } };
-        image?: { url?: string } | null;
-        variant?: { product?: { tags?: string[]; productType?: string } };
-      }>;
-    };
+  }>;
+  lineItems?: {
+    nodes?: Array<{
+      id: string;
+      title: string;
+      variantTitle?: string | null;
+      sku: string | null;
+      quantity: number;
+      originalUnitPriceSet?: { shopMoney?: { amount?: string } };
+      discountedUnitPriceSet?: { shopMoney?: { amount?: string } };
+      originalTotalSet?: { shopMoney?: { amount?: string } };
+      discountedTotalSet?: { shopMoney?: { amount?: string } };
+      image?: { url?: string } | null;
+      variant?: { product?: { tags?: string[]; productType?: string } };
+    }>;
   };
+};
+
+function parseOrderNode(node: unknown): OrderForPortal {
+  const o = node as RawOrderNode;
   const affiliateOrderId = extractAffiliateOrderId(o.customAttributes);
   const lineItems: OrderLineItemForDisplay[] = (o.lineItems?.nodes ?? []).map((li) => ({
     id: li.id,
@@ -434,6 +502,65 @@ export async function fetchOrderByOrderNumber(
   };
 }
 
+const ORDERS_CUSTOM_ATTR_SEARCH_QUERY = `#graphql
+  query recentOrdersForAttrSearch($cursor: String) {
+    orders(first: 50, sortKey: CREATED_AT, reverse: true, after: $cursor) {
+      nodes {
+        id
+        name
+        customAttributes { key value }
+      }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+`;
+
+/**
+ * Searches up to 100 recent orders looking for one whose custom attribute
+ * (e.g. affiliate_order_id) matches the given value. Returns the Shopify
+ * order name if found. This is a last-resort fallback; prefer DB lookups
+ * (FyndOrderMapping / ReturnCase) or orderByIdentifier when possible.
+ */
+export async function findOrderNameByCustomAttribute(
+  admin: AdminGraphQL,
+  attrValue: string
+): Promise<string | null> {
+  const target = attrValue.toLowerCase().trim();
+  if (!target) return null;
+  const ATTR_KEYS = ["affiliate_order_id", "fynd_order_id", "order_id", "external_order_id"];
+  let cursor: string | null = null;
+  for (let page = 0; page < 2; page++) {
+    try {
+      const res = await admin.graphql(ORDERS_CUSTOM_ATTR_SEARCH_QUERY, { variables: { cursor } });
+      const json = (await res.json()) as {
+        data?: {
+          orders?: {
+            nodes?: Array<{ id: string; name: string; customAttributes?: Array<{ key: string; value: string }> }>;
+            pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
+          };
+        };
+        errors?: Array<{ message?: string }>;
+      };
+      if (json.errors?.length) break;
+      const nodes = json.data?.orders?.nodes ?? [];
+      for (const node of nodes) {
+        const attrs = node.customAttributes ?? [];
+        for (const attr of attrs) {
+          if (ATTR_KEYS.includes(attr.key.toLowerCase()) && attr.value?.toLowerCase() === target) {
+            return node.name;
+          }
+        }
+      }
+      if (!json.data?.orders?.pageInfo?.hasNextPage) break;
+      cursor = json.data?.orders?.pageInfo?.endCursor ?? null;
+      if (!cursor) break;
+    } catch {
+      break;
+    }
+  }
+  return null;
+}
+
 export type OrderSummaryLineItem = {
   id: string;
   title: string;
@@ -462,114 +589,58 @@ export type OrderSummaryForPortal = {
   fulfillments?: ShopifyFulfillment[];
 };
 
+/**
+ * Search Shopify orders using any documented filter from the orders query.
+ * Uses the full ORDER_FIELDS_FRAGMENT and parseOrderNode for consistency.
+ *
+ * Supported filters (from Shopify docs):
+ *   email:, name:, source_identifier:, confirmation_number:, tag:, sku:,
+ *   financial_status:, fulfillment_status:, customer_id:, etc.
+ *
+ * @see https://shopify.dev/docs/api/admin-graphql/latest/queries/orders
+ */
+export async function fetchOrdersByFilter(
+  admin: AdminGraphQL,
+  queryFilter: string,
+  limit = 50
+): Promise<OrderForPortal[]> {
+  const q = queryFilter.trim();
+  if (!q) return [];
+  const gqlQuery = `#graphql
+    query getOrdersByFilter($query: String!, $first: Int!) {
+      orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
+        nodes {
+          ${ORDER_FIELDS_FRAGMENT}
+        }
+      }
+    }
+  `;
+  try {
+    const res = await admin.graphql(gqlQuery, { variables: { query: q, first: limit } });
+    const json = (await res.json()) as {
+      data?: { orders?: { nodes?: Array<unknown> } };
+      errors?: Array<{ message?: string }>;
+    };
+    if (json.errors?.length) {
+      console.warn("[fetchOrdersByFilter] GraphQL errors:", json.errors.map((e) => e.message).join(", "));
+      return [];
+    }
+    return (json.data?.orders?.nodes ?? [])
+      .filter((n): n is Record<string, unknown> => !!n && typeof n === "object" && "name" in n)
+      .map(parseOrderNode);
+  } catch (err) {
+    console.error("[fetchOrdersByFilter] Error:", err instanceof Error ? err.message : err);
+    return [];
+  }
+}
+
 export async function fetchOrdersByCustomer(
   admin: AdminGraphQL,
   email: string
 ): Promise<OrderSummaryForPortal[]> {
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) return [];
-  const query = `email:${trimmed}`;
-  try {
-    const res = await admin.graphql(ORDERS_BY_CUSTOMER_QUERY, { variables: { query } });
-    const json = (await res.json()) as {
-      data?: {
-        orders?: {
-          nodes?: Array<{
-            id: string;
-            name: string;
-            createdAt: string;
-            processedAt?: string | null;
-            closedAt?: string | null;
-            cancelledAt?: string | null;
-            email?: string | null;
-            totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
-            subtotalPriceSet?: { shopMoney?: { amount?: string } };
-            totalDiscountsSet?: { shopMoney?: { amount?: string } };
-            displayFinancialStatus?: string;
-            displayFulfillmentStatus?: string;
-            shippingAddress?: MailingAddressDisplay;
-            fulfillments?: Array<{
-              id: string;
-              status: string;
-              createdAt: string;
-              updatedAt?: string | null;
-              deliveredAt?: string | null;
-              displayStatus?: string | null;
-              estimatedDeliveryAt?: string | null;
-              inTransitAt?: string | null;
-              totalQuantity?: number | null;
-              location?: { id: string; name: string } | null;
-              trackingInfo?: Array<{
-                number?: string | null;
-                url?: string | null;
-                company?: string | null;
-              }>;
-            }>;
-            lineItems?: {
-              nodes?: Array<{
-                id: string;
-                title: string;
-                variantTitle?: string | null;
-                quantity: number;
-                originalUnitPriceSet?: { shopMoney?: { amount?: string } };
-                image?: { url?: string } | null;
-              }>;
-            };
-          }>
-        }
-      };
-      errors?: Array<{ message?: string }>;
-    };
-    if (json.errors?.length) {
-      console.warn("[fetchOrdersByCustomer] GraphQL errors:", json.errors.map((e) => e.message).join(", "));
-      return [];
-    }
-    const nodes = json.data?.orders?.nodes ?? [];
-    return nodes.map((o) => ({
-      id: o.id,
-      name: o.name,
-      createdAt: o.createdAt,
-      processedAt: o.processedAt ?? null,
-      closedAt: o.closedAt ?? null,
-      cancelledAt: o.cancelledAt ?? null,
-      email: o.email ?? null,
-      totalPrice: o.totalPriceSet?.shopMoney?.amount,
-      subtotalPrice: o.subtotalPriceSet?.shopMoney?.amount,
-      totalDiscounts: o.totalDiscountsSet?.shopMoney?.amount,
-      currencyCode: o.totalPriceSet?.shopMoney?.currencyCode ?? undefined,
-      displayFinancialStatus: o.displayFinancialStatus ?? undefined,
-      displayFulfillmentStatus: o.displayFulfillmentStatus ?? undefined,
-      shippingAddress: o.shippingAddress ?? null,
-      fulfillments: (o.fulfillments ?? []).map((f) => ({
-        id: f.id,
-        status: f.status,
-        createdAt: f.createdAt,
-        updatedAt: f.updatedAt ?? null,
-        deliveredAt: f.deliveredAt ?? null,
-        displayStatus: f.displayStatus ?? null,
-        estimatedDeliveryAt: f.estimatedDeliveryAt ?? null,
-        inTransitAt: f.inTransitAt ?? null,
-        totalQuantity: f.totalQuantity ?? null,
-        location: f.location ? { id: f.location.id, name: f.location.name } : null,
-        trackingInfo: (f.trackingInfo ?? []).map((ti) => ({
-          number: ti.number ?? null,
-          url: ti.url ?? null,
-          company: ti.company ?? null,
-        })),
-      })),
-      lineItems: (o.lineItems?.nodes ?? []).map((li) => ({
-        id: li.id,
-        title: li.title,
-        variantTitle: li.variantTitle ?? null,
-        quantity: li.quantity,
-        price: li.originalUnitPriceSet?.shopMoney?.amount ?? null,
-        imageUrl: li.image?.url ?? null,
-      })),
-    }));
-  } catch (err) {
-    console.error("[fetchOrdersByCustomer] Error:", err instanceof Error ? err.message : err);
-    return [];
-  }
+  return fetchOrdersByFilter(admin, `email:${trimmed}`);
 }
 
 /** Extract Fynd affiliate_order_id from order customAttributes. Fynd APIs expect affiliate_order_id, not Shopify order name. */

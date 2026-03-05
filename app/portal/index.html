@@ -3877,25 +3877,33 @@
       }
       document.getElementById('result-empty').style.display = 'none';
       try {
-        const data = await fetchJson(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) });
+        const data = await fetchJson(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) }, 20000);
         const orders = data.orders || [];
         const returns = data.returns || [];
 
         const activeTabBtn = document.querySelector('.portal-tab.active');
         const activeTabId = activeTabBtn ? activeTabBtn.dataset.tab : (PORTAL_CONFIG.defaultTab === 'order' ? 'track_order' : 'track_return');
 
-        const showOrders = PORTAL_CONFIG.showOrderTracking && activeTabId === 'track_order';
-        const showReturns = PORTAL_CONFIG.showReturnTracking && activeTabId === 'track_return';
+        var hasOrders = orders.length > 0;
+        var hasReturns = returns.length > 0;
+
+        var showOrders = false;
+        var showReturns = false;
+        if (activeTabId === 'track_order') {
+          showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders;
+          showReturns = PORTAL_CONFIG.showReturnTracking && hasReturns;
+        } else if (activeTabId === 'track_return') {
+          showReturns = PORTAL_CONFIG.showReturnTracking && hasReturns;
+          showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders && !hasReturns;
+        }
         document.getElementById('result-orders-wrap').style.display = showOrders ? 'block' : 'none';
         document.getElementById('result-returns-wrap').style.display = showReturns ? 'block' : 'none';
 
-        const noOrdersForTab = activeTabId === 'track_order' && orders.length === 0;
-        const noReturnsForTab = activeTabId === 'track_return' && returns.length === 0;
-        const isEmpty = noOrdersForTab || noReturnsForTab;
+        var isEmpty = !hasOrders && !hasReturns;
         var emptyEl = document.getElementById('result-empty');
         emptyEl.style.display = isEmpty ? 'block' : 'none';
         if (isEmpty) {
-          var emptyMsg = noOrdersForTab
+          var emptyMsg = activeTabId === 'track_order'
             ? t('portal.results.noOrders')
             : t('portal.results.noReturns');
           emptyEl.innerHTML = '<div style="text-align:center;padding:40px 20px;">'
@@ -4300,7 +4308,7 @@
       function resetBtn() { btn.disabled = false; btn.textContent = t('portal.create.findOrder'); }
       try {
         const orderNumber = lookVal.replace(/^#/, '');
-        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber));
+        const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber), null, 20000);
 
         // Check for active returns BEFORE showing create form
         if (data.activeReturns && data.activeReturns.length > 0) {
@@ -4812,12 +4820,12 @@
       el = document.getElementById('resultEmptyDesc'); if (el) tSafe(el, 'portal.results.noResultsDesc');
 
       var backVal = t('portal.results.searchAgain');
-      el = document.getElementById('btnBack'); if (el && backVal !== 'portal.results.searchAgain') el.innerHTML = '&larr; ' + backVal;
+      el = document.getElementById('btnBack'); if (el && backVal !== 'portal.results.searchAgain') el.textContent = backVal;
       var cbVal = t('portal.common.back');
-      el = document.getElementById('btnCreateBack'); if (el && cbVal !== 'portal.common.back') el.innerHTML = '&larr; ' + cbVal;
-      el = document.getElementById('btnManualBack'); if (el && cbVal !== 'portal.common.back') el.innerHTML = '&larr; ' + cbVal;
+      el = document.getElementById('btnCreateBack'); if (el && cbVal !== 'portal.common.back') el.textContent = '\u2190 ' + cbVal;
+      el = document.getElementById('btnManualBack'); if (el && cbVal !== 'portal.common.back') el.textContent = '\u2190 ' + cbVal;
       var ebVal = t('portal.create.searchDifferentOrder');
-      el = document.getElementById('btnExistingBack'); if (el && ebVal !== 'portal.create.searchDifferentOrder') el.innerHTML = '&larr; ' + ebVal;
+      el = document.getElementById('btnExistingBack'); if (el && ebVal !== 'portal.create.searchDifferentOrder') el.textContent = '\u2190 ' + ebVal;
 
       el = document.getElementById('btnUseManualForm'); if (el) tSafe(el, 'portal.create.submitManually');
       el = document.getElementById('resultOrdersTitle'); if (el) tSafe(el, 'portal.results.yourOrders');

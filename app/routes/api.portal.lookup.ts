@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
-import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid, findOrderNameByCustomAttribute } from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
@@ -30,10 +30,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Input validation
-    const VALID_LOOKUP_TYPES = ["email", "phone", "order_no", "return_no", "return_id", "forward_awb", "return_awb"];
+    const VALID_LOOKUP_TYPES = ["email", "phone", "mobile", "order_no", "return_no", "return_id", "forward_awb", "return_awb"];
     if (!VALID_LOOKUP_TYPES.includes(lookupType)) {
       return withCors(Response.json({ error: "Invalid lookup type" }, { status: 400 }), request);
     }
+    const normalizedLookupType = lookupType === "mobile" ? "phone" : lookupType;
     const lookupStr = String(lookupValue).trim();
     if (lookupStr.length > 256) {
       return withCors(Response.json({ error: "Lookup value too long" }, { status: 400 }), request);
@@ -52,14 +53,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const rawValue = String(lookupValue).trim();
 
     const where: Record<string, unknown> = { shopId: shopRecord.id };
-    if (lookupType === "return_id") {
+    if (normalizedLookupType === "return_id") {
       const returnIdUpper = rawValue.toUpperCase();
       where.OR = [
         { id: rawValue },
         { returnRequestNo: rawValue },
         { returnRequestNo: returnIdUpper },
       ];
-    } else if (["return_no", "order_no"].includes(lookupType)) {
+    } else if (["return_no", "order_no"].includes(normalizedLookupType)) {
       const normNoHash = norm.replace(/^#/, "");
       where.OR = [
         { fyndReturnNo: { contains: normNoHash, mode: "insensitive" } },
@@ -67,10 +68,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         { shopifyOrderName: { contains: `#${normNoHash}`, mode: "insensitive" } },
         { fyndOrderId: { contains: normNoHash, mode: "insensitive" } },
       ];
-    } else if (["forward_awb", "return_awb"].includes(lookupType)) {
+    } else if (["forward_awb", "return_awb"].includes(normalizedLookupType)) {
       where.OR = [
         { forwardAwb: { contains: norm, mode: "insensitive" } },
         { returnAwb: { contains: norm, mode: "insensitive" } },
+      ];
+    } else if (normalizedLookupType === "phone") {
+      const phoneNorm = norm.replace(/[\s\-\+\(\)]/g, "");
+      where.OR = [
+        { customerPhoneNorm: { contains: phoneNorm, mode: "insensitive" } },
       ];
     } else {
       where.OR = [
@@ -153,14 +159,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       _needsFyndEnrich?: boolean;
     };
     let orders: PortalOrder[] = [];
-    if (lookupType === "email" && norm.includes("@")) {
+    if (normalizedLookupType === "email" && norm.includes("@")) {
+      // Shopify documented filter: email:<address>
       try {
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
-        orders = (await fetchOrdersByCustomer(admin, norm)).map((o) => ({ ...o, fyndData: null, _needsFyndEnrich: true }));
+        orders = (await fetchOrdersByFilter(admin, `email:${norm}`)).map((o) => ({ ...o, fyndData: null, _needsFyndEnrich: true }));
       } catch (err) {
         console.error("Portal lookup orders by email:", err);
       }
-    } else if (lookupType === "order_no") {
+    } else if (normalizedLookupType === "phone") {
+      // Shopify doesn't have a documented phone: filter on orders, so use free-text search
+      try {
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        orders = (await fetchOrdersByFilter(admin, rawValue)).map((o) => ({ ...o, fyndData: null, _needsFyndEnrich: true }));
+      } catch (err) {
+        console.error("Portal lookup orders by phone:", err);
+      }
+    } else if (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") {
       const orderNumber = norm.replace(/^#/, "");
       try {
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
@@ -184,11 +199,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               ],
             },
           });
-          if (fyndMapping?.shopifyOrderName) {
+          if (fyndMapping) {
             const { admin } = await shopify.unauthenticated.admin(shopDomain);
-            const order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
-            if (order) {
-              orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
+            // Fast path: direct GID lookup via orderByIdentifier
+            if (fyndMapping.shopifyOrderId?.startsWith("gid://")) {
+              const order = await fetchOrderByGid(admin, fyndMapping.shopifyOrderId);
+              if (order) orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
+            }
+            if (orders.length === 0 && fyndMapping.shopifyOrderName) {
+              const order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
+              if (order) orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
             }
           }
         } catch (err) {
@@ -212,12 +232,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             take: 5,
           });
           if (fyndCases.length > 0) {
-            // Try to resolve the Shopify order name from any matched case
-            const shopifyName = fyndCases[0].shopifyOrderName;
-            if (shopifyName) {
+            const rc = fyndCases[0];
+            // Fast path: use orderByIdentifier with stored GID
+            if (rc.shopifyOrderId?.startsWith("gid://")) {
               try {
                 const { admin } = await shopify.unauthenticated.admin(shopDomain);
-                const order = await fetchOrderByOrderNumber(admin, shopifyName.replace(/^#/, ""));
+                const order = await fetchOrderByGid(admin, rc.shopifyOrderId);
+                if (order) {
+                  orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
+                }
+              } catch (err) {
+                console.error("Portal lookup order via GID:", err);
+              }
+            }
+            // Fallback: search by shopifyOrderName
+            if (orders.length === 0 && rc.shopifyOrderName) {
+              try {
+                const { admin } = await shopify.unauthenticated.admin(shopDomain);
+                const order = await fetchOrderByOrderNumber(admin, rc.shopifyOrderName.replace(/^#/, ""));
                 if (order) {
                   orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
                 }
@@ -226,9 +258,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               }
             }
 
-            // If still no order from Shopify, build a minimal order from ReturnCase data
-            if (orders.length === 0 && fyndCases[0]) {
-              const rc = fyndCases[0];
+            if (orders.length === 0 && rc) {
               const payload = (rc as { fyndPayloadJson?: string | null }).fyndPayloadJson;
               let fyndData: FyndOrderDetailsTab | null = null;
               if (payload) {
@@ -260,6 +290,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           console.error("Portal lookup order via ReturnCase.fyndOrderId:", err);
         }
       }
+
+      // Last resort: search recent Shopify orders by custom attribute (affiliate_order_id, etc.)
+      if (orders.length === 0 && !/^\d+$/.test(orderNumber)) {
+        try {
+          const { admin } = await shopify.unauthenticated.admin(shopDomain);
+          const resolvedName = await findOrderNameByCustomAttribute(admin, orderNumber);
+          if (resolvedName) {
+            const order = await fetchOrderByOrderNumber(admin, resolvedName.replace(/^#/, ""));
+            if (order) {
+              orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
+            }
+            // Cache mapping for future lookups
+            try {
+              await prisma.fyndOrderMapping.upsert({
+                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolvedName } },
+                create: { shopId: shopRecord.id, shopifyOrderName: resolvedName, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
+                update: { fyndOrderId: orderNumber },
+              });
+            } catch { /* non-critical */ }
+          }
+        } catch (err) {
+          console.error("Portal lookup order via custom attribute scan:", err);
+        }
+      }
+    }
+
+    // For AWB lookups, also search Shopify orders by fulfillment tracking number
+    if ((normalizedLookupType === "forward_awb" || normalizedLookupType === "return_awb") && orders.length === 0) {
+      try {
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const awbOrder = await fetchOrderByOrderNumber(admin, rawValue);
+        if (awbOrder) {
+          const hasTN = awbOrder.fulfillments?.some((f) =>
+            f.trackingInfo?.some((ti) => ti.number?.toLowerCase().includes(norm))
+          );
+          if (hasTN) orders.push({ ...awbOrder, fyndData: null, _needsFyndEnrich: true });
+        }
+      } catch { /* best-effort */ }
     }
 
     return withCors(Response.json({ orders, returns, labels, portalLanguage }), request);

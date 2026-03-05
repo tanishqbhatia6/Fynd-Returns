@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { fetchOrderByOrderNumber, OrderAccessError } from "../lib/shopify-admin.server";
+import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError, findOrderNameByCustomAttribute } from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -92,8 +92,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           ],
         },
       });
-      if (fyndMapping?.shopifyOrderName) {
-        order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
+      if (fyndMapping) {
+        // Fast path: use orderByIdentifier with stored GID
+        if (fyndMapping.shopifyOrderId?.startsWith("gid://")) {
+          order = await fetchOrderByGid(admin, fyndMapping.shopifyOrderId);
+        }
+        if (!order && fyndMapping.shopifyOrderName) {
+          order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
+        }
       }
     }
 
@@ -107,10 +113,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
           ],
         },
-        select: { shopifyOrderName: true },
+        select: { shopifyOrderId: true, shopifyOrderName: true },
       });
-      if (fyndCase?.shopifyOrderName) {
-        order = await fetchOrderByOrderNumber(admin, fyndCase.shopifyOrderName.replace(/^#/, ""));
+      if (fyndCase) {
+        if (fyndCase.shopifyOrderId?.startsWith("gid://")) {
+          order = await fetchOrderByGid(admin, fyndCase.shopifyOrderId);
+        }
+        if (!order && fyndCase.shopifyOrderName) {
+          order = await fetchOrderByOrderNumber(admin, fyndCase.shopifyOrderName.replace(/^#/, ""));
+        }
+      }
+    }
+
+    // Last resort: scan recent orders by custom attribute (affiliate_order_id, etc.)
+    if (!order && !/^\d+$/.test(orderNumber)) {
+      const resolvedName = await findOrderNameByCustomAttribute(admin, orderNumber);
+      if (resolvedName) {
+        order = await fetchOrderByOrderNumber(admin, resolvedName.replace(/^#/, ""));
+        if (order) {
+          try {
+            await prisma.fyndOrderMapping.upsert({
+              where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolvedName } },
+              create: { shopId: shopRecord.id, shopifyOrderName: resolvedName, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
+              update: { fyndOrderId: orderNumber },
+            });
+          } catch { /* non-critical */ }
+        }
       }
     }
 

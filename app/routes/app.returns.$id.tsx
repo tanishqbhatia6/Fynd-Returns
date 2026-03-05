@@ -1,13 +1,14 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useNavigate, useFetcher, useSearchParams, isRouteErrorResponse, useRouteError } from "react-router";
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getStatusColor } from "../lib/status-colors";
 import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay } from "../lib/shopify-admin.server";
-import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload } from "../lib/fynd-payload.server";
+import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney } from "../lib/fynd-payload.server";
+import type { FyndJourneyStep } from "../lib/fynd-payload.server";
 
 /** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
 function safeStr(v: unknown): string {
@@ -20,6 +21,85 @@ function safeStr(v: unknown): string {
     return typeof s === "string" ? s : "";
   }
   return "";
+}
+
+type UnifiedReturnState = {
+  label: string;
+  cls: "ok" | "pending" | "transit" | "processing" | "error" | "info";
+  step: number; // 1-6, or -1 for rejected/cancelled
+  description: string;
+  bg: string;
+  border: string;
+  color: string;
+  icon: string;
+};
+
+function computeAdminReturnState(
+  appStatus: string,
+  refundStatus: string | null | undefined,
+  returnJourney: FyndJourneyStep[],
+  fyndStatus: string | null | undefined
+): UnifiedReturnState {
+  const s = (appStatus || "").toLowerCase();
+  const r = (refundStatus || "").toLowerCase();
+  const f = (fyndStatus || "").toLowerCase();
+  const journey = returnJourney || [];
+
+  const journeyHas = (keyword: string) =>
+    journey.some((j) => (j.status || "").toLowerCase().replace(/\s+/g, "_").includes(keyword));
+
+  const latestJs = journey.length > 0
+    ? (journey[journey.length - 1].status || "").toLowerCase().replace(/\s+/g, "_")
+    : "";
+
+  const ok = (label: string, step: number, desc: string): UnifiedReturnState =>
+    ({ label, cls: "ok", step, description: desc, bg: "#F0FDF4", border: "#BBF7D0", color: "#15803D", icon: "check" });
+  const transit = (label: string, step: number, desc: string): UnifiedReturnState =>
+    ({ label, cls: "transit", step, description: desc, bg: "#EFF6FF", border: "#BFDBFE", color: "#1D4ED8", icon: "truck" });
+  const pending = (label: string, step: number, desc: string): UnifiedReturnState =>
+    ({ label, cls: "pending", step, description: desc, bg: "#FFF7ED", border: "#FED7AA", color: "#C2410C", icon: "clock" });
+  const processing = (label: string, step: number, desc: string): UnifiedReturnState =>
+    ({ label, cls: "processing", step, description: desc, bg: "#FFFBEB", border: "#FDE68A", color: "#92400E", icon: "refresh" });
+  const error = (label: string, desc: string): UnifiedReturnState =>
+    ({ label, cls: "error", step: -1, description: desc, bg: "#FEF2F2", border: "#FECACA", color: "#DC2626", icon: "x" });
+  const done = (label: string, step: number, desc: string): UnifiedReturnState =>
+    ({ label, cls: "ok", step, description: desc, bg: "#EFF6FF", border: "#BFDBFE", color: "#1D4ED8", icon: "done" });
+
+  if (r === "refunded" || (s === "completed" && r === "refunded")) return done("Refund Completed", 6, "Refund has been processed successfully");
+  if (journeyHas("credit_note") || f.includes("credit_note")) {
+    if (r === "in_progress") return processing("Refund Processing", 6, "Credit note generated, refund in progress");
+    return processing("Refund Processing", 6, "Credit note generated, awaiting refund");
+  }
+  if (f.includes("refund") || r === "in_progress") return processing("Refund Processing", 6, "Refund is being processed");
+  if (latestJs.includes("return_accepted") || journeyHas("return_accepted")) return ok("Return Accepted", 5, "Return received and accepted at warehouse");
+  if (latestJs.includes("return_delivered") || latestJs.includes("delivery_done") || journeyHas("return_delivered") || journeyHas("delivery_done"))
+    return ok("Return Received", 5, "Return package delivered to warehouse");
+  if (latestJs.includes("out_for_delivery") || journeyHas("out_for_delivery")) return transit("Out for Delivery", 4, "Package out for delivery to warehouse");
+  if (latestJs.includes("in_transit") || latestJs.includes("return_bag_in_transit") || journeyHas("in_transit") || journeyHas("return_bag_in_transit"))
+    return transit("In Transit", 4, "Return package in transit to warehouse");
+  if (latestJs.includes("bag_picked") || latestJs.includes("return_bag_picked") || journeyHas("bag_picked"))
+    return transit("Picked Up", 3, "Return package picked up by courier");
+  if (latestJs.includes("out_for_pickup") || latestJs.includes("dp_out_for_pickup") || journeyHas("out_for_pickup"))
+    return pending("Courier En Route", 3, "Courier on the way for pickup");
+  if (latestJs.includes("dp_assigned") || latestJs.includes("return_dp_assigned") || journeyHas("dp_assigned"))
+    return pending("Pickup Scheduled", 3, "Courier assigned for pickup");
+  if (latestJs.includes("return_initiated") || latestJs.includes("bag_confirmed") || journeyHas("return_initiated") || journeyHas("bag_confirmed"))
+    return ok("Return Confirmed", 2, "Confirmed on Fynd logistics");
+  if (s === "rejected") return error("Rejected", "Return request has been declined");
+  if (s === "cancelled") return error("Cancelled", "Return has been cancelled");
+  if (s === "completed") return done("Completed", 6, "Return completed");
+  if (s === "approved") return ok("Approved", 2, "Return approved, awaiting logistics pickup");
+  if (s === "pending" || s === "initiated") return pending("Awaiting Review", 1, "Return request submitted, pending review");
+  return ({ label: appStatus || "Unknown", cls: "info", step: 1, description: "Return in progress", bg: "#F9FAFB", border: "#E5E7EB", color: "#6B7280", icon: "info" });
+}
+
+function humanizeFyndSku(raw: string | null | undefined): string {
+  if (!raw || typeof raw !== "string") return raw || "Item";
+  let s = raw.replace(/^EAN_[A-Z]_/i, "");
+  s = s.replace(/_[A-Z]?\d{6,}$/i, "");
+  s = s.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  if (!s) return raw;
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 type ShipmentItem = {
@@ -302,8 +382,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
     const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
+    const returnJourney = extractFyndJourney(fyndPayloadJson, "return");
 
-    return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress };
+    return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney };
   } catch (err) {
     if (err instanceof Response) throw err;
     console.error("Return detail loader unexpected error:", err);
@@ -312,7 +393,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function ReturnDetail() {
-  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress } = useLoaderData<typeof loader>();
+  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showRawFynd, setShowRawFynd] = useState(false);
@@ -369,17 +450,22 @@ export default function ReturnDetail() {
   const fyndSyncRetries = (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0;
   const fyndSyncError = (returnCase as { fyndSyncError?: string | null }).fyndSyncError;
 
-  const statusConfig = isPending
-    ? { bg: "#FFF7ED", border: "#FED7AA", color: "#C2410C", icon: "clock", text: "Awaiting Review" }
-    : isApproved && !isRefunded
-      ? { bg: "#F0FDF4", border: "#BBF7D0", color: "#15803D", icon: "check", text: "Approved" }
-      : isApproved && isRefunded
-        ? { bg: "#EFF6FF", border: "#BFDBFE", color: "#1D4ED8", icon: "done", text: "Refunded" }
-        : isRejected
-          ? { bg: "#FEF2F2", border: "#FECACA", color: "#DC2626", icon: "x", text: "Rejected" }
-          : isCompleted
-            ? { bg: "#EFF6FF", border: "#BFDBFE", color: "#1D4ED8", icon: "done", text: "Completed" }
-            : { bg: "#F9FAFB", border: "#E5E7EB", color: "#6B7280", icon: "info", text: returnCase.status };
+  const fyndTrackingStatus = fyndPayloadInfo?.shipments?.[0]
+    ? safeStr((fyndPayloadInfo.shipments[0] as { shipmentStatus?: string }).shipmentStatus)
+    : null;
+  const unifiedState = computeAdminReturnState(
+    returnCase.status,
+    returnCase.refundStatus,
+    (returnJourney ?? []) as FyndJourneyStep[],
+    fyndTrackingStatus
+  );
+  const statusConfig = {
+    bg: unifiedState.bg,
+    border: unifiedState.border,
+    color: unifiedState.color,
+    icon: unifiedState.icon,
+    text: unifiedState.label,
+  };
 
   const hasShipments = (fyndOrderDetailsTab?.shipments?.length ?? 0) > 0;
   const firstShipment = fyndOrderDetailsTab?.shipments?.[0];
@@ -419,6 +505,8 @@ export default function ReturnDetail() {
                   {statusConfig.icon === "done" && <><circle cx="12" cy="12" r="10"/><polyline points="9 12 12 15 16 9"/></>}
                   {statusConfig.icon === "x" && <><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></>}
                   {statusConfig.icon === "info" && <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>}
+                  {statusConfig.icon === "truck" && <><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></>}
+                  {statusConfig.icon === "refresh" && <><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></>}
                 </svg>
               </div>
               <div>
@@ -426,6 +514,9 @@ export default function ReturnDetail() {
                 <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>
                   Return <span style={C.mono}>{returnRequestId}</span> for order <strong>{returnCase.shopifyOrderName || "—"}</strong>
                 </div>
+                {unifiedState.description && (
+                  <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>{unifiedState.description}</div>
+                )}
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
@@ -435,6 +526,113 @@ export default function ReturnDetail() {
               </a>
             </div>
           </div>
+
+          {/* 6-step return progress bar */}
+          {unifiedState.step > 0 && (() => {
+            const RETURN_JOURNEY_MAP: Record<string, number> = {
+              return_initiated: 1, bag_confirmed: 1,
+              return_dp_assigned: 2, dp_assigned: 2,
+              dp_out_for_pickup: 2, out_for_pickup: 2,
+              return_bag_picked: 2, bag_picked: 2,
+              return_bag_in_transit: 3, in_transit: 3,
+              out_for_delivery_to_store: 3, out_for_delivery: 3,
+              return_delivered: 4, delivery_done: 4, return_bag_delivered: 4,
+              return_accepted: 4,
+              credit_note_generated: 5, credit_note: 5, refund_initiated: 5,
+              refund_done: 5, refunded: 5,
+            };
+
+            const progressSteps = [
+              { num: 1, label: "Submitted", time: null as string | null },
+              { num: 2, label: "Approved", time: null as string | null },
+              { num: 3, label: "Picked Up", time: null as string | null },
+              { num: 4, label: "In Transit", time: null as string | null },
+              { num: 5, label: "Received", time: null as string | null },
+              { num: 6, label: "Refunded", time: null as string | null },
+            ];
+
+            try { progressSteps[0].time = returnCase.createdAt ? new Date(returnCase.createdAt).toISOString() : null; } catch { progressSteps[0].time = null; }
+
+            const rj = (returnJourney ?? []) as FyndJourneyStep[];
+            for (const step of rj) {
+              const st = (step.status || "").toLowerCase().replace(/\s+/g, "_");
+              for (const key of Object.keys(RETURN_JOURNEY_MAP)) {
+                if (st.includes(key) && step.time) {
+                  const idx = RETURN_JOURNEY_MAP[key];
+                  if (!progressSteps[idx]?.time) {
+                    progressSteps[idx].time = step.time;
+                  }
+                }
+              }
+            }
+
+            for (const ev of (Array.isArray(returnCase.events) ? returnCase.events : [])) {
+              const evType = (ev?.eventType || "").toLowerCase();
+              const evTime = ev?.happenedAt ? new Date(ev.happenedAt).toISOString() : null;
+              if (!evTime) continue;
+              if ((evType === "approved" || evType === "auto_approved") && !progressSteps[1].time) progressSteps[1].time = evTime;
+              if (evType.includes("refund") && evType.includes("process") && !progressSteps[5].time) progressSteps[5].time = evTime;
+            }
+
+            const activeStep = unifiedState.step;
+
+            return (
+              <div style={{ padding: "12px 24px 16px", borderTop: `1px solid ${statusConfig.border}`, display: "flex", alignItems: "center", gap: 0 }}>
+                {progressSteps.map((step, i) => {
+                  const done = activeStep >= step.num;
+                  const current = activeStep === step.num;
+                  return (
+                    <React.Fragment key={step.num}>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flex: "0 0 auto", zIndex: 1 }}>
+                        <div style={{
+                          width: current ? 28 : 24,
+                          height: current ? 28 : 24,
+                          borderRadius: "50%",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: 10,
+                          fontWeight: 700,
+                          border: done ? "none" : "2px solid #E5E7EB",
+                          background: done ? statusConfig.color : "#fff",
+                          color: done ? "#fff" : "#9CA3AF",
+                          boxShadow: current ? `0 0 0 4px ${statusConfig.color}25` : "none",
+                          transition: "all 0.3s",
+                        }}>
+                          {done ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg> : step.num}
+                        </div>
+                        <div style={{
+                          fontSize: 9,
+                          marginTop: 4,
+                          fontWeight: done ? 700 : 500,
+                          whiteSpace: "nowrap",
+                          color: done ? statusConfig.color : "#9CA3AF",
+                        }}>
+                          {step.label}
+                        </div>
+                        {step.time && (
+                          <div style={{ fontSize: 8, color: "#9CA3AF", marginTop: 1, whiteSpace: "nowrap" }}>
+                            {new Date(step.time).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                          </div>
+                        )}
+                      </div>
+                      {i < progressSteps.length - 1 && (
+                        <div style={{
+                          flex: 1,
+                          height: 2,
+                          background: activeStep > step.num ? statusConfig.color : "#E5E7EB",
+                          margin: "0 -2px",
+                          marginBottom: step.time ? 20 : 14,
+                          transition: "background 0.3s",
+                        }} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            );
+          })()}
+
           {isRejected && returnCase.rejectionReason && (
             <div style={{ padding: "12px 24px", background: "#FEF2F2", borderTop: `1px solid ${statusConfig.border}`, fontSize: 14, color: "#991B1B" }}>
               <strong>Rejection reason:</strong> {returnCase.rejectionReason}
@@ -448,17 +646,18 @@ export default function ReturnDetail() {
           <div>
             {/* ── Return Items ── */}
             <div style={{ ...C.card }}>
-              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Items being returned ({returnCase.items?.length ?? 0})</div>
-              {(returnCase.items?.length ?? 0) === 0 ? (
+              <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Items being returned ({Array.isArray(returnCase.items) ? returnCase.items.length : 0})</div>
+              {(!Array.isArray(returnCase.items) || returnCase.items.length === 0) ? (
                 <div style={{ padding: 20, textAlign: "center", color: "#9CA3AF", fontSize: 14 }}>No items recorded</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                  {(returnCase.items ?? []).map((item) => {
+                  {returnCase.items.map((item) => {
                     const shopifyItem = (shopifyOrder?.lineItems ?? []).find((li) =>
                       li.id === item.shopifyLineItemId ||
                       (li.sku && item.sku && li.sku.toLowerCase() === item.sku.toLowerCase())
                     );
-                    const title = (item as { title?: string | null }).title || shopifyItem?.title || item.notes || item.sku || item.shopifyLineItemId || "Item";
+                    const rawTitle = (item as { title?: string | null }).title || shopifyItem?.title || item.notes || item.sku || item.shopifyLineItemId || "Item";
+                    const title = humanizeFyndSku(rawTitle);
                     const variant = (item as { variantTitle?: string | null }).variantTitle || shopifyItem?.variantTitle;
                     const imageUrl = (item as { imageUrl?: string | null }).imageUrl || shopifyItem?.imageUrl;
                     const price = (item as { price?: string | null }).price || (shopifyItem?.discountedPrice ?? shopifyItem?.price);
@@ -494,8 +693,8 @@ export default function ReturnDetail() {
               <div style={{ ...C.card }}>
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Order details</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
-                  <div><div style={C.label}>Order</div><div style={C.val}>{shopifyOrder.name}</div></div>
-                  <div><div style={C.label}>Placed</div><div style={C.val}>{new Date(shopifyOrder.createdAt).toLocaleDateString()}</div></div>
+                  <div><div style={C.label}>Order</div><div style={C.val}>{shopifyOrder.name || "—"}</div></div>
+                  <div><div style={C.label}>Placed</div><div style={C.val}>{shopifyOrder.createdAt ? new Date(shopifyOrder.createdAt).toLocaleDateString() : "—"}</div></div>
                   {shopifyOrder.email && <div><div style={C.label}>Email</div><div style={C.val}>{shopifyOrder.email}</div></div>}
                   {shopifyOrder.phone && <div><div style={C.label}>Phone</div><div style={C.val}>{shopifyOrder.phone}</div></div>}
                   {shopifyOrder.displayFulfillmentStatus && <div><div style={C.label}>Fulfillment</div><div style={C.val}>{shopifyOrder.displayFulfillmentStatus.replace(/_/g, " ")}</div></div>}
@@ -582,7 +781,7 @@ export default function ReturnDetail() {
                 {/* Shipment details (expandable) */}
                 {hasShipments ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {fyndOrderDetailsTab!.shipments.map((s, idx) => (
+                    {(fyndOrderDetailsTab?.shipments ?? []).map((s, idx) => (
                       <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} formatMoney={formatMoney} shopifyLineItems={shopifyOrder?.lineItems} />
                     ))}
                   </div>
@@ -607,25 +806,26 @@ export default function ReturnDetail() {
             {/* ── Timeline ── */}
             <div style={{ ...C.card }}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Activity timeline</div>
-              {(returnCase.events?.length ?? 0) === 0 ? (
+              {(!Array.isArray(returnCase.events) || returnCase.events.length === 0) ? (
                 <div style={{ padding: 20, textAlign: "center", color: "#9CA3AF", fontSize: 14 }}>No events yet. Activity will appear here as the return progresses.</div>
               ) : (
                 <div style={{ position: "relative", paddingLeft: 28 }}>
                   <div style={{ position: "absolute", left: 11, top: 8, bottom: 8, width: 2, background: "#E5E7EB" }} />
-                  {(returnCase.events || []).map((ev, i) => {
-                    const isLatest = i === (returnCase.events?.length ?? 0) - 1;
+                  {returnCase.events.map((ev, i) => {
+                    if (!ev) return null;
+                    const isLatest = i === returnCase.events.length - 1;
                     const sourceColor = ev.source === "fynd_webhook" ? "#059669" : ev.source === "portal" ? "#2563EB" : ev.source === "system" ? "#8B5CF6" : ev.source === "shopify_webhook" ? "#0EA5E9" : "#64748B";
                     const sourceLabel = ev.source === "fynd_webhook" ? "Fynd" : ev.source === "shopify_webhook" ? "Shopify" : ev.source === "system" ? "System" : ev.source === "portal" ? "Portal" : "Admin";
                     return (
-                      <div key={ev.id} style={{ position: "relative", paddingBottom: i < (returnCase.events?.length ?? 0) - 1 ? 20 : 0 }}>
+                      <div key={ev.id} style={{ position: "relative", paddingBottom: i < returnCase.events.length - 1 ? 20 : 0 }}>
                         <div style={{ position: "absolute", left: -22, top: 2, width: 12, height: 12, borderRadius: "50%", background: isLatest ? sourceColor : "#D1D5DB", border: "2px solid #fff", boxShadow: isLatest ? `0 0 0 3px ${sourceColor}30` : "none" }} />
                         <div>
                           <div style={{ fontWeight: 600, fontSize: 14, color: "#1F2937" }}>
-                            {ev.eventType.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                            {(ev.eventType || "unknown").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                             <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: `${sourceColor}15`, color: sourceColor }}>{sourceLabel}</span>
-                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{new Date(ev.happenedAt).toLocaleString()}</span>
+                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Date(ev.happenedAt).toLocaleString() : "—"}</span>
                           </div>
                         </div>
                       </div>
@@ -753,11 +953,33 @@ export default function ReturnDetail() {
               <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                 <div><div style={C.label}>Return ID</div><div style={C.mono}>{returnRequestId}</div></div>
                 <div><div style={C.label}>Order</div><div style={C.val}>{returnCase.shopifyOrderName || "—"}</div></div>
+                <div>
+                  <div style={C.label}>Unified Status</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 2 }}>
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 4, padding: "3px 10px", borderRadius: 999,
+                      fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.02em",
+                      background: unifiedState.bg, color: unifiedState.color, border: `1px solid ${unifiedState.border}`,
+                    }}>
+                      <span style={{ width: 6, height: 6, borderRadius: "50%", background: unifiedState.color, flexShrink: 0 }} />
+                      {unifiedState.label}
+                    </span>
+                    {unifiedState.step > 0 && (
+                      <span style={{ fontSize: 11, color: "#9CA3AF" }}>Step {unifiedState.step}/6</span>
+                    )}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div><div style={C.label}>App Status</div><div style={{ ...C.val, fontSize: 12 }}>{returnCase.status}</div></div>
+                  <div>
+                    <div style={C.label}>Refund Status</div>
+                    <div style={{ ...C.val, fontSize: 12, color: isRefunded ? "#059669" : returnCase.refundStatus ? "#D97706" : "#9CA3AF" }}>
+                      {returnCase.refundStatus || "—"}
+                    </div>
+                  </div>
+                </div>
                 <div><div style={C.label}>Created</div><div style={{ ...C.val, fontSize: 13 }}>{new Date(returnCase.createdAt).toLocaleString()}</div></div>
                 <div><div style={C.label}>Last Updated</div><div style={{ ...C.val, fontSize: 13 }}>{new Date(returnCase.updatedAt).toLocaleString()}</div></div>
-                {returnCase.refundStatus && (
-                  <div><div style={C.label}>Refund Status</div><div style={{ ...C.val, color: isRefunded ? "#059669" : "#D97706" }}>{returnCase.refundStatus}</div></div>
-                )}
                 {(returnCase.forwardAwb || returnCase.returnAwb) && (
                   <>
                     {returnCase.forwardAwb && <div><div style={C.label}>Forward AWB</div><div style={C.mono}>{returnCase.forwardAwb}</div></div>}
@@ -863,26 +1085,40 @@ export default function ReturnDetail() {
 
 export function ErrorBoundary() {
   const error = useRouteError();
-  const is404 = isRouteErrorResponse(error) && error.status === 404;
-  const is500 = isRouteErrorResponse(error) && error.status === 500;
-  const errorMessage = error instanceof Error ? error.message : String(error);
+  const isResponse = isRouteErrorResponse(error);
+  const is400 = isResponse && error.status === 400;
+  const is404 = isResponse && error.status === 404;
+  const is500 = isResponse && error.status === 500;
+  const errorMessage = isResponse
+    ? (error.data || `Error ${error.status}`)
+    : error instanceof Error
+      ? error.message
+      : String(error);
   const errorStack = error instanceof Error ? error.stack : undefined;
 
+  const heading = is404
+    ? "Return not found"
+    : is400
+      ? "Invalid request"
+      : "Something went wrong";
+
+  const description = is404
+    ? "The return you're looking for doesn't exist or you don't have access to it."
+    : is400
+      ? typeof errorMessage === "string" ? errorMessage : "The request was invalid. Please go back and try again."
+      : is500
+        ? "We couldn't load this return. Please try again later."
+        : "An unexpected error occurred.";
+
   return (
-    <s-page heading={is404 ? "Return not found" : "Something went wrong"}>
+    <s-page heading={heading}>
       <s-section>
-        <p style={{ marginBottom: 16, color: "#6d7175" }}>
-          {is404
-            ? "The return you're looking for doesn't exist or you don't have access to it."
-            : is500
-              ? "We couldn't load this return. Please try again later."
-              : "An unexpected error occurred."}
-        </p>
-        {!is404 && !is500 && (
+        <p style={{ marginBottom: 16, color: "#6d7175" }}>{description}</p>
+        {!is404 && !is400 && !is500 && (
           <details style={{ marginBottom: 16, fontSize: 12, color: "#6d7175", background: "#f6f6f7", padding: 12, borderRadius: 8 }}>
             <summary style={{ cursor: "pointer", fontWeight: 600 }}>Error details (for debugging)</summary>
             <pre style={{ marginTop: 8, overflow: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
-              {errorMessage}
+              {typeof errorMessage === "string" ? errorMessage : JSON.stringify(errorMessage)}
               {errorStack ? `\n\n${errorStack}` : ""}
             </pre>
           </details>

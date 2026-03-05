@@ -1,5 +1,6 @@
+import React from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useSearchParams } from "react-router";
+import { Link, useLoaderData, useSearchParams, isRouteErrorResponse, useRouteError } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
@@ -372,7 +373,7 @@ const MetricCard = ({
   subtext?: string;
   trend?: number;
   color?: string;
-  icon?: string;
+  icon?: React.ReactNode;
 }) => {
   const accentColor = color ?? "var(--rpm-accent)";
   return (
@@ -397,7 +398,7 @@ const MetricCard = ({
           {label}
         </span>
         {icon && (
-          <span style={{ fontSize: 20, opacity: 0.5 }} role="img" aria-hidden>
+          <span style={{ opacity: 0.5, display: "flex", alignItems: "center" }} aria-hidden="true">
             {icon}
           </span>
         )}
@@ -493,7 +494,7 @@ export default function Dashboard() {
       <div className="app-content" style={{ paddingBottom: 48 }}>
         {error && (
           <div className="app-alert app-alert-error" style={{ marginBottom: 24 }}>
-            <p style={{ marginBottom: 8, fontWeight: 600 }}>⚠️ {error}</p>
+            <p style={{ marginBottom: 8, fontWeight: 600 }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",marginRight:4}}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> {error}</p>
             <p style={{ fontSize: 13, opacity: 0.9 }}>Some data may be unavailable. You can still use Returns, Settings, and the Customer Portal.</p>
           </div>
         )}
@@ -504,7 +505,7 @@ export default function Dashboard() {
           marginBottom: 24, padding: "14px 20px",
           background: "var(--rpm-surface)", borderRadius: 14, border: "1px solid var(--rpm-border)",
         }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text)" }}>📅 Period:</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",marginRight:4}}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Period:</span>
           <select
             value={range}
             onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
@@ -529,7 +530,7 @@ export default function Dashboard() {
           )}
           <span style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>{rangeLabel}</span>
           <Link to="/app/reports" style={{ marginLeft: "auto", fontSize: 14, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none" }}>
-            📊 View detailed reports →
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",marginRight:4}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> View detailed reports →
           </Link>
         </div>
 
@@ -547,7 +548,7 @@ export default function Dashboard() {
                   fontSize: 14, fontWeight: 500,
                   color: s.type === "success" ? "#047857" : s.type === "warning" ? "#92400e" : "#1e40af",
                 }}>
-                  {s.type === "success" ? "✅" : s.type === "warning" ? "⚠️" : "💡"} {s.message}
+                  {s.type === "success" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{verticalAlign:"middle",marginRight:4}}><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> : s.type === "warning" ? <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",marginRight:4}}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",marginRight:4}}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>}{" "}{s.message}
                 </span>
                 {s.action && s.actionUrl && (
                   <Link to={s.actionUrl} style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-accent)", textDecoration: "none", whiteSpace: "nowrap" }}>
@@ -562,16 +563,16 @@ export default function Dashboard() {
         {/* ─── 5 Hero KPI Cards ─── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 16, marginBottom: 28 }}>
           <Link to="/app/returns" style={{ textDecoration: "none" }}>
-            <MetricCard label="Total returns" value={totalReturns} subtext={rangeLabel} trend={periodChange} icon="📦" />
+            <MetricCard label="Total returns" value={totalReturns} subtext={rangeLabel} trend={periodChange} icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>} />
           </Link>
           <Link to="/app/returns?status=pending" style={{ textDecoration: "none" }}>
-            <MetricCard label="Needs review" value={pendingCount} color="#eab308" subtext="Awaiting action" icon="⏳" />
+            <MetricCard label="Needs review" value={pendingCount} color="#eab308" subtext="Awaiting action" icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} />
           </Link>
           <Link to="/app/returns?status=approved" style={{ textDecoration: "none" }}>
-            <MetricCard label="Approved" value={approvedCount} color="#10b981" subtext={`${approvalRate}% rate`} icon="✅" />
+            <MetricCard label="Approved" value={approvedCount} color="#10b981" subtext={`${approvalRate}% rate`} icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} />
           </Link>
-          <MetricCard label="Refunded" value={refundedCount} color="#8b5cf6" subtext="Completed" icon="💰" />
-          <MetricCard label="All time" value={allTimeReturns} subtext="Total ever" icon="📊" />
+          <MetricCard label="Refunded" value={refundedCount} color="#8b5cf6" subtext="Completed" icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>} />
+          <MetricCard label="All time" value={allTimeReturns} subtext="Total ever" icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>} />
         </div>
 
         {/* ─── Quick Chart + Status at a Glance ─── */}
@@ -614,7 +615,7 @@ export default function Dashboard() {
                   color: "var(--rpm-text-muted)", fontSize: 14, textAlign: "center", padding: 24
                 }}>
                   <div>
-                    <div style={{ fontSize: 32, marginBottom: 8, opacity: 0.4 }}>📈</div>
+                    <div><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{opacity:0.4,marginBottom:8}}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg></div>
                     No returns yet. Share your <Link to="/app/portal" style={{ color: "var(--rpm-accent)" }}>portal URL</Link> to get started.
                   </div>
                 </div>
@@ -676,7 +677,7 @@ export default function Dashboard() {
           </div>
           {recentReturns.length === 0 ? (
             <div className="app-empty-state" style={{ padding: 48 }}>
-              <div style={{ fontSize: 48, marginBottom: 14, opacity: 0.35 }}>📦</div>
+              <div><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={{opacity:0.35,marginBottom:14}}><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
               <p className="app-empty-state-title">No returns yet</p>
               <p className="app-empty-state-desc">Returns will appear here when customers submit them via the portal.</p>
               <Link to="/app/portal"><s-button variant="primary">Share portal URL</s-button></Link>
@@ -740,11 +741,11 @@ export default function Dashboard() {
             <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 700, color: "var(--rpm-text)" }}>Quick actions</h3>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
               <Link to="/app/returns"><s-button variant="primary">View all returns</s-button></Link>
-              <Link to="/app/reports"><s-button variant="secondary">📊 Reports</s-button></Link>
+              <Link to="/app/reports"><s-button variant="secondary">Reports</s-button></Link>
               <Link to={hasFyndConfig ? "/app/settings" : "/app/settings/integrations"}>
-                <s-button variant="secondary">{hasFyndConfig ? "⚙️ Settings" : "🔗 Configure Fynd"}</s-button>
+                <s-button variant="secondary">{hasFyndConfig ? "Settings" : "Configure Fynd"}</s-button>
               </Link>
-              <Link to="/app/portal"><s-button variant="secondary">🌐 Portal</s-button></Link>
+              <Link to="/app/portal"><s-button variant="secondary">Portal</s-button></Link>
             </div>
           </div>
 
@@ -773,7 +774,7 @@ export default function Dashboard() {
             border: "1px solid #fcd34d",
           }}>
             <p style={{ marginBottom: 8, fontWeight: 700, color: "#92400e", fontSize: 15 }}>
-              🔗 Connect Fynd for reverse logistics
+              Connect Fynd for reverse logistics
             </p>
             <p style={{ marginBottom: 16, color: "#92400e", fontSize: 14, opacity: 0.9 }}>
               Fynd handles return pickups, tracking, and delivery. Configure your credentials to automate the entire return flow.
@@ -781,6 +782,39 @@ export default function Dashboard() {
             <Link to="/app/settings/integrations"><s-button variant="primary">Configure Fynd</s-button></Link>
           </div>
         )}
+      </div>
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const isResponse = isRouteErrorResponse(error);
+  const status = isResponse ? error.status : 500;
+  const message = isResponse
+    ? (error.data || `Error ${status}`)
+    : error instanceof Error
+      ? error.message
+      : "An unexpected error occurred.";
+
+  return (
+    <s-page heading="Dashboard">
+      <div className="app-content" style={{ paddingBottom: 48 }}>
+        <div className="app-alert app-alert-error" style={{ marginBottom: 24 }}>
+          <p style={{ marginBottom: 8, fontWeight: 600 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ verticalAlign: "middle", marginRight: 4 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>{" "}
+            {typeof message === "string" ? message : "Failed to load the dashboard. Please refresh or try again later."}
+          </p>
+          <p style={{ fontSize: 13, opacity: 0.9 }}>You can still use Returns, Settings, and the Customer Portal from the navigation.</p>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          <Link to="/app/returns"><s-button variant="primary">View Returns</s-button></Link>
+          <Link to="/app/settings"><s-button variant="secondary">Settings</s-button></Link>
+          <Link to="/app/portal"><s-button variant="secondary">Portal</s-button></Link>
+        </div>
       </div>
     </s-page>
   );

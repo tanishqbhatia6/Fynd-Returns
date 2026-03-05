@@ -24,8 +24,31 @@
       --portal-radius: %BORDER_RADIUS%;
       --portal-shadow: %SHADOW%;
       --status-ok: #059669;
+      --status-ok-bg: #ecfdf5;
+      --status-ok-border: #a7f3d0;
+      --status-ok-text: #065f46;
       --status-pending: #d97706;
+      --status-pending-bg: #fffbeb;
+      --status-pending-border: #fde68a;
+      --status-pending-text: #92400e;
       --status-error: #dc2626;
+      --status-error-bg: #fef2f2;
+      --status-error-border: #fecaca;
+      --status-error-text: #991b1b;
+      --status-transit: #2563eb;
+      --status-transit-bg: #eff6ff;
+      --status-transit-border: #bfdbfe;
+      --status-transit-text: #1e40af;
+      --status-processing: #d97706;
+      --status-processing-bg: #fef3c7;
+      --status-processing-text: #92400e;
+      --status-neutral-bg: #f8fafc;
+      --status-neutral-text: #475569;
+      --portal-spacing-xs: 4px;
+      --portal-spacing-sm: 8px;
+      --portal-spacing-md: 16px;
+      --portal-spacing-lg: 24px;
+      --portal-spacing-xl: 32px;
     }
 
     *,
@@ -826,6 +849,30 @@
 
     .oc-status-pill.s-error .status-dot {
       background: #dc2626;
+    }
+
+    .oc-status-pill.s-transit {
+      background: #eff6ff;
+      color: #1e40af;
+    }
+
+    .oc-status-pill.s-transit .status-dot {
+      background: #2563eb;
+    }
+
+    .oc-status-pill.s-processing {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .oc-status-pill.s-processing .status-dot {
+      background: #d97706;
+      animation: pulse-dot 1.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse-dot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.3); }
     }
 
     .oc-items {
@@ -1764,6 +1811,8 @@
     .oc-return-block-status.s-ok { background: #d1fae5; color: #065f46; }
     .oc-return-block-status.s-pending { background: #fef3c7; color: #92400e; }
     .oc-return-block-status.s-error { background: #fee2e2; color: #991b1b; }
+    .oc-return-block-status.s-transit { background: #dbeafe; color: #1e40af; }
+    .oc-return-block-status.s-processing { background: #fef3c7; color: #92400e; }
     .oc-return-block-body { padding: 14px 18px; }
     .oc-return-block-info { display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px; }
     .oc-return-block-info-item {}
@@ -1804,6 +1853,29 @@
       gap: 8px;
     }
     .oc-section-block-title svg { flex-shrink: 0; color: var(--portal-primary); }
+
+    .portal-tab:focus-visible,
+    button:focus-visible,
+    a:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    .btn-primary:focus-visible,
+    .btn-secondary:focus-visible {
+      outline: 2px solid var(--portal-primary);
+      outline-offset: 2px;
+    }
+
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 </head>
 
@@ -1813,12 +1885,12 @@
       <h1 id="portal-title">Track your orders &amp; returns</h1>
       <p id="portal-subtitle">Check the status of your order or start a return — it only takes a minute.</p>
       <div id="policy-banner" class="policy-banner" style="display:none;">
-        <strong>🛡️ Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
+        <strong><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
         <div id="policy-detail" style="margin-top:8px;"></div>
       </div>
     </header>
 
-    <div id="portal-tabs-wrap" class="portal-tabs" style="display:none;"></div>
+    <div id="portal-tabs-wrap" class="portal-tabs" role="tablist" aria-label="Portal navigation" style="display:none;"></div>
 
     <div id="track-return-sub-tabs" class="portal-sub-tabs" style="display:none;">
       <button type="button" class="portal-sub-tab active" data-sub="track">Track existing return</button>
@@ -1826,11 +1898,11 @@
     </div>
 
     <div id="track-panel" class="portal-card">
-      <div id="step1" class="portal-step active">
+      <div id="step1" class="portal-step active" role="search">
         <input type="hidden" id="shop" value="%SHOP%">
         <div class="form-group">
           <label class="form-label" for="lookupType">How would you like to search?</label>
-          <select id="lookupType" class="form-select">
+          <select id="lookupType" class="form-select" aria-label="Lookup type">
             <option value="order_no">Order Number</option>
             <option value="email">Email Address</option>
             <option value="mobile">Phone Number</option>
@@ -1842,23 +1914,23 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="lookupValue" id="lookupValueLabel">Enter your order number</label>
-          <input type="text" id="lookupValue" class="form-input" placeholder="e.g. #1001 or 1001">
+          <input type="text" id="lookupValue" class="form-input" aria-label="Lookup value" placeholder="e.g. #1001 or 1001">
         </div>
-        <button type="button" id="btnLookup" class="btn-primary">Look Up</button>
-        <p id="err1" class="form-error"></p>
+        <button type="button" id="btnLookup" class="btn-primary" aria-label="Search">Look Up</button>
+        <p id="err1" class="form-error" aria-live="polite"></p>
       </div>
 
       <div id="step2" class="portal-step">
-        <div id="result-orders-wrap" class="result-section" style="display:none;">
+        <div id="result-orders-wrap" class="result-section" role="tabpanel" aria-label="Orders results" aria-live="polite" style="display:none;">
           <h2 class="result-section-title">Your orders</h2>
           <div id="result-orders" class="return-list"></div>
         </div>
-        <div id="result-returns-wrap" class="result-section" style="display:none;">
+        <div id="result-returns-wrap" class="result-section" role="tabpanel" aria-label="Returns results" aria-live="polite" style="display:none;">
           <h2 class="result-section-title">Your returns</h2>
           <div id="result-returns" class="return-list"></div>
         </div>
         <div id="result-empty" style="display:none; text-align:center; padding:48px 24px;">
-          <div style="font-size:48px; margin-bottom:16px;">🔍</div>
+          <div style="font-size:48px; margin-bottom:16px;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.35"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
           <p style="font-size:1.125rem; font-weight:600; color:var(--portal-text); margin-bottom:8px;">No results found
           </p>
           <p style="color:var(--portal-text-muted); font-size:0.9375rem;">We couldn't find any orders or returns
@@ -1874,7 +1946,7 @@
         <div style="text-align:center;margin-bottom:24px;">
           <div
             style="width:52px;height:52px;border-radius:50%;background:color-mix(in srgb, var(--portal-primary) 0.1, transparent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:24px;">
-            📦</div>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
           <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em;">Start a return
           </h2>
           <p style="font-size:0.875rem;color:var(--portal-text-muted);margin:0;">Enter your order number to begin the
@@ -1899,7 +1971,7 @@
         <div style="text-align:center;margin-bottom:24px;">
           <div
             style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px;box-shadow:0 4px 12px rgba(5,150,105,0.15);">
-            ✅</div>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
           <h2 style="font-size:1.25rem;font-weight:700;margin:0 0 6px;letter-spacing:-0.02em;color:var(--portal-text);">
             Return already submitted</h2>
           <p
@@ -1948,7 +2020,7 @@
           <label class="form-label">Upload product condition images or video <span
               style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
           <div class="upload-area" id="uploadAreaStandard">
-            <span class="upload-icon">📸</span>
+            <span class="upload-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
             <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
               drop</div>
             <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or
@@ -1968,8 +2040,8 @@
       <div id="create-step2-manual" class="portal-step">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
           <div
-            style="width:32px;height:32px;border-radius:50%;background:var(--portal-primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">
-            ✎</div>
+            style="width:32px;height:32px;border-radius:50%;background:var(--portal-primary);color:white;display:flex;align-items:center;justify-content:center;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
           <div>
             <h2 style="font-size: 1.125rem; font-weight:700; margin:0;">Manual return request</h2>
             <p style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;">Fill in the details below and we'll
@@ -2005,7 +2077,7 @@
           <label class="form-label">Upload product condition images or video <span
               style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
           <div class="upload-area" id="uploadAreaManual">
-            <span class="upload-icon">📸</span>
+            <span class="upload-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
             <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
               drop</div>
             <div style="font-size: 0.8125rem; color:var(--portal-text-muted); margin-top:4px;">Images (max 5MB each) or
@@ -2180,24 +2252,122 @@
     }
 
     function unifiedReturnStatus(shopifyStatus, fyndStatus) {
-      // Merge Shopify + Fynd into ONE customer-friendly status
-      var s = (shopifyStatus || '').toLowerCase();
+      return computeUnifiedReturnState(shopifyStatus, null, fyndStatus, []);
+    }
+
+    /**
+     * Enterprise return status correlation engine.
+     * Priority: Refund > Fynd Journey Latest > Shopify App Status
+     * Returns { label, cls, step (1-6), description }
+     */
+    function computeUnifiedReturnState(appStatus, refundStatus, fyndStatus, returnJourney) {
+      var s = (appStatus || '').toLowerCase();
+      var r = (refundStatus || '').toLowerCase();
       var f = (fyndStatus || '').toLowerCase();
-      // Completed / refunded states
-      if (s === 'completed' || s === 'refunded' || f.includes('refund')) return { label: 'Refund processed', icon: '💰', cls: 'ok', step: 4 };
-      // Delivery done (Fynd)
-      if (f.includes('delivery_done') || f.includes('delivered')) return { label: 'Return received', icon: '📬', cls: 'ok', step: 3 };
-      // In transit
-      if (f.includes('in_transit') || f.includes('picked_up') || f.includes('out_for_pickup') || f.includes('dp_assigned')) return { label: 'Return in transit', icon: '🚚', cls: 'pending', step: 2 };
-      // Approved
-      if (s === 'approved' || f.includes('bag_confirmed') || f.includes('created')) return { label: 'Return approved', icon: '✅', cls: 'ok', step: 2 };
-      // Rejected
-      if (s === 'rejected') return { label: 'Return declined', icon: '✕', cls: 'error', step: -1 };
-      // Cancelled
-      if (s === 'cancelled') return { label: 'Cancelled', icon: '—', cls: 'error', step: -1 };
-      // Pending / initiated / processing
-      if (s === 'pending' || s === 'initiated' || s === 'processing' || s === 'in progress') return { label: 'Under review', icon: '⏳', cls: 'pending', step: 1 };
-      return { label: shopifyStatus || 'Under review', icon: '⏳', cls: 'pending', step: 1 };
+      var journey = returnJourney || [];
+
+      var journeyHas = function (keyword) {
+        for (var i = 0; i < journey.length; i++) {
+          var st = (journey[i].status || '').toLowerCase().replace(/\s+/g, '_');
+          if (st.includes(keyword)) return true;
+        }
+        return false;
+      };
+
+      var latestJourneyStatus = '';
+      if (journey.length > 0) {
+        latestJourneyStatus = (journey[journey.length - 1].status || '').toLowerCase().replace(/\s+/g, '_');
+      }
+
+      // 1. Refund state is the final arbiter
+      if (r === 'refunded' || s === 'completed' && r === 'refunded') {
+        return { label: 'Refund Completed', cls: 'ok', step: 6, description: 'Your refund has been processed successfully' };
+      }
+
+      // 2. Credit note generated but refund not yet processed
+      if (journeyHas('credit_note') || f.includes('credit_note')) {
+        if (r === 'in_progress') {
+          return { label: 'Refund Processing', cls: 'processing', step: 6, description: 'Credit note generated, refund is being processed' };
+        }
+        return { label: 'Refund Processing', cls: 'processing', step: 6, description: 'Credit note generated, awaiting refund' };
+      }
+
+      // 3. Fynd refund-related status without credit note
+      if (f.includes('refund') || r === 'in_progress') {
+        return { label: 'Refund Processing', cls: 'processing', step: 6, description: 'Refund is being processed' };
+      }
+
+      // 4. Return accepted / delivered back to warehouse
+      if (latestJourneyStatus.includes('return_accepted') || journeyHas('return_accepted')) {
+        return { label: 'Return Accepted', cls: 'ok', step: 5, description: 'Your return has been received and accepted' };
+      }
+      if (latestJourneyStatus.includes('return_delivered') || latestJourneyStatus.includes('delivery_done') ||
+          f.includes('return_delivered') || f.includes('delivery_done') || journeyHas('return_delivered') || journeyHas('delivery_done')) {
+        return { label: 'Return Received', cls: 'ok', step: 5, description: 'Your return package has been received at the warehouse' };
+      }
+
+      // 5. Out for delivery to store/warehouse
+      if (latestJourneyStatus.includes('out_for_delivery') || f.includes('out_for_delivery') || journeyHas('out_for_delivery')) {
+        return { label: 'Out for Delivery', cls: 'transit', step: 4, description: 'Package is out for delivery to the warehouse' };
+      }
+
+      // 6. In transit
+      if (latestJourneyStatus.includes('in_transit') || latestJourneyStatus.includes('return_bag_in_transit') ||
+          f.includes('in_transit') || f.includes('return_bag_in_transit') || journeyHas('in_transit') || journeyHas('return_bag_in_transit')) {
+        return { label: 'In Transit', cls: 'transit', step: 4, description: 'Your return package is in transit to the warehouse' };
+      }
+
+      // 7. Picked up
+      if (latestJourneyStatus.includes('bag_picked') || latestJourneyStatus.includes('return_bag_picked') ||
+          f.includes('picked') || journeyHas('bag_picked') || journeyHas('return_bag_picked')) {
+        return { label: 'Picked Up', cls: 'transit', step: 3, description: 'Your return package has been picked up by the courier' };
+      }
+
+      // 8. Out for pickup / DP assigned
+      if (latestJourneyStatus.includes('out_for_pickup') || latestJourneyStatus.includes('dp_out_for_pickup') ||
+          f.includes('out_for_pickup') || journeyHas('out_for_pickup') || journeyHas('dp_out_for_pickup')) {
+        return { label: 'Courier En Route', cls: 'pending', step: 3, description: 'Courier is on the way to pick up your return' };
+      }
+
+      if (latestJourneyStatus.includes('dp_assigned') || latestJourneyStatus.includes('return_dp_assigned') ||
+          f.includes('dp_assigned') || journeyHas('dp_assigned') || journeyHas('return_dp_assigned')) {
+        return { label: 'Pickup Scheduled', cls: 'pending', step: 3, description: 'A courier has been assigned for pickup' };
+      }
+
+      // 9. Return initiated / confirmed on Fynd
+      if (latestJourneyStatus.includes('return_initiated') || latestJourneyStatus.includes('bag_confirmed') ||
+          f.includes('return_initiated') || f.includes('bag_confirmed') || journeyHas('return_initiated') || journeyHas('bag_confirmed')) {
+        return { label: 'Return Confirmed', cls: 'ok', step: 2, description: 'Your return has been confirmed and is being processed' };
+      }
+
+      // 10. Shopify app statuses (no Fynd journey data)
+      if (s === 'rejected') {
+        return { label: 'Return Declined', cls: 'error', step: -1, description: 'Your return request has been declined' };
+      }
+      if (s === 'cancelled') {
+        return { label: 'Cancelled', cls: 'error', step: -1, description: 'This return has been cancelled' };
+      }
+      if (s === 'completed') {
+        return { label: 'Completed', cls: 'ok', step: 6, description: 'Return completed' };
+      }
+      if (s === 'approved') {
+        return { label: 'Return Approved', cls: 'ok', step: 2, description: 'Your return has been approved by the store' };
+      }
+      if (s === 'pending' || s === 'initiated' || s === 'processing' || s === 'in progress') {
+        return { label: 'Under Review', cls: 'pending', step: 1, description: 'Your return request is being reviewed' };
+      }
+
+      return { label: appStatus || 'Under Review', cls: 'pending', step: 1, description: 'Return request submitted' };
+    }
+
+    function humanizeFyndSku(raw) {
+      if (!raw || typeof raw !== 'string') return raw || 'Item';
+      var s = raw.replace(/^EAN_[A-Z]_/i, '');
+      s = s.replace(/_[A-Z]?\d{6,}$/i, '');
+      s = s.replace(/_/g, ' ');
+      s = s.replace(/\s+/g, ' ').trim();
+      if (!s) return raw;
+      return s.replace(/\b\w/g, function (c) { return c.toUpperCase(); });
     }
 
     function friendlyEventLabel(eventType, source) {
@@ -2223,6 +2393,69 @@
       return cleaned;
     }
 
+    /**
+     * Dedicated 6-step return progress bar.
+     * Steps: Submitted > Approved > Picked Up > In Transit > Received > Refunded
+     * Extracts timestamps from returnJourney and DB events.
+     */
+    function renderReturnProgressSteps(unified, returnJourney, returnData) {
+      if (unified.step < 0) return '';
+
+      var RETURN_JOURNEY_MAP = {
+        return_initiated: 1, bag_confirmed: 1,
+        return_dp_assigned: 2, dp_assigned: 2,
+        dp_out_for_pickup: 2, out_for_pickup: 2,
+        return_bag_picked: 2, bag_picked: 2,
+        return_bag_in_transit: 3, in_transit: 3,
+        out_for_delivery_to_store: 3, out_for_delivery: 3,
+        return_delivered: 4, delivery_done: 4, return_bag_delivered: 4,
+        return_accepted: 4,
+        credit_note_generated: 5, credit_note: 5, refund_initiated: 5,
+        refund_done: 5, refunded: 5
+      };
+
+      var steps = [
+        { num: 1, label: 'Submitted', time: null },
+        { num: 2, label: 'Approved', time: null },
+        { num: 3, label: 'Picked Up', time: null },
+        { num: 4, label: 'In Transit', time: null },
+        { num: 5, label: 'Received', time: null },
+        { num: 6, label: 'Refunded', time: null }
+      ];
+
+      if (returnData && returnData.createdAt) {
+        steps[0].time = returnData.createdAt;
+      }
+
+      var journey = returnJourney || [];
+      for (var i = 0; i < journey.length; i++) {
+        var st = (journey[i].status || '').toLowerCase().replace(/\s+/g, '_');
+        for (var key in RETURN_JOURNEY_MAP) {
+          if (st.includes(key) && journey[i].time) {
+            var stepIdx = RETURN_JOURNEY_MAP[key];
+            if (!steps[stepIdx].time) {
+              steps[stepIdx].time = journey[i].time;
+            }
+          }
+        }
+      }
+
+      if (returnData && returnData.events) {
+        var events = returnData.events;
+        for (var j = 0; j < events.length; j++) {
+          var evType = (events[j].eventType || '').toLowerCase();
+          var evTime = events[j].happenedAt;
+          if (!evTime) continue;
+          if ((evType === 'approved' || evType === 'auto_approved') && !steps[1].time) steps[1].time = evTime;
+          if (evType.includes('refund') && evType.includes('process') && !steps[5].time) steps[5].time = evTime;
+        }
+      }
+
+      var activeStep = unified.step;
+
+      return renderProgressSteps(activeStep, steps);
+    }
+
     function renderProgressSteps(activeStep, stepLabels) {
       if (activeStep < 0) return '';
       var steps = stepLabels || [
@@ -2239,7 +2472,7 @@
         var labelClass = (done || current) ? 'active' : '';
         html += '<div class="oc-progress-step">';
         html += '<div class="oc-progress-circle ' + circleClass + '">';
-        html += done ? '&#10003;' : st.num;
+        html += done ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>' : st.num;
         html += '</div>';
         html += '<div class="oc-progress-label ' + labelClass + '">' + st.label + '</div>';
         if (st.time) html += '<div class="oc-progress-time">' + formatDateTime(st.time) + '</div>';
@@ -2589,6 +2822,7 @@
     }
 
     function renderOrderCardV3(o, orderIdx, allReturns) {
+      if (!o) return '<div class="order-card-v2" style="padding:20px;text-align:center;color:var(--portal-text-muted);">Order data unavailable</div>';
       var shopifyStatus = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
       var currency = o.currencyCode || 'INR';
       var hasFynd = o.fyndData && o.fyndData.shipments && o.fyndData.shipments.length > 0;
@@ -2634,7 +2868,7 @@
       // ── Header: Order name, date, payment badge ──
       html += '<div class="oc-header">';
       html += '<div class="oc-title-group">';
-      html += '<div class="oc-order-name">Order ' + escapeHtml(o.name || o.id) + '</div>';
+      html += '<div class="oc-order-name">Order ' + escapeHtml(o.name || o.id || 'Unknown') + '</div>';
       var dateLine = '';
       if (o.createdAt) dateLine += 'Placed ' + formatDate(o.createdAt);
       if (paymentMethod) dateLine += ' ' + getPaymentBadge(paymentMethod);
@@ -2684,17 +2918,18 @@
       if (items.length > 0) {
         html += '<div class="oc-items-v2">';
         items.forEach(function (li) {
+          var liTitle = li.title || li.variantTitle || li.sku || 'Item';
           html += '<div class="oc-item-v2">';
           html += '<div class="oc-item-img">';
           if (li.imageUrl) {
-            html += '<img src="' + escapeHtml(li.imageUrl) + '&width=160" alt="' + escapeHtml(li.title) + '" loading="lazy">';
+            html += '<img src="' + escapeHtml(li.imageUrl) + '&width=160" alt="' + escapeHtml(liTitle) + '" loading="lazy">';
           } else {
             html += '<span class="oc-item-img-placeholder">' + PACKAGE_SVG + '</span>';
           }
           html += '</div>';
           html += '<div class="oc-item-info">';
-          html += '<div class="oc-item-title">' + escapeHtml(li.title) + '</div>';
-          if (li.variantTitle) html += '<div class="oc-item-variant">' + escapeHtml(li.variantTitle) + '</div>';
+          html += '<div class="oc-item-title">' + escapeHtml(liTitle) + '</div>';
+          if (li.variantTitle && li.title) html += '<div class="oc-item-variant">' + escapeHtml(li.variantTitle) + '</div>';
           html += '<div class="oc-item-meta">';
           var itemPrice = li.price || li.discountedPrice;
           if (itemPrice) html += '<span class="oc-item-price-tag">' + formatMoney(itemPrice, currency) + '</span>';
@@ -2852,7 +3087,9 @@
           var retStatus = (ret.status || '').toLowerCase();
           var ti = ret.trackingInfo || {};
           var fyndSt = (ti.fyndStatus || '').toLowerCase();
-          var unified = unifiedReturnStatus(retStatus, fyndSt);
+          var retRefundSt = (ret.refundStatus || '').toLowerCase();
+          var retJourney = ret.returnJourney || [];
+          var unified = computeUnifiedReturnState(retStatus, retRefundSt, fyndSt, retJourney);
           var retDisplayId = ret.returnRequestNo || ret.fyndReturnNo || ret.id || '';
 
           html += '<div class="oc-return-block">';
@@ -2943,11 +3180,15 @@
     }
 
     function renderReturnCardV3(x) {
-      var orderName = x.shopifyOrderName || x.id;
+      if (!x) return '<div class="order-card-v2" style="padding:20px;text-align:center;color:var(--portal-text-muted);">Return data unavailable</div>';
+      var orderName = x.shopifyOrderName || x.id || 'Unknown';
       var status = (x.status || '').toLowerCase();
       var ti = x.trackingInfo || {};
       var fyndSt = (ti.fyndStatus || '').toLowerCase();
-      var unified = unifiedReturnStatus(status, fyndSt);
+      var returnJourney = Array.isArray(x.returnJourney) ? x.returnJourney : [];
+      var refundSt = (x.refundStatus || '').toLowerCase();
+
+      var unified = computeUnifiedReturnState(status, refundSt, fyndSt, returnJourney);
       var displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
 
       var html = '<div class="order-card-v2">';
@@ -2964,25 +3205,37 @@
       html += '<span class="oc-status-pill s-' + unified.cls + '"><span class="status-dot"></span>' + escapeHtml(unified.label) + '</span>';
       html += '</div>';
 
-      // Progress steps from return journey (if available) or generic
-      var returnJourney = x.returnJourney || [];
-      if (returnJourney.length > 0) {
-        html += '<div style="padding:0 20px;">' + renderDynamicProgressFromJourney(returnJourney) + '</div>';
-      } else {
-        html += '<div style="padding:0 20px;">' + renderProgressSteps(unified.step) + '</div>';
+      // Status description banner
+      if (unified.description && unified.step > 0) {
+        html += '<div style="padding:0 20px;margin-top:-4px;margin-bottom:4px;">';
+        html += '<div style="font-size:0.8125rem;color:var(--portal-text-muted);line-height:1.4;">' + escapeHtml(unified.description) + '</div>';
+        html += '</div>';
       }
+
+      // 6-step return progress bar
+      html += '<div style="padding:0 20px;">' + renderReturnProgressSteps(unified, returnJourney, x) + '</div>';
 
       // Status-specific callouts
       if (status === 'rejected' && x.rejectionReason) {
-        html += '<div class="oc-status-callout error" style="margin-top:12px;">';
+        html += '<div class="oc-status-callout error" style="margin:12px 20px 0;">';
         html += '<div class="oc-status-callout-title">Return declined</div>';
         html += escapeHtml(x.rejectionReason) + '</div>';
       }
 
       if (x.notesForCustomer) {
-        html += '<div class="oc-status-callout info" style="margin-top:12px;">';
+        html += '<div class="oc-status-callout info" style="margin:12px 20px 0;">';
         html += '<div class="oc-status-callout-title">Message from the store</div>';
         html += '<div style="white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
+      }
+
+      // Refund completion banner
+      if (unified.step === 6 && unified.cls === 'ok') {
+        html += '<div style="margin:12px 20px 0;padding:14px 16px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #a7f3d0;border-radius:12px;display:flex;align-items:center;gap:12px;">';
+        html += '<div style="width:36px;height:36px;border-radius:50%;background:#059669;display:flex;align-items:center;justify-content:center;flex-shrink:0;">';
+        html += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>';
+        html += '<div><div style="font-weight:700;font-size:0.875rem;color:#065f46;">Refund Completed</div>';
+        html += '<div style="font-size:0.75rem;color:#047857;margin-top:2px;">Your refund has been processed to the original payment method</div>';
+        html += '</div></div>';
       }
 
       // Info grid
@@ -2998,16 +3251,18 @@
         html += '</div></div>';
       }
 
-      // Returned items
+      // Returned items (with humanized SKU)
       var returnItems = x.items || [];
       if (returnItems.length > 0) {
         html += '<div class="oc-items-v2">';
         returnItems.forEach(function (ri) {
-          var itemTitle = ri.title || ri.notes || ri.sku || 'Item';
+          var rawTitle = ri.title || ri.notes || ri.sku || 'Item';
+          var itemTitle = humanizeFyndSku(rawTitle);
           html += '<div class="oc-item-v2">';
           html += '<div class="oc-item-img">';
           if (ri.imageUrl) {
-            html += '<img src="' + escapeHtml(ri.imageUrl) + '&width=160" alt="' + escapeHtml(itemTitle) + '" loading="lazy">';
+            var imgSrc = ri.imageUrl + (ri.imageUrl.includes('?') ? '&' : '?') + 'width=160';
+            html += '<img src="' + escapeHtml(imgSrc) + '" alt="' + escapeHtml(itemTitle) + '" loading="lazy">';
           } else {
             html += '<span class="oc-item-img-placeholder">' + PACKAGE_SVG + '</span>';
           }
@@ -3056,62 +3311,72 @@
         html += '<div style="padding:14px 20px 0;">' + renderAddress(x.pickupAddress, 'Pickup / drop-off address') + '</div>';
       }
 
-      // Return journey timeline
+      // Return journey timeline (combined Fynd journey + DB events)
+      var timelineItems = [];
+
       if (returnJourney.length > 0) {
+        returnJourney.forEach(function (step) {
+          timelineItems.push({
+            timeVal: step.time ? new Date(step.time).getTime() : 0,
+            timeStr: step.time ? formatDateTime(step.time) : '',
+            label: step.displayName || step.status || '',
+            source: 'fynd'
+          });
+        });
+      }
+
+      var dbEvents = (x.events || []).slice();
+      dbEvents.forEach(function (ev) {
+        timelineItems.push({
+          timeVal: ev.happenedAt ? new Date(ev.happenedAt).getTime() : 0,
+          timeStr: ev.happenedAt ? formatDateTime(ev.happenedAt) : '',
+          label: friendlyEventLabel(ev.eventType || '', ev.source || ''),
+          source: ev.source || 'app'
+        });
+      });
+
+      var fyndUpdates = ti.trackingDetails || [];
+      fyndUpdates.forEach(function (ev) {
+        timelineItems.push({
+          timeVal: ev.time ? new Date(ev.time).getTime() : 0,
+          timeStr: ev.time ? formatDateTime(ev.time) : '',
+          label: ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : ''),
+          source: 'fynd'
+        });
+      });
+
+      // De-duplicate by label+time
+      var seen = {};
+      timelineItems = timelineItems.filter(function (item) {
+        var key = item.label + '|' + item.timeStr;
+        if (seen[key]) return false;
+        seen[key] = true;
+        return true;
+      });
+
+      timelineItems.sort(function (a, b) { return a.timeVal - b.timeVal; });
+      timelineItems = timelineItems.slice(-20);
+
+      if (timelineItems.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
         html += '<button type="button" class="oc-collapsible-header open" onclick="toggleCollapsible(this)">';
-        html += 'Return journey' + CHEVRON_SVG + '</button>';
+        html += 'Return journey (' + timelineItems.length + ')' + CHEVRON_SVG + '</button>';
         html += '<div class="oc-collapsible-body open"><div class="oc-timeline">';
-        returnJourney.forEach(function (step, idx) {
-          var isLast = idx === returnJourney.length - 1;
+        timelineItems.forEach(function (ev, idx) {
+          var isLast = idx === timelineItems.length - 1;
+          var sourceTag = ev.source === 'fynd' ? '<span style="display:inline-block;font-size:0.5625rem;padding:1px 5px;border-radius:4px;background:#ecfdf5;color:#059669;font-weight:600;margin-left:6px;vertical-align:middle;">Fynd</span>' : '';
           html += '<div class="oc-timeline-event">';
           html += '<span class="oc-timeline-dot ' + (isLast ? 'latest' : '') + '"></span>';
-          if (step.time) html += '<span class="oc-timeline-time">' + formatDateTime(step.time) + '</span>';
-          html += '<span class="oc-timeline-label">' + escapeHtml(step.displayName || step.status || '') + '</span>';
+          if (ev.timeStr) html += '<span class="oc-timeline-time">' + escapeHtml(ev.timeStr) + '</span>';
+          html += '<span class="oc-timeline-label">' + escapeHtml(ev.label) + sourceTag + '</span>';
           html += '</div>';
         });
         html += '</div></div></div>';
-      } else {
-        // Fallback: merge DB events + Fynd tracking details
-        var fyndUpdates = ti.trackingDetails || [];
-        var dbEvents = (x.events || []).slice();
-        if (fyndUpdates.length || dbEvents.length) {
-          var allActivity = [];
-          dbEvents.forEach(function (ev) {
-            allActivity.push({
-              timeVal: ev.happenedAt ? new Date(ev.happenedAt).getTime() : 0,
-              timeStr: ev.happenedAt ? formatDateTime(ev.happenedAt) : '',
-              label: friendlyEventLabel(ev.eventType || '', ev.source || '')
-            });
-          });
-          fyndUpdates.forEach(function (ev) {
-            allActivity.push({
-              timeVal: ev.time ? new Date(ev.time).getTime() : 0,
-              timeStr: ev.time ? formatDateTime(ev.time) : '',
-              label: ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '')
-            });
-          });
-          allActivity.sort(function (a, b) { return a.timeVal - b.timeVal; });
-          allActivity = allActivity.slice(-15);
-
-          html += '<div style="padding:16px 20px 0;">';
-          html += '<button type="button" class="oc-collapsible-header open" onclick="toggleCollapsible(this)">';
-          html += 'Activity (' + allActivity.length + ')' + CHEVRON_SVG + '</button>';
-          html += '<div class="oc-collapsible-body open"><div class="oc-timeline">';
-          allActivity.forEach(function (ev, idx) {
-            var isLast = idx === allActivity.length - 1;
-            html += '<div class="oc-timeline-event">';
-            html += '<span class="oc-timeline-dot ' + (isLast ? 'latest' : '') + '"></span>';
-            if (ev.timeStr) html += '<span class="oc-timeline-time">' + escapeHtml(ev.timeStr) + '</span>';
-            html += '<span class="oc-timeline-label">' + escapeHtml(ev.label) + '</span>';
-            html += '</div>';
-          });
-          html += '</div></div></div>';
-        }
       }
 
       // Refresh bar for active returns
-      if (isInTransit(fyndSt) || status === 'processing' || status === 'in progress' || status === 'approved') {
+      var isActive = unified.step > 0 && unified.step < 6 && unified.cls !== 'error';
+      if (isActive) {
         html += '<div class="oc-refresh-bar" style="margin-top:12px;">';
         html += '<span>Updated just now</span>';
         html += '<button type="button" class="oc-refresh-btn" onclick="refreshLookup(this)">' + REFRESH_SVG + ' Refresh</button>';
@@ -3166,7 +3431,9 @@
     }
 
     var autoRefreshTimer = null;
+    var _isRefreshing = false;
     function refreshLookup(btnEl) {
+      if (_isRefreshing) return;
       if (btnEl) {
         btnEl.classList.add('loading');
         setTimeout(function () { btnEl.classList.remove('loading'); }, 1500);
@@ -3177,13 +3444,16 @@
     function startAutoRefresh() {
       stopAutoRefresh();
       autoRefreshTimer = setInterval(function () {
+        if (_isRefreshing) return;
         var activeCards = document.querySelectorAll('.oc-refresh-bar');
         if (activeCards.length > 0) {
+          _isRefreshing = true;
           document.getElementById('btnLookup').click();
+          setTimeout(function () { _isRefreshing = false; }, 5000);
         } else {
           stopAutoRefresh();
         }
-      }, 60000);
+      }, 120000);
     }
 
     function stopAutoRefresh() {
@@ -3218,7 +3488,8 @@
       }
       if (!defaultTabId) defaultTabId = tabs[0].id;
       wrap.innerHTML = tabs.map(function (t) {
-        return '<button type="button" class="portal-tab' + (t.id === defaultTabId ? ' active' : '') + '" data-tab="' + escapeHtml(t.id) + '">' + escapeHtml(t.label) + '</button>';
+        var isActive = t.id === defaultTabId;
+        return '<button type="button" role="tab" aria-selected="' + (isActive ? 'true' : 'false') + '" class="portal-tab' + (isActive ? ' active' : '') + '" data-tab="' + escapeHtml(t.id) + '">' + escapeHtml(t.label) + '</button>';
       }).join('');
 
       const activeTabBtn = wrap.querySelector('.portal-tab.active') || wrap.querySelector('.portal-tab');
@@ -3259,6 +3530,8 @@
         return;
       }
       if (lookupType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lookupValue)) { err.textContent = 'Please enter a valid email address'; return; }
+      if (lookupType === 'mobile' && lookupValue.replace(/[\s\-\+\(\)]/g, '').length < 7) { err.textContent = 'Please enter a valid phone number (at least 7 digits)'; return; }
+      if ((lookupType === 'forward_awb' || lookupType === 'return_awb') && lookupValue.length < 4) { err.textContent = 'Please enter a valid tracking / AWB number'; return; }
       btn.disabled = true; btn.textContent = 'Searching...'; btn.classList.add('searching');
       // Show loading skeleton immediately
       document.getElementById('step1').classList.remove('active');
@@ -3288,8 +3561,21 @@
         document.getElementById('result-orders-wrap').style.display = showOrders ? 'block' : 'none';
         document.getElementById('result-returns-wrap').style.display = showReturns ? 'block' : 'none';
 
-        const isEmpty = (activeTabId === 'track_order' && orders.length === 0) || (activeTabId === 'track_return' && returns.length === 0);
-        document.getElementById('result-empty').style.display = isEmpty ? 'block' : 'none';
+        const noOrdersForTab = activeTabId === 'track_order' && orders.length === 0;
+        const noReturnsForTab = activeTabId === 'track_return' && returns.length === 0;
+        const isEmpty = noOrdersForTab || noReturnsForTab;
+        var emptyEl = document.getElementById('result-empty');
+        emptyEl.style.display = isEmpty ? 'block' : 'none';
+        if (isEmpty) {
+          var emptyMsg = noOrdersForTab
+            ? 'No orders found. Please check your details and try again.'
+            : 'No returns found for this search. If you recently submitted a return, it may take a moment to appear.';
+          emptyEl.innerHTML = '<div style="text-align:center;padding:40px 20px;">'
+            + '<div style="margin-bottom:12px;opacity:0.4;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>'
+            + '<div style="font-size:1rem;font-weight:600;color:var(--portal-text);margin-bottom:6px;">Nothing found</div>'
+            + '<div style="font-size:0.875rem;color:var(--portal-text-muted);max-width:360px;margin:0 auto;">' + emptyMsg + '</div>'
+            + '</div>';
+        }
 
         function renderOrdersToDOM(ordersList, returnsList) {
           if (!PORTAL_CONFIG.showOrderTracking) return;
@@ -3301,14 +3587,12 @@
                 try { return renderOrderCardV3(o, orderIdx, returnsList || []); }
                 catch (renderErr) { console.error('Order render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Order ' + escapeHtml(o.name || o.id || '') + '</p></div>'; }
               }).join('');
-            // Smooth transition: fade out, update, fade in
-            container.classList.add('oc-card-updating');
-            setTimeout(function () {
-              container.innerHTML = newHtml;
-              container.classList.remove('oc-card-updating');
-              container.classList.add('oc-card-updated');
-              setTimeout(function () { container.classList.remove('oc-card-updated'); }, 500);
-            }, container.children.length > 0 ? 200 : 0);
+            container.style.opacity = '0';
+            container.innerHTML = newHtml;
+            requestAnimationFrame(function () {
+              container.style.transition = 'opacity 0.2s ease';
+              container.style.opacity = '1';
+            });
           } catch (re) { console.error('Order list render error:', re); }
           initCollapsibles();
         }
@@ -3322,13 +3606,12 @@
                 try { return renderReturnCardV3(x); }
                 catch (renderErr) { console.error('Return render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Return ' + escapeHtml(x.returnRequestNo || x.id || '') + '</p></div>'; }
               }).join('');
-            container.classList.add('oc-card-updating');
-            setTimeout(function () {
-              container.innerHTML = newHtml;
-              container.classList.remove('oc-card-updating');
-              container.classList.add('oc-card-updated');
-              setTimeout(function () { container.classList.remove('oc-card-updated'); }, 500);
-            }, container.children.length > 0 ? 200 : 0);
+            container.style.opacity = '0';
+            container.innerHTML = newHtml;
+            requestAnimationFrame(function () {
+              container.style.transition = 'opacity 0.2s ease';
+              container.style.opacity = '1';
+            });
           } catch (re) { console.error('Return list render error:', re); }
           initCollapsibles();
         }
@@ -3405,8 +3688,12 @@
         } catch (_) {}
       } catch (e) {
         err.textContent = e.message || 'Lookup failed. Please try again.';
+        document.getElementById('result-orders').innerHTML = '';
+        document.getElementById('result-returns').innerHTML = '';
+        document.getElementById('result-empty').style.display = 'none';
         document.getElementById('step2').classList.remove('active');
         document.getElementById('step1').classList.add('active');
+        stopAutoRefresh();
       }
       finally { btn.disabled = false; btn.textContent = 'Look Up'; btn.classList.remove('searching'); }
     };
@@ -3476,8 +3763,9 @@
         if (subTab.dataset.sub === 'create') {
           var createTab = document.querySelector('.portal-tab[data-tab="create"]');
           if (createTab) {
-            document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
+            document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
             createTab.classList.add('active');
+            createTab.setAttribute('aria-selected', 'true');
             applyTabState('create');
           }
         }
@@ -3504,8 +3792,9 @@
 
       var tab = e.target.closest('.portal-tab');
       if (tab) {
-        document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
+        document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
         tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
         applyTabState(tab.dataset.tab);
         if (tab.dataset.tab === 'track_return') {
           document.querySelectorAll('.portal-sub-tab').forEach(function (t) {
@@ -3559,7 +3848,7 @@
 
     function renderFiles(arr, previewId, inputId) {
       var html = arr.map((f, i) => {
-        var icon = f.type.startsWith('video/') ? '🎥' : '🖼️';
+        var icon = f.type.startsWith('video/') ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
         return '<div class="upload-preview-item">' + icon + ' ' + Math.round(f.size / 1024) + 'KB ' + escapeHtml(f.name.substring(0, 15)) + '... <span class="upload-preview-remove" data-idx="' + i + '">×</span></div>';
       }).join('');
       document.getElementById(previewId).innerHTML = html;
@@ -3617,7 +3906,7 @@
     document.getElementById('btnUseManualForm').onclick = () => showManualForm(false);
 
     function getStatusLabel(status) {
-      var map = { initiated: '📝 Initiated', pending: '⏳ Pending Review', processing: '🔄 Processing', 'in progress': '🔄 In Progress', approved: '✅ Approved', completed: '✅ Completed', rejected: '❌ Rejected', cancelled: '🚫 Cancelled' };
+      var map = { initiated: 'Initiated', pending: 'Pending Review', processing: 'Processing', 'in progress': 'In Progress', approved: 'Approved', completed: 'Completed', rejected: 'Rejected', cancelled: 'Cancelled' };
       return map[(status || '').toLowerCase()] || status;
     }
     function getStatusBg(status) {
@@ -3643,7 +3932,7 @@
         }).join('') : '<div style="font-size:0.8125rem;color:var(--portal-text-muted);padding:8px 12px;">Return items on file</div>';
 
         var dateStr = r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-        var refundHtml = r.refundStatus && r.refundStatus !== 'none' ? '<div style="font-size:0.75rem;margin-top:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;color:#5b21b6;">💰 Refund: ' + escapeHtml(r.refundStatus) + '</div>' : '';
+        var refundHtml = r.refundStatus && r.refundStatus !== 'none' ? '<div style="font-size:0.75rem;margin-top:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;color:#5b21b6;">Refund: ' + escapeHtml(r.refundStatus) + '</div>' : '';
 
         return '<div style="background:' + getStatusBg(r.status) + ';border:1px solid ' + getStatusBorder(r.status) + ';border-radius:var(--portal-radius);padding:20px;margin-bottom:12px;">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' +
@@ -3756,7 +4045,7 @@
         list.innerHTML = createOrderData.lineItems.map(li => `
           <div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:var(--portal-surface);">
             <input type="checkbox" id="item-${li.id}" data-id="${li.id}" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;">
-            ${li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : ''}
+            ${li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || 'Product image') + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : ''}
             <label for="item-${li.id}" style="flex:1;cursor:pointer;font-size:0.875rem;font-weight:500;line-height:1.4;">
               ${escapeHtml(li.title)}${li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : ''}${li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : ''}
             </label>
@@ -3845,7 +4134,7 @@
       } catch (e) {
         var msg = e.message || 'Failed to submit. Please try again.';
         if (msg.toLowerCase().includes('already pending') || msg.toLowerCase().includes('already')) {
-          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong>✅ Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
+          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:middle;margin-right:4px;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
         } else {
           err.textContent = msg;
         }
@@ -3917,7 +4206,7 @@
       } catch (e) {
         var msg = e.message || 'Failed to submit. Please try again.';
         if (msg.toLowerCase().includes('already pending') || msg.toLowerCase().includes('already')) {
-          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong>✅ Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
+          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:middle;margin-right:4px;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
         } else {
           err.textContent = msg;
         }
@@ -3973,8 +4262,9 @@
       if (!idToTrack || !document.getElementById('shop').value.trim()) return;
       var trackTab = document.querySelector('.portal-tab[data-tab="track_return"]');
       if (trackTab) {
-        document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); });
+        document.querySelectorAll('.portal-tab').forEach(function (t) { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
         trackTab.classList.add('active');
+        trackTab.setAttribute('aria-selected', 'true');
         applyTabState('track_return');
       }
       document.getElementById('lookupType').value = 'return_id';

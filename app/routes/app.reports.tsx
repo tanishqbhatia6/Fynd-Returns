@@ -1,3 +1,4 @@
+import React from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useSearchParams } from "react-router";
 import { authenticate } from "../shopify.server";
@@ -168,7 +169,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 // ── Reusable Components ──
 
 function KpiCard({ label, value, subtext, icon, trend, accent }: {
-  label: string; value: string | number; subtext?: string; icon: string; trend?: number; accent?: string;
+  label: string; value: string | number; subtext?: string; icon: React.ReactNode; trend?: number; accent?: string;
 }) {
   const col = accent || "var(--rpm-accent, #3b82f6)";
   return (
@@ -179,7 +180,7 @@ function KpiCard({ label, value, subtext, icon, trend, accent }: {
     }}>
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: col, opacity: 0.7 }} />
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-        <span style={{ fontSize: 18 }}>{icon}</span>
+        <span style={{ display: "flex", alignItems: "center" }}>{icon}</span>
         <span style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.04em", color: "var(--rpm-text-muted, #64748b)" }}>{label}</span>
       </div>
       <div style={{ fontSize: 28, fontWeight: 700, color: col, display: "flex", alignItems: "baseline", gap: 8 }}>
@@ -215,14 +216,14 @@ function ChartCard({ title, subtitle, children, action }: {
   );
 }
 
-function EmptyState({ icon, message }: { icon: string; message: string }) {
+function EmptyState({ icon, message }: { icon: React.ReactNode; message: string }) {
   return (
     <div style={{
       height: "100%", minHeight: 200, display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", color: "var(--rpm-text-muted, #64748b)",
       fontSize: 14, textAlign: "center", padding: 32,
     }}>
-      <span style={{ fontSize: 36, marginBottom: 12, opacity: 0.5 }}>{icon}</span>
+      <span style={{ marginBottom: 12, opacity: 0.5, display: "flex", alignItems: "center", justifyContent: "center" }}>{icon}</span>
       <p style={{ margin: 0, maxWidth: 260 }}>{message}</p>
     </div>
   );
@@ -289,7 +290,7 @@ export default function Reports() {
       <div className="app-content" style={{ paddingBottom: 48 }}>
         {error && (
           <div className="app-alert app-alert-error" style={{ marginBottom: 24 }}>
-            <p style={{ fontWeight: 600, marginBottom: 4 }}>⚠️ {error}</p>
+            <p style={{ fontWeight: 600, marginBottom: 4 }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",marginRight:4}}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> {error}</p>
             <p style={{ fontSize: 13, opacity: 0.9 }}>Some charts may not load. You can still use Returns, Settings, and the Customer Portal.</p>
           </div>
         )}
@@ -300,7 +301,7 @@ export default function Reports() {
           marginBottom: 28, padding: "14px 20px", background: "var(--rpm-surface, white)",
           borderRadius: 14, border: "1px solid var(--rpm-border, #e5e7eb)",
         }}>
-          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>📊 Reporting period:</span>
+          <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{verticalAlign:"middle",marginRight:4}}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg> Reporting period:</span>
           <select
             value={range}
             onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
@@ -326,7 +327,7 @@ export default function Reports() {
           <span style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)" }}>{rangeLabel}</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 10, alignItems: "center" }}>
             <a href={exportUrl} download style={{ textDecoration: "none" }}>
-              <s-button variant="secondary">📥 Export CSV</s-button>
+              <s-button variant="secondary">Export CSV</s-button>
             </a>
             <Link to="/app" style={{ textDecoration: "none" }}>
               <s-button variant="secondary">← Dashboard</s-button>
@@ -336,11 +337,11 @@ export default function Reports() {
 
         {/* ─── KPI Summary Row ─── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(170px, 1fr))", gap: 16, marginBottom: 28 }}>
-          <KpiCard label="Total Returns" value={totalReturns} icon="📦" trend={periodChange} subtext={rangeLabel} accent="#3b82f6" />
-          <KpiCard label="Approval Rate" value={`${approvalRate}%`} icon="✅" subtext={`${approvedCount} of ${totalReturns}`} accent="#10b981" />
-          <KpiCard label="Avg Processing" value={avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)}d` : "—"} icon="⏱" subtext="Request → Approval" accent="#f59e0b" />
-          <KpiCard label="Refund Rate" value={`${refundRate}%`} icon="💰" subtext={`${refundedCount} refunded`} accent="#8b5cf6" />
-          <KpiCard label="Items Returned" value={itemsCount} icon="📋" subtext={`~${avgItemsPerReturn} per return`} accent="#06b6d4" />
+          <KpiCard label="Total Returns" value={totalReturns} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>} trend={periodChange} subtext={rangeLabel} accent="#3b82f6" />
+          <KpiCard label="Approval Rate" value={`${approvalRate}%`} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>} subtext={`${approvedCount} of ${totalReturns}`} accent="#10b981" />
+          <KpiCard label="Avg Processing" value={avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)}d` : "—"} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>} subtext="Request → Approval" accent="#f59e0b" />
+          <KpiCard label="Refund Rate" value={`${refundRate}%`} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>} subtext={`${refundedCount} refunded`} accent="#8b5cf6" />
+          <KpiCard label="Items Returned" value={itemsCount} icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>} subtext={`~${avgItemsPerReturn} per return`} accent="#06b6d4" />
         </div>
 
         {/* ─── Charts: Trend + Distribution ─── */}
@@ -368,7 +369,7 @@ export default function Reports() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <EmptyState icon="📈" message="No returns during this period. Adjust the date range to see trends." />
+                <EmptyState icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>} message="No returns during this period. Adjust the date range to see trends." />
               )}
             </div>
           </ChartCard>
@@ -410,7 +411,7 @@ export default function Reports() {
                   </div>
                 </div>
               ) : (
-                <EmptyState icon="🍩" message="No status data available for this period." />
+                <EmptyState icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/></svg>} message="No status data available for this period." />
               )}
             </div>
           </ChartCard>
@@ -475,7 +476,7 @@ export default function Reports() {
               })}
             </div>
           ) : (
-            <EmptyState icon="📝" message="No return reasons recorded yet. Add specific reasons in Settings → Policy Rules for better insights." />
+            <EmptyState icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>} message="No return reasons recorded yet. Add specific reasons in Settings → Policy Rules for better insights." />
           )}
         </ChartCard>
 
@@ -492,7 +493,7 @@ export default function Reports() {
           }
         >
           {Object.keys(statusMap).length === 0 ? (
-            <EmptyState icon="📊" message="No returns in the selected period. Try expanding the date range." />
+            <EmptyState icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>} message="No returns in the selected period. Try expanding the date range." />
           ) : (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 14 }}>
@@ -545,47 +546,47 @@ export default function Reports() {
         <ChartCard title="Key insights" subtitle="Automated observations based on your data">
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {totalReturns === 0 ? (
-              <EmptyState icon="💡" message="No data to generate insights. Returns will be analyzed as they come in." />
+              <EmptyState icon={<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M15.09 14c.18-.98.65-1.74 1.41-2.5A4.65 4.65 0 0018 8 6 6 0 006 8c0 1 .23 2.23 1.5 3.5A4.61 4.61 0 018.91 14"/></svg>} message="No data to generate insights. Returns will be analyzed as they come in." />
             ) : (
               <>
                 {approvalRate >= 80 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 14, color: "#047857" }}>
-                    ✅ <strong>High approval rate ({approvalRate}%)</strong> — Your return policy is well-calibrated. Customers are submitting valid requests.
+                    <strong>High approval rate ({approvalRate}%)</strong> — Your return policy is well-calibrated. Customers are submitting valid requests.
                   </div>
                 )}
                 {approvalRate > 0 && approvalRate < 50 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 14, color: "#b91c1c" }}>
-                    ⚠️ <strong>Low approval rate ({approvalRate}%)</strong> — Consider reviewing your return policy. A high rejection rate may hurt customer satisfaction.
+                    <strong>Low approval rate ({approvalRate}%)</strong> — Consider reviewing your return policy. A high rejection rate may hurt customer satisfaction.
                   </div>
                 )}
                 {avgProcessingDays !== null && avgProcessingDays > 3 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fffbeb", border: "1px solid #fde68a", fontSize: 14, color: "#92400e" }}>
-                    ⏱ <strong>Avg processing: {avgProcessingDays.toFixed(1)} days</strong> — Consider speeding up approvals. Faster processing improves customer retention.
+                    <strong>Avg processing: {avgProcessingDays.toFixed(1)} days</strong> — Consider speeding up approvals. Faster processing improves customer retention.
                   </div>
                 )}
                 {avgProcessingDays !== null && avgProcessingDays <= 1 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 14, color: "#047857" }}>
-                    ⚡ <strong>Fast processing ({avgProcessingDays.toFixed(1)} days)</strong> — Great job! Your team is resolving returns quickly.
+                    <strong>Fast processing ({avgProcessingDays.toFixed(1)} days)</strong> — Great job! Your team is resolving returns quickly.
                   </div>
                 )}
                 {refundedCount === 0 && approvedCount > 0 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 14, color: "#1e40af" }}>
-                    💰 <strong>{approvedCount} approved returns awaiting refund</strong> — Process refunds in Shopify to complete the return cycle.
+                    <strong>{approvedCount} approved returns awaiting refund</strong> — Process refunds in Shopify to complete the return cycle.
                   </div>
                 )}
                 {topReasons.length > 0 && topReasons[0].count >= 2 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#eff6ff", border: "1px solid #bfdbfe", fontSize: 14, color: "#1e40af" }}>
-                    📝 <strong>Top reason: "{topReasons[0].reason}"</strong> ({topReasons[0].count} times) — This might indicate a product quality or description issue worth investigating.
+                    <strong>Top reason: "{topReasons[0].reason}"</strong> ({topReasons[0].count} times) — This might indicate a product quality or description issue worth investigating.
                   </div>
                 )}
                 {periodChange > 50 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 14, color: "#b91c1c" }}>
-                    📈 <strong>Returns up {periodChange}% vs previous period</strong> — Monitor if this trend continues. Could indicate a product or fulfillment issue.
+                    <strong>Returns up {periodChange}% vs previous period</strong> — Monitor if this trend continues. Could indicate a product or fulfillment issue.
                   </div>
                 )}
                 {periodChange < -20 && (
                   <div style={{ padding: "12px 16px", borderRadius: 10, background: "#ecfdf5", border: "1px solid #a7f3d0", fontSize: 14, color: "#047857" }}>
-                    📉 <strong>Returns down {Math.abs(periodChange)}%</strong> — Great trend! Your return rate is decreasing compared to the previous period.
+                    <strong>Returns down {Math.abs(periodChange)}%</strong> — Great trend! Your return rate is decreasing compared to the previous period.
                   </div>
                 )}
               </>

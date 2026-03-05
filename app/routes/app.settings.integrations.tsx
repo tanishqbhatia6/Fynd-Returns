@@ -293,7 +293,12 @@ export default function Integrations() {
           <div className="app-alert app-alert-success">Credentials cleared. Enter new values and Save.</div>
         )}
         {showTestSuccess && (
-          <div className="app-alert app-alert-success">✓ {fetcher.data?.testMessage ?? "Connection successful."}</div>
+          <div className="app-alert app-alert-success">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {fetcher.data?.testMessage ?? "Connection successful."}
+          </div>
         )}
         {showTestError && (
           <div className="app-alert app-alert-error" style={{ borderLeft: "4px solid #d72c0d" }}>
@@ -400,7 +405,10 @@ export default function Integrations() {
 
             {data.fyndCredentials && (
               <p style={{ fontSize: 13, color: "#008060", marginTop: 16, fontWeight: 500 }}>
-                ✓ Platform credentials configured. Enter new values to replace; leave blank to keep existing.
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Platform credentials configured. Enter new values to replace; leave blank to keep existing.
               </p>
             )}
           </s-section>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
@@ -79,7 +79,7 @@ export default function PortalInfo() {
                 {portalUrl}
               </code>
               <s-button variant="primary" onClick={handleCopy}>
-                {copied ? "✓ Copied!" : "Copy URL"}
+                {copied ? "Copied!" : "Copy URL"}
               </s-button>
               <a href={portalUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
                 <s-button variant="secondary">Open portal ↗</s-button>
@@ -88,7 +88,7 @@ export default function PortalInfo() {
 
             {copied && (
               <div style={{ marginTop: 10, fontSize: 13, color: "#059669", fontWeight: 500, animation: "app-slideDown 0.2s ease" }}>
-                ✓ Portal URL copied to clipboard
+                Portal URL copied to clipboard
               </div>
             )}
           </div>
@@ -161,10 +161,10 @@ export default function PortalInfo() {
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
-                { icon: "🔍", title: "Look up their order", desc: "Search by order number, email, phone, or tracking number", step: "1" },
-                { icon: "📦", title: "Select items to return", desc: "Choose products, pick a reason, and submit the request", step: "2" },
-                { icon: "📍", title: "Track return status", desc: "Real-time updates from Shopify and Fynd shown on a timeline", step: "3" },
-                { icon: "✉️", title: "Get notified", desc: "Email updates when their return is approved, shipped, or refunded", step: "4" },
+                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>, title: "Look up their order", desc: "Search by order number, email, phone, or tracking number", step: "1" },
+                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>, title: "Select items to return", desc: "Choose products, pick a reason, and submit the request", step: "2" },
+                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>, title: "Track return status", desc: "Real-time updates from Shopify and Fynd shown on a timeline", step: "3" },
+                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>, title: "Get notified", desc: "Email updates when their return is approved, shipped, or refunded", step: "4" },
               ].map((item, i) => (
                 <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
                   <div
@@ -205,7 +205,7 @@ export default function PortalInfo() {
               }}
             >
               <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
-                📌 Add to your store
+                Add to your store
               </h3>
               <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 14 }}>
                 Add a "Returns" link to your store's footer so customers can easily find the portal.
@@ -236,7 +236,7 @@ export default function PortalInfo() {
               }}
             >
               <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
-                🎨 Customize appearance
+                Customize appearance
               </h3>
               <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 14 }}>
                 Match the portal to your brand with custom colors, fonts, and layout.
@@ -257,7 +257,7 @@ export default function PortalInfo() {
               }}
             >
               <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
-                ⚙️ App Proxy configuration
+                App Proxy configuration
               </h3>
               <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 12 }}>
                 The portal is served through Shopify's App Proxy. Ensure this is configured in your app settings:

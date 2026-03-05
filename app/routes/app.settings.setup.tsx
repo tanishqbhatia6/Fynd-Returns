@@ -317,7 +317,7 @@ export default function FyndSetup() {
                     fontWeight: 600,
                   }}
                 >
-                  {isPast ? "✓" : i + 1}
+                  {isPast ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg> : i + 1}
                 </span>
                 {s.title}
               </button>
@@ -328,7 +328,10 @@ export default function FyndSetup() {
         {/* Alerts */}
         {showTestSuccess && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 24 }}>
-            ✓ {fetcher.data?.testMessage ?? "Connection successful."}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {fetcher.data?.testMessage ?? "Connection successful."}
           </div>
         )}
         {showTestError && (
@@ -338,7 +341,10 @@ export default function FyndSetup() {
         )}
         {showWebhookSuccess && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 24 }}>
-            ✓ {fetcher.data?.webhookMessage ?? "Webhook test successful."}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {fetcher.data?.webhookMessage ?? "Webhook test successful."}
           </div>
         )}
         {showWebhookError && (
@@ -348,7 +354,10 @@ export default function FyndSetup() {
         )}
         {showRegisterSuccess && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 24 }}>
-            ✓ {fetcher.data?.registerMessage ?? "Webhook registered successfully."}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {fetcher.data?.registerMessage ?? "Webhook registered successfully."}
           </div>
         )}
         {showRegisterError && (
@@ -386,7 +395,12 @@ export default function FyndSetup() {
               </Link>
             </div>
             {data.hasPlatformCreds && (
-              <p style={{ marginTop: 16, color: "#008060", fontWeight: 500 }}>✓ Credentials configured. Continue to Step 2.</p>
+              <p style={{ marginTop: 16, color: "#008060", fontWeight: 500 }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Credentials configured. Continue to Step 2.
+              </p>
             )}
             <div style={{ marginTop: 24 }}>
               <button
@@ -503,7 +517,12 @@ export default function FyndSetup() {
                   border: "1px solid #a7f3d0",
                 }}
               >
-                <p style={{ margin: 0, fontWeight: 600, color: "#065f46", fontSize: 14 }}>✓ Webhook already subscribed</p>
+                <p style={{ margin: 0, fontWeight: 600, color: "#065f46", fontSize: 14 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  Webhook already subscribed
+                </p>
                 <p style={{ margin: "8px 0 0", fontSize: 13, color: "#047857" }}>
                   Subscriber: <strong>{data.existingSubscriber.name}</strong>
                 </p>
@@ -621,7 +640,10 @@ export default function FyndSetup() {
               }}
             >
               <p style={{ margin: 0, fontSize: 15, color: "#065f46", fontWeight: 500 }}>
-                ✓ Fynd integration is ready. Returns synced to Fynd will receive automatic refund updates via webhook.
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Fynd integration is ready. Returns synced to Fynd will receive automatic refund updates via webhook.
               </p>
             </div>
             <div style={docCard as React.CSSProperties} className="app-doc-card">

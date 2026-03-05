@@ -62,7 +62,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const terminalStatuses = ["approved", "rejected", "completed", "cancelled"];
   const isTerminal = terminalStatuses.includes(returnCase.status.toLowerCase());
 
-  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string };
+  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     try {
@@ -91,7 +91,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (rejectionReasonVal !== null && rejectionReasonVal !== undefined) body.rejectionReason = rejectionReasonVal;
   }
 
-  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason } = body;
+  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId } = body;
 
   if (actionType === "update_status" && newStatus) {
     const validStatuses = ["pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled", "initiated"];
@@ -485,7 +485,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
       }
 
-      const result = await createRefund(admin, orderIdForRefund, lineItemsForRefund, note || returnCase.adminNotes || undefined);
+      const result = await createRefund(admin, orderIdForRefund, lineItemsForRefund, note || returnCase.adminNotes || undefined, requestedLocationId || undefined);
       if (!result.success) {
         const msg = result.error ?? "Refund failed due to an unknown Shopify error. Check Shopify Admin.";
         await createFailedEvent(msg);
@@ -498,6 +498,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         createdAt: result.refundCreatedAt ?? new Date().toISOString(),
         method: "original_payment_method",
         source: "admin",
+        locationId: requestedLocationId ?? null,
       };
       await prisma.returnCase.update({
         where: { id },

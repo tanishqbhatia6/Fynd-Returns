@@ -62,6 +62,8 @@ model ShopSettings {
   returnPolicyText           String?
   autoApproveEnabled         Boolean  @default(false)
   autoRefundEnabled          Boolean  @default(false)  // Auto-trigger Shopify refund on credit_note_generated
+  refundLocationMode         String   @default("auto") // "auto" = use order fulfillment location, "manual" = admin picks location in modal
+  refundLocationId           String?  // Shopify location GID for auto mode fallback (when fulfillment location unavailable)
   returnOffersJson          String?
   minimumReturnPrice         Decimal? @db.Decimal(12, 2)
   restrictedRegionsJson      String?

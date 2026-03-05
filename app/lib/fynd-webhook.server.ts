@@ -334,11 +334,22 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       }
     }
 
+    let webhookRefundLocationId: string | null = null;
+    try {
+      const ss = await prisma.shopSettings.findUnique({ where: { shopId: returnCase.shop.id } });
+      webhookRefundLocationId = (ss as { refundLocationId?: string | null } | null)?.refundLocationId ?? null;
+      if (!webhookRefundLocationId && orderIdForRefund) {
+        const orderForLoc = await fetchOrder(admin, orderIdForRefund);
+        webhookRefundLocationId = orderForLoc?.fulfillments?.[0]?.location?.id ?? null;
+      }
+    } catch { /* fallback to createRefund's auto-fetch */ }
+
     const result = await createRefund(
       admin,
       orderIdForRefund,
       lineItemsForRefund,
-      `Refund processed via Fynd webhook (shipment ${shipmentId})`
+      `Refund processed via Fynd webhook (shipment ${shipmentId})`,
+      webhookRefundLocationId
     );
     if (!result.success) {
       const errMsg = result.error ?? "Shopify refund failed";
@@ -438,12 +449,22 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
             lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           }
         }
+
+        let autoRefundLocationId: string | null = (shopSettings as { refundLocationId?: string | null }).refundLocationId ?? null;
+        if (!autoRefundLocationId && orderIdForRefund) {
+          try {
+            const orderForLoc = await fetchOrder(admin, orderIdForRefund);
+            autoRefundLocationId = orderForLoc?.fulfillments?.[0]?.location?.id ?? null;
+          } catch { /* fallback to createRefund's own location fetch */ }
+        }
+
         if (orderIdForRefund && lineItemsForRefund.length > 0) {
           const result = await createRefund(
             admin,
             orderIdForRefund,
             lineItemsForRefund,
-            `Auto-refund triggered by Fynd credit note (shipment ${shipmentId})`
+            `Auto-refund triggered by Fynd credit note (shipment ${shipmentId})`,
+            autoRefundLocationId
           );
           if (result.success) {
             const refundDetails = {

@@ -5,14 +5,24 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { findOrCreateShop } from "../lib/shop.server";
+import { fetchAllLocations } from "../lib/shopify-admin.server";
+import type { ShopLocation } from "../lib/shopify-admin.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = await findOrCreateShop(session.shop);
   const s = shop.settings;
   const tags = parseJsonArray<string>(s?.restrictedProductTagsJson ?? null, []);
   const refundPrepaid = parseJsonArray<string>(s?.refundMethodPrepaidJson ?? null, ["bank_details"]);
   const refundCOD = parseJsonArray<string>(s?.refundMethodCODJson ?? null, []);
+
+  let shopLocations: ShopLocation[] = [];
+  try {
+    shopLocations = await fetchAllLocations(admin);
+  } catch { /* non-fatal */ }
+
+  const refundLocationMode = (s as { refundLocationMode?: string } | null | undefined)?.refundLocationMode ?? "auto";
+  const refundLocationId = (s as { refundLocationId?: string | null } | null | undefined)?.refundLocationId ?? null;
 
   return {
     noReturnPeriodEnabled: s?.noReturnPeriodEnabled ?? false,
@@ -26,6 +36,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     refundMethodCOD: refundCOD,
     autoApproveEnabled: s?.autoApproveEnabled ?? false,
     autoRefundEnabled: s?.autoRefundEnabled ?? false,
+    refundLocationMode,
+    refundLocationId,
+    shopLocations,
   };
 };
 
@@ -43,6 +56,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const refundMethodCODJson = formData.get("refundMethodCODJson") as string | null;
   const autoApproveEnabled = formData.get("autoApproveEnabled") === "on";
   const autoRefundEnabled = formData.get("autoRefundEnabled") === "on";
+  const refundLocationMode = (formData.get("refundLocationMode") as string) ?? "auto";
+  const refundLocationId = (formData.get("refundLocationId") as string | null) || null;
 
   const shop = await findOrCreateShop(session.shop);
 
@@ -92,6 +107,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       refundMethodCODJson: codStr,
       autoApproveEnabled,
       autoRefundEnabled,
+      refundLocationMode,
+      refundLocationId,
     },
     update: {
       noReturnPeriodEnabled,
@@ -105,6 +122,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       refundMethodCODJson: codStr ?? undefined,
       autoApproveEnabled,
       autoRefundEnabled,
+      refundLocationMode,
+      refundLocationId,
     },
   });
   return { success: true };
@@ -118,12 +137,16 @@ export default function ReturnSettings() {
   const [prepaid, setPrepaid] = React.useState<string[]>(data.refundMethodPrepaid);
   const [cod, setCod] = React.useState<string[]>(data.refundMethodCOD);
   const [activeTab, setActiveTab] = React.useState<"prepaid" | "cod">("prepaid");
+  const [locationMode, setLocationMode] = React.useState<"auto" | "manual">(data.refundLocationMode === "manual" ? "manual" : "auto");
+  const [selectedLocId, setSelectedLocId] = React.useState(data.refundLocationId ?? "");
 
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
     setPrepaid(data.refundMethodPrepaid);
     setCod(data.refundMethodCOD);
-  }, [data.restrictedProductTags, data.refundMethodPrepaid, data.refundMethodCOD]);
+    setLocationMode(data.refundLocationMode === "manual" ? "manual" : "auto");
+    setSelectedLocId(data.refundLocationId ?? "");
+  }, [data.restrictedProductTags, data.refundMethodPrepaid, data.refundMethodCOD, data.refundLocationMode, data.refundLocationId]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -150,6 +173,8 @@ export default function ReturnSettings() {
     fd.set("restrictedProductTagsJson", JSON.stringify(tags));
     fd.set("refundMethodPrepaidJson", JSON.stringify(prepaid));
     fd.set("refundMethodCODJson", JSON.stringify(cod));
+    fd.set("refundLocationMode", locationMode);
+    fd.set("refundLocationId", selectedLocId);
     fetcher.submit(fd, { method: "post" });
   };
 
@@ -347,6 +372,60 @@ export default function ReturnSettings() {
                 <span>No</span>
               </label>
             </div>
+          </s-section>
+
+          {/* Refund Location */}
+          <s-section>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Refund Restock Location</div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
+              When processing a refund, Shopify requires a location to restock returned inventory.
+              Choose whether to automatically use the order's fulfillment location or manually select it each time.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", padding: 12, background: locationMode === "auto" ? "#EFF6FF" : "#F9FAFB", borderRadius: 8, border: locationMode === "auto" ? "2px solid #3B82F6" : "1px solid #E5E7EB", transition: "all 0.15s" }}>
+                <input type="radio" name="refundLocationMode" value="auto" checked={locationMode === "auto"} onChange={() => setLocationMode("auto")} style={{ marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Automatic — use fulfillment location</div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                    Inventory will be restocked at the location the order was originally fulfilled from.
+                    If unavailable, falls back to the default location below.
+                  </div>
+                </div>
+              </label>
+              <label style={{ display: "flex", alignItems: "flex-start", gap: 8, cursor: "pointer", padding: 12, background: locationMode === "manual" ? "#EFF6FF" : "#F9FAFB", borderRadius: 8, border: locationMode === "manual" ? "2px solid #3B82F6" : "1px solid #E5E7EB", transition: "all 0.15s" }}>
+                <input type="radio" name="refundLocationMode" value="manual" checked={locationMode === "manual"} onChange={() => setLocationMode("manual")} style={{ marginTop: 2 }} />
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>Manual — choose location during refund</div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 2 }}>
+                    Admin will select the restock location from a dropdown each time a refund is processed.
+                    The fulfillment location is pre-selected but can be changed.
+                  </div>
+                </div>
+              </label>
+            </div>
+            {data.shopLocations.length > 0 && (
+              <div>
+                <label style={{ display: "block", fontWeight: 500, fontSize: 13, marginBottom: 6 }}>
+                  {locationMode === "auto" ? "Default fallback location" : "Default pre-selected location"}
+                </label>
+                <p style={{ fontSize: 12, color: "#6d7175", marginBottom: 8 }}>
+                  {locationMode === "auto"
+                    ? "Used when the fulfillment location cannot be determined (e.g. unfulfilled orders)."
+                    : "This location will be pre-selected in the refund modal, but admin can change it."}
+                </p>
+                <select name="refundLocationId" value={selectedLocId} onChange={(e) => setSelectedLocId(e.target.value)} style={{ width: "100%", maxWidth: 400, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}>
+                  <option value="">None — auto-detect from Shopify</option>
+                  {data.shopLocations.filter((l: ShopLocation) => l.isActive).map((loc: ShopLocation) => (
+                    <option key={loc.id} value={loc.id}>{loc.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {data.shopLocations.length === 0 && (
+              <div style={{ padding: 12, background: "#FEF3C7", borderRadius: 8, fontSize: 13, color: "#92400E" }}>
+                No locations found. Make sure your Shopify store has at least one active location.
+              </div>
+            )}
           </s-section>
         </div>
 

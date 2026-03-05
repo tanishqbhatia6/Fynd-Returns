@@ -4,9 +4,9 @@ import React, { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getStatusColor } from "../lib/status-colors";
-import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber, fetchAllLocations } from "../lib/shopify-admin.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
-import type { MailingAddressDisplay } from "../lib/shopify-admin.server";
+import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
 
@@ -384,7 +384,35 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
     const returnJourney = extractFyndJourney(fyndPayloadJson, "return");
 
-    return { returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney };
+    const isRefundEligible = ["approved", "completed"].includes(returnCase.status.toLowerCase())
+      && returnCase.refundStatus !== "refunded"
+      && !isManualReturn;
+
+    let shopLocations: ShopLocation[] = [];
+    let fulfillmentLocationId: string | null = null;
+    let fulfillmentLocationName: string | null = null;
+    let refundLocationMode = "auto";
+
+    if (isRefundEligible) {
+      try {
+        shopLocations = await fetchAllLocations(admin);
+      } catch { /* non-fatal */ }
+
+      const fulfillment = shopifyOrder?.fulfillments?.[0];
+      if (fulfillment?.location) {
+        fulfillmentLocationId = fulfillment.location.id;
+        fulfillmentLocationName = fulfillment.location.name;
+      }
+
+      const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+      refundLocationMode = (shopSettings as { refundLocationMode?: string } | null)?.refundLocationMode ?? "auto";
+    }
+
+    return {
+      returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn,
+      fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
+      shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
+    };
   } catch (err) {
     if (err instanceof Response) throw err;
     console.error("Return detail loader unexpected error:", err);
@@ -393,7 +421,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 };
 
 export default function ReturnDetail() {
-  const { returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney } = useLoaderData<typeof loader>();
+  const {
+    returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
+    shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
+  } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showRawFynd, setShowRawFynd] = useState(false);
@@ -402,6 +433,7 @@ export default function ReturnDetail() {
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
+  const [selectedLocationId, setSelectedLocationId] = useState<string>(fulfillmentLocationId ?? shopLocations[0]?.id ?? "");
   const storeName = shopDomain.replace(".myshopify.com", "");
   const orderIdForLink = shopifyOrder?.id
     ? shopifyOrder.id.replace(/^gid:\/\/shopify\/Order\//, "")
@@ -876,16 +908,60 @@ export default function ReturnDetail() {
                     </s-button>
                     {showRefundConfirm && (
                       <div className="app-modal-overlay" onClick={() => setShowRefundConfirm(false)}>
-                        <div className="app-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
                           <div className="app-modal-title">Confirm Refund</div>
                           <div className="app-modal-body">
                             <p>Refund for order <strong>{returnCase.shopifyOrderName || "—"}</strong> will be issued to the original payment method.</p>
+
+                            {shopLocations.length > 0 && (
+                              <div style={{ margin: "16px 0", padding: 14, background: "#F9FAFB", borderRadius: 8, border: "1px solid #E5E7EB" }}>
+                                <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+                                  Restock inventory location
+                                </label>
+                                {fulfillmentLocationId && (
+                                  <div style={{ fontSize: 12, color: "#059669", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                    Order fulfilled from: <strong>{fulfillmentLocationName}</strong>
+                                    {selectedLocationId === fulfillmentLocationId && (
+                                      <span style={{ fontSize: 11, padding: "1px 6px", background: "#DCFCE7", borderRadius: 4, color: "#166534" }}>Preferred</span>
+                                    )}
+                                  </div>
+                                )}
+                                {refundLocationMode === "auto" ? (
+                                  <div style={{ fontSize: 12, color: "#6B7280" }}>
+                                    Location is set automatically to the fulfillment location.
+                                    <span style={{ fontSize: 11, display: "block", marginTop: 4, color: "#9CA3AF" }}>
+                                      Change this in Settings → Return Settings → Refund Location.
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <select
+                                    value={selectedLocationId}
+                                    onChange={(e) => setSelectedLocationId(e.target.value)}
+                                    style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, background: "#fff" }}
+                                    aria-label="Select restock location"
+                                  >
+                                    {shopLocations.filter((l) => l.isActive).map((loc) => (
+                                      <option key={loc.id} value={loc.id}>
+                                        {loc.name}{loc.id === fulfillmentLocationId ? " (Fulfilled here)" : ""}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                              </div>
+                            )}
+
                             <p style={{ color: "#DC2626", fontWeight: 500, fontSize: 14 }}>This cannot be undone.</p>
                           </div>
                           <div className="app-modal-actions">
                             <s-button type="button" variant="secondary" onClick={() => setShowRefundConfirm(false)}>Cancel</s-button>
                             <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                              <input type="hidden" name="json" value={JSON.stringify({ action: "process_refund" })} />
+                              <input type="hidden" name="json" value={JSON.stringify({
+                                action: "process_refund",
+                                locationId: refundLocationMode === "auto"
+                                  ? (fulfillmentLocationId || shopLocations[0]?.id || null)
+                                  : (selectedLocationId || null),
+                              })} />
                               <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>Yes, process refund</s-button>
                             </fetcher.Form>
                           </div>

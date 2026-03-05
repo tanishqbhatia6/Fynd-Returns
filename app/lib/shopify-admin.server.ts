@@ -52,6 +52,7 @@ const ORDERS_QUERY = `#graphql
           estimatedDeliveryAt
           inTransitAt
           totalQuantity
+          location { id name }
           trackingInfo(first: 5) {
             number
             url
@@ -109,6 +110,7 @@ const ORDERS_BY_NAME_QUERY = `#graphql
           estimatedDeliveryAt
           inTransitAt
           totalQuantity
+          location { id name }
           trackingInfo(first: 5) {
             number
             url
@@ -162,6 +164,7 @@ const ORDERS_BY_CUSTOMER_QUERY = `#graphql
           estimatedDeliveryAt
           inTransitAt
           totalQuantity
+          location { id name }
           trackingInfo(first: 5) {
             number
             url
@@ -241,6 +244,7 @@ export type ShopifyFulfillment = {
   estimatedDeliveryAt?: string | null;
   inTransitAt?: string | null;
   totalQuantity?: number | null;
+  location?: { id: string; name: string } | null;
   trackingInfo: Array<{
     number?: string | null;
     url?: string | null;
@@ -333,6 +337,7 @@ export async function fetchOrderByOrderNumber(
       estimatedDeliveryAt?: string | null;
       inTransitAt?: string | null;
       totalQuantity?: number | null;
+      location?: { id: string; name: string } | null;
       trackingInfo?: Array<{
         number?: string | null;
         url?: string | null;
@@ -402,6 +407,7 @@ export async function fetchOrderByOrderNumber(
       estimatedDeliveryAt: f.estimatedDeliveryAt ?? null,
       inTransitAt: f.inTransitAt ?? null,
       totalQuantity: f.totalQuantity ?? null,
+      location: f.location ? { id: f.location.id, name: f.location.name } : null,
       trackingInfo: (f.trackingInfo ?? []).map((ti) => ({
         number: ti.number ?? null,
         url: ti.url ?? null,
@@ -475,6 +481,7 @@ export async function fetchOrdersByCustomer(
               estimatedDeliveryAt?: string | null;
               inTransitAt?: string | null;
               totalQuantity?: number | null;
+              location?: { id: string; name: string } | null;
               trackingInfo?: Array<{
                 number?: string | null;
                 url?: string | null;
@@ -526,6 +533,7 @@ export async function fetchOrdersByCustomer(
         estimatedDeliveryAt: f.estimatedDeliveryAt ?? null,
         inTransitAt: f.inTransitAt ?? null,
         totalQuantity: f.totalQuantity ?? null,
+        location: f.location ? { id: f.location.id, name: f.location.name } : null,
         trackingInfo: (f.trackingInfo ?? []).map((ti) => ({
           number: ti.number ?? null,
           url: ti.url ?? null,
@@ -607,6 +615,7 @@ export async function fetchOrder(
       estimatedDeliveryAt?: string | null;
       inTransitAt?: string | null;
       totalQuantity?: number | null;
+      location?: { id: string; name: string } | null;
       trackingInfo?: Array<{
         number?: string | null;
         url?: string | null;
@@ -682,6 +691,37 @@ export async function fetchOrder(
   };
 }
 
+const ALL_LOCATIONS_QUERY = `#graphql
+  query {
+    locations(first: 50, sortKey: NAME) {
+      nodes { id name isActive }
+    }
+  }
+`;
+
+export type ShopLocation = { id: string; name: string; isActive: boolean };
+
+export async function fetchAllLocations(admin: AdminGraphQL): Promise<ShopLocation[]> {
+  try {
+    const res = await admin.graphql(ALL_LOCATIONS_QUERY);
+    const json = (await res.json()) as {
+      data?: { locations?: { nodes?: Array<{ id: string; name: string; isActive?: boolean }> } };
+    };
+    return (json.data?.locations?.nodes ?? []).map((l) => ({
+      id: l.id,
+      name: l.name,
+      isActive: l.isActive !== false,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchPrimaryLocationId(admin: AdminGraphQL): Promise<string | null> {
+  const locations = await fetchAllLocations(admin);
+  return locations[0]?.id ?? null;
+}
+
 export type RefundResult = {
   success: boolean;
   error?: string;
@@ -695,7 +735,8 @@ export async function createRefund(
   admin: AdminGraphQL,
   orderId: string,
   lineItems: Array<{ id: string; quantity: number }> | string[],
-  note?: string
+  note?: string,
+  locationId?: string | null
 ): Promise<RefundResult> {
   try {
     const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
@@ -709,11 +750,18 @@ export async function createRefund(
       }
       return item;
     });
+
+    let restockLocationId = locationId;
+    if (!restockLocationId) {
+      restockLocationId = await fetchPrimaryLocationId(admin);
+    }
+
     if (normalized.length > 0) {
       refundInput.refundLineItems = normalized.map((item) => ({
         lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
         quantity: item.quantity,
         restockType: "RETURN",
+        ...(restockLocationId ? { locationId: restockLocationId } : {}),
       }));
     } else {
       return { success: false, error: "No line items specified for refund. Please select items to refund." };

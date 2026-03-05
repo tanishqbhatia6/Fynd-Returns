@@ -225,7 +225,7 @@ export default function ReturnsList() {
                       <th>Return ID</th>
                       <th>Order</th>
                       <th>Status</th>
-                      <th className="app-hide-mobile">Fynd / AWB</th>
+                      <th className="app-hide-mobile">Fynd Return ID</th>
                       <th className="app-hide-mobile">Customer</th>
                       <th>Created</th>
                     </tr>
@@ -233,10 +233,11 @@ export default function ReturnsList() {
                   <tbody>
                     {returns.map((r) => {
                       const statusBg = getStatusBg(r.status);
-                      const fyndShipId = (r as { fyndShipmentId?: string | null }).fyndShipmentId;
+                      const fyndRetId = (r as { fyndReturnId?: string | null }).fyndReturnId;
                       const fyndRetNo = (r as { fyndReturnNo?: string | null }).fyndReturnNo;
+                      const fyndShipId = (r as { fyndShipmentId?: string | null }).fyndShipmentId;
                       const fyndOrdId = (r as { fyndOrderId?: string | null }).fyndOrderId;
-                      const hasFynd = !!(fyndShipId || fyndRetNo);
+                      const hasFynd = !!(fyndRetId || fyndRetNo || fyndShipId);
                       return (
                         <tr
                           key={r.id}
@@ -282,14 +283,12 @@ export default function ReturnsList() {
                           <td className="app-hide-mobile">
                             {hasFynd ? (
                               <div>
-                                {fyndShipId && (
-                                  <div style={{ fontSize: 11, color: "var(--rpm-text)", fontFamily: "var(--rpm-font-mono, monospace)", fontWeight: 600 }}>
-                                    {String(fyndShipId)}
-                                  </div>
-                                )}
-                                {fyndRetNo && (
-                                  <div style={{ fontSize: 10, color: "var(--rpm-text-muted)", fontFamily: "var(--rpm-font-mono, monospace)", marginTop: fyndShipId ? 2 : 0 }}>
-                                    Ret# {String(fyndRetNo)}
+                                <div style={{ fontSize: 11, color: "var(--rpm-text)", fontFamily: "var(--rpm-font-mono, monospace)", fontWeight: 600 }}>
+                                  {fyndRetId || fyndRetNo || fyndShipId}
+                                </div>
+                                {fyndRetNo && fyndRetId && (
+                                  <div style={{ fontSize: 10, color: "var(--rpm-text-muted)", fontFamily: "var(--rpm-font-mono, monospace)", marginTop: 2 }}>
+                                    #{fyndRetNo}
                                   </div>
                                 )}
                                 {r.returnAwb && (
@@ -299,9 +298,7 @@ export default function ReturnsList() {
                                 )}
                               </div>
                             ) : (
-                              <span style={{ fontSize: 12, color: r.returnAwb ? "var(--rpm-text)" : "var(--rpm-text-subtle)", fontFamily: r.returnAwb ? "var(--rpm-font-mono, monospace)" : "inherit" }}>
-                                {r.returnAwb || "—"}
-                              </span>
+                              <span style={{ fontSize: 12, color: "var(--rpm-text-subtle)" }}>—</span>
                             )}
                           </td>
                           <td className="app-hide-mobile">

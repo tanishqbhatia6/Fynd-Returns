@@ -1305,6 +1305,12 @@ s-section[heading]::before {
   .dashboard-gauge-grid {
     grid-template-columns: repeat(2, 1fr) !important;
   }
+  .docs-layout {
+    grid-template-columns: 1fr !important;
+  }
+  .docs-sidebar {
+    position: static !important;
+  }
 }
 
 @media (max-width: 480px) {

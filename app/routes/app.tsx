@@ -55,7 +55,7 @@ const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; labe
   "/app/settings/rules": { parent: "/app/settings", parentLabel: "Settings", label: "Policy Rules" },
   "/app/settings/widget": { parent: "/app/settings", parentLabel: "Settings", label: "Portal Widget" },
   "/app/settings/permissions": { parent: "/app/settings", parentLabel: "Settings", label: "Permissions" },
-  "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Documentation" },
+  "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Product Guide" },
 };
 
 function getBreadcrumb(pathname: string) {

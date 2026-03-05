@@ -49,6 +49,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalReturns, returnsByStatus, reasonAggregation,
       refundedCount, fyndSyncedCount, pendingCount, rejectedCount,
       itemsCount, allTimeReturns, approvedWithEvents, returnsForDaily,
+      approvedNotRefundedCount,
     ] = await Promise.all([
       prisma.returnCase.count({ where }),
       prisma.returnCase.groupBy({ by: ["status"], where, _count: true }),
@@ -61,6 +62,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: whereAll }),
       prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true } }),
       prisma.returnCase.findMany({ where, select: { createdAt: true, status: true } }),
+      prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
     ]);
 
     const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
@@ -116,7 +118,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     return {
       totalReturns, statusMap, topReasons, refundedCount, fyndSyncedCount,
-      pendingCount, rejectedCount, approvedCount,
+      pendingCount, rejectedCount, approvedCount, approvedNotRefundedCount,
       itemsCount, allTimeReturns, returnsOverTime, statusChartData,
       avgProcessingDays, periodChange, rangeLabel, range,
       from: from ?? undefined, to: to ?? undefined, hasFyndConfig, error: null,
@@ -127,7 +129,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalReturns: 0, statusMap: {} as Record<string, number>,
       topReasons: [] as { reason: string; count: number }[],
       refundedCount: 0, fyndSyncedCount: 0, pendingCount: 0,
-      rejectedCount: 0, approvedCount: 0,
+      rejectedCount: 0, approvedCount: 0, approvedNotRefundedCount: 0,
       itemsCount: 0, allTimeReturns: 0,
       returnsOverTime: [] as { date: string; returns: number; fullDate: string }[],
       statusChartData: [] as { name: string; value: number }[],
@@ -161,7 +163,7 @@ export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
     totalReturns, statusMap, topReasons, refundedCount, fyndSyncedCount,
-    pendingCount, rejectedCount, approvedCount,
+    pendingCount, rejectedCount, approvedCount, approvedNotRefundedCount,
     itemsCount, allTimeReturns, returnsOverTime, statusChartData,
     avgProcessingDays, periodChange, rangeLabel, range, from, to,
     hasFyndConfig, error,
@@ -182,7 +184,7 @@ export default function Reports() {
 
   const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
   const rejectionRate = totalReturns > 0 ? Math.round((rejectedCount / totalReturns) * 100) : 0;
-  const refundRate = totalReturns > 0 ? Math.round((refundedCount / totalReturns) * 100) : 0;
+  const refundRate = approvedCount > 0 ? Math.round((refundedCount / approvedCount) * 100) : 0;
   const avgItemsPerReturn = totalReturns > 0 ? (itemsCount / totalReturns).toFixed(1) : "0";
   const fyndSyncRate = approvedCount > 0 ? Math.round((fyndSyncedCount / approvedCount) * 100) : 0;
 
@@ -382,7 +384,7 @@ export default function Reports() {
           {[
             { label: "Approval", value: approvalRate, color: "#10B981", desc: `${approvedCount} of ${totalReturns}` },
             { label: "Rejection", value: rejectionRate, color: "#EF4444", desc: `${rejectedCount} of ${totalReturns}` },
-            { label: "Refund", value: refundRate, color: "#8B5CF6", desc: `${refundedCount} of ${totalReturns}` },
+            { label: "Refund", value: refundRate, color: "#8B5CF6", desc: `${refundedCount} of ${approvedCount} approved` },
             ...(hasFyndConfig ? [{ label: "Fynd Sync", value: fyndSyncRate, color: "#06B6D4", desc: `${fyndSyncedCount} of ${approvedCount}` }] : []),
           ].map((g, i) => (
             <div key={i} style={{
@@ -523,9 +525,9 @@ export default function Reports() {
                   <strong>Fast processing ({avgProcessingDays.toFixed(1)}d)</strong> — Returns are being resolved quickly.
                 </div>
               )}
-              {refundedCount === 0 && approvedCount > 0 && (
+              {approvedNotRefundedCount > 0 && (
                 <div style={{ padding: "10px 14px", borderRadius: 8, background: "#EFF6FF", border: "1px solid #BFDBFE", fontSize: 13, color: "#1E40AF" }}>
-                  <strong>{approvedCount} approved returns awaiting refund</strong> — Process refunds to complete the cycle.
+                  <strong>{approvedNotRefundedCount} approved return{approvedNotRefundedCount > 1 ? "s" : ""} awaiting refund</strong> — Process refunds to complete the cycle.
                 </div>
               )}
               {topReasons.length > 0 && topReasons[0].count >= 2 && (

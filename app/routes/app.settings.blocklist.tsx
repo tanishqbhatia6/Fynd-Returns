@@ -40,6 +40,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     blocklistEnabled: s?.blocklistEnabled ?? false,
     entries,
+    shopLocale: s?.shopLocale ?? "en",
+    shopTimezone: s?.shopTimezone ?? "UTC",
   };
 };
 
@@ -254,7 +256,7 @@ export default function BlocklistSettings() {
                         <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12 }}>{entry.value}</td>
                         <td style={{ padding: "10px 14px", color: entry.reason ? "#374151" : "#9CA3AF" }}>{entry.reason || "--"}</td>
                         <td style={{ padding: "10px 14px", color: "#6d7175", fontSize: 12 }}>
-                          {new Date(entry.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                          {new Intl.DateTimeFormat(data.shopLocale || "en", { day: "numeric", month: "short", year: "numeric", timeZone: data.shopTimezone || "UTC" }).format(new Date(entry.createdAt))}
                         </td>
                         <td style={{ padding: "10px 14px", textAlign: "right" }}>
                           <fetcher.Form method="post" style={{ display: "inline" }}>

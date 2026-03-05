@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ReturnProMax — Documentation</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+--bg:#0a0a0f;--surface:#12121a;--surface-2:#1a1a26;--surface-3:#22222e;
+--border:#2a2a3a;--border-2:#3a3a4a;
+--text:#e8e8f0;--text-muted:#8888a0;--text-dim:#5a5a70;
+--accent:#6366f1;--accent-glow:#818cf820;--accent-text:#a5b4fc;
+--green:#10b981;--green-bg:#10b98118;--green-text:#6ee7b7;
+--blue:#3b82f6;--blue-bg:#3b82f618;--blue-text:#93bbfd;
+--amber:#f59e0b;--amber-bg:#f59e0b18;--amber-text:#fcd34d;
+--red:#ef4444;--red-bg:#ef444418;--red-text:#fca5a5;
+--purple:#8b5cf6;--purple-bg:#8b5cf618;--purple-text:#c4b5fd;
+--teal:#14b8a6;--teal-bg:#14b8a618;--teal-text:#5eead4;
+--indigo:#1d4ed8;--indigo-bg:#1d4ed818;--indigo-text:#93c5fd;
+--radius:12px;--radius-sm:8px;--radius-xs:6px;
+}
+body{font-family:'DM Sans',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-text);text-decoration:none;transition:color .2s}a:hover{color:var(--accent)}
+code{font-family:'JetBrains Mono',monospace;font-size:.85em;background:var(--surface-2);padding:2px 6px;border-radius:4px;color:var(--accent-text)}
+.container{max-width:960px;margin:0 auto;padding:0 24px}
+
+.hero{padding:80px 0 60px;text-align:center;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;top:-120px;left:50%;transform:translateX(-50%);width:600px;height:600px;background:radial-gradient(circle,var(--accent-glow) 0%,transparent 70%);pointer-events:none}
+.hero-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--accent-text);background:var(--accent-glow);border:1px solid #6366f130;padding:6px 14px;border-radius:20px;margin-bottom:20px;letter-spacing:.03em;text-transform:uppercase}
+.hero h1{font-size:clamp(36px,5vw,56px);font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-bottom:16px;background:linear-gradient(135deg,#fff 30%,var(--accent-text));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero p{font-size:18px;color:var(--text-muted);max-width:600px;margin:0 auto}
+
+.nav{position:sticky;top:0;z-index:100;background:#0a0a0fe0;backdrop-filter:blur(12px);border-bottom:1px solid var(--border);padding:12px 0}
+.nav-inner{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+.nav-inner::-webkit-scrollbar{display:none}
+.nav-link{font-size:13px;font-weight:500;color:var(--text-muted);padding:6px 14px;border-radius:var(--radius-xs);white-space:nowrap;transition:all .2s}
+.nav-link:hover,.nav-link.active{color:var(--text);background:var(--surface-2)}
+
+section{padding:48px 0;border-top:1px solid var(--border)}
+section:first-of-type{border-top:none}
+h2{font-size:28px;font-weight:800;letter-spacing:-.02em;margin-bottom:8px;display:flex;align-items:center;gap:12px}
+h2 .num{font-size:14px;font-weight:700;color:var(--accent);background:var(--accent-glow);width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;border:1px solid #6366f130}
+h3{font-size:18px;font-weight:700;color:var(--text);margin:28px 0 12px;letter-spacing:-.01em}
+p.desc{color:var(--text-muted);margin-bottom:28px;font-size:15px}
+
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin:20px 0}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;transition:border-color .2s,transform .2s}
+.card:hover{border-color:var(--border-2);transform:translateY(-2px)}
+.card-icon{width:40px;height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-bottom:14px;font-size:20px}
+.card h4{font-size:15px;font-weight:700;margin-bottom:6px}
+.card p{font-size:13px;color:var(--text-muted);line-height:1.6}
+
+.table-wrap{overflow-x:auto;margin:16px 0;border-radius:var(--radius);border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;padding:12px 16px;background:var(--surface-2);font-weight:600;font-size:13px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}
+td{padding:10px 16px;border-top:1px solid var(--border)}
+tr:hover td{background:var(--surface)}
+
+.tag{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:20px;white-space:nowrap}
+.tag-green{background:var(--green-bg);color:var(--green-text);border:1px solid #10b98130}
+.tag-blue{background:var(--blue-bg);color:var(--blue-text);border:1px solid #3b82f630}
+.tag-amber{background:var(--amber-bg);color:var(--amber-text);border:1px solid #f59e0b30}
+.tag-red{background:var(--red-bg);color:var(--red-text);border:1px solid #ef444430}
+.tag-purple{background:var(--purple-bg);color:var(--purple-text);border:1px solid #8b5cf630}
+.tag-teal{background:var(--teal-bg);color:var(--teal-text);border:1px solid #14b8a630}
+.tag-indigo{background:var(--indigo-bg);color:var(--indigo-text);border:1px solid #1d4ed830}
+
+.status-row{display:flex;align-items:center;gap:10px;padding:8px 0}
+.status-dot{width:12px;height:12px;border-radius:4px;flex-shrink:0}
+.status-label{font-weight:600;font-size:14px;min-width:100px}
+.status-hex{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-muted)}
+
+.features{display:grid;gap:6px;margin:16px 0}
+.feature{display:flex;align-items:flex-start;gap:10px;padding:6px 0;font-size:14px}
+.feature::before{content:'\2192';color:var(--accent);font-weight:700;flex-shrink:0;margin-top:1px}
+
+.lang-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin:16px 0}
+.lang-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;display:flex;align-items:center;gap:10px;font-size:13px;font-weight:500}
+.lang-code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--accent-text);background:var(--accent-glow);padding:2px 6px;border-radius:4px}
+.lang-rtl{border-color:#f59e0b40}
+
+.flow{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin:20px 0;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:2;overflow-x:auto;white-space:pre;color:var(--text-muted)}
+
+.module{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;margin:8px 0;display:flex;align-items:flex-start;gap:14px}
+.module-icon{width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:16px}
+.module h4{font-size:14px;font-weight:700;margin-bottom:4px}
+.module p{font-size:13px;color:var(--text-muted);line-height:1.5}
+.module code{font-size:11px}
+
+.footer{padding:40px 0;border-top:1px solid var(--border);text-align:center;color:var(--text-dim);font-size:13px}
+.check{color:var(--green);font-weight:700}
+.dash{color:var(--text-dim)}
+
+.stack{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin:16px 0}
+.stack-item{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px}
+.stack-item .label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);margin-bottom:4px;font-weight:600}
+.stack-item .value{font-size:14px;font-weight:600}
+.stack-item .ver{color:var(--text-muted);font-size:12px;font-family:'JetBrains Mono',monospace}
+
+@media(max-width:640px){
+  .cards{grid-template-columns:1fr}
+  .hero h1{font-size:32px}
+  .lang-grid{grid-template-columns:repeat(2,1fr)}
+  .stack{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="container">
+    <div class="hero-badge">&#9679; Documentation v2.0</div>
+    <h1>ReturnProMax</h1>
+    <p>Enterprise-grade Shopify Returns Management with Fynd Logistics Integration, full i18n, and advanced analytics.</p>
+  </div>
+</div>
+
+<nav class="nav">
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#stack" class="nav-link">Stack</a>
+      <a href="#dashboard" class="nav-link">Dashboard</a>
+      <a href="#returns" class="nav-link">Returns</a>
+      <a href="#portal" class="nav-link">Portal</a>
+      <a href="#customers" class="nav-link">Customers</a>
+      <a href="#fynd" class="nav-link">Fynd</a>
+      <a href="#i18n" class="nav-link">i18n</a>
+      <a href="#settings" class="nav-link">Settings</a>
+      <a href="#status-colors" class="nav-link">Status Colors</a>
+      <a href="#api" class="nav-link">API</a>
+      <a href="#security" class="nav-link">Security</a>
+      <a href="#data-flow" class="nav-link">Data Flow</a>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+<section id="stack">
+  <h2><span class="num">1</span> Tech Stack</h2>
+  <p class="desc">Built on the latest recommended Shopify app stack &mdash; no deprecated packages.</p>
+  <div class="stack">
+    <div class="stack-item"><div class="label">Framework</div><div class="value">React Router v7 <span class="ver">^7.13.0</span></div></div>
+    <div class="stack-item"><div class="label">Shopify</div><div class="value">App React Router <span class="ver">^1.1.1</span></div></div>
+    <div class="stack-item"><div class="label">API</div><div class="value">Admin GraphQL <span class="ver">2025-10</span></div></div>
+    <div class="stack-item"><div class="label">Database</div><div class="value">PostgreSQL + Prisma <span class="ver">^6.19.2</span></div></div>
+    <div class="stack-item"><div class="label">Build</div><div class="value">Vite <span class="ver">^6</span></div></div>
+    <div class="stack-item"><div class="label">Runtime</div><div class="value">Node.js <span class="ver">&gt;=22.12</span></div></div>
+    <div class="stack-item"><div class="label">Charts</div><div class="value">Recharts <span class="ver">^3.7.0</span></div></div>
+    <div class="stack-item"><div class="label">Logistics</div><div class="value">Fynd SDK <span class="ver">^3.18.0</span></div></div>
+  </div>
+</section>
+
+<section id="dashboard">
+  <h2><span class="num">2</span> Admin Dashboard</h2>
+  <p class="desc">Real-time overview of return operations with actionable insights and visualizations.</p>
+  <div class="cards">
+    <div class="card"><div class="card-icon" style="background:var(--blue-bg)">&#128202;</div><h4>Summary Stats</h4><p>Total returns with period change %, approval rate, avg processing time, refund rate.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--purple-bg)">&#128200;</div><h4>Volume Trend</h4><p>Area chart showing daily return volume over the selected date range.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--green-bg)">&#127849;</div><h4>Status Distribution</h4><p>Donut chart with distinct colors &mdash; Approved (green) and Completed (indigo) are clearly differentiated.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--amber-bg)">&#9889;</div><h4>Rate Gauges</h4><p>Circular progress for approval, rejection, refund, and Fynd sync rates.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--teal-bg)">&#128176;</div><h4>Revenue Impact</h4><p>Revenue retained from exchanges/store credits. Green returns count.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--red-bg)">&#128203;</div><h4>Top Reasons</h4><p>Ranked bar chart of return reasons with direct link to manage reasons.</p></div>
+  </div>
+</section>
+
+<section id="returns">
+  <h2><span class="num">3</span> Returns Management</h2>
+  <p class="desc">Full lifecycle management from request to resolution.</p>
+  <h3>Returns List</h3>
+  <div class="features">
+    <div class="feature">Searchable by order name, email, phone, Fynd ID, AWB, return number</div>
+    <div class="feature">Status filter tabs &mdash; All, Pending, Approved, Rejected &mdash; with live counts</div>
+    <div class="feature">Multi-select checkboxes with floating bulk action bar (approve/reject)</div>
+    <div class="feature">Fixed-width columns with <code>tableLayout: fixed</code> and <code>&lt;colgroup&gt;</code></div>
+    <div class="feature">Rejection modal with reason input for bulk/single rejection</div>
+    <div class="feature">CSV export with all fields including Fynd IDs and AWBs</div>
+  </div>
+  <h3>Return Detail</h3>
+  <div class="features">
+    <div class="feature">Shopify order summary &mdash; line items, subtotal, discounts, shipping, total</div>
+    <div class="feature">Fynd details &mdash; Order ID, Return ID, Return #, Shipment ID, Invoice, Store</div>
+    <div class="feature">Resolution type selector &mdash; Refund, Exchange, Store Credit, Replacement</div>
+    <div class="feature">Refund calculator with bonus credit percentage and fulfillment location</div>
+    <div class="feature">Event timeline with source badges (Fynd / Shopify / Portal / System / Admin)</div>
+    <div class="feature">Approve, Reject, Retry Fynd Sync, Process Refund actions</div>
+  </div>
+</section>
+
+<section id="portal">
+  <h2><span class="num">4</span> Customer Portal</h2>
+  <p class="desc">Self-service portal via Shopify App Proxy at <code>/apps/returns</code>.</p>
+  <div class="cards">
+    <div class="card"><div class="card-icon" style="background:var(--green-bg)">&#128260;</div><h4>Create Return</h4><p>Order lookup &rarr; OTP verification &rarr; Item selection &rarr; Reason + photos &rarr; Fee display &rarr; Confirmation.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--blue-bg)">&#128269;</div><h4>Track Return</h4><p>Multi-field lookup by Order #, Return #, AWB, Email, Phone. 6-step progress visualization.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--purple-bg)">&#128230;</div><h4>Track Order</h4><p>Real-time Fynd shipment tracking with status timeline and courier details.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--amber-bg)">&#127912;</div><h4>Theming</h4><p>Custom colors, fonts, border radius. RTL support. Dynamic CSS injection.</p></div>
+  </div>
+</section>
+
+<section id="customers">
+  <h2><span class="num">5</span> Customers Page</h2>
+  <p class="desc">Aggregated customer view with return history and serial returner detection.</p>
+  <div class="features">
+    <div class="feature">Summary cards &mdash; Total Customers, Total Returns, Total Refunded, Serial Returners</div>
+    <div class="feature">Search by email/phone with sort by returns count, refund amount, recency</div>
+    <div class="feature">Expandable rows with per-customer return history</div>
+    <div class="feature">Quick stats &mdash; Total items, avg items/return, resolution breakdown</div>
+    <div class="feature">Return history cards linked to detail pages with items, status, amounts</div>
+    <div class="feature">Graceful handling &mdash; &ldquo;Not provided&rdquo; for missing phone, $0.00 for zero refunds</div>
+    <div class="feature">Serial returner badge (3+ returns)</div>
+  </div>
+</section>
+
+<section id="fynd">
+  <h2><span class="num">6</span> Fynd Integration</h2>
+  <p class="desc">End-to-end logistics integration with Fynd Platform API.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Capability</th><th>Platform API</th><th>Storefront API</th></tr></thead>
+    <tbody>
+      <tr><td>Create returns on Fynd</td><td><span class="check">&#10003;</span></td><td><span class="dash">&mdash;</span></td></tr>
+      <tr><td>Order lookup &amp; tracking</td><td><span class="check">&#10003;</span></td><td><span class="check">&#10003;</span></td></tr>
+      <tr><td>Webhook status sync</td><td><span class="check">&#10003;</span></td><td><span class="check">&#10003;</span></td></tr>
+      <tr><td>AWB retrieval</td><td><span class="check">&#10003;</span></td><td><span class="check">&#10003;</span></td></tr>
+      <tr><td>Invoice &amp; credit notes</td><td><span class="check">&#10003;</span></td><td><span class="dash">&mdash;</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+  <h3>Payload Data Extracted</h3>
+  <div class="features">
+    <div class="feature">Invoice &mdash; store_invoice_id, external_invoice_id, invoice URL</div>
+    <div class="feature">Fulfillment &mdash; store name, store code, fulfillment options</div>
+    <div class="feature">Tracking &mdash; forward AWB, return AWB, courier name</div>
+    <div class="feature">Credit Note ID, Journey Type (forward/return)</div>
+  </div>
+</section>
+
+<section id="i18n">
+  <h2><span class="num">7</span> Internationalization</h2>
+  <p class="desc">Full i18n with 15 languages, ~229 translation keys, RTL support, and locale-aware formatting.</p>
+  <h3>Supported Languages</h3>
+  <div class="lang-grid">
+    <div class="lang-item"><span class="lang-code">en</span> English</div>
+    <div class="lang-item"><span class="lang-code">es</span> Espa&ntilde;ol</div>
+    <div class="lang-item"><span class="lang-code">fr</span> Fran&ccedil;ais</div>
+    <div class="lang-item"><span class="lang-code">de</span> Deutsch</div>
+    <div class="lang-item"><span class="lang-code">hi</span> &#2361;&#2367;&#2344;&#2381;&#2342;&#2368;</div>
+    <div class="lang-item lang-rtl"><span class="lang-code">ar</span> &#1575;&#1604;&#1593;&#1585;&#1576;&#1610;&#1577; &#8617;</div>
+    <div class="lang-item"><span class="lang-code">pt</span> Portugu&ecirc;s</div>
+    <div class="lang-item"><span class="lang-code">ja</span> &#26085;&#26412;&#35486;</div>
+    <div class="lang-item"><span class="lang-code">zh</span> &#20013;&#25991;</div>
+    <div class="lang-item"><span class="lang-code">ko</span> &#54620;&#44397;&#50612;</div>
+    <div class="lang-item"><span class="lang-code">it</span> Italiano</div>
+    <div class="lang-item"><span class="lang-code">nl</span> Nederlands</div>
+    <div class="lang-item"><span class="lang-code">ru</span> &#1056;&#1091;&#1089;&#1089;&#1082;&#1080;&#1081;</div>
+    <div class="lang-item"><span class="lang-code">tr</span> T&uuml;rk&ccedil;e</div>
+    <div class="lang-item"><span class="lang-code">th</span> &#3652;&#3607;&#3618;</div>
+  </div>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Area</th><th>Translation</th><th>Locale Formatting</th></tr></thead>
+    <tbody>
+      <tr><td>Customer Portal</td><td><span class="tag tag-green">Full (~229 keys)</span></td><td><span class="tag tag-green">Currency + Dates</span></td></tr>
+      <tr><td>Email Notifications</td><td><span class="tag tag-green">Full</span></td><td><span class="tag tag-green">Currency + Dates</span></td></tr>
+      <tr><td>Admin UI</td><td><span class="tag tag-blue">English only</span></td><td><span class="tag tag-green">Currency + Dates</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="settings">
+  <h2><span class="num">8</span> Settings Modules</h2>
+  <p class="desc">10 configuration modules with full error handling, try/catch on all DB operations, and proper error/success feedback UI.</p>
+  <div class="module"><div class="module-icon" style="background:var(--blue-bg)">&#128203;</div><div><h4>Policy Rules</h4><p>Return reasons, per-category reasons, restricted regions, minimum price, return offers. <code>/app/settings/rules</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--purple-bg)">&#9881;</div><div><h4>Return Settings</h4><p>Return window, fees, no-return periods (controlled toggle + date validation), photo requirements, auto-approve/refund, refund methods, discount codes. <code>/app/settings/return-settings</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--red-bg)">&#127991;</div><div><h4>Product Policies</h4><p>Per-product return rules by tags, type, or collection. Custom windows, returnable toggle. First-match evaluation. <code>/app/settings/product-policies</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--red-bg)">&#128683;</div><div><h4>Customer Blocklist</h4><p>Block by email, phone, order name, IP. Duplicate detection via unique constraint. Normalized values. <code>/app/settings/blocklist</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--green-bg)">&#9989;</div><div><h4>Auto-Approve Rules</h4><p>Conditional rules on order value, reason, product tag, customer return count. Approve or flag actions. <code>/app/settings/auto-rules</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--teal-bg)">&#128279;</div><div><h4>Fynd Integration</h4><p>Platform API credentials, environment (UAT/Prod), connection testing with debug log, password-masked secret input. <code>/app/settings/integrations</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--amber-bg)">&#128276;</div><div><h4>Notifications</h4><p>SMTP config with connection testing, 4 email events, custom templates with variable interpolation and live preview. <code>/app/settings/notifications</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--purple-bg)">&#127912;</div><div><h4>Portal Appearance</h4><p>Theme (colors, fonts, radius), tab visibility, language selection (15 langs), label overrides. <code>/app/settings/widget</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--red-bg)">&#128274;</div><div><h4>Permissions</h4><p><code>read_all_orders</code> scope management with OAuth status display. <code>/app/settings/permissions</code></p></div></div>
+  <div class="module"><div class="module-icon" style="background:var(--amber-bg)">&#129497;</div><div><h4>Setup Wizard</h4><p>Step-by-step Fynd configuration &mdash; credentials, webhook registration, connection test, verification. <code>/app/settings/setup</code></p></div></div>
+</section>
+
+<section id="status-colors">
+  <h2><span class="num">9</span> Status Color System</h2>
+  <p class="desc">Each status has a distinct, clearly differentiable color across all charts, badges, and graphs.</p>
+  <div style="display:grid;gap:4px;margin:20px 0">
+    <div class="status-row"><div class="status-dot" style="background:#d97706"></div><div class="status-label">Pending</div><div class="status-hex">#d97706</div><span class="tag tag-amber">Amber</span></div>
+    <div class="status-row"><div class="status-dot" style="background:#f59e0b"></div><div class="status-label">Initiated</div><div class="status-hex">#f59e0b</div><span class="tag tag-amber">Yellow</span></div>
+    <div class="status-row"><div class="status-dot" style="background:#3b82f6"></div><div class="status-label">Processing</div><div class="status-hex">#3b82f6</div><span class="tag tag-blue">Blue</span></div>
+    <div class="status-row"><div class="status-dot" style="background:#059669"></div><div class="status-label">Approved</div><div class="status-hex">#059669</div><span class="tag tag-green">Green</span></div>
+    <div class="status-row"><div class="status-dot" style="background:#1d4ed8"></div><div class="status-label">Completed</div><div class="status-hex">#1d4ed8</div><span class="tag tag-indigo">Indigo</span></div>
+    <div class="status-row"><div class="status-dot" style="background:#dc2626"></div><div class="status-label">Rejected</div><div class="status-hex">#dc2626</div><span class="tag tag-red">Red</span></div>
+    <div class="status-row"><div class="status-dot" style="background:#64748b"></div><div class="status-label">Cancelled</div><div class="status-hex">#64748b</div><span class="tag" style="background:var(--surface-2);color:var(--text-muted);border:1px solid var(--border)">Slate</span></div>
+  </div>
+</section>
+
+<section id="api">
+  <h2><span class="num">10</span> API Routes</h2>
+  <p class="desc">RESTful API endpoints for portal operations, admin actions, and webhooks.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Endpoint</th><th>Method</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>/api/portal/order</code></td><td><span class="tag tag-green">GET</span></td><td>Fetch order details for portal</td></tr>
+      <tr><td><code>/api/portal/create-return</code></td><td><span class="tag tag-blue">POST</span></td><td>Submit new return request</td></tr>
+      <tr><td><code>/api/portal/lookup</code></td><td><span class="tag tag-blue">POST</span></td><td>Multi-field return lookup</td></tr>
+      <tr><td><code>/api/portal/returns</code></td><td><span class="tag tag-green">GET</span></td><td>Fetch return details</td></tr>
+      <tr><td><code>/api/portal/otp/send</code></td><td><span class="tag tag-blue">POST</span></td><td>Send OTP verification</td></tr>
+      <tr><td><code>/api/portal/otp/verify</code></td><td><span class="tag tag-blue">POST</span></td><td>Verify OTP code</td></tr>
+      <tr><td><code>/api/portal/fynd-enrich</code></td><td><span class="tag tag-blue">POST</span></td><td>Enrich with Fynd tracking</td></tr>
+      <tr><td><code>/api/returns/:id/actions</code></td><td><span class="tag tag-blue">POST</span></td><td>Admin return actions</td></tr>
+      <tr><td><code>/api/returns/bulk</code></td><td><span class="tag tag-blue">POST</span></td><td>Bulk approve/reject</td></tr>
+      <tr><td><code>/api/returns/export</code></td><td><span class="tag tag-green">GET</span></td><td>CSV export</td></tr>
+      <tr><td><code>/api/webhooks/fynd</code></td><td><span class="tag tag-purple">POST</span></td><td>Fynd webhook receiver</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section id="security">
+  <h2><span class="num">11</span> Security</h2>
+  <p class="desc">Enterprise-grade security across all layers.</p>
+  <div class="cards">
+    <div class="card"><div class="card-icon" style="background:var(--green-bg)">&#128272;</div><h4>Shopify OAuth</h4><p>All admin routes authenticated via <code>authenticate.admin</code> with session tokens.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--blue-bg)">&#128241;</div><h4>OTP Verification</h4><p>Portal access requires email/SMS one-time-password with expiry and attempt limits.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--purple-bg)">&#128273;</div><h4>Encrypted Credentials</h4><p>Fynd API credentials encrypted at rest in the database.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--red-bg)">&#128737;</div><h4>Input Validation</h4><p>Server-side validation on all forms. Try/catch on all DB operations with structured error responses.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--amber-bg)">&#128683;</div><h4>Blocklist Enforcement</h4><p>Customer blocklist checked during return creation and portal lookup.</p></div>
+    <div class="card"><div class="card-icon" style="background:var(--teal-bg)">&#128260;</div><h4>CSRF Protection</h4><p>Shopify session token validation on all authenticated requests.</p></div>
+  </div>
+</section>
+
+<section id="data-flow">
+  <h2><span class="num">12</span> Data Flow</h2>
+  <p class="desc">End-to-end return lifecycle across Customer, Admin, and Fynd.</p>
+  <div class="flow">Customer Portal                    Admin Panel                    Fynd Platform
+     |                                |                              |
+     +- Submit Return Request --------+                              |
+     |   (items, reason, photos)      |                              |
+     |                                +- Review &amp; Approve ---------->|
+     |                                |   (creates return on Fynd)   |
+     |                                |                              |
+     |                                |&lt;-- Webhook Status Update ----|
+     |                                |    (tracking, AWB, status)   |
+     |                                |                              |
+     |                                +- Process Refund              |
+     |                                |   (Shopify Admin API)        |
+     |                                |                              |
+     |&lt;-- Email Notification ---------+                              |
+     |    (translated, formatted)     |                              |</div>
+
+  <h3>Resolution Types</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Type</th><th>Flow</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag tag-blue">Refund</span></td><td>Approve &rarr; Refund via Shopify API &rarr; Mark completed</td></tr>
+      <tr><td><span class="tag tag-purple">Exchange</span></td><td>Approve &rarr; Create new order &rarr; Link exchange order</td></tr>
+      <tr><td><span class="tag tag-teal">Store Credit</span></td><td>Approve &rarr; Issue store credit (+ optional bonus %)</td></tr>
+      <tr><td><span class="tag tag-amber">Replacement</span></td><td>Approve &rarr; Create replacement order</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2><span class="num">13</span> Feature Matrix</h2>
+  <p class="desc">Capability availability across Admin, Portal, and Email channels.</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Feature</th><th style="text-align:center">Admin</th><th style="text-align:center">Portal</th><th style="text-align:center">Email</th></tr></thead>
+    <tbody>
+      <tr><td>View returns</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Create returns</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Approve/Reject</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Bulk operations</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Fynd sync</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Process refund</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Track shipment</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Search/filter</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>CSV export</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Analytics</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>i18n formatting</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td></tr>
+      <tr><td>Full translation</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td></tr>
+      <tr><td>RTL support</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td></tr>
+      <tr><td>OTP verification</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="check">&#10003;</td></tr>
+      <tr><td>Photo upload</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="check">&#10003;</td><td style="text-align:center" class="dash">&mdash;</td></tr>
+      <tr><td>Notifications</td><td style="text-align:center" class="check">&#10003; (config)</td><td style="text-align:center" class="dash">&mdash;</td><td style="text-align:center" class="check">&#10003;</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <p>ReturnProMax Documentation &mdash; Last updated March 5, 2026</p>
+    <p style="margin-top:4px">Built with React Router v7, Prisma 6, Shopify API 2025-10</p>
+  </div>
+</footer>
+
+<script>
+document.querySelectorAll('.nav-link').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const id = link.getAttribute('href').slice(1);
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      const id = e.target.id;
+      document.querySelectorAll('.nav-link').forEach(l => {
+        const active = l.getAttribute('href') === '#' + id;
+        l.classList.toggle('active', active);
+      });
+    }
+  });
+}, { rootMargin: '-80px 0px -80% 0px' });
+document.querySelectorAll('section[id]').forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

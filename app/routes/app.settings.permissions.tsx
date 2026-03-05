@@ -24,19 +24,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shop = await findOrCreateShop(session.shop);
 
-  await prisma.shopSettings.upsert({
-    where: { shopId: shop.id },
-    create: { shopId: shop.id, readAllOrdersEnabled },
-    update: { readAllOrdersEnabled },
-  });
-  return { success: true };
+  try {
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: { shopId: shop.id, readAllOrdersEnabled },
+      update: { readAllOrdersEnabled },
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Failed to save settings." };
+  }
 };
 
 export default function Permissions() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean }>();
   const [enabled, setEnabled] = useState(data.readAllOrdersEnabled);
-  const saved = fetcher.data && "success" in fetcher.data;
+  const saved = fetcher.data?.success === true;
 
   return (
     <s-page heading="Permissions">
@@ -45,6 +49,11 @@ export default function Permissions() {
           <div className="app-alert app-alert-success">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
             <span>Permission settings saved successfully.</span>
+          </div>
+        )}
+        {fetcher.data && fetcher.data.success === false && (
+          <div className="app-alert app-alert-error">
+            {(fetcher.data as { error?: string }).error || "Failed to save permission settings."}
           </div>
         )}
 

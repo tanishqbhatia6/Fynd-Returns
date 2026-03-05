@@ -59,15 +59,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }));
       }
     }
-  } catch { /* keep empty */ }
+  } catch {
+    return { success: false, error: "Invalid rules format." };
+  }
 
-  await prisma.shopSettings.upsert({
-    where: { shopId: shop.id },
-    create: { shopId: shop.id, productPoliciesJson: JSON.stringify(validatedRules) },
-    update: { productPoliciesJson: JSON.stringify(validatedRules) },
-  });
-
-  return { success: true };
+  try {
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: { shopId: shop.id, productPoliciesJson: JSON.stringify(validatedRules) },
+      update: { productPoliciesJson: JSON.stringify(validatedRules) },
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Failed to save product policies." };
+  }
 };
 
 const EMPTY_RULE: () => ProductPolicyRule = () => ({
@@ -119,8 +124,11 @@ export default function ProductPoliciesSettings() {
   return (
     <s-page heading="Product-Level Return Policies">
       <div className="app-content">
-        {fetcher.data && "success" in fetcher.data && (
+        {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Product policies saved successfully.</div>
+        )}
+        {fetcher.data && fetcher.data.success === false && (
+          <div className="app-alert app-alert-error">{(fetcher.data as { error?: string }).error || "Failed to save product policies."}</div>
         )}
 
         <div style={{ maxWidth: 720, marginBottom: 16 }}>

@@ -60,12 +60,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const raw = String(fd.get("emailTemplatesJson") || "{}");
     let parsed: Record<string, unknown> = {};
     try { parsed = JSON.parse(raw); } catch { return { error: "Invalid template JSON" }; }
-    await prisma.shopSettings.upsert({
-      where: { shopId: shop.id },
-      create: { shopId: shop.id, emailTemplatesJson: JSON.stringify(parsed) },
-      update: { emailTemplatesJson: JSON.stringify(parsed) },
-    });
-    return { templatesSaved: true };
+    try {
+      await prisma.shopSettings.upsert({
+        where: { shopId: shop.id },
+        create: { shopId: shop.id, emailTemplatesJson: JSON.stringify(parsed) },
+        update: { emailTemplatesJson: JSON.stringify(parsed) },
+      });
+      return { templatesSaved: true };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Failed to save templates." };
+    }
   }
 
   const data = {
@@ -84,12 +88,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     adminSoundEnabled: fd.get("adminSoundEnabled") === "on",
   };
 
-  await prisma.shopSettings.upsert({
-    where: { shopId: shop.id },
-    create: { shopId: shop.id, ...data },
-    update: data,
-  });
-  return { success: true };
+  try {
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: { shopId: shop.id, ...data },
+      update: data,
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Failed to save notification settings." };
+  }
 };
 
 /* ── Toggle Component ── */
@@ -276,7 +284,7 @@ export default function Notifications() {
     templateFetcher.submit(fd, { method: "post" });
   }, [emailTemplates, templateFetcher]);
 
-  const saved = saveFetcher.data && "success" in saveFetcher.data;
+  const saved = saveFetcher.data?.success === true;
   const templatesSaved = templateFetcher.data && "templatesSaved" in templateFetcher.data;
   const testResult = testFetcher.data?.testResult;
   const smtpFilled = !!(smtpHost && smtpUser && smtpPass);
@@ -371,6 +379,11 @@ export default function Notifications() {
           <div className="app-alert app-alert-success" style={{ marginBottom: 20 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
             <span>Notification settings saved successfully.</span>
+          </div>
+        )}
+        {saveFetcher.data && saveFetcher.data.success === false && (
+          <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
+            {(saveFetcher.data as { error?: string }).error || "Failed to save notification settings."}
           </div>
         )}
 

@@ -273,7 +273,7 @@ export default function Integrations() {
   const [fyndEnvironment, setFyndEnvironment] = React.useState(data.fyndEnvironment);
   const [appMode, setAppMode] = React.useState(data.appMode);
 
-  const showSaveSuccess = fetcher.data && "success" in fetcher.data && !("testResult" in fetcher.data) && !("cleared" in fetcher.data);
+  const showSaveSuccess = fetcher.data?.success === true && !("testResult" in fetcher.data) && !("cleared" in fetcher.data);
   const showCleared = fetcher.data && "cleared" in fetcher.data;
   const showTestSuccess = fetcher.data && "testResult" in fetcher.data && fetcher.data.testResult;
   const showTestError = fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
@@ -455,7 +455,7 @@ export default function Integrations() {
               </div>
               <div className="app-field">
                 <label>Client Secret</label>
-                <input type="text" name="fyndClientSecret" placeholder="Client Secret" autoComplete="off" className="app-input" />
+                <input type="password" name="fyndClientSecret" placeholder="Client Secret" autoComplete="off" className="app-input" />
               </div>
             </div>
 

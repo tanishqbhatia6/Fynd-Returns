@@ -1876,6 +1876,10 @@
       white-space: nowrap;
       border: 0;
     }
+
+    [dir="rtl"] { direction: rtl; text-align: right; }
+    [dir="rtl"] .portal-flex-row { flex-direction: row-reverse; }
+    [dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] select { text-align: right; }
   </style>
 </head>
 
@@ -1893,15 +1897,15 @@
     <div id="portal-tabs-wrap" class="portal-tabs" role="tablist" aria-label="Portal navigation" style="display:none;"></div>
 
     <div id="track-return-sub-tabs" class="portal-sub-tabs" style="display:none;">
-      <button type="button" class="portal-sub-tab active" data-sub="track">Track existing return</button>
-      <button type="button" class="portal-sub-tab" data-sub="create">Create new return</button>
+      <button type="button" class="portal-sub-tab active" data-sub="track" id="subTabTrack">Track existing return</button>
+      <button type="button" class="portal-sub-tab" data-sub="create" id="subTabCreate">Create new return</button>
     </div>
 
     <div id="track-panel" class="portal-card">
       <div id="step1" class="portal-step active" role="search">
         <input type="hidden" id="shop" value="%SHOP%">
         <div class="form-group">
-          <label class="form-label" for="lookupType">How would you like to search?</label>
+          <label class="form-label" for="lookupType" id="lookupTypeLabel">How would you like to search?</label>
           <select id="lookupType" class="form-select" aria-label="Lookup type">
             <option value="order_no">Order Number</option>
             <option value="email">Email Address</option>
@@ -1916,24 +1920,24 @@
           <label class="form-label" for="lookupValue" id="lookupValueLabel">Enter your order number</label>
           <input type="text" id="lookupValue" class="form-input" aria-label="Lookup value" placeholder="e.g. #1001 or 1001">
         </div>
-        <button type="button" id="btnLookup" class="btn-primary" aria-label="Search">Look Up</button>
+        <button type="button" id="btnLookup" class="btn-primary" aria-label="Search" data-default-text="portal.lookup.submit">Look Up</button>
         <p id="err1" class="form-error" aria-live="polite"></p>
       </div>
 
       <div id="step2" class="portal-step">
         <div id="result-orders-wrap" class="result-section" role="tabpanel" aria-label="Orders results" aria-live="polite" style="display:none;">
-          <h2 class="result-section-title">Your orders</h2>
+          <h2 class="result-section-title" id="resultOrdersTitle">Your orders</h2>
           <div id="result-orders" class="return-list"></div>
         </div>
         <div id="result-returns-wrap" class="result-section" role="tabpanel" aria-label="Returns results" aria-live="polite" style="display:none;">
-          <h2 class="result-section-title">Your returns</h2>
+          <h2 class="result-section-title" id="resultReturnsTitle">Your returns</h2>
           <div id="result-returns" class="return-list"></div>
         </div>
         <div id="result-empty" style="display:none; text-align:center; padding:48px 24px;">
           <div style="font-size:48px; margin-bottom:16px;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.35"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></div>
-          <p style="font-size:1.125rem; font-weight:600; color:var(--portal-text); margin-bottom:8px;">No results found
+          <p style="font-size:1.125rem; font-weight:600; color:var(--portal-text); margin-bottom:8px;" id="resultEmptyTitle">No results found
           </p>
-          <p style="color:var(--portal-text-muted); font-size:0.9375rem;">We couldn't find any orders or returns
+          <p style="color:var(--portal-text-muted); font-size:0.9375rem;" id="resultEmptyDesc">We couldn't find any orders or returns
             matching your search. Please check your details and try again.</p>
         </div>
         <button type="button" id="btnBack" class="btn-secondary" style="margin-top: 24px; width:100%;">← Search
@@ -1947,9 +1951,9 @@
           <div
             style="width:52px;height:52px;border-radius:50%;background:color-mix(in srgb, var(--portal-primary) 0.1, transparent);display:flex;align-items:center;justify-content:center;margin:0 auto 12px;font-size:24px;">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></div>
-          <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em;">Start a return
+          <h2 id="createStartTitle" style="font-size: 1.25rem; font-weight: 700; margin: 0 0 6px; letter-spacing: -0.02em;">Start a return
           </h2>
-          <p style="font-size:0.875rem;color:var(--portal-text-muted);margin:0;">Enter your order number to begin the
+          <p id="createStartDesc" style="font-size:0.875rem;color:var(--portal-text-muted);margin:0;">Enter your order number to begin the
             return process.</p>
         </div>
         <div class="form-group">
@@ -1972,9 +1976,9 @@
           <div
             style="width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:28px;box-shadow:0 4px 12px rgba(5,150,105,0.15);">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-          <h2 style="font-size:1.25rem;font-weight:700;margin:0 0 6px;letter-spacing:-0.02em;color:var(--portal-text);">
+          <h2 id="existingReturnTitle" style="font-size:1.25rem;font-weight:700;margin:0 0 6px;letter-spacing:-0.02em;color:var(--portal-text);">
             Return already submitted</h2>
-          <p
+          <p id="existingReturnDesc"
             style="font-size:0.875rem;color:var(--portal-text-muted);margin:0;max-width:400px;display:inline-block;line-height:1.5;">
             A return request for this order is already in progress. You can track its status below.</p>
         </div>
@@ -1990,7 +1994,7 @@
             style="width:32px;height:32px;border-radius:50%;background:var(--portal-primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">
             2</div>
           <div>
-            <h2 style="font-size: 1.125rem; font-weight:700; margin:0;">Select items to return</h2>
+            <h2 id="createStep2Title" style="font-size: 1.125rem; font-weight:700; margin:0;">Select items to return</h2>
             <p id="createOrderName" style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;"></p>
           </div>
         </div>
@@ -2034,11 +2038,11 @@
         </div>
         <div id="estimatedRefundBox" style="display:none;padding:14px 16px;background:linear-gradient(135deg,#f0fdf4,#ecfdf5);border:1px solid #a7f3d0;border-radius:12px;margin-bottom:14px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-size:0.8125rem;font-weight:600;color:#065f46;">Estimated refund</span>
+            <span id="estimatedRefundLabel" style="font-size:0.8125rem;font-weight:600;color:#065f46;">Estimated refund</span>
             <span id="estimatedRefundAmount" style="font-size:1.125rem;font-weight:700;color:#059669;"></span>
           </div>
           <div id="estimatedRefundFee" style="font-size:0.75rem;color:#6b7280;display:none;"></div>
-          <div style="font-size:0.6875rem;color:#9ca3af;margin-top:4px;">Final refund amount may vary based on item condition</div>
+          <div id="estimatedRefundDisclaimer" style="font-size:0.6875rem;color:#9ca3af;margin-top:4px;">Final refund amount may vary based on item condition</div>
         </div>
         <div id="returnOfferBox" style="display:none;padding:16px;background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;border-radius:12px;margin-bottom:14px;">
           <div style="display:flex;align-items:flex-start;gap:12px;">
@@ -2046,7 +2050,7 @@
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
             </div>
             <div style="flex:1;">
-              <div style="font-size:0.9375rem;font-weight:700;color:#1e40af;margin-bottom:4px;">Special offer for you!</div>
+              <div id="offerTitle" style="font-size:0.9375rem;font-weight:700;color:#1e40af;margin-bottom:4px;">Special offer for you!</div>
               <div id="returnOfferMessage" style="font-size:0.875rem;color:#1e3a8a;line-height:1.5;margin-bottom:12px;"></div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button type="button" id="btnAcceptOffer" class="btn-primary" style="font-size:0.875rem;padding:10px 20px;">Accept Offer</button>
@@ -2059,10 +2063,10 @@
           <div style="width:52px;height:52px;border-radius:50%;background:#059669;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
           </div>
-          <div style="font-size:1.125rem;font-weight:700;color:#065f46;margin-bottom:6px;">Offer accepted!</div>
+          <div id="offerAcceptedTitle" style="font-size:1.125rem;font-weight:700;color:#065f46;margin-bottom:6px;">Offer accepted!</div>
           <div id="offerAcceptedMessage" style="font-size:0.875rem;color:#047857;margin-bottom:12px;"></div>
           <div style="padding:12px 16px;background:#fff;border-radius:10px;border:1px solid #a7f3d0;display:inline-block;">
-            <div style="font-size:0.75rem;color:#6b7280;margin-bottom:4px;">Your discount code</div>
+            <div id="offerDiscountLabel" style="font-size:0.75rem;color:#6b7280;margin-bottom:4px;">Your discount code</div>
             <code id="offerDiscountCode" style="font-size:1.25rem;font-weight:700;color:#059669;letter-spacing:0.05em;"></code>
           </div>
           <div style="margin-top:12px;">
@@ -2070,8 +2074,7 @@
           </div>
         </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
-        <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
-          Back</button>
+        <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">← Back</button>
         <p id="createErr2" class="form-error"></p>
       </div>
       <div id="create-step2-manual" class="portal-step">
@@ -2080,8 +2083,8 @@
             style="width:32px;height:32px;border-radius:50%;background:var(--portal-primary);color:white;display:flex;align-items:center;justify-content:center;">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></div>
           <div>
-            <h2 style="font-size: 1.125rem; font-weight:700; margin:0;">Manual return request</h2>
-            <p style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;">Fill in the details below and we'll
+            <h2 id="manualReturnTitle" style="font-size: 1.125rem; font-weight:700; margin:0;">Manual return request</h2>
+            <p id="manualReturnDesc" style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;">Fill in the details below and we'll
               process your return.</p>
           </div>
         </div>
@@ -2134,8 +2137,7 @@
             placeholder="Any other details we should know"></textarea>
         </div>
         <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit return request</button>
-        <button type="button" id="btnManualBack" class="btn-secondary" style="margin-top: 12px; width:100%;">←
-          Back</button>
+        <button type="button" id="btnManualBack" class="btn-secondary" style="margin-top: 12px; width:100%;">← Back</button>
         <p id="createErrManual" class="form-error"></p>
       </div>
       <div id="create-step3" class="portal-step">
@@ -2149,13 +2151,13 @@
               </svg>
             </div>
             <div>
-              <h2 style="font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; color: var(--portal-text);">Return
+              <h2 id="createSuccessTitle" style="font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; color: var(--portal-text);">Return
                 Submitted</h2>
               <p id="createSuccessMsg" style="margin: 0; font-size: 0.9375rem; color: var(--portal-text-muted);"></p>
             </div>
           </div>
           <div class="return-request-id-block">
-            <label
+            <label id="createReturnRequestIdLabel"
               style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--portal-text-muted); margin-bottom: 6px; display: block;">Return
               Request ID</label>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
@@ -2179,6 +2181,11 @@
   </div>
 
   <script>
+    function t(key, replacements) {
+      var s = (window.__RPM_LABELS__ && window.__RPM_LABELS__[key]) || key;
+      if (replacements) { Object.keys(replacements).forEach(function(k) { s = s.replace('{' + k + '}', replacements[k]); }); }
+      return s;
+    }
     const APP_URL = '%APP_URL%' || window.location.origin;
     const RETURN_POLICY = '%RETURN_POLICY%';
     const RETURN_REASONS_JSON = '%RETURN_REASONS_JSON%' || '[]';
@@ -2199,24 +2206,29 @@
 
     // ── Currency formatting ──
     function formatMoney(amount, currency) {
-      if (!amount && amount !== 0) return '';
-      var num = typeof amount === 'string' ? parseFloat(amount) : amount;
-      if (isNaN(num)) return String(amount);
+      var cur = currency || (window.__RPM_CURRENCY__) || 'INR';
+      var loc = window.__RPM_LOCALE__ || undefined;
+      var num = parseFloat(amount);
+      if (isNaN(num)) return '';
       try {
-        return new Intl.NumberFormat(undefined, { style: 'currency', currency: currency || 'INR', minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(num);
-      } catch (_) {
+        return new Intl.NumberFormat(loc, { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+      } catch(e) {
         return (currency || '') + ' ' + num.toFixed(2);
       }
     }
 
     function formatDate(dateStr) {
       if (!dateStr) return '';
-      return new Date(dateStr).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      try {
+        return new Intl.DateTimeFormat(window.__RPM_LOCALE__ || undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: window.__RPM_TIMEZONE__ || undefined }).format(new Date(dateStr));
+      } catch(e) {
+        return new Date(dateStr).toLocaleDateString();
+      }
     }
 
     function formatDateTime(dateStr) {
       if (!dateStr) return '';
-      return new Date(dateStr).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      return new Date(dateStr).toLocaleString(window.__RPM_LOCALE__ || undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: window.__RPM_TIMEZONE__ || undefined });
     }
 
     // ── Customer-friendly status helpers ──
@@ -2615,13 +2627,13 @@
     function renderPriceBreakdown(pricing, currency) {
       if (!pricing) return '';
       var rows = [];
-      if (pricing.subtotal) rows.push(['Subtotal', formatMoney(pricing.subtotal, currency || pricing.currency)]);
-      if (pricing.discount && parseFloat(pricing.discount) > 0) rows.push(['Discount', '-' + formatMoney(pricing.discount, currency || pricing.currency), true]);
-      if (pricing.promotions && parseFloat(pricing.promotions) > 0) rows.push(['Promotions', '-' + formatMoney(pricing.promotions, currency || pricing.currency), true]);
-      if (pricing.coupon && parseFloat(pricing.coupon) > 0) rows.push(['Coupon', '-' + formatMoney(pricing.coupon, currency || pricing.currency), true]);
-      if (pricing.deliveryCharges) rows.push(['Delivery', formatMoney(pricing.deliveryCharges, currency || pricing.currency)]);
-      if (pricing.codAmount && parseFloat(pricing.codAmount) > 0) rows.push(['COD charges', formatMoney(pricing.codAmount, currency || pricing.currency)]);
-      if (pricing.total) rows.push(['Total', formatMoney(pricing.total, currency || pricing.currency)]);
+      if (pricing.subtotal) rows.push([t('portal.price.subtotal'), formatMoney(pricing.subtotal, currency || pricing.currency)]);
+      if (pricing.discount && parseFloat(pricing.discount) > 0) rows.push([t('portal.price.discount'), '-' + formatMoney(pricing.discount, currency || pricing.currency), true]);
+      if (pricing.promotions && parseFloat(pricing.promotions) > 0) rows.push([t('portal.price.promotions'), '-' + formatMoney(pricing.promotions, currency || pricing.currency), true]);
+      if (pricing.coupon && parseFloat(pricing.coupon) > 0) rows.push([t('portal.price.coupon'), '-' + formatMoney(pricing.coupon, currency || pricing.currency), true]);
+      if (pricing.deliveryCharges) rows.push([t('portal.price.delivery'), formatMoney(pricing.deliveryCharges, currency || pricing.currency)]);
+      if (pricing.codAmount && parseFloat(pricing.codAmount) > 0) rows.push([t('portal.price.cod'), formatMoney(pricing.codAmount, currency || pricing.currency)]);
+      if (pricing.total) rows.push([t('portal.price.total'), formatMoney(pricing.total, currency || pricing.currency)]);
       if (rows.length === 0) return '';
       var html = '<table class="oc-price-table">';
       rows.forEach(function (r) {
@@ -2642,7 +2654,7 @@
       if (cityLine) parts.push(escapeHtml(cityLine));
       var zipCountry = [addr.pincode, addr.country].filter(Boolean).join(' ');
       if (zipCountry) parts.push(escapeHtml(zipCountry));
-      if (addr.phone) parts.push('Phone: ' + escapeHtml(addr.phone));
+      if (addr.phone) parts.push(t('portal.tracking.phone') + ': ' + escapeHtml(addr.phone));
       html += parts.join('<br>') + '</div>';
       return html;
     }
@@ -2672,7 +2684,7 @@
       }
       clearTimeout(timeout);
       let data;
-      try { data = await res.json(); } catch (_) { throw new Error(res.ok ? 'Invalid response from server' : 'Something went wrong. Please try again.'); }
+      try { data = await res.json(); } catch (_) { throw new Error(res.ok ? t('portal.error.invalidResponse') : t('portal.common.error')); }
       if (!res.ok) throw new Error(data?.error || ('Request failed (' + res.status + ')'));
       return data;
     }
@@ -2737,13 +2749,13 @@
 
       // Shipping info grid
       var info = [];
-      if (ship.cpName) info.push({ l: 'Courier', v: ship.cpName, copy: false });
-      if (ship.forwardAwb) info.push({ l: 'Tracking No.', v: ship.forwardAwb, copy: true });
-      if (ship.invoiceNumber) info.push({ l: 'Invoice', v: ship.invoiceNumber, copy: true });
-      if (ship.shipmentStatus) info.push({ l: 'Status', v: friendlyOrderStatus(ship.shipmentStatus).label, copy: false });
-      if (ship.shipmentId && ship.shipmentId !== '—') info.push({ l: 'Shipment ID', v: ship.shipmentId, copy: true });
-      if (ship.weightInfo) info.push({ l: 'Weight', v: ship.weightInfo, copy: false });
-      if (ship.fulfillmentStore) info.push({ l: 'Shipped from', v: ship.fulfillmentStore, copy: false });
+      if (ship.cpName) info.push({ l: t('portal.tracking.courier'), v: ship.cpName, copy: false });
+      if (ship.forwardAwb) info.push({ l: t('portal.tracking.trackingNo'), v: ship.forwardAwb, copy: true });
+      if (ship.invoiceNumber) info.push({ l: t('portal.tracking.invoice'), v: ship.invoiceNumber, copy: true });
+      if (ship.shipmentStatus) info.push({ l: t('portal.tracking.status'), v: friendlyOrderStatus(ship.shipmentStatus).label, copy: false });
+      if (ship.shipmentId && ship.shipmentId !== '—') info.push({ l: t('portal.tracking.shipmentId'), v: ship.shipmentId, copy: true });
+      if (ship.weightInfo) info.push({ l: t('portal.tracking.weight'), v: ship.weightInfo, copy: false });
+      if (ship.fulfillmentStore) info.push({ l: t('portal.tracking.shippedFrom'), v: ship.fulfillmentStore, copy: false });
 
       if (info.length > 0) {
         html += '<div style="padding:16px 20px 0;"><div class="oc-info-grid">';
@@ -2755,7 +2767,7 @@
       if (ship.trackingUrl) {
         html += '<div style="padding:14px 20px 0;">';
         html += '<a href="' + escapeHtml(ship.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-track-btn">';
-        html += TRUCK_SVG + (isReturn ? ' Track return shipment' : ' Track shipment');
+        html += TRUCK_SVG + ' ' + (isReturn ? t('portal.tracking.trackReturnShipment') : t('portal.tracking.trackShipment'));
         html += '</a></div>';
       }
 
@@ -2830,7 +2842,7 @@
       if (ship.trackingDetails && ship.trackingDetails.length > 0) {
         html += '<div style="padding:14px 20px 0;">';
         html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
-        html += 'Courier tracking updates (' + ship.trackingDetails.length + ')' + CHEVRON_SVG + '</button>';
+        html += t('portal.tracking.courierUpdates') + ' (' + ship.trackingDetails.length + ')' + CHEVRON_SVG + '</button>';
         html += '<div class="oc-collapsible-body"><div class="oc-timeline">';
         ship.trackingDetails.forEach(function (ev, idx) {
           var label = ev.status + (ev.message && ev.message !== ev.status ? ' — ' + ev.message : '');
@@ -2980,19 +2992,19 @@
 
       // ── Order summary (total, financial status) ──
       html += '<div class="oc-order-summary">';
-      html += '<div class="oc-order-summary-title">Order summary</div>';
+      html += '<div class="oc-order-summary-title">' + t('portal.summary.orderSummary') + '</div>';
       if (items.length > 0) {
-        html += '<div class="oc-summary-row"><span>Items (' + items.length + ')</span><span>' + (o.subtotalPrice ? formatMoney(o.subtotalPrice, currency) : '') + '</span></div>';
+        html += '<div class="oc-summary-row"><span>' + t('portal.summary.items') + ' (' + items.length + ')</span><span>' + (o.subtotalPrice ? formatMoney(o.subtotalPrice, currency) : '') + '</span></div>';
       }
       if (o.totalDiscounts && parseFloat(o.totalDiscounts) > 0) {
-        html += '<div class="oc-summary-row"><span>Discount</span><span style="color:#059669;">-' + formatMoney(o.totalDiscounts, currency) + '</span></div>';
+        html += '<div class="oc-summary-row"><span>' + t('portal.price.discount') + '</span><span style="color:#059669;">-' + formatMoney(o.totalDiscounts, currency) + '</span></div>';
       }
       if (o.displayFinancialStatus) {
         var finLabel = o.displayFinancialStatus.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-        html += '<div class="oc-summary-row"><span>Payment</span><span>' + escapeHtml(finLabel) + '</span></div>';
+        html += '<div class="oc-summary-row"><span>' + t('portal.summary.payment') + '</span><span>' + escapeHtml(finLabel) + '</span></div>';
       }
       if (o.totalPrice) {
-        html += '<div class="oc-summary-row"><span>Total</span><span>' + formatMoney(o.totalPrice, currency) + '</span></div>';
+        html += '<div class="oc-summary-row"><span>' + t('portal.price.total') + '</span><span>' + formatMoney(o.totalPrice, currency) + '</span></div>';
       }
       html += '</div>';
 
@@ -3027,19 +3039,19 @@
           var info = [];
           if (trackingItems.length > 0) {
             trackingItems.forEach(function (ti) {
-              if (ti.company) info.push({ l: 'Courier', v: ti.company, copy: false });
-              if (ti.number) info.push({ l: 'Tracking No.', v: ti.number, copy: true });
+              if (ti.company) info.push({ l: t('portal.tracking.courier'), v: ti.company, copy: false });
+              if (ti.number) info.push({ l: t('portal.tracking.trackingNo'), v: ti.number, copy: true });
             });
           }
           var ffStatus = (ff.displayStatus || ff.status || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
-          if (ffStatus) info.push({ l: 'Fulfillment status', v: ffStatus, copy: false });
-          if (ff.createdAt) info.push({ l: 'Shipped on', v: formatDate(ff.createdAt), copy: false });
-          if (ff.deliveredAt) info.push({ l: 'Delivered on', v: formatDate(ff.deliveredAt), copy: false });
-          if (ff.estimatedDeliveryAt && !ff.deliveredAt) info.push({ l: 'Estimated delivery', v: formatDate(ff.estimatedDeliveryAt), copy: false });
+          if (ffStatus) info.push({ l: t('portal.tracking.fulfillmentStatus'), v: ffStatus, copy: false });
+          if (ff.createdAt) info.push({ l: t('portal.tracking.shippedOn'), v: formatDate(ff.createdAt), copy: false });
+          if (ff.deliveredAt) info.push({ l: t('portal.tracking.deliveredOn'), v: formatDate(ff.deliveredAt), copy: false });
+          if (ff.estimatedDeliveryAt && !ff.deliveredAt) info.push({ l: t('portal.tracking.estimatedDelivery'), v: formatDate(ff.estimatedDeliveryAt), copy: false });
 
           if (info.length > 0) {
             if (shopifyFulfillments.length > 1) {
-              html += '<div style="padding:14px 20px 0;"><div style="font-weight:600;font-size:0.8125rem;color:var(--portal-text);margin-bottom:8px;">Shipment ' + (ffIdx + 1) + '</div>';
+              html += '<div style="padding:14px 20px 0;"><div style="font-weight:600;font-size:0.8125rem;color:var(--portal-text);margin-bottom:8px;">' + t('portal.tracking.shipment') + ' ' + (ffIdx + 1) + '</div>';
             } else {
               html += '<div style="padding:14px 20px 0;">';
             }
@@ -3054,14 +3066,14 @@
           if (trackUrl) {
             html += '<div style="padding:14px 20px 0;">';
             html += '<a href="' + escapeHtml(trackUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-track-btn">';
-            html += TRUCK_SVG + ' Track shipment</a></div>';
+            html += TRUCK_SVG + ' ' + t('portal.tracking.trackShipment') + '</a></div>';
           }
         });
 
         // ── Order timeline from Shopify fulfillment milestones ──
         var orderTimeline = [];
-        if (o.createdAt) orderTimeline.push({ time: o.createdAt, label: 'Order placed' });
-        if (o.processedAt && o.processedAt !== o.createdAt) orderTimeline.push({ time: o.processedAt, label: 'Order confirmed' });
+        if (o.createdAt) orderTimeline.push({ time: o.createdAt, label: t('portal.timeline.orderPlaced') });
+        if (o.processedAt && o.processedAt !== o.createdAt) orderTimeline.push({ time: o.processedAt, label: t('portal.timeline.orderConfirmed') });
         shopifyFulfillments.forEach(function (ff) {
           if (ff.createdAt) orderTimeline.push({ time: ff.createdAt, label: 'Shipped' });
           if (ff.inTransitAt) orderTimeline.push({ time: ff.inTransitAt, label: 'In transit' });
@@ -3073,7 +3085,7 @@
         if (orderTimeline.length > 1) {
           html += '<div style="padding:16px 20px 0;">';
           html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
-          html += 'Order timeline (' + orderTimeline.length + ')' + CHEVRON_SVG + '</button>';
+          html += t('portal.timeline.orderTimeline') + ' (' + orderTimeline.length + ')' + CHEVRON_SVG + '</button>';
           html += '<div class="oc-collapsible-body"><div class="oc-timeline">';
           orderTimeline.forEach(function (ev, idx) {
             var isLast = idx === orderTimeline.length - 1;
@@ -3092,7 +3104,7 @@
       if (!hasDeliveryAddr && o.shippingAddress) {
         var addrObj = buildShopifyAddress(o.shippingAddress);
         if (addrObj && addrObj.formatted) {
-          html += '<div style="padding:14px 20px 0;">' + renderAddress(addrObj, 'Delivery address') + '</div>';
+          html += '<div style="padding:14px 20px 0;">' + renderAddress(addrObj, t('portal.tracking.deliveryAddress')) + '</div>';
         }
       }
 
@@ -3105,12 +3117,12 @@
         } else if (o._needsFyndEnrich) {
           html += '<div class="oc-no-tracking oc-fynd-loading" data-order-name="' + escapeHtml(o.name || '') + '">';
           html += '<div class="oc-no-tracking-icon"><div class="oc-spinner"></div></div>';
-          html += '<div class="oc-no-tracking-text">Loading tracking details...</div>';
+          html += '<div class="oc-no-tracking-text">' + t('portal.common.loading') + '</div>';
           html += '</div>';
         } else {
           html += '<div class="oc-no-tracking">';
           html += '<div class="oc-no-tracking-icon">' + TRUCK_SVG + '</div>';
-          html += '<div class="oc-no-tracking-text">Tracking details will be available once your order ships.</div>';
+          html += '<div class="oc-no-tracking-text">' + t('portal.tracking.willBeAvailable') + '</div>';
           html += '</div>';
         }
       }
@@ -3138,9 +3150,9 @@
 
           // Return info
           var retInfo = [];
-          if (ret.createdAt) retInfo.push({ l: 'Submitted', v: formatDate(ret.createdAt) });
-          if (ti.awbNo || ret.returnAwb) retInfo.push({ l: 'Tracking No.', v: ti.awbNo || ret.returnAwb });
-          if (ti.logisticsPartner) retInfo.push({ l: 'Courier', v: ti.logisticsPartner });
+          if (ret.createdAt) retInfo.push({ l: t('portal.summary.submitted'), v: formatDate(ret.createdAt) });
+          if (ti.awbNo || ret.returnAwb) retInfo.push({ l: t('portal.tracking.trackingNo'), v: ti.awbNo || ret.returnAwb });
+          if (ti.logisticsPartner) retInfo.push({ l: t('portal.tracking.courier'), v: ti.logisticsPartner });
           if (retInfo.length > 0) {
             html += '<div class="oc-return-block-info">';
             retInfo.forEach(function (item) {
@@ -3270,18 +3282,18 @@
         html += '<div style="margin:12px 20px 0;padding:14px 16px;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border:1px solid #a7f3d0;border-radius:12px;display:flex;align-items:center;gap:12px;">';
         html += '<div style="width:36px;height:36px;border-radius:50%;background:#059669;display:flex;align-items:center;justify-content:center;flex-shrink:0;">';
         html += '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>';
-        html += '<div><div style="font-weight:700;font-size:0.875rem;color:#065f46;">Refund Completed</div>';
-        html += '<div style="font-size:0.75rem;color:#047857;margin-top:2px;">Your refund has been processed to the original payment method</div>';
+        html += '<div><div style="font-weight:700;font-size:0.875rem;color:#065f46;">' + t('portal.status.refundCompleted') + '</div>';
+        html += '<div style="font-size:0.75rem;color:#047857;margin-top:2px;">' + t('portal.status.refundCompletedDesc') + '</div>';
         html += '</div></div>';
       }
 
       // Info grid
       var info = [];
-      if (x.returnRequestNo) info.push({ l: 'Return ID', v: x.returnRequestNo, copy: true });
-      if (x.shopifyOrderName) info.push({ l: 'Order', v: x.shopifyOrderName, copy: false });
-      if (ti.awbNo || x.returnAwb) info.push({ l: 'Tracking No.', v: ti.awbNo || x.returnAwb, copy: true });
-      if (ti.logisticsPartner) info.push({ l: 'Courier', v: ti.logisticsPartner, copy: false });
-      if (x.fyndShipmentId) info.push({ l: 'Shipment ID', v: x.fyndShipmentId, copy: true });
+      if (x.returnRequestNo) info.push({ l: t('portal.tracking.returnId'), v: x.returnRequestNo, copy: true });
+      if (x.shopifyOrderName) info.push({ l: t('portal.summary.order'), v: x.shopifyOrderName, copy: false });
+      if (ti.awbNo || x.returnAwb) info.push({ l: t('portal.tracking.trackingNo'), v: ti.awbNo || x.returnAwb, copy: true });
+      if (ti.logisticsPartner) info.push({ l: t('portal.tracking.courier'), v: ti.logisticsPartner, copy: false });
+      if (x.fyndShipmentId) info.push({ l: t('portal.tracking.shipmentId'), v: x.fyndShipmentId, copy: true });
       if (info.length) {
         html += '<div style="padding:16px 20px 0;"><div class="oc-info-grid">';
         info.forEach(function (item) { html += renderInfoGridRow(item.l, item.v, item.copy); });
@@ -3501,13 +3513,13 @@
       const wrap = document.getElementById('portal-tabs-wrap');
       const tabs = [];
       if (PORTAL_CONFIG.showOrderTracking) {
-        tabs.push({ id: 'track_order', label: 'Track Order' });
+        tabs.push({ id: 'track_order', label: t('portal.tab.trackOrder') });
       }
       if (PORTAL_CONFIG.showReturnTracking) {
-        tabs.push({ id: 'track_return', label: 'Track Return' });
+        tabs.push({ id: 'track_return', label: t('portal.tab.trackReturn') });
       }
       if (PORTAL_CONFIG.showCreateReturnTab) {
-        tabs.push({ id: 'create', label: 'Create Return' });
+        tabs.push({ id: 'create', label: t('portal.tab.createReturn') });
       }
       if (tabs.length === 0) { wrap.style.display = 'none'; return; }
       if (tabs.length === 1) { wrap.style.display = 'none'; return; }
@@ -3566,10 +3578,10 @@
         err.textContent = 'Please enter your ' + (hints[lookupType] || 'details');
         return;
       }
-      if (lookupType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lookupValue)) { err.textContent = 'Please enter a valid email address'; return; }
-      if (lookupType === 'mobile' && lookupValue.replace(/[\s\-\+\(\)]/g, '').length < 7) { err.textContent = 'Please enter a valid phone number (at least 7 digits)'; return; }
-      if ((lookupType === 'forward_awb' || lookupType === 'return_awb') && lookupValue.length < 4) { err.textContent = 'Please enter a valid tracking / AWB number'; return; }
-      btn.disabled = true; btn.textContent = 'Searching...'; btn.classList.add('searching');
+      if (lookupType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lookupValue)) { err.textContent = t('portal.error.validEmail'); return; }
+      if (lookupType === 'mobile' && lookupValue.replace(/[\s\-\+\(\)]/g, '').length < 7) { err.textContent = t('portal.error.validPhone'); return; }
+      if ((lookupType === 'forward_awb' || lookupType === 'return_awb') && lookupValue.length < 4) { err.textContent = t('portal.error.validAwb'); return; }
+      btn.disabled = true; btn.textContent = t('portal.lookup.searching'); btn.classList.add('searching');
       // Show loading skeleton immediately
       document.getElementById('step1').classList.remove('active');
       document.getElementById('step2').classList.add('active');
@@ -3605,11 +3617,11 @@
         emptyEl.style.display = isEmpty ? 'block' : 'none';
         if (isEmpty) {
           var emptyMsg = noOrdersForTab
-            ? 'No orders found. Please check your details and try again.'
-            : 'No returns found for this search. If you recently submitted a return, it may take a moment to appear.';
+            ? t('portal.results.noOrders')
+            : t('portal.results.noReturns');
           emptyEl.innerHTML = '<div style="text-align:center;padding:40px 20px;">'
             + '<div style="margin-bottom:12px;opacity:0.4;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>'
-            + '<div style="font-size:1rem;font-weight:600;color:var(--portal-text);margin-bottom:6px;">Nothing found</div>'
+            + '<div style="font-size:1rem;font-weight:600;color:var(--portal-text);margin-bottom:6px;">' + t('portal.results.nothingFound') + '</div>'
             + '<div style="font-size:0.875rem;color:var(--portal-text-muted);max-width:360px;margin:0 auto;">' + emptyMsg + '</div>'
             + '</div>';
         }
@@ -3619,7 +3631,7 @@
           try {
             var container = document.getElementById('result-orders');
             var newHtml = ordersList.length === 0
-              ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">No orders found for this search.</p>'
+              ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noOrders') + '</p>'
               : ordersList.map(function (o, orderIdx) {
                 try { return renderOrderCardV3(o, orderIdx, returnsList || []); }
                 catch (renderErr) { console.error('Order render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Order ' + escapeHtml(o.name || o.id || '') + '</p></div>'; }
@@ -3638,7 +3650,7 @@
           try {
             var container = document.getElementById('result-returns');
             var newHtml = returnsList.length === 0
-              ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">No returns found for this search.</p>'
+              ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noReturns') + '</p>'
               : returnsList.map(function (x) {
                 try { return renderReturnCardV3(x); }
                 catch (renderErr) { console.error('Return render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Return ' + escapeHtml(x.returnRequestNo || x.id || '') + '</p></div>'; }
@@ -3724,7 +3736,7 @@
           if (hasActiveShipment) startAutoRefresh(); else stopAutoRefresh();
         } catch (_) {}
       } catch (e) {
-        err.textContent = e.message || 'Lookup failed. Please try again.';
+        err.textContent = e.message || t('portal.error.lookupFailed');
         document.getElementById('result-orders').innerHTML = '';
         document.getElementById('result-returns').innerHTML = '';
         document.getElementById('result-empty').style.display = 'none';
@@ -3732,7 +3744,7 @@
         document.getElementById('step1').classList.add('active');
         stopAutoRefresh();
       }
-      finally { btn.disabled = false; btn.textContent = 'Look Up'; btn.classList.remove('searching'); }
+      finally { btn.disabled = false; btn.textContent = t('portal.lookup.submit'); btn.classList.remove('searching'); }
     };
 
     document.getElementById('btnBack').onclick = () => {
@@ -3745,12 +3757,12 @@
     var currentMatchedOffer = null;
 
     // Dynamic labels/placeholders for lookup type
-    const LOOKUP_LABELS = { order_no: 'Enter your order number', return_id: 'Enter your return request ID', return_no: 'Enter your return number', forward_awb: 'Enter your forward AWB / tracking number', return_awb: 'Enter your return AWB / tracking number', email: 'Enter your email address', mobile: 'Enter your phone number' };
-    const LOOKUP_PLACEHOLDERS = { order_no: 'e.g. #1001 or 1001', return_id: 'e.g. RPM-A1B2C3D4', return_no: 'e.g. RET-12345', forward_awb: 'e.g. 1234567890', return_awb: 'e.g. 1234567890', email: 'e.g. you@example.com', mobile: 'e.g. +91 9876543210' };
+    const LOOKUP_LABELS = { order_no: t('portal.lookup.enterOrder'), return_id: t('portal.lookup.enterReturnId'), return_no: t('portal.lookup.enterReturnNo'), forward_awb: t('portal.lookup.enterForwardAwb'), return_awb: t('portal.lookup.enterReturnAwb'), email: t('portal.lookup.enterEmail'), mobile: t('portal.lookup.enterPhone') };
+    const LOOKUP_PLACEHOLDERS = { order_no: t('portal.lookup.placeholderOrder'), return_id: t('portal.lookup.placeholderReturnId'), return_no: t('portal.lookup.placeholderReturnNo'), forward_awb: t('portal.lookup.placeholderAwb'), return_awb: t('portal.lookup.placeholderAwb'), email: t('portal.lookup.placeholderEmail'), mobile: t('portal.lookup.placeholderPhone') };
     const LOOKUP_INPUT_TYPES = { email: 'email', mobile: 'tel' };
     document.getElementById('lookupType').addEventListener('change', function () {
       var v = this.value;
-      document.getElementById('lookupValueLabel').textContent = LOOKUP_LABELS[v] || 'Enter your details';
+      document.getElementById('lookupValueLabel').textContent = LOOKUP_LABELS[v] || t('portal.lookup.enterDetails');
       var inp = document.getElementById('lookupValue');
       inp.placeholder = LOOKUP_PLACEHOLDERS[v] || '';
       inp.type = LOOKUP_INPUT_TYPES[v] || 'text';
@@ -3775,13 +3787,13 @@
       var lookupInp = document.getElementById('lookupValue');
 
       if (tabId === 'track_order') {
-        select.innerHTML = '<option value="order_no">Order Number</option><option value="email">Email Address</option><option value="mobile">Phone Number</option><option value="forward_awb">Forward AWB / Tracking</option>';
-        lookupLabel.textContent = 'Enter your order number';
-        lookupInp.placeholder = 'e.g. #1001 or 1001';
+        select.innerHTML = '<option value="order_no">' + t('portal.lookup.orderNumber') + '</option><option value="email">' + t('portal.lookup.emailAddress') + '</option><option value="mobile">' + t('portal.lookup.phoneNumber') + '</option><option value="forward_awb">' + t('portal.lookup.forwardAwb') + '</option>';
+        lookupLabel.textContent = t('portal.lookup.enterOrder');
+        lookupInp.placeholder = t('portal.lookup.placeholderOrder');
       } else if (tabId === 'track_return') {
-        select.innerHTML = '<option value="order_no">Order Number</option><option value="return_id">Return Request ID</option><option value="return_no">Return Number</option><option value="email">Email Address</option><option value="mobile">Phone Number</option><option value="return_awb">Return AWB / Tracking</option>';
-        lookupLabel.textContent = 'Enter your order number or return ID';
-        lookupInp.placeholder = 'e.g. #1001 or RPM-A1B2C3D4';
+        select.innerHTML = '<option value="order_no">' + t('portal.lookup.orderNumber') + '</option><option value="return_id">' + t('portal.lookup.returnRequestId') + '</option><option value="return_no">' + t('portal.lookup.returnNumber') + '</option><option value="email">' + t('portal.lookup.emailAddress') + '</option><option value="mobile">' + t('portal.lookup.phoneNumber') + '</option><option value="return_awb">' + t('portal.lookup.returnAwb') + '</option>';
+        lookupLabel.textContent = t('portal.lookup.enterOrderOrReturn');
+        lookupInp.placeholder = t('portal.lookup.placeholderOrderOrReturn');
       }
 
       if (tabId === 'track_order' || tabId === 'track_return') {
@@ -3944,19 +3956,19 @@
     document.getElementById('btnUseManualForm').onclick = () => showManualForm(false);
 
     function getStatusLabel(status) {
-      var map = { initiated: 'Initiated', pending: 'Pending Review', processing: 'Processing', 'in progress': 'In Progress', approved: 'Approved', completed: 'Completed', rejected: 'Rejected', cancelled: 'Cancelled' };
+      var map = { initiated: t('portal.status.initiated'), pending: t('portal.status.pending'), processing: t('portal.status.processing'), 'in progress': t('portal.status.inProgress'), approved: t('portal.status.approved'), completed: t('portal.status.completed'), rejected: t('portal.status.rejected'), cancelled: t('portal.status.cancelled') };
       return map[(status || '').toLowerCase()] || status;
     }
     function getStatusBg(status) {
-      var map = { initiated: '#fffbeb', pending: '#fffbeb', processing: '#eff6ff', 'in progress': '#eff6ff', approved: '#ecfdf5', completed: '#ecfdf5', rejected: '#fef2f2', cancelled: '#f8fafc' };
+      var map = { initiated: '#fffbeb', pending: '#fffbeb', processing: '#eff6ff', 'in progress': '#eff6ff', approved: '#ecfdf5', completed: '#eff6ff', rejected: '#fef2f2', cancelled: '#f8fafc' };
       return map[(status || '').toLowerCase()] || '#f8fafc';
     }
     function getStatusBorder(status) {
-      var map = { initiated: '#fde68a', pending: '#fde68a', processing: '#bfdbfe', 'in progress': '#bfdbfe', approved: '#a7f3d0', completed: '#a7f3d0', rejected: '#fecaca', cancelled: '#e2e8f0' };
+      var map = { initiated: '#fde68a', pending: '#fde68a', processing: '#bfdbfe', 'in progress': '#bfdbfe', approved: '#a7f3d0', completed: '#bfdbfe', rejected: '#fecaca', cancelled: '#e2e8f0' };
       return map[(status || '').toLowerCase()] || '#e2e8f0';
     }
     function getStatusTextColor(status) {
-      var map = { initiated: '#92400e', pending: '#92400e', processing: '#1e40af', 'in progress': '#1e40af', approved: '#065f46', completed: '#065f46', rejected: '#991b1b', cancelled: '#475569' };
+      var map = { initiated: '#92400e', pending: '#92400e', processing: '#1e40af', 'in progress': '#1e40af', approved: '#065f46', completed: '#1e3a8a', rejected: '#991b1b', cancelled: '#475569' };
       return map[(status || '').toLowerCase()] || '#475569';
     }
 
@@ -3967,26 +3979,26 @@
             '<span style="flex:1;">' + escapeHtml(i.title || i.sku || i.lineItemId) + ' × ' + (i.qty || 1) + '</span>' +
             (i.reasonCode ? '<span style="color:var(--portal-text-muted);font-size:0.75rem;">' + escapeHtml(i.reasonCode) + '</span>' : '') +
             '</div>';
-        }).join('') : '<div style="font-size:0.8125rem;color:var(--portal-text-muted);padding:8px 12px;">Return items on file</div>';
+        }).join('') : '<div style="font-size:0.8125rem;color:var(--portal-text-muted);padding:8px 12px;">' + t('portal.create.returnItemsOnFile') + '</div>';
 
-        var dateStr = r.createdAt ? new Date(r.createdAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
-        var refundHtml = r.refundStatus && r.refundStatus !== 'none' ? '<div style="font-size:0.75rem;margin-top:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;color:#5b21b6;">Refund: ' + escapeHtml(r.refundStatus) + '</div>' : '';
+        var dateStr = r.createdAt ? new Date(r.createdAt).toLocaleDateString(window.__RPM_LOCALE__ || undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+        var refundHtml = r.refundStatus && r.refundStatus !== 'none' ? '<div style="font-size:0.75rem;margin-top:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;color:#5b21b6;">' + t('portal.tracking.refund') + ': ' + escapeHtml(r.refundStatus) + '</div>' : '';
 
         return '<div style="background:' + getStatusBg(r.status) + ';border:1px solid ' + getStatusBorder(r.status) + ';border-radius:var(--portal-radius);padding:20px;margin-bottom:12px;">' +
           '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px;margin-bottom:14px;">' +
           '<div>' +
           '<div style="font-weight:700;font-size:0.9375rem;color:' + getStatusTextColor(r.status) + ';margin-bottom:2px;">' + getStatusLabel(r.status) + '</div>' +
-          '<div style="font-size:0.8125rem;color:var(--portal-text-muted);">Return ID: <strong>' + escapeHtml(r.returnRequestId || r.id) + '</strong></div>' +
+          '<div style="font-size:0.8125rem;color:var(--portal-text-muted);">' + t('portal.tracking.returnId') + ': <strong>' + escapeHtml(r.returnRequestId || r.id) + '</strong></div>' +
           (r.fyndReturnNo ? '<div style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:2px;">Fynd #' + escapeHtml(r.fyndReturnNo) + '</div>' : '') +
           '</div>' +
           '<div style="font-size:0.75rem;color:var(--portal-text-muted);text-align:right;">' +
-          (dateStr ? 'Submitted ' + dateStr : '') +
+          (dateStr ? t('portal.summary.submitted') + ' ' + dateStr : '') +
           '</div>' +
           '</div>' +
           '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;">' + itemsHtml + '</div>' +
           refundHtml +
           '<div style="margin-top:14px;padding-top:14px;border-top:1px solid ' + getStatusBorder(r.status) + ';">' +
-          '<p style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;line-height:1.5;">Your return is being handled by the store. You\'ll receive email updates when the status changes.</p>' +
+          '<p style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;line-height:1.5;">' + t('portal.create.returnBeingHandled') + '</p>' +
           '</div>' +
           '</div>';
       }).join('');
@@ -4003,9 +4015,9 @@
       const err = document.getElementById('createErr1');
       const btn = document.getElementById('btnFetchOrder');
       err.textContent = '';
-      if (!lookVal) { err.textContent = 'Please enter your order number'; return; }
+      if (!lookVal) { err.textContent = t('portal.error.enterOrderNumber'); return; }
       btn.disabled = true;
-      btn.textContent = 'Looking up...';
+      btn.textContent = t('portal.create.lookingUp');
       try {
         const orderNumber = lookVal.replace(/^#/, '');
         const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber));
@@ -4025,7 +4037,7 @@
           showManualForm(true, data.orderNumber, data.error);
           return;
         }
-        if (!data.order) throw new Error('Order not found');
+        if (!data.order) throw new Error(t('portal.error.orderNotFound'));
 
         // Fulfillment eligibility check — block unfulfilled, refunded, cancelled orders
         if (data.returnEligibility && !data.returnEligibility.eligible) {
@@ -4039,20 +4051,20 @@
           }
 
           var statusLabel = '';
-          if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '') statusLabel = 'Not yet shipped';
-          else if (fulfillStatus === 'SCHEDULED') statusLabel = 'Scheduled for shipment';
-          else if (fulfillStatus === 'ON_HOLD') statusLabel = 'On hold';
-          else if (finStatus === 'REFUNDED') statusLabel = 'Already refunded';
-          else if (finStatus === 'VOIDED') statusLabel = 'Voided';
-          else statusLabel = 'Not eligible';
+          if (fulfillStatus === 'UNFULFILLED' || fulfillStatus === '') statusLabel = t('portal.eligibility.notShipped');
+          else if (fulfillStatus === 'SCHEDULED') statusLabel = t('portal.eligibility.scheduled');
+          else if (fulfillStatus === 'ON_HOLD') statusLabel = t('portal.eligibility.onHold');
+          else if (finStatus === 'REFUNDED') statusLabel = t('portal.eligibility.alreadyRefunded');
+          else if (finStatus === 'VOIDED') statusLabel = t('portal.eligibility.voided');
+          else statusLabel = t('portal.eligibility.notEligible');
 
           err.innerHTML = '';
           var ineligibleHtml = '<div style="text-align:center;padding:32px 20px;">';
           ineligibleHtml += '<div style="margin-bottom:16px;">' + iconSvg + '</div>';
-          ineligibleHtml += '<div style="font-size:1.125rem;font-weight:700;color:var(--portal-text);margin-bottom:4px;">Return not available</div>';
+          ineligibleHtml += '<div style="font-size:1.125rem;font-weight:700;color:var(--portal-text);margin-bottom:4px;">' + t('portal.create.notAvailable') + '</div>';
           ineligibleHtml += '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text-muted);margin-bottom:12px;">Order ' + escapeHtml(data.order.name) + ' · ' + escapeHtml(statusLabel) + '</div>';
           ineligibleHtml += '<div style="font-size:0.9375rem;color:var(--portal-text-muted);line-height:1.6;max-width:400px;margin:0 auto 20px;">' + escapeHtml(reason) + '</div>';
-          ineligibleHtml += '<button type="button" class="btn-secondary" onclick="document.getElementById(\'create-step-ineligible\').classList.remove(\'active\');document.getElementById(\'create-step1\').classList.add(\'active\');" style="width:100%;">Back to search</button>';
+          ineligibleHtml += '<button type="button" class="btn-secondary" onclick="document.getElementById(\'create-step-ineligible\').classList.remove(\'active\');document.getElementById(\'create-step1\').classList.add(\'active\');" style="width:100%;">' + t('portal.create.backToSearch') + '</button>';
           ineligibleHtml += '</div>';
 
           var ineligibleStep = document.getElementById('create-step-ineligible');
@@ -4187,10 +4199,10 @@
         document.getElementById('create-step-existing').classList.remove('active');
         document.getElementById('create-step2').classList.add('active');
       } catch (e) {
-        err.textContent = e.message || 'Something went wrong. Please try again or use the manual form.';
+        err.textContent = e.message || t('portal.common.error');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Find my order';
+        btn.textContent = t('portal.create.findOrder');
       }
     };
 
@@ -4227,12 +4239,12 @@
 
       var customNotesRaw = document.getElementById('createManualCustomerNotes').value.trim();
 
-      if (!orderNumber) { err.textContent = 'Please enter your order number (e.g. #1001)'; return; }
-      if (!email) { err.textContent = 'Please enter your email'; return; }
-      if (!EMAIL_REGEX.test(email)) { err.textContent = 'Please enter a valid email address'; return; }
-      if (!itemDesc || itemDesc.length < 3) { err.textContent = 'Please describe the item(s) you want to return (at least 3 characters)'; return; }
+      if (!orderNumber) { err.textContent = t('portal.error.enterOrderNumber'); return; }
+      if (!email) { err.textContent = t('portal.error.enterEmail'); return; }
+      if (!EMAIL_REGEX.test(email)) { err.textContent = t('portal.error.validEmail'); return; }
+      if (!itemDesc || itemDesc.length < 3) { err.textContent = t('portal.error.describeItems'); return; }
       btn.disabled = true;
-      btn.textContent = 'Submitting...';
+      btn.textContent = t('portal.create.submitting');
       try {
         var customerMedia = [];
         if (filesManual.length > 0) {
@@ -4256,15 +4268,15 @@
         document.getElementById('create-step3').classList.add('active');
         showReturnSuccessCard(data);
       } catch (e) {
-        var msg = e.message || 'Failed to submit. Please try again.';
+        var msg = e.message || t('portal.error.submitFailed');
         if (msg.toLowerCase().includes('already pending') || msg.toLowerCase().includes('already')) {
-          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:middle;margin-right:4px;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
+          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:middle;margin-right:4px;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> ' + t('portal.error.returnAlreadyExists') + '</strong><br>' + t('portal.error.returnAlreadyExistsDetail') + '</div>';
         } else {
           err.textContent = msg;
         }
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Submit Return Request';
+        btn.textContent = t('portal.create.submit');
       }
     };
 
@@ -4274,7 +4286,7 @@
       var shop = document.getElementById('shop').value.trim();
       var btn = this;
       btn.disabled = true;
-      btn.textContent = 'Processing...';
+      btn.textContent = t('portal.common.processing');
       try {
         var checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
         var reasonCode = document.getElementById('createReason').value;
@@ -4309,10 +4321,10 @@
           acceptedBox.style.display = 'block';
         }
       } catch (e) {
-        document.getElementById('createErr2').textContent = e.message || 'Could not process offer. Please try again.';
+        document.getElementById('createErr2').textContent = e.message || t('portal.error.offerFailed');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Accept Offer';
+        btn.textContent = t('portal.offer.accept');
       }
     };
 
@@ -4328,8 +4340,8 @@
       if (!code) return;
       navigator.clipboard.writeText(code).then(function() {
         var btn = document.getElementById('btnCopyOfferCode');
-        btn.textContent = 'Copied!';
-        setTimeout(function() { btn.textContent = 'Copy Code'; }, 2000);
+        btn.textContent = t('portal.common.copied');
+        setTimeout(function() { btn.textContent = t('portal.common.copyCode'); }, 2000);
       }).catch(function() {});
     };
 
@@ -4340,9 +4352,9 @@
       const btn = document.getElementById('btnSubmitReturn');
       err.textContent = '';
       const checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
-      if (checked.length === 0) { err.textContent = 'Please select at least one item to return'; return; }
+      if (checked.length === 0) { err.textContent = t('portal.error.selectItem'); return; }
       const emailVal = document.getElementById('createEmail').value.trim();
-      if (emailVal && !EMAIL_REGEX.test(emailVal)) { err.textContent = 'Please enter a valid email address'; return; }
+      if (emailVal && !EMAIL_REGEX.test(emailVal)) { err.textContent = t('portal.error.validEmail'); return; }
       const items = [];
       const reasonCode = document.getElementById('createReason').value;
       checked.forEach(cb => {
@@ -4366,7 +4378,7 @@
       var customNotesRaw = document.getElementById('createCustomerNotes').value.trim();
 
       btn.disabled = true;
-      btn.textContent = 'Submitting...';
+      btn.textContent = t('portal.create.submitting');
       try {
         var customerMedia = [];
         if (filesStandard.length > 0) {
@@ -4393,15 +4405,15 @@
         document.getElementById('create-step3').classList.add('active');
         showReturnSuccessCard(data);
       } catch (e) {
-        var msg = e.message || 'Failed to submit. Please try again.';
+        var msg = e.message || t('portal.error.submitFailed');
         if (msg.toLowerCase().includes('already pending') || msg.toLowerCase().includes('already')) {
-          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:middle;margin-right:4px;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Return already exists</strong><br>A return for this order is already being processed. Use the "Track Return" tab to see its status.</div>';
+          err.innerHTML = '<div style="padding:14px 16px;background:#ecfdf5;border:1px solid #a7f3d0;border-radius:10px;color:#065f46;font-size:0.875rem;"><strong><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5" style="vertical-align:middle;margin-right:4px;"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> ' + t('portal.error.returnAlreadyExists') + '</strong><br>' + t('portal.error.returnAlreadyExistsDetail') + '</div>';
         } else {
           err.textContent = msg;
         }
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Submit Return Request';
+        btn.textContent = t('portal.create.submit');
       }
     };
 
@@ -4413,25 +4425,25 @@
       var summaryBlock = document.getElementById('createSummaryBlock');
       var nextStepsEl = document.getElementById('createNextSteps');
       card.style.display = 'block';
-      document.getElementById('createSuccessMsg').textContent = data.message || 'Return request submitted successfully.';
+      document.getElementById('createSuccessMsg').textContent = data.message || t('portal.create.successMessage');
       var displayId = data.returnRequestId || (data.returnId ? 'RPM-' + String(data.returnId).slice(-8).toUpperCase() : '');
       returnIdEl.textContent = displayId || '—';
       lastCreatedReturnId = data.returnId || null;
       lastCreatedReturnRequestId = data.returnRequestId || displayId || null;
       var summary = data.summary || {};
       var summaryHtml = '';
-      if (summary.orderName) summaryHtml += '<div class="summary-row"><span class="summary-label">Order</span><span class="summary-value">' + escapeHtml(summary.orderName) + '</span></div>';
-      if (summary.itemsCount != null) summaryHtml += '<div class="summary-row"><span class="summary-label">Items</span><span class="summary-value">' + summary.itemsCount + '</span></div>';
+      if (summary.orderName) summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.summary.order') + '</span><span class="summary-value">' + escapeHtml(summary.orderName) + '</span></div>';
+      if (summary.itemsCount != null) summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.summary.items') + '</span><span class="summary-value">' + summary.itemsCount + '</span></div>';
       if (summary.items && summary.items.length) {
-        summaryHtml += '<div class="summary-row"><span class="summary-label">Returning</span><span class="summary-value"></span></div><ul class="return-summary-items">';
-        summary.items.forEach(function (it) { summaryHtml += '<li>' + escapeHtml(it.title || 'Item') + (it.qty > 1 ? ' × ' + it.qty : '') + '</li>'; });
+        summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.summary.returning') + '</span><span class="summary-value"></span></div><ul class="return-summary-items">';
+        summary.items.forEach(function (it) { summaryHtml += '<li>' + escapeHtml(it.title || t('portal.common.item')) + (it.qty > 1 ? ' × ' + it.qty : '') + '</li>'; });
         summaryHtml += '</ul>';
       }
-      if (summary.status) summaryHtml += '<div class="summary-row"><span class="summary-label">Status</span><span class="summary-value">' + escapeHtml(summary.status) + '</span></div>';
-      if (summary.createdAt) summaryHtml += '<div class="summary-row"><span class="summary-label">Submitted</span><span class="summary-value">' + escapeHtml(new Date(summary.createdAt).toLocaleString()) + '</span></div>';
-      summaryBlock.innerHTML = summaryHtml || '<div class="summary-row"><span class="summary-label">Order</span><span class="summary-value">' + escapeHtml(summary.orderName || '—') + '</span></div>';
+      if (summary.status) summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.tracking.status') + '</span><span class="summary-value">' + escapeHtml(summary.status) + '</span></div>';
+      if (summary.createdAt) summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.summary.submitted') + '</span><span class="summary-value">' + escapeHtml(new Date(summary.createdAt).toLocaleString(window.__RPM_LOCALE__ || undefined, { timeZone: window.__RPM_TIMEZONE__ || undefined })) + '</span></div>';
+      summaryBlock.innerHTML = summaryHtml || '<div class="summary-row"><span class="summary-label">' + t('portal.summary.order') + '</span><span class="summary-value">' + escapeHtml(summary.orderName || '—') + '</span></div>';
       summaryBlock.style.display = 'block';
-      nextStepsEl.textContent = summary.nextSteps || 'You will be notified once your return is reviewed.';
+      nextStepsEl.textContent = summary.nextSteps || t('portal.create.nextSteps');
       nextStepsEl.style.display = 'block';
     }
 
@@ -4441,7 +4453,7 @@
       navigator.clipboard.writeText(el.textContent).then(function () {
         var btn = document.getElementById('btnCopyReturnId');
         var orig = btn.textContent;
-        btn.textContent = 'Copied!';
+        btn.textContent = t('portal.common.copied');
         setTimeout(function () { btn.textContent = orig; }, 2000);
       }).catch(function () { });
     };
@@ -4486,6 +4498,53 @@
       document.getElementById('create-step1').classList.add('active');
       document.getElementById('createSuccessCard').style.display = 'none';
     };
+
+    // i18n: update static HTML text on load
+    (function applyI18nToStaticElements() {
+      var el;
+      el = document.getElementById('portal-title'); if (el) el.textContent = t('portal.header.title');
+      el = document.getElementById('portal-subtitle'); if (el) el.textContent = t('portal.header.subtitle');
+      el = document.getElementById('btnLookup'); if (el) el.textContent = t('portal.lookup.submit');
+      el = document.getElementById('btnFetchOrder'); if (el) el.textContent = t('portal.create.findOrder');
+      el = document.getElementById('btnSubmitReturn'); if (el) el.textContent = t('portal.create.submit');
+      el = document.getElementById('btnSubmitManualReturn'); if (el) el.textContent = t('portal.create.submit');
+      el = document.getElementById('btnTrackThisReturn'); if (el) el.textContent = t('portal.create.trackThisReturn');
+      el = document.getElementById('btnCreateAnother'); if (el) el.textContent = t('portal.create.createAnother');
+      el = document.getElementById('btnCopyReturnId'); if (el) el.textContent = t('portal.common.copy');
+      el = document.getElementById('btnCopyOfferCode'); if (el) el.textContent = t('portal.common.copyCode');
+      el = document.getElementById('btnAcceptOffer'); if (el) el.textContent = t('portal.offer.accept');
+      el = document.getElementById('btnDeclineOffer'); if (el) el.textContent = t('portal.offer.decline');
+      el = document.getElementById('lookupValueLabel'); if (el) el.textContent = t('portal.lookup.enterOrder');
+      el = document.getElementById('resultEmptyTitle'); if (el) el.textContent = t('portal.results.noResults');
+      el = document.getElementById('resultEmptyDesc'); if (el) el.textContent = t('portal.results.noResultsDetail');
+      el = document.getElementById('btnBack'); if (el) el.innerHTML = '&larr; ' + t('portal.results.searchAgain');
+      el = document.getElementById('btnCreateBack'); if (el) el.innerHTML = '&larr; ' + t('portal.common.back');
+      el = document.getElementById('btnManualBack'); if (el) el.innerHTML = '&larr; ' + t('portal.common.back');
+      el = document.getElementById('btnExistingBack'); if (el) el.innerHTML = '&larr; ' + t('portal.create.searchDifferentOrder');
+      el = document.getElementById('btnUseManualForm'); if (el) el.textContent = t('portal.create.submitManually');
+      el = document.getElementById('resultOrdersTitle'); if (el) el.textContent = t('portal.results.yourOrders');
+      el = document.getElementById('resultReturnsTitle'); if (el) el.textContent = t('portal.results.yourReturns');
+      el = document.getElementById('createStartTitle'); if (el) el.textContent = t('portal.create.startTitle');
+      el = document.getElementById('createStartDesc'); if (el) el.textContent = t('portal.create.startDesc');
+      el = document.getElementById('createSuccessTitle'); if (el) el.textContent = t('portal.create.successTitle');
+      el = document.getElementById('createReturnRequestIdLabel'); if (el) el.textContent = t('portal.create.successReturnId');
+      el = document.getElementById('lookupTypeLabel'); if (el) el.textContent = t('portal.lookup.howToSearch');
+      el = document.getElementById('subTabTrack'); if (el) el.textContent = t('portal.tab.trackExisting');
+      el = document.getElementById('subTabCreate'); if (el) el.textContent = t('portal.tab.createNew');
+      el = document.getElementById('existingReturnTitle'); if (el) el.textContent = t('portal.create.alreadySubmittedTitle');
+      el = document.getElementById('existingReturnDesc'); if (el) el.textContent = t('portal.create.alreadySubmittedDesc');
+      el = document.getElementById('offerTitle'); if (el) el.textContent = t('portal.offer.title');
+      el = document.getElementById('offerAcceptedTitle'); if (el) el.textContent = t('portal.offer.acceptedTitle');
+      el = document.getElementById('offerDiscountLabel'); if (el) el.textContent = t('portal.offer.discountCode');
+      el = document.getElementById('estimatedRefundLabel'); if (el) el.textContent = t('portal.refund.estimated');
+      el = document.getElementById('estimatedRefundDisclaimer'); if (el) el.textContent = t('portal.refund.disclaimer');
+      el = document.getElementById('createStep2Title'); if (el) el.textContent = t('portal.create.selectItems');
+      el = document.getElementById('manualReturnTitle'); if (el) el.textContent = t('portal.create.manualTitle');
+      el = document.getElementById('manualReturnDesc'); if (el) el.textContent = t('portal.create.manualDesc');
+      var dirAttr = window.__RPM_DIR__;
+      if (dirAttr) document.documentElement.setAttribute('dir', dirAttr);
+      if (window.__RPM_LOCALE__) document.documentElement.setAttribute('lang', window.__RPM_LOCALE__.split('-')[0] || 'en');
+    })();
   </script>
 </body>
 

@@ -95,7 +95,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const returnsOverTime = Object.entries(dailyData)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({
-        date: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", { month: "short", day: "numeric" }).format(new Date(date)),
         returns: count,
         fullDate: date,
       }));
@@ -111,7 +111,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const resolutionChartData = [
       { name: "Refund", value: resolutionMap.refund ?? 0, color: "#8B5CF6" },
       { name: "Exchange", value: resolutionMap.exchange ?? 0, color: "#3B82F6" },
-      { name: "Store Credit", value: resolutionMap.store_credit ?? 0, color: "#059669" },
+      { name: "Store Credit", value: resolutionMap.store_credit ?? 0, color: "#14b8a6" },
       { name: "Replacement", value: resolutionMap.replacement ?? 0, color: "#F59E0B" },
     ].filter((d) => d.value > 0);
 
@@ -148,6 +148,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       avgProcessingDays, periodChange, rangeLabel, range,
       from: from ?? undefined, to: to ?? undefined, hasFyndConfig, error: null,
       resolutionChartData, revenueRetained, greenReturnCount,
+      shopLocale: shop?.settings?.shopLocale ?? "en",
+      shopCurrency: shop?.settings?.shopCurrency ?? "USD",
+      shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
     };
   } catch (err) {
     console.error("Reports loader error:", err);
@@ -165,6 +168,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       error: "Failed to load reports. Please try again.",
       resolutionChartData: [] as { name: string; value: number; color: string }[],
       revenueRetained: 0, greenReturnCount: 0,
+      shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
     };
   }
 };
@@ -196,6 +200,7 @@ export default function Reports() {
     avgProcessingDays, periodChange, rangeLabel, range, from, to,
     hasFyndConfig, error,
     resolutionChartData, revenueRetained, greenReturnCount,
+    shopLocale, shopCurrency, shopTimezone,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -484,7 +489,7 @@ export default function Reports() {
                 <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Revenue retained</div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
                   <span style={{ fontSize: 32, fontWeight: 800, color: "#059669", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-                    ${revenueRetained.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
                   </span>
                 </div>
                 <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 4 }}>

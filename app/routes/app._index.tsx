@@ -194,7 +194,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const returnsOverTime = Object.entries(dailyData)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({
-        date: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", { month: "short", day: "numeric" }).format(new Date(date)),
         returns: count,
         fullDate: date,
       }));
@@ -233,6 +233,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       suggestions, error: null,
       revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
       resolutionMap,
+      shopLocale: shop?.settings?.shopLocale ?? "en",
+      shopCurrency: shop?.settings?.shopCurrency ?? "USD",
+      shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
     };
   } catch (err) {
     console.error("Dashboard loader error:", err);
@@ -249,6 +252,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       error: "Failed to load dashboard data. Please refresh or try again later.",
       revenueRetained: 0, exchangeRate: 0, greenReturnCount: 0, blocklistCount: 0,
       resolutionMap: {} as Record<string, number>,
+      shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
     };
   }
 };
@@ -261,7 +265,7 @@ export default function Dashboard() {
     returnsOverTime, periodChange, rangeLabel, range, from, to,
     allTimeReturns, suggestions, error,
     revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
-    resolutionMap,
+    resolutionMap, shopLocale, shopCurrency, shopTimezone,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -366,7 +370,7 @@ export default function Dashboard() {
               <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "var(--rpm-accent, #3B82F6)", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
               <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Total returns</div>
               <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                <span style={{ fontSize: 28, fontWeight: 800, color: "var(--rpm-text, #0f172a)", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{totalReturns.toLocaleString()}</span>
+                <span style={{ fontSize: 28, fontWeight: 800, color: "var(--rpm-text, #0f172a)", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{new Intl.NumberFormat(shopLocale || "en").format(totalReturns)}</span>
                 {periodChange !== 0 && (
                   <span style={{
                     fontSize: 11, fontWeight: 700,
@@ -420,7 +424,7 @@ export default function Dashboard() {
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#059669", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Revenue retained</div>
             <span style={{ fontSize: 28, fontWeight: 800, color: "#059669", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-              ${revenueRetained.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
             </span>
             <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>Via exchanges & store credit</div>
           </div>
@@ -547,7 +551,7 @@ export default function Dashboard() {
               {[
                 { key: "refund", label: "Refunds", color: "#8B5CF6" },
                 { key: "exchange", label: "Exchanges", color: "#3B82F6" },
-                { key: "store_credit", label: "Store credits", color: "#059669" },
+                { key: "store_credit", label: "Store credits", color: "#14b8a6" },
                 { key: "replacement", label: "Replacements", color: "#F59E0B" },
               ].map((r) => {
                 const count = resolutionMap[r.key] ?? 0;
@@ -632,7 +636,7 @@ export default function Dashboard() {
                         {(r as { returnRequestNo?: string | null }).returnRequestNo || r.fyndReturnNo || "—"}
                       </td>
                       <td style={{ padding: "10px 12px", color: "var(--rpm-text-muted)", fontSize: 12 }}>
-                        {new Date(r.createdAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                        {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", timeZone: shopTimezone || "UTC" }).format(new Date(r.createdAt))}
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <Link to={`/app/returns/${r.id}`} style={{ color: "var(--rpm-accent, #005bd3)" }}>

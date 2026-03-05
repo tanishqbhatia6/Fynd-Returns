@@ -18,10 +18,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopLocations = await fetchAllLocations(admin);
   } catch { /* non-fatal */ }
 
-  const refundLocationMode = (s as { refundLocationMode?: string } | null | undefined)?.refundLocationMode ?? "auto";
-  const refundLocationId = (s as { refundLocationId?: string | null } | null | undefined)?.refundLocationId ?? null;
-  const refundPaymentMethod = (s as { refundPaymentMethod?: string } | null | undefined)?.refundPaymentMethod ?? "original";
-  const refundStoreCreditPct = (s as { refundStoreCreditPct?: number | null } | null | undefined)?.refundStoreCreditPct ?? 100;
+  const refundLocationMode = s?.refundLocationMode ?? "auto";
+  const refundLocationId = s?.refundLocationId ?? null;
+  const refundPaymentMethod = s?.refundPaymentMethod ?? "original";
+  const refundStoreCreditPct = s?.refundStoreCreditPct ?? 100;
 
   const discountCodeRefundEnabled = s?.discountCodeRefundEnabled ?? false;
   const discountCodePrefix = s?.discountCodePrefix ?? "RETURN";
@@ -83,47 +83,55 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const noStart = noReturnPeriodEnabled && noReturnPeriodStart && noReturnPeriodStart.trim() ? new Date(noReturnPeriodStart) : null;
   const noEnd = noReturnPeriodEnabled && noReturnPeriodEnd && noReturnPeriodEnd.trim() ? new Date(noReturnPeriodEnd) : null;
 
-  await prisma.shopSettings.upsert({
-    where: { shopId: shop.id },
-    create: {
-      shopId: shop.id,
-      noReturnPeriodEnabled,
-      noReturnPeriodStart: noStart,
-      noReturnPeriodEnd: noEnd,
-      restrictedProductTagsJson: tagsStr,
-      photoRequired,
-      returnFeeAmount,
-      returnFeeCurrency,
-      autoApproveEnabled,
-      autoRefundEnabled,
-      refundLocationMode,
-      refundLocationId,
-      refundPaymentMethod,
-      refundStoreCreditPct,
-      discountCodeRefundEnabled,
-      discountCodePrefix,
-      discountCodeExpiryDays,
-    },
-    update: {
-      noReturnPeriodEnabled,
-      noReturnPeriodStart: noStart,
-      noReturnPeriodEnd: noEnd,
-      restrictedProductTagsJson: tagsStr ?? undefined,
-      photoRequired,
-      returnFeeAmount,
-      returnFeeCurrency,
-      autoApproveEnabled,
-      autoRefundEnabled,
-      refundLocationMode,
-      refundLocationId,
-      refundPaymentMethod,
-      refundStoreCreditPct,
-      discountCodeRefundEnabled,
-      discountCodePrefix,
-      discountCodeExpiryDays,
-    },
-  });
-  return { success: true };
+  if (noStart && noEnd && noStart > noEnd) {
+    return { success: false, error: "No-return period end date must be after the start date." };
+  }
+
+  try {
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: {
+        shopId: shop.id,
+        noReturnPeriodEnabled,
+        noReturnPeriodStart: noStart,
+        noReturnPeriodEnd: noEnd,
+        restrictedProductTagsJson: tagsStr,
+        photoRequired,
+        returnFeeAmount,
+        returnFeeCurrency,
+        autoApproveEnabled,
+        autoRefundEnabled,
+        refundLocationMode,
+        refundLocationId,
+        refundPaymentMethod,
+        refundStoreCreditPct,
+        discountCodeRefundEnabled,
+        discountCodePrefix,
+        discountCodeExpiryDays,
+      },
+      update: {
+        noReturnPeriodEnabled,
+        noReturnPeriodStart: noStart,
+        noReturnPeriodEnd: noEnd,
+        restrictedProductTagsJson: tagsStr ?? undefined,
+        photoRequired,
+        returnFeeAmount,
+        returnFeeCurrency,
+        autoApproveEnabled,
+        autoRefundEnabled,
+        refundLocationMode,
+        refundLocationId,
+        refundPaymentMethod,
+        refundStoreCreditPct,
+        discountCodeRefundEnabled,
+        discountCodePrefix,
+        discountCodeExpiryDays,
+      },
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Failed to save settings." };
+  }
 };
 
 export default function ReturnSettings() {
@@ -143,6 +151,7 @@ export default function ReturnSettings() {
   const [dcEnabled, setDcEnabled] = React.useState(data.discountCodeRefundEnabled);
   const [dcPrefix, setDcPrefix] = React.useState(data.discountCodePrefix);
   const [dcExpiryDays, setDcExpiryDays] = React.useState(data.discountCodeExpiryDays);
+  const [noReturnEnabled, setNoReturnEnabled] = React.useState(data.noReturnPeriodEnabled);
 
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
@@ -156,7 +165,8 @@ export default function ReturnSettings() {
     setDcEnabled(data.discountCodeRefundEnabled);
     setDcPrefix(data.discountCodePrefix);
     setDcExpiryDays(data.discountCodeExpiryDays);
-  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays]);
+    setNoReturnEnabled(data.noReturnPeriodEnabled);
+  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays, data.noReturnPeriodEnabled]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -189,8 +199,11 @@ export default function ReturnSettings() {
   return (
     <s-page heading="Return Settings">
       <div className="app-content">
-      {fetcher.data && "success" in fetcher.data && (
-        <div className="app-alert app-alert-success">Settings saved successfully.</div>
+      {fetcher.data?.success === true && (
+          <div className="app-alert app-alert-success">Settings saved successfully.</div>
+      )}
+      {fetcher.data && fetcher.data.success === false && (
+          <div className="app-alert app-alert-error">{(fetcher.data as { error?: string }).error || "Failed to save settings."}</div>
       )}
 
       <fetcher.Form method="post" onSubmit={handleSubmit}>
@@ -202,9 +215,13 @@ export default function ReturnSettings() {
               <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
                 During a specified promotional or sale event, returns for items purchased within that period will not be processed. Note the date range.
               </p>
-              {data.noReturnPeriodEnabled ? (
-                <div style={{ padding: 16, background: "#f6f6f7", borderRadius: 8, marginBottom: 12 }}>
-                  <p style={{ fontSize: 13, marginBottom: 8 }}>Return restrict period is enabled.</p>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <input type="checkbox" name="noReturnPeriodEnabled" checked={noReturnEnabled} onChange={(e) => setNoReturnEnabled(e.target.checked)} />
+                <span>Enable no-return period</span>
+              </label>
+              {noReturnEnabled ? (
+                <div style={{ padding: 16, background: "#f6f6f7", borderRadius: 8 }}>
+                  <p style={{ fontSize: 13, marginBottom: 8 }}>Set the date range during which returns will not be accepted.</p>
                   <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
                     <div>
                       <label style={{ fontSize: 12, color: "#6d7175" }}>Start</label>
@@ -227,12 +244,8 @@ export default function ReturnSettings() {
                   </div>
                 </div>
               ) : (
-                <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>Currently return restrict period is disabled.</p>
+                <p style={{ fontSize: 13, color: "#6d7175" }}>Enable the toggle above to configure a no-return date range.</p>
               )}
-              <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <input type="checkbox" name="noReturnPeriodEnabled" defaultChecked={data.noReturnPeriodEnabled} />
-                <span>Enable no-return period</span>
-              </label>
             </div>
           </s-section>
 

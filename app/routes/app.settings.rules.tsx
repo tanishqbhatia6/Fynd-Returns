@@ -104,29 +104,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* keep existing */
   }
 
-  await prisma.shopSettings.upsert({
-    where: { shopId: shop.id },
-    create: {
-      shopId: shop.id,
-      returnWindowDays,
-      minimumReturnPrice,
-      returnReasonsJson: returnReasonsStr,
-      returnReasonsByCategoryJson: returnReasonsByCategoryStr,
-      restrictedRegionsJson: restrictedRegionsStr,
-      returnOffersJson: returnOffersStr,
-      returnOffersEnabled,
-    },
-    update: {
-      returnWindowDays,
-      minimumReturnPrice,
-      returnOffersEnabled,
-      ...(returnReasonsStr !== undefined && { returnReasonsJson: returnReasonsStr }),
-      ...(returnReasonsByCategoryStr !== undefined && { returnReasonsByCategoryJson: returnReasonsByCategoryStr }),
-      ...(restrictedRegionsStr !== undefined && { restrictedRegionsJson: restrictedRegionsStr }),
-      ...(returnOffersStr !== undefined && { returnOffersJson: returnOffersStr }),
-    },
-  });
-  return { success: true };
+  try {
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: {
+        shopId: shop.id,
+        returnWindowDays,
+        minimumReturnPrice,
+        returnReasonsJson: returnReasonsStr,
+        returnReasonsByCategoryJson: returnReasonsByCategoryStr,
+        restrictedRegionsJson: restrictedRegionsStr,
+        returnOffersJson: returnOffersStr,
+        returnOffersEnabled,
+      },
+      update: {
+        returnWindowDays,
+        minimumReturnPrice,
+        returnOffersEnabled,
+        ...(returnReasonsStr !== undefined && { returnReasonsJson: returnReasonsStr }),
+        ...(returnReasonsByCategoryStr !== undefined && { returnReasonsByCategoryJson: returnReasonsByCategoryStr }),
+        ...(restrictedRegionsStr !== undefined && { restrictedRegionsJson: restrictedRegionsStr }),
+        ...(returnOffersStr !== undefined && { returnOffersJson: returnOffersStr }),
+      },
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Failed to save settings." };
+  }
 };
 
 type CategoryReasons = { category: string; reasons: string[] };
@@ -250,8 +254,11 @@ export default function ReturnRules() {
   return (
     <s-page heading="Return Rules">
       <div className="app-content">
-      {fetcher.data && "success" in fetcher.data && (
+      {fetcher.data?.success === true && (
         <div className="app-alert app-alert-success">Settings saved successfully.</div>
+      )}
+      {fetcher.data && fetcher.data.success === false && (
+        <div className="app-alert app-alert-error">{(fetcher.data as { error?: string }).error || "Failed to save settings."}</div>
       )}
 
       <fetcher.Form method="post" onSubmit={handleSubmit}>

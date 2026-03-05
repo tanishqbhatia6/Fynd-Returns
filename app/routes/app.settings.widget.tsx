@@ -25,6 +25,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     portalUrl: `https://${session.shop}/apps/returns`,
     portalLanguage, portalLabelOverrides, resolvedLabels, labelKeys,
     supportedLanguages: SUPPORTED_LANGUAGES,
+    shopLocale: shop.settings?.shopLocale ?? "en",
+    shopCurrency: shop.settings?.shopCurrency ?? "USD",
+    shopTimezone: shop.settings?.shopTimezone ?? "UTC",
   };
 };
 
@@ -88,17 +91,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shop = await findOrCreateShop(session.shop);
 
-  await prisma.shopSettings.upsert({
-    where: { shopId: shop.id },
-    create: { shopId: shop.id, portalThemeJson, portalConfigJson, portalLanguage, portalLabelsJson },
-    update: {
-      portalThemeJson: portalThemeJson ?? undefined,
-      portalConfigJson,
-      portalLanguage,
-      portalLabelsJson,
-    },
-  });
-  return { success: true };
+  try {
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: { shopId: shop.id, portalThemeJson, portalConfigJson, portalLanguage, portalLabelsJson },
+      update: {
+        portalThemeJson: portalThemeJson ?? undefined,
+        portalConfigJson,
+        portalLanguage,
+        portalLabelsJson,
+      },
+    });
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Failed to save settings." };
+  }
 };
 
 function ToggleRow({ icon, title, description, checked, onChange, last }: {
@@ -143,7 +150,7 @@ function ToggleRow({ icon, title, description, checked, onChange, last }: {
 }
 
 export default function Widget() {
-  const { portalTheme, portalConfig, fontOptions, portalUrl, portalLanguage, portalLabelOverrides, labelKeys, supportedLanguages } = useLoaderData<typeof loader>();
+  const { portalTheme, portalConfig, fontOptions, portalUrl, portalLanguage, portalLabelOverrides, labelKeys, supportedLanguages, shopLocale, shopCurrency, shopTimezone } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean }>();
   const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>(portalLabelOverrides);
   const [showCustomLabels, setShowCustomLabels] = useState(Object.keys(portalLabelOverrides).length > 0);
@@ -155,8 +162,11 @@ export default function Widget() {
   return (
     <s-page heading="Assure Return Widget">
       <div className="app-content">
-        {fetcher.data && "success" in fetcher.data && (
+        {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Settings saved successfully.</div>
+        )}
+        {fetcher.data && fetcher.data.success === false && (
+          <div className="app-alert app-alert-error">{(fetcher.data as { error?: string }).error || "Failed to save settings."}</div>
         )}
 
         <fetcher.Form method="post">
@@ -214,7 +224,7 @@ export default function Widget() {
           </s-section>
           <s-section heading="Portal language">
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Choose the language for your customer-facing portal. You can also override individual label text below.
+              Choose the language for your customer-facing portal and email notifications. You can also override individual label text below.
             </p>
             <div className="app-field" style={{ marginBottom: 16 }}>
               <label>Language</label>
@@ -223,6 +233,10 @@ export default function Widget() {
                   <option key={lang.code} value={lang.code}>{lang.label}</option>
                 ))}
               </select>
+            </div>
+            <div style={{ background: "#F0F4FF", border: "1px solid #DBEAFE", borderRadius: 8, padding: "12px 16px", marginBottom: 16, fontSize: 12, color: "#1E40AF", lineHeight: 1.6 }}>
+              <strong>Auto-detected from Shopify:</strong> Locale <code style={{ background: "#E0E7FF", padding: "1px 5px", borderRadius: 4 }}>{shopLocale}</code>, Currency <code style={{ background: "#E0E7FF", padding: "1px 5px", borderRadius: 4 }}>{shopCurrency}</code>, Timezone <code style={{ background: "#E0E7FF", padding: "1px 5px", borderRadius: 4 }}>{shopTimezone}</code>.
+              {" "}These are used for date/time and currency formatting across the portal and emails.
             </div>
             <div style={{ marginBottom: 16 }}>
               <button type="button" onClick={() => setShowCustomLabels(!showCustomLabels)} style={{

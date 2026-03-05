@@ -34,7 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const returnFeeCurrency = s?.returnFeeCurrency ?? "USD";
   const returnFeeAmount = s?.returnFeeAmount != null ? Number(s.returnFeeAmount) : 0;
   const fyndEnv = s?.fyndEnvironment ?? null;
-  const refundPaymentMethod = (s as { refundPaymentMethod?: string } | null)?.refundPaymentMethod ?? "original";
+  const refundPaymentMethod = s?.refundPaymentMethod ?? "original";
 
   let reasonCount = 0;
   try {
@@ -241,41 +241,6 @@ export default function SettingsDashboard() {
       ],
     },
     {
-      title: "Security & Automation",
-      cards: [
-        {
-          to: "/app/settings/blocklist",
-          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
-          iconBg: "#FEF2F2", iconStroke: "#DC2626",
-          title: "Customer Blocklist",
-          desc: "Block specific customers by email, phone, or order name from submitting returns.",
-          status: [
-            d.blocklistEnabled
-              ? { label: "Enabled", variant: "ok" }
-              : { label: "Disabled", variant: "off" },
-            ...(d.blocklistCount > 0
-              ? [{ label: `${d.blocklistCount} entr${d.blocklistCount !== 1 ? "ies" : "y"}`, variant: "info" as const }]
-              : []),
-          ],
-        },
-        {
-          to: "/app/settings/auto-rules",
-          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
-          iconBg: "#F0FDF4", iconStroke: "#059669",
-          title: "Auto-Approve Rules",
-          desc: "Configure conditional rules for auto-approving or flagging returns for manual review.",
-          status: [
-            d.autoApprove
-              ? { label: "Auto-approve on", variant: "ok" }
-              : { label: "Auto-approve off", variant: "off" },
-            ...(d.autoRulesCount > 0
-              ? [{ label: `${d.autoRulesCount} rule${d.autoRulesCount !== 1 ? "s" : ""}`, variant: "info" as const }]
-              : []),
-          ],
-        },
-      ],
-    },
-    {
       title: "Revenue & Sustainability",
       cards: [
         {
@@ -433,8 +398,8 @@ export default function SettingsDashboard() {
               gridTemplateColumns: group.cards.length === 1 ? "1fr" : "repeat(2, 1fr)",
               gap: 14,
             }}>
-              {group.cards.map((c) => (
-                <Link key={c.to} to={c.to} className="app-settings-card" style={{ gap: 10 }}>
+              {group.cards.map((c, ci) => (
+                <Link key={`${c.to}-${ci}`} to={c.to} className="app-settings-card" style={{ gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
                     <div className="app-settings-card-icon" style={{ background: c.iconBg, color: c.iconStroke, width: 40, height: 40, borderRadius: 10 }}>
                       {c.icon}

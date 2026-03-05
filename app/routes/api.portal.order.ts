@@ -125,17 +125,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
-    // Last resort: scan recent orders by custom attribute (affiliate_order_id, etc.)
+    // Last resort: scan Shopify orders by custom attribute (affiliate_order_id, etc.)
     if (!order && !/^\d+$/.test(orderNumber)) {
-      const resolvedName = await findOrderNameByCustomAttribute(admin, orderNumber);
-      if (resolvedName) {
-        order = await fetchOrderByOrderNumber(admin, resolvedName.replace(/^#/, ""));
+      const resolved = await findOrderNameByCustomAttribute(admin, orderNumber);
+      if (resolved) {
+        order = await fetchOrderByGid(admin, resolved.id)
+          ?? await fetchOrderByOrderNumber(admin, resolved.name.replace(/^#/, ""));
         if (order) {
           try {
             await prisma.fyndOrderMapping.upsert({
-              where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolvedName } },
-              create: { shopId: shopRecord.id, shopifyOrderName: resolvedName, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
-              update: { fyndOrderId: orderNumber },
+              where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolved.name } },
+              create: { shopId: shopRecord.id, shopifyOrderName: resolved.name, shopifyOrderId: resolved.id, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
+              update: { fyndOrderId: orderNumber, shopifyOrderId: resolved.id },
             });
           } catch { /* non-critical */ }
         }

@@ -217,6 +217,37 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     }
   }
 
+  // Proactively cache FyndOrderMapping so Track Order lookups work
+  // even before any return is created for a given Fynd order.
+  const fyndOid = affiliateOrderId ?? orderId;
+  if (fyndOid && returnCase.shopifyOrderName) {
+    try {
+      await prisma.fyndOrderMapping.upsert({
+        where: {
+          shopId_shopifyOrderName: {
+            shopId: returnCase.shopId,
+            shopifyOrderName: returnCase.shopifyOrderName,
+          },
+        },
+        create: {
+          shopId: returnCase.shopId,
+          shopifyOrderName: returnCase.shopifyOrderName,
+          shopifyOrderId: returnCase.shopifyOrderId ?? undefined,
+          fyndOrderId: fyndOid,
+          fyndShipmentId: shipmentId ?? undefined,
+          searchStrategy: "webhook",
+        },
+        update: {
+          fyndOrderId: fyndOid,
+          ...(shipmentId ? { fyndShipmentId: shipmentId } : {}),
+          ...(returnCase.shopifyOrderId ? { shopifyOrderId: returnCase.shopifyOrderId } : {}),
+        },
+      });
+    } catch {
+      // Non-fatal — mapping is an optimization, not required
+    }
+  }
+
   const shopDomain = returnCase.shop.shopDomain;
 
   // Get offline session for Shopify API

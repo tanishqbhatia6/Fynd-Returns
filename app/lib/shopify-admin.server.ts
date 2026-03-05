@@ -516,20 +516,25 @@ const ORDERS_CUSTOM_ATTR_SEARCH_QUERY = `#graphql
 `;
 
 /**
- * Searches up to 100 recent orders looking for one whose custom attribute
+ * Searches recent orders looking for one whose custom attribute
  * (e.g. affiliate_order_id) matches the given value. Returns the Shopify
- * order name if found. This is a last-resort fallback; prefer DB lookups
- * (FyndOrderMapping / ReturnCase) or orderByIdentifier when possible.
+ * order { id, name } if found. This is a last-resort fallback; prefer DB
+ * lookups (FyndOrderMapping / ReturnCase) or Shopify filters when possible.
+ *
+ * Scans up to 500 orders (10 pages × 50). Shopify does NOT index
+ * customAttributes for search, so this pagination scan is unavoidable
+ * for orders placed through Fynd or other platforms that store their
+ * order ID in customAttributes rather than as source_identifier/tag.
  */
 export async function findOrderNameByCustomAttribute(
   admin: AdminGraphQL,
   attrValue: string
-): Promise<string | null> {
+): Promise<{ id: string; name: string } | null> {
   const target = attrValue.toLowerCase().trim();
   if (!target) return null;
   const ATTR_KEYS = ["affiliate_order_id", "fynd_order_id", "order_id", "external_order_id"];
   let cursor: string | null = null;
-  for (let page = 0; page < 2; page++) {
+  for (let page = 0; page < 10; page++) {
     try {
       const res = await admin.graphql(ORDERS_CUSTOM_ATTR_SEARCH_QUERY, { variables: { cursor } });
       const json = (await res.json()) as {
@@ -547,7 +552,7 @@ export async function findOrderNameByCustomAttribute(
         const attrs = node.customAttributes ?? [];
         for (const attr of attrs) {
           if (ATTR_KEYS.includes(attr.key.toLowerCase()) && attr.value?.toLowerCase() === target) {
-            return node.name;
+            return { id: node.id, name: node.name };
           }
         }
       }

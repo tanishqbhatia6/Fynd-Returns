@@ -216,7 +216,33 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       }
 
-      // Also try matching ReturnCase by fyndOrderId or shopifyOrderName to build order data
+      // Scan Shopify orders by custom attribute (affiliate_order_id, etc.)
+      // This is return-independent — works even if no ReturnCase exists.
+      if (orders.length === 0 && !/^\d+$/.test(orderNumber)) {
+        try {
+          const { admin } = await shopify.unauthenticated.admin(shopDomain);
+          const resolved = await findOrderNameByCustomAttribute(admin, orderNumber);
+          if (resolved) {
+            const order = await fetchOrderByGid(admin, resolved.id)
+              ?? await fetchOrderByOrderNumber(admin, resolved.name.replace(/^#/, ""));
+            if (order) {
+              orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
+            }
+            // Cache mapping so future lookups are instant (no more scanning)
+            try {
+              await prisma.fyndOrderMapping.upsert({
+                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolved.name } },
+                create: { shopId: shopRecord.id, shopifyOrderName: resolved.name, shopifyOrderId: resolved.id, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
+                update: { fyndOrderId: orderNumber, shopifyOrderId: resolved.id },
+              });
+            } catch { /* non-critical */ }
+          }
+        } catch (err) {
+          console.error("Portal lookup order via custom attribute scan:", err);
+        }
+      }
+
+      // Last resort: try ReturnCase records to resolve the Shopify order via stored GID/name
       if (orders.length === 0) {
         try {
           const fyndCases = await prisma.returnCase.findMany({
@@ -233,7 +259,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           });
           if (fyndCases.length > 0) {
             const rc = fyndCases[0];
-            // Fast path: use orderByIdentifier with stored GID
             if (rc.shopifyOrderId?.startsWith("gid://")) {
               try {
                 const { admin } = await shopify.unauthenticated.admin(shopDomain);
@@ -245,7 +270,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 console.error("Portal lookup order via GID:", err);
               }
             }
-            // Fallback: search by shopifyOrderName
             if (orders.length === 0 && rc.shopifyOrderName) {
               try {
                 const { admin } = await shopify.unauthenticated.admin(shopDomain);
@@ -288,30 +312,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         } catch (err) {
           console.error("Portal lookup order via ReturnCase.fyndOrderId:", err);
-        }
-      }
-
-      // Last resort: search recent Shopify orders by custom attribute (affiliate_order_id, etc.)
-      if (orders.length === 0 && !/^\d+$/.test(orderNumber)) {
-        try {
-          const { admin } = await shopify.unauthenticated.admin(shopDomain);
-          const resolvedName = await findOrderNameByCustomAttribute(admin, orderNumber);
-          if (resolvedName) {
-            const order = await fetchOrderByOrderNumber(admin, resolvedName.replace(/^#/, ""));
-            if (order) {
-              orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
-            }
-            // Cache mapping for future lookups
-            try {
-              await prisma.fyndOrderMapping.upsert({
-                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolvedName } },
-                create: { shopId: shopRecord.id, shopifyOrderName: resolvedName, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
-                update: { fyndOrderId: orderNumber },
-              });
-            } catch { /* non-critical */ }
-          }
-        } catch (err) {
-          console.error("Portal lookup order via custom attribute scan:", err);
         }
       }
     }

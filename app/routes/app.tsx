@@ -51,6 +51,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; label: string }> = {
   "/app/returns": { parent: "/app", parentLabel: "Dashboard", label: "Returns" },
+  "/app/customers": { parent: "/app", parentLabel: "Dashboard", label: "Customers" },
   "/app/reports": { parent: "/app", parentLabel: "Dashboard", label: "Reports" },
   "/app/settings": { parent: "/app", parentLabel: "Dashboard", label: "Settings" },
   "/app/portal": { parent: "/app", parentLabel: "Dashboard", label: "Customer Portal" },
@@ -61,6 +62,8 @@ const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; labe
   "/app/settings/rules": { parent: "/app/settings", parentLabel: "Settings", label: "Policy Rules" },
   "/app/settings/widget": { parent: "/app/settings", parentLabel: "Settings", label: "Portal Widget" },
   "/app/settings/permissions": { parent: "/app/settings", parentLabel: "Settings", label: "Permissions" },
+  "/app/settings/blocklist": { parent: "/app/settings", parentLabel: "Settings", label: "Customer Blocklist" },
+  "/app/settings/auto-rules": { parent: "/app/settings", parentLabel: "Settings", label: "Auto-Approve Rules" },
   "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Product Guide" },
 };
 
@@ -141,6 +144,7 @@ export default function App() {
         <s-link href="/app/returns">
           Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}
         </s-link>
+        <s-link href="/app/customers">Customers</s-link>
         <s-link href="/app/reports">Reports</s-link>
         <s-link href="/app/settings">Settings</s-link>
         <s-link href="/app/portal">Portal</s-link>

@@ -62,7 +62,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const terminalStatuses = ["approved", "rejected", "completed", "cancelled"];
   const isTerminal = terminalStatuses.includes(returnCase.status.toLowerCase());
 
-  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string; refundMethod?: string; storeCreditPct?: number };
+  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string; refundMethod?: string; storeCreditPct?: number; bonusAmount?: number; resolutionType?: string; exchangeItems?: Array<{ variantId: string; quantity: number }> };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     try {
@@ -91,7 +91,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (rejectionReasonVal !== null && rejectionReasonVal !== undefined) body.rejectionReason = rejectionReasonVal;
   }
 
-  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId, refundMethod: bodyRefundMethod, storeCreditPct: bodyStoreCreditPct } = body;
+  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId, refundMethod: bodyRefundMethod, storeCreditPct: bodyStoreCreditPct, bonusAmount: bodyBonusAmount, resolutionType: bodyResolutionType, exchangeItems: bodyExchangeItems } = body;
+  const { carrier: bodyCarrier, trackingNumber: bodyTrackingNumber, labelUrl: bodyLabelUrl, qrCodeUrl: bodyQrCodeUrl, returnInstructions: bodyReturnInstructions } = body as typeof body & { carrier?: string; trackingNumber?: string; labelUrl?: string; qrCodeUrl?: string; returnInstructions?: string };
 
   if (actionType === "update_status" && newStatus) {
     const validStatuses = ["pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled", "initiated"];
@@ -150,58 +151,70 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (isTerminal) {
       return Response.json({ error: `Cannot approve: return is already ${returnCase.status}` }, { status: 400 });
     }
+    const isGreenReturn = returnCase.isGreenReturn === true;
     let fyndReturnId: string | null = null;
     let fyndReturnNo: string | null = null;
     let fyndError: string | null = null;
-    const shopWithSettings = await prisma.shop.findUnique({
-      where: { id: shop.id },
-      include: { settings: true },
-    });
-    const settingsForApprove = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
-    const fyndClientResult = settingsForApprove
-      ? await createFyndClientOrError(settingsForApprove, { requirePlatform: true })
-      : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations and connect Fynd with Platform API to create returns on Fynd." };
     let fyndOrderId: string | null = null;
     let fyndShipmentId: string | null = null;
     let fyndPayloadJson: string | null = null;
-    if (fyndClientResult.ok && "getShipments" in fyndClientResult.client) {
-      const fyndClient = fyndClientResult.client;
-      let affiliateOrderId: string | null = null;
-      if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
-        const order = returnCase.shopifyOrderId
-          ? await fetchOrder(admin, returnCase.shopifyOrderId)
-          : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
-        affiliateOrderId = order?.affiliateOrderId ?? null;
-      }
-      try {
-        const fyndResult = await createReturnOnFynd(fyndClient, returnCase, { affiliateOrderId });
-        if (fyndResult.success && fyndResult.fyndReturnId) {
-          fyndReturnId = fyndResult.fyndReturnId;
-          fyndReturnNo = fyndResult.fyndReturnNo ?? null;
-          fyndOrderId = fyndResult.fyndOrderId ?? null;
-          fyndShipmentId = fyndResult.fyndShipmentId ?? null;
-          try {
-            fyndPayloadJson = fyndResult.fyndPayload != null ? JSON.stringify(fyndResult.fyndPayload) : null;
-          } catch {
-            fyndPayloadJson = null;
-          }
-        } else if (fyndResult.error) {
-          fyndError = enrichFyndError(fyndResult.error);
-          console.warn("[Approve] Fynd create return failed:", fyndResult.error);
-        }
-      } catch (err) {
-        fyndError = enrichFyndError(err instanceof Error ? err.message : String(err));
-        console.warn("[Approve] Fynd error:", err);
-      }
-    } else if (!fyndClientResult.ok) {
-      fyndError = fyndClientResult.error;
+
+    if (isGreenReturn) {
+      console.log(`[Approve] Green return ${id} — skipping Fynd sync (no shipment needed)`);
     } else {
-      fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). Configure in Settings → Integrations.";
+      const shopWithSettings = await prisma.shop.findUnique({
+        where: { id: shop.id },
+        include: { settings: true },
+      });
+      const settingsForApprove = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
+      const fyndClientResult = settingsForApprove
+        ? await createFyndClientOrError(settingsForApprove, { requirePlatform: true })
+        : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations and connect Fynd with Platform API to create returns on Fynd." };
+      if (fyndClientResult.ok && "getShipments" in fyndClientResult.client) {
+        const fyndClient = fyndClientResult.client;
+        let affiliateOrderId: string | null = null;
+        if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
+          const order = returnCase.shopifyOrderId
+            ? await fetchOrder(admin, returnCase.shopifyOrderId)
+            : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
+          affiliateOrderId = order?.affiliateOrderId ?? null;
+        }
+        try {
+          const fyndResult = await createReturnOnFynd(fyndClient, returnCase, { affiliateOrderId });
+          if (fyndResult.success && fyndResult.fyndReturnId) {
+            fyndReturnId = fyndResult.fyndReturnId;
+            fyndReturnNo = fyndResult.fyndReturnNo ?? null;
+            fyndOrderId = fyndResult.fyndOrderId ?? null;
+            fyndShipmentId = fyndResult.fyndShipmentId ?? null;
+            try {
+              fyndPayloadJson = fyndResult.fyndPayload != null ? JSON.stringify(fyndResult.fyndPayload) : null;
+            } catch {
+              fyndPayloadJson = null;
+            }
+          } else if (fyndResult.error) {
+            fyndError = enrichFyndError(fyndResult.error);
+            console.warn("[Approve] Fynd create return failed:", fyndResult.error);
+          }
+        } catch (err) {
+          fyndError = enrichFyndError(err instanceof Error ? err.message : String(err));
+          console.warn("[Approve] Fynd error:", err);
+        }
+      } else if (!fyndClientResult.ok) {
+        fyndError = fyndClientResult.error;
+      } else {
+        fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). Configure in Settings → Integrations.";
+      }
     }
+    const validResolutionTypes = ["refund", "exchange", "store_credit", "replacement"];
+    const resolvedType = bodyResolutionType && validResolutionTypes.includes(bodyResolutionType)
+      ? bodyResolutionType
+      : "refund";
+
     await prisma.returnCase.update({
       where: { id },
       data: {
         status: "approved",
+        resolutionType: resolvedType,
         adminNotes: note || returnCase.adminNotes,
         ...(fyndReturnId && { fyndReturnId }),
         ...(fyndReturnNo && { fyndReturnNo }),
@@ -217,6 +230,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         eventType: "approved",
         payloadJson: JSON.stringify({
           note: note || null,
+          resolutionType: resolvedType,
           fyndReturnId: fyndReturnId || null,
           fyndReturnNo: fyndReturnNo || null,
         }),
@@ -481,13 +495,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
       }
 
+      const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+      const bonusCreditEnabled = shopSettings?.bonusCreditEnabled ?? false;
+      const bonusCreditPct = shopSettings?.bonusCreditPct ?? 10;
+      const isGreenReturn = returnCase.isGreenReturn === true;
+
       let refundMethodCfg: RefundMethodConfig | null = null;
       if (bodyRefundMethod && ["original", "store_credit", "both"].includes(bodyRefundMethod)) {
         refundMethodCfg = { method: bodyRefundMethod as "original" | "store_credit" | "both", storeCreditPct: bodyStoreCreditPct };
       } else {
-        const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-        const settingsMethod = (shopSettings as { refundPaymentMethod?: string } | null)?.refundPaymentMethod ?? "original";
-        const settingsPct = (shopSettings as { refundStoreCreditPct?: number | null } | null)?.refundStoreCreditPct ?? 100;
+        const settingsMethod = shopSettings?.refundPaymentMethod ?? "original";
+        const settingsPct = shopSettings?.refundStoreCreditPct ?? 100;
         if (["original", "store_credit", "both"].includes(settingsMethod)) {
           refundMethodCfg = { method: settingsMethod as "original" | "store_credit" | "both", storeCreditPct: settingsPct };
         }
@@ -502,7 +520,26 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         } catch { /* non-fatal; proceed with configured method */ }
       }
 
-      const result = await createRefund(admin, orderIdForRefund, lineItemsForRefund, note || returnCase.adminNotes || undefined, requestedLocationId || undefined, refundMethodCfg);
+      let bonusAmount = 0;
+      if (bonusCreditEnabled && bodyBonusAmount != null && bodyBonusAmount > 0) {
+        bonusAmount = bodyBonusAmount;
+      } else if (bonusCreditEnabled && (refundMethodCfg?.method === "store_credit" || refundMethodCfg?.method === "both")) {
+        const itemTotal = (returnCase.items ?? []).reduce((sum, it) => {
+          return sum + (it.price ? parseFloat(it.price) * it.qty : 0);
+        }, 0);
+        if (itemTotal > 0) {
+          bonusAmount = Math.round(itemTotal * (bonusCreditPct / 100) * 100) / 100;
+        }
+      }
+
+      const skipLocation = isGreenReturn;
+      const result = await createRefund(
+        admin, orderIdForRefund, lineItemsForRefund,
+        note || returnCase.adminNotes || undefined,
+        isGreenReturn ? null : (requestedLocationId || undefined),
+        refundMethodCfg,
+        { bonusAmount, skipLocation },
+      );
       if (!result.success) {
         const msg = result.error ?? "Refund failed due to an unknown Shopify error. Check Shopify Admin.";
         await createFailedEvent(msg);
@@ -516,6 +553,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         method: result.refundMethod ?? "original",
         source: "admin",
         locationId: requestedLocationId ?? null,
+        ...(bonusAmount > 0 ? { bonusCreditAmount: bonusAmount.toFixed(2) } : {}),
+        ...(isGreenReturn ? { greenReturn: true } : {}),
       };
       await prisma.returnCase.update({
         where: { id },
@@ -524,6 +563,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           refundJson: JSON.stringify(refundDetails),
           status: "completed",
           adminNotes: note || returnCase.adminNotes,
+          ...(bonusAmount > 0 ? { bonusCreditAmount: bonusAmount.toFixed(2) } : {}),
         },
       });
       await prisma.returnEvent.create({
@@ -531,7 +571,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           returnCaseId: id,
           source: "admin",
           eventType: "refund_processed",
-          payloadJson: JSON.stringify({ ...refundDetails, note: "Refund created in Shopify" }),
+          payloadJson: JSON.stringify({
+            ...refundDetails,
+            note: "Refund created in Shopify",
+            ...(bonusAmount > 0 ? { bonusCreditAmount: bonusAmount.toFixed(2), bonusCreditPct } : {}),
+          }),
         },
       });
 
@@ -568,6 +612,226 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
       return Response.json({ error: message }, { status: 500 });
     }
+  }
+
+  if (actionType === "process_exchange") {
+    try {
+      if (!["approved", "completed"].includes(returnCase.status.toLowerCase())) {
+        return Response.json({ error: "Return must be approved before processing exchange" }, { status: 400 });
+      }
+      if (returnCase.exchangeOrderId) {
+        return Response.json({ error: "Exchange order has already been created" }, { status: 400 });
+      }
+      if (returnCase.shopifyOrderId?.startsWith("manual:")) {
+        return Response.json({ error: "Cannot create exchange for manual returns" }, { status: 400 });
+      }
+
+      const order = returnCase.shopifyOrderId
+        ? await fetchOrder(admin, returnCase.shopifyOrderId)
+        : returnCase.shopifyOrderName
+          ? await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim())
+          : null;
+
+      if (!order) {
+        return Response.json({ error: "Could not fetch original order to create exchange" }, { status: 400 });
+      }
+
+      const customerEmail = order.email;
+      if (!customerEmail) {
+        return Response.json({ error: "Original order has no customer email - cannot create exchange draft order" }, { status: 400 });
+      }
+
+      const lineItemsForExchange = (returnCase.items ?? [])
+        .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
+        .map((item) => {
+          const shopifyItem = (order.lineItems ?? []).find((li) =>
+            li.id === item.shopifyLineItemId ||
+            (li.sku && item.sku && li.sku.toLowerCase() === item.sku.toLowerCase())
+          );
+          return {
+            title: item.title || shopifyItem?.title || item.sku || "Item",
+            quantity: item.qty,
+            originalUnitPrice: shopifyItem?.price || item.price || "0.00",
+          };
+        });
+
+      if (lineItemsForExchange.length === 0) {
+        return Response.json({ error: "No line items available for exchange" }, { status: 400 });
+      }
+
+      const DRAFT_ORDER_CREATE = `#graphql
+        mutation draftOrderCreate($input: DraftOrderInput!) {
+          draftOrderCreate(input: $input) {
+            draftOrder { id name }
+            userErrors { field message }
+          }
+        }
+      `;
+
+      const draftInput = {
+        email: customerEmail,
+        note: `Exchange for return ${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id} (Order ${returnCase.shopifyOrderName || ""})`,
+        lineItems: lineItemsForExchange.map((li) => ({
+          title: li.title,
+          quantity: li.quantity,
+          originalUnitPrice: li.originalUnitPrice,
+        })),
+        ...(order.shippingAddress && {
+          shippingAddress: {
+            address1: order.shippingAddress.address1 || undefined,
+            address2: order.shippingAddress.address2 || undefined,
+            city: order.shippingAddress.city || undefined,
+            province: order.shippingAddress.province || order.shippingAddress.provinceCode || undefined,
+            country: order.shippingAddress.country || order.shippingAddress.countryCode || undefined,
+            zip: order.shippingAddress.zip || undefined,
+            firstName: order.shippingAddress.firstName || undefined,
+            lastName: order.shippingAddress.lastName || undefined,
+            phone: order.shippingAddress.phone || undefined,
+          },
+        }),
+      };
+
+      const draftRes = await admin.graphql(DRAFT_ORDER_CREATE, { variables: { input: draftInput } });
+      const draftJson = (await draftRes.json()) as {
+        data?: {
+          draftOrderCreate?: {
+            draftOrder?: { id: string; name: string } | null;
+            userErrors?: Array<{ field?: string[]; message: string }>;
+          };
+        };
+      };
+
+      const userErrors = draftJson.data?.draftOrderCreate?.userErrors ?? [];
+      if (userErrors.length > 0) {
+        const errMsg = userErrors.map((e) => e.message).join("; ");
+        return Response.json({ error: `Failed to create exchange draft order: ${errMsg}` }, { status: 400 });
+      }
+
+      const draftOrder = draftJson.data?.draftOrderCreate?.draftOrder;
+      if (!draftOrder?.id) {
+        return Response.json({ error: "Failed to create exchange draft order - no order returned" }, { status: 500 });
+      }
+
+      const exchangeItemsData = lineItemsForExchange.map((li) => ({
+        title: li.title,
+        quantity: li.quantity,
+        price: li.originalUnitPrice,
+      }));
+
+      await prisma.returnCase.update({
+        where: { id },
+        data: {
+          resolutionType: "exchange",
+          exchangeOrderId: draftOrder.id,
+          exchangeOrderName: draftOrder.name,
+          exchangeItemsJson: JSON.stringify(exchangeItemsData),
+        },
+      });
+
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "exchange_created",
+          payloadJson: JSON.stringify({
+            draftOrderId: draftOrder.id,
+            draftOrderName: draftOrder.name,
+            itemCount: exchangeItemsData.length,
+          }),
+        },
+      });
+
+      if (returnCase.customerEmailNorm) {
+        try {
+          await sendApprovalNotification({
+            shopDomain: session.shop,
+            to: returnCase.customerEmailNorm,
+            orderName: returnCase.shopifyOrderName || "your order",
+            notes: `An exchange order (${draftOrder.name}) has been created for your return.`,
+            shopName: session.shop?.replace(".myshopify.com", ""),
+          });
+        } catch (err) {
+          console.warn("[process_exchange] Notification failed:", err);
+        }
+      }
+
+      throw redirect(`/app/returns/${id}`);
+    } catch (err) {
+      if (isRedirectResponse(err)) throw err;
+      if (err instanceof Response) throw err;
+      const rawMessage = await extractErrorMessage(err);
+      const message = rawMessage || "Exchange could not be processed. Please try again.";
+      console.error("[process_exchange] Error:", err);
+      try {
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: id,
+            source: "admin",
+            eventType: "exchange_failed",
+            payloadJson: JSON.stringify({ error: message }),
+          },
+        });
+      } catch (logErr) {
+        console.error("[process_exchange] Failed to log exchange_failed event:", logErr);
+      }
+      return Response.json({ error: message }, { status: 500 });
+    }
+  }
+
+  if (actionType === "update_label") {
+    const carrier = (bodyCarrier ?? "").trim();
+    const trackingNumber = (bodyTrackingNumber ?? "").trim();
+    const labelUrl = (bodyLabelUrl ?? "").trim();
+    const qrCodeUrl = (bodyQrCodeUrl ?? "").trim();
+
+    const labelJson = JSON.stringify({
+      carrier: carrier || null,
+      trackingNumber: trackingNumber || null,
+      labelUrl: labelUrl || null,
+      qrCodeUrl: qrCodeUrl || null,
+    });
+
+    await prisma.returnCase.update({
+      where: { id },
+      data: {
+        returnLabelUrl: labelUrl || null,
+        returnLabelJson: labelJson,
+      },
+    });
+    await prisma.returnEvent.create({
+      data: {
+        returnCaseId: id,
+        source: "admin",
+        eventType: "label_updated",
+        payloadJson: labelJson,
+      },
+    });
+    throw redirect(`/app/returns/${id}`);
+  }
+
+  if (actionType === "update_instructions") {
+    const instructions = (bodyReturnInstructions ?? "").trim();
+
+    const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+    if (shopSettings) {
+      await prisma.shopSettings.update({
+        where: { shopId: shop.id },
+        data: { defaultReturnInstructions: instructions || null },
+      });
+    } else {
+      await prisma.shopSettings.create({
+        data: { shopId: shop.id, defaultReturnInstructions: instructions || null },
+      });
+    }
+    await prisma.returnEvent.create({
+      data: {
+        returnCaseId: id,
+        source: "admin",
+        eventType: "instructions_updated",
+        payloadJson: JSON.stringify({ returnInstructions: instructions || null }),
+      },
+    });
+    throw redirect(`/app/returns/${id}`);
   }
 
   return Response.json({ error: "Unknown action" }, { status: 400 });

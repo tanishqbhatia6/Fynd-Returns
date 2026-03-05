@@ -130,6 +130,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalReturns, returnsByStatus, recentReturns, reasonAggregation,
       refundedCount, fyndSyncedCount, pendingCount, rejectedCount,
       allTimeReturns, approvedWithEvents, returnsForDaily, approvedNotRefundedCount,
+      greenReturnCount, resolutionAgg, retainedCases, blocklistCount,
     ] = await Promise.all([
       prisma.returnCase.count({ where }),
       prisma.returnCase.groupBy({ by: ["status"], where, _count: true }),
@@ -143,10 +144,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true } }),
       prisma.returnCase.findMany({ where, select: { createdAt: true } }),
       prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
+      prisma.returnCase.count({ where: { ...where, isGreenReturn: true } }),
+      prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
+      prisma.returnCase.findMany({
+        where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
+        select: { refundJson: true },
+      }),
+      shop.settings ? prisma.blocklistEntry.count({ where: { settingsId: shop.settings.id } }) : Promise.resolve(0),
     ]);
 
     const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
     const approvedCount = (statusMap.approved ?? 0) + (statusMap.completed ?? 0);
+
+    let revenueRetained = 0;
+    for (const rc of retainedCases) {
+      try {
+        const parsed = JSON.parse(rc.refundJson ?? "{}");
+        revenueRetained += parseFloat(parsed.amount ?? "0") || 0;
+      } catch { /* skip */ }
+    }
+
+    const resolutionMap = resolutionAgg.reduce(
+      (acc, x) => ({ ...acc, [x.resolutionType]: x._count }),
+      {} as Record<string, number>,
+    );
+    const resolvedTotal = Object.values(resolutionMap).reduce((a, b) => a + b, 0);
+    const exchangeRate = resolvedTotal > 0
+      ? Math.round(((resolutionMap.exchange ?? 0) / resolvedTotal) * 100)
+      : 0;
 
     const topReasons = reasonAggregation
       .filter((r) => r.reasonCode != null && String(r.reasonCode).trim() !== "")
@@ -206,6 +231,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       rejectedCount, returnsOverTime, periodChange, rangeLabel, range,
       from: from ?? undefined, to: to ?? undefined, allTimeReturns,
       suggestions, error: null,
+      revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
+      resolutionMap,
     };
   } catch (err) {
     console.error("Dashboard loader error:", err);
@@ -220,6 +247,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       from: undefined, to: undefined, allTimeReturns: 0,
       suggestions: [] as { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[],
       error: "Failed to load dashboard data. Please refresh or try again later.",
+      revenueRetained: 0, exchangeRate: 0, greenReturnCount: 0, blocklistCount: 0,
+      resolutionMap: {} as Record<string, number>,
     };
   }
 };
@@ -231,6 +260,8 @@ export default function Dashboard() {
     hasFyndConfig, refundedCount, pendingCount, rejectedCount,
     returnsOverTime, periodChange, rangeLabel, range, from, to,
     allTimeReturns, suggestions, error,
+    revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
+    resolutionMap,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -383,6 +414,41 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* ── Enhanced KPI Cards ── */}
+        <div className="dashboard-kpi-grid" style={{ marginBottom: 20 }}>
+          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#059669", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Revenue retained</div>
+            <span style={{ fontSize: 28, fontWeight: 800, color: "#059669", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+              ${revenueRetained.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+            </span>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>Via exchanges & store credit</div>
+          </div>
+
+          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#3B82F6", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Exchange rate</div>
+            <span style={{ fontSize: 28, fontWeight: 800, color: "#3B82F6", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{exchangeRate}%</span>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>{resolutionMap.exchange ?? 0} of {Object.values(resolutionMap).reduce((a, b) => a + b, 0)} resolved</div>
+          </div>
+
+          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#06B6D4", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Green returns</div>
+            <span style={{ fontSize: 28, fontWeight: 800, color: "#06B6D4", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{greenReturnCount}</span>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>Customer kept item</div>
+          </div>
+
+          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#DC2626", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Blocked attempts</div>
+            <span style={{ fontSize: 28, fontWeight: 800, color: blocklistCount > 0 ? "#DC2626" : "var(--rpm-text, #0f172a)", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{blocklistCount}</span>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>
+              <Link to="/app/settings/blocklist" style={{ color: "var(--rpm-accent, #005bd3)", textDecoration: "none", fontSize: 11, fontWeight: 600 }}>Manage blocklist</Link>
+            </div>
+          </div>
+        </div>
+
         {/* ── Chart + Status ── */}
         <div className="dashboard-chart-row" style={{ marginBottom: 20 }}>
           {/* Return trend */}
@@ -464,6 +530,51 @@ export default function Dashboard() {
             )}
           </div>
         </div>
+
+        {/* ── Resolution Distribution ── */}
+        {Object.keys(resolutionMap).length > 0 && (
+          <div style={{
+            background: "var(--rpm-surface, white)", borderRadius: 14, padding: 22,
+            border: "var(--rpm-border, 1px solid #e5e7eb)", marginBottom: 20,
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Resolution breakdown</h3>
+              <Link to="/app/reports" style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-accent, #005bd3)", textDecoration: "none" }}>
+                Full report →
+              </Link>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+              {[
+                { key: "refund", label: "Refunds", color: "#8B5CF6" },
+                { key: "exchange", label: "Exchanges", color: "#3B82F6" },
+                { key: "store_credit", label: "Store credits", color: "#059669" },
+                { key: "replacement", label: "Replacements", color: "#F59E0B" },
+              ].map((r) => {
+                const count = resolutionMap[r.key] ?? 0;
+                const resolvedTotal = Object.values(resolutionMap).reduce((a: number, b: number) => a + b, 0);
+                const pct = resolvedTotal > 0 ? Math.round((count / resolvedTotal) * 100) : 0;
+                return (
+                  <div key={r.key} style={{
+                    flex: "1 1 140px", padding: "14px 16px", borderRadius: 10,
+                    background: "#F8FAFC", border: "1px solid #E2E8F0",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                      <span style={{ width: 8, height: 8, borderRadius: 2, background: r.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)" }}>{r.label}</span>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+                      <span style={{ fontSize: 22, fontWeight: 800, color: "var(--rpm-text, #0f172a)", fontVariantNumeric: "tabular-nums" }}>{count}</span>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: r.color }}>{pct}%</span>
+                    </div>
+                    <div style={{ height: 4, background: "#E2E8F0", borderRadius: 2, marginTop: 8, overflow: "hidden" }}>
+                      <div style={{ width: `${pct}%`, height: "100%", background: r.color, borderRadius: 2, minWidth: count > 0 ? 3 : 0, transition: "width 0.4s ease" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ── Recent Returns ── */}
         <div style={{

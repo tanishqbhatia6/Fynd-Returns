@@ -394,11 +394,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     let refundLocationMode = "auto";
     let refundPaymentMethod = "original";
     let refundStoreCreditPct = 100;
+    let bonusCreditEnabled = false;
+    let bonusCreditPct = 10;
+
+    const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+    bonusCreditEnabled = shopSettings?.bonusCreditEnabled ?? false;
+    bonusCreditPct = shopSettings?.bonusCreditPct ?? 10;
 
     if (isRefundEligible) {
-      try {
-        shopLocations = await fetchAllLocations(admin);
-      } catch { /* non-fatal */ }
+      const isGreenReturn = returnCase.isGreenReturn === true;
+      if (!isGreenReturn) {
+        try {
+          shopLocations = await fetchAllLocations(admin);
+        } catch { /* non-fatal */ }
+      }
 
       const fulfillment = shopifyOrder?.fulfillments?.[0];
       if (fulfillment?.location) {
@@ -406,21 +415,61 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         fulfillmentLocationName = fulfillment.location.name;
       }
 
-      const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-      refundLocationMode = (shopSettings as { refundLocationMode?: string } | null)?.refundLocationMode ?? "auto";
-      refundPaymentMethod = (shopSettings as { refundPaymentMethod?: string } | null)?.refundPaymentMethod ?? "original";
-      refundStoreCreditPct = (shopSettings as { refundStoreCreditPct?: number | null } | null)?.refundStoreCreditPct ?? 100;
+      refundLocationMode = shopSettings?.refundLocationMode ?? "auto";
+      refundPaymentMethod = shopSettings?.refundPaymentMethod ?? "original";
+      refundStoreCreditPct = shopSettings?.refundStoreCreditPct ?? 100;
     }
 
     const COD_PATTERNS = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
     const isCodOrder = (shopifyOrder?.paymentGatewayNames ?? []).some((g) => COD_PATTERNS.test(g))
       || shopifyOrder?.displayFinancialStatus === "PENDING";
 
+    // Return label info
+    let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null } | null = null;
+    try {
+      if (returnCase.returnLabelJson) returnLabelInfo = JSON.parse(returnCase.returnLabelJson);
+    } catch { /* ignore */ }
+
+    // Default return instructions from settings
+    let defaultReturnInstructions: string | null = null;
+    try {
+      const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+      defaultReturnInstructions = (shopSettings as { defaultReturnInstructions?: string | null } | null)?.defaultReturnInstructions ?? null;
+    } catch { /* ignore */ }
+
+    // Customer return history count
+    const customerEmail = returnCase.customerEmailNorm || shopifyOrder?.email;
+    let customerReturnCount = 0;
+    if (customerEmail) {
+      customerReturnCount = await prisma.returnCase.count({
+        where: { shopId: shop.id, customerEmailNorm: { equals: customerEmail, mode: "insensitive" } },
+      });
+    }
+
+    // Blocklist flag
+    let isBlocklisted = false;
+    try {
+      const blSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+      if (blSettings) {
+        const blChecks: { type: string; value: string }[] = [];
+        if (customerEmail) blChecks.push({ type: "email", value: customerEmail.toLowerCase() });
+        if (returnCase.customerPhoneNorm) blChecks.push({ type: "phone", value: returnCase.customerPhoneNorm });
+        if (blChecks.length > 0) {
+          const blocked = await prisma.blocklistEntry.findFirst({
+            where: { settingsId: blSettings.id, OR: blChecks.map((c) => ({ type: c.type, value: c.value })) },
+          });
+          if (blocked) isBlocklisted = true;
+        }
+      }
+    } catch { /* non-fatal */ }
+
     return {
       returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn,
       fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
       shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
       refundPaymentMethod, refundStoreCreditPct, isCodOrder,
+      returnLabelInfo, defaultReturnInstructions, customerReturnCount, customerEmail,
+      bonusCreditEnabled, bonusCreditPct, isBlocklisted,
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -434,6 +483,8 @@ export default function ReturnDetail() {
     returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
     shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
     refundPaymentMethod, refundStoreCreditPct, isCodOrder,
+    returnLabelInfo, defaultReturnInstructions, customerReturnCount, customerEmail,
+    bonusCreditEnabled, bonusCreditPct, isBlocklisted,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -442,6 +493,9 @@ export default function ReturnDetail() {
   const fetcher = useFetcher<{ success?: boolean; error?: string; status?: string }>();
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [selectedResolutionType, setSelectedResolutionType] = useState<string>("refund");
+  const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string>(fulfillmentLocationId ?? shopLocations[0]?.id ?? "");
   const defaultRefundMethod = isCodOrder
@@ -493,6 +547,7 @@ export default function ReturnDetail() {
   const isRejected = statusLower === "rejected";
   const isCompleted = statusLower === "completed";
   const isRefunded = returnCase.refundStatus === "refunded";
+  const isGreenReturn = returnCase.isGreenReturn === true;
   const fyndSyncStatus = (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus;
   const fyndSyncRetries = (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0;
   const fyndSyncError = (returnCase as { fyndSyncError?: string | null }).fyndSyncError;
@@ -564,7 +619,54 @@ export default function ReturnDetail() {
                 {unifiedState.description && (
                   <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 4 }}>{unifiedState.description}</div>
                 )}
+                {isBlocklisted && (
+                  <div style={{
+                    display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
+                    padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
+                    background: "#FEF2F2", color: "#DC2626", border: "1px solid #FECACA",
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    Flagged customer
+                  </div>
+                )}
               </div>
+              {/* Resolution type badge */}
+              {returnCase.resolutionType && returnCase.resolutionType !== "refund" && (
+                <span style={{
+                  padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                  ...({
+                    exchange: { background: "#DCFCE7", color: "#166534", border: "1px solid #BBF7D0" },
+                    store_credit: { background: "#F3E8FF", color: "#6B21A8", border: "1px solid #D8B4FE" },
+                    replacement: { background: "#FFF7ED", color: "#C2410C", border: "1px solid #FED7AA" },
+                  } as Record<string, React.CSSProperties>)[returnCase.resolutionType] ?? {},
+                }}>
+                  {returnCase.resolutionType.replace(/_/g, " ")}
+                </span>
+              )}
+              {returnCase.resolutionType === "refund" && (
+                <span style={{
+                  padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                  background: "#DBEAFE", color: "#1E40AF", border: "1px solid #93C5FD",
+                }}>
+                  Refund
+                </span>
+              )}
+              {isGreenReturn && (
+                <span
+                  title="Customer keeps the item — no return shipment required"
+                  style={{
+                    padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                    background: "#ECFDF5", color: "#065F46", border: "1px solid #A7F3D0",
+                    display: "inline-flex", alignItems: "center", gap: 4, cursor: "help",
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                    <path d="M8 12l3 3 5-5"/>
+                  </svg>
+                  Green Return
+                </span>
+              )}
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <s-button variant="secondary" onClick={() => navigate("/app/returns")}>All Returns</s-button>
@@ -861,6 +963,129 @@ export default function ReturnDetail() {
               </div>
             )}
 
+            {/* ── Return Shipping ── */}
+            {(isApproved || isCompleted) && (() => {
+              const hasLabel = returnLabelInfo && (returnLabelInfo.carrier || returnLabelInfo.trackingNumber || returnLabelInfo.labelUrl);
+              return (
+                <div style={{ ...C.card }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Return Shipping</div>
+                  {hasLabel && (
+                    <div style={{ marginBottom: 16, padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                        {returnLabelInfo?.carrier && <div><div style={C.label}>Carrier</div><div style={C.val}>{returnLabelInfo.carrier}</div></div>}
+                        {returnLabelInfo?.trackingNumber && <div><div style={C.label}>Tracking Number</div><div style={C.mono}>{returnLabelInfo.trackingNumber}</div></div>}
+                      </div>
+                      {returnLabelInfo?.labelUrl && (
+                        <div style={{ marginBottom: 8 }}>
+                          <div style={C.label}>Label URL</div>
+                          <a href={returnLabelInfo.labelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", wordBreak: "break-all" }}>
+                            {returnLabelInfo.labelUrl} &rarr;
+                          </a>
+                        </div>
+                      )}
+                      {returnLabelInfo?.qrCodeUrl && (
+                        <div>
+                          <div style={C.label}>QR Code</div>
+                          <a href={returnLabelInfo.qrCodeUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>
+                            View QR Code &rarr;
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {defaultReturnInstructions && (
+                    <div style={{ marginBottom: 16, padding: 14, background: "#EFF6FF", borderRadius: 10, border: "1px solid #BFDBFE" }}>
+                      <div style={C.label}>Return Instructions</div>
+                      <div style={{ fontSize: 13, color: "#1E40AF", whiteSpace: "pre-wrap", marginTop: 4 }}>{defaultReturnInstructions}</div>
+                    </div>
+                  )}
+                  <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                    <input type="hidden" name="json" value={JSON.stringify({
+                      action: "update_label",
+                      carrier: returnLabelInfo?.carrier ?? "",
+                      trackingNumber: returnLabelInfo?.trackingNumber ?? "",
+                      labelUrl: returnLabelInfo?.labelUrl ?? "",
+                      qrCodeUrl: returnLabelInfo?.qrCodeUrl ?? "",
+                    })} />
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                      <div className="app-field">
+                        <label style={{ fontSize: 12, fontWeight: 600 }}>Carrier name</label>
+                        <input type="text" name="carrier" defaultValue={returnLabelInfo?.carrier ?? ""} placeholder="e.g. FedEx, UPS" className="app-input" style={{ fontSize: 13 }}
+                          onChange={(e) => {
+                            const form = e.target.closest("form");
+                            if (form) {
+                              const hidden = form.querySelector('input[name="json"]') as HTMLInputElement;
+                              if (hidden) {
+                                const val = JSON.parse(hidden.value);
+                                val.carrier = e.target.value;
+                                hidden.value = JSON.stringify(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                      <div className="app-field">
+                        <label style={{ fontSize: 12, fontWeight: 600 }}>Tracking number</label>
+                        <input type="text" name="trackingNumber" defaultValue={returnLabelInfo?.trackingNumber ?? ""} placeholder="Tracking number" className="app-input" style={{ fontSize: 13 }}
+                          onChange={(e) => {
+                            const form = e.target.closest("form");
+                            if (form) {
+                              const hidden = form.querySelector('input[name="json"]') as HTMLInputElement;
+                              if (hidden) {
+                                const val = JSON.parse(hidden.value);
+                                val.trackingNumber = e.target.value;
+                                hidden.value = JSON.stringify(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="app-field" style={{ marginBottom: 12 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600 }}>Label URL</label>
+                      <input type="url" name="labelUrl" defaultValue={returnLabelInfo?.labelUrl ?? ""} placeholder="https://..." className="app-input" style={{ fontSize: 13 }}
+                        onChange={(e) => {
+                          const form = e.target.closest("form");
+                          if (form) {
+                            const hidden = form.querySelector('input[name="json"]') as HTMLInputElement;
+                            if (hidden) {
+                              const val = JSON.parse(hidden.value);
+                              val.labelUrl = e.target.value;
+                              hidden.value = JSON.stringify(val);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save Label Info</s-button>
+                  </fetcher.Form>
+                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>
+                    <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                      <input type="hidden" name="json" value={JSON.stringify({ action: "update_instructions", returnInstructions: defaultReturnInstructions ?? "" })} />
+                      <div className="app-field" style={{ marginBottom: 8 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600 }}>Return instructions</label>
+                        <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 4 }}>Default instructions shown to customer after return is approved</div>
+                        <textarea name="returnInstructions" defaultValue={defaultReturnInstructions ?? ""} rows={3} placeholder="e.g. Pack items securely and drop off at..." style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #E5E7EB", boxSizing: "border-box", fontSize: 13 }}
+                          onChange={(e) => {
+                            const form = e.target.closest("form");
+                            if (form) {
+                              const hidden = form.querySelector('input[name="json"]') as HTMLInputElement;
+                              if (hidden) {
+                                const val = JSON.parse(hidden.value);
+                                val.returnInstructions = e.target.value;
+                                hidden.value = JSON.stringify(val);
+                              }
+                            }
+                          }}
+                        />
+                      </div>
+                      <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save Instructions</s-button>
+                    </fetcher.Form>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── Timeline ── */}
             <div style={{ ...C.card }}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Activity timeline</div>
@@ -902,12 +1127,57 @@ export default function ReturnDetail() {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {isPending && (
                   <>
-                    <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                      <input type="hidden" name="json" value={JSON.stringify({ action: "approve" })} />
-                      <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"} style={{ width: "100%" }}>
-                        {fetcher.state !== "idle" ? "Processing..." : "Approve Return"}
-                      </s-button>
-                    </fetcher.Form>
+                    <s-button type="button" variant="primary" disabled={fetcher.state !== "idle"} onClick={() => setShowApproveModal(true)} style={{ width: "100%" }}>
+                      Approve Return
+                    </s-button>
+                    {showApproveModal && (
+                      <div className="app-modal-overlay" onClick={() => setShowApproveModal(false)}>
+                        <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+                          <div className="app-modal-title">Approve Return</div>
+                          <div className="app-modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                            <p style={{ margin: 0 }}>
+                              Approve return for order <strong>{returnCase.shopifyOrderName || "--"}</strong>
+                            </p>
+                            <div style={{ padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
+                              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Resolution type</div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {([
+                                  { value: "refund", label: "Refund", desc: "Refund to customer's payment method", color: "#2563EB", bg: "#DBEAFE", border: "#93C5FD" },
+                                  { value: "exchange", label: "Exchange", desc: "Create a new order with replacement items", color: "#059669", bg: "#DCFCE7", border: "#BBF7D0" },
+                                  { value: "store_credit", label: "Store Credit", desc: "Issue store credit to customer's account", color: "#7C3AED", bg: "#F3E8FF", border: "#D8B4FE" },
+                                  { value: "replacement", label: "Replacement", desc: "Send the same item(s) again", color: "#EA580C", bg: "#FFF7ED", border: "#FED7AA" },
+                                ] as const).map((opt) => (
+                                  <label key={opt.value} style={{
+                                    display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", cursor: "pointer",
+                                    borderRadius: 8, fontSize: 13,
+                                    background: selectedResolutionType === opt.value ? opt.bg : "transparent",
+                                    border: selectedResolutionType === opt.value ? `1.5px solid ${opt.border}` : "1.5px solid transparent",
+                                    transition: "all 0.12s",
+                                  }}>
+                                    <input type="radio" checked={selectedResolutionType === opt.value} onChange={() => setSelectedResolutionType(opt.value)} style={{ accentColor: opt.color }} />
+                                    <div style={{ flex: 1 }}>
+                                      <div style={{ fontWeight: 600, fontSize: 12.5, color: selectedResolutionType === opt.value ? opt.color : "#374151" }}>
+                                        {opt.label}
+                                      </div>
+                                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>{opt.desc}</div>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="app-modal-actions">
+                            <s-button type="button" variant="secondary" onClick={() => setShowApproveModal(false)}>Cancel</s-button>
+                            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                              <input type="hidden" name="json" value={JSON.stringify({ action: "approve", resolutionType: selectedResolutionType })} />
+                              <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
+                                {fetcher.state !== "idle" ? "Processing..." : "Confirm Approval"}
+                              </s-button>
+                            </fetcher.Form>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     {!showRejectForm ? (
                       <s-button type="button" variant="secondary" disabled={fetcher.state !== "idle"} onClick={() => setShowRejectForm(true)} style={{ width: "100%" }}>
                         Reject Return
@@ -1001,8 +1271,44 @@ export default function ReturnDetail() {
                               )}
                             </div>
 
+                            {/* Bonus Credit Preview */}
+                            {bonusCreditEnabled && (modalRefundMethod === "store_credit" || modalRefundMethod === "both") && (() => {
+                              const itemTotal = (returnCase.items ?? []).reduce((sum, it) => {
+                                const p = (it as { price?: string | null }).price;
+                                return sum + (p ? parseFloat(p) * it.qty : 0);
+                              }, 0);
+                              if (itemTotal <= 0) return null;
+                              const bonusAmt = Math.round(itemTotal * (bonusCreditPct / 100) * 100) / 100;
+                              const scPortion = modalRefundMethod === "both"
+                                ? Math.round(itemTotal * (modalStoreCreditPct / 100) * 100) / 100
+                                : itemTotal;
+                              const totalCredit = Math.round((scPortion + bonusAmt) * 100) / 100;
+                              return (
+                                <div style={{ padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, display: "flex", alignItems: "center", gap: 6, color: "#166534" }}>
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2z"/></svg>
+                                    Store credit bonus ({bonusCreditPct}%)
+                                  </div>
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between" }}>
+                                      <span style={{ color: "#374151" }}>{modalRefundMethod === "both" ? `Store credit portion (${modalStoreCreditPct}%)` : "Refund amount"}</span>
+                                      <span style={{ fontWeight: 500 }}>${scPortion.toFixed(2)}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", color: "#059669" }}>
+                                      <span>+ Bonus credit ({bonusCreditPct}%)</span>
+                                      <span style={{ fontWeight: 600 }}>+${bonusAmt.toFixed(2)}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 14, marginTop: 4, paddingTop: 6, borderTop: "1px solid #BBF7D0" }}>
+                                      <span style={{ color: "#166534" }}>Total store credit</span>
+                                      <span style={{ color: "#166534" }}>${totalCredit.toFixed(2)}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
                             {/* Restock Location */}
-                            {shopLocations.length > 0 && (
+                            {!isGreenReturn && shopLocations.length > 0 && (
                               <div style={{ padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
                                 <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
                                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
@@ -1047,11 +1353,20 @@ export default function ReturnDetail() {
                             <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
                               <input type="hidden" name="json" value={JSON.stringify({
                                 action: "process_refund",
-                                locationId: refundLocationMode === "auto"
+                                locationId: isGreenReturn ? null : (refundLocationMode === "auto"
                                   ? (fulfillmentLocationId || shopLocations[0]?.id || null)
-                                  : (selectedLocationId || null),
+                                  : (selectedLocationId || null)),
                                 refundMethod: modalRefundMethod,
                                 storeCreditPct: modalRefundMethod === "both" ? modalStoreCreditPct : undefined,
+                                ...(bonusCreditEnabled && (modalRefundMethod === "store_credit" || modalRefundMethod === "both") ? {
+                                  bonusAmount: (() => {
+                                    const itemTotal = (returnCase.items ?? []).reduce((sum, it) => {
+                                      const p = (it as { price?: string | null }).price;
+                                      return sum + (p ? parseFloat(p) * it.qty : 0);
+                                    }, 0);
+                                    return itemTotal > 0 ? Math.round(itemTotal * (bonusCreditPct / 100) * 100) / 100 : undefined;
+                                  })(),
+                                } : {}),
                               })} />
                               <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
                                 {modalRefundMethod === "original" ? "Refund to original payment" :
@@ -1067,15 +1382,86 @@ export default function ReturnDetail() {
                 )}
                 {(isApproved || isCompleted) && !isRefunded && isManualReturn && (
                   <div style={{ padding: 10, background: "#FEF3C7", borderRadius: 8, fontSize: 13, color: "#92400E" }}>
-                    Manual return — process refund in Shopify Admin for <strong>{returnCase.shopifyOrderName || "—"}</strong>
+                    Manual return — process refund in Shopify Admin for <strong>{returnCase.shopifyOrderName || "--"}</strong>
                   </div>
                 )}
+                {(isApproved || isCompleted) && returnCase.resolutionType === "exchange" && !returnCase.exchangeOrderId && !isManualReturn && (
+                  <>
+                    <s-button type="button" variant="primary" disabled={fetcher.state !== "idle"} onClick={() => setShowExchangeConfirm(true)} style={{ width: "100%" }}>
+                      Process Exchange
+                    </s-button>
+                    {showExchangeConfirm && (
+                      <div className="app-modal-overlay" onClick={() => setShowExchangeConfirm(false)}>
+                        <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+                          <div className="app-modal-title">Process Exchange</div>
+                          <div className="app-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                            <p style={{ margin: 0 }}>
+                              Create a draft order in Shopify with the same items from order <strong>{returnCase.shopifyOrderName || "--"}</strong>.
+                            </p>
+                            <div style={{ padding: 12, background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0", fontSize: 13, color: "#166534" }}>
+                              A draft order will be created with the customer's email and the return items. You can then complete the order in Shopify Admin.
+                            </div>
+                            <p style={{ color: "#DC2626", fontWeight: 500, fontSize: 13, margin: 0 }}>This action cannot be undone.</p>
+                          </div>
+                          <div className="app-modal-actions">
+                            <s-button type="button" variant="secondary" onClick={() => setShowExchangeConfirm(false)}>Cancel</s-button>
+                            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                              <input type="hidden" name="json" value={JSON.stringify({ action: "process_exchange" })} />
+                              <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
+                                {fetcher.state !== "idle" ? "Creating..." : "Create Exchange Order"}
+                              </s-button>
+                            </fetcher.Form>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+                {returnCase.exchangeOrderId && (() => {
+                  const exchangeOrderGidNum = returnCase.exchangeOrderId.replace(/^gid:\/\/shopify\/DraftOrder\//, "");
+                  const exchangeUrl = `https://admin.shopify.com/store/${storeName}/draft_orders/${exchangeOrderGidNum}`;
+                  let exchangeItems: Array<{ title?: string; quantity?: number; price?: string }> = [];
+                  try {
+                    if (returnCase.exchangeItemsJson) exchangeItems = JSON.parse(returnCase.exchangeItemsJson);
+                  } catch { /* ignore */ }
+                  return (
+                    <div style={{ padding: 14, background: "#DCFCE7", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: "#166534" }}>Exchange order created</span>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {returnCase.exchangeOrderName && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                            <span style={{ color: "#166534" }}>Draft Order</span>
+                            <span style={{ fontWeight: 700, color: "#166534" }}>{returnCase.exchangeOrderName}</span>
+                          </div>
+                        )}
+                        {exchangeItems.length > 0 && (
+                          <div style={{ fontSize: 12, color: "#15803D", marginTop: 4 }}>
+                            {exchangeItems.length} item{exchangeItems.length !== 1 ? "s" : ""}
+                          </div>
+                        )}
+                        <a
+                          href={exchangeUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ fontSize: 12, fontWeight: 600, color: "#059669", marginTop: 4 }}
+                        >
+                          View in Shopify Admin &rarr;
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })()}
                 {isRefunded && (() => {
-                  let refundInfo: { refundId?: string; amount?: string; currency?: string; createdAt?: string; method?: string; source?: string } | null = null;
+                  let refundInfo: { refundId?: string; amount?: string; currency?: string; createdAt?: string; method?: string; source?: string; bonusCreditAmount?: string; greenReturn?: boolean } | null = null;
                   try {
                     const raw = (returnCase as { refundJson?: string | null }).refundJson;
                     if (raw) refundInfo = JSON.parse(raw);
                   } catch { /* no refund details */ }
+                  const storedBonusAmount = (returnCase as { bonusCreditAmount?: string | null }).bonusCreditAmount;
+                  const displayBonus = refundInfo?.bonusCreditAmount ?? storedBonusAmount;
                   return (
                     <div style={{ padding: 14, background: "#DCFCE7", borderRadius: 10, border: "1px solid #BBF7D0" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: refundInfo ? 10 : 0 }}>
@@ -1091,6 +1477,12 @@ export default function ReturnDetail() {
                                 {parseFloat(refundInfo.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 {refundInfo.currency ? ` ${refundInfo.currency}` : ""}
                               </span>
+                            </div>
+                          )}
+                          {displayBonus && parseFloat(displayBonus) > 0 && (
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#166534" }}>
+                              <span>Bonus credit included</span>
+                              <span style={{ fontWeight: 600 }}>+{parseFloat(displayBonus).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                             </div>
                           )}
                           {refundInfo.createdAt && (
@@ -1140,6 +1532,22 @@ export default function ReturnDetail() {
                     )}
                   </div>
                 </div>
+                <div>
+                  <div style={C.label}>Resolution Type</div>
+                  <div style={{ marginTop: 4 }}>
+                    <span style={{
+                      display: "inline-block", padding: "3px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: "capitalize",
+                      ...({
+                        refund: { background: "#DBEAFE", color: "#1E40AF" },
+                        exchange: { background: "#DCFCE7", color: "#166534" },
+                        store_credit: { background: "#F3E8FF", color: "#6B21A8" },
+                        replacement: { background: "#FFF7ED", color: "#C2410C" },
+                      } as Record<string, React.CSSProperties>)[returnCase.resolutionType] ?? { background: "#F3F4F6", color: "#374151" },
+                    }}>
+                      {(returnCase.resolutionType || "refund").replace(/_/g, " ")}
+                    </span>
+                  </div>
+                </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div><div style={C.label}>App Status</div><div style={{ ...C.val, fontSize: 12 }}>{returnCase.status}</div></div>
                   <div>
@@ -1159,6 +1567,32 @@ export default function ReturnDetail() {
                 )}
               </div>
             </div>
+
+            {/* ── Customer History ── */}
+            {customerReturnCount > 0 && (
+              <div style={{
+                ...C.card,
+                background: customerReturnCount >= 3 ? "#FEF2F2" : "#F9FAFB",
+                border: customerReturnCount >= 3 ? "1px solid #FECACA" : "1px solid #e3e5e7",
+              }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>Customer History</div>
+                  {customerReturnCount >= 3 && (
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "#FEE2E2", color: "#DC2626", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                      Serial Returner
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: 14, color: customerReturnCount >= 3 ? "#991B1B" : "#374151", marginBottom: 8 }}>
+                  <strong>{customerReturnCount}</strong> {customerReturnCount === 1 ? "return" : "returns"} from this customer
+                </div>
+                {customerEmail && (
+                  <Link to={`/app/customers?q=${encodeURIComponent(customerEmail)}`} style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>
+                    View all customer returns &rarr;
+                  </Link>
+                )}
+              </div>
+            )}
 
             {/* ── Customer Info ── */}
             {(returnCase.customerEmailNorm || returnCase.customerPhoneNorm || shopifyOrder?.email || shopifyOrder?.phone) && (

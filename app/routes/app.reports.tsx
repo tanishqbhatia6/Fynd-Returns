@@ -49,7 +49,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalReturns, returnsByStatus, reasonAggregation,
       refundedCount, fyndSyncedCount, pendingCount, rejectedCount,
       itemsCount, allTimeReturns, approvedWithEvents, returnsForDaily,
-      approvedNotRefundedCount,
+      approvedNotRefundedCount, resolutionAgg, retainedCases, greenReturnCount,
     ] = await Promise.all([
       prisma.returnCase.count({ where }),
       prisma.returnCase.groupBy({ by: ["status"], where, _count: true }),
@@ -63,6 +63,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true } }),
       prisma.returnCase.findMany({ where, select: { createdAt: true, status: true } }),
       prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
+      prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
+      prisma.returnCase.findMany({
+        where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
+        select: { refundJson: true },
+      }),
+      prisma.returnCase.count({ where: { ...where, isGreenReturn: true } }),
     ]);
 
     const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
@@ -98,6 +104,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .sort(([, a], [, b]) => b - a)
       .map(([name, value]) => ({ name: name.charAt(0).toUpperCase() + name.slice(1), value }));
 
+    const resolutionMap = resolutionAgg.reduce(
+      (acc, x) => ({ ...acc, [x.resolutionType]: x._count }),
+      {} as Record<string, number>,
+    );
+    const resolutionChartData = [
+      { name: "Refund", value: resolutionMap.refund ?? 0, color: "#8B5CF6" },
+      { name: "Exchange", value: resolutionMap.exchange ?? 0, color: "#3B82F6" },
+      { name: "Store Credit", value: resolutionMap.store_credit ?? 0, color: "#059669" },
+      { name: "Replacement", value: resolutionMap.replacement ?? 0, color: "#F59E0B" },
+    ].filter((d) => d.value > 0);
+
+    let revenueRetained = 0;
+    for (const rc of retainedCases) {
+      try {
+        const parsed = JSON.parse(rc.refundJson ?? "{}");
+        revenueRetained += parseFloat(parsed.amount ?? "0") || 0;
+      } catch { /* skip */ }
+    }
+
     let avgProcessingDays: number | null = null;
     if (approvedWithEvents.length >= 1) {
       const times = approvedWithEvents
@@ -122,6 +147,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       itemsCount, allTimeReturns, returnsOverTime, statusChartData,
       avgProcessingDays, periodChange, rangeLabel, range,
       from: from ?? undefined, to: to ?? undefined, hasFyndConfig, error: null,
+      resolutionChartData, revenueRetained, greenReturnCount,
     };
   } catch (err) {
     console.error("Reports loader error:", err);
@@ -137,6 +163,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       rangeLabel: "Last 30 days", range: "last_30_days",
       from: undefined, to: undefined, hasFyndConfig: false,
       error: "Failed to load reports. Please try again.",
+      resolutionChartData: [] as { name: string; value: number; color: string }[],
+      revenueRetained: 0, greenReturnCount: 0,
     };
   }
 };
@@ -167,6 +195,7 @@ export default function Reports() {
     itemsCount, allTimeReturns, returnsOverTime, statusChartData,
     avgProcessingDays, periodChange, rangeLabel, range, from, to,
     hasFyndConfig, error,
+    resolutionChartData, revenueRetained, greenReturnCount,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -403,6 +432,80 @@ export default function Reports() {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* ── Resolution Breakdown ── */}
+        <div className="dashboard-chart-row" style={{ marginBottom: 20 }}>
+          <div style={cardStyle}>
+            <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Resolution breakdown</h3>
+            <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {resolutionChartData.length > 0 ? (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "100%" }}>
+                  <ResponsiveContainer width={160} height={160}>
+                    <PieChart>
+                      <Pie data={resolutionChartData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={2} dataKey="value" nameKey="name">
+                        {resolutionChartData.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}
+                        formatter={((value: number | undefined, _: string | undefined, props: { payload?: { value: number } }) => {
+                          const total = resolutionChartData.reduce((a, d) => a + d.value, 0);
+                          const pct = total > 0 && props.payload ? Math.round((props.payload.value / total) * 100) : 0;
+                          return [`${value ?? 0} (${pct}%)`, ""];
+                        }) as never} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", justifyContent: "center" }}>
+                    {resolutionChartData.map((d, i) => {
+                      const total = resolutionChartData.reduce((a, x) => a + x.value, 0);
+                      const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                      return (
+                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: 2, background: d.color, flexShrink: 0 }} />
+                          <span style={{ color: "var(--rpm-text-muted)" }}>{d.name}</span>
+                          <span style={{ fontWeight: 700 }}>{d.value}</span>
+                          <span style={{ color: "var(--rpm-text-muted)", fontSize: 11 }}>({pct}%)</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>No resolution data for this period.</div>
+              )}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Revenue impact</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "12px 0" }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Revenue retained</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: 32, fontWeight: 800, color: "#059669", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                    ${revenueRetained.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 4 }}>
+                  From exchanges and store credit resolutions instead of refunds
+                </div>
+              </div>
+
+              <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Green returns</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ fontSize: 28, fontWeight: 800, color: "#06B6D4", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{greenReturnCount}</span>
+                  <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
+                    {totalReturns > 0 ? `${Math.round((greenReturnCount / totalReturns) * 100)}% of total` : ""}
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 4 }}>
+                  Returns where customer kept the item
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* ── Top Reasons + Status Table — side by side ── */}

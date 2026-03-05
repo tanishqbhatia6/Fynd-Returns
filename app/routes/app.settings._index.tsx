@@ -48,11 +48,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (Array.isArray(arr)) restrictedRegionCount = arr.length;
   } catch { /* */ }
 
+  const blocklistEnabled = s?.blocklistEnabled ?? false;
+  let blocklistCount = 0;
+  if (s) {
+    blocklistCount = await prisma.blocklistEntry.count({ where: { settingsId: s.id } });
+  }
+
+  let autoRulesCount = 0;
+  try {
+    const arr = JSON.parse(s?.autoApproveRulesJson ?? "[]");
+    if (Array.isArray(arr)) autoRulesCount = arr.length;
+  } catch { /* */ }
+
+  const bonusCreditEnabled = s?.bonusCreditEnabled ?? false;
+  const bonusCreditPct = s?.bonusCreditPct ?? 10;
+  const greenReturnsEnabled = s?.greenReturnsEnabled ?? false;
+  const greenReturnsThreshold = s?.greenReturnsThreshold != null ? Number(s.greenReturnsThreshold) : 0;
+  const hasDefaultReturnInstructions = !!(s?.defaultReturnInstructions && s.defaultReturnInstructions.trim().length > 0);
+  const portalLanguage = s?.portalLanguage ?? "en";
+
   return {
     hasFynd, hasReasons, hasPortalTheme, readAllOrders,
     notifCount, smtpConfigured, returnWindowDays, autoApprove, autoRefund,
     photoRequired, hasReturnFee, returnFeeAmount, returnFeeCurrency,
     fyndEnv, reasonCount, restrictedRegionCount, refundPaymentMethod,
+    blocklistEnabled, blocklistCount, autoRulesCount,
+    bonusCreditEnabled, bonusCreditPct, greenReturnsEnabled,
+    greenReturnsThreshold, hasDefaultReturnInstructions, portalLanguage,
   };
 };
 
@@ -127,11 +149,41 @@ export default function SettingsDashboard() {
             { label: d.refundPaymentMethod === "store_credit" ? "Store credit" : d.refundPaymentMethod === "both" ? "Split refund" : "Original payment", variant: "info" as const },
           ],
         },
+        {
+          to: "/app/settings/blocklist",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+          iconBg: "#FEF2F2", iconStroke: "#DC2626",
+          title: "Customer Blocklist",
+          desc: "Block specific customers from submitting return requests by email, phone, or order name.",
+          status: [
+            d.blocklistEnabled
+              ? { label: "Enabled", variant: "ok" }
+              : { label: "Disabled", variant: "off" },
+            ...(d.blocklistCount > 0
+              ? [{ label: `${d.blocklistCount} blocked`, variant: "info" as const }]
+              : []),
+          ],
+        },
       ],
     },
     {
       title: "Integrations & Automation",
       cards: [
+        {
+          to: "/app/settings/auto-rules",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+          iconBg: "#F0FDF4", iconStroke: "#16A34A",
+          title: "Auto-Approve Rules",
+          desc: "Configure advanced rules to auto-approve or flag returns for manual review based on order value, reason, tags, or customer history.",
+          status: [
+            d.autoApprove
+              ? { label: "Auto-approve on", variant: "ok" }
+              : { label: "Auto-approve off", variant: "off" },
+            ...(d.autoRulesCount > 0
+              ? [{ label: `${d.autoRulesCount} rule${d.autoRulesCount !== 1 ? "s" : ""}`, variant: "info" as const }]
+              : []),
+          ],
+        },
         {
           to: "/app/settings/integrations",
           icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>,
@@ -167,6 +219,73 @@ export default function SettingsDashboard() {
       ],
     },
     {
+      title: "Security & Automation",
+      cards: [
+        {
+          to: "/app/settings/blocklist",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>,
+          iconBg: "#FEF2F2", iconStroke: "#DC2626",
+          title: "Customer Blocklist",
+          desc: "Block specific customers by email, phone, or order name from submitting returns.",
+          status: [
+            d.blocklistEnabled
+              ? { label: "Enabled", variant: "ok" }
+              : { label: "Disabled", variant: "off" },
+            ...(d.blocklistCount > 0
+              ? [{ label: `${d.blocklistCount} entr${d.blocklistCount !== 1 ? "ies" : "y"}`, variant: "info" as const }]
+              : []),
+          ],
+        },
+        {
+          to: "/app/settings/auto-rules",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>,
+          iconBg: "#F0FDF4", iconStroke: "#059669",
+          title: "Auto-Approve Rules",
+          desc: "Configure conditional rules for auto-approving or flagging returns for manual review.",
+          status: [
+            d.autoApprove
+              ? { label: "Auto-approve on", variant: "ok" }
+              : { label: "Auto-approve off", variant: "off" },
+            ...(d.autoRulesCount > 0
+              ? [{ label: `${d.autoRulesCount} rule${d.autoRulesCount !== 1 ? "s" : ""}`, variant: "info" as const }]
+              : []),
+          ],
+        },
+      ],
+    },
+    {
+      title: "Revenue & Sustainability",
+      cards: [
+        {
+          to: "/app/settings/return-settings",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M12 1v22"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>,
+          iconBg: "#ECFDF5", iconStroke: "#059669",
+          title: "Bonus Credit",
+          desc: "Offer extra store credit when customers choose exchange or store credit over a refund.",
+          status: [
+            d.bonusCreditEnabled
+              ? { label: `Enabled (+${d.bonusCreditPct}%)`, variant: "ok" }
+              : { label: "Disabled", variant: "off" },
+          ],
+        },
+        {
+          to: "/app/settings/return-settings",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M2 22l1-1h3l9-9"/><path d="M9.5 7.5L14 3l7 7-4.5 4.5"/><circle cx="15" cy="15" r="5"/><path d="M15 13v4"/><path d="M13 15h4"/></svg>,
+          iconBg: "#F0FDFA", iconStroke: "#0D9488",
+          title: "Green Returns",
+          desc: "Let customers keep low-value items instead of returning them, reducing shipping costs.",
+          status: [
+            d.greenReturnsEnabled
+              ? { label: "Enabled", variant: "ok" }
+              : { label: "Disabled", variant: "off" },
+            ...(d.greenReturnsEnabled && d.greenReturnsThreshold > 0
+              ? [{ label: `< $${d.greenReturnsThreshold} threshold`, variant: "info" as const }]
+              : []),
+          ],
+        },
+      ],
+    },
+    {
       title: "Customer Experience",
       cards: [
         {
@@ -179,6 +298,28 @@ export default function SettingsDashboard() {
             d.hasPortalTheme
               ? { label: "Theme customized", variant: "ok" }
               : { label: "Default theme", variant: "off" },
+          ],
+        },
+        {
+          to: "/app/settings/widget",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/></svg>,
+          iconBg: "#EFF6FF", iconStroke: "#3B82F6",
+          title: "Multi-Language",
+          desc: "Configure the portal language and customize translated labels for the customer portal.",
+          status: [
+            { label: d.portalLanguage === "en" ? "English" : d.portalLanguage.toUpperCase(), variant: d.portalLanguage !== "en" ? "ok" as const : "info" as const },
+          ],
+        },
+        {
+          to: "/app/settings/return-settings",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>,
+          iconBg: "#FFFBEB", iconStroke: "#D97706",
+          title: "Return Labels",
+          desc: "Set default return instructions shown to customers after their return is approved.",
+          status: [
+            d.hasDefaultReturnInstructions
+              ? { label: "Instructions set", variant: "ok" }
+              : { label: "No instructions", variant: "off" },
           ],
         },
         {
@@ -222,6 +363,8 @@ export default function SettingsDashboard() {
               {d.autoRefund && <MiniChip label="Auto-refund" variant="ok" />}
               {d.hasFynd && <MiniChip label="Fynd connected" variant="ok" />}
               {d.readAllOrders && <MiniChip label="Full order access" variant="ok" />}
+              {d.blocklistEnabled && <MiniChip label="Blocklist active" variant="warn" />}
+              {d.autoRulesCount > 0 && <MiniChip label={`${d.autoRulesCount} auto-rule${d.autoRulesCount !== 1 ? "s" : ""}`} variant="info" />}
               {!d.autoApprove && !d.autoRefund && !d.hasFynd && !d.readAllOrders && (
                 <span style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)" }}>
                   Configure your return policies and integrations below.

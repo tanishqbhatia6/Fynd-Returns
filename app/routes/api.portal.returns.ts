@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { verifyPortalToken } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
+import { getPortalLabels } from "../lib/portal-i18n";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -46,5 +47,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       })
     : [];
 
-  return withCors(Response.json({ returns }), request);
+  const shopSettings = await prisma.shopSettings.findUnique({
+    where: { shopId: payload.shopId as string },
+  });
+
+  const portalLanguage = shopSettings?.portalLanguage ?? "en";
+  let portalLabelOverrides: Record<string, string> = {};
+  try {
+    if (shopSettings?.portalLabelsJson) portalLabelOverrides = JSON.parse(shopSettings.portalLabelsJson);
+  } catch { /* ignore */ }
+  const labels = getPortalLabels(portalLanguage, portalLabelOverrides);
+
+  const defaultReturnInstructions = shopSettings?.defaultReturnInstructions ?? null;
+
+  const enrichedReturns = returns.map((r) => {
+    let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null } | null = null;
+    try {
+      if (r.returnLabelJson) returnLabelInfo = JSON.parse(r.returnLabelJson);
+    } catch { /* ignore */ }
+
+    const isApprovedOrCompleted = ["approved", "completed"].includes(r.status.toLowerCase());
+
+    return {
+      ...r,
+      returnLabel: isApprovedOrCompleted ? returnLabelInfo : null,
+      returnInstructions: isApprovedOrCompleted ? defaultReturnInstructions : null,
+    };
+  });
+
+  return withCors(Response.json({
+    returns: enrichedReturns,
+    labels,
+    language: portalLanguage,
+  }), request);
 };

@@ -273,6 +273,19 @@ export default function ReturnsList() {
                               <span className="app-status-dot" style={{ background: getStatusColor(r.status) }} />
                               {r.status}
                             </span>
+                            {(r as { resolutionType?: string }).resolutionType && (r as { resolutionType?: string }).resolutionType !== "refund" && (
+                              <span style={{
+                                display: "inline-block", marginLeft: 6, padding: "2px 7px", borderRadius: 4,
+                                fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.03em", verticalAlign: "middle",
+                                ...({
+                                  exchange: { background: "#DCFCE7", color: "#166534" },
+                                  store_credit: { background: "#F3E8FF", color: "#6B21A8" },
+                                  replacement: { background: "#FFF7ED", color: "#C2410C" },
+                                } as Record<string, { background: string; color: string }>)[(r as { resolutionType?: string }).resolutionType!] ?? {},
+                              }}>
+                                {((r as { resolutionType?: string }).resolutionType!).replace(/_/g, " ")}
+                              </span>
+                            )}
                             {r.refundStatus && r.refundStatus !== "none" && (
                               <div style={{ fontSize: 10, color: "#7c3aed", marginTop: 3, fontWeight: 600, textTransform: "capitalize" }}>{r.refundStatus}</div>
                             )}

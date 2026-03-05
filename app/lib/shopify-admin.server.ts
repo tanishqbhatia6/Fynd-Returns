@@ -747,6 +747,7 @@ export type RefundResult = {
   refundCurrency?: string;
   refundCreatedAt?: string;
   refundMethod?: string;
+  bonusAmount?: string;
 };
 
 export type RefundMethodConfig = {
@@ -811,6 +812,7 @@ export async function createRefund(
   note?: string,
   locationId?: string | null,
   refundMethodConfig?: RefundMethodConfig | null,
+  options?: { bonusAmount?: number; skipLocation?: boolean },
 ): Promise<RefundResult> {
   try {
     const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
@@ -823,16 +825,17 @@ export async function createRefund(
       return { success: false, error: "No line items specified for refund. Please select items to refund." };
     }
 
+    const skipLocation = options?.skipLocation === true;
     let restockLocationId = locationId;
-    if (!restockLocationId) {
+    if (!skipLocation && !restockLocationId) {
       restockLocationId = await fetchPrimaryLocationId(admin);
     }
 
     const refundLineItems = normalized.map((item) => ({
       lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
       quantity: item.quantity,
-      restockType: "RETURN" as string,
-      ...(restockLocationId ? { locationId: restockLocationId } : {}),
+      restockType: skipLocation ? ("NO_RESTOCK" as string) : ("RETURN" as string),
+      ...(!skipLocation && restockLocationId ? { locationId: restockLocationId } : {}),
     }));
 
     const method = refundMethodConfig?.method ?? "original";
@@ -874,17 +877,20 @@ export async function createRefund(
       const totalAmount = parseFloat(suggested?.amountSet?.shopMoney?.amount ?? "0");
       const currency = suggested?.amountSet?.shopMoney?.currencyCode ?? "INR";
 
+      const bonusAmount = options?.bonusAmount ?? 0;
+
       if (totalAmount > 0) {
         if (method === "store_credit") {
+          const storeCreditTotal = Math.round((totalAmount + bonusAmount) * 100) / 100;
           refundInput.transactions = [];
           refundInput.refundMethods = [{
             storeCreditRefund: {
-              amount: { amount: totalAmount.toFixed(2), currencyCode: currency },
+              amount: { amount: storeCreditTotal.toFixed(2), currencyCode: currency },
             },
           }];
         } else if (method === "both") {
-          const scAmount = Math.round(totalAmount * (storeCreditPct / 100) * 100) / 100;
-          const origAmount = Math.round((totalAmount - scAmount) * 100) / 100;
+          const scAmount = Math.round((totalAmount * (storeCreditPct / 100) + bonusAmount) * 100) / 100;
+          const origAmount = Math.round((totalAmount - (totalAmount * (storeCreditPct / 100))) * 100) / 100;
 
           if (origAmount > 0 && suggested?.suggestedTransactions?.length) {
             const txn = suggested.suggestedTransactions[0];

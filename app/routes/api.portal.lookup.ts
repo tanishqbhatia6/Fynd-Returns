@@ -5,6 +5,7 @@ import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFro
 import { fetchOrdersByCustomer, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { getPortalLabels } from "../lib/portal-i18n";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -90,6 +91,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         })
         : [];
 
+    // Load shop settings for labels, language, and default instructions
+    const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+    const portalLanguage = shopSettings?.portalLanguage ?? "en";
+    let portalLabelOverrides: Record<string, string> | null = null;
+    try {
+      if (shopSettings?.portalLabelsJson) portalLabelOverrides = JSON.parse(shopSettings.portalLabelsJson);
+    } catch { /* ignore */ }
+    const labels = getPortalLabels(portalLanguage, portalLabelOverrides);
+    const defaultReturnInstructions = (shopSettings as { defaultReturnInstructions?: string | null } | null)?.defaultReturnInstructions ?? null;
+
     // Use cached Fynd payload from DB only — no live Fynd API calls here.
     // Live Fynd enrichment happens via separate /api/portal/fynd-enrich endpoint.
     const returns = returnsRaw.map((r) => {
@@ -97,11 +108,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const trackingInfo = getTrackingInfoFromFyndPayload(payload);
       const returnJourney = payload ? extractFyndJourney(payload, "return") : [];
       const pickupAddress = getPickupAddressFromFyndPayload(payload);
+
+      let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null } | null = null;
+      try {
+        if ((r as { returnLabelJson?: string | null }).returnLabelJson) {
+          returnLabelInfo = JSON.parse((r as { returnLabelJson?: string | null }).returnLabelJson!);
+        }
+      } catch { /* ignore */ }
+
+      const isApproved = ["approved", "completed"].includes((r.status || "").toLowerCase());
       return {
         ...r,
         trackingInfo: trackingInfo ?? undefined,
         returnJourney,
         pickupAddress: pickupAddress ?? undefined,
+        returnLabelUrl: isApproved ? (r as { returnLabelUrl?: string | null }).returnLabelUrl : undefined,
+        returnLabelInfo: isApproved ? returnLabelInfo : undefined,
+        returnInstructions: isApproved ? (defaultReturnInstructions || undefined) : undefined,
         _needsFyndEnrich: !!(r.shopifyOrderName && r.fyndShipmentId),
       };
     });
@@ -147,7 +170,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    return withCors(Response.json({ orders, returns }), request);
+    return withCors(Response.json({ orders, returns, labels, portalLanguage }), request);
   } catch (err) {
     console.error("Portal lookup:", err);
     return withCors(Response.json({ error: "Something went wrong. Please try again." }, { status: 500 }), request);

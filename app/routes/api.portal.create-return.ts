@@ -9,6 +9,7 @@ import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server
 import { sendNewReturnNotification } from "../lib/notification.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
 
 const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress"];
 
@@ -77,6 +78,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const settings = shopRecord.settings;
     const returnWindowDays = settings?.returnWindowDays ?? 30;
+
+    // Blocklist check
+    if (settings?.blocklistEnabled && settings.id) {
+      const blockChecks: { type: string; value: string }[] = [];
+      if (customerEmail) blockChecks.push({ type: "email", value: customerEmail });
+      if (customerPhone) blockChecks.push({ type: "phone", value: customerPhone });
+      if (shopifyOrderName) blockChecks.push({ type: "order_name", value: shopifyOrderName.toLowerCase() });
+
+      if (blockChecks.length > 0) {
+        const blocked = await prisma.blocklistEntry.findFirst({
+          where: {
+            settingsId: settings.id,
+            OR: blockChecks.map((c) => ({ type: c.type, value: c.value })),
+          },
+        });
+        if (blocked) {
+          return withCors(
+            Response.json({
+              error: "Unable to process return request. Please contact support.",
+            }, { status: 403 }),
+            request,
+          );
+        }
+      }
+    }
 
     const effectiveOrderId = manualMode ? `manual:${shopifyOrderName}` : orderId!;
     let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string }>;
@@ -302,7 +328,79 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    const status = settings?.autoApproveEnabled ? "approved" : "initiated";
+    // Determine status using auto-approve rules
+    let status: string;
+    if (settings?.autoApproveEnabled) {
+      const autoRules = parseAutoApproveRules(settings.autoApproveRulesJson);
+      if (autoRules.length > 0) {
+        // Build context for rule evaluation
+        let orderValue: number | undefined;
+        if (!manualMode && lineItemsWithPrice.length > 0) {
+          orderValue = lineItemsWithPrice.reduce((sum, li) => {
+            const p = li.price ? parseFloat(li.price) : 0;
+            return sum + (Number.isFinite(p) ? p : 0);
+          }, 0);
+        }
+        const firstReasonCode = itemsToCreate[0]?.reasonCode;
+        const allTags = lineItemsWithPrice.flatMap((li) => li.productTags ?? []);
+
+        let customerReturnCount: number | undefined;
+        if (customerEmail) {
+          customerReturnCount = await prisma.returnCase.count({
+            where: { shopId: shopRecord.id, customerEmailNorm: customerEmail },
+          });
+        }
+
+        const ruleResult = evaluateAutoApproveRules(autoRules, {
+          orderValue,
+          returnReason: firstReasonCode,
+          productTags: allTags.length > 0 ? allTags : undefined,
+          customerEmail: customerEmail ?? undefined,
+          customerReturnCount,
+        });
+
+        if (ruleResult === "manual_review") {
+          status = "initiated";
+        } else if (ruleResult === "approve") {
+          status = "approved";
+        } else {
+          status = "approved";
+        }
+      } else {
+        status = "approved";
+      }
+    } else {
+      status = "initiated";
+    }
+
+    // Green return eligibility check
+    let qualifiesForGreenReturn = false;
+    if (settings?.greenReturnsEnabled && !manualMode) {
+      const greenThreshold = settings.greenReturnsThreshold ? parseFloat(String(settings.greenReturnsThreshold)) : null;
+      let greenTagsArr: string[] = [];
+      try {
+        if (settings.greenReturnsProductTags) {
+          greenTagsArr = JSON.parse(settings.greenReturnsProductTags);
+        }
+      } catch { /* invalid JSON, skip tag check */ }
+
+      const itemTotalValue = lineItemsWithPrice.reduce((sum, li) => {
+        const selectedItem = itemsToCreate.find((it) => it.lineItemId === li.id);
+        if (!selectedItem) return sum;
+        const p = li.price ? parseFloat(li.price) : 0;
+        return sum + (Number.isFinite(p) ? p * selectedItem.qty : 0);
+      }, 0);
+
+      const belowThreshold = greenThreshold != null && greenThreshold > 0 && itemTotalValue > 0 && itemTotalValue < greenThreshold;
+
+      const allItemTags = lineItemsWithPrice
+        .filter((li) => itemsToCreate.some((it) => it.lineItemId === li.id))
+        .flatMap((li) => li.productTags ?? [])
+        .map((t) => t.toLowerCase());
+      const tagsMatch = greenTagsArr.length > 0 && greenTagsArr.some((gt) => allItemTags.includes(gt.toLowerCase()));
+
+      qualifiesForGreenReturn = belowThreshold || tagsMatch;
+    }
 
     // Atomic transaction: re-check for duplicates + create return + event in one go
     let returnCase: Awaited<ReturnType<typeof prisma.returnCase.create>> & { returnRequestNo?: string | null };
@@ -330,7 +428,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             customerNotes: customerNotes || null,
             customerMediaJson: customerMediaJson,
             status,
-            fyndSyncStatus: settings?.autoApproveEnabled ? "pending" : null,
+            isGreenReturn: qualifiesForGreenReturn,
+            fyndSyncStatus: status === "approved" && !qualifiesForGreenReturn ? "pending" : null,
             items: {
               create: itemsToCreate.map((it) => {
                 const liInfo = lineItemsWithPrice?.find((l) => l.id === it.lineItemId);
@@ -368,9 +467,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               customerName: customerName || null,
               itemCount: itemsToCreate.length,
               manual: manualMode,
+              ...(qualifiesForGreenReturn ? { greenReturn: true } : {}),
             }),
           },
         });
+
+        if (qualifiesForGreenReturn) {
+          await tx.returnEvent.create({
+            data: {
+              returnCaseId: rc.id,
+              source: "system",
+              eventType: "green_return_qualified",
+              payloadJson: JSON.stringify({
+                reason: "Item value below threshold or product tags matched green return criteria",
+              }),
+            },
+          });
+        }
 
         return { ...rc, returnRequestNo };
       });
@@ -399,8 +512,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.warn("[Portal create-return] New return notification failed:", notifyErr);
     }
 
-    // When auto-approved, sync to Fynd so webhook can match returns
-    if (status === "approved" && !manualMode && orderId) {
+    // When auto-approved, sync to Fynd so webhook can match returns (skip for green returns)
+    if (status === "approved" && !manualMode && orderId && !qualifiesForGreenReturn) {
       try {
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
         const order = await fetchOrder(admin, orderId);

@@ -92,8 +92,33 @@ model ShopSettings {
   adminNotifyEmail           String?
   adminSoundEnabled          Boolean  @default(true)
   readAllOrdersEnabled       Boolean  @default(false)
+
+  // Store credit bonus incentive
+  bonusCreditEnabled         Boolean  @default(false)
+  bonusCreditPct             Int      @default(10) // Extra % bonus when customer chooses store credit/exchange
+
+  // Green returns (keep item + refund)
+  greenReturnsEnabled        Boolean  @default(false)
+  greenReturnsThreshold      Decimal? @db.Decimal(12, 2) // Items below this value: customer keeps item
+  greenReturnsProductTags    String?  // JSON array of product tags eligible for green returns
+
+  // Advanced auto-approve rules
+  autoApproveRulesJson       String?  @db.Text // JSON array of rule objects
+
+  // Customer blocklist
+  blocklistEnabled           Boolean  @default(false)
+
+  // Multi-language portal
+  portalLanguage             String   @default("en")
+  portalLabelsJson           String?  @db.Text // JSON { key: translatedLabel } overrides
+
+  // Return shipping label
+  defaultReturnInstructions  String?  @db.Text // Default instructions shown to customer after approval
+
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
+
+  blocklist                  BlocklistEntry[]
 }
 
 model ReturnCase {
@@ -121,6 +146,14 @@ model ReturnCase {
   customerNotes     String?
   customerMediaJson String?   @db.Text  // JSON array of { name, mimeType, dataUrl } uploaded by customer
   rejectionReason   String?
+  resolutionType    String    @default("refund") // "refund" | "exchange" | "store_credit" | "replacement"
+  exchangeOrderId   String?   // Shopify order ID created for exchange
+  exchangeOrderName String?   // Shopify order name for exchange
+  exchangeItemsJson String?   @db.Text // JSON array of exchanged item details
+  returnLabelUrl    String?   // URL to return shipping label (uploaded or generated)
+  returnLabelJson   String?   @db.Text // JSON: { carrier, trackingNumber, labelUrl, qrCodeUrl }
+  isGreenReturn     Boolean   @default(false) // Customer keeps item
+  bonusCreditAmount String?   // Extra bonus credit applied
   fyndSyncStatus    String?   // "pending" | "synced" | "failed" | "retry_scheduled"
   fyndSyncRetries   Int      @default(0)
   fyndSyncError     String?  @db.Text
@@ -225,4 +258,18 @@ model LookupSession {
   createdAt        DateTime @default(now())
 
   @@index([shopId, lookupValueHash])
+}
+
+model BlocklistEntry {
+  id             String   @id @default(cuid())
+  settingsId     String
+  settings       ShopSettings @relation(fields: [settingsId], references: [id], onDelete: Cascade)
+  type           String   // "email" | "phone" | "order_name" | "ip"
+  value          String   // normalized value
+  reason         String?
+  blockedBy      String?  // admin who added
+  createdAt      DateTime @default(now())
+
+  @@unique([settingsId, type, value])
+  @@index([settingsId, type])
 }

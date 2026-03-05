@@ -491,10 +491,19 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         await createFailedEvent(msg);
         return Response.json({ error: msg }, { status: 400 });
       }
+      const refundDetails = {
+        refundId: result.refundId ?? null,
+        amount: result.refundAmount ?? null,
+        currency: result.refundCurrency ?? null,
+        createdAt: result.refundCreatedAt ?? new Date().toISOString(),
+        method: "original_payment_method",
+        source: "admin",
+      };
       await prisma.returnCase.update({
         where: { id },
         data: {
           refundStatus: "refunded",
+          refundJson: JSON.stringify(refundDetails),
           status: "completed",
           adminNotes: note || returnCase.adminNotes,
         },
@@ -504,7 +513,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           returnCaseId: id,
           source: "admin",
           eventType: "refund_processed",
-          payloadJson: JSON.stringify({ note: "Refund created in Shopify" }),
+          payloadJson: JSON.stringify({ ...refundDetails, note: "Refund created in Shopify" }),
         },
       });
 

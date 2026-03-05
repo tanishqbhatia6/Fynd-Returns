@@ -26,6 +26,9 @@ const REFUND_IN_PROGRESS = [
 /** Fynd refund statuses that indicate refund is complete */
 const REFUND_COMPLETE = ["refund_done", "refunded", "REFUNDED", "completed", "COMPLETED"];
 
+/** Fynd statuses that trigger auto-refund when autoRefundEnabled is on */
+const AUTO_REFUND_TRIGGERS = ["credit_note_generated", "credit_note"];
+
 export type FyndWebhookPayload = {
   shipment_id?: string;
   shipmentId?: string;
@@ -341,7 +344,6 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       const errMsg = result.error ?? "Shopify refund failed";
       const isAlreadyRefunded = /already refunded|refunded for this|has been refunded/i.test(errMsg);
       if (isAlreadyRefunded) {
-        // Idempotency: treat duplicate refund as success
         await prisma.returnCase.update({
           where: { id: returnCase.id },
           data: { refundStatus: "refunded", status: "completed" },
@@ -374,16 +376,24 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       return { ok: false, error: errMsg };
     }
 
+    const refundDetails = {
+      refundId: result.refundId ?? null,
+      amount: result.refundAmount ?? null,
+      currency: result.refundCurrency ?? null,
+      createdAt: result.refundCreatedAt ?? new Date().toISOString(),
+      method: "original_payment_method",
+      source: "fynd_webhook",
+    };
     await prisma.returnCase.update({
       where: { id: returnCase.id },
-      data: { refundStatus: "refunded", status: "completed" },
+      data: { refundStatus: "refunded", refundJson: JSON.stringify(refundDetails), status: "completed" },
     });
     await prisma.returnEvent.create({
       data: {
         returnCaseId: returnCase.id,
         source: "fynd_webhook",
         eventType: "refund_processed",
-        payloadJson: JSON.stringify({ shipment_id: shipmentId, fynd_refund_status: refundStatus }),
+        payloadJson: JSON.stringify({ ...refundDetails, shipment_id: shipmentId, fynd_refund_status: refundStatus }),
       },
     });
     await logWebhook({
@@ -394,6 +404,98 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       returnCaseId: returnCase.id,
     });
     return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
+  }
+
+  // Auto-refund on credit_note_generated (if enabled in settings)
+  const isAutoRefundTrigger = AUTO_REFUND_TRIGGERS.some((s) => statusLower === s.toLowerCase()) ||
+    /credit.?note/i.test(refundStatus ?? "");
+  if (isAutoRefundTrigger && returnCase.refundStatus !== "refunded") {
+    const shopSettings = await prisma.shopSettings.findUnique({
+      where: { shopId: returnCase.shop.id },
+    });
+    if (shopSettings?.autoRefundEnabled) {
+      let orderIdForRefund = returnCase.shopifyOrderId;
+      let lineItemsForRefund: Array<{ id: string; quantity: number }> = (returnCase.items ?? [])
+        .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
+        .map((i) => ({ id: i.shopifyLineItemId, quantity: i.qty }));
+
+      if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
+        const isGid = orderIdForRefund?.startsWith("gid://");
+        const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
+        if (!isGid && !isNumericId) {
+          const orderNumber = (returnCase.shopifyOrderName ?? orderIdForRefund ?? "").replace(/^#/, "").trim();
+          const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
+          if (orderByNumber?.id) {
+            orderIdForRefund = orderByNumber.id;
+            if (lineItemsForRefund.length === 0 && orderByNumber.lineItems?.length) {
+              lineItemsForRefund = orderByNumber.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            }
+          }
+        }
+        if (orderIdForRefund && lineItemsForRefund.length === 0) {
+          const order = await fetchOrder(admin, orderIdForRefund);
+          if (order?.lineItems?.length) {
+            lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+          }
+        }
+        if (orderIdForRefund && lineItemsForRefund.length > 0) {
+          const result = await createRefund(
+            admin,
+            orderIdForRefund,
+            lineItemsForRefund,
+            `Auto-refund triggered by Fynd credit note (shipment ${shipmentId})`
+          );
+          if (result.success) {
+            const refundDetails = {
+              refundId: result.refundId ?? null,
+              amount: result.refundAmount ?? null,
+              currency: result.refundCurrency ?? null,
+              createdAt: result.refundCreatedAt ?? new Date().toISOString(),
+              method: "original_payment_method",
+              source: "auto_fynd_credit_note",
+            };
+            await prisma.returnCase.update({
+              where: { id: returnCase.id },
+              data: { refundStatus: "refunded", refundJson: JSON.stringify(refundDetails), status: "completed" },
+            });
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: returnCase.id,
+                source: "fynd_webhook",
+                eventType: "auto_refund_processed",
+                payloadJson: JSON.stringify({ ...refundDetails, trigger: "credit_note_generated", shipment_id: shipmentId }),
+              },
+            });
+            await logWebhook({
+              shipmentId,
+              orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+              refundStatus,
+              action: "refund_completed",
+              returnCaseId: returnCase.id,
+            });
+            return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
+          } else {
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: returnCase.id,
+                source: "fynd_webhook",
+                eventType: "auto_refund_failed",
+                payloadJson: JSON.stringify({ error: result.error, trigger: "credit_note_generated", shipment_id: shipmentId }),
+              },
+            });
+          }
+        }
+      }
+    } else {
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: returnCase.id,
+          source: "fynd_webhook",
+          eventType: "credit_note_generated",
+          payloadJson: JSON.stringify({ fynd_status: refundStatus, shipment_id: shipmentId, note: "Auto-refund is disabled. Process refund manually from admin." }),
+        },
+      });
+    }
   }
 
   // Log Fynd status update to timeline even when we don't take refund action

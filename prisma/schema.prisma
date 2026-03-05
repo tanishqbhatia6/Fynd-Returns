@@ -61,6 +61,7 @@ model ShopSettings {
   returnReasonsByCategoryJson String?
   returnPolicyText           String?
   autoApproveEnabled         Boolean  @default(false)
+  autoRefundEnabled          Boolean  @default(false)  // Auto-trigger Shopify refund on credit_note_generated
   returnOffersJson          String?
   minimumReturnPrice         Decimal? @db.Decimal(12, 2)
   restrictedRegionsJson      String?
@@ -100,6 +101,7 @@ model ReturnCase {
   customerPhoneNorm String?
   status            String
   refundStatus      String?
+  refundJson        String?   @db.Text  // JSON: { refundId, amount, currency, createdAt, method }
   adminNotes        String?
   notesForCustomer  String?   // published notes visible to customer in portal
   customerNotes     String?

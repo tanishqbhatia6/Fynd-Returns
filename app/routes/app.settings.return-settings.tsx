@@ -25,6 +25,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     refundMethodPrepaid: refundPrepaid,
     refundMethodCOD: refundCOD,
     autoApproveEnabled: s?.autoApproveEnabled ?? false,
+    autoRefundEnabled: s?.autoRefundEnabled ?? false,
   };
 };
 
@@ -41,6 +42,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const refundMethodPrepaidJson = formData.get("refundMethodPrepaidJson") as string | null;
   const refundMethodCODJson = formData.get("refundMethodCODJson") as string | null;
   const autoApproveEnabled = formData.get("autoApproveEnabled") === "on";
+  const autoRefundEnabled = formData.get("autoRefundEnabled") === "on";
 
   const shop = await findOrCreateShop(session.shop);
 
@@ -89,6 +91,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       refundMethodPrepaidJson: prepaidStr,
       refundMethodCODJson: codStr,
       autoApproveEnabled,
+      autoRefundEnabled,
     },
     update: {
       noReturnPeriodEnabled,
@@ -101,6 +104,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       refundMethodPrepaidJson: prepaidStr ?? undefined,
       refundMethodCODJson: codStr ?? undefined,
       autoApproveEnabled,
+      autoRefundEnabled,
     },
   });
   return { success: true };
@@ -321,6 +325,25 @@ export default function ReturnSettings() {
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                 <input type="radio" name="autoApproveEnabled" value="off" defaultChecked={!data.autoApproveEnabled} />
+                <span>No</span>
+              </label>
+            </div>
+          </s-section>
+
+          {/* Auto Refund */}
+          <s-section>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Auto Refund on Credit Note</div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
+              When Fynd generates a credit note (status: credit_note_generated), automatically trigger a Shopify refund.
+              If disabled, refunds must be processed manually from the return detail page.
+            </p>
+            <div style={{ display: "flex", gap: 16 }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="radio" name="autoRefundEnabled" value="on" defaultChecked={data.autoRefundEnabled} />
+                <span>Auto-refund on credit note — Yes</span>
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="radio" name="autoRefundEnabled" value="off" defaultChecked={!data.autoRefundEnabled} />
                 <span>No</span>
               </label>
             </div>

@@ -699,9 +699,51 @@ export default function ReturnDetail() {
                     Manual return — process refund in Shopify Admin for <strong>{returnCase.shopifyOrderName || "—"}</strong>
                   </div>
                 )}
-                {isRefunded && (
-                  <div style={{ padding: 10, background: "#DCFCE7", borderRadius: 8, fontSize: 13, color: "#166534", textAlign: "center", fontWeight: 600 }}>Refund processed</div>
-                )}
+                {isRefunded && (() => {
+                  let refundInfo: { refundId?: string; amount?: string; currency?: string; createdAt?: string; method?: string; source?: string } | null = null;
+                  try {
+                    const raw = (returnCase as { refundJson?: string | null }).refundJson;
+                    if (raw) refundInfo = JSON.parse(raw);
+                  } catch { /* no refund details */ }
+                  return (
+                    <div style={{ padding: 14, background: "#DCFCE7", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: refundInfo ? 10 : 0 }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: "#166534" }}>Refund processed</span>
+                      </div>
+                      {refundInfo && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {refundInfo.amount && (
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                              <span style={{ color: "#166534" }}>Amount</span>
+                              <span style={{ fontWeight: 700, color: "#166534" }}>
+                                {parseFloat(refundInfo.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {refundInfo.currency ? ` ${refundInfo.currency}` : ""}
+                              </span>
+                            </div>
+                          )}
+                          {refundInfo.createdAt && (
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                              <span style={{ color: "#166534" }}>Processed</span>
+                              <span style={{ color: "#166534" }}>{new Date(refundInfo.createdAt).toLocaleString()}</span>
+                            </div>
+                          )}
+                          {refundInfo.source && (
+                            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                              <span style={{ color: "#166534" }}>Triggered by</span>
+                              <span style={{ color: "#166534" }}>{refundInfo.source === "admin" ? "Admin" : refundInfo.source === "fynd_webhook" ? "Fynd" : refundInfo.source === "auto_fynd_credit_note" ? "Auto (Credit Note)" : refundInfo.source}</span>
+                            </div>
+                          )}
+                          {refundInfo.refundId && (
+                            <div style={{ fontSize: 11, color: "#15803D", marginTop: 2, fontFamily: "monospace" }}>
+                              {refundInfo.refundId.replace(/^gid:\/\/shopify\/Refund\//, "Refund #")}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

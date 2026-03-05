@@ -769,11 +769,8 @@ const SUGGEST_REFUND_QUERY = `#graphql
   query suggestRefund($orderId: ID!, $refundLineItems: [RefundLineItemInput!]!) {
     order(id: $orderId) {
       suggestedRefund(refundLineItems: $refundLineItems) {
-        amount { shopMoney { amount currencyCode } }
+        amountSet { shopMoney { amount currencyCode } }
         subtotalSet { shopMoney { amount currencyCode } }
-        totalCartDiscountAmountSet { shopMoney { amount currencyCode } }
-        refundLineItems { lineItem { id } quantity restockType }
-        refundDuties { dutyId }
         suggestedTransactions { gateway parentTransaction { id } amountSet { shopMoney { amount currencyCode } } kind }
       }
     }
@@ -854,7 +851,7 @@ export async function createRefund(
         data?: {
           order?: {
             suggestedRefund?: {
-              amount?: { shopMoney?: { amount?: string; currencyCode?: string } };
+              amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
               suggestedTransactions?: Array<{
                 gateway?: string;
                 parentTransaction?: { id?: string };
@@ -867,8 +864,8 @@ export async function createRefund(
       };
 
       const suggested = suggestJson.data?.order?.suggestedRefund;
-      const totalAmount = parseFloat(suggested?.amount?.shopMoney?.amount ?? "0");
-      const currency = suggested?.amount?.shopMoney?.currencyCode ?? "INR";
+      const totalAmount = parseFloat(suggested?.amountSet?.shopMoney?.amount ?? "0");
+      const currency = suggested?.amountSet?.shopMoney?.currencyCode ?? "INR";
 
       if (totalAmount > 0) {
         if (method === "store_credit") {

@@ -76,7 +76,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   try {
     const { admin } = await shopify.unauthenticated.admin(shopDomain);
-    const order = await fetchOrderByOrderNumber(admin, orderNumber);
+    let order = await fetchOrderByOrderNumber(admin, orderNumber);
+
+    // If Shopify name search didn't find it, try FyndOrderMapping to resolve Shopify order name
+    if (!order) {
+      const fyndMapping = await prisma.fyndOrderMapping.findFirst({
+        where: {
+          shopId: shopRecord.id,
+          fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+        },
+      });
+      if (fyndMapping?.shopifyOrderName) {
+        order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
+      }
+    }
+
+    // Also try ReturnCase.fyndOrderId -> shopifyOrderName
+    if (!order) {
+      const fyndCase = await prisma.returnCase.findFirst({
+        where: {
+          shopId: shopRecord.id,
+          fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+        },
+        select: { shopifyOrderName: true },
+      });
+      if (fyndCase?.shopifyOrderName) {
+        order = await fetchOrderByOrderNumber(admin, fyndCase.shopifyOrderName.replace(/^#/, ""));
+      }
+    }
+
     if (!order) {
       return withCors(Response.json({
         error: "Order not found",

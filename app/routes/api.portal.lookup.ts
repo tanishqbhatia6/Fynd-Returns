@@ -63,6 +63,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where.OR = [
         { fyndReturnNo: { contains: norm, mode: "insensitive" } },
         { shopifyOrderName: { contains: norm, mode: "insensitive" } },
+        { fyndOrderId: { contains: norm, mode: "insensitive" } },
       ];
     } else if (["forward_awb", "return_awb"].includes(lookupType)) {
       where.OR = [
@@ -158,15 +159,98 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.error("Portal lookup orders by email:", err);
       }
     } else if (lookupType === "order_no") {
+      const orderNumber = norm.replace(/^#/, "");
       try {
-        const orderNumber = norm.replace(/^#/, "");
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
         const order = await fetchOrderByOrderNumber(admin, orderNumber);
         if (order) {
           orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
         }
       } catch (err) {
-        console.error("Portal lookup order by order_no:", err);
+        console.error("Portal lookup order by order_no (direct):", err);
+      }
+
+      // If Shopify name search didn't find it, try FyndOrderMapping + ReturnCase by fyndOrderId
+      if (orders.length === 0) {
+        try {
+          const fyndMapping = await prisma.fyndOrderMapping.findFirst({
+            where: {
+              shopId: shopRecord.id,
+              fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+            },
+          });
+          if (fyndMapping?.shopifyOrderName) {
+            const { admin } = await shopify.unauthenticated.admin(shopDomain);
+            const order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
+            if (order) {
+              orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
+            }
+          }
+        } catch (err) {
+          console.error("Portal lookup order via FyndOrderMapping:", err);
+        }
+      }
+
+      // Also try matching ReturnCase.fyndOrderId to build order data from stored payloads
+      if (orders.length === 0) {
+        try {
+          const fyndCases = await prisma.returnCase.findMany({
+            where: {
+              shopId: shopRecord.id,
+              fyndOrderId: { contains: orderNumber, mode: "insensitive" },
+            },
+            include: { items: true },
+            orderBy: { createdAt: "desc" },
+            take: 5,
+          });
+          if (fyndCases.length > 0) {
+            // Try to resolve the Shopify order name from any matched case
+            const shopifyName = fyndCases[0].shopifyOrderName;
+            if (shopifyName) {
+              try {
+                const { admin } = await shopify.unauthenticated.admin(shopDomain);
+                const order = await fetchOrderByOrderNumber(admin, shopifyName.replace(/^#/, ""));
+                if (order) {
+                  orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
+                }
+              } catch (err) {
+                console.error("Portal lookup order via ReturnCase.shopifyOrderName:", err);
+              }
+            }
+
+            // If still no order from Shopify, build a minimal order from ReturnCase data
+            if (orders.length === 0 && fyndCases[0]) {
+              const rc = fyndCases[0];
+              const payload = (rc as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+              let fyndData: FyndOrderDetailsTab | null = null;
+              if (payload) {
+                try { fyndData = JSON.parse(payload) as FyndOrderDetailsTab; } catch { /* ignore */ }
+              }
+              const syntheticOrder: PortalOrder = {
+                id: rc.shopifyOrderId || rc.id,
+                name: rc.shopifyOrderName || orderNumber,
+                createdAt: rc.createdAt.toISOString(),
+                email: rc.customerEmailNorm,
+                displayFulfillmentStatus: "FULFILLED",
+                displayFinancialStatus: "PAID",
+                lineItems: rc.items.map((item) => ({
+                  id: item.shopifyLineItemId || item.id,
+                  title: item.notes || item.sku || "Item",
+                  variantTitle: null,
+                  quantity: item.qty,
+                  price: null,
+                  discountedPrice: null,
+                  imageUrl: null,
+                })),
+                fyndData,
+                _needsFyndEnrich: !!(rc.fyndShipmentId),
+              };
+              orders.push(syntheticOrder);
+            }
+          }
+        } catch (err) {
+          console.error("Portal lookup order via ReturnCase.fyndOrderId:", err);
+        }
       }
     }
 

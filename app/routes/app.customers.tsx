@@ -6,6 +6,7 @@ import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
+import { fetchOrdersForCustomer, type CustomerOrderInfo } from "../lib/shopify-admin.server";
 
 type ReturnRow = {
   id: string;
@@ -23,11 +24,17 @@ type ReturnRow = {
 
 type CustomerSummary = {
   email: string;
+  name: string | null;
   phone: string | null;
+  city: string | null;
+  country: string | null;
   returnCount: number;
   totalRefundAmount: number;
   currency: string;
   totalItemCount: number;
+  totalOrderValue: number;
+  lifetimeOrderCount: number | null;
+  lifetimeSpent: number | null;
   firstReturnDate: string;
   lastReturnDate: string;
   statusBreakdown: Record<string, number>;
@@ -36,7 +43,7 @@ type CustomerSummary = {
 };
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shop = await findOrCreateShop(session.shop);
 
   const url = new URL(request.url);
@@ -58,6 +65,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       id: true,
       returnRequestNo: true,
       shopifyOrderName: true,
+      shopifyOrderId: true,
       customerEmailNorm: true,
       customerPhoneNorm: true,
       status: true,
@@ -75,82 +83,165 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     orderBy: { createdAt: "desc" },
   });
 
-  const grouped = new Map<string, CustomerSummary>();
+  // Group by email
+  const grouped = new Map<string, {
+    email: string;
+    phone: string | null;
+    orderIds: Set<string>;
+    returns: typeof allReturns;
+  }>();
 
   for (const r of allReturns) {
     const email = (r.customerEmailNorm || "").toLowerCase().trim();
     if (!email) continue;
-
-    let refundAmount = 0;
-    let refundCurrency = "";
-    if (r.refundJson) {
-      try {
-        const refund = JSON.parse(r.refundJson) as { amount?: string; currency?: string };
-        refundAmount = parseFloat(refund.amount ?? "0") || 0;
-        refundCurrency = refund.currency ?? "";
-      } catch { /* skip */ }
+    let group = grouped.get(email);
+    if (!group) {
+      group = { email, phone: r.customerPhoneNorm || null, orderIds: new Set(), returns: [] };
+      grouped.set(email, group);
     }
-    if (refundAmount === 0 && r.discountCodeValue) {
-      refundAmount = parseFloat(r.discountCodeValue) || 0;
-    }
-    if (refundAmount === 0 && r.bonusCreditAmount) {
-      refundAmount = parseFloat(r.bonusCreditAmount) || 0;
-    }
-
-    const itemCount = r.items.reduce((sum, it) => sum + it.qty, 0) || 0;
-    const itemTitles = r.items.map((it) => it.title).filter(Boolean) as string[];
-
-    let existing = grouped.get(email);
-    if (!existing) {
-      existing = {
-        email,
-        phone: r.customerPhoneNorm || null,
-        returnCount: 0,
-        totalRefundAmount: 0,
-        currency: "",
-        totalItemCount: 0,
-        firstReturnDate: r.createdAt.toISOString(),
-        lastReturnDate: r.createdAt.toISOString(),
-        statusBreakdown: {},
-        resolutionBreakdown: {},
-        returns: [],
-      };
-      grouped.set(email, existing);
-    }
-
-    existing.returnCount++;
-    existing.totalItemCount += itemCount;
-    if (!existing.phone && r.customerPhoneNorm) existing.phone = r.customerPhoneNorm;
-
-    const d = r.createdAt.toISOString();
-    if (d < existing.firstReturnDate) existing.firstReturnDate = d;
-    if (d > existing.lastReturnDate) existing.lastReturnDate = d;
-
-    existing.totalRefundAmount += refundAmount;
-    if (refundCurrency && !existing.currency) existing.currency = refundCurrency;
-
-    const normStatus = r.status.toLowerCase();
-    existing.statusBreakdown[normStatus] = (existing.statusBreakdown[normStatus] || 0) + 1;
-    if (r.resolutionType) {
-      existing.resolutionBreakdown[r.resolutionType] = (existing.resolutionBreakdown[r.resolutionType] || 0) + 1;
-    }
-
-    existing.returns.push({
-      id: r.id,
-      returnRequestNo: r.returnRequestNo,
-      orderName: r.shopifyOrderName,
-      status: r.status,
-      resolutionType: r.resolutionType,
-      refundAmount,
-      refundCurrency,
-      itemCount,
-      itemTitles,
-      createdAt: r.createdAt.toISOString(),
-      isGreenReturn: r.isGreenReturn,
-    });
+    if (!group.phone && r.customerPhoneNorm) group.phone = r.customerPhoneNorm;
+    if (r.shopifyOrderId) group.orderIds.add(r.shopifyOrderId);
+    group.returns.push(r);
   }
 
-  let customers = Array.from(grouped.values());
+  // Fetch real refund data + customer info from Shopify for each unique email
+  const customerEmails = Array.from(grouped.keys());
+  const shopifyDataByEmail = new Map<string, CustomerOrderInfo[]>();
+
+  // Batch fetch — limit to 20 customers at a time to avoid timeout
+  const emailBatches: string[][] = [];
+  for (let i = 0; i < customerEmails.length; i += 20) {
+    emailBatches.push(customerEmails.slice(i, i + 20));
+  }
+
+  for (const batch of emailBatches) {
+    const results = await Promise.allSettled(
+      batch.map((email) => fetchOrdersForCustomer(admin, email, 25))
+    );
+    for (let i = 0; i < batch.length; i++) {
+      const res = results[i];
+      if (res.status === "fulfilled" && res.value.length > 0) {
+        shopifyDataByEmail.set(batch[i], res.value);
+      }
+    }
+  }
+
+  // Build enriched customer summaries
+  const customers: CustomerSummary[] = [];
+
+  for (const [email, group] of grouped) {
+    const shopifyOrders = shopifyDataByEmail.get(email) ?? [];
+
+    // Build order refund map: orderName -> total refunded from Shopify
+    const orderRefundMap = new Map<string, { refunded: number; currency: string; orderTotal: number }>();
+    for (const o of shopifyOrders) {
+      orderRefundMap.set(o.orderName, {
+        refunded: o.totalRefundedAmount,
+        currency: o.refundCurrency,
+        orderTotal: o.totalOrderAmount,
+      });
+    }
+
+    // Extract best customer info from Shopify data
+    const firstOrder = shopifyOrders[0];
+    const custName = firstOrder?.customerName || null;
+    const custPhone = firstOrder?.customerPhone || group.phone || null;
+    const custCity = firstOrder?.customerCity || null;
+    const custCountry = firstOrder?.customerCountry || null;
+    const lifetimeOrderCount = firstOrder?.lifetimeOrderCount ?? null;
+    const lifetimeSpent = firstOrder?.lifetimeSpent ?? null;
+
+    // Calculate total order value and refund amounts
+    let totalOrderValue = 0;
+    let totalRefundAmount = 0;
+    let currency = firstOrder?.refundCurrency || "";
+    const statusBreakdown: Record<string, number> = {};
+    const resolutionBreakdown: Record<string, number> = {};
+    let totalItemCount = 0;
+    let firstReturnDate = "";
+    let lastReturnDate = "";
+    const returnRows: ReturnRow[] = [];
+
+    for (const r of group.returns) {
+      // Get refund amount: prefer Shopify actual refund, fallback to DB refundJson
+      const orderName = r.shopifyOrderName;
+      const shopifyRefund = orderRefundMap.get(orderName);
+      let refundAmount = 0;
+      let refundCurrency = "";
+
+      if (shopifyRefund && shopifyRefund.refunded > 0) {
+        refundAmount = shopifyRefund.refunded;
+        refundCurrency = shopifyRefund.currency;
+        totalOrderValue += shopifyRefund.orderTotal;
+      } else {
+        // Fallback to DB data
+        if (r.refundJson) {
+          try {
+            const refund = JSON.parse(r.refundJson) as { amount?: string; currency?: string };
+            refundAmount = parseFloat(refund.amount ?? "0") || 0;
+            refundCurrency = refund.currency ?? "";
+          } catch { /* skip */ }
+        }
+        if (refundAmount === 0 && r.discountCodeValue) {
+          refundAmount = parseFloat(r.discountCodeValue) || 0;
+        }
+        if (refundAmount === 0 && r.bonusCreditAmount) {
+          refundAmount = parseFloat(r.bonusCreditAmount) || 0;
+        }
+      }
+
+      const itemCount = r.items.reduce((sum, it) => sum + it.qty, 0) || 0;
+      const itemTitles = r.items.map((it) => it.title).filter(Boolean) as string[];
+
+      totalRefundAmount += refundAmount;
+      totalItemCount += itemCount;
+      if (!currency && refundCurrency) currency = refundCurrency;
+
+      const d = r.createdAt.toISOString();
+      if (!firstReturnDate || d < firstReturnDate) firstReturnDate = d;
+      if (!lastReturnDate || d > lastReturnDate) lastReturnDate = d;
+
+      const normStatus = r.status.toLowerCase();
+      statusBreakdown[normStatus] = (statusBreakdown[normStatus] || 0) + 1;
+      if (r.resolutionType) {
+        resolutionBreakdown[r.resolutionType] = (resolutionBreakdown[r.resolutionType] || 0) + 1;
+      }
+
+      returnRows.push({
+        id: r.id,
+        returnRequestNo: r.returnRequestNo,
+        orderName: r.shopifyOrderName,
+        status: r.status,
+        resolutionType: r.resolutionType,
+        refundAmount,
+        refundCurrency,
+        itemCount,
+        itemTitles,
+        createdAt: d,
+        isGreenReturn: r.isGreenReturn,
+      });
+    }
+
+    customers.push({
+      email,
+      name: custName,
+      phone: custPhone,
+      city: custCity,
+      country: custCountry,
+      returnCount: group.returns.length,
+      totalRefundAmount,
+      currency,
+      totalItemCount,
+      totalOrderValue,
+      lifetimeOrderCount,
+      lifetimeSpent,
+      firstReturnDate,
+      lastReturnDate,
+      statusBreakdown,
+      resolutionBreakdown,
+      returns: returnRows,
+    });
+  }
 
   if (sortBy === "amount") {
     customers.sort((a, b) => b.totalRefundAmount - a.totalRefundAmount);
@@ -260,13 +351,13 @@ export default function CustomersPage() {
         {/* ── Summary Stats ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
           {[
-            { label: "Total Customers", value: totalCustomers, color: "#334155", bg: "#f8fafc", border: "#e2e8f0" },
-            { label: "Total Returns", value: totalReturns, color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" },
-            { label: "Total Refunded", value: fmtMoney(totalRefunded, shopCurrency, shopLocale), color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", isText: true },
-            { label: "Serial Returners", value: serialReturners, color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+            { label: "Total Customers", value: String(totalCustomers), color: "#334155", bg: "#f8fafc", border: "#e2e8f0" },
+            { label: "Total Returns", value: String(totalReturns), color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" },
+            { label: "Total Refunded", value: fmtMoney(totalRefunded, shopCurrency, shopLocale), color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
+            { label: "Serial Returners", value: String(serialReturners), color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
           ].map((s) => (
             <div key={s.label} style={{ padding: "14px 16px", background: s.bg, borderRadius: 10, border: `1px solid ${s.border}`, textAlign: "center" }}>
-              <div style={{ fontSize: (s as { isText?: boolean }).isText ? 16 : 22, fontWeight: 800, color: s.color, lineHeight: 1.2, marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>
+              <div style={{ fontSize: s.label === "Total Refunded" ? 16 : 22, fontWeight: 800, color: s.color, lineHeight: 1.2, marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>
                 {s.value}
               </div>
               <div style={{ fontSize: 10, fontWeight: 700, color: s.color, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.05em" }}>
@@ -284,8 +375,9 @@ export default function CustomersPage() {
             </svg>
             <input
               type="text"
-              placeholder="Search by email, phone, or order..."
+              placeholder="Search by name, email, phone, or order..."
               defaultValue={query}
+              aria-label="Search customers"
               className="app-input"
               style={{ width: "100%", fontSize: 13, paddingLeft: 36 }}
               onKeyDown={(e) => {
@@ -347,8 +439,8 @@ export default function CustomersPage() {
 
             <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
               {/* Table Header */}
-              <div style={{ display: "grid", gridTemplateColumns: "2.4fr 1.2fr 0.7fr 1.2fr 1fr 1fr", padding: "10px 20px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Email", "Phone", "Returns", "Total Refunded", "First Return", "Last Return"].map((h) => (
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1.3fr 1fr 0.6fr 1fr 0.9fr 0.9fr", padding: "10px 20px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
+                {["Customer", "Phone", "Location", "Returns", "Total Refunded", "First Return", "Last Return"].map((h) => (
                   <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>
                     {h}
                   </div>
@@ -368,7 +460,7 @@ export default function CustomersPage() {
                       onClick={() => setExpandedEmail(isExpanded ? null : cust.email)}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "2.4fr 1.2fr 0.7fr 1.2fr 1fr 1fr",
+                        gridTemplateColumns: "2fr 1.3fr 1fr 0.6fr 1fr 0.9fr 0.9fr",
                         padding: "14px 20px",
                         cursor: "pointer",
                         alignItems: "center",
@@ -378,14 +470,21 @@ export default function CustomersPage() {
                       onMouseEnter={(e) => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = "#fafbfc"; }}
                       onMouseLeave={(e) => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
                     >
-                      {/* Email */}
+                      {/* Customer Name + Email */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" style={{ flexShrink: 0, transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
                           <polyline points="9 18 15 12 9 6"/>
                         </svg>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {cust.email}
-                        </span>
+                        <div style={{ minWidth: 0, overflow: "hidden" }}>
+                          {cust.name && (
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {cust.name}
+                            </div>
+                          )}
+                          <div style={{ fontSize: cust.name ? 11 : 13, fontWeight: cust.name ? 500 : 600, color: cust.name ? "#6b7280" : "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {cust.email}
+                          </div>
+                        </div>
                         {isSerial && (
                           <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "#FEE2E2", color: "#DC2626", textTransform: "uppercase", letterSpacing: "0.03em", flexShrink: 0 }}>
                             Serial
@@ -394,8 +493,13 @@ export default function CustomersPage() {
                       </div>
 
                       {/* Phone */}
-                      <div style={{ fontSize: 13, color: cust.phone ? "#374151" : "#d1d5db" }}>
+                      <div style={{ fontSize: 13, color: cust.phone ? "#374151" : "#d1d5db", fontVariantNumeric: "tabular-nums" }}>
                         {cust.phone || "Not provided"}
+                      </div>
+
+                      {/* Location */}
+                      <div style={{ fontSize: 12, color: cust.city || cust.country ? "#374151" : "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {cust.city && cust.country ? `${cust.city}, ${cust.country}` : cust.country || cust.city || "—"}
                       </div>
 
                       {/* Returns count */}
@@ -422,13 +526,71 @@ export default function CustomersPage() {
                     {/* Expanded Detail */}
                     {isExpanded && (
                       <div style={{ padding: "0 20px 20px", background: "#fafbff", borderTop: "1px solid #eef2ff" }}>
-                        {/* Customer Quick Stats */}
-                        <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 16, marginBottom: 16 }}>
-                          <MiniStat label="Total Items Returned" value={String(cust.totalItemCount)} />
-                          <MiniStat label="Avg Items / Return" value={cust.returnCount > 0 ? (cust.totalItemCount / cust.returnCount).toFixed(1) : "0"} />
-                          {Object.entries(cust.resolutionBreakdown).map(([res, count]) => (
-                            <MiniStat key={res} label={RESOLUTION_LABELS[res] || res} value={String(count)} />
-                          ))}
+                        {/* Customer Profile Card */}
+                        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 16, marginBottom: 16 }}>
+                          {/* Left: Customer Info */}
+                          <div style={{ flex: "1 1 280px", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+                              Customer Profile
+                            </div>
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 12 }}>
+                              <div>
+                                <span style={{ color: "#9ca3af", fontWeight: 500 }}>Name</span>
+                                <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>{cust.name || "—"}</div>
+                              </div>
+                              <div>
+                                <span style={{ color: "#9ca3af", fontWeight: 500 }}>Email</span>
+                                <div style={{ fontWeight: 600, color: "#111827", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{cust.email}</div>
+                              </div>
+                              <div>
+                                <span style={{ color: "#9ca3af", fontWeight: 500 }}>Phone</span>
+                                <div style={{ fontWeight: 600, color: cust.phone ? "#111827" : "#d1d5db", marginTop: 1 }}>{cust.phone || "Not provided"}</div>
+                              </div>
+                              <div>
+                                <span style={{ color: "#9ca3af", fontWeight: 500 }}>Location</span>
+                                <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>
+                                  {cust.city && cust.country ? `${cust.city}, ${cust.country}` : cust.country || cust.city || "—"}
+                                </div>
+                              </div>
+                              {cust.lifetimeOrderCount != null && (
+                                <div>
+                                  <span style={{ color: "#9ca3af", fontWeight: 500 }}>Lifetime Orders</span>
+                                  <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>{cust.lifetimeOrderCount}</div>
+                                </div>
+                              )}
+                              {cust.lifetimeSpent != null && (
+                                <div>
+                                  <span style={{ color: "#9ca3af", fontWeight: 500 }}>Lifetime Spent</span>
+                                  <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>{fmtMoney(cust.lifetimeSpent, cust.currency || shopCurrency, shopLocale)}</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right: Return Stats */}
+                          <div style={{ flex: "1 1 280px", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+                              Return Analytics
+                            </div>
+                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                              <MiniStat label="Returns" value={String(cust.returnCount)} color="#3b82f6" />
+                              <MiniStat label="Items" value={String(cust.totalItemCount)} color="#6b7280" />
+                              <MiniStat label="Refunded" value={fmtMoney(cust.totalRefundAmount, cust.currency || shopCurrency, shopLocale)} color="#7c3aed" />
+                              {cust.totalOrderValue > 0 && (
+                                <MiniStat label="Order Value" value={fmtMoney(cust.totalOrderValue, cust.currency || shopCurrency, shopLocale)} color="#059669" />
+                              )}
+                              {cust.totalOrderValue > 0 && cust.totalRefundAmount > 0 && (
+                                <MiniStat
+                                  label="Return Rate"
+                                  value={`${Math.min(100, Math.round((cust.totalRefundAmount / cust.totalOrderValue) * 100))}%`}
+                                  color={cust.totalRefundAmount / cust.totalOrderValue > 0.5 ? "#dc2626" : "#f59e0b"}
+                                />
+                              )}
+                              {Object.entries(cust.resolutionBreakdown).map(([res, count]) => (
+                                <MiniStat key={res} label={RESOLUTION_LABELS[res] || res} value={String(count)} color={(RESOLUTION_STYLES[res] || { color: "#6b7280" }).color} />
+                              ))}
+                            </div>
+                          </div>
                         </div>
 
                         {/* Return History */}
@@ -493,10 +655,9 @@ export default function CustomersPage() {
                                     <span style={{ width: 5, height: 5, borderRadius: "50%", background: getStatusColor(r.status) }} />
                                     {r.status}
                                   </span>
-                                  {r.resolutionType !== "refund" && (
+                                  {r.resolutionType && r.resolutionType !== "refund" && (
                                     <span style={{
                                       fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, textTransform: "uppercase",
-                                      ...(RESOLUTION_STYLES[r.resolutionType] || { bg: "#f3f4f6", color: "#374151" }),
                                       background: (RESOLUTION_STYLES[r.resolutionType] || { bg: "#f3f4f6" }).bg,
                                       color: (RESOLUTION_STYLES[r.resolutionType] || { color: "#374151" }).color,
                                     }}>
@@ -531,10 +692,10 @@ export default function CustomersPage() {
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: string }) {
+function MiniStat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div style={{ padding: "8px 14px", background: "#fff", borderRadius: 8, border: "1px solid #e5e7eb", minWidth: 80 }}>
-      <div style={{ fontSize: 15, fontWeight: 800, color: "#111827", lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{value}</div>
+    <div style={{ padding: "8px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb", minWidth: 70 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{value}</div>
       <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.03em", marginTop: 2 }}>{label}</div>
     </div>
   );

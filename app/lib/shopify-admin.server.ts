@@ -1123,3 +1123,167 @@ export async function createRefund(
     return { success: false, error: msg };
   }
 }
+
+/* ── Bulk order info for customer enrichment ── */
+
+const CUSTOMER_ORDERS_QUERY = `#graphql
+  query customerOrders($query: String!, $first: Int!) {
+    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        email
+        phone
+        createdAt
+        totalPriceSet { shopMoney { amount currencyCode } }
+        currentTotalPriceSet { shopMoney { amount currencyCode } }
+        totalRefundedSet { shopMoney { amount currencyCode } }
+        displayFinancialStatus
+        customer {
+          id
+          firstName
+          lastName
+          email
+          phone
+          numberOfOrders
+          amountSpent { amount currencyCode }
+          defaultAddress {
+            address1
+            city
+            province
+            country
+            zip
+            phone
+          }
+        }
+        shippingAddress { firstName lastName name phone city province country countryCode }
+        refunds(first: 20) {
+          id
+          createdAt
+          note
+          totalRefundedSet { shopMoney { amount currencyCode } }
+        }
+      }
+    }
+  }
+`;
+
+export type CustomerOrderInfo = {
+  orderId: string;
+  orderName: string;
+  email: string | null;
+  phone: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerCity: string | null;
+  customerCountry: string | null;
+  totalOrderAmount: number;
+  totalRefundedAmount: number;
+  refundCurrency: string;
+  financialStatus: string | null;
+  lifetimeOrderCount: number | null;
+  lifetimeSpent: number | null;
+  refunds: Array<{ id: string; amount: number; currency: string; createdAt: string; note: string | null }>;
+};
+
+export async function fetchOrdersForCustomer(
+  admin: AdminGraphQL,
+  email: string,
+  maxOrders = 50,
+): Promise<CustomerOrderInfo[]> {
+  try {
+    const res = await admin.graphql(CUSTOMER_ORDERS_QUERY, {
+      variables: { query: `email:${email}`, first: Math.min(maxOrders, 50) },
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      data?: {
+        orders?: {
+          nodes?: Array<{
+            id?: string;
+            name?: string;
+            email?: string | null;
+            phone?: string | null;
+            createdAt?: string;
+            totalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+            currentTotalPriceSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+            totalRefundedSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+            displayFinancialStatus?: string | null;
+            customer?: {
+              id?: string;
+              firstName?: string | null;
+              lastName?: string | null;
+              email?: string | null;
+              phone?: string | null;
+              numberOfOrders?: string | null;
+              amountSpent?: { amount?: string; currencyCode?: string } | null;
+              defaultAddress?: {
+                address1?: string | null;
+                city?: string | null;
+                province?: string | null;
+                country?: string | null;
+                zip?: string | null;
+                phone?: string | null;
+              } | null;
+            } | null;
+            shippingAddress?: {
+              firstName?: string | null;
+              lastName?: string | null;
+              name?: string | null;
+              phone?: string | null;
+              city?: string | null;
+              province?: string | null;
+              country?: string | null;
+              countryCode?: string | null;
+            } | null;
+            refunds?: Array<{
+              id?: string;
+              createdAt?: string;
+              note?: string | null;
+              totalRefundedSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+            }>;
+          }>;
+        };
+      };
+    };
+
+    const nodes = json.data?.orders?.nodes ?? [];
+    return nodes.map((n) => {
+      const cust = n.customer;
+      const ship = n.shippingAddress;
+      const custName = [cust?.firstName, cust?.lastName].filter(Boolean).join(" ") || ship?.name || null;
+      const custPhone = cust?.phone || cust?.defaultAddress?.phone || ship?.phone || n.phone || null;
+      const custCity = cust?.defaultAddress?.city || ship?.city || null;
+      const custCountry = cust?.defaultAddress?.country || ship?.country || null;
+      const refundedMoney = n.totalRefundedSet?.shopMoney;
+      const orderMoney = n.totalPriceSet?.shopMoney;
+
+      return {
+        orderId: n.id ?? "",
+        orderName: n.name ?? "",
+        email: n.email ?? cust?.email ?? null,
+        phone: n.phone ?? null,
+        customerName: custName,
+        customerPhone: custPhone,
+        customerCity: custCity,
+        customerCountry: custCountry,
+        totalOrderAmount: parseFloat(orderMoney?.amount ?? "0") || 0,
+        totalRefundedAmount: parseFloat(refundedMoney?.amount ?? "0") || 0,
+        refundCurrency: refundedMoney?.currencyCode ?? orderMoney?.currencyCode ?? "USD",
+        financialStatus: n.displayFinancialStatus ?? null,
+        lifetimeOrderCount: cust?.numberOfOrders ? parseInt(cust.numberOfOrders, 10) : null,
+        lifetimeSpent: cust?.amountSpent?.amount ? parseFloat(cust.amountSpent.amount) : null,
+        refunds: (n.refunds ?? []).map((r) => ({
+          id: r.id ?? "",
+          amount: parseFloat(r.totalRefundedSet?.shopMoney?.amount ?? "0") || 0,
+          currency: r.totalRefundedSet?.shopMoney?.currencyCode ?? "USD",
+          createdAt: r.createdAt ?? "",
+          note: r.note ?? null,
+        })),
+      };
+    });
+  } catch (err) {
+    console.error("fetchOrdersForCustomer error:", err);
+    return [];
+  }
+}

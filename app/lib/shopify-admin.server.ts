@@ -151,13 +151,6 @@ const ORDER_BY_IDENTIFIER_QUERY = `#graphql
   }
 `;
 
-const ORDER_BY_NAME_IDENTIFIER_QUERY = `#graphql
-  query getOrderByNameIdentifier($name: String!) {
-    orderByIdentifier(identifier: { name: $name }) {
-      ${ORDER_FIELDS_FRAGMENT}
-    }
-  }
-`;
 
 /* All multi-order queries now use fetchOrdersByFilter() with inline GQL */
 
@@ -293,40 +286,10 @@ export async function fetchOrderByGid(
 }
 
 /**
- * Exact O(1) lookup by Shopify order name using orderByIdentifier.
- * Unlike orders(query: "name:...") which does fuzzy/token matching,
- * this returns ONLY the order with the exact name — no false positives.
- */
-export async function fetchOrderByExactName(
-  admin: AdminGraphQL,
-  name: string
-): Promise<OrderForPortal | null> {
-  if (!name) return null;
-  try {
-    const res = await admin.graphql(ORDER_BY_NAME_IDENTIFIER_QUERY, { variables: { name } });
-    const json = (await res.json()) as {
-      data?: { orderByIdentifier?: Record<string, unknown> | null };
-      errors?: Array<{ message?: string }>;
-    };
-    const errMsg = json.errors?.[0]?.message ?? "";
-    if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
-      throw new OrderAccessError(errMsg, "PCDA");
-    }
-    if (json.errors?.length) return null;
-    const node = json.data?.orderByIdentifier;
-    if (!node || !("name" in node)) return null;
-    return parseOrderNode(node);
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
-    return null;
-  }
-}
-
-/**
  * Search Shopify orders by query string. When `exactName` is provided,
- * fetches up to 25 candidates and returns only the one whose `name`
+ * fetches up to 50 candidates and returns only the one whose `name`
  * matches exactly (case-insensitive, ignoring leading #). This prevents
- * Shopify's substring/prefix matching from returning the wrong order.
+ * Shopify's fuzzy/token matching from returning the wrong order.
  */
 async function searchOrders(
   admin: AdminGraphQL,
@@ -334,7 +297,7 @@ async function searchOrders(
   throwOnError = true,
   exactName?: string
 ): Promise<unknown | null> {
-  const limit = exactName ? 25 : 1;
+  const limit = exactName ? 50 : 1;
   const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query, first: limit } });
   const json = (await res.json()) as {
     data?: { orders?: { nodes?: Array<Record<string, unknown>> } };
@@ -349,14 +312,22 @@ async function searchOrders(
     throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
   }
   const nodes = json.data?.orders?.nodes ?? [];
-  if (nodes.length === 0) return null;
+  if (nodes.length === 0) {
+    console.log(`[searchOrders] query="${query}" returned 0 results`);
+    return null;
+  }
 
   if (exactName) {
     const norm = exactName.replace(/^#/, "").toLowerCase();
+    const candidateNames = nodes.map((n) => typeof n.name === "string" ? n.name : "?");
+    console.log(`[searchOrders] query="${query}" exactName="${exactName}" got ${nodes.length} candidates: [${candidateNames.slice(0, 10).join(", ")}]`);
     const match = nodes.find((n) => {
       const name = typeof n.name === "string" ? n.name.replace(/^#/, "").toLowerCase() : "";
       return name === norm;
     });
+    if (!match) {
+      console.log(`[searchOrders] no exact match for "${norm}" among candidates`);
+    }
     return match && typeof match === "object" && "name" in match ? match : null;
   }
 
@@ -388,20 +359,16 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1: orderByIdentifier with exact name — deterministic O(1).
-  // Unlike orders(query: "name:...") which does fuzzy token matching,
-  // orderByIdentifier returns ONLY the order with the exact name.
-  try {
-    const result = await fetchOrderByExactName(admin, `#${clean}`);
-    if (result) return result;
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
-  }
-  try {
-    const result = await fetchOrderByExactName(admin, clean);
-    if (result) return result;
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
+  // Strategy 1: name: filter with exact-match verification.
+  // Shopify's orders(query:) does fuzzy/token matching, so we fetch
+  // multiple candidates and ONLY accept the one whose name matches exactly.
+  for (const q of [`name:#${clean}`, `name:${clean}`]) {
+    try {
+      const node = await searchOrders(admin, q, true, clean);
+      if (node) return parseOrderNode(node);
+    } catch (err) {
+      if (err instanceof OrderAccessError) throw err;
+    }
   }
 
   // For pure numeric order names, no further strategies needed
@@ -418,6 +385,14 @@ export async function fetchOrderByOrderNumber(
   // Strategy 3: source_identifier: — for third-party order IDs
   try {
     const node = await searchOrders(admin, `source_identifier:${clean}`, false, clean);
+    if (node) return parseOrderNode(node);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+
+  // Strategy 4: free-text search with exact-match verification
+  try {
+    const node = await searchOrders(admin, clean, false, clean);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;

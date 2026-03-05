@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { createRefund, fetchOrder, fetchOrderByOrderNumber, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification } from "../lib/notification.server";
@@ -62,7 +62,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const terminalStatuses = ["approved", "rejected", "completed", "cancelled"];
   const isTerminal = terminalStatuses.includes(returnCase.status.toLowerCase());
 
-  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string };
+  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string; refundMethod?: string; storeCreditPct?: number };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     try {
@@ -91,7 +91,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (rejectionReasonVal !== null && rejectionReasonVal !== undefined) body.rejectionReason = rejectionReasonVal;
   }
 
-  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId } = body;
+  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId, refundMethod: bodyRefundMethod, storeCreditPct: bodyStoreCreditPct } = body;
 
   if (actionType === "update_status" && newStatus) {
     const validStatuses = ["pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled", "initiated"];
@@ -481,7 +481,19 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
       }
 
-      const result = await createRefund(admin, orderIdForRefund, lineItemsForRefund, note || returnCase.adminNotes || undefined, requestedLocationId || undefined);
+      let refundMethodCfg: RefundMethodConfig | null = null;
+      if (bodyRefundMethod && ["original", "store_credit", "both"].includes(bodyRefundMethod)) {
+        refundMethodCfg = { method: bodyRefundMethod as "original" | "store_credit" | "both", storeCreditPct: bodyStoreCreditPct };
+      } else {
+        const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+        const settingsMethod = (shopSettings as { refundPaymentMethod?: string } | null)?.refundPaymentMethod ?? "original";
+        const settingsPct = (shopSettings as { refundStoreCreditPct?: number | null } | null)?.refundStoreCreditPct ?? 100;
+        if (["original", "store_credit", "both"].includes(settingsMethod)) {
+          refundMethodCfg = { method: settingsMethod as "original" | "store_credit" | "both", storeCreditPct: settingsPct };
+        }
+      }
+
+      const result = await createRefund(admin, orderIdForRefund, lineItemsForRefund, note || returnCase.adminNotes || undefined, requestedLocationId || undefined, refundMethodCfg);
       if (!result.success) {
         const msg = result.error ?? "Refund failed due to an unknown Shopify error. Check Shopify Admin.";
         await createFailedEvent(msg);
@@ -492,7 +504,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         amount: result.refundAmount ?? null,
         currency: result.refundCurrency ?? null,
         createdAt: result.refundCreatedAt ?? new Date().toISOString(),
-        method: "original_payment_method",
+        method: result.refundMethod ?? "original",
         source: "admin",
         locationId: requestedLocationId ?? null,
       };

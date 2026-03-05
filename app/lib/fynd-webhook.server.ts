@@ -10,7 +10,7 @@
  */
 
 import prisma from "../db.server";
-import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber } from "./shopify-admin.server";
+import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, type RefundMethodConfig } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
 
 /** Fynd refund statuses that indicate refund is in progress */
@@ -344,9 +344,15 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     }
 
     let webhookRefundLocationId: string | null = null;
+    let refundMethodCfg: RefundMethodConfig | null = null;
     try {
       const ss = await prisma.shopSettings.findUnique({ where: { shopId: returnCase.shop.id } });
       webhookRefundLocationId = (ss as { refundLocationId?: string | null } | null)?.refundLocationId ?? null;
+      const pm = (ss as { refundPaymentMethod?: string } | null)?.refundPaymentMethod ?? "original";
+      const pct = (ss as { refundStoreCreditPct?: number | null } | null)?.refundStoreCreditPct ?? 100;
+      if (["original", "store_credit", "both"].includes(pm)) {
+        refundMethodCfg = { method: pm as "original" | "store_credit" | "both", storeCreditPct: pct };
+      }
       if (!webhookRefundLocationId && orderIdForRefund) {
         const orderForLoc = await fetchOrder(admin, orderIdForRefund);
         webhookRefundLocationId = orderForLoc?.fulfillments?.[0]?.location?.id ?? null;
@@ -358,7 +364,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       orderIdForRefund,
       lineItemsForRefund,
       `Refund processed via Fynd webhook (shipment ${shipmentId})`,
-      webhookRefundLocationId
+      webhookRefundLocationId,
+      refundMethodCfg,
     );
     if (!result.success) {
       const errMsg = result.error ?? "Shopify refund failed";
@@ -477,13 +484,21 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
           } catch { /* fallback to createRefund's own location fetch */ }
         }
 
+        let autoRefundMethodCfg: RefundMethodConfig | null = null;
+        const autoRpm = (shopSettings as { refundPaymentMethod?: string }).refundPaymentMethod ?? "original";
+        const autoRpct = (shopSettings as { refundStoreCreditPct?: number | null }).refundStoreCreditPct ?? 100;
+        if (["original", "store_credit", "both"].includes(autoRpm)) {
+          autoRefundMethodCfg = { method: autoRpm as "original" | "store_credit" | "both", storeCreditPct: autoRpct };
+        }
+
         if (orderIdForRefund && lineItemsForRefund.length > 0) {
           const result = await createRefund(
             admin,
             orderIdForRefund,
             lineItemsForRefund,
             `Auto-refund triggered by Fynd credit note (shipment ${shipmentId})`,
-            autoRefundLocationId
+            autoRefundLocationId,
+            autoRefundMethodCfg,
           );
           if (result.success) {
             const refundDetails = {
@@ -491,7 +506,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
               amount: result.refundAmount ?? null,
               currency: result.refundCurrency ?? null,
               createdAt: result.refundCreatedAt ?? new Date().toISOString(),
-              method: "original_payment_method",
+              method: result.refundMethod ?? "original",
               source: "auto_fynd_credit_note",
             };
             await prisma.returnCase.update({

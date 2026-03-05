@@ -392,6 +392,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     let fulfillmentLocationId: string | null = null;
     let fulfillmentLocationName: string | null = null;
     let refundLocationMode = "auto";
+    let refundPaymentMethod = "original";
+    let refundStoreCreditPct = 100;
 
     if (isRefundEligible) {
       try {
@@ -406,12 +408,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
       const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
       refundLocationMode = (shopSettings as { refundLocationMode?: string } | null)?.refundLocationMode ?? "auto";
+      refundPaymentMethod = (shopSettings as { refundPaymentMethod?: string } | null)?.refundPaymentMethod ?? "original";
+      refundStoreCreditPct = (shopSettings as { refundStoreCreditPct?: number | null } | null)?.refundStoreCreditPct ?? 100;
     }
 
     return {
       returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn,
       fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
       shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
+      refundPaymentMethod, refundStoreCreditPct,
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -424,6 +429,7 @@ export default function ReturnDetail() {
   const {
     returnCase, shopDomain, shopifyOrder, isManualReturn, fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
     shopLocations, fulfillmentLocationId, fulfillmentLocationName, refundLocationMode,
+    refundPaymentMethod, refundStoreCreditPct,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -434,6 +440,10 @@ export default function ReturnDetail() {
   const [rejectReason, setRejectReason] = useState("");
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string>(fulfillmentLocationId ?? shopLocations[0]?.id ?? "");
+  const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both">(
+    (["original", "store_credit", "both"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both"
+  );
+  const [modalStoreCreditPct, setModalStoreCreditPct] = useState(refundStoreCreditPct ?? 100);
   const storeName = shopDomain.replace(".myshopify.com", "");
   const orderIdForLink = shopifyOrder?.id
     ? shopifyOrder.id.replace(/^gid:\/\/shopify\/Order\//, "")
@@ -908,20 +918,72 @@ export default function ReturnDetail() {
                     </s-button>
                     {showRefundConfirm && (
                       <div className="app-modal-overlay" onClick={() => setShowRefundConfirm(false)}>
-                        <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
-                          <div className="app-modal-title">Confirm Refund</div>
-                          <div className="app-modal-body">
-                            <p>Refund for order <strong>{returnCase.shopifyOrderName || "—"}</strong> will be issued to the original payment method.</p>
+                        <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+                          <div className="app-modal-title">Process Refund</div>
+                          <div className="app-modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                            <p style={{ margin: 0 }}>
+                              Refund for order <strong>{returnCase.shopifyOrderName || "—"}</strong>
+                            </p>
 
+                            {/* Refund Method */}
+                            <div style={{ padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
+                              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10, display: "flex", alignItems: "center", gap: 6 }}>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                                Refund method
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                {([
+                                  { value: "original" as const, label: "Original payment", desc: "Refund to customer's original payment method", color: "#3B82F6", bg: "#EFF6FF", border: "#3B82F6" },
+                                  { value: "store_credit" as const, label: "Store credit", desc: "Issue as store credit to customer's account", color: "#22C55E", bg: "#F0FDF4", border: "#22C55E" },
+                                  { value: "both" as const, label: "Split refund", desc: "Split between original payment and store credit", color: "#F59E0B", bg: "#FFFBEB", border: "#F59E0B" },
+                                ]).map((opt) => (
+                                  <label key={opt.value} style={{
+                                    display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", cursor: "pointer",
+                                    borderRadius: 8, fontSize: 13,
+                                    background: modalRefundMethod === opt.value ? opt.bg : "transparent",
+                                    border: modalRefundMethod === opt.value ? `1.5px solid ${opt.border}` : "1.5px solid transparent",
+                                    transition: "all 0.12s",
+                                  }}>
+                                    <input type="radio" checked={modalRefundMethod === opt.value} onChange={() => setModalRefundMethod(opt.value)} style={{ accentColor: opt.color }} />
+                                    <div>
+                                      <div style={{ fontWeight: 600, fontSize: 12.5, color: modalRefundMethod === opt.value ? opt.color : "#374151" }}>{opt.label}</div>
+                                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>{opt.desc}</div>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                              {modalRefundMethod === "both" && (
+                                <div style={{ marginTop: 10, padding: "10px 12px", background: "#FEF3C7", borderRadius: 8 }}>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#92400E" }}>Store credit: {modalStoreCreditPct}%</span>
+                                    <span style={{ fontSize: 11, color: "#B45309" }}>|</span>
+                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#92400E" }}>Original: {100 - modalStoreCreditPct}%</span>
+                                  </div>
+                                  <input
+                                    type="range" min={5} max={95} step={5}
+                                    value={modalStoreCreditPct}
+                                    onChange={(e) => setModalStoreCreditPct(parseInt(e.target.value, 10))}
+                                    style={{ width: "100%", accentColor: "#F59E0B" }}
+                                  />
+                                </div>
+                              )}
+                              {modalRefundMethod === "store_credit" && (
+                                <div style={{ marginTop: 8, fontSize: 11, color: "#166534", background: "#DCFCE7", padding: "6px 10px", borderRadius: 6 }}>
+                                  Requires new customer accounts in Shopify. Order must have an associated customer.
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Restock Location */}
                             {shopLocations.length > 0 && (
-                              <div style={{ margin: "16px 0", padding: 14, background: "#F9FAFB", borderRadius: 8, border: "1px solid #E5E7EB" }}>
-                                <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
-                                  Restock inventory location
-                                </label>
+                              <div style={{ padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
+                                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+                                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                  Restock location
+                                </div>
                                 {fulfillmentLocationId && (
                                   <div style={{ fontSize: 12, color: "#059669", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                    Order fulfilled from: <strong>{fulfillmentLocationName}</strong>
+                                    Fulfilled from: <strong>{fulfillmentLocationName}</strong>
                                     {selectedLocationId === fulfillmentLocationId && (
                                       <span style={{ fontSize: 11, padding: "1px 6px", background: "#DCFCE7", borderRadius: 4, color: "#166534" }}>Preferred</span>
                                     )}
@@ -929,9 +991,9 @@ export default function ReturnDetail() {
                                 )}
                                 {refundLocationMode === "auto" ? (
                                   <div style={{ fontSize: 12, color: "#6B7280" }}>
-                                    Location is set automatically to the fulfillment location.
+                                    Location set automatically to the fulfillment location.
                                     <span style={{ fontSize: 11, display: "block", marginTop: 4, color: "#9CA3AF" }}>
-                                      Change this in Settings → Return Settings → Refund Location.
+                                      Change this in Settings → Return Settings.
                                     </span>
                                   </div>
                                 ) : (
@@ -951,7 +1013,7 @@ export default function ReturnDetail() {
                               </div>
                             )}
 
-                            <p style={{ color: "#DC2626", fontWeight: 500, fontSize: 14 }}>This cannot be undone.</p>
+                            <p style={{ color: "#DC2626", fontWeight: 500, fontSize: 13, margin: 0 }}>This action cannot be undone.</p>
                           </div>
                           <div className="app-modal-actions">
                             <s-button type="button" variant="secondary" onClick={() => setShowRefundConfirm(false)}>Cancel</s-button>
@@ -961,8 +1023,14 @@ export default function ReturnDetail() {
                                 locationId: refundLocationMode === "auto"
                                   ? (fulfillmentLocationId || shopLocations[0]?.id || null)
                                   : (selectedLocationId || null),
+                                refundMethod: modalRefundMethod,
+                                storeCreditPct: modalRefundMethod === "both" ? modalStoreCreditPct : undefined,
                               })} />
-                              <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>Yes, process refund</s-button>
+                              <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
+                                {modalRefundMethod === "original" ? "Refund to original payment" :
+                                 modalRefundMethod === "store_credit" ? "Issue store credit" :
+                                 "Process split refund"}
+                              </s-button>
                             </fetcher.Form>
                           </div>
                         </div>

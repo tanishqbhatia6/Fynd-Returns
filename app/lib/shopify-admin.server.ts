@@ -739,82 +739,233 @@ export type RefundResult = {
   refundAmount?: string;
   refundCurrency?: string;
   refundCreatedAt?: string;
+  refundMethod?: string;
 };
+
+export type RefundMethodConfig = {
+  method: "original" | "store_credit" | "both";
+  storeCreditPct?: number;
+};
+
+type RefundJson = {
+  data?: {
+    refundCreate?: {
+      refund?: {
+        id?: string;
+        createdAt?: string;
+        note?: string;
+        totalRefundedSet?: {
+          presentmentMoney?: { amount?: string; currencyCode?: string };
+          shopMoney?: { amount?: string; currencyCode?: string };
+        };
+      };
+      userErrors?: Array<{ field?: string; message: string }>;
+    };
+  };
+  errors?: Array<{ message?: string }>;
+};
+
+const SUGGEST_REFUND_QUERY = `#graphql
+  query suggestRefund($orderId: ID!, $refundLineItems: [RefundLineItemInput!]!) {
+    order(id: $orderId) {
+      suggestedRefund(refundLineItems: $refundLineItems) {
+        amount { shopMoney { amount currencyCode } }
+        subtotalSet { shopMoney { amount currencyCode } }
+        totalCartDiscountAmountSet { shopMoney { amount currencyCode } }
+        refundLineItems { lineItem { id } quantity restockType }
+        refundDuties { dutyId }
+        suggestedTransactions { gateway parentTransaction { id } amountSet { shopMoney { amount currencyCode } } kind }
+      }
+    }
+  }
+`;
+
+function parseRefundResponse(json: RefundJson): RefundResult {
+  const gqlErrors = json.errors ?? [];
+  if (gqlErrors.length > 0) {
+    return { success: false, error: gqlErrors.map((e) => e.message ?? "GraphQL error").join(", ") };
+  }
+  const userErrors = json.data?.refundCreate?.userErrors ?? [];
+  if (userErrors.length > 0) {
+    return { success: false, error: userErrors.map((e) => e.message).join(", ") };
+  }
+  const refund = json.data?.refundCreate?.refund;
+  const money = refund?.totalRefundedSet?.presentmentMoney ?? refund?.totalRefundedSet?.shopMoney;
+  return {
+    success: true,
+    refundId: refund?.id ?? undefined,
+    refundAmount: money?.amount ?? undefined,
+    refundCurrency: money?.currencyCode ?? undefined,
+    refundCreatedAt: refund?.createdAt ?? undefined,
+  };
+}
 
 export async function createRefund(
   admin: AdminGraphQL,
   orderId: string,
   lineItems: Array<{ id: string; quantity: number }> | string[],
   note?: string,
-  locationId?: string | null
+  locationId?: string | null,
+  refundMethodConfig?: RefundMethodConfig | null,
 ): Promise<RefundResult> {
   try {
     const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
-    const refundInput: Record<string, unknown> = {
-      orderId: gid,
-      note: note || "Return processed via Return Pro Max",
-    };
     const normalized = lineItems.map((item) => {
-      if (typeof item === "string") {
-        return { id: item, quantity: 1 };
-      }
+      if (typeof item === "string") return { id: item, quantity: 1 };
       return item;
     });
+
+    if (normalized.length === 0) {
+      return { success: false, error: "No line items specified for refund. Please select items to refund." };
+    }
 
     let restockLocationId = locationId;
     if (!restockLocationId) {
       restockLocationId = await fetchPrimaryLocationId(admin);
     }
 
-    if (normalized.length > 0) {
-      refundInput.refundLineItems = normalized.map((item) => ({
-        lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
-        quantity: item.quantity,
-        restockType: "RETURN",
-        ...(restockLocationId ? { locationId: restockLocationId } : {}),
-      }));
-    } else {
-      return { success: false, error: "No line items specified for refund. Please select items to refund." };
-    }
-    const res = await admin.graphql(REFUND_MUTATION, { variables: { input: refundInput } });
-    let json: {
-      data?: {
-        refundCreate?: {
-          refund?: {
-            id?: string;
-            createdAt?: string;
-            note?: string;
-            totalRefundedSet?: {
-              presentmentMoney?: { amount?: string; currencyCode?: string };
-              shopMoney?: { amount?: string; currencyCode?: string };
+    const refundLineItems = normalized.map((item) => ({
+      lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+      quantity: item.quantity,
+      restockType: "RETURN" as string,
+      ...(restockLocationId ? { locationId: restockLocationId } : {}),
+    }));
+
+    const method = refundMethodConfig?.method ?? "original";
+    const storeCreditPct = refundMethodConfig?.storeCreditPct ?? 100;
+
+    const refundInput: Record<string, unknown> = {
+      orderId: gid,
+      note: note || "Return processed via Return Pro Max",
+      refundLineItems,
+    };
+
+    if (method === "store_credit" || method === "both") {
+      const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
+        variables: {
+          orderId: gid,
+          refundLineItems: normalized.map((item) => ({
+            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+            quantity: item.quantity,
+          })),
+        },
+      });
+      const suggestJson = (await suggestRes.json()) as {
+        data?: {
+          order?: {
+            suggestedRefund?: {
+              amount?: { shopMoney?: { amount?: string; currencyCode?: string } };
+              suggestedTransactions?: Array<{
+                gateway?: string;
+                parentTransaction?: { id?: string };
+                amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+                kind?: string;
+              }>;
             };
           };
-          userErrors?: Array<{ field?: string; message: string }>;
         };
       };
-      errors?: Array<{ message?: string }>;
-    };
-    try {
-      json = (await res.json()) as typeof json;
-    } catch {
+
+      const suggested = suggestJson.data?.order?.suggestedRefund;
+      const totalAmount = parseFloat(suggested?.amount?.shopMoney?.amount ?? "0");
+      const currency = suggested?.amount?.shopMoney?.currencyCode ?? "INR";
+
+      if (totalAmount > 0) {
+        if (method === "store_credit") {
+          refundInput.transactions = [];
+          refundInput.refundMethods = [{
+            storeCreditRefund: {
+              amount: { amount: totalAmount.toFixed(2), currencyCode: currency },
+            },
+          }];
+        } else if (method === "both") {
+          const scAmount = Math.round(totalAmount * (storeCreditPct / 100) * 100) / 100;
+          const origAmount = Math.round((totalAmount - scAmount) * 100) / 100;
+
+          if (origAmount > 0 && suggested?.suggestedTransactions?.length) {
+            const txn = suggested.suggestedTransactions[0];
+            refundInput.transactions = [{
+              orderId: gid,
+              kind: "REFUND",
+              gateway: txn.gateway ?? "manual",
+              amount: origAmount.toFixed(2),
+              ...(txn.parentTransaction?.id ? { parentId: txn.parentTransaction.id } : {}),
+            }];
+          } else {
+            refundInput.transactions = [];
+          }
+
+          if (scAmount > 0) {
+            refundInput.refundMethods = [{
+              storeCreditRefund: {
+                amount: { amount: scAmount.toFixed(2), currencyCode: currency },
+              },
+            }];
+          }
+        }
+      } else {
+        if (suggested?.suggestedTransactions?.length) {
+          refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
+            orderId: gid,
+            kind: "REFUND",
+            gateway: t.gateway ?? "manual",
+            amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
+            ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
+          }));
+        }
+      }
+    } else {
+      const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
+        variables: {
+          orderId: gid,
+          refundLineItems: normalized.map((item) => ({
+            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+            quantity: item.quantity,
+          })),
+        },
+      });
+      const suggestJson = (await suggestRes.json()) as {
+        data?: {
+          order?: {
+            suggestedRefund?: {
+              suggestedTransactions?: Array<{
+                gateway?: string;
+                parentTransaction?: { id?: string };
+                amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+                kind?: string;
+              }>;
+            };
+          };
+        };
+      };
+      const suggested = suggestJson.data?.order?.suggestedRefund;
+      if (suggested?.suggestedTransactions?.length) {
+        refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
+          orderId: gid,
+          kind: "REFUND",
+          gateway: t.gateway ?? "manual",
+          amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
+          ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
+        }));
+      }
+    }
+
+    const res = await admin.graphql(REFUND_MUTATION, { variables: { input: refundInput } });
+    let json: RefundJson;
+    try { json = (await res.json()) as RefundJson; } catch {
       return { success: false, error: "Invalid response from Shopify. Please try again." };
     }
-    const gqlErrors = json.errors ?? [];
-    if (gqlErrors.length > 0) {
-      return { success: false, error: gqlErrors.map((e) => e.message ?? "GraphQL error").join(", ") };
-    }
+
     if (!res.ok) {
       return { success: false, error: `Shopify API error (${res.status}). Please try again or refund manually in Shopify Admin.` };
     }
-    const userErrors = json.data?.refundCreate?.userErrors ?? [];
-    if (userErrors.length > 0) {
-      const isLocationError = userErrors.some((e) =>
-        /location|restock/i.test(e.message)
-      );
-      if (isLocationError && normalized.length > 0) {
+
+    const result = parseRefundResponse(json);
+    if (!result.success) {
+      const isLocationError = /location|restock/i.test(result.error ?? "");
+      if (isLocationError) {
         const noRestockInput: Record<string, unknown> = {
-          orderId: gid,
-          note: note || "Return processed via Return Pro Max (no restock)",
+          ...refundInput,
           refundLineItems: normalized.map((item) => ({
             lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
             quantity: item.quantity,
@@ -822,35 +973,19 @@ export async function createRefund(
           })),
         };
         const retryRes = await admin.graphql(REFUND_MUTATION, { variables: { input: noRestockInput } });
-        let retryJson: typeof json;
-        try { retryJson = (await retryRes.json()) as typeof json; } catch {
-          return { success: false, error: "Retry without restock failed — invalid response from Shopify." };
+        let retryJson: RefundJson;
+        try { retryJson = (await retryRes.json()) as RefundJson; } catch {
+          return { success: false, error: "Retry without restock failed." };
         }
-        const retryErrors = retryJson.data?.refundCreate?.userErrors ?? [];
-        if (retryErrors.length > 0) {
-          return { success: false, error: retryErrors.map((e) => e.message).join(", ") };
-        }
-        const retryRefund = retryJson.data?.refundCreate?.refund;
-        const retryMoney = retryRefund?.totalRefundedSet?.presentmentMoney ?? retryRefund?.totalRefundedSet?.shopMoney;
-        return {
-          success: true,
-          refundId: retryRefund?.id ?? undefined,
-          refundAmount: retryMoney?.amount ?? undefined,
-          refundCurrency: retryMoney?.currencyCode ?? undefined,
-          refundCreatedAt: retryRefund?.createdAt ?? undefined,
-        };
+        const retryResult = parseRefundResponse(retryJson);
+        if (retryResult.success) retryResult.refundMethod = method;
+        return retryResult;
       }
-      return { success: false, error: userErrors.map((e) => e.message).join(", ") };
+      return result;
     }
-    const refund = json.data?.refundCreate?.refund;
-    const money = refund?.totalRefundedSet?.presentmentMoney ?? refund?.totalRefundedSet?.shopMoney;
-    return {
-      success: true,
-      refundId: refund?.id ?? undefined,
-      refundAmount: money?.amount ?? undefined,
-      refundCurrency: money?.currencyCode ?? undefined,
-      refundCreatedAt: refund?.createdAt ?? undefined,
-    };
+
+    result.refundMethod = method;
+    return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Refund request failed";
     return { success: false, error: msg };

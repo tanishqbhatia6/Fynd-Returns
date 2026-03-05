@@ -34,6 +34,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const returnFeeCurrency = s?.returnFeeCurrency ?? "USD";
   const returnFeeAmount = s?.returnFeeAmount != null ? Number(s.returnFeeAmount) : 0;
   const fyndEnv = s?.fyndEnvironment ?? null;
+  const refundPaymentMethod = (s as { refundPaymentMethod?: string } | null)?.refundPaymentMethod ?? "original";
 
   let reasonCount = 0;
   try {
@@ -51,7 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     hasFynd, hasReasons, hasPortalTheme, readAllOrders,
     notifCount, smtpConfigured, returnWindowDays, autoApprove, autoRefund,
     photoRequired, hasReturnFee, returnFeeAmount, returnFeeCurrency,
-    fyndEnv, reasonCount, restrictedRegionCount,
+    fyndEnv, reasonCount, restrictedRegionCount, refundPaymentMethod,
   };
 };
 
@@ -123,6 +124,7 @@ export default function SettingsDashboard() {
             d.autoRefund ? { label: "Auto-refund", variant: "ok" } : { label: "Manual refund", variant: "off" },
             ...(d.hasReturnFee ? [{ label: `${d.returnFeeCurrency} ${d.returnFeeAmount} fee`, variant: "info" as const }] : []),
             ...(d.photoRequired ? [{ label: "Photo required", variant: "info" as const }] : []),
+            { label: d.refundPaymentMethod === "store_credit" ? "Store credit" : d.refundPaymentMethod === "both" ? "Split refund" : "Original payment", variant: "info" as const },
           ],
         },
       ],

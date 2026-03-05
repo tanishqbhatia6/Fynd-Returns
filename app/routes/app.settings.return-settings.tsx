@@ -23,6 +23,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const refundLocationMode = (s as { refundLocationMode?: string } | null | undefined)?.refundLocationMode ?? "auto";
   const refundLocationId = (s as { refundLocationId?: string | null } | null | undefined)?.refundLocationId ?? null;
+  const refundPaymentMethod = (s as { refundPaymentMethod?: string } | null | undefined)?.refundPaymentMethod ?? "original";
+  const refundStoreCreditPct = (s as { refundStoreCreditPct?: number | null } | null | undefined)?.refundStoreCreditPct ?? 100;
 
   return {
     noReturnPeriodEnabled: s?.noReturnPeriodEnabled ?? false,
@@ -38,6 +40,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     autoRefundEnabled: s?.autoRefundEnabled ?? false,
     refundLocationMode,
     refundLocationId,
+    refundPaymentMethod,
+    refundStoreCreditPct,
     shopLocations,
   };
 };
@@ -58,6 +62,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const autoRefundEnabled = formData.get("autoRefundEnabled") === "on";
   const refundLocationMode = (formData.get("refundLocationMode") as string) ?? "auto";
   const refundLocationId = (formData.get("refundLocationId") as string | null) || null;
+  const refundPaymentMethod = (formData.get("refundPaymentMethod") as string) ?? "original";
+  const refundStoreCreditPct = Math.min(100, Math.max(0, parseInt(String(formData.get("refundStoreCreditPct") ?? "100"), 10) || 100));
 
   const shop = await findOrCreateShop(session.shop);
 
@@ -109,6 +115,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       autoRefundEnabled,
       refundLocationMode,
       refundLocationId,
+      refundPaymentMethod,
+      refundStoreCreditPct,
     },
     update: {
       noReturnPeriodEnabled,
@@ -124,6 +132,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       autoRefundEnabled,
       refundLocationMode,
       refundLocationId,
+      refundPaymentMethod,
+      refundStoreCreditPct,
     },
   });
   return { success: true };
@@ -139,6 +149,10 @@ export default function ReturnSettings() {
   const [activeTab, setActiveTab] = React.useState<"prepaid" | "cod">("prepaid");
   const [locationMode, setLocationMode] = React.useState<"auto" | "manual">(data.refundLocationMode === "manual" ? "manual" : "auto");
   const [selectedLocId, setSelectedLocId] = React.useState(data.refundLocationId ?? "");
+  const [paymentMethod, setPaymentMethod] = React.useState<"original" | "store_credit" | "both">(
+    (["original", "store_credit", "both"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both"
+  );
+  const [storeCreditPct, setStoreCreditPct] = React.useState(data.refundStoreCreditPct ?? 100);
 
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
@@ -146,7 +160,9 @@ export default function ReturnSettings() {
     setCod(data.refundMethodCOD);
     setLocationMode(data.refundLocationMode === "manual" ? "manual" : "auto");
     setSelectedLocId(data.refundLocationId ?? "");
-  }, [data.restrictedProductTags, data.refundMethodPrepaid, data.refundMethodCOD, data.refundLocationMode, data.refundLocationId]);
+    setPaymentMethod((["original", "store_credit", "both"].includes(data.refundPaymentMethod) ? data.refundPaymentMethod : "original") as "original" | "store_credit" | "both");
+    setStoreCreditPct(data.refundStoreCreditPct ?? 100);
+  }, [data.restrictedProductTags, data.refundMethodPrepaid, data.refundMethodCOD, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -175,6 +191,8 @@ export default function ReturnSettings() {
     fd.set("refundMethodCODJson", JSON.stringify(cod));
     fd.set("refundLocationMode", locationMode);
     fd.set("refundLocationId", selectedLocId);
+    fd.set("refundPaymentMethod", paymentMethod);
+    fd.set("refundStoreCreditPct", String(storeCreditPct));
     fetcher.submit(fd, { method: "post" });
   };
 
@@ -372,6 +390,105 @@ export default function ReturnSettings() {
                 <span>No</span>
               </label>
             </div>
+          </s-section>
+
+          {/* Refund Payment Method */}
+          <s-section>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Shopify Refund Payment Method</div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+              Control how refunds are issued in Shopify. This applies to all refund paths — manual refunds, auto-refund on credit note, and webhook-triggered refunds.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: paymentMethod === "both" ? 16 : 0 }}>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14,
+                background: paymentMethod === "original" ? "#EFF6FF" : "#F9FAFB",
+                borderRadius: 10, border: paymentMethod === "original" ? "2px solid #3B82F6" : "1px solid #E5E7EB",
+                transition: "all 0.15s",
+              }}>
+                <input type="radio" checked={paymentMethod === "original"} onChange={() => setPaymentMethod("original")} style={{ marginTop: 3 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                    Original payment method
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4, lineHeight: 1.5 }}>
+                    Refund is returned to the customer's original payment method (credit card, UPI, etc.). This is the standard Shopify refund behavior.
+                  </div>
+                </div>
+              </label>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14,
+                background: paymentMethod === "store_credit" ? "#F0FDF4" : "#F9FAFB",
+                borderRadius: 10, border: paymentMethod === "store_credit" ? "2px solid #22C55E" : "1px solid #E5E7EB",
+                transition: "all 0.15s",
+              }}>
+                <input type="radio" checked={paymentMethod === "store_credit"} onChange={() => setPaymentMethod("store_credit")} style={{ marginTop: 3 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M12 18V6"/></svg>
+                    Store credit
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4, lineHeight: 1.5 }}>
+                    Full refund amount is issued as store credit to the customer's account. Requires new customer accounts to be enabled in your Shopify store.
+                  </div>
+                </div>
+              </label>
+              <label style={{
+                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14,
+                background: paymentMethod === "both" ? "#FFFBEB" : "#F9FAFB",
+                borderRadius: 10, border: paymentMethod === "both" ? "2px solid #F59E0B" : "1px solid #E5E7EB",
+                transition: "all 0.15s",
+              }}>
+                <input type="radio" checked={paymentMethod === "both"} onChange={() => setPaymentMethod("both")} style={{ marginTop: 3 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3"/><path d="m15 9 6-6"/></svg>
+                    Split — original payment + store credit
+                  </div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 4, lineHeight: 1.5 }}>
+                    Split the refund between the original payment method and store credit. Configure the percentage allocated to store credit below.
+                  </div>
+                </div>
+              </label>
+            </div>
+            {paymentMethod === "both" && (
+              <div style={{ padding: 16, background: "#FFFBEB", borderRadius: 10, border: "1px solid #FDE68A" }}>
+                <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 10 }}>
+                  Store credit percentage
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <input
+                    type="range"
+                    min={5}
+                    max={95}
+                    step={5}
+                    value={storeCreditPct}
+                    onChange={(e) => setStoreCreditPct(parseInt(e.target.value, 10))}
+                    style={{ flex: 1, accentColor: "#F59E0B" }}
+                  />
+                  <div style={{ minWidth: 54, textAlign: "center", fontWeight: 700, fontSize: 15, fontVariantNumeric: "tabular-nums" }}>
+                    {storeCreditPct}%
+                  </div>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", marginTop: 12, padding: "10px 14px", background: "#FEF3C7", borderRadius: 8 }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: "#92400E", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px" }}>Store credit</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#92400E", fontVariantNumeric: "tabular-nums" }}>{storeCreditPct}%</div>
+                  </div>
+                  <div style={{ width: 1, background: "#F59E0B", opacity: 0.3 }} />
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontSize: 11, color: "#92400E", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.5px" }}>Original payment</div>
+                    <div style={{ fontSize: 16, fontWeight: 700, color: "#92400E", fontVariantNumeric: "tabular-nums" }}>{100 - storeCreditPct}%</div>
+                  </div>
+                </div>
+              </div>
+            )}
+            {paymentMethod === "store_credit" && (
+              <div style={{ marginTop: 12, padding: 12, background: "#F0FDF4", borderRadius: 8, fontSize: 12, color: "#166534", display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span>Store credit requires new customer accounts to be enabled in Shopify Settings. The order must also be associated with a customer.</span>
+              </div>
+            )}
           </s-section>
 
           {/* Refund Location */}

@@ -79,8 +79,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   try {
-    const { admin, session } = await shopify.unauthenticated.admin(shopDomain);
-    const restCtx = { shopDomain, accessToken: (session as { accessToken?: string }).accessToken ?? "" };
+    const { admin } = await shopify.unauthenticated.admin(shopDomain);
+    const offlineSession = await prisma.session.findFirst({ where: { shop: shopDomain, isOnline: false }, select: { accessToken: true } });
+    const restCtx = offlineSession?.accessToken ? { shopDomain, accessToken: offlineSession.accessToken } : undefined;
     let order = await fetchOrderByOrderNumber(admin, orderNumber, restCtx);
 
     // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName

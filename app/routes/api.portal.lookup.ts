@@ -178,8 +178,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } else if (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") {
       const orderNumber = rawValue.replace(/^#/, "");
       try {
-        const { admin, session } = await shopify.unauthenticated.admin(shopDomain);
-        const restCtx = { shopDomain, accessToken: (session as { accessToken?: string }).accessToken ?? "" };
+        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const offlineSession = await prisma.session.findFirst({ where: { shop: shopDomain, isOnline: false }, select: { accessToken: true } });
+        const restCtx = offlineSession?.accessToken ? { shopDomain, accessToken: offlineSession.accessToken } : undefined;
         const order = await fetchOrderByOrderNumber(admin, orderNumber, restCtx);
         if (order) {
           orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });

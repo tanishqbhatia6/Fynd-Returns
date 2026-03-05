@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError, findOrderNameByCustomAttribute } from "../lib/shopify-admin.server";
+import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError } from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -121,24 +121,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }
         if (!order && fyndCase.shopifyOrderName) {
           order = await fetchOrderByOrderNumber(admin, fyndCase.shopifyOrderName.replace(/^#/, ""));
-        }
-      }
-    }
-
-    // Last resort: scan Shopify orders by custom attribute (affiliate_order_id, etc.)
-    if (!order && !/^\d+$/.test(orderNumber)) {
-      const resolved = await findOrderNameByCustomAttribute(admin, orderNumber);
-      if (resolved) {
-        order = await fetchOrderByGid(admin, resolved.id)
-          ?? await fetchOrderByOrderNumber(admin, resolved.name.replace(/^#/, ""));
-        if (order) {
-          try {
-            await prisma.fyndOrderMapping.upsert({
-              where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolved.name } },
-              create: { shopId: shopRecord.id, shopifyOrderName: resolved.name, shopifyOrderId: resolved.id, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
-              update: { fyndOrderId: orderNumber, shopifyOrderId: resolved.id },
-            });
-          } catch { /* non-critical */ }
         }
       }
     }

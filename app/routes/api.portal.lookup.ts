@@ -2,7 +2,7 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
-import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid, findOrderNameByCustomAttribute } from "../lib/shopify-admin.server";
+import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid } from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
@@ -216,33 +216,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       }
 
-      // Scan Shopify orders by custom attribute (affiliate_order_id, etc.)
-      // This is return-independent — works even if no ReturnCase exists.
-      if (orders.length === 0 && !/^\d+$/.test(orderNumber)) {
-        try {
-          const { admin } = await shopify.unauthenticated.admin(shopDomain);
-          const resolved = await findOrderNameByCustomAttribute(admin, orderNumber);
-          if (resolved) {
-            const order = await fetchOrderByGid(admin, resolved.id)
-              ?? await fetchOrderByOrderNumber(admin, resolved.name.replace(/^#/, ""));
-            if (order) {
-              orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
-            }
-            // Cache mapping so future lookups are instant (no more scanning)
-            try {
-              await prisma.fyndOrderMapping.upsert({
-                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolved.name } },
-                create: { shopId: shopRecord.id, shopifyOrderName: resolved.name, shopifyOrderId: resolved.id, fyndOrderId: orderNumber, searchStrategy: "custom_attr_scan" },
-                update: { fyndOrderId: orderNumber, shopifyOrderId: resolved.id },
-              });
-            } catch { /* non-critical */ }
-          }
-        } catch (err) {
-          console.error("Portal lookup order via custom attribute scan:", err);
-        }
-      }
-
-      // Last resort: try ReturnCase records to resolve the Shopify order via stored GID/name
+      // Fallback: try ReturnCase records to resolve the Shopify order via stored GID/name
       if (orders.length === 0) {
         try {
           const fyndCases = await prisma.returnCase.findMany({

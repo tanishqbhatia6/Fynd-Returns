@@ -34,6 +34,39 @@ const shopify = shopifyApp({
   hooks: {
     afterAuth: async ({ session }) => {
       shopify.registerWebhooks({ session });
+
+      // Create filterable metafield definition for Fynd order ID on Order.
+      // This lets us search orders via: metafields.$app.fynd_order_id:"VALUE"
+      // which is indexed by Shopify — instant O(1) lookup, any volume.
+      try {
+        const { admin } = await shopify.unauthenticated.admin(session.shop);
+        await admin.graphql(
+          `#graphql
+          mutation EnsureFyndMetafield($definition: MetafieldDefinitionInput!) {
+            metafieldDefinitionCreate(definition: $definition) {
+              createdDefinition { id }
+              userErrors { field message code }
+            }
+          }`,
+          {
+            variables: {
+              definition: {
+                name: "Fynd Order ID",
+                namespace: "$app",
+                key: "fynd_order_id",
+                type: "single_line_text_field",
+                description: "Fynd/affiliate order ID for indexed search",
+                ownerType: "ORDER",
+                capabilities: {
+                  adminFilterable: { enabled: true },
+                },
+              },
+            },
+          }
+        );
+      } catch {
+        // Ignore — definition may already exist (idempotent)
+      }
     },
   },
   future: {

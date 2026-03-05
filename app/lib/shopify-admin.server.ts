@@ -352,18 +352,19 @@ export async function fetchOrderByOrderNumber(
   // For pure numeric order names, no further strategies needed
   if (/^\d+$/.test(clean)) return null;
 
-  // Strategy 2: source_identifier: — for third-party order IDs (Fynd affiliate_order_id, POS IDs)
-  // Documented at https://shopify.dev/docs/api/admin-graphql/latest/queries/orders
+  // Strategy 2: metafield search — indexed, O(1), works at any scale.
+  // The app writes affiliate_order_id as a filterable metafield on orders.
+  // See: https://shopify.dev/docs/apps/build/custom-data/metafields/query-by-metafield-value
   try {
-    const node = await searchOrders(admin, `source_identifier:${clean}`, false);
+    const node = await searchOrders(admin, `metafields.$app.fynd_order_id:"${clean}"`, false);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;
   }
 
-  // Strategy 3: confirmation_number: — alternate customer-facing identifier
+  // Strategy 3: source_identifier: — for third-party order IDs (Fynd, POS, etc.)
   try {
-    const node = await searchOrders(admin, `confirmation_number:${clean}`, false);
+    const node = await searchOrders(admin, `source_identifier:${clean}`, false);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;
@@ -377,7 +378,7 @@ export async function fetchOrderByOrderNumber(
     if (err instanceof OrderAccessError) throw err;
   }
 
-  // Strategy 5: default/free-text search (catches notes, etc.)
+  // Strategy 5: free-text search
   try {
     const node = await searchOrders(admin, clean, false);
     if (node) return parseOrderNode(node);
@@ -500,75 +501,6 @@ function parseOrderNode(node: unknown): OrderForPortal {
       })),
     })),
   };
-}
-
-const ORDERS_CUSTOM_ATTR_SEARCH_QUERY = `#graphql
-  query recentOrdersForAttrSearch($cursor: String) {
-    orders(first: 50, sortKey: CREATED_AT, reverse: true, after: $cursor) {
-      nodes {
-        id
-        name
-        customAttributes { key value }
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`;
-
-/**
- * FALLBACK ONLY — Scans recent orders by custom attribute.
- *
- * Shopify does NOT index customAttributes for search, so this must
- * paginate through orders one page at a time. This is inherently
- * O(N) and does NOT scale to high-volume stores.
- *
- * The correct solution is:
- *   1. orders/create webhook → caches FyndOrderMapping on order creation
- *   2. POST /api/admin/backfill-fynd-mappings → indexes all historical orders
- *
- * This scan exists only as a grace-period fallback for stores that haven't
- * run the backfill yet. It scans up to 500 recent orders (10 pages × 50).
- * Once a match is found, the caller must cache it in FyndOrderMapping so
- * this scan is never repeated for the same order.
- */
-export async function findOrderNameByCustomAttribute(
-  admin: AdminGraphQL,
-  attrValue: string
-): Promise<{ id: string; name: string } | null> {
-  const target = attrValue.toLowerCase().trim();
-  if (!target) return null;
-  const ATTR_KEYS = ["affiliate_order_id", "fynd_order_id", "order_id", "external_order_id"];
-  let cursor: string | null = null;
-  for (let page = 0; page < 10; page++) {
-    try {
-      const res = await admin.graphql(ORDERS_CUSTOM_ATTR_SEARCH_QUERY, { variables: { cursor } });
-      const json = (await res.json()) as {
-        data?: {
-          orders?: {
-            nodes?: Array<{ id: string; name: string; customAttributes?: Array<{ key: string; value: string }> }>;
-            pageInfo?: { hasNextPage?: boolean; endCursor?: string | null };
-          };
-        };
-        errors?: Array<{ message?: string }>;
-      };
-      if (json.errors?.length) break;
-      const nodes = json.data?.orders?.nodes ?? [];
-      for (const node of nodes) {
-        const attrs = node.customAttributes ?? [];
-        for (const attr of attrs) {
-          if (ATTR_KEYS.includes(attr.key.toLowerCase()) && attr.value?.toLowerCase() === target) {
-            return { id: node.id, name: node.name };
-          }
-        }
-      }
-      if (!json.data?.orders?.pageInfo?.hasNextPage) break;
-      cursor = json.data?.orders?.pageInfo?.endCursor ?? null;
-      if (!cursor) break;
-    } catch {
-      break;
-    }
-  }
-  return null;
 }
 
 export type OrderSummaryLineItem = {

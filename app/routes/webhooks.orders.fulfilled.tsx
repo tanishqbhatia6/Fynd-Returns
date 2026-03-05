@@ -28,6 +28,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (fyndOrderId) {
       const gid = p.admin_graphql_api_id ? String(p.admin_graphql_api_id)
         : p.id ? `gid://shopify/Order/${p.id}` : null;
+      if (gid) {
+        try {
+          const { default: shopifyApp } = await import("../shopify.server");
+          const { admin } = await shopifyApp.unauthenticated.admin(shop);
+          await admin.graphql(
+            `#graphql mutation($input: OrderInput!) { orderUpdate(input: $input) { order { id } userErrors { message } } }`,
+            { variables: { input: { id: gid, metafields: [{ namespace: "$app", key: "fynd_order_id", value: fyndOrderId, type: "single_line_text_field" }] } } }
+          );
+        } catch { /* metafield write is best-effort */ }
+      }
       try {
         await prisma.fyndOrderMapping.upsert({
           where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderNameClean}` } },

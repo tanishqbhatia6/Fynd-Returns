@@ -4,18 +4,18 @@ import prisma from "../db.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
 
 /**
- * One-time bulk backfill of FyndOrderMapping for ALL historical orders.
+ * One-time bulk backfill for ALL historical Shopify orders.
  *
- * This scans every order in the Shopify store (paginated, 250/page) and
- * extracts affiliate_order_id from customAttributes. Results are cached
- * in FyndOrderMapping so Track Order works instantly for any Fynd order ID
- * regardless of volume or age.
+ * For each order that has an affiliate_order_id in customAttributes, this:
+ *   1. Writes a METAFIELD ($app:fynd_order_id) on the order via orderUpdate
+ *      → Makes the order searchable via: metafields.$app.fynd_order_id:"VALUE"
+ *      → Indexed by Shopify, O(1) lookup, works at any scale
+ *   2. Caches the mapping in FyndOrderMapping (DB) for fast local lookups
  *
  * POST /api/admin/backfill-fynd-mappings
  * Body: { maxPages?: number }  (default: unlimited — scans all orders)
  *
- * This is idempotent — safe to run multiple times. Designed for admin use
- * (requires authenticated Shopify session), not customer-facing.
+ * Idempotent. Safe to run multiple times. Admin-only (authenticated session).
  */
 
 const BACKFILL_QUERY = `#graphql
@@ -31,17 +31,14 @@ const BACKFILL_QUERY = `#graphql
   }
 `;
 
-const AFFILIATE_KEYS = [
-  "affiliate_order_id",
-  "_affiliate_order_id",
-  "fynd_affiliate_order_id",
-  "fynd_order_id",
-  "_fynd_order_id",
-  "fyndorderid",
-  "affiliateorderid",
-  "order_id",
-  "external_order_id",
-];
+const SET_METAFIELD_MUTATION = `#graphql
+  mutation SetFyndMetafield($input: OrderInput!) {
+    orderUpdate(input: $input) {
+      order { id }
+      userErrors { field message }
+    }
+  }
+`;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -61,6 +58,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let cursor: string | null = null;
   let totalScanned = 0;
   let totalMapped = 0;
+  let metafieldsWritten = 0;
   let page = 0;
 
   while (true) {
@@ -85,57 +83,62 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({
         error: "GraphQL error",
         details: json.errors.map((e) => e.message),
-        progress: { totalScanned, totalMapped, pages: page },
+        progress: { totalScanned, totalMapped, metafieldsWritten, pages: page },
       }, { status: 500 });
     }
 
     const nodes = json.data?.orders?.nodes ?? [];
     if (nodes.length === 0) break;
 
-    const mappings: Array<{
-      shopifyOrderId: string;
-      shopifyOrderName: string;
-      fyndOrderId: string;
-    }> = [];
-
     for (const node of nodes) {
       totalScanned++;
       const attrs = node.customAttributes ?? [];
       const fyndId = extractAffiliateOrderId(attrs);
-      if (fyndId) {
-        mappings.push({
-          shopifyOrderId: node.id,
-          shopifyOrderName: node.name,
-          fyndOrderId: fyndId,
-        });
-      }
-    }
+      if (!fyndId) continue;
 
-    for (const m of mappings) {
+      // Write metafield on the order so Shopify indexes it for search
+      try {
+        await admin.graphql(SET_METAFIELD_MUTATION, {
+          variables: {
+            input: {
+              id: node.id,
+              metafields: [{
+                namespace: "$app",
+                key: "fynd_order_id",
+                value: fyndId,
+                type: "single_line_text_field",
+              }],
+            },
+          },
+        });
+        metafieldsWritten++;
+      } catch (err) {
+        console.error(`[backfill] metafield write failed for ${node.id}:`, err instanceof Error ? err.message : err);
+      }
+
+      // Also cache in DB
       try {
         await prisma.fyndOrderMapping.upsert({
           where: {
             shopId_shopifyOrderName: {
               shopId: shopRecord.id,
-              shopifyOrderName: m.shopifyOrderName,
+              shopifyOrderName: node.name,
             },
           },
           create: {
             shopId: shopRecord.id,
-            shopifyOrderName: m.shopifyOrderName,
-            shopifyOrderId: m.shopifyOrderId,
-            fyndOrderId: m.fyndOrderId,
+            shopifyOrderName: node.name,
+            shopifyOrderId: node.id,
+            fyndOrderId: fyndId,
             searchStrategy: "bulk_backfill",
           },
           update: {
-            fyndOrderId: m.fyndOrderId,
-            shopifyOrderId: m.shopifyOrderId,
+            fyndOrderId: fyndId,
+            shopifyOrderId: node.id,
           },
         });
         totalMapped++;
-      } catch {
-        // Skip duplicates / conflicts
-      }
+      } catch { /* skip conflicts */ }
     }
 
     if (!json.data?.orders?.pageInfo?.hasNextPage) break;
@@ -148,7 +151,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     success: true,
     totalScanned,
     totalMapped,
+    metafieldsWritten,
     pages: page + 1,
-    message: `Backfill complete. Scanned ${totalScanned} orders, mapped ${totalMapped} Fynd order IDs.`,
+    message: `Backfill complete. Scanned ${totalScanned} orders, wrote ${metafieldsWritten} metafields, cached ${totalMapped} DB mappings.`,
   });
 };

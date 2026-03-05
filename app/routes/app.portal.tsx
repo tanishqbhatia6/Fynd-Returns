@@ -2,281 +2,487 @@ import React, { useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
+import { parsePortalTheme } from "../lib/portal-theme.server";
+import { parsePortalConfig } from "../lib/portal-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const portalUrl = `https://${session.shop}/apps/returns`;
-  return { portalUrl, shopDomain: session.shop };
+  const storeName = session.shop.replace(".myshopify.com", "");
+
+  const shop = await prisma.shop.findUnique({
+    where: { shopDomain: session.shop },
+    include: { settings: true },
+  });
+
+  const hasTheme = !!shop?.settings?.portalThemeJson;
+  const theme = parsePortalTheme(shop?.settings?.portalThemeJson ?? null);
+  const config = parsePortalConfig(shop?.settings?.portalConfigJson ?? null);
+
+  let totalReturns = 0;
+  let activeReturns = 0;
+  if (shop) {
+    const [total, active] = await Promise.all([
+      prisma.returnCase.count({ where: { shopId: shop.id } }),
+      prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["pending", "processing", "in progress", "approved", "initiated"] } } }),
+    ]);
+    totalReturns = total;
+    activeReturns = active;
+  }
+
+  return {
+    portalUrl,
+    storeName,
+    hasTheme,
+    theme,
+    config,
+    totalReturns,
+    activeReturns,
+  };
 };
 
 export default function PortalInfo() {
-  const { portalUrl, shopDomain } = useLoaderData<typeof loader>();
+  const { portalUrl, storeName, hasTheme, theme, config, totalReturns, activeReturns } = useLoaderData<typeof loader>();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(portalUrl).catch(() => { });
+    navigator.clipboard.writeText(portalUrl).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
 
-  const storeName = shopDomain.replace(".myshopify.com", "");
+  const enabledSections = [
+    config.showOrderTracking && "Order tracking",
+    config.showReturnTracking && "Return tracking",
+    config.showCreateReturnTab && "Create return",
+  ].filter(Boolean) as string[];
+
+  const setupChecks = [
+    { label: "Theme customized", done: hasTheme, link: "/app/settings/widget" },
+    { label: "Return reasons configured", done: true, link: "/app/settings/rules" },
+    { label: "Portal sections enabled", done: enabledSections.length > 0, link: "/app/settings/widget" },
+  ];
+  const setupDone = setupChecks.filter((c) => c.done).length;
 
   return (
     <s-page heading="Customer Portal">
       <div className="app-content">
-        {/* Hero — Portal URL */}
-        <div
-          style={{
-            padding: "32px 28px",
-            background: "linear-gradient(135deg, var(--rpm-accent-subtle, #eff6ff) 0%, #f0fdf4 50%, #fdf4ff 100%)",
-            borderRadius: "var(--rpm-radius-xl, 18px)",
-            border: "1px solid var(--rpm-accent-light, #bfdbfe)",
-            marginBottom: 28,
-            position: "relative",
-            overflow: "hidden",
-          }}
-        >
-          {/* Decorative circles */}
-          <div style={{ position: "absolute", top: -30, right: -30, width: 120, height: 120, borderRadius: "50%", background: "rgba(0,91,211,0.05)" }} />
-          <div style={{ position: "absolute", bottom: -20, left: -20, width: 80, height: 80, borderRadius: "50%", background: "rgba(5,150,105,0.05)" }} />
 
-          <div style={{ position: "relative", zIndex: 1 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-              <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em", color: "var(--rpm-accent, #005bd3)", background: "white", padding: "4px 10px", borderRadius: 6, border: "1px solid var(--rpm-accent-light, #bfdbfe)" }}>
-                Live
-              </span>
-              <span style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)" }}>
-                Customer-facing portal
-              </span>
-            </div>
+        {/* ── Portal URL + Status Bar ── */}
+        <div style={{
+          padding: "20px 24px",
+          background: "var(--rpm-surface, white)",
+          borderRadius: 14,
+          border: "var(--rpm-border, 1px solid #e5e7eb)",
+          marginBottom: 20,
+          display: "flex",
+          alignItems: "center",
+          gap: 16,
+          flexWrap: "wrap",
+        }}>
+          <div style={{
+            width: 42, height: 42, borderRadius: 10,
+            background: "linear-gradient(135deg, #EFF6FF, #DBEAFE)",
+            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+              <circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z"/>
+            </svg>
+          </div>
 
-            <h2 style={{ margin: "12px 0 8px", fontSize: 22, fontWeight: 700, color: "var(--rpm-text, #0f172a)", letterSpacing: "-0.02em" }}>
-              Your Return Portal
-            </h2>
-            <p style={{ margin: "0 0 20px", color: "var(--rpm-text-muted, #64748b)", fontSize: 14, lineHeight: 1.6, maxWidth: 520 }}>
-              Customers use this link to look up orders, initiate returns, and track their return status — all self-service.
-            </p>
-
-            {/* URL display */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" as const }}>
-              <code
-                style={{
-                  padding: "12px 16px",
-                  background: "white",
-                  borderRadius: "var(--rpm-radius, 10px)",
-                  fontSize: 14,
-                  flex: "1 1 280px",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap" as const,
-                  border: "1px solid #e5e7eb",
-                  fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                  color: "var(--rpm-accent, #005bd3)",
-                  fontWeight: 500,
-                  boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                }}
-              >
+          <div style={{ flex: 1, minWidth: 200 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{
+                fontSize: 10, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.08em",
+                color: "#059669", background: "#ECFDF5", padding: "3px 8px", borderRadius: 4,
+                border: "1px solid #A7F3D0",
+              }}>Live</span>
+              <span style={{ fontSize: 14, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>
                 {portalUrl}
-              </code>
-              <s-button variant="primary" onClick={handleCopy}>
-                {copied ? "Copied!" : "Copy URL"}
-              </s-button>
-              <a href={portalUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
-                <s-button variant="secondary">Open portal ↗</s-button>
-              </a>
+              </span>
             </div>
+            <div style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)" }}>
+              Customers use this link to look up orders, initiate returns, and track status.
+            </div>
+          </div>
 
-            {copied && (
-              <div style={{ marginTop: 10, fontSize: 13, color: "#059669", fontWeight: 500, animation: "app-slideDown 0.2s ease" }}>
-                Portal URL copied to clipboard
-              </div>
-            )}
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <s-button variant="primary" onClick={handleCopy}>
+              {copied ? (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Copied
+                </span>
+              ) : "Copy URL"}
+            </s-button>
+            <a href={portalUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+              <s-button variant="secondary">
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  Open portal
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                </span>
+              </s-button>
+            </a>
           </div>
         </div>
 
-        {/* Quick Setup Steps */}
-        <div style={{ marginBottom: 28 }}>
-          <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>
-            Quick setup
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 14 }}>
-            {[
-              { num: "1", title: "Add link to store", desc: "Add a \"Returns\" link in your footer navigation", done: false },
-              { num: "2", title: "Customize theme", desc: "Match colors and fonts to your brand", done: false },
-              { num: "3", title: "Test the portal", desc: "Open the portal and try a test lookup", done: false },
-            ].map((s) => (
-              <div
-                key={s.num}
-                style={{
-                  padding: "18px 16px",
-                  background: "var(--rpm-surface, white)",
-                  borderRadius: "var(--rpm-radius, 10px)",
-                  border: "var(--rpm-border, 1px solid #e5e7eb)",
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 12,
-                  transition: "box-shadow 0.2s, border-color 0.2s",
-                }}
-              >
-                <div
-                  style={{
-                    width: 30,
-                    height: 30,
-                    borderRadius: "50%",
-                    background: "var(--rpm-accent-subtle, #eff6ff)",
-                    color: "var(--rpm-accent, #005bd3)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: 13,
-                    fontWeight: 700,
-                    flexShrink: 0,
-                  }}
-                >
-                  {s.num}
-                </div>
-                <div>
-                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 2, color: "var(--rpm-text, #0f172a)" }}>{s.title}</div>
-                  <div style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.5 }}>{s.desc}</div>
-                </div>
-              </div>
-            ))}
+        {/* ── Stats + Setup Row ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 16, marginBottom: 20 }}>
+          {/* Active returns */}
+          <div style={{
+            padding: "20px 22px", background: "var(--rpm-surface, white)", borderRadius: 12,
+            border: "var(--rpm-border, 1px solid #e5e7eb)",
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--rpm-text-muted, #64748b)", marginBottom: 8, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Active returns</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: activeReturns > 0 ? "#D97706" : "var(--rpm-text, #0f172a)", lineHeight: 1 }}>{activeReturns}</div>
+            <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 6 }}>
+              {activeReturns === 0 ? "No pending requests" : "Awaiting action"}
+            </div>
           </div>
-        </div>
 
-        {/* Two column layout */}
-        <div className="app-grid-2" style={{ marginBottom: 28 }}>
-          {/* How it works */}
-          <div
-            style={{
-              padding: 24,
-              background: "var(--rpm-surface, white)",
-              borderRadius: "var(--rpm-radius-lg, 14px)",
-              border: "var(--rpm-border, 1px solid #e5e7eb)",
-              boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
-            }}
-          >
-            <h3 style={{ margin: "0 0 18px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
-              How your customers use the portal
-            </h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-              {[
-                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>, title: "Look up their order", desc: "Search by order number, email, phone, or tracking number", step: "1" },
-                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>, title: "Select items to return", desc: "Choose products, pick a reason, and submit the request", step: "2" },
-                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>, title: "Track return status", desc: "Real-time updates from Shopify and Fynd shown on a timeline", step: "3" },
-                { icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>, title: "Get notified", desc: "Email updates when their return is approved, shipped, or refunded", step: "4" },
-              ].map((item, i) => (
-                <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 10,
-                      background: "linear-gradient(135deg, var(--rpm-accent-subtle, #eff6ff), var(--rpm-accent-light, #dbeafe))",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 16,
-                      flexShrink: 0,
-                      border: "1px solid var(--rpm-accent-light, #dbeafe)",
-                    }}
-                  >
-                    {item.icon}
-                  </div>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3, color: "var(--rpm-text)" }}>{item.title}</div>
-                    <div style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.5 }}>{item.desc}</div>
-                  </div>
-                </div>
+          {/* Total returns */}
+          <div style={{
+            padding: "20px 22px", background: "var(--rpm-surface, white)", borderRadius: 12,
+            border: "var(--rpm-border, 1px solid #e5e7eb)",
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--rpm-text-muted, #64748b)", marginBottom: 8, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Total returns</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: "var(--rpm-text, #0f172a)", lineHeight: 1 }}>{totalReturns}</div>
+            <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 6 }}>
+              All time via portal
+            </div>
+          </div>
+
+          {/* Setup progress */}
+          <div style={{
+            padding: "20px 22px", background: "var(--rpm-surface, white)", borderRadius: 12,
+            border: "var(--rpm-border, 1px solid #e5e7eb)",
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--rpm-text-muted, #64748b)", marginBottom: 8, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>Setup</div>
+            <div style={{ fontSize: 28, fontWeight: 700, color: setupDone === setupChecks.length ? "#059669" : "var(--rpm-text, #0f172a)", lineHeight: 1 }}>
+              {setupDone}/{setupChecks.length}
+            </div>
+            <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+              {setupChecks.map((c, i) => (
+                <div key={i} style={{
+                  flex: 1, height: 4, borderRadius: 2,
+                  background: c.done ? "#059669" : "#E5E7EB",
+                  transition: "background 0.3s",
+                }} />
               ))}
             </div>
           </div>
+        </div>
 
-          {/* Right column — action cards */}
+        {/* ── Two Column: Configuration + Portal Preview ── */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+
+          {/* LEFT: Configuration & Actions */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {/* Add to store navigation */}
-            <div
-              style={{
-                padding: 20,
-                background: "var(--rpm-surface, white)",
-                borderRadius: "var(--rpm-radius-lg, 14px)",
-                border: "var(--rpm-border, 1px solid #e5e7eb)",
-                boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
-              }}
-            >
-              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
-                Add to your store
-              </h3>
-              <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 14 }}>
-                Add a "Returns" link to your store's footer so customers can easily find the portal.
-              </p>
-              <div
-                style={{
-                  padding: "14px 16px",
-                  background: "var(--rpm-accent-subtle, #eff6ff)",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  color: "var(--rpm-text-secondary, #334155)",
-                  lineHeight: 1.7,
-                  borderLeft: "3px solid var(--rpm-accent, #005bd3)",
-                }}
-              >
-                <strong>Shopify Admin</strong> → Online Store → Navigation → Footer menu → Add menu item → Paste the portal URL
+
+            {/* Portal Configuration Summary */}
+            <div style={{
+              padding: 24, background: "var(--rpm-surface, white)", borderRadius: 14,
+              border: "var(--rpm-border, 1px solid #e5e7eb)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
+                <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
+                  Portal configuration
+                </h3>
+                <Link to="/app/settings/widget" style={{ textDecoration: "none" }}>
+                  <s-button variant="secondary">
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 13 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      Edit
+                    </span>
+                  </s-button>
+                </Link>
+              </div>
+
+              {/* Enabled sections */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted, #64748b)", marginBottom: 10, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
+                  Enabled sections
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  {enabledSections.length > 0 ? enabledSections.map((s) => (
+                    <span key={s} style={{
+                      display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px",
+                      background: "#ECFDF5", borderRadius: 6, fontSize: 13, fontWeight: 500, color: "#065F46",
+                      border: "1px solid #A7F3D0",
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                      {s}
+                    </span>
+                  )) : (
+                    <span style={{ fontSize: 13, color: "#DC2626", fontWeight: 500 }}>No sections enabled</span>
+                  )}
+                  {config.allowMediaUploads && (
+                    <span style={{
+                      display: "inline-flex", alignItems: "center", gap: 5, padding: "6px 12px",
+                      background: "#EFF6FF", borderRadius: 6, fontSize: 13, fontWeight: 500, color: "#1E40AF",
+                      border: "1px solid #BFDBFE",
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      Media uploads
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Theme summary */}
+              <div style={{ marginBottom: 18 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted, #64748b)", marginBottom: 10, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
+                  Theme
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {[theme.primaryColor, theme.backgroundColor, theme.surfaceColor, theme.textColor].map((c, i) => (
+                      <div key={i} style={{
+                        width: 28, height: 28, borderRadius: 6, background: c,
+                        border: "1px solid rgba(0,0,0,0.1)", boxShadow: "0 1px 2px rgba(0,0,0,0.06)",
+                      }} title={c} />
+                    ))}
+                  </div>
+                  <span style={{ fontSize: 13, color: "var(--rpm-text-muted)", fontWeight: 500 }}>
+                    {theme.fontFamily.split(",")[0].replace(/['"]/g, "")} · {theme.borderRadius} radius
+                  </span>
+                </div>
+              </div>
+
+              {/* Default tab */}
+              <div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted, #64748b)", marginBottom: 6, textTransform: "uppercase" as const, letterSpacing: "0.04em" }}>
+                  Default tab
+                </div>
+                <span style={{
+                  display: "inline-block", padding: "5px 12px", background: "#F1F5F9",
+                  borderRadius: 6, fontSize: 13, fontWeight: 500, color: "#334155", textTransform: "capitalize" as const,
+                }}>
+                  {config.defaultTab === "order" ? "Order tracking" : config.defaultTab === "create" ? "Create return" : "Return tracking"}
+                </span>
               </div>
             </div>
 
-            {/* Customize appearance */}
-            <div
-              style={{
-                padding: 20,
-                background: "var(--rpm-surface, white)",
-                borderRadius: "var(--rpm-radius-lg, 14px)",
-                border: "var(--rpm-border, 1px solid #e5e7eb)",
-                boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
-              }}
-            >
-              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
-                Customize appearance
+            {/* Setup Checklist */}
+            <div style={{
+              padding: 24, background: "var(--rpm-surface, white)", borderRadius: 14,
+              border: "var(--rpm-border, 1px solid #e5e7eb)",
+            }}>
+              <h3 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
+                Setup checklist
               </h3>
-              <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 14 }}>
-                Match the portal to your brand with custom colors, fonts, and layout.
-              </p>
-              <Link to="/app/settings/widget" style={{ textDecoration: "none" }}>
-                <s-button variant="secondary">Customize portal theme →</s-button>
-              </Link>
+              <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
+                {setupChecks.map((check, i) => (
+                  <Link key={i} to={check.link} style={{ textDecoration: "none", color: "inherit" }}>
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 12,
+                      padding: "14px 0",
+                      borderBottom: i < setupChecks.length - 1 ? "1px solid #F3F4F6" : "none",
+                      cursor: "pointer",
+                      transition: "background 0.15s",
+                    }}>
+                      <div style={{
+                        width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                        background: check.done ? "#059669" : "#E5E7EB",
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        transition: "background 0.3s",
+                      }}>
+                        {check.done ? (
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg>
+                        ) : (
+                          <span style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF" }}>{i + 1}</span>
+                        )}
+                      </div>
+                      <span style={{
+                        flex: 1, fontSize: 14, fontWeight: 500,
+                        color: check.done ? "var(--rpm-text-muted, #64748b)" : "var(--rpm-text, #0f172a)",
+                        textDecoration: check.done ? "line-through" : "none",
+                      }}>
+                        {check.label}
+                      </span>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                  </Link>
+                ))}
+
+                {/* Add to store navigation - always shown as action */}
+                <a
+                  href={`https://admin.shopify.com/store/${storeName}/menus`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ textDecoration: "none", color: "inherit" }}
+                >
+                  <div style={{
+                    display: "flex", alignItems: "center", gap: 12,
+                    padding: "14px 0",
+                    cursor: "pointer",
+                  }}>
+                    <div style={{
+                      width: 24, height: 24, borderRadius: "50%", flexShrink: 0,
+                      background: "#E5E7EB",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    </div>
+                    <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: "var(--rpm-text, #0f172a)" }}>
+                      Add "Returns" link to store navigation
+                    </span>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                  </div>
+                </a>
+              </div>
             </div>
 
             {/* App Proxy */}
-            <div
-              style={{
-                padding: 20,
-                background: "var(--rpm-surface, white)",
-                borderRadius: "var(--rpm-radius-lg, 14px)",
-                border: "var(--rpm-border, 1px solid #e5e7eb)",
-                boxShadow: "var(--rpm-shadow-xs, 0 1px 2px rgba(0,0,0,0.04))",
-              }}
-            >
-              <h3 style={{ margin: "0 0 10px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
-                App Proxy configuration
-              </h3>
-              <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, marginBottom: 12 }}>
-                The portal is served through Shopify's App Proxy. Ensure this is configured in your app settings:
+            <div style={{
+              padding: 20, background: "var(--rpm-surface, white)", borderRadius: 14,
+              border: "var(--rpm-border, 1px solid #e5e7eb)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--rpm-text, #0f172a)" }}>
+                  App Proxy
+                </h3>
+              </div>
+              <p style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)", lineHeight: 1.6, margin: "0 0 12px" }}>
+                The portal is served through Shopify's App Proxy. Verify this in your
+                {" "}<a href="https://partners.shopify.com" target="_blank" rel="noopener noreferrer" style={{ color: "var(--rpm-accent, #005bd3)", fontWeight: 500 }}>Shopify Partners</a> dashboard → App setup → App proxy.
               </p>
-              <div
-                style={{
-                  padding: "12px 16px",
-                  background: "var(--rpm-surface-elevated, #f1f5f9)",
-                  borderRadius: 10,
-                  fontSize: 13,
-                  fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                  color: "var(--rpm-text-secondary, #334155)",
-                  lineHeight: 1.8,
-                  border: "var(--rpm-border, 1px solid #e5e7eb)",
-                }}
-              >
-                Sub path: <strong>/apps/returns</strong>
-                <br />
-                Proxy URL: <strong>{`https://your-app-url/apps/returns`}</strong>
+              <div style={{
+                display: "grid", gridTemplateColumns: "auto 1fr", gap: "6px 16px",
+                padding: "12px 14px", background: "#F8FAFC", borderRadius: 8,
+                border: "1px solid #E2E8F0", fontSize: 13,
+                fontFamily: "ui-monospace, SFMono-Regular, monospace",
+              }}>
+                <span style={{ color: "#64748B", fontWeight: 500 }}>Sub path prefix</span>
+                <span style={{ color: "#0F172A", fontWeight: 600 }}>apps</span>
+                <span style={{ color: "#64748B", fontWeight: 500 }}>Sub path</span>
+                <span style={{ color: "#0F172A", fontWeight: 600 }}>returns</span>
+                <span style={{ color: "#64748B", fontWeight: 500 }}>Proxy URL</span>
+                <span style={{ color: "#0F172A", fontWeight: 600, wordBreak: "break-all" }}>https://&lt;your-app-url&gt;/apps/returns</span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: Portal Preview Card */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, position: "sticky", top: 16 }}>
+
+            {/* Mini preview */}
+            <div style={{
+              padding: 0, background: "var(--rpm-surface, white)", borderRadius: 14,
+              border: "var(--rpm-border, 1px solid #e5e7eb)", overflow: "hidden",
+            }}>
+              <div style={{
+                padding: "14px 18px",
+                borderBottom: "1px solid #F3F4F6",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }}>
+                <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
+                  Portal preview
+                </h3>
+                <a href={portalUrl} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: "var(--rpm-accent, #005bd3)", cursor: "pointer" }}>
+                    Open full →
+                  </span>
+                </a>
+              </div>
+
+              {/* Mock portal preview */}
+              <div style={{
+                padding: 16,
+                background: theme.backgroundColor,
+                minHeight: 240,
+                fontFamily: theme.fontFamily,
+              }}>
+                {/* Mock header */}
+                <div style={{
+                  textAlign: "center" as const, marginBottom: 16,
+                  color: theme.textColor, fontSize: 15, fontWeight: 700,
+                }}>
+                  Returns & Exchanges
+                </div>
+
+                {/* Mock search bar */}
+                <div style={{
+                  display: "flex", gap: 8, marginBottom: 16,
+                }}>
+                  <div style={{
+                    flex: 1, height: 36, borderRadius: theme.borderRadius,
+                    background: theme.surfaceColor, border: `1px solid ${theme.borderColor || "#E5E7EB"}`,
+                  }} />
+                  <div style={{
+                    width: 80, height: 36, borderRadius: theme.borderRadius,
+                    background: theme.primaryColor,
+                  }} />
+                </div>
+
+                {/* Mock tabs */}
+                <div style={{ display: "flex", gap: 4, marginBottom: 16 }}>
+                  {enabledSections.slice(0, 3).map((s, i) => (
+                    <div key={s} style={{
+                      flex: 1, padding: "8px 4px", textAlign: "center" as const,
+                      fontSize: 10, fontWeight: 600, borderRadius: `${parseInt(theme.borderRadius) / 2}px`,
+                      background: i === 0 ? theme.primaryColor : theme.surfaceColor,
+                      color: i === 0 ? "#fff" : theme.textMutedColor || "#64748b",
+                      border: i === 0 ? "none" : `1px solid ${theme.borderColor || "#E5E7EB"}`,
+                    }}>
+                      {s}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Mock cards */}
+                {[1, 2].map((n) => (
+                  <div key={n} style={{
+                    padding: 12, marginBottom: 8,
+                    background: theme.surfaceColor,
+                    borderRadius: theme.borderRadius,
+                    border: `1px solid ${theme.borderColor || "#E5E7EB"}`,
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
+                      <div style={{ width: 80, height: 10, borderRadius: 3, background: "#E5E7EB" }} />
+                      <div style={{ width: 50, height: 10, borderRadius: 3, background: n === 1 ? "#FDE68A" : "#BBF7D0" }} />
+                    </div>
+                    <div style={{ width: "60%", height: 8, borderRadius: 3, background: "#F3F4F6" }} />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Quick actions */}
+            <div style={{
+              padding: 20, background: "var(--rpm-surface, white)", borderRadius: 14,
+              border: "var(--rpm-border, 1px solid #e5e7eb)",
+            }}>
+              <h3 style={{ margin: "0 0 14px", fontSize: 14, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>
+                Quick actions
+              </h3>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <Link to="/app/settings/widget" style={{ textDecoration: "none", width: "100%" }}>
+                  <s-button variant="secondary" style={{ width: "100%" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.5-.67 1.5-1.5 0-.39-.15-.74-.39-1.04-.23-.29-.38-.63-.38-1.04 0-.82.68-1.5 1.5-1.5H16c3.31 0 6-2.69 6-6 0-5.5-4.5-9.92-10-9.92z"/><circle cx="7.5" cy="11.5" r="1.5"/><circle cx="10.5" cy="7.5" r="1.5"/></svg>
+                      Customize appearance
+                    </span>
+                  </s-button>
+                </Link>
+                <Link to="/app/settings/rules" style={{ textDecoration: "none", width: "100%" }}>
+                  <s-button variant="secondary" style={{ width: "100%" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                      Configure return reasons
+                    </span>
+                  </s-button>
+                </Link>
+                <Link to="/app/returns" style={{ textDecoration: "none", width: "100%" }}>
+                  <s-button variant="secondary" style={{ width: "100%" }}>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg>
+                      View all returns
+                    </span>
+                  </s-button>
+                </Link>
               </div>
             </div>
           </div>

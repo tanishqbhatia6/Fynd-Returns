@@ -135,7 +135,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.findMany({ where, orderBy: { createdAt: "desc" }, take: 8, include: { items: { take: 3 } } }),
       prisma.returnItem.groupBy({ by: ["reasonCode"], where: { returnCase: where }, _count: true }),
       prisma.returnCase.count({ where: { ...where, status: { in: ["approved", "completed"] }, refundStatus: "refunded" } }),
-      prisma.returnCase.count({ where: { ...where, status: { in: ["approved", "completed"] }, fyndReturnNo: { not: null } } }),
+      prisma.returnCase.count({ where: { ...where, status: { in: ["approved", "completed"] }, OR: [{ fyndReturnNo: { not: null } }, { fyndReturnId: { not: null } }, { fyndShipmentId: { not: null } }] } }),
       prisma.returnCase.count({ where: { ...where, status: "pending" } }),
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
       prisma.returnCase.count({ where: whereAll }),

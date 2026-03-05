@@ -1961,7 +1961,7 @@
           <input type="text" id="createOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
         </div>
         <button type="button" id="btnFetchOrder" class="btn-primary">Find my order</button>
-        <p id="createErr1" class="form-error"></p>
+        <p id="createErr1" class="form-error" aria-live="polite"></p>
         <div style="text-align:center;margin:24px 0 16px;position:relative;">
           <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--portal-border);"></div>
           <span
@@ -2075,7 +2075,7 @@
         </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">← Back</button>
-        <p id="createErr2" class="form-error"></p>
+        <p id="createErr2" class="form-error" aria-live="polite"></p>
       </div>
       <div id="create-step2-manual" class="portal-step">
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
@@ -2138,7 +2138,7 @@
         </div>
         <button type="button" id="btnSubmitManualReturn" class="btn-primary">Submit return request</button>
         <button type="button" id="btnManualBack" class="btn-secondary" style="margin-top: 12px; width:100%;">← Back</button>
-        <p id="createErrManual" class="form-error"></p>
+        <p id="createErrManual" class="form-error" aria-live="polite"></p>
       </div>
       <div id="create-step3" class="portal-step">
         <div id="createSuccessCard" class="return-success-card" style="display: none;">
@@ -2206,7 +2206,7 @@
 
     // ── Currency formatting ──
     function formatMoney(amount, currency) {
-      var cur = currency || (window.__RPM_CURRENCY__) || 'INR';
+      var cur = currency || (window.__RPM_CURRENCY__) || 'USD';
       var loc = window.__RPM_LOCALE__ || undefined;
       var num = parseFloat(amount);
       if (isNaN(num)) return '';
@@ -2236,25 +2236,24 @@
       // Normalize: lowercase + replace spaces with underscores for consistent matching
       var s = (raw || '').toLowerCase().replace(/\s+/g, '_');
       // Fynd detailed statuses
-      if (s.includes('delivery_done') || s === 'delivered') return { label: 'Delivered', cls: 'ok', icon: DELIVERED_ICON, desc: 'Your order has been delivered successfully.' };
-      if (s.includes('out_for_delivery')) return { label: 'Out for delivery', cls: 'pending', icon: DELIVERY_ICON, desc: 'Your package is on its way to you today.' };
-      if (s.includes('in_transit') || s === 'shipped') return { label: 'In transit', cls: 'pending', icon: TRANSIT_ICON, desc: 'Your package is on its way.' };
-      if (s.includes('out_for_pickup')) return { label: 'Out for pickup', cls: 'pending', icon: TRANSIT_ICON, desc: 'Courier is en route to pick up your package.' };
-      if (s.includes('dp_assigned')) return { label: 'Courier assigned', cls: 'pending', icon: TRANSIT_ICON, desc: 'A delivery partner has been assigned.' };
-      if (s.includes('bag_packed')) return { label: 'Packed & ready', cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: 'Your order is packed and ready to ship.' };
-      if (s.includes('manifest') || s.includes('ready_to_dispatch') || s.includes('handover') || s.includes('handed_over')) return { label: 'Ready to ship', cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: 'Your package is packed and ready to ship.' };
-      if (s.includes('bag_confirmed') || s === 'confirmed' || s.includes('bag_invoiced')) return { label: 'Order confirmed', cls: 'ok', icon: CONFIRMED_ICON, desc: 'Your order has been confirmed.' };
-      if (s === 'placed') return { label: 'Order placed', cls: 'ok', icon: CONFIRMED_ICON, desc: 'Your order has been placed.' };
-      if (s.includes('delivery_failed') || s.includes('undelivered')) return { label: 'Delivery attempted', cls: 'error', icon: ALERT_ICON, desc: 'Delivery was attempted but could not be completed.' };
-      if (s.includes('rto')) return { label: 'Returning to seller', cls: 'error', icon: ALERT_ICON, desc: 'Package is being returned to the seller.' };
-      // Shopify statuses
-      if (s.includes('fulfilled') && !s.includes('unfulfilled')) return { label: 'Delivered', cls: 'ok', icon: DELIVERED_ICON, desc: 'Your order has been delivered.' };
-      if (s.includes('partial')) return { label: 'Partially shipped', cls: 'pending', icon: TRANSIT_ICON, desc: 'Some items from your order have shipped.' };
-      if (s.includes('unfulfilled') || s.includes('pending')) return { label: 'Processing', cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: 'Your order is being prepared.' };
-      if (s.includes('cancel')) return { label: 'Cancelled', cls: 'error', icon: ALERT_ICON, desc: 'This order has been cancelled.' };
-      if (s.includes('paid')) return { label: 'Confirmed', cls: 'ok', icon: CONFIRMED_ICON, desc: 'Your order is confirmed and being processed.' };
-      if (s.includes('refund')) return { label: 'Refunded', cls: 'ok', icon: DELIVERED_ICON, desc: 'Your refund has been processed.' };
-      return { label: raw || 'Processing', cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: 'Your order is being processed.' };
+      if (s.includes('delivery_done') || s === 'delivered') return { label: t('portal.status.delivered'), cls: 'ok', icon: DELIVERED_ICON, desc: t('portal.statusDesc.delivered') };
+      if (s.includes('out_for_delivery')) return { label: t('portal.status.outForDelivery'), cls: 'pending', icon: DELIVERY_ICON, desc: t('portal.statusDesc.outForDelivery') };
+      if (s.includes('in_transit') || s === 'shipped') return { label: t('portal.status.inTransit'), cls: 'pending', icon: TRANSIT_ICON, desc: t('portal.statusDesc.inTransit') };
+      if (s.includes('out_for_pickup')) return { label: t('portal.statusDesc.outForPickup'), cls: 'pending', icon: TRANSIT_ICON, desc: t('portal.statusDesc.outForPickupDesc') };
+      if (s.includes('dp_assigned')) return { label: t('portal.status.courierAssigned'), cls: 'pending', icon: TRANSIT_ICON, desc: t('portal.statusDesc.courierAssigned') };
+      if (s.includes('bag_packed')) return { label: t('portal.statusDesc.packedReady'), cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: t('portal.statusDesc.packedReadyDesc') };
+      if (s.includes('manifest') || s.includes('ready_to_dispatch') || s.includes('handover') || s.includes('handed_over')) return { label: t('portal.status.readyToShip'), cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: t('portal.statusDesc.readyToShip') };
+      if (s.includes('bag_confirmed') || s === 'confirmed' || s.includes('bag_invoiced')) return { label: t('portal.status.orderConfirmed'), cls: 'ok', icon: CONFIRMED_ICON, desc: t('portal.statusDesc.orderConfirmed') };
+      if (s === 'placed') return { label: t('portal.status.orderPlaced'), cls: 'ok', icon: CONFIRMED_ICON, desc: t('portal.statusDesc.orderPlaced') };
+      if (s.includes('delivery_failed') || s.includes('undelivered')) return { label: t('portal.status.deliveryAttempted'), cls: 'error', icon: ALERT_ICON, desc: t('portal.statusDesc.deliveryAttempted') };
+      if (s.includes('rto')) return { label: t('portal.status.returningToSeller'), cls: 'error', icon: ALERT_ICON, desc: t('portal.statusDesc.returningToSeller') };
+      if (s.includes('fulfilled') && !s.includes('unfulfilled')) return { label: t('portal.status.delivered'), cls: 'ok', icon: DELIVERED_ICON, desc: t('portal.statusDesc.delivered') };
+      if (s.includes('partial')) return { label: t('portal.status.partiallyShipped'), cls: 'pending', icon: TRANSIT_ICON, desc: t('portal.statusDesc.partiallyShipped') };
+      if (s.includes('unfulfilled') || s.includes('pending')) return { label: t('portal.status.processing'), cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: t('portal.statusDesc.processing') };
+      if (s.includes('cancel')) return { label: t('portal.status.cancelled'), cls: 'error', icon: ALERT_ICON, desc: t('portal.statusDesc.cancelled') };
+      if (s.includes('paid')) return { label: t('portal.statusDesc.confirmed'), cls: 'ok', icon: CONFIRMED_ICON, desc: t('portal.statusDesc.confirmedDesc') };
+      if (s.includes('refund')) return { label: t('portal.status.refunded'), cls: 'ok', icon: DELIVERED_ICON, desc: t('portal.statusDesc.refunded') };
+      return { label: raw || t('portal.status.processing'), cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: t('portal.statusDesc.processing') };
     }
     var DELIVERED_ICON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     var DELIVERY_ICON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>';
@@ -2330,87 +2329,78 @@
 
       // 1. Refund state is the final arbiter
       if (r === 'refunded' || s === 'completed' && r === 'refunded') {
-        return { label: 'Refund Completed', cls: 'ok', step: 6, description: 'Your refund has been processed successfully' };
+        return { label: t('portal.status.refundCompleted'), cls: 'ok', step: 6, description: t('portal.status.refundCompletedDesc') };
       }
 
-      // 2. Credit note generated but refund not yet processed
       if (journeyHas('credit_note') || f.includes('credit_note')) {
         if (r === 'in_progress') {
-          return { label: 'Refund Processing', cls: 'processing', step: 6, description: 'Credit note generated, refund is being processed' };
+          return { label: t('portal.status.refundProcessing'), cls: 'processing', step: 6, description: t('portal.statusDesc.refundProcessingCreditNote') };
         }
-        return { label: 'Refund Processing', cls: 'processing', step: 6, description: 'Credit note generated, awaiting refund' };
+        return { label: t('portal.status.refundProcessing'), cls: 'processing', step: 6, description: t('portal.statusDesc.refundProcessingAwaiting') };
       }
 
-      // 3. Fynd refund-related status without credit note
       if (f.includes('refund') || r === 'in_progress') {
-        return { label: 'Refund Processing', cls: 'processing', step: 6, description: 'Refund is being processed' };
+        return { label: t('portal.status.refundProcessing'), cls: 'processing', step: 6, description: t('portal.statusDesc.refundProcessing') };
       }
 
-      // 4. Return accepted / delivered back to warehouse
       if (latestJourneyStatus.includes('return_accepted') || journeyHas('return_accepted')) {
-        return { label: 'Return Accepted', cls: 'ok', step: 5, description: 'Your return has been received and accepted' };
+        return { label: t('portal.status.returnAccepted'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnAccepted') };
       }
       if (latestJourneyStatus.includes('return_delivered') || latestJourneyStatus.includes('delivery_done') ||
           f.includes('return_delivered') || f.includes('delivery_done') || journeyHas('return_delivered') || journeyHas('delivery_done')) {
-        return { label: 'Return Received', cls: 'ok', step: 5, description: 'Your return package has been received at the warehouse' };
+        return { label: t('portal.status.returnReceived'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnReceived') };
       }
 
-      // 5. Out for delivery to store/warehouse
       if (latestJourneyStatus.includes('out_for_delivery') || f.includes('out_for_delivery') || journeyHas('out_for_delivery')) {
-        return { label: 'Out for Delivery', cls: 'transit', step: 4, description: 'Package is out for delivery to the warehouse' };
+        return { label: t('portal.status.outForDelivery'), cls: 'transit', step: 4, description: t('portal.statusDesc.outForDeliveryReturn') };
       }
 
-      // 6. In transit
       if (latestJourneyStatus.includes('in_transit') || latestJourneyStatus.includes('return_bag_in_transit') ||
           f.includes('in_transit') || f.includes('return_bag_in_transit') || journeyHas('in_transit') || journeyHas('return_bag_in_transit')) {
-        return { label: 'In Transit', cls: 'transit', step: 4, description: 'Your return package is in transit to the warehouse' };
+        return { label: t('portal.status.inTransit'), cls: 'transit', step: 4, description: t('portal.statusDesc.inTransitReturn') };
       }
 
-      // 7. Picked up
       if (latestJourneyStatus.includes('bag_picked') || latestJourneyStatus.includes('return_bag_picked') ||
           f.includes('picked') || journeyHas('bag_picked') || journeyHas('return_bag_picked')) {
-        return { label: 'Picked Up', cls: 'transit', step: 3, description: 'Your return package has been picked up by the courier' };
+        return { label: t('portal.status.pickedUp'), cls: 'transit', step: 3, description: t('portal.statusDesc.pickedUp') };
       }
 
-      // 8. Out for pickup / DP assigned
       if (latestJourneyStatus.includes('out_for_pickup') || latestJourneyStatus.includes('dp_out_for_pickup') ||
           f.includes('out_for_pickup') || journeyHas('out_for_pickup') || journeyHas('dp_out_for_pickup')) {
-        return { label: 'Courier En Route', cls: 'pending', step: 3, description: 'Courier is on the way to pick up your return' };
+        return { label: t('portal.status.courierEnRoute'), cls: 'pending', step: 3, description: t('portal.statusDesc.courierEnRoute') };
       }
 
       if (latestJourneyStatus.includes('dp_assigned') || latestJourneyStatus.includes('return_dp_assigned') ||
           f.includes('dp_assigned') || journeyHas('dp_assigned') || journeyHas('return_dp_assigned')) {
-        return { label: 'Pickup Scheduled', cls: 'pending', step: 3, description: 'A courier has been assigned for pickup' };
+        return { label: t('portal.status.pickupScheduled'), cls: 'pending', step: 3, description: t('portal.statusDesc.pickupScheduled') };
       }
 
-      // 9. Return initiated / confirmed on Fynd
       if (latestJourneyStatus.includes('return_initiated') || latestJourneyStatus.includes('bag_confirmed') ||
           f.includes('return_initiated') || f.includes('bag_confirmed') || journeyHas('return_initiated') || journeyHas('bag_confirmed')) {
-        return { label: 'Return Confirmed', cls: 'ok', step: 2, description: 'Your return has been confirmed and is being processed' };
+        return { label: t('portal.status.returnConfirmed'), cls: 'ok', step: 2, description: t('portal.statusDesc.returnConfirmed') };
       }
 
-      // 10. Shopify app statuses (no Fynd journey data)
       if (s === 'rejected') {
-        return { label: 'Return Declined', cls: 'error', step: -1, description: 'Your return request has been declined' };
+        return { label: t('portal.status.returnDeclined'), cls: 'error', step: -1, description: t('portal.statusDesc.returnDeclined') };
       }
       if (s === 'cancelled') {
-        return { label: 'Cancelled', cls: 'error', step: -1, description: 'This return has been cancelled' };
+        return { label: t('portal.status.cancelled'), cls: 'error', step: -1, description: t('portal.statusDesc.returnCancelled') };
       }
       if (s === 'completed') {
-        return { label: 'Completed', cls: 'ok', step: 6, description: 'Return completed' };
+        return { label: t('portal.status.completed'), cls: 'ok', step: 6, description: t('portal.statusDesc.returnCompleted') };
       }
       if (s === 'approved') {
-        return { label: 'Return Approved', cls: 'ok', step: 2, description: 'Your return has been approved by the store' };
+        return { label: t('portal.status.returnApproved'), cls: 'ok', step: 2, description: t('portal.statusDesc.returnApproved') };
       }
       if (s === 'pending' || s === 'initiated' || s === 'processing' || s === 'in progress') {
-        return { label: 'Under Review', cls: 'pending', step: 1, description: 'Your return request is being reviewed' };
+        return { label: t('portal.status.underReview'), cls: 'pending', step: 1, description: t('portal.statusDesc.underReview') };
       }
 
-      return { label: appStatus || 'Under Review', cls: 'pending', step: 1, description: 'Return request submitted' };
+      return { label: appStatus || t('portal.status.underReview'), cls: 'pending', step: 1, description: t('portal.statusDesc.returnSubmitted') };
     }
 
     function humanizeFyndSku(raw) {
-      if (!raw || typeof raw !== 'string') return raw || 'Item';
+      if (!raw || typeof raw !== 'string') return raw || t('portal.common.item');
       var s = raw.replace(/^EAN_[A-Z]_/i, '');
       s = s.replace(/_[A-Z]?\d{6,}$/i, '');
       s = s.replace(/_/g, ' ');
@@ -2422,22 +2412,21 @@
     function friendlyEventLabel(eventType, source) {
       var e = (eventType || '').toLowerCase();
       // Map internal event types to plain English for customers
-      if (e === 'initiated' || e === 'created') return 'Return request submitted';
-      if (e === 'approved') return 'Return approved by store';
-      if (e === 'rejected') return 'Return request declined';
-      if (e === 'processing') return 'Return is being processed';
-      if (e === 'completed' || e === 'refunded') return 'Refund processed';
-      if (e === 'cancelled') return 'Return cancelled';
-      if (e.includes('fynd_sync') || e.includes('synced')) return 'Return sent to logistics partner';
-      if (e.includes('pickup') || e.includes('picked')) return 'Package picked up by courier';
-      if (e.includes('in_transit') || e.includes('transit')) return 'Package in transit';
-      if (e.includes('deliver') || e.includes('received')) return 'Return package received';
-      if (e.includes('refund') && e.includes('process')) return 'Refund is being processed';
-      if (e.includes('bag_confirmed')) return 'Return confirmed by logistics';
-      if (e.includes('dp_assigned')) return 'Courier assigned for pickup';
-      if (e.includes('out_for_pickup')) return 'Courier en route for pickup';
-      if (e.includes('note') || e.includes('comment')) return 'Store added a note';
-      // Fallback: capitalize and clean up
+      if (e === 'initiated' || e === 'created') return t('portal.event.initiated');
+      if (e === 'approved') return t('portal.event.approved');
+      if (e === 'rejected') return t('portal.event.rejected');
+      if (e === 'processing') return t('portal.event.processing');
+      if (e === 'completed' || e === 'refunded') return t('portal.event.completed');
+      if (e === 'cancelled') return t('portal.event.cancelled');
+      if (e.includes('fynd_sync') || e.includes('synced')) return t('portal.event.fyndSync');
+      if (e.includes('pickup') || e.includes('picked')) return t('portal.event.pickup');
+      if (e.includes('in_transit') || e.includes('transit')) return t('portal.event.inTransit');
+      if (e.includes('deliver') || e.includes('received')) return t('portal.event.delivered');
+      if (e.includes('refund') && e.includes('process')) return t('portal.statusDesc.refundProcessing');
+      if (e.includes('bag_confirmed')) return t('portal.statusDesc.returnConfirmedLogistics');
+      if (e.includes('dp_assigned')) return t('portal.event.dpAssigned');
+      if (e.includes('out_for_pickup')) return t('portal.statusDesc.courierEnRoutePickup');
+      if (e.includes('note') || e.includes('comment')) return t('portal.event.note');
       var cleaned = eventType.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
       return cleaned;
     }
@@ -2464,12 +2453,12 @@
       };
 
       var steps = [
-        { num: 1, label: 'Submitted', time: null },
-        { num: 2, label: 'Approved', time: null },
-        { num: 3, label: 'Picked Up', time: null },
-        { num: 4, label: 'In Transit', time: null },
-        { num: 5, label: 'Received', time: null },
-        { num: 6, label: 'Refunded', time: null }
+        { num: 1, label: t('portal.progress.submitted'), time: null },
+        { num: 2, label: t('portal.progress.approved'), time: null },
+        { num: 3, label: t('portal.progress.pickedUp'), time: null },
+        { num: 4, label: t('portal.progress.inTransit'), time: null },
+        { num: 5, label: t('portal.progress.received'), time: null },
+        { num: 6, label: t('portal.progress.refunded'), time: null }
       ];
 
       if (returnData && returnData.createdAt) {
@@ -2508,10 +2497,10 @@
     function renderProgressSteps(activeStep, stepLabels) {
       if (activeStep < 0) return '';
       var steps = stepLabels || [
-        { num: 1, label: 'Submitted' },
-        { num: 2, label: 'Approved' },
-        { num: 3, label: 'Received' },
-        { num: 4, label: 'Refunded' }
+        { num: 1, label: t('portal.progress.submitted') },
+        { num: 2, label: t('portal.progress.approved') },
+        { num: 3, label: t('portal.progress.received') },
+        { num: 4, label: t('portal.progress.refunded') }
       ];
       var html = '<div class="oc-progress">';
       steps.forEach(function (st, i) {
@@ -2547,11 +2536,11 @@
       var activeStep = getActiveStepFromStatus(s);
 
       var steps = [
-        { num: 1, label: 'Placed', time: null },
-        { num: 2, label: 'Confirmed', time: null },
-        { num: 3, label: 'Shipped', time: null },
-        { num: 4, label: 'Out for delivery', time: null },
-        { num: 5, label: 'Delivered', time: null }
+        { num: 1, label: t('portal.progress.placed'), time: null },
+        { num: 2, label: t('portal.progress.confirmed'), time: null },
+        { num: 3, label: t('portal.progress.shipped'), time: null },
+        { num: 4, label: t('portal.progress.outForDelivery'), time: null },
+        { num: 5, label: t('portal.progress.delivered'), time: null }
       ];
 
       if (orderData) {
@@ -2575,11 +2564,11 @@
       var activeStep = getActiveStepFromStatus(s);
 
       var steps = [
-        { num: 1, label: 'Placed', time: null },
-        { num: 2, label: 'Confirmed', time: null },
-        { num: 3, label: 'Shipped', time: null },
-        { num: 4, label: 'Out for delivery', time: null },
-        { num: 5, label: 'Delivered', time: null }
+        { num: 1, label: t('portal.progress.placed'), time: null },
+        { num: 2, label: t('portal.progress.confirmed'), time: null },
+        { num: 3, label: t('portal.progress.shipped'), time: null },
+        { num: 4, label: t('portal.progress.outForDelivery'), time: null },
+        { num: 5, label: t('portal.progress.delivered'), time: null }
       ];
       var statusToStep = { placed: 0, confirmed: 1, bag_confirmed: 1, bag_invoiced: 1, bag_packed: 2, ready_to_dispatch: 2, handed_over: 2, dp_assigned: 2, shipped: 2, in_transit: 2, out_for_delivery: 3, delivery_done: 4, delivered: 4 };
       journeySteps.forEach(function (step) {
@@ -2669,8 +2658,8 @@
     function getPaymentBadge(method) {
       if (!method) return '';
       var m = method.toLowerCase();
-      if (m.includes('cod') || m.includes('cash')) return '<span class="oc-payment-badge cod">COD</span>';
-      return '<span class="oc-payment-badge prepaid">Prepaid</span>';
+      if (m.includes('cod') || m.includes('cash')) return '<span class="oc-payment-badge cod">' + t('portal.common.cod') + '</span>';
+      return '<span class="oc-payment-badge prepaid">' + t('portal.common.prepaid') + '</span>';
     }
     async function fetchJson(url, opts, timeoutMs) {
       var controller = new AbortController();
@@ -2679,13 +2668,13 @@
       let res;
       try { res = await fetch(url, fetchOpts); } catch (e) {
         clearTimeout(timeout);
-        if (e.name === 'AbortError') throw new Error('Request timed out. Please try again.');
-        throw new Error('Network error. Please check your connection and try again.');
+        if (e.name === 'AbortError') throw new Error(t('portal.error.timeout'));
+        throw new Error(t('portal.error.network'));
       }
       clearTimeout(timeout);
       let data;
       try { data = await res.json(); } catch (_) { throw new Error(res.ok ? t('portal.error.invalidResponse') : t('portal.common.error')); }
-      if (!res.ok) throw new Error(data?.error || ('Request failed (' + res.status + ')'));
+      if (!res.ok) throw new Error(data?.error || (t('portal.error.lookupFailed')));
       return data;
     }
 
@@ -2714,25 +2703,25 @@
     }
     function friendlyJourneyLabel(status) {
       var s = (status || '').toLowerCase();
-      if (s.includes('delivery_done') || s === 'delivered') return 'Delivered';
-      if (s.includes('out_for_delivery')) return 'Out for delivery';
-      if (s.includes('in_transit') || s === 'shipped') return 'In transit';
-      if (s.includes('dp_assigned')) return 'Courier assigned';
-      if (s.includes('handed_over') || s.includes('ready_to_dispatch')) return 'Ready to ship';
-      if (s.includes('bag_packed')) return 'Packed';
-      if (s.includes('bag_confirmed') || s === 'confirmed') return 'Order confirmed';
-      if (s === 'placed') return 'Order placed';
-      if (s.includes('return_initiated')) return 'Return initiated';
-      if (s.includes('return_accepted')) return 'Return accepted';
-      if (s.includes('picked_up')) return 'Picked up';
-      if (s.includes('out_for_pickup')) return 'Out for pickup';
-      if (s.includes('return_in_transit')) return 'Return in transit';
-      if (s.includes('return_delivered')) return 'Return received';
-      if (s.includes('refund_done') || s.includes('refund_completed')) return 'Refund processed';
-      if (s.includes('refund_initiated')) return 'Refund initiated';
-      if (s.includes('cancel')) return 'Cancelled';
-      if (s.includes('delivery_failed')) return 'Delivery attempted';
-      if (s.includes('rto')) return 'Returning to seller';
+      if (s.includes('delivery_done') || s === 'delivered') return t('portal.status.delivered');
+      if (s.includes('out_for_delivery')) return t('portal.status.outForDelivery');
+      if (s.includes('in_transit') || s === 'shipped') return t('portal.status.inTransit');
+      if (s.includes('dp_assigned')) return t('portal.status.courierAssigned');
+      if (s.includes('handed_over') || s.includes('ready_to_dispatch')) return t('portal.status.readyToShip');
+      if (s.includes('bag_packed')) return t('portal.statusDesc.packed');
+      if (s.includes('bag_confirmed') || s === 'confirmed') return t('portal.status.orderConfirmed');
+      if (s === 'placed') return t('portal.status.orderPlaced');
+      if (s.includes('return_initiated')) return t('portal.status.initiated');
+      if (s.includes('return_accepted')) return t('portal.status.returnAccepted');
+      if (s.includes('picked_up')) return t('portal.status.pickedUp');
+      if (s.includes('out_for_pickup')) return t('portal.statusDesc.outForPickup');
+      if (s.includes('return_in_transit')) return t('portal.status.inTransit');
+      if (s.includes('return_delivered')) return t('portal.status.returnReceived');
+      if (s.includes('refund_done') || s.includes('refund_completed')) return t('portal.status.refundCompleted');
+      if (s.includes('refund_initiated')) return t('portal.status.refundProcessing');
+      if (s.includes('cancel')) return t('portal.status.cancelled');
+      if (s.includes('delivery_failed')) return t('portal.status.deliveryAttempted');
+      if (s.includes('rto')) return t('portal.status.returningToSeller');
       return status.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); });
     }
 
@@ -2743,7 +2732,7 @@
       if (ship.estimatedDelivery && !isReturn) {
         html += '<div class="oc-eta">';
         html += '<div class="oc-eta-icon">' + TRUCK_SVG + '</div>';
-        html += '<div><div class="oc-eta-label">Estimated delivery</div>';
+        html += '<div><div class="oc-eta-label">' + t('portal.tracking.estimatedDelivery') + '</div>';
         html += '<div class="oc-eta-date">' + formatDate(ship.estimatedDelivery) + '</div></div></div>';
       }
 
@@ -2773,24 +2762,24 @@
 
       // Delivery / pickup address
       if (!isReturn && ship.deliveryAddress) {
-        html += '<div style="padding:14px 20px 0;">' + renderAddress(ship.deliveryAddress, 'Delivery address') + '</div>';
+        html += '<div style="padding:14px 20px 0;">' + renderAddress(ship.deliveryAddress, t('portal.tracking.deliveryAddress')) + '</div>';
       }
       if (isReturn && ship.returnPickupAddress) {
-        html += '<div style="padding:14px 20px 0;">' + renderAddress(ship.returnPickupAddress, 'Pickup / return address') + '</div>';
+        html += '<div style="padding:14px 20px 0;">' + renderAddress(ship.returnPickupAddress, t('portal.order.pickupAddress')) + '</div>';
       }
 
       // Fynd shipment items — clean up raw SKUs for display
       if (ship.items && ship.items.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
         html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
-        html += 'Items in this shipment (' + ship.items.length + ')' + CHEVRON_SVG + '</button>';
+        html += t('portal.tracking.itemsInShipment') + ' (' + ship.items.length + ')' + CHEVRON_SVG + '</button>';
         html += '<div class="oc-collapsible-body">';
         ship.items.forEach(function (si) {
           // Clean up display name: prefer title, fall back to cleaned SKU
           var displayName = si.title || '';
           if (!displayName || displayName === si.sku || displayName === si.identifier) {
             // SKU-like strings (e.g. EAN_S_FORWARD_TOWELS_0104140512) — humanize them
-            displayName = (si.sku || si.identifier || 'Item')
+            displayName = (si.sku || si.identifier || t('portal.common.item'))
               .replace(/^EAN_[A-Z]_/i, '')
               .replace(/_\d{6,}$/g, '')
               .replace(/_/g, ' ')
@@ -2801,7 +2790,7 @@
           html += '<div class="oc-item-info">';
           html += '<div class="oc-item-title">' + escapeHtml(displayName) + '</div>';
           var sub = [];
-          if (si.quantity && si.quantity > 1) sub.push('Qty: ' + si.quantity);
+          if (si.quantity && si.quantity > 1) sub.push(t('portal.order.qty') + ': ' + si.quantity);
           if (sub.length) html += '<div class="oc-item-variant">' + escapeHtml(sub.join(' · ')) + '</div>';
           html += '</div>';
           if (si.total || si.price) html += '<div class="oc-item-price">' + formatMoney(si.total || si.price, currency) + '</div>';
@@ -2814,7 +2803,7 @@
       if (ship.pricing && (ship.pricing.subtotal || ship.pricing.total)) {
         html += '<div style="padding:14px 20px 0;">';
         html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
-        html += 'Price details' + CHEVRON_SVG + '</button>';
+        html += t('portal.tracking.priceDetails') + CHEVRON_SVG + '</button>';
         html += '<div class="oc-collapsible-body">' + renderPriceBreakdown(ship.pricing, currency) + '</div>';
         html += '</div>';
       }
@@ -2824,7 +2813,7 @@
       if (filteredJourney.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
         html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
-        html += (isReturn ? 'Return journey' : 'Shipment journey') + ' (' + filteredJourney.length + ')' + CHEVRON_SVG + '</button>';
+        html += (isReturn ? t('portal.tracking.returnJourney') : t('portal.tracking.shipmentJourney')) + ' (' + filteredJourney.length + ')' + CHEVRON_SVG + '</button>';
         html += '<div class="oc-collapsible-body"><div class="oc-timeline">';
         filteredJourney.forEach(function (step, idx) {
           var isLast = idx === filteredJourney.length - 1;
@@ -2871,7 +2860,7 @@
     }
 
     function renderOrderCardV3(o, orderIdx, allReturns) {
-      if (!o) return '<div class="order-card-v2" style="padding:20px;text-align:center;color:var(--portal-text-muted);">Order data unavailable</div>';
+      if (!o) return '<div class="order-card-v2" style="padding:20px;text-align:center;color:var(--portal-text-muted);">' + t('portal.statusDesc.orderDataUnavailable') + '</div>';
       var shopifyStatus = (o.displayFulfillmentStatus || o.displayFinancialStatus || '').toLowerCase();
       var currency = o.currencyCode || 'INR';
       var hasFynd = o.fyndData && o.fyndData.shipments && o.fyndData.shipments.length > 0;
@@ -2917,9 +2906,9 @@
       // ── Header: Order name, date, payment badge ──
       html += '<div class="oc-header">';
       html += '<div class="oc-title-group">';
-      html += '<div class="oc-order-name">Order ' + escapeHtml(o.name || o.id || 'Unknown') + '</div>';
+      html += '<div class="oc-order-name">' + t('portal.common.order') + ' ' + escapeHtml(o.name || o.id || t('portal.common.unknown')) + '</div>';
       var dateLine = '';
-      if (o.createdAt) dateLine += 'Placed ' + formatDate(o.createdAt);
+      if (o.createdAt) dateLine += t('portal.order.placed') + ' ' + formatDate(o.createdAt);
       if (paymentMethod) dateLine += ' ' + getPaymentBadge(paymentMethod);
       if (dateLine) html += '<div class="oc-order-date">' + dateLine + '</div>';
       html += '</div>';
@@ -2944,7 +2933,7 @@
       if (etaDate && !latestStatus.includes('delivered') && !latestStatus.includes('fulfilled') && !latestStatus.includes('cancel')) {
         html += '<div class="oc-eta">';
         html += '<div class="oc-eta-icon">' + TRUCK_SVG + '</div>';
-        html += '<div><div class="oc-eta-label">Estimated delivery</div>';
+        html += '<div><div class="oc-eta-label">' + t('portal.tracking.estimatedDelivery') + '</div>';
         html += '<div class="oc-eta-date">' + formatDate(etaDate) + '</div></div></div>';
       }
 
@@ -2954,12 +2943,12 @@
       // ── Status-specific callouts ──
       if (latestStatus.includes('delivery_failed') || (latestStatus.includes('rto') && !hasActiveReturn) || latestStatus.includes('undelivered')) {
         html += '<div class="oc-status-callout warn" style="margin-top:12px;">';
-        html += '<div class="oc-status-callout-title">Delivery attempted</div>';
-        html += 'Our courier attempted delivery but could not complete it. The package may be reattempted or returned to the seller.</div>';
+        html += '<div class="oc-status-callout-title">' + t('portal.status.deliveryAttempted') + '</div>';
+        html += t('portal.statusDesc.deliveryAttempted') + '</div>';
       } else if (latestStatus.includes('cancel') || latestStatus.includes('rejected')) {
         html += '<div class="oc-status-callout error" style="margin-top:12px;">';
-        html += '<div class="oc-status-callout-title">Order cancelled</div>';
-        html += 'This order has been cancelled. If you were charged, a refund will be processed.</div>';
+        html += '<div class="oc-status-callout-title">' + t('portal.statusDesc.orderCancelled') + '</div>';
+        html += t('portal.statusDesc.orderCancelledDesc') + '</div>';
       }
 
       // ── Line items (Shopify) — enhanced card layout ──
@@ -2967,7 +2956,7 @@
       if (items.length > 0) {
         html += '<div class="oc-items-v2">';
         items.forEach(function (li) {
-          var liTitle = li.title || li.variantTitle || li.sku || 'Item';
+          var liTitle = li.title || li.variantTitle || li.sku || t('portal.common.item');
           html += '<div class="oc-item-v2">';
           html += '<div class="oc-item-img">';
           if (li.imageUrl) {
@@ -2982,7 +2971,7 @@
           html += '<div class="oc-item-meta">';
           var itemPrice = li.price || li.discountedPrice;
           if (itemPrice) html += '<span class="oc-item-price-tag">' + formatMoney(itemPrice, currency) + '</span>';
-          if (li.quantity && li.quantity > 1) html += '<span class="oc-item-qty-tag">Qty: ' + li.quantity + '</span>';
+          if (li.quantity && li.quantity > 1) html += '<span class="oc-item-qty-tag">' + t('portal.order.qty') + ': ' + li.quantity + '</span>';
           html += '</div>';
           html += '</div>';
           html += '</div>';
@@ -3019,7 +3008,7 @@
           forwardShipments.forEach(function (s, i) {
             var tabFriendly = friendlyOrderStatus(s.shipmentStatus || '');
             html += '<button type="button" class="oc-shipment-tab' + (i === 0 ? ' active' : '') + '" data-ship-idx="' + i + '" data-order-idx="' + orderIdx + '" onclick="switchShipmentTab(this)">';
-            html += 'Shipment ' + (i + 1);
+            html += t('portal.tracking.shipment') + ' ' + (i + 1);
             if (s.shipmentStatus) html += ' — ' + escapeHtml(tabFriendly.label);
             html += '</button>';
           });
@@ -3075,11 +3064,11 @@
         if (o.createdAt) orderTimeline.push({ time: o.createdAt, label: t('portal.timeline.orderPlaced') });
         if (o.processedAt && o.processedAt !== o.createdAt) orderTimeline.push({ time: o.processedAt, label: t('portal.timeline.orderConfirmed') });
         shopifyFulfillments.forEach(function (ff) {
-          if (ff.createdAt) orderTimeline.push({ time: ff.createdAt, label: 'Shipped' });
-          if (ff.inTransitAt) orderTimeline.push({ time: ff.inTransitAt, label: 'In transit' });
-          if (ff.deliveredAt) orderTimeline.push({ time: ff.deliveredAt, label: 'Delivered' });
+          if (ff.createdAt) orderTimeline.push({ time: ff.createdAt, label: t('portal.status.shipped') });
+          if (ff.inTransitAt) orderTimeline.push({ time: ff.inTransitAt, label: t('portal.status.inTransit') });
+          if (ff.deliveredAt) orderTimeline.push({ time: ff.deliveredAt, label: t('portal.status.delivered') });
         });
-        if (o.cancelledAt) orderTimeline.push({ time: o.cancelledAt, label: 'Cancelled' });
+        if (o.cancelledAt) orderTimeline.push({ time: o.cancelledAt, label: t('portal.status.cancelled') });
         orderTimeline.sort(function (a, b) { return new Date(a.time).getTime() - new Date(b.time).getTime(); });
 
         if (orderTimeline.length > 1) {
@@ -3143,7 +3132,7 @@
 
           html += '<div class="oc-return-block">';
           html += '<div class="oc-return-block-header">';
-          html += '<div class="oc-return-block-title">' + RETURN_ICON_SVG + ' Return ' + escapeHtml(retDisplayId) + '</div>';
+          html += '<div class="oc-return-block-title">' + RETURN_ICON_SVG + ' ' + t('portal.common.return') + ' ' + escapeHtml(retDisplayId) + '</div>';
           html += '<span class="oc-return-block-status s-' + unified.cls + '">' + escapeHtml(unified.label) + '</span>';
           html += '</div>';
           html += '<div class="oc-return-block-body">';
@@ -3167,7 +3156,7 @@
           // Return items summary
           var retItems = ret.items || [];
           if (retItems.length > 0) {
-            html += '<div style="font-size:0.75rem;color:#4338ca;margin-bottom:8px;">' + retItems.length + ' item' + (retItems.length > 1 ? 's' : '') + ' in this return</div>';
+            html += '<div style="font-size:0.75rem;color:#4338ca;margin-bottom:8px;">' + retItems.length + ' ' + t('portal.common.item') + (retItems.length > 1 ? 's' : '') + '</div>';
           }
 
           // Status-specific messages
@@ -3180,14 +3169,14 @@
 
           // Track link
           if (ti.trackingUrl) {
-            html += '<a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-return-block-cta">' + TRUCK_SVG + ' Track return shipment</a>';
+            html += '<a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-return-block-cta">' + TRUCK_SVG + ' ' + t('portal.tracking.trackReturnShipment') + '</a>';
           }
 
           // CTA to switch to returns tab
           html += '<div style="margin-top:4px;">';
           html += '<a href="#" onclick="event.preventDefault();switchToReturnTab()" class="oc-return-block-cta">';
           html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>';
-          html += ' View full return details</a></div>';
+          html += ' ' + t('portal.statusDesc.viewReturnDetails') + '</a></div>';
 
           html += '</div></div>';
         });
@@ -3199,7 +3188,7 @@
           var rsSt = friendlyOrderStatus(rs.shipmentStatus || '');
           html += '<div class="oc-return-block">';
           html += '<div class="oc-return-block-header">';
-          html += '<div class="oc-return-block-title">' + RETURN_ICON_SVG + ' Return Shipment' + (returnFyndShipments.length > 1 ? ' ' + (rsIdx + 1) : '') + '</div>';
+          html += '<div class="oc-return-block-title">' + RETURN_ICON_SVG + ' ' + t('portal.common.return') + ' ' + t('portal.tracking.shipment') + (returnFyndShipments.length > 1 ? ' ' + (rsIdx + 1) : '') + '</div>';
           html += '<span class="oc-return-block-status s-' + rsSt.cls + '">' + escapeHtml(rsSt.label) + '</span>';
           html += '</div>';
           html += '<div class="oc-return-block-body">';
@@ -3212,14 +3201,13 @@
       if (supportUrl) {
         html += '<a href="' + escapeHtml(supportUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-support-link">';
         html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
-        html += 'Need help with this order?</a>';
+        html += t('portal.statusDesc.needHelp') + '</a>';
       }
 
-      // ── Refresh bar for in-transit or active return orders ──
       if (isInTransit(latestStatus) || hasActiveReturn) {
         html += '<div class="oc-refresh-bar">';
-        html += '<span>Updated just now</span>';
-        html += '<button type="button" class="oc-refresh-btn" onclick="refreshLookup(this)">' + REFRESH_SVG + ' Refresh</button>';
+        html += '<span>' + t('portal.statusDesc.updatedJustNow') + '</span>';
+        html += '<button type="button" class="oc-refresh-btn" onclick="refreshLookup(this)">' + REFRESH_SVG + ' ' + t('portal.tracking.refresh') + '</button>';
         html += '</div>';
       }
 
@@ -3229,8 +3217,8 @@
     }
 
     function renderReturnCardV3(x) {
-      if (!x) return '<div class="order-card-v2" style="padding:20px;text-align:center;color:var(--portal-text-muted);">Return data unavailable</div>';
-      var orderName = x.shopifyOrderName || x.id || 'Unknown';
+      if (!x) return '<div class="order-card-v2" style="padding:20px;text-align:center;color:var(--portal-text-muted);">' + t('portal.statusDesc.returnDataUnavailable') + '</div>';
+      var orderName = x.shopifyOrderName || x.id || t('portal.common.unknown');
       var status = (x.status || '').toLowerCase();
       var ti = x.trackingInfo || {};
       var fyndSt = (ti.fyndStatus || '').toLowerCase();
@@ -3245,10 +3233,10 @@
       // Header
       html += '<div class="oc-header">';
       html += '<div class="oc-title-group">';
-      html += '<div class="oc-order-name">Return ' + escapeHtml(displayId) + '</div>';
+      html += '<div class="oc-order-name">' + t('portal.common.return') + ' ' + escapeHtml(displayId) + '</div>';
       var subLine = '';
-      if (orderName !== displayId) subLine += 'Order ' + escapeHtml(orderName);
-      if (x.createdAt) subLine += (subLine ? ' · ' : '') + 'Submitted ' + formatDate(x.createdAt);
+      if (orderName !== displayId) subLine += t('portal.summary.order') + ' ' + escapeHtml(orderName);
+      if (x.createdAt) subLine += (subLine ? ' · ' : '') + t('portal.summary.submitted') + ' ' + formatDate(x.createdAt);
       if (subLine) html += '<div class="oc-order-date">' + subLine + '</div>';
       html += '</div>';
       html += '<span class="oc-status-pill s-' + unified.cls + '"><span class="status-dot"></span>' + escapeHtml(unified.label) + '</span>';
@@ -3267,13 +3255,13 @@
       // Status-specific callouts
       if (status === 'rejected' && x.rejectionReason) {
         html += '<div class="oc-status-callout error" style="margin:12px 20px 0;">';
-        html += '<div class="oc-status-callout-title">Return declined</div>';
+        html += '<div class="oc-status-callout-title">' + t('portal.status.returnDeclined') + '</div>';
         html += escapeHtml(x.rejectionReason) + '</div>';
       }
 
       if (x.notesForCustomer) {
         html += '<div class="oc-status-callout info" style="margin:12px 20px 0;">';
-        html += '<div class="oc-status-callout-title">Message from the store</div>';
+        html += '<div class="oc-status-callout-title">' + t('portal.statusDesc.messageFromStore') + '</div>';
         html += '<div style="white-space:pre-wrap;">' + escapeHtml(x.notesForCustomer) + '</div></div>';
       }
 
@@ -3305,7 +3293,7 @@
       if (returnItems.length > 0) {
         html += '<div class="oc-items-v2">';
         returnItems.forEach(function (ri) {
-          var rawTitle = ri.title || ri.notes || ri.sku || 'Item';
+          var rawTitle = ri.title || ri.notes || ri.sku || t('portal.common.item');
           var itemTitle = humanizeFyndSku(rawTitle);
           html += '<div class="oc-item-v2">';
           html += '<div class="oc-item-img">';
@@ -3320,9 +3308,9 @@
           html += '<div class="oc-item-title">' + escapeHtml(itemTitle) + '</div>';
           if (ri.variantTitle) html += '<div class="oc-item-variant">' + escapeHtml(ri.variantTitle) + '</div>';
           html += '<div class="oc-item-meta">';
-          if (ri.price) html += '<span class="oc-item-price-tag">' + formatMoney(ri.price, 'INR') + '</span>';
+          if (ri.price) html += '<span class="oc-item-price-tag">' + formatMoney(ri.price, window.__RPM_CURRENCY__ || 'USD') + '</span>';
           var qty = ri.qty || ri.quantity || 1;
-          if (qty > 1) html += '<span class="oc-item-qty-tag">Qty: ' + qty + '</span>';
+          if (qty > 1) html += '<span class="oc-item-qty-tag">' + t('portal.order.qty') + ': ' + qty + '</span>';
           html += '</div>';
           if (ri.reasonCode) {
             html += '<div style="margin-top:4px;"><span style="font-size:0.6875rem;padding:2px 8px;border-radius:6px;background:#fef3c7;color:#92400e;font-weight:500;">' + escapeHtml(ri.reasonCode) + '</span></div>';
@@ -3338,7 +3326,7 @@
       try { if (x.customerMediaJson) custMedia = JSON.parse(x.customerMediaJson); } catch (e) {}
       if (Array.isArray(custMedia) && custMedia.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
-        html += '<div style="font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--portal-text-muted);margin-bottom:8px;">Your uploads</div>';
+        html += '<div style="font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--portal-text-muted);margin-bottom:8px;">' + t('portal.statusDesc.yourUploads') + '</div>';
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
         custMedia.forEach(function (m, idx) {
           html += '<a href="' + escapeHtml(m.dataUrl || '') + '" target="_blank" rel="noopener noreferrer" style="display:block;border-radius:8px;overflow:hidden;border:1px solid var(--portal-border);">';
@@ -3352,12 +3340,12 @@
       if (ti.trackingUrl) {
         html += '<div style="padding:14px 20px 0;">';
         html += '<a href="' + escapeHtml(ti.trackingUrl) + '" target="_blank" rel="noopener noreferrer" class="oc-track-btn">';
-        html += TRUCK_SVG + ' Track return shipment</a></div>';
+        html += TRUCK_SVG + ' ' + t('portal.tracking.trackReturnShipment') + '</a></div>';
       }
 
       // Pickup address
       if (x.pickupAddress && x.pickupAddress.formatted) {
-        html += '<div style="padding:14px 20px 0;">' + renderAddress(x.pickupAddress, 'Pickup / drop-off address') + '</div>';
+        html += '<div style="padding:14px 20px 0;">' + renderAddress(x.pickupAddress, t('portal.order.pickupAddress')) + '</div>';
       }
 
       // Return journey timeline (combined Fynd journey + DB events)
@@ -3409,7 +3397,7 @@
       if (timelineItems.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
         html += '<button type="button" class="oc-collapsible-header open" onclick="toggleCollapsible(this)">';
-        html += 'Return journey (' + timelineItems.length + ')' + CHEVRON_SVG + '</button>';
+        html += t('portal.tracking.returnJourney') + ' (' + timelineItems.length + ')' + CHEVRON_SVG + '</button>';
         html += '<div class="oc-collapsible-body open"><div class="oc-timeline">';
         timelineItems.forEach(function (ev, idx) {
           var isLast = idx === timelineItems.length - 1;
@@ -3427,8 +3415,8 @@
       var isActive = unified.step > 0 && unified.step < 6 && unified.cls !== 'error';
       if (isActive) {
         html += '<div class="oc-refresh-bar" style="margin-top:12px;">';
-        html += '<span>Updated just now</span>';
-        html += '<button type="button" class="oc-refresh-btn" onclick="refreshLookup(this)">' + REFRESH_SVG + ' Refresh</button>';
+        html += '<span>' + t('portal.statusDesc.updatedJustNow') + '</span>';
+        html += '<button type="button" class="oc-refresh-btn" onclick="refreshLookup(this)">' + REFRESH_SVG + ' ' + t('portal.tracking.refresh') + '</button>';
         html += '</div>';
       }
 
@@ -3574,8 +3562,8 @@
       const btn = document.getElementById('btnLookup');
       err.textContent = '';
       if (!lookupValue) {
-        const hints = { order_no: 'order number', return_id: 'return request ID', return_no: 'return number', forward_awb: 'AWB number', return_awb: 'AWB number', email: 'email address', mobile: 'phone number' };
-        err.textContent = 'Please enter your ' + (hints[lookupType] || 'details');
+        var hintKeys = { order_no: t('portal.lookup.orderNumber'), return_id: t('portal.lookup.returnRequestId'), return_no: t('portal.lookup.returnNumber'), forward_awb: t('portal.lookup.forwardAwb'), return_awb: t('portal.lookup.returnAwb'), email: t('portal.lookup.emailAddress'), mobile: t('portal.lookup.phoneNumber') };
+        err.textContent = t('portal.error.pleaseEnter', { field: hintKeys[lookupType] || '' });
         return;
       }
       if (lookupType === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lookupValue)) { err.textContent = t('portal.error.validEmail'); return; }
@@ -3634,7 +3622,7 @@
               ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noOrders') + '</p>'
               : ordersList.map(function (o, orderIdx) {
                 try { return renderOrderCardV3(o, orderIdx, returnsList || []); }
-                catch (renderErr) { console.error('Order render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Order ' + escapeHtml(o.name || o.id || '') + '</p></div>'; }
+                catch (renderErr) { console.error('Order render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>' + t('portal.common.order') + ' ' + escapeHtml(o.name || o.id || '') + '</p></div>'; }
               }).join('');
             container.style.opacity = '0';
             container.innerHTML = newHtml;
@@ -3653,7 +3641,7 @@
               ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noReturns') + '</p>'
               : returnsList.map(function (x) {
                 try { return renderReturnCardV3(x); }
-                catch (renderErr) { console.error('Return render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>Return ' + escapeHtml(x.returnRequestNo || x.id || '') + '</p></div>'; }
+                catch (renderErr) { console.error('Return render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>' + t('portal.common.return') + ' ' + escapeHtml(x.returnRequestNo || x.id || '') + '</p></div>'; }
               }).join('');
             container.style.opacity = '0';
             container.innerHTML = newHtml;
@@ -3866,21 +3854,21 @@
       let errs = [];
       const existingNames = new Set(targetArr.map(f => f.name + '-' + f.size));
       Array.from(files).forEach(f => {
-        if (f.size === 0) { errs.push(f.name + ' is empty.'); return; }
+        if (f.size === 0) { errs.push(f.name + ' ' + t('portal.statusDesc.fileEmpty')); return; }
         const isImg = f.type.startsWith('image/') || ALLOWED_IMG.includes(f.type);
         const isVid = f.type.startsWith('video/') || ALLOWED_VID.includes(f.type);
         if (!isImg && !isVid) {
-          errs.push(f.name + ' is not a supported format. Use images (JPEG, PNG, GIF, WebP) or video (MP4, WebM).');
+          errs.push(f.name + ' ' + t('portal.error.unsupportedFormat'));
           return;
         }
         const key = f.name + '-' + f.size;
         if (existingNames.has(key)) { return; }
         if (isImg && f.size > MAX_IMG) {
-          errs.push(f.name + ' exceeds 5MB limit.');
+          errs.push(f.name + ' ' + t('portal.error.fileTooLarge'));
           return;
         }
         if (isVid && f.size > MAX_VID) {
-          errs.push(f.name + ' exceeds 50MB limit.');
+          errs.push(f.name + ' ' + t('portal.error.fileTooLarge'));
           return;
         }
         existingNames.add(key);
@@ -3938,7 +3926,7 @@
       const hintEl = document.getElementById('createManualHint');
       const orderInput = document.getElementById('createManualOrderNumber');
       if (fromFallback) {
-        hintEl.textContent = hint || 'Complete the form below. The store will process your return manually.';
+        hintEl.textContent = hint || t('portal.create.manualDesc');
         hintEl.style.display = 'block';
         orderInput.value = orderNumber ? '#' + orderNumber.replace(/^#/, '') : '';
       } else {
@@ -4044,7 +4032,7 @@
 
         // Fulfillment eligibility check — block unfulfilled, refunded, cancelled orders
         if (data.returnEligibility && !data.returnEligibility.eligible) {
-          var reason = data.returnEligibility.reason || 'This order is not eligible for a return.';
+          var reason = data.returnEligibility.reason || t('portal.error.notEligible');
           var fulfillStatus = (data.order.displayFulfillmentStatus || '').toUpperCase();
           var finStatus = (data.order.displayFinancialStatus || '').toUpperCase();
 
@@ -4065,7 +4053,7 @@
           var ineligibleHtml = '<div style="text-align:center;padding:32px 20px;">';
           ineligibleHtml += '<div style="margin-bottom:16px;">' + iconSvg + '</div>';
           ineligibleHtml += '<div style="font-size:1.125rem;font-weight:700;color:var(--portal-text);margin-bottom:4px;">' + t('portal.create.notAvailable') + '</div>';
-          ineligibleHtml += '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text-muted);margin-bottom:12px;">Order ' + escapeHtml(data.order.name) + ' · ' + escapeHtml(statusLabel) + '</div>';
+          ineligibleHtml += '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text-muted);margin-bottom:12px;">' + t('portal.common.order') + ' ' + escapeHtml(data.order.name) + ' · ' + escapeHtml(statusLabel) + '</div>';
           ineligibleHtml += '<div style="font-size:0.9375rem;color:var(--portal-text-muted);line-height:1.6;max-width:400px;margin:0 auto 20px;">' + escapeHtml(reason) + '</div>';
           ineligibleHtml += '<button type="button" class="btn-secondary" onclick="document.getElementById(\'create-step-ineligible\').classList.remove(\'active\');document.getElementById(\'create-step1\').classList.add(\'active\');" style="width:100%;">' + t('portal.create.backToSearch') + '</button>';
           ineligibleHtml += '</div>';
@@ -4094,7 +4082,7 @@
         createOrderData._estimatedRefundTotal = data.estimatedRefundTotal || 0;
         createOrderData._returnOffers = data.returnOffers || { enabled: false, offers: [] };
         if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
-          throw new Error('This order has no items to return.');
+          throw new Error(t('portal.error.noItemsToReturn'));
         }
         const nameEl = document.getElementById('createOrderName');
         nameEl.textContent = t('portal.lookup.order') + ' ' + escapeHtml(createOrderData.name);
@@ -4103,12 +4091,12 @@
         list.innerHTML = createOrderData.lineItems.map(li => `
           <div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:var(--portal-surface);">
             <input type="checkbox" id="item-${li.id}" data-id="${li.id}" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;">
-            ${li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || 'Product image') + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : ''}
+            ${li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || t('portal.common.item')) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : ''}
             <label for="item-${li.id}" style="flex:1;cursor:pointer;font-size:0.875rem;font-weight:500;line-height:1.4;">
               ${escapeHtml(li.title)}${li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : ''}${li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : ''}
             </label>
             <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-              <span style="font-size:0.75rem;color:var(--portal-text-muted);">Qty</span>
+              <span style="font-size:0.75rem;color:var(--portal-text-muted);">${t('portal.order.qty')}</span>
               <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}" data-max="${li.quantity}" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">
             </div>
           </div>
@@ -4141,10 +4129,11 @@
           var fee = createOrderData._returnFee ? createOrderData._returnFee.amount : 0;
           var refund = Math.max(0, total - fee);
           box.style.display = 'block';
-          amountEl.textContent = '$' + refund.toFixed(2);
+          var refundCurrency = (createOrderData._returnFee && createOrderData._returnFee.currency) || createOrderData.currency || window.__RPM_CURRENCY__ || 'USD';
+          amountEl.textContent = formatMoney(refund, refundCurrency);
           if (fee > 0) {
             feeEl.style.display = 'block';
-            feeEl.textContent = 'Return fee: $' + fee.toFixed(2) + ' ' + (createOrderData._returnFee.currency || '');
+            feeEl.textContent = t('portal.statusDesc.returnFee') + ': ' + formatMoney(fee, refundCurrency);
           } else {
             feeEl.style.display = 'none';
           }
@@ -4320,7 +4309,7 @@
           document.getElementById('btnSubmitReturn').style.display = 'none';
           document.getElementById('estimatedRefundBox').style.display = 'none';
           var acceptedBox = document.getElementById('offerAcceptedBox');
-          document.getElementById('offerAcceptedMessage').textContent = data.offerMessage || 'Keep your item and enjoy your discount!';
+          document.getElementById('offerAcceptedMessage').textContent = data.offerMessage || t('portal.create.offerAcceptedDefault');
           document.getElementById('offerDiscountCode').textContent = data.discountCode;
           acceptedBox.style.display = 'block';
         }
@@ -4545,6 +4534,44 @@
       el = document.getElementById('createStep2Title'); if (el) el.textContent = t('portal.create.selectItems');
       el = document.getElementById('manualReturnTitle'); if (el) el.textContent = t('portal.create.manualTitle');
       el = document.getElementById('manualReturnDesc'); if (el) el.textContent = t('portal.create.manualDesc');
+
+      // Translate policy banner
+      var policyBanner = document.getElementById('policy-banner');
+      if (policyBanner) {
+        var strongEl = policyBanner.querySelector('strong');
+        if (strongEl) {
+          var svg = strongEl.querySelector('svg');
+          var svgHtml = svg ? svg.outerHTML + ' ' : '';
+          strongEl.innerHTML = svgHtml + t('portal.statusDesc.returnPolicy');
+        }
+        var bannerText = policyBanner.childNodes;
+        for (var bi = 0; bi < bannerText.length; bi++) {
+          if (bannerText[bi].nodeType === 3 && bannerText[bi].textContent.trim().length > 10) {
+            var windowDays = (bannerText[bi].textContent.match(/\d+/) || ['30'])[0];
+            bannerText[bi].textContent = ' ' + t('portal.policyBanner', { days: windowDays });
+          }
+        }
+      }
+
+      // Translate static <select> options
+      var lookupSelect = document.getElementById('lookupType');
+      if (lookupSelect) {
+        var optionKeyMap = {
+          order_no: 'portal.lookup.orderNumber',
+          email: 'portal.lookup.emailAddress',
+          mobile: 'portal.lookup.phoneNumber',
+          return_id: 'portal.lookup.returnRequestId',
+          return_no: 'portal.lookup.returnNumber',
+          forward_awb: 'portal.lookup.forwardAwb',
+          return_awb: 'portal.lookup.returnAwb'
+        };
+        for (var i = 0; i < lookupSelect.options.length; i++) {
+          var opt = lookupSelect.options[i];
+          var key = optionKeyMap[opt.value];
+          if (key) opt.textContent = t(key);
+        }
+      }
+
       var dirAttr = window.__RPM_DIR__;
       if (dirAttr) document.documentElement.setAttribute('dir', dirAttr);
       if (window.__RPM_LOCALE__) document.documentElement.setAttribute('lang', window.__RPM_LOCALE__.split('-')[0] || 'en');

@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
-import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
+import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, parseFyndOrderDetailsForTab, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
+import { createFyndClientOrError, type ShipmentsListingSearchType } from "../lib/fynd.server";
 import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid } from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
@@ -44,7 +45,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const shopDomain = shop.includes(".") ? shop : `${shop}.myshopify.com`;
-    const shopRecord = await prisma.shop.findUnique({ where: { shopDomain } });
+    const shopRecord = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
     if (!shopRecord) {
       return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
     }
@@ -292,6 +293,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         } catch (err) {
           console.error("Portal lookup order via ReturnCase.fyndOrderId:", err);
+        }
+      }
+    }
+
+    // Call Fynd API with order no. as external_order_id / channel_order_id / affiliate_order_id and attach fyndData
+    if ((normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && orders.length > 0 && shopRecord.settings) {
+      const orderNumberForFynd = rawValue.replace(/^#/, "").trim();
+      if (orderNumberForFynd) {
+        try {
+          const fyndResult = await createFyndClientOrError(shopRecord.settings as Parameters<typeof createFyndClientOrError>[0], { requirePlatform: true });
+          if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
+            const searchTypes: ShipmentsListingSearchType[] = ["channel_order_id", "external_order_id"];
+            for (const searchType of searchTypes) {
+              const res = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumberForFynd, { searchType, pageSize: 10 });
+              const items = (res?.items ?? res?.shipments ?? (res as { data?: { items?: unknown[] } })?.data?.items ?? []) as unknown[];
+              if (Array.isArray(items) && items.length > 0) {
+                const payloadJson = JSON.stringify(res);
+                const parsed = parseFyndOrderDetailsForTab(payloadJson) as FyndOrderDetailsTab | null;
+                if (parsed) {
+                  (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+                  orders[0] = { ...orders[0], fyndData: parsed, _needsFyndEnrich: false };
+                }
+                break;
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Portal lookup Fynd enrich:", err);
         }
       }
     }

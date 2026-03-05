@@ -302,10 +302,9 @@ export async function fetchOrderByGid(
 }
 
 /**
- * Exact order lookup via Shopify REST API: GET /admin/api/.../orders.json?name=...
- * Unlike the GraphQL orders(query: "name:...") which uses a fuzzy search engine,
- * the REST API name parameter does EXACT matching on the order name field.
- * Returns the first matching order, or null if not found.
+ * Exact order lookup via Shopify REST API:
+ *   GET /admin/api/2026-01/orders.json?status=any&name=#FYNDSHOPIFYX14122
+ * (name is URL-encoded, e.g. name=%23FYNDSHOPIFYX14122)
  */
 export async function fetchOrderByNameRest(
   shopDomain: string,
@@ -314,27 +313,15 @@ export async function fetchOrderByNameRest(
 ): Promise<OrderForPortal | null> {
   if (!shopDomain || !accessToken || !orderName) return null;
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
-  // REST name= parameter is broken for names containing # (returns all orders or none).
-  // Use query=name:#... (URL-encoded) per Shopify community workaround.
   const nameWithHash = orderName.startsWith("#") ? orderName : `#${orderName}`;
-  const queryValue = `name:${nameWithHash}`;
-  const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?query=${encodeURIComponent(queryValue)}&status=any&limit=50`;
+  const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameWithHash)}&limit=1`;
   try {
     const res = await fetch(url, {
       headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
     });
-    if (!res.ok) {
-      console.error(`[fetchOrderByNameRest] ${res.status} ${res.statusText} for query="${queryValue}"`);
-      return null;
-    }
+    if (!res.ok) return null;
     const json = (await res.json()) as { orders?: Array<Record<string, unknown>> };
-    const orders = json.orders ?? [];
-    const norm = orderName.replace(/^#/, "").toLowerCase();
-    const match = orders.find((o) => {
-      const n = (o.name as string) ?? "";
-      return n.replace(/^#/, "").toLowerCase() === norm;
-    });
-    const order = match ?? orders[0];
+    const order = json.orders?.[0];
     if (!order || !order.id) return null;
     const gid = `gid://shopify/Order/${order.id}`;
     return { _restOrderId: gid } as unknown as OrderForPortal;
@@ -454,16 +441,7 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1: Pagination scan — no search filter. Shopify search is unreliable
-  // for names like FYNDSHOPIFYX14122; this scans recent orders and exact-matches name.
-  try {
-    const gid = await findOrderGidByExactNameScan(admin, clean, 5);
-    if (gid) return fetchOrderByGid(admin, gid);
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
-  }
-
-  // Strategy 2: REST (query= not supported on GET orders; name= broken for #). Kept for non-# names.
+  // Strategy 1: REST API — GET orders.json?status=any&name=#FYNDSHOPIFYX14122 (URL-encoded)
   if (restContext) {
     try {
       const restResult = await fetchOrderByNameRest(restContext.shopDomain, restContext.accessToken, clean);
@@ -479,8 +457,8 @@ export async function fetchOrderByOrderNumber(
     }
   }
 
-  // Strategy 3: GraphQL name: filter (unreliable for Fynd names; fallback only).
-  for (const q of [`name:"#${clean}"`, `name:"${clean}"`, `name:#${clean}`, `name:${clean}`]) {
+  // Strategy 2: GraphQL — orders(first: 1, query: "name:#FYNDSHOPIFYX14122")
+  for (const q of [`name:#${clean}`, `name:"#${clean}"`, `name:"${clean}"`, `name:${clean}`]) {
     try {
       const node = await searchOrders(admin, q, false, clean);
       if (node) return parseOrderNode(node);
@@ -489,10 +467,18 @@ export async function fetchOrderByOrderNumber(
     }
   }
 
+  // Strategy 3: Pagination scan (recent orders, no search filter)
+  try {
+    const gid = await findOrderGidByExactNameScan(admin, clean, 5);
+    if (gid) return fetchOrderByGid(admin, gid);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+
   // For pure numeric order names, no further strategies needed
   if (/^\d+$/.test(clean)) return null;
 
-  // Strategy 3: metafield search
+  // Strategy 4: metafield search
   try {
     const node = await searchOrders(admin, `metafields.$app.fynd_order_id:"${clean}"`, false);
     if (node) return parseOrderNode(node);
@@ -500,7 +486,7 @@ export async function fetchOrderByOrderNumber(
     if (err instanceof OrderAccessError) throw err;
   }
 
-  // Strategy 4: source_identifier
+  // Strategy 5: source_identifier
   try {
     const node = await searchOrders(admin, `source_identifier:${clean}`, false, clean);
     if (node) return parseOrderNode(node);

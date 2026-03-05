@@ -298,21 +298,29 @@ export async function fetchOrderByNameRest(
 ): Promise<OrderForPortal | null> {
   if (!shopDomain || !accessToken || !orderName) return null;
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
-  const nameParam = orderName.startsWith("#") ? orderName : `#${orderName}`;
-  const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?name=${encodeURIComponent(nameParam)}&status=any&limit=1`;
+  // REST name= parameter is broken for names containing # (returns all orders or none).
+  // Use query=name:#... (URL-encoded) per Shopify community workaround.
+  const nameWithHash = orderName.startsWith("#") ? orderName : `#${orderName}`;
+  const queryValue = `name:${nameWithHash}`;
+  const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?query=${encodeURIComponent(queryValue)}&status=any&limit=50`;
   try {
     const res = await fetch(url, {
       headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
     });
     if (!res.ok) {
-      console.error(`[fetchOrderByNameRest] ${res.status} ${res.statusText} for name="${nameParam}"`);
+      console.error(`[fetchOrderByNameRest] ${res.status} ${res.statusText} for query="${queryValue}"`);
       return null;
     }
     const json = (await res.json()) as { orders?: Array<Record<string, unknown>> };
-    const order = json.orders?.[0];
+    const orders = json.orders ?? [];
+    const norm = orderName.replace(/^#/, "").toLowerCase();
+    const match = orders.find((o) => {
+      const n = (o.name as string) ?? "";
+      return n.replace(/^#/, "").toLowerCase() === norm;
+    });
+    const order = match ?? orders[0];
     if (!order || !order.id) return null;
     const gid = `gid://shopify/Order/${order.id}`;
-    console.log(`[fetchOrderByNameRest] found order name="${order.name}" gid="${gid}"`);
     return { _restOrderId: gid } as unknown as OrderForPortal;
   } catch (err) {
     console.error("[fetchOrderByNameRest] Error:", err instanceof Error ? err.message : err);

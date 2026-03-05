@@ -80,7 +80,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   try {
     const { admin } = await shopify.unauthenticated.admin(shopDomain);
-    const offlineSession = await prisma.session.findFirst({ where: { shop: shopDomain, isOnline: false }, select: { accessToken: true } });
+    const offlineSession =
+      (await prisma.session.findFirst({ where: { shop: shopDomain, isOnline: false }, select: { accessToken: true } })) ??
+      (shopDomain.includes(".") ? await prisma.session.findFirst({ where: { shop: shopDomain.replace(/\.myshopify\.com$/, ""), isOnline: false }, select: { accessToken: true } }) : null);
     const restCtx = offlineSession?.accessToken ? { shopDomain, accessToken: offlineSession.accessToken } : undefined;
     let order = await fetchOrderByOrderNumber(admin, orderNumber, restCtx);
 

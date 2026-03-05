@@ -223,10 +223,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       },
     });
 
-    const notifyApproved = shopWithSettings?.settings?.notificationApproved ?? true;
-    if (notifyApproved && returnCase.customerEmailNorm) {
+    if (returnCase.customerEmailNorm) {
       try {
         await sendApprovalNotification({
+          shopDomain: session.shop,
           to: returnCase.customerEmailNorm,
           orderName: returnCase.shopifyOrderName || "your order",
           notes: note || undefined,
@@ -408,14 +408,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         payloadJson: JSON.stringify({ rejectionReason: reason, note: note || null }),
       },
     });
-    const shopWithSettings = await prisma.shop.findUnique({
-      where: { id: shop.id },
-      include: { settings: true },
-    });
-    const notifyRejected = shopWithSettings?.settings?.notificationRejected ?? true;
-    if (notifyRejected && returnCase.customerEmailNorm) {
+    if (returnCase.customerEmailNorm) {
       try {
         await sendRejectionNotification({
+          shopDomain: session.shop,
           to: returnCase.customerEmailNorm,
           orderName: returnCase.shopifyOrderName || "your order",
           rejectionReason: reason,
@@ -518,15 +514,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         },
       });
 
-      const shopWithSettings = await prisma.shop.findUnique({
-        where: { id: shop.id },
-        include: { settings: true },
-      });
-      // Assuming notificationApproved or a new setting notificationRefunded? We use a default true here if missing.
-      // Usually there is a setting, but we'll default to true like the others if it's not defined, or check notificationApproved if not.
       if (returnCase.customerEmailNorm) {
         try {
           await sendRefundNotification({
+            shopDomain: session.shop,
             to: returnCase.customerEmailNorm,
             orderName: returnCase.shopifyOrderName || "your order",
             shopName: session.shop?.replace(".myshopify.com", ""),

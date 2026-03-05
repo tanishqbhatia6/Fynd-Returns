@@ -370,9 +370,12 @@ const CHAPTERS: Chapter[] = [
         <FieldRow label="Advanced policy" description="Return window, minimum order value, restock fee %, exchange toggle, refund methods, excluded tags, and allowed categories." />
 
         <div style={h3}>Notifications <span style={{ fontWeight: 400, fontSize: 12, color: muted, marginLeft: 4 }}>Settings → Notifications</span></div>
-        <FieldRow label="New return request" description="Send a confirmation email when a customer submits a return." />
+        <FieldRow label="SMTP Server" description="Configure your SMTP host, port, username, and password to send emails from your own domain (Gmail, SendGrid, AWS SES, or any SMTP)." />
+        <FieldRow label="New return request" description="Send a notification email to the admin when a customer submits a return." />
         <FieldRow label="Return approved" description="Notify the customer when their return is approved." />
         <FieldRow label="Return rejected" description="Notify the customer when their return is declined, including the reason." />
+        <FieldRow label="Refund processed" description="Notify the customer when their refund has been processed." />
+        <FieldRow label="Sound alerts" description="Play a notification sound in the admin panel when new returns arrive." />
 
         <div style={h3}>Permissions <span style={{ fontWeight: 400, fontSize: 12, color: muted, marginLeft: 4 }}>Settings → Permissions</span></div>
         <FieldRow label="read_all_orders" description="Enables access to orders older than 60 days. Without this, the portal can only look up recent orders. Required for full return functionality." />
@@ -480,8 +483,9 @@ const CHAPTERS: Chapter[] = [
 
         <div style={h3}>Emails not being sent</div>
         <ul style={ul}>
-          <li>Email notifications require the <code style={code}>RESEND_API_KEY</code> environment variable to be set in your deployment.</li>
-          <li>Check that the relevant notification toggles are enabled in <NavLink to="/app/settings/notifications">Settings → Notifications</NavLink>.</li>
+          <li>Email notifications require SMTP to be configured in <NavLink to="/app/settings/notifications">Settings → Notifications</NavLink>. Enter your SMTP host, port, username, and password.</li>
+          <li>Click "Test connection" in the notifications settings to verify your SMTP server is reachable.</li>
+          <li>Check that the relevant notification toggles are enabled.</li>
         </ul>
       </>
     ),

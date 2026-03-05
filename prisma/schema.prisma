@@ -79,6 +79,16 @@ model ShopSettings {
   notificationNewReturn      Boolean  @default(true)
   notificationApproved       Boolean  @default(true)
   notificationRejected       Boolean  @default(true)
+  notificationRefunded       Boolean  @default(true)
+  smtpHost                   String?
+  smtpPort                   Int?     @default(587)
+  smtpUser                   String?
+  smtpPass                   String?
+  smtpFromEmail              String?
+  smtpFromName               String?
+  smtpSecure                 Boolean  @default(false)
+  adminNotifyEmail           String?
+  adminSoundEnabled          Boolean  @default(true)
   readAllOrdersEnabled       Boolean  @default(false)
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt

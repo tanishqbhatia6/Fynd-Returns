@@ -386,27 +386,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       throw txErr;
     }
 
-    if (settings?.notificationNewReturn !== false) {
-      const shopOwnerSessions = await prisma.session.findMany({
-        where: { shop: shopDomain, isOnline: false },
-        select: { email: true },
-        take: 1,
+    try {
+      await sendNewReturnNotification({
+        shopDomain,
+        orderName: shopifyOrderName,
+        customerEmail: customerEmail || undefined,
+        itemCount: itemsToCreate.length,
+        returnRequestId: returnCase.returnRequestNo ?? "",
+        shopName: shopDomain.replace(".myshopify.com", ""),
       });
-      const ownerEmail = shopOwnerSessions[0]?.email;
-      if (ownerEmail) {
-        try {
-          await sendNewReturnNotification({
-            to: ownerEmail,
-            orderName: shopifyOrderName,
-            customerEmail: customerEmail || undefined,
-            itemCount: itemsToCreate.length,
-            returnRequestId: returnCase.returnRequestNo ?? "",
-            shopName: shopDomain.replace(".myshopify.com", ""),
-          });
-        } catch (notifyErr) {
-          console.warn("[Portal create-return] New return notification failed:", notifyErr);
-        }
-      }
+    } catch (notifyErr) {
+      console.warn("[Portal create-return] New return notification failed:", notifyErr);
     }
 
     // When auto-approved, sync to Fynd so webhook can match returns

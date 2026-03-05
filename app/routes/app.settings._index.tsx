@@ -23,7 +23,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const hasPortalTheme = !!s?.portalThemeJson;
   const readAllOrders = s?.readAllOrdersEnabled ?? false;
 
-  const notifCount = [s?.notificationNewReturn, s?.notificationApproved, s?.notificationRejected].filter(Boolean).length;
+  const notifCount = [s?.notificationNewReturn, s?.notificationApproved, s?.notificationRejected, s?.notificationRefunded].filter(Boolean).length;
+  const smtpConfigured = !!(s?.smtpHost && s?.smtpUser && s?.smtpPass);
 
   const returnWindowDays = s?.returnWindowDays ?? 30;
   const autoApprove = s?.autoApproveEnabled ?? false;
@@ -48,7 +49,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   return {
     hasFynd, hasReasons, hasPortalTheme, readAllOrders,
-    notifCount, returnWindowDays, autoApprove, autoRefund,
+    notifCount, smtpConfigured, returnWindowDays, autoApprove, autoRefund,
     photoRequired, hasReturnFee, returnFeeAmount, returnFeeCurrency,
     fyndEnv, reasonCount, restrictedRegionCount,
   };
@@ -151,11 +152,14 @@ export default function SettingsDashboard() {
           icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
           iconBg: "#FEF3C7", iconStroke: "#D97706",
           title: "Notifications",
-          desc: "Email notifications for new returns, approvals, and rejections.",
+          desc: "SMTP email, sound alerts, and notification templates.",
           status: [
+            d.smtpConfigured
+              ? { label: "SMTP connected", variant: "ok" as const }
+              : { label: "SMTP not configured", variant: "warn" as const },
             d.notifCount > 0
-              ? { label: `${d.notifCount}/3 enabled`, variant: d.notifCount === 3 ? "ok" : "info" }
-              : { label: "All disabled", variant: "warn" },
+              ? { label: `${d.notifCount}/4 enabled`, variant: d.notifCount === 4 ? "ok" as const : "info" as const }
+              : { label: "All disabled", variant: "warn" as const },
           ],
         },
       ],

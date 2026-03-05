@@ -3,6 +3,7 @@ import crypto from "crypto";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { sendOtpEmail } from "../lib/notification.server";
 
 const OTP_COOLDOWN_MS = 60_000;
 const MAX_OTP_ATTEMPTS = 5;
@@ -58,22 +59,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     const target = session.lookupValueNorm;
-    if (target && target.includes("@") && process.env.RESEND_API_KEY) {
+    if (target && target.includes("@")) {
       try {
-        const fromEmail = process.env.NOTIFICATION_FROM_EMAIL ?? "returns@resend.dev";
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${process.env.RESEND_API_KEY}`,
-          },
-          body: JSON.stringify({
-            from: fromEmail,
-            to: [target],
-            subject: "Your return portal verification code",
-            html: `<div style="font-family:system-ui,sans-serif;max-width:400px;margin:0 auto;padding:24px"><h2 style="margin:0 0 16px">Verification Code</h2><p>Your code is:</p><div style="font-size:32px;font-weight:700;letter-spacing:6px;text-align:center;padding:16px;background:#f0f4f8;border-radius:8px;margin:16px 0">${otp}</div><p style="color:#6b7280;font-size:14px">This code expires in 10 minutes. Do not share it with anyone.</p></div>`,
-          }),
-        });
+        const shopRecord = await prisma.shop.findUnique({ where: { id: session.shopId }, select: { shopDomain: true } });
+        if (shopRecord) {
+          await sendOtpEmail({
+            shopDomain: shopRecord.shopDomain,
+            to: target,
+            otp,
+          });
+        }
       } catch (emailErr) {
         console.warn("[OTP] Email send failed:", emailErr);
       }

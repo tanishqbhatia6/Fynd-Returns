@@ -11,6 +11,7 @@
 
 import prisma from "../db.server";
 import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber } from "./shopify-admin.server";
+import { sendRefundNotification } from "./notification.server";
 
 /** Fynd refund statuses that indicate refund is in progress */
 const REFUND_IN_PROGRESS = [
@@ -286,6 +287,14 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
           payloadJson: JSON.stringify({ note: "Manual return - Fynd refund done, mark complete in app" }),
         },
       });
+      if (returnCase.customerEmailNorm) {
+        sendRefundNotification({
+          shopDomain,
+          to: returnCase.customerEmailNorm,
+          orderName: returnCase.shopifyOrderName || "your order",
+          shopName: shopDomain.replace(".myshopify.com", ""),
+        }).catch(err => console.warn("[fynd-webhook] Manual refund notification failed:", err));
+      }
       await logWebhook({
         shipmentId,
         orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
@@ -407,6 +416,16 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         payloadJson: JSON.stringify({ ...refundDetails, shipment_id: shipmentId, fynd_refund_status: refundStatus }),
       },
     });
+    if (returnCase.customerEmailNorm) {
+      sendRefundNotification({
+        shopDomain,
+        to: returnCase.customerEmailNorm,
+        orderName: returnCase.shopifyOrderName || "your order",
+        amount: refundDetails.amount ?? undefined,
+        currency: refundDetails.currency ?? undefined,
+        shopName: shopDomain.replace(".myshopify.com", ""),
+      }).catch(err => console.warn("[fynd-webhook] Refund notification failed:", err));
+    }
     await logWebhook({
       shipmentId,
       orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
@@ -487,6 +506,16 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
                 payloadJson: JSON.stringify({ ...refundDetails, trigger: "credit_note_generated", shipment_id: shipmentId }),
               },
             });
+            if (returnCase.customerEmailNorm) {
+              sendRefundNotification({
+                shopDomain,
+                to: returnCase.customerEmailNorm,
+                orderName: returnCase.shopifyOrderName || "your order",
+                amount: refundDetails.amount ?? undefined,
+                currency: refundDetails.currency ?? undefined,
+                shopName: shopDomain.replace(".myshopify.com", ""),
+              }).catch(err => console.warn("[fynd-webhook] Auto-refund notification failed:", err));
+            }
             await logWebhook({
               shipmentId,
               orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,

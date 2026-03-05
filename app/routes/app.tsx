@@ -2,6 +2,7 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Link, Outlet, useLoaderData, useLocation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getAppMode } from "../lib/fynd-config.server";
@@ -23,9 +24,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const portalUrl = `https://${shopDomain}/apps/returns`;
   let appMode: "dev" | "prod" = "prod";
   let pendingCount = 0;
+  let adminSoundEnabled = true;
   try {
     const shop = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
-    if (shop?.settings) appMode = getAppMode(shop.settings);
+    if (shop?.settings) {
+      appMode = getAppMode(shop.settings);
+      adminSoundEnabled = shop.settings.adminSoundEnabled ?? true;
+    }
     if (shop) {
       pendingCount = await prisma.returnCase.count({
         where: { shopId: shop.id, status: { in: ["initiated", "pending"] } },
@@ -40,6 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     portalUrl,
     appMode,
     pendingCount,
+    adminSoundEnabled,
   };
 };
 
@@ -68,11 +74,41 @@ function getBreadcrumb(pathname: string) {
   return null;
 }
 
+function useNotificationSound(enabled: boolean, currentCount: number) {
+  const prevCount = useRef(currentCount);
+
+  const playSound = useCallback(() => {
+    try {
+      const ctx = new AudioContext();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      osc.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
+      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.2);
+      gain.gain.setValueAtTime(0.3, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.5);
+    } catch { /* AudioContext unavailable */ }
+  }, []);
+
+  useEffect(() => {
+    if (enabled && currentCount > prevCount.current) {
+      playSound();
+    }
+    prevCount.current = currentCount;
+  }, [currentCount, enabled, playSound]);
+}
+
 export default function App() {
-  const { apiKey, appMode, pendingCount } = useLoaderData<typeof loader>();
+  const { apiKey, appMode, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
   const location = useLocation();
   const isDashboard = location.pathname === "/app" || location.pathname === "/app/";
   const breadcrumb = getBreadcrumb(location.pathname);
+  useNotificationSound(adminSoundEnabled, pendingCount);
 
   return (
     <AppProvider embedded apiKey={apiKey}>

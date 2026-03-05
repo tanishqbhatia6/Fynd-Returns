@@ -176,7 +176,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.error("Portal lookup orders by phone:", err);
       }
     } else if (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") {
-      const orderNumber = norm.replace(/^#/, "");
+      const orderNumber = rawValue.replace(/^#/, "");
       try {
         const { admin } = await shopify.unauthenticated.admin(shopDomain);
         const order = await fetchOrderByOrderNumber(admin, orderNumber);

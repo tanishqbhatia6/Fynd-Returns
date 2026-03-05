@@ -151,6 +151,14 @@ const ORDER_BY_IDENTIFIER_QUERY = `#graphql
   }
 `;
 
+const ORDER_BY_NAME_IDENTIFIER_QUERY = `#graphql
+  query getOrderByNameIdentifier($name: String!) {
+    orderByIdentifier(identifier: { name: $name }) {
+      ${ORDER_FIELDS_FRAGMENT}
+    }
+  }
+`;
+
 /* All multi-order queries now use fetchOrdersByFilter() with inline GQL */
 
 const REFUND_MUTATION = `#graphql
@@ -285,9 +293,35 @@ export async function fetchOrderByGid(
 }
 
 /**
- * Search orders using a single Shopify Admin GraphQL call.
- * Handles PCDA errors and returns the first matching order node.
+ * Exact O(1) lookup by Shopify order name using orderByIdentifier.
+ * Unlike orders(query: "name:...") which does fuzzy/token matching,
+ * this returns ONLY the order with the exact name — no false positives.
  */
+export async function fetchOrderByExactName(
+  admin: AdminGraphQL,
+  name: string
+): Promise<OrderForPortal | null> {
+  if (!name) return null;
+  try {
+    const res = await admin.graphql(ORDER_BY_NAME_IDENTIFIER_QUERY, { variables: { name } });
+    const json = (await res.json()) as {
+      data?: { orderByIdentifier?: Record<string, unknown> | null };
+      errors?: Array<{ message?: string }>;
+    };
+    const errMsg = json.errors?.[0]?.message ?? "";
+    if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
+      throw new OrderAccessError(errMsg, "PCDA");
+    }
+    if (json.errors?.length) return null;
+    const node = json.data?.orderByIdentifier;
+    if (!node || !("name" in node)) return null;
+    return parseOrderNode(node);
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+    return null;
+  }
+}
+
 /**
  * Search Shopify orders by query string. When `exactName` is provided,
  * fetches up to 25 candidates and returns only the one whose `name`
@@ -354,28 +388,26 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1: name: filter (primary for standard order names like #1001)
-  // Shopify does substring matching, so we fetch multiple candidates
-  // and pick only the exact match to avoid returning the wrong order.
-  const nameQueries = /^\d+$/.test(clean)
-    ? [`name:#${clean}`, `name:${clean}`]
-    : [`name:#${clean}`, `name:${clean}`];
-
-  for (const q of nameQueries) {
-    try {
-      const node = await searchOrders(admin, q, true, clean);
-      if (node) return parseOrderNode(node);
-    } catch (err) {
-      if (err instanceof OrderAccessError) throw err;
-    }
+  // Strategy 1: orderByIdentifier with exact name — deterministic O(1).
+  // Unlike orders(query: "name:...") which does fuzzy token matching,
+  // orderByIdentifier returns ONLY the order with the exact name.
+  try {
+    const result = await fetchOrderByExactName(admin, `#${clean}`);
+    if (result) return result;
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
+  }
+  try {
+    const result = await fetchOrderByExactName(admin, clean);
+    if (result) return result;
+  } catch (err) {
+    if (err instanceof OrderAccessError) throw err;
   }
 
   // For pure numeric order names, no further strategies needed
   if (/^\d+$/.test(clean)) return null;
 
   // Strategy 2: metafield search — indexed, O(1), works at any scale.
-  // Metafield values are exact-match by Shopify, but verify the metafield
-  // value to be safe against any fuzzy behavior.
   try {
     const node = await searchOrders(admin, `metafields.$app.fynd_order_id:"${clean}"`, false);
     if (node) return parseOrderNode(node);
@@ -383,25 +415,9 @@ export async function fetchOrderByOrderNumber(
     if (err instanceof OrderAccessError) throw err;
   }
 
-  // Strategy 3: source_identifier: — for third-party order IDs (Fynd, POS, etc.)
+  // Strategy 3: source_identifier: — for third-party order IDs
   try {
     const node = await searchOrders(admin, `source_identifier:${clean}`, false, clean);
-    if (node) return parseOrderNode(node);
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
-  }
-
-  // Strategy 4: tag: — orders tagged with external IDs
-  try {
-    const node = await searchOrders(admin, `tag:${clean}`, false, clean);
-    if (node) return parseOrderNode(node);
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
-  }
-
-  // Strategy 5: free-text search — must also exact-match the name
-  try {
-    const node = await searchOrders(admin, clean, false, clean);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;

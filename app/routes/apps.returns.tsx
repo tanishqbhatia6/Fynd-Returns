@@ -8,6 +8,7 @@ import {
   applyPortalThemeToHtml,
 } from "../lib/portal-theme.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
+import { getPortalLabels } from "../lib/portal-i18n";
 
 let cachedTemplate: string | null = null;
 
@@ -55,6 +56,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let returnReasonsJson = "[]";
   let returnReasonsByCategoryJson = "";
   let portalConfigJson = "";
+  let portalLanguage = "en";
+  let shopLocale = "en";
+  let shopCurrency = "USD";
+  let shopTimezone = "UTC";
+  let portalLabelOverrides: Record<string, string> = {};
   try {
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -69,6 +75,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       returnReasonsJson = shop.settings.returnReasonsJson ?? "[]";
       returnReasonsByCategoryJson = shop.settings.returnReasonsByCategoryJson ?? "";
       portalConfigJson = shop.settings.portalConfigJson ?? "";
+      portalLanguage = shop.settings.portalLanguage ?? "en";
+      shopLocale = shop.settings.shopLocale ?? "en";
+      shopCurrency = shop.settings.shopCurrency ?? "USD";
+      shopTimezone = shop.settings.shopTimezone ?? "UTC";
+      if (shop.settings.portalLabelsJson) {
+        try { portalLabelOverrides = JSON.parse(shop.settings.portalLabelsJson); } catch { /* ignore */ }
+      }
     }
   } catch (err) {
     console.error("Portal theme load error:", err);
@@ -87,6 +100,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
   portalHtml = applyPortalThemeToHtml(portalHtml, theme);
+  const effectiveLocale = portalLanguage || shopLocale || "en";
+  const mergedLabels = getPortalLabels(effectiveLocale, portalLabelOverrides);
+  const i18nScript = `<script>
+window.__RPM_LABELS__=${escapeJsonInHtml(JSON.stringify(mergedLabels))};
+window.__RPM_LOCALE__=${JSON.stringify(effectiveLocale)};
+window.__RPM_CURRENCY__=${JSON.stringify(shopCurrency)};
+window.__RPM_TIMEZONE__=${JSON.stringify(shopTimezone)};
+</script>`;
+  const isRtl = ["ar", "he", "fa", "ur"].includes(effectiveLocale.split("-")[0].toLowerCase());
+
   portalHtml = portalHtml
     .replace("%SHOP%", escapeHtmlAttr(shopDomain))
     .replace("%APP_URL%", escapeHtmlAttr(appUrl))
@@ -94,7 +117,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .replace("%RETURN_POLICY%", escapeHtmlContent(returnPolicyText))
     .replace("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))
     .replace("%RETURN_REASONS_BY_CATEGORY_JSON%", escapeJsonInHtml(returnReasonsByCategoryJson || "{}"))
-    .replace("%PORTAL_CONFIG%", escapeJsonInHtml(JSON.stringify(portalConfig)));
+    .replace("%PORTAL_CONFIG%", escapeJsonInHtml(JSON.stringify(portalConfig)))
+    .replace("</head>", `${i18nScript}\n</head>`)
+    .replace('<html lang="en"', `<html lang="${escapeHtmlAttr(effectiveLocale)}"${isRtl ? ' dir="rtl"' : ''}`);
 
   return new Response(portalHtml, {
     headers: { "Content-Type": "text/html" },

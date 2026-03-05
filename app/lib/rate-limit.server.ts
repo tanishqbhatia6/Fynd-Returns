@@ -33,7 +33,8 @@ const DEFAULT_LIMITS: Record<string, RateLimitConfig> = {
 function getClientKey(request: Request, endpoint: string): string {
   const forwarded = request.headers.get("x-forwarded-for");
   const ip = forwarded?.split(",")[0]?.trim() || "unknown";
-  const shop = new URL(request.url).searchParams.get("shop") || "global";
+  let shop = "global";
+  try { shop = new URL(request.url).searchParams.get("shop") || "global"; } catch { /* malformed URL */ }
   return `${ip}:${shop}:${endpoint}`;
 }
 

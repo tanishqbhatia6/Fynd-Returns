@@ -965,7 +965,7 @@ export async function createRefund(
 
     const refundInput: Record<string, unknown> = {
       orderId: gid,
-      note: note || "Return processed via Return Pro Max",
+      note: note || "Return processed via Fynd Returns",
       refundLineItems,
     };
 

@@ -24,12 +24,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const { processFyndWebhook } = await import("../lib/fynd-webhook.server");
 
+  const rawBodyText = await request.text();
+
+  // Signature verification BEFORE parsing — uses raw body for correct HMAC
+  const secret = process.env.FYND_WEBHOOK_SECRET;
+  const isProd = process.env.NODE_ENV === "production";
+  if (secret) {
+    const signature = request.headers.get("x-fynd-signature") ?? request.headers.get("x-webhook-signature");
+    if (!signature) {
+      console.warn("[Fynd webhook] Missing signature header — rejecting");
+      return Response.json({ error: "Missing webhook signature" }, { status: 401 });
+    }
+    const { createHmac, timingSafeEqual } = await import("crypto");
+    const expected = createHmac("sha256", secret).update(rawBodyText).digest("hex");
+    const sigClean = signature.replace(/^sha256=/, "");
+    try {
+      const sigBuf = Buffer.from(sigClean, "hex");
+      const expBuf = Buffer.from(expected, "hex");
+      if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
+        console.warn("[Fynd webhook] Signature mismatch — rejecting");
+        return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
+      }
+    } catch {
+      console.warn("[Fynd webhook] Signature verification error — rejecting");
+      return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
+    }
+  } else if (isProd) {
+    console.warn("[Fynd webhook] FYND_WEBHOOK_SECRET not set in production — webhook accepted without verification. Set FYND_WEBHOOK_SECRET for security.");
+  }
+
   let payload: FyndWebhookPayload;
   try {
-    const body = (await request.json()) as Record<string, unknown>;
-    // Fynd Platform format: { company_id, contains, event, payload }
+    const body = JSON.parse(rawBodyText) as Record<string, unknown>;
     const inner = body?.payload && typeof body.payload === "object" ? (body.payload as Record<string, unknown>) : body;
-    // Map status for handler: prefer refund_status, then status (e.g. return_bag_delivered), then nested, then event type
     const event = body?.event && typeof body.event === "object" ? (body.event as { type?: string; name?: string }) : null;
     const eventType = event?.type ?? event?.name;
     const firstShipment = Array.isArray(inner?.shipments) ? inner.shipments[0] : null;
@@ -45,34 +72,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } as FyndWebhookPayload;
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  // Signature verification — required in production when FYND_WEBHOOK_SECRET is set
-  const secret = process.env.FYND_WEBHOOK_SECRET;
-  const isProd = process.env.NODE_ENV === "production";
-  if (secret) {
-    const signature = request.headers.get("x-fynd-signature") ?? request.headers.get("x-webhook-signature");
-    if (!signature) {
-      console.warn("[Fynd webhook] Missing signature header — rejecting");
-      return Response.json({ error: "Missing webhook signature" }, { status: 401 });
-    }
-    const { createHmac, timingSafeEqual } = await import("crypto");
-    const rawBody = JSON.stringify(payload);
-    const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
-    const sigClean = signature.replace(/^sha256=/, "");
-    try {
-      const sigBuf = Buffer.from(sigClean, "hex");
-      const expBuf = Buffer.from(expected, "hex");
-      if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-        console.warn("[Fynd webhook] Signature mismatch — rejecting");
-        return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
-      }
-    } catch {
-      console.warn("[Fynd webhook] Signature verification error — rejecting");
-      return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
-    }
-  } else if (isProd) {
-    console.warn("[Fynd webhook] FYND_WEBHOOK_SECRET not set in production — webhook accepted without verification. Set FYND_WEBHOOK_SECRET for security.");
   }
 
   // Replay protection: reject webhooks with timestamps older than 5 minutes

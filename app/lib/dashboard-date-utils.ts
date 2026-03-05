@@ -107,7 +107,7 @@ export function parseDateRange(
     return {
       start,
       end,
-      label: `${start.toLocaleDateString()} – ${end.toLocaleDateString()}`,
+      label: `${new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(start)} – ${new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(end)}`,
       preset: "custom",
     };
   }

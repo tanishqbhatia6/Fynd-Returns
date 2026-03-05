@@ -1,4 +1,4 @@
-// Return Pro Max - Fynd ↔ Shopify Returns Manager
+// Fynd Returns — Enterprise Returns Management for Shopify
 // PostgreSQL for enterprise-grade multi-tenant data
 
 generator client {
@@ -111,6 +111,11 @@ model ShopSettings {
   // Multi-language portal
   portalLanguage             String   @default("en")
   portalLabelsJson           String?  @db.Text // JSON { key: translatedLabel } overrides
+
+  // Shop locale, currency, timezone (auto-detected from Shopify)
+  shopLocale                 String?  @default("en")
+  shopCurrency               String?  @default("USD")
+  shopTimezone               String?  @default("UTC")
 
   // Return shipping label
   defaultReturnInstructions  String?  @db.Text // Default instructions shown to customer after approval

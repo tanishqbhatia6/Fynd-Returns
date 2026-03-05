@@ -25,13 +25,22 @@ function isRedirectResponse(err: unknown): boolean {
 }
 
 async function extractErrorMessage(err: unknown): Promise<string> {
-  if (err instanceof Error) return err.message;
+  if (err instanceof Error) {
+    const msg = err.message;
+    if (msg.includes("ECONNREFUSED") || msg.includes("ENOTFOUND") || msg.includes("ETIMEDOUT")) {
+      return "Unable to connect to external service. Please try again later.";
+    }
+    return msg.length > 300 ? msg.slice(0, 300) + "..." : msg;
+  }
   if (typeof err === "object" && err !== null && "ok" in err && typeof (err as Response).json === "function") {
     const res = err as Response;
     try {
       const j = await res.json().catch(() => ({}));
       const msg = (j as { error?: string; message?: string })?.error ?? (j as { error?: string; message?: string })?.message;
-      if (typeof msg === "string" && msg.trim()) return msg;
+      if (typeof msg === "string" && msg.trim()) {
+        const safe = msg.length > 300 ? msg.slice(0, 300) + "..." : msg;
+        return safe;
+      }
     } catch {
       /* ignore */
     }
@@ -39,7 +48,7 @@ async function extractErrorMessage(err: unknown): Promise<string> {
   }
   const s = String(err);
   if (s === "[object Response]" || s === "[object Object]") return "Request failed. Please check Fynd configuration and try again.";
-  return s;
+  return s.length > 300 ? s.slice(0, 300) + "..." : s;
 }
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {

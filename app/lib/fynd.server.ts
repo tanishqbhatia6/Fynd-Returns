@@ -123,7 +123,12 @@ export async function fetchFyndPlatformToken(
     const hint = res.status === 401 ? " Check Company ID, Client ID & Secret." : res.status >= 500 ? " Fynd server error. Try again later." : "";
     throw new Error(`Fynd Platform OAuth error ${res.status}: ${(body || "Unknown error").slice(0, 200)}${hint}`);
   }
-  const data = JSON.parse(body) as { access_token?: string; expires_in?: number };
+  let data: { access_token?: string; expires_in?: number };
+  try {
+    data = JSON.parse(body) as { access_token?: string; expires_in?: number };
+  } catch {
+    throw new Error(`Fynd OAuth returned invalid JSON: ${body.slice(0, 200)}`);
+  }
   if (!data.access_token) throw new Error("No access_token in OAuth response");
   const ttl = data.expires_in ? Math.min(data.expires_in * 1000, TOKEN_CACHE_TTL_MS) : TOKEN_CACHE_TTL_MS;
   tokenCache.set(cacheKey, { token: data.access_token, expiresAt: Date.now() + ttl });

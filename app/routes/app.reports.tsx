@@ -1,6 +1,6 @@
 import React from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useSearchParams } from "react-router";
+import { Link, useLoaderData, useSearchParams, useRouteError, isRouteErrorResponse } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
@@ -669,6 +669,23 @@ export default function Reports() {
           <span><strong>{itemsCount}</strong> items returned ({rangeLabel})</span>
           <span>·</span>
           <span>~<strong>{avgItemsPerReturn}</strong> items per return</span>
+        </div>
+      </div>
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const msg = isRouteErrorResponse(error)
+    ? error.data || `Error ${error.status}`
+    : error instanceof Error ? error.message : "An unexpected error occurred.";
+  return (
+    <s-page heading="Reports">
+      <div className="app-content">
+        <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
+          <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
+          <a href="/app/reports" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>
         </div>
       </div>
     </s-page>

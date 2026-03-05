@@ -1,90 +1,124 @@
 import React from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData } from "react-router";
+import { Link, useLoaderData, useRouteError, isRouteErrorResponse } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  let shop = await prisma.shop.findUnique({
-    where: { shopDomain: session.shop },
-    include: { settings: true },
-  });
-  if (!shop) {
-    shop = await prisma.shop.create({
-      data: { shopDomain: session.shop },
+  try {
+    let shop = await prisma.shop.findUnique({
+      where: { shopDomain: session.shop },
       include: { settings: true },
     });
+    if (!shop) {
+      shop = await prisma.shop.create({
+        data: { shopDomain: session.shop },
+        include: { settings: true },
+      });
+    }
+    const s = shop.settings;
+
+    const hasFynd = !!(s?.fyndCompanyId && s?.fyndApplicationId);
+    const hasReasons = !!(s?.returnReasonsJson && s.returnReasonsJson !== "[]");
+    const hasPortalTheme = !!s?.portalThemeJson;
+    const readAllOrders = s?.readAllOrdersEnabled ?? false;
+
+    const notifCount = [s?.notificationNewReturn, s?.notificationApproved, s?.notificationRejected, s?.notificationRefunded].filter(Boolean).length;
+    const smtpConfigured = !!(s?.smtpHost && s?.smtpUser && s?.smtpPass);
+
+    const returnWindowDays = s?.returnWindowDays ?? 30;
+    const autoApprove = s?.autoApproveEnabled ?? false;
+    const autoRefund = s?.autoRefundEnabled ?? false;
+    const photoRequired = s?.photoRequired ?? false;
+    const hasReturnFee = s?.returnFeeAmount != null && Number(s.returnFeeAmount) > 0;
+    const returnFeeCurrency = s?.returnFeeCurrency ?? "USD";
+    const returnFeeAmount = s?.returnFeeAmount != null ? Number(s.returnFeeAmount) : 0;
+    const fyndEnv = s?.fyndEnvironment ?? null;
+    const refundPaymentMethod = s?.refundPaymentMethod ?? "original";
+
+    let reasonCount = 0;
+    try {
+      const arr = JSON.parse(s?.returnReasonsJson ?? "[]");
+      if (Array.isArray(arr)) reasonCount = arr.length;
+    } catch { /* */ }
+
+    let restrictedRegionCount = 0;
+    try {
+      const arr = JSON.parse(s?.restrictedRegionsJson ?? "[]");
+      if (Array.isArray(arr)) restrictedRegionCount = arr.length;
+    } catch { /* */ }
+
+    const blocklistEnabled = s?.blocklistEnabled ?? false;
+    let blocklistCount = 0;
+    if (s) {
+      blocklistCount = await prisma.blocklistEntry.count({ where: { settingsId: s.id } });
+    }
+
+    let autoRulesCount = 0;
+    try {
+      const arr = JSON.parse(s?.autoApproveRulesJson ?? "[]");
+      if (Array.isArray(arr)) autoRulesCount = arr.length;
+    } catch { /* */ }
+
+    const bonusCreditEnabled = s?.bonusCreditEnabled ?? false;
+    const bonusCreditPct = s?.bonusCreditPct ?? 10;
+    const greenReturnsEnabled = s?.greenReturnsEnabled ?? false;
+    const greenReturnsThreshold = s?.greenReturnsThreshold != null ? Number(s.greenReturnsThreshold) : 0;
+    const hasDefaultReturnInstructions = !!(s?.defaultReturnInstructions && s.defaultReturnInstructions.trim().length > 0);
+    const portalLanguage = s?.portalLanguage ?? "en";
+
+    let productPolicyCount = 0;
+    try {
+      const arr = JSON.parse(s?.productPoliciesJson ?? "[]");
+      if (Array.isArray(arr)) productPolicyCount = arr.length;
+    } catch { /* */ }
+
+    const discountCodeRefundEnabled = s?.discountCodeRefundEnabled ?? false;
+
+    return {
+      hasFynd, hasReasons, hasPortalTheme, readAllOrders,
+      notifCount, smtpConfigured, returnWindowDays, autoApprove, autoRefund,
+      photoRequired, hasReturnFee, returnFeeAmount, returnFeeCurrency,
+      fyndEnv, reasonCount, restrictedRegionCount, refundPaymentMethod,
+      blocklistEnabled, blocklistCount, autoRulesCount,
+      bonusCreditEnabled, bonusCreditPct, greenReturnsEnabled,
+      greenReturnsThreshold, hasDefaultReturnInstructions, portalLanguage,
+      productPolicyCount, discountCodeRefundEnabled,
+    };
+  } catch (err) {
+    console.error("[app.settings._index] Loader error:", err);
+    return {
+      hasFynd: false,
+      hasReasons: false,
+      hasPortalTheme: false,
+      readAllOrders: false,
+      notifCount: 0,
+      smtpConfigured: false,
+      returnWindowDays: 30,
+      autoApprove: false,
+      autoRefund: false,
+      photoRequired: false,
+      hasReturnFee: false,
+      returnFeeAmount: 0,
+      returnFeeCurrency: "USD",
+      fyndEnv: null,
+      reasonCount: 0,
+      restrictedRegionCount: 0,
+      refundPaymentMethod: "original",
+      blocklistEnabled: false,
+      blocklistCount: 0,
+      autoRulesCount: 0,
+      bonusCreditEnabled: false,
+      bonusCreditPct: 10,
+      greenReturnsEnabled: false,
+      greenReturnsThreshold: 0,
+      hasDefaultReturnInstructions: false,
+      portalLanguage: "en",
+      productPolicyCount: 0,
+      discountCodeRefundEnabled: false,
+    };
   }
-  const s = shop.settings;
-
-  const hasFynd = !!(s?.fyndCompanyId && s?.fyndApplicationId);
-  const hasReasons = !!(s?.returnReasonsJson && s.returnReasonsJson !== "[]");
-  const hasPortalTheme = !!s?.portalThemeJson;
-  const readAllOrders = s?.readAllOrdersEnabled ?? false;
-
-  const notifCount = [s?.notificationNewReturn, s?.notificationApproved, s?.notificationRejected, s?.notificationRefunded].filter(Boolean).length;
-  const smtpConfigured = !!(s?.smtpHost && s?.smtpUser && s?.smtpPass);
-
-  const returnWindowDays = s?.returnWindowDays ?? 30;
-  const autoApprove = s?.autoApproveEnabled ?? false;
-  const autoRefund = s?.autoRefundEnabled ?? false;
-  const photoRequired = s?.photoRequired ?? false;
-  const hasReturnFee = s?.returnFeeAmount != null && Number(s.returnFeeAmount) > 0;
-  const returnFeeCurrency = s?.returnFeeCurrency ?? "USD";
-  const returnFeeAmount = s?.returnFeeAmount != null ? Number(s.returnFeeAmount) : 0;
-  const fyndEnv = s?.fyndEnvironment ?? null;
-  const refundPaymentMethod = s?.refundPaymentMethod ?? "original";
-
-  let reasonCount = 0;
-  try {
-    const arr = JSON.parse(s?.returnReasonsJson ?? "[]");
-    if (Array.isArray(arr)) reasonCount = arr.length;
-  } catch { /* */ }
-
-  let restrictedRegionCount = 0;
-  try {
-    const arr = JSON.parse(s?.restrictedRegionsJson ?? "[]");
-    if (Array.isArray(arr)) restrictedRegionCount = arr.length;
-  } catch { /* */ }
-
-  const blocklistEnabled = s?.blocklistEnabled ?? false;
-  let blocklistCount = 0;
-  if (s) {
-    blocklistCount = await prisma.blocklistEntry.count({ where: { settingsId: s.id } });
-  }
-
-  let autoRulesCount = 0;
-  try {
-    const arr = JSON.parse(s?.autoApproveRulesJson ?? "[]");
-    if (Array.isArray(arr)) autoRulesCount = arr.length;
-  } catch { /* */ }
-
-  const bonusCreditEnabled = s?.bonusCreditEnabled ?? false;
-  const bonusCreditPct = s?.bonusCreditPct ?? 10;
-  const greenReturnsEnabled = s?.greenReturnsEnabled ?? false;
-  const greenReturnsThreshold = s?.greenReturnsThreshold != null ? Number(s.greenReturnsThreshold) : 0;
-  const hasDefaultReturnInstructions = !!(s?.defaultReturnInstructions && s.defaultReturnInstructions.trim().length > 0);
-  const portalLanguage = s?.portalLanguage ?? "en";
-
-  let productPolicyCount = 0;
-  try {
-    const arr = JSON.parse(s?.productPoliciesJson ?? "[]");
-    if (Array.isArray(arr)) productPolicyCount = arr.length;
-  } catch { /* */ }
-
-  const discountCodeRefundEnabled = s?.discountCodeRefundEnabled ?? false;
-
-  return {
-    hasFynd, hasReasons, hasPortalTheme, readAllOrders,
-    notifCount, smtpConfigured, returnWindowDays, autoApprove, autoRefund,
-    photoRequired, hasReturnFee, returnFeeAmount, returnFeeCurrency,
-    fyndEnv, reasonCount, restrictedRegionCount, refundPaymentMethod,
-    blocklistEnabled, blocklistCount, autoRulesCount,
-    bonusCreditEnabled, bonusCreditPct, greenReturnsEnabled,
-    greenReturnsThreshold, hasDefaultReturnInstructions, portalLanguage,
-    productPolicyCount, discountCodeRefundEnabled,
-  };
 };
 
 type StatusChip = { label: string; variant: "ok" | "warn" | "off" | "info" };

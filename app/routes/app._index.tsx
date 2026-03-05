@@ -288,6 +288,17 @@ export default function Dashboard() {
   return (
     <s-page heading="Dashboard">
       <div className="app-content" style={{ paddingBottom: 48 }}>
+        {/* Fynd Returns Header */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <img src="/fynd-logo.png" alt="Fynd" style={{ height: 20 }} />
+            <span style={{ fontSize: 16, fontWeight: 800, color: "var(--rpm-text, #0f172a)", letterSpacing: "-0.02em" }}>Returns</span>
+            <span style={{ fontSize: 11, color: "#94a3b8", fontWeight: 500, marginLeft: 4 }}>Dashboard</span>
+          </div>
+          <a href="https://www.fynd.com/" target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "var(--rpm-accent, #005bd3)", textDecoration: "none", fontWeight: 600 }}>
+            fynd.com
+          </a>
+        </div>
         {error && (
           <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
             <p style={{ fontWeight: 600, fontSize: 14 }}>

@@ -603,7 +603,7 @@ export default function Notifications() {
                   <div style={{ height: 3, background: previewTemplates[previewTemplate].color }} />
                   <div dangerouslySetInnerHTML={{ __html: previewTemplates[previewTemplate].preview }} />
                   <div style={{ padding: "12px 24px", borderTop: "1px solid #e5e7eb", fontSize: 11, color: "#94a3b8" }}>
-                    Powered by Return Pro Max
+                    Powered by Fynd Returns
                   </div>
                 </div>
               </div>

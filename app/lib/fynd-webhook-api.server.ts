@@ -97,7 +97,7 @@ export async function listFyndWebhookSubscribers(
       return { ok: false, error: `Fynd Webhook API ${res.status}: ${(text || "Unknown error").slice(0, 200)}${hint}` };
     }
 
-    const data = JSON.parse(text || "{}") as {
+    let data: {
       items?: Array<{
         id?: number;
         name?: string;
@@ -111,6 +111,11 @@ export async function listFyndWebhookSubscribers(
       }>;
       page?: { item_total?: number };
     };
+    try {
+      data = JSON.parse(text || "{}");
+    } catch {
+      return { ok: false, error: `Fynd Webhook API returned invalid JSON: ${text.slice(0, 200)}` };
+    }
 
     const items = data?.items ?? [];
     const subscribers: FyndSubscriber[] = items.map((i) => ({

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData } from "react-router";
+import { Link, useLoaderData, useRouteError, isRouteErrorResponse } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parsePortalTheme } from "../lib/portal-theme.server";
@@ -8,38 +8,51 @@ import { parsePortalConfig } from "../lib/portal-config.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
-  const portalUrl = `https://${session.shop}/apps/returns`;
-  const storeName = session.shop.replace(".myshopify.com", "");
+  try {
+    const portalUrl = `https://${session.shop}/apps/returns`;
+    const storeName = session.shop.replace(".myshopify.com", "");
 
-  const shop = await prisma.shop.findUnique({
-    where: { shopDomain: session.shop },
-    include: { settings: true },
-  });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain: session.shop },
+      include: { settings: true },
+    });
 
-  const hasTheme = !!shop?.settings?.portalThemeJson;
-  const theme = parsePortalTheme(shop?.settings?.portalThemeJson ?? null);
-  const config = parsePortalConfig(shop?.settings?.portalConfigJson ?? null);
+    const hasTheme = !!shop?.settings?.portalThemeJson;
+    const theme = parsePortalTheme(shop?.settings?.portalThemeJson ?? null);
+    const config = parsePortalConfig(shop?.settings?.portalConfigJson ?? null);
 
-  let totalReturns = 0;
-  let activeReturns = 0;
-  if (shop) {
-    const [total, active] = await Promise.all([
-      prisma.returnCase.count({ where: { shopId: shop.id } }),
-      prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["pending", "processing", "in progress", "approved", "initiated"] } } }),
-    ]);
-    totalReturns = total;
-    activeReturns = active;
+    let totalReturns = 0;
+    let activeReturns = 0;
+    if (shop) {
+      const [total, active] = await Promise.all([
+        prisma.returnCase.count({ where: { shopId: shop.id } }),
+        prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["pending", "processing", "in progress", "approved", "initiated"] } } }),
+      ]);
+      totalReturns = total;
+      activeReturns = active;
+    }
+
+    return {
+      portalUrl,
+      storeName,
+      hasTheme,
+      theme,
+      config,
+      totalReturns,
+      activeReturns,
+    };
+  } catch (err) {
+    console.error("[app.portal] Loader error:", err);
+    return {
+      portalUrl: "",
+      storeName: session.shop?.replace(".myshopify.com", "") ?? "",
+      hasTheme: false,
+      theme: parsePortalTheme(null),
+      config: parsePortalConfig(null),
+      totalReturns: 0,
+      activeReturns: 0,
+    };
   }
-
-  return {
-    portalUrl,
-    storeName,
-    hasTheme,
-    theme,
-    config,
-    totalReturns,
-    activeReturns,
-  };
 };
 
 export default function PortalInfo() {
@@ -486,6 +499,23 @@ export default function PortalInfo() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const msg = isRouteErrorResponse(error)
+    ? error.data || `Error ${error.status}`
+    : error instanceof Error ? error.message : "An unexpected error occurred.";
+  return (
+    <s-page heading="Customer Portal">
+      <div className="app-content">
+        <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
+          <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
+          <a href="/app/portal" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>
         </div>
       </div>
     </s-page>

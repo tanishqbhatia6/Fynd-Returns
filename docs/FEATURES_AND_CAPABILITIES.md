@@ -1,4 +1,4 @@
-# Return Pro Max — Features & Capabilities
+# Fynd Returns — Features & Capabilities
 
 > Complete reference for all features, modules, and capabilities of the ReturnProMax Shopify app.
 

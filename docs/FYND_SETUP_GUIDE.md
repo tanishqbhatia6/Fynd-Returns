@@ -1,4 +1,4 @@
-# Fynd Setup Guide — Return Pro Max
+# Fynd Setup Guide — Fynd Returns
 
 Complete step-by-step guide to connect Fynd and enable automatic refund updates.
 
@@ -6,7 +6,7 @@ Complete step-by-step guide to connect Fynd and enable automatic refund updates.
 
 ## Overview
 
-Return Pro Max integrates with Fynd for:
+Fynd Returns integrates with Fynd for:
 
 1. **Creating returns on Fynd** — When you approve a return, sync it to Fynd via Platform API
 2. **Automatic refund updates** — When Fynd processes the refund, a webhook notifies the app, which then creates the refund in Shopify
@@ -33,7 +33,7 @@ This guide walks you through both parts.
    - `company/orders/write`
    - `company/settings` (for webhook registration via API)
 
-### In Return Pro Max
+### In Fynd Returns
 
 1. Go to **Settings** → **Partner Integrations** (or use the **Fynd Setup Guide**)
 2. Select **UAT** (sandbox) or **Production** environment
@@ -46,9 +46,9 @@ This guide walks you through both parts.
 
 ### What it does
 
-Verifies that Return Pro Max can connect to Fynd Platform API using your credentials. It calls the `orders-listing` endpoint.
+Verifies that Fynd Returns can connect to Fynd Platform API using your credentials. It calls the `orders-listing` endpoint.
 
-### In Return Pro Max
+### In Fynd Returns
 
 1. After saving credentials, click **Test Platform**
 2. If successful: ✓ "Platform API connection successful"
@@ -61,7 +61,7 @@ Verifies that Return Pro Max can connect to Fynd Platform API using your credent
 
 ### What it does
 
-The webhook lets Fynd notify Return Pro Max when refund status changes. Without it, you must manually process refunds in Shopify when Fynd completes them.
+The webhook lets Fynd notify Fynd Returns when refund status changes. Without it, you must manually process refunds in Shopify when Fynd completes them.
 
 ### Webhook URL
 
@@ -81,7 +81,7 @@ Replace `YOUR_APP_URL` with your deployed app URL (e.g. `https://returnpromax.on
 
 ### Status mapping
 
-| Fynd status | Return Pro Max action |
+| Fynd status | Fynd Returns action |
 |-------------|------------------------|
 | `refund_initiated`, `refund_pending`, `UNDER PROCESS` | Sets `refundStatus` = `in_progress` |
 | `refund_done`, `refunded` | Calls Shopify Refund API, sets `refundStatus` = `refunded` |
@@ -94,7 +94,7 @@ Replace `YOUR_APP_URL` with your deployed app URL (e.g. `https://returnpromax.on
 
 Sends a test payload to the webhook endpoint to verify it is reachable and processes correctly. The test uses a fake shipment ID, so no return is updated.
 
-### In Return Pro Max
+### In Fynd Returns
 
 1. In the **Fynd Setup Guide**, go to Step 4
 2. Click **Test webhook**
@@ -108,15 +108,15 @@ Sends a test payload to the webhook endpoint to verify it is reachable and proce
 ### Approving and syncing a return
 
 1. Customer submits a return request via the portal
-2. You approve the return in Return Pro Max
+2. You approve the return in Fynd Returns
 3. Click **Retry Fynd sync** (or **Sync to Fynd**) on the return detail page
 4. Fynd creates the return shipment; the app stores `fyndShipmentId`
 
 ### Automatic refund when Fynd completes
 
 1. Fynd processes the return (QC, refund, etc.)
-2. Fynd sends a webhook to Return Pro Max with `shipment_id` and `refund_status`
-3. Return Pro Max finds the return by `fyndShipmentId`
+2. Fynd sends a webhook to Fynd Returns with `shipment_id` and `refund_status`
+3. Fynd Returns finds the return by `fyndShipmentId`
 4. When `refund_status` = `refund_done`, the app calls Shopify Refund API
 5. The return is marked as completed with `refundStatus` = `refunded`
 

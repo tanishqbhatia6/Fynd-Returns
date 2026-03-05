@@ -171,7 +171,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // Estimated refund amounts per line item
     const returnFeeAmount = settings?.returnFeeAmount ? Number(settings.returnFeeAmount) : 0;
-    const returnFeeCurrency = settings?.returnFeeCurrency ?? "USD";
+    const returnFeeCurrency = order.currencyCode || settings?.returnFeeCurrency || settings?.shopCurrency || "USD";
     const lineItemEstimates = (order.lineItems ?? []).map((li) => {
       const price = li.price ? parseFloat(li.price) : 0;
       const qty = li.quantity ?? 1;

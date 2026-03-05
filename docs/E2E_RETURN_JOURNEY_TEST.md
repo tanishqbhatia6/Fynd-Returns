@@ -18,7 +18,7 @@ This guide walks through testing the full return flow: **Shopify → Fynd → Sh
 ### Step 1: Create return (Portal or Admin)
 
 1. **Via Customer Portal:** Customer visits `https://STORE.myshopify.com/apps/returns`, enters order number, selects items, submits.
-2. **Via Admin:** Create return manually in Return Pro Max (Dashboard → Returns).
+2. **Via Admin:** Create return manually in Fynd Returns (Dashboard → Returns).
 
 ### Step 2: Approve return (Admin)
 

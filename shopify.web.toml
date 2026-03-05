@@ -1,4 +1,4 @@
-name = "Return Pro Max"
+name = "Fynd Returns"
 roles = ["frontend", "backend"]
 webhooks_path = "/webhooks/app/uninstalled"
 

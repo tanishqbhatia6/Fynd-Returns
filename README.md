@@ -1,4 +1,4 @@
-# Return Pro Max
+# Fynd Returns
 
 **Enterprise-grade Shopify Returns Management with Fynd Logistics Integration**
 

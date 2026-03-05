@@ -155,7 +155,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return { success: false, registerError: "SHOPIFY_APP_URL is not set. Set it in your deployment environment.", registerResult: false, debugLogs: logs };
       }
       const notificationEmail = String(formData.get("notificationEmail") ?? "").trim() || `webhooks@${session.shop?.replace(".myshopify.com", "")}.local`;
-      const subscriberName = String(formData.get("subscriberName") ?? "Return Pro Max").trim() || "Return Pro Max";
+      const subscriberName = String(formData.get("subscriberName") ?? "Fynd Returns").trim() || "Fynd Returns";
       const result = await registerFyndWebhook(
         {
           fyndEnvironment: (stored as { fyndEnvironment?: string })?.fyndEnvironment ?? "uat",
@@ -420,7 +420,7 @@ export default function FyndSetup() {
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-                Verify that Return Pro Max can connect to Fynd Platform API. This calls the <code>orders-listing</code> endpoint to validate
+                Verify that Fynd Returns can connect to Fynd Platform API. This calls the <code>orders-listing</code> endpoint to validate
                 your OAuth token and scopes.
               </p>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
@@ -454,7 +454,7 @@ export default function FyndSetup() {
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-                The webhook lets Fynd notify Return Pro Max when refund status changes. When Fynd reports <code>refund_done</code>, the app
+                The webhook lets Fynd notify Fynd Returns when refund status changes. When Fynd reports <code>refund_done</code>, the app
                 automatically creates the refund in Shopify.
               </p>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
@@ -559,8 +559,8 @@ export default function FyndSetup() {
                   <input
                     type="text"
                     name="subscriberName"
-                    defaultValue="Return Pro Max"
-                    placeholder="Return Pro Max"
+                    defaultValue="Fynd Returns"
+                    placeholder="Fynd Returns"
                     className="app-input"
                     style={{ maxWidth: 320 }}
                   />
@@ -651,7 +651,7 @@ export default function FyndSetup() {
               <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
                 <li>When you approve a return, sync it to Fynd (Retry Fynd sync)</li>
                 <li>When Fynd processes the refund, they send a webhook</li>
-                <li>Return Pro Max updates <code>refundStatus</code> to in_progress, then calls Shopify Refund API when done</li>
+                <li>Fynd Returns updates <code>refundStatus</code> to in_progress, then calls Shopify Refund API when done</li>
               </ul>
             </div>
             <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>

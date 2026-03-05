@@ -1,4 +1,4 @@
-# Return Pro Max — Setup Guide
+# Fynd Returns — Setup Guide
 
 Enterprise-grade Fynd ↔ Shopify Returns Manager using the **latest Shopify stack** (React Router v7, Shopify App React Router, Polaris Web Components).
 

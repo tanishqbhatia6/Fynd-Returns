@@ -2,7 +2,7 @@
 
 > **Setup:** Use the in-app **Fynd Setup Guide** (Settings → Fynd Setup Guide) for step-by-step configuration. The app can register the webhook automatically via the [Fynd Platform Webhook API](https://docs.fynd.com/partners/commerce/sdk/latest/platform/company/webhook).
 
-Return Pro Max listens for Fynd shipment/refund status updates to automatically:
+Fynd Returns listens for Fynd shipment/refund status updates to automatically:
 
 1. **Mark refund in progress** — When Fynd reports `refund_initiated`, `refund_pending`, or `UNDER PROCESS`
 2. **Process refund in Shopify** — When Fynd reports `refund_done` or `refunded`, the app calls the Shopify Refund API and marks the return as completed

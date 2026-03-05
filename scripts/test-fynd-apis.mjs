@@ -231,7 +231,7 @@ async function run() {
     const registerBody = {
       webhook_config: {
         notification_email: "webhooks@test.local",
-        name: "Return Pro Max (Test)",
+        name: "Fynd Returns (Test)",
         status: "active",
         association: {
           application_id: [APPLICATION_ID],

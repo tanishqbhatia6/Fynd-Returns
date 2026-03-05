@@ -331,10 +331,18 @@ function formatAddress(addr: MailingAddressDisplay | null | undefined): string {
   return parts.join(", ");
 }
 
-function formatMoney(amount: string | null | undefined): string {
+function formatMoney(amount: string | null | undefined, currency?: string | null, locale?: string | null): string {
   if (amount == null || amount === "") return "";
   const n = parseFloat(amount);
-  return isNaN(n) ? amount : n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (isNaN(n)) return amount;
+  try {
+    if (currency) {
+      return new Intl.NumberFormat(locale || "en", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    }
+    return new Intl.NumberFormat(locale || undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  } catch {
+    return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 }
 
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
@@ -501,6 +509,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       bonusCreditEnabled, bonusCreditPct, isBlocklisted,
       daysRemaining, returnDeadline,
       discountCodeRefundEnabled, discountCodePrefix, discountCodeExpiryDays,
+      shopLocale: shopSettings?.shopLocale ?? "en",
+      shopCurrency: shopSettings?.shopCurrency ?? "USD",
+      shopTimezone: shopSettings?.shopTimezone ?? "UTC",
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -518,6 +529,7 @@ export default function ReturnDetail() {
     bonusCreditEnabled, bonusCreditPct, isBlocklisted,
     daysRemaining, returnDeadline,
     discountCodeRefundEnabled, discountCodePrefix, discountCodeExpiryDays,
+    shopLocale, shopCurrency, shopTimezone,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -673,7 +685,7 @@ export default function ReturnDetail() {
                 )}
                 {daysRemaining != null && (
                   <div
-                    title={returnDeadline ? `Return window expires ${new Date(returnDeadline).toLocaleDateString()}` : undefined}
+                    title={returnDeadline ? `Return window expires ${new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: shopTimezone || "UTC" }).format(new Date(returnDeadline))}` : undefined}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
                       padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
@@ -822,7 +834,7 @@ export default function ReturnDetail() {
                         </div>
                         {step.time && (
                           <div style={{ fontSize: 8, color: "#9CA3AF", marginTop: 1, whiteSpace: "nowrap" }}>
-                            {new Date(step.time).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                            {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", timeZone: shopTimezone || "UTC" }).format(new Date(step.time))}
                           </div>
                         )}
                       </div>
@@ -888,7 +900,7 @@ export default function ReturnDetail() {
                             {item.reasonCode && (
                               <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#FEF3C7", color: "#92400E" }}>{item.reasonCode}</span>
                             )}
-                            {price && <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#DBEAFE", color: "#1E40AF" }}>{formatMoney(price)} each</span>}
+                            {price && <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#DBEAFE", color: "#1E40AF" }}>{formatMoney(price, shopifyOrder?.currencyCode || shopCurrency, shopLocale)} each</span>}
                           </div>
                         </div>
                       </div>
@@ -904,7 +916,7 @@ export default function ReturnDetail() {
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Order details</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div><div style={C.label}>Order</div><div style={C.val}>{shopifyOrder.name || "—"}</div></div>
-                  <div><div style={C.label}>Placed</div><div style={C.val}>{shopifyOrder.createdAt ? new Date(shopifyOrder.createdAt).toLocaleDateString() : "—"}</div></div>
+                  <div><div style={C.label}>Placed</div><div style={C.val}>{shopifyOrder.createdAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: shopTimezone || "UTC" }).format(new Date(shopifyOrder.createdAt)) : "—"}</div></div>
                   {shopifyOrder.email && <div><div style={C.label}>Email</div><div style={C.val}>{shopifyOrder.email}</div></div>}
                   {shopifyOrder.phone && <div><div style={C.label}>Phone</div><div style={C.val}>{shopifyOrder.phone}</div></div>}
                   {shopifyOrder.displayFulfillmentStatus && <div><div style={C.label}>Fulfillment</div><div style={C.val}>{shopifyOrder.displayFulfillmentStatus.replace(/_/g, " ")}</div></div>}
@@ -933,16 +945,16 @@ export default function ReturnDetail() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 280 }}>
                       {shopifyOrder.subtotalPrice && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                          <span style={{ color: "#6B7280" }}>Subtotal</span><span>{formatMoney(shopifyOrder.subtotalPrice)}</span>
+                          <span style={{ color: "#6B7280" }}>Subtotal</span><span>{formatMoney(shopifyOrder.subtotalPrice, shopifyOrder.currencyCode || shopCurrency, shopLocale)}</span>
                         </div>
                       )}
                       {shopifyOrder.totalDiscounts && parseFloat(shopifyOrder.totalDiscounts) > 0 && (
                         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#059669" }}>
-                          <span>Discounts</span><span>-{formatMoney(shopifyOrder.totalDiscounts)}</span>
+                          <span>Discounts</span><span>-{formatMoney(shopifyOrder.totalDiscounts, shopifyOrder.currencyCode || shopCurrency, shopLocale)}</span>
                         </div>
                       )}
                       <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 700, paddingTop: 6, borderTop: "1px solid #E5E7EB" }}>
-                        <span>Total</span><span>{formatMoney(shopifyOrder.totalPrice)} {shopifyOrder.currencyCode ?? ""}</span>
+                        <span>Total</span><span>{formatMoney(shopifyOrder.totalPrice, shopifyOrder.currencyCode || shopCurrency, shopLocale)}</span>
                       </div>
                     </div>
                   </div>
@@ -1003,7 +1015,7 @@ export default function ReturnDetail() {
                 {hasShipments ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {(fyndOrderDetailsTab?.shipments ?? []).map((s, idx) => (
-                      <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} formatMoney={formatMoney} shopifyLineItems={shopifyOrder?.lineItems} />
+                      <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} formatMoney={(v) => formatMoney(v, shopCurrency, shopLocale)} shopifyLineItems={shopifyOrder?.lineItems} />
                     ))}
                   </div>
                 ) : (
@@ -1169,7 +1181,7 @@ export default function ReturnDetail() {
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
                             <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: `${sourceColor}15`, color: sourceColor }}>{sourceLabel}</span>
-                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Date(ev.happenedAt).toLocaleString() : "—"}</span>
+                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(ev.happenedAt)) : "—"}</span>
                           </div>
                         </div>
                       </div>
@@ -1371,15 +1383,15 @@ export default function ReturnDetail() {
                                   <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between" }}>
                                       <span style={{ color: "#374151" }}>{modalRefundMethod === "both" ? `Store credit portion (${modalStoreCreditPct}%)` : "Refund amount"}</span>
-                                      <span style={{ fontWeight: 500 }}>${scPortion.toFixed(2)}</span>
+                                      <span style={{ fontWeight: 500 }}>{formatMoney(String(scPortion), shopCurrency, shopLocale)}</span>
                                     </div>
                                     <div style={{ display: "flex", justifyContent: "space-between", color: "#059669" }}>
                                       <span>+ Bonus credit ({bonusCreditPct}%)</span>
-                                      <span style={{ fontWeight: 600 }}>+${bonusAmt.toFixed(2)}</span>
+                                      <span style={{ fontWeight: 600 }}>+{formatMoney(String(bonusAmt), shopCurrency, shopLocale)}</span>
                                     </div>
                                     <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: 14, marginTop: 4, paddingTop: 6, borderTop: "1px solid #BBF7D0" }}>
                                       <span style={{ color: "#166534" }}>Total store credit</span>
-                                      <span style={{ color: "#166534" }}>${totalCredit.toFixed(2)}</span>
+                                      <span style={{ color: "#166534" }}>{formatMoney(String(totalCredit), shopCurrency, shopLocale)}</span>
                                     </div>
                                   </div>
                                 </div>
@@ -1615,8 +1627,7 @@ export default function ReturnDetail() {
                           </div>
                           {storedDiscountValue && (
                             <div style={{ fontSize: 12, color: isDiscountRefund ? "#7C3AED" : "#166534", marginTop: 4 }}>
-                              Value: {parseFloat(storedDiscountValue).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                              {refundInfo?.currency ? ` ${refundInfo.currency}` : ""}
+                              Value: {formatMoney(storedDiscountValue, refundInfo?.currency || shopCurrency, shopLocale)}
                             </div>
                           )}
                         </div>
@@ -1627,21 +1638,20 @@ export default function ReturnDetail() {
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                               <span style={{ color: "#166534" }}>Amount</span>
                               <span style={{ fontWeight: 700, color: "#166534" }}>
-                                {parseFloat(refundInfo.amount).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                {refundInfo.currency ? ` ${refundInfo.currency}` : ""}
+                                {formatMoney(refundInfo.amount, refundInfo.currency || shopCurrency, shopLocale)}
                               </span>
                             </div>
                           )}
                           {displayBonus && parseFloat(displayBonus) > 0 && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#166534" }}>
                               <span>Bonus credit included</span>
-                              <span style={{ fontWeight: 600 }}>+{parseFloat(displayBonus).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              <span style={{ fontWeight: 600 }}>+{formatMoney(displayBonus, shopCurrency, shopLocale)}</span>
                             </div>
                           )}
                           {refundInfo.createdAt && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                               <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>Processed</span>
-                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{new Date(refundInfo.createdAt).toLocaleString()}</span>
+                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(refundInfo.createdAt))}</span>
                             </div>
                           )}
                           {refundInfo.source && (
@@ -1710,8 +1720,8 @@ export default function ReturnDetail() {
                     </div>
                   </div>
                 </div>
-                <div><div style={C.label}>Created</div><div style={{ ...C.val, fontSize: 13 }}>{new Date(returnCase.createdAt).toLocaleString()}</div></div>
-                <div><div style={C.label}>Last Updated</div><div style={{ ...C.val, fontSize: 13 }}>{new Date(returnCase.updatedAt).toLocaleString()}</div></div>
+                <div><div style={C.label}>Created</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(returnCase.createdAt))}</div></div>
+                <div><div style={C.label}>Last Updated</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(returnCase.updatedAt))}</div></div>
                 {(returnCase.forwardAwb || returnCase.returnAwb) && (
                   <>
                     {returnCase.forwardAwb && <div><div style={C.label}>Forward AWB</div><div style={C.mono}>{returnCase.forwardAwb}</div></div>}

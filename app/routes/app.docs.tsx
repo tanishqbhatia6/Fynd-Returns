@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link } from "react-router";
+import { Link, useRouteError, isRouteErrorResponse } from "react-router";
 
 /* ── Design tokens ── */
 const surface = "var(--rpm-surface, white)";
@@ -66,12 +66,12 @@ const CHAPTERS: Chapter[] = [
   /* ────────────────── 1. WELCOME ────────────────── */
   {
     id: "welcome",
-    title: "Welcome to Return Pro Max",
+    title: "Welcome to Fynd Returns",
     subtitle: "Everything you need to know to get started",
     icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
     content: (
       <>
-        <p style={p}>Return Pro Max is an enterprise-grade returns management app for Shopify stores. It gives your customers a beautiful self-service portal to request and track returns, while giving you full control over approvals, refunds, and reverse logistics via Fynd.</p>
+        <p style={p}>Fynd Returns is an enterprise-grade returns management app for Shopify stores. It gives your customers a beautiful self-service portal to request and track returns, while giving you full control over approvals, refunds, and reverse logistics via Fynd.</p>
 
         <div style={h3}>What you can do with this app</div>
         <ul style={ul}>
@@ -540,7 +540,7 @@ export default function Documentation() {
                   }}>
                     {i + 1}
                   </span>
-                  {c.title.replace("Return Pro Max", "Welcome").length > 22 ? c.title.slice(0, 20) + "…" : c.title}
+                  {c.title.replace("Fynd Returns", "Welcome").length > 22 ? c.title.slice(0, 20) + "…" : c.title}
                 </button>
               ))}
             </div>
@@ -590,6 +590,23 @@ export default function Documentation() {
               ) : <div style={{ flex: 1 }} />}
             </div>
           </div>
+        </div>
+      </div>
+    </s-page>
+  );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+  const msg = isRouteErrorResponse(error)
+    ? error.data || `Error ${error.status}`
+    : error instanceof Error ? error.message : "An unexpected error occurred.";
+  return (
+    <s-page heading="Product Guide">
+      <div className="app-content">
+        <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
+          <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
+          <a href="/app/docs" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>
         </div>
       </div>
     </s-page>

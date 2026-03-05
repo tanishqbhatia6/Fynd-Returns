@@ -1,5 +1,7 @@
 import nodemailer from "nodemailer";
 import prisma from "../db.server";
+import { getPortalLabels, t } from "./portal-i18n";
+import { formatMoney, isRtlLocale } from "./i18n.server";
 
 /* ── Types ── */
 type SmtpConfig = {
@@ -37,11 +39,14 @@ function createTransport(cfg: SmtpConfig) {
 type CustomEmailTemplate = { subject: string; bodyHtml: string };
 type EmailTemplatesMap = Record<string, CustomEmailTemplate>;
 
+type ShopI18n = { locale: string; currency: string; timezone: string };
+
 async function getSmtpConfig(shopDomain: string): Promise<{
   smtp: SmtpConfig | null;
   toggles: NotifToggles;
   adminEmail: string | null;
   emailTemplates: EmailTemplatesMap;
+  i18n: ShopI18n;
 }> {
   const shop = await prisma.shop.findUnique({
     where: { shopDomain },
@@ -54,6 +59,12 @@ async function getSmtpConfig(shopDomain: string): Promise<{
     try { emailTemplates = JSON.parse(s.emailTemplatesJson); } catch { /* invalid JSON */ }
   }
 
+  const i18n: ShopI18n = {
+    locale: s?.portalLanguage || s?.shopLocale || "en",
+    currency: s?.shopCurrency || "USD",
+    timezone: s?.shopTimezone || "UTC",
+  };
+
   if (!s?.smtpHost || !s?.smtpUser || !s?.smtpPass) {
     return {
       smtp: null,
@@ -65,6 +76,7 @@ async function getSmtpConfig(shopDomain: string): Promise<{
       },
       adminEmail: s?.adminNotifyEmail ?? null,
       emailTemplates,
+      i18n,
     };
   }
   return {
@@ -75,7 +87,7 @@ async function getSmtpConfig(shopDomain: string): Promise<{
       user: s.smtpUser,
       pass: s.smtpPass,
       fromEmail: s.smtpFromEmail || s.smtpUser,
-      fromName: s.smtpFromName || "Return Pro Max",
+      fromName: s.smtpFromName || "Fynd Returns",
     },
     toggles: {
       notificationNewReturn: s.notificationNewReturn,
@@ -85,11 +97,16 @@ async function getSmtpConfig(shopDomain: string): Promise<{
     },
     adminEmail: s.adminNotifyEmail ?? null,
     emailTemplates,
+    i18n,
   };
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 function replaceTemplateVars(template: string, vars: Record<string, string>): string {
-  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? "");
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => escapeHtml(vars[key] ?? ""));
 }
 
 async function sendEmail(smtp: SmtpConfig, to: string, subject: string, html: string): Promise<SendResult> {
@@ -113,9 +130,12 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-function emailLayout(title: string, accentColor: string, body: string, shopName?: string): string {
+function emailLayout(title: string, accentColor: string, body: string, shopName?: string, locale?: string, labels?: Record<string, string>): string {
+  const lang = locale || "en";
+  const dir = isRtlLocale(lang) ? ' dir="rtl"' : "";
+  const poweredBy = labels?.["email.footer.poweredBy"] ?? "Powered by Fynd Returns";
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="${esc(lang)}"${dir}>
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title></head>
 <body style="margin:0;padding:0;background:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif">
 <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f6f8;padding:32px 16px">
@@ -128,7 +148,7 @@ function emailLayout(title: string, accentColor: string, body: string, shopName?
   <tr><td style="padding:0 36px 28px">
     <div style="border-top:1px solid #e5e7eb;padding-top:16px;font-size:12px;color:#94a3b8;line-height:1.6">
       ${shopName ? `<p style="margin:0">${esc(shopName)}</p>` : ""}
-      <p style="margin:4px 0 0">Powered by Return Pro Max</p>
+      <p style="margin:4px 0 0">${esc(poweredBy)}</p>
     </div>
   </td></tr>
 </table>
@@ -140,84 +160,105 @@ function emailLayout(title: string, accentColor: string, body: string, shopName?
 
 /* ── Email Templates ── */
 
-function newReturnEmail(p: { orderName: string; returnId: string; customerEmail?: string; itemCount: number }): { subject: string; html: string } {
-  const subject = `New return request ${p.returnId} for ${p.orderName}`;
+function newReturnEmail(p: { orderName: string; returnId: string; customerEmail?: string; itemCount: number }, labels: Record<string, string>, locale: string): { subject: string; html: string } {
+  const subject = t("email.newReturn.subject", labels, { id: p.returnId, order: p.orderName });
+  const heading = t("email.newReturn.heading", labels);
+  const bodyText = t("email.newReturn.body", labels);
+  const reqIdLabel = t("email.newReturn.requestId", labels);
+  const orderLabel = t("portal.order.orderDetails", labels) || "Order";
+  const customerLabel = t("email.newReturn.customer", labels);
+  const itemsLabel = t("portal.order.items", labels) || "Items";
+  const cta = t("email.newReturn.cta", labels);
   const body = `
-    <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0f172a">New Return Request</h1>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7">A customer has submitted a return request that requires your attention.</p>
+    <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0f172a">${esc(heading)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7">${esc(bodyText)}</p>
     <table width="100%" cellpadding="0" cellspacing="0" style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;margin:0 0 20px">
       <tr><td style="padding:18px 22px">
         <table width="100%" cellpadding="0" cellspacing="0">
-          <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>Request ID:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right;font-family:monospace">${esc(p.returnId)}</td></tr>
-          <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>Order:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${esc(p.orderName)}</td></tr>
-          ${p.customerEmail ? `<tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>Customer:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${esc(p.customerEmail)}</td></tr>` : ""}
-          <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>Items:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${p.itemCount} item(s)</td></tr>
+          <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(reqIdLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right;font-family:monospace">${esc(p.returnId)}</td></tr>
+          <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(orderLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${esc(p.orderName)}</td></tr>
+          ${p.customerEmail ? `<tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(customerLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${esc(p.customerEmail)}</td></tr>` : ""}
+          <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(itemsLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${p.itemCount}</td></tr>
         </table>
       </td></tr>
     </table>
-    <p style="margin:0;font-size:14px;color:#64748b">Log in to Return Pro Max to review this request.</p>`;
-  return { subject, html: emailLayout("New Return Request", "#D97706", body) };
+    <p style="margin:0;font-size:14px;color:#64748b">${esc(cta)}</p>`;
+  return { subject, html: emailLayout(heading, "#D97706", body, undefined, locale, labels) };
 }
 
-function approvedEmail(p: { orderName: string; notes?: string; shopName?: string }): { subject: string; html: string } {
-  const subject = `Your return for ${p.orderName} has been approved`;
+function approvedEmail(p: { orderName: string; notes?: string; shopName?: string }, labels: Record<string, string>, locale: string): { subject: string; html: string } {
+  const subject = t("email.approved.subject", labels, { order: p.orderName });
+  const heading = t("email.approved.heading", labels);
+  const bodyText = t("email.approved.body", labels, { id: "", order: p.orderName });
+  const storeMsg = t("email.approved.storeMessage", labels);
+  const nextSteps = t("email.approved.nextSteps", labels);
   const body = `
     <div style="text-align:center;margin:0 0 20px">
       <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:#ECFDF5">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
       </div>
     </div>
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#059669;text-align:center">Return Approved</h1>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">Your return request for order <strong>${esc(p.orderName)}</strong> has been approved and is being processed.</p>
-    ${p.notes ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:0 0 20px"><p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#0f172a">Message from the store:</p><p style="margin:0;font-size:14px;color:#475569;line-height:1.6">${esc(p.notes)}</p></div>` : ""}
-    <p style="margin:0;font-size:14px;color:#64748b;text-align:center">We'll notify you with further updates.</p>`;
-  return { subject, html: emailLayout("Return Approved", "#059669", body, p.shopName) };
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#059669;text-align:center">${esc(heading)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">${esc(bodyText)}</p>
+    ${p.notes ? `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:16px 20px;margin:0 0 20px"><p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#0f172a">${esc(storeMsg)}:</p><p style="margin:0;font-size:14px;color:#475569;line-height:1.6">${esc(p.notes)}</p></div>` : ""}
+    <p style="margin:0;font-size:14px;color:#64748b;text-align:center">${esc(nextSteps)}</p>`;
+  return { subject, html: emailLayout(heading, "#059669", body, p.shopName, locale, labels) };
 }
 
-function rejectedEmail(p: { orderName: string; reason: string; shopName?: string }): { subject: string; html: string } {
-  const subject = `Your return for ${p.orderName} has been declined`;
+function rejectedEmail(p: { orderName: string; reason: string; shopName?: string }, labels: Record<string, string>, locale: string): { subject: string; html: string } {
+  const subject = t("email.rejected.subject", labels, { order: p.orderName });
+  const heading = t("email.rejected.heading", labels);
+  const bodyText = t("email.rejected.body", labels, { id: "", order: p.orderName });
+  const reasonLabel = t("email.rejected.reason", labels);
+  const contact = t("email.rejected.contact", labels);
   const body = `
     <div style="text-align:center;margin:0 0 20px">
       <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:#FEF2F2">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#DC2626" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
       </div>
     </div>
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#DC2626;text-align:center">Return Declined</h1>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">Your return request for order <strong>${esc(p.orderName)}</strong> has been declined.</p>
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#DC2626;text-align:center">${esc(heading)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">${esc(bodyText)}</p>
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:16px 20px;margin:0 0 20px">
-      <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#991b1b">Reason:</p>
+      <p style="margin:0 0 6px;font-size:13px;font-weight:600;color:#991b1b">${esc(reasonLabel)}:</p>
       <p style="margin:0;font-size:14px;color:#7f1d1d;line-height:1.6">${esc(p.reason)}</p>
     </div>
-    <p style="margin:0;font-size:14px;color:#64748b;text-align:center">If you have questions, please contact the store.</p>`;
-  return { subject, html: emailLayout("Return Declined", "#DC2626", body, p.shopName) };
+    <p style="margin:0;font-size:14px;color:#64748b;text-align:center">${esc(contact)}</p>`;
+  return { subject, html: emailLayout(heading, "#DC2626", body, p.shopName, locale, labels) };
 }
 
-function refundedEmail(p: { orderName: string; amount?: string; currency?: string; shopName?: string }): { subject: string; html: string } {
-  const subject = `Your refund for ${p.orderName} has been processed`;
-  const amountStr = p.amount && p.currency ? `${p.currency} ${p.amount}` : null;
+function refundedEmail(p: { orderName: string; amount?: string; currency?: string; shopName?: string }, labels: Record<string, string>, locale: string): { subject: string; html: string } {
+  const subject = t("email.refunded.subject", labels, { order: p.orderName });
+  const heading = t("email.refunded.heading", labels);
+  const bodyText = t("email.refunded.body", labels, { order: p.orderName });
+  const note = t("email.refunded.note", labels);
+  const amountStr = p.amount ? formatMoney(p.amount, p.currency, locale) : null;
   const body = `
     <div style="text-align:center;margin:0 0 20px">
       <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:#F5F3FF">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
       </div>
     </div>
-    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#7C3AED;text-align:center">Refund Processed</h1>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">We've processed the refund for your return on order <strong>${esc(p.orderName)}</strong>.</p>
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#7C3AED;text-align:center">${esc(heading)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">${esc(bodyText)}</p>
     ${amountStr ? `<div style="text-align:center;margin:0 0 20px"><span style="display:inline-block;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:10px;padding:12px 24px;font-size:24px;font-weight:700;color:#7C3AED">${esc(amountStr)}</span></div>` : ""}
-    <p style="margin:0;font-size:14px;color:#64748b;line-height:1.7;text-align:center">It may take a few business days for the funds to appear on your original payment method depending on your bank.</p>`;
-  return { subject, html: emailLayout("Refund Processed", "#7C3AED", body, p.shopName) };
+    <p style="margin:0;font-size:14px;color:#64748b;line-height:1.7;text-align:center">${esc(note)}</p>`;
+  return { subject, html: emailLayout(heading, "#7C3AED", body, p.shopName, locale, labels) };
 }
 
-function otpEmail(otp: string): { subject: string; html: string } {
-  const subject = "Your verification code";
+function otpEmail(otp: string, labels: Record<string, string>, locale: string): { subject: string; html: string } {
+  const subject = t("email.otp.subject", labels);
+  const heading = t("email.otp.heading", labels);
+  const bodyText = t("email.otp.body", labels);
+  const expiry = t("email.otp.expiry", labels);
   const body = `
-    <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0f172a;text-align:center">Verification Code</h1>
-    <p style="margin:0 0 20px;font-size:15px;color:#475569;text-align:center">Enter this code to verify your identity:</p>
+    <h1 style="margin:0 0 16px;font-size:22px;font-weight:700;color:#0f172a;text-align:center">${esc(heading)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;text-align:center">${esc(bodyText)}</p>
     <div style="text-align:center;margin:0 0 20px">
       <span style="display:inline-block;font-size:36px;font-weight:800;letter-spacing:10px;color:#0f172a;background:#f1f5f9;border:2px solid #e2e8f0;border-radius:12px;padding:16px 32px;font-family:monospace">${esc(otp)}</span>
     </div>
-    <p style="margin:0;font-size:13px;color:#94a3b8;text-align:center">This code expires in 10 minutes. Do not share it with anyone.</p>`;
-  return { subject, html: emailLayout("Verification Code", "#3B82F6", body) };
+    <p style="margin:0;font-size:13px;color:#94a3b8;text-align:center">${esc(expiry)}</p>`;
+  return { subject, html: emailLayout(heading, "#3B82F6", body, undefined, locale, labels) };
 }
 
 /* ── Public API ── */
@@ -231,7 +272,7 @@ export async function sendNewReturnNotification(params: {
   returnRequestId: string;
   shopName?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles, adminEmail, emailTemplates } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, adminEmail, emailTemplates, i18n } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationNewReturn) return { success: true };
   if (!smtp) { console.warn("[Email] SMTP not configured — skipping new return email"); return { success: true }; }
 
@@ -252,12 +293,13 @@ export async function sendNewReturnNotification(params: {
     return sendEmail(smtp, recipient, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
   }
 
+  const labels = getPortalLabels(i18n.locale);
   const { subject, html } = newReturnEmail({
     orderName: params.orderName,
     returnId: params.returnRequestId,
     customerEmail: params.customerEmail,
     itemCount: params.itemCount,
-  });
+  }, labels, i18n.locale);
   return sendEmail(smtp, recipient, subject, html);
 }
 
@@ -269,7 +311,7 @@ export async function sendApprovalNotification(params: {
   notes?: string;
   returnId?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles, emailTemplates } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, emailTemplates, i18n } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationApproved) return { success: true };
   if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
@@ -288,7 +330,8 @@ export async function sendApprovalNotification(params: {
     return sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
   }
 
-  const { subject, html } = approvedEmail({ orderName: params.orderName, notes: params.notes, shopName: params.shopName });
+  const labels = getPortalLabels(i18n.locale);
+  const { subject, html } = approvedEmail({ orderName: params.orderName, notes: params.notes, shopName: params.shopName }, labels, i18n.locale);
   return sendEmail(smtp, params.to, subject, html);
 }
 
@@ -300,7 +343,7 @@ export async function sendRejectionNotification(params: {
   shopName?: string;
   returnId?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles, emailTemplates } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, emailTemplates, i18n } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationRejected) return { success: true };
   if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
@@ -319,7 +362,8 @@ export async function sendRejectionNotification(params: {
     return sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
   }
 
-  const { subject, html } = rejectedEmail({ orderName: params.orderName, reason: params.rejectionReason, shopName: params.shopName });
+  const labels = getPortalLabels(i18n.locale);
+  const { subject, html } = rejectedEmail({ orderName: params.orderName, reason: params.rejectionReason, shopName: params.shopName }, labels, i18n.locale);
   return sendEmail(smtp, params.to, subject, html);
 }
 
@@ -332,14 +376,14 @@ export async function sendRefundNotification(params: {
   shopName?: string;
   returnId?: string;
 }): Promise<SendResult> {
-  const { smtp, toggles, emailTemplates } = await getSmtpConfig(params.shopDomain);
+  const { smtp, toggles, emailTemplates, i18n } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationRefunded) return { success: true };
   if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
 
   const custom = emailTemplates.refunded;
   if (custom?.subject && custom?.bodyHtml) {
-    const refundAmount = params.amount && params.currency ? `${params.currency} ${params.amount}` : params.amount ?? "";
+    const refundAmount = params.amount ? formatMoney(params.amount, params.currency || i18n.currency, i18n.locale) : "";
     const vars: Record<string, string> = {
       orderName: params.orderName,
       customerEmail: params.to,
@@ -352,7 +396,8 @@ export async function sendRefundNotification(params: {
     return sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
   }
 
-  const { subject, html } = refundedEmail({ orderName: params.orderName, amount: params.amount, currency: params.currency, shopName: params.shopName });
+  const labels = getPortalLabels(i18n.locale);
+  const { subject, html } = refundedEmail({ orderName: params.orderName, amount: params.amount, currency: params.currency || i18n.currency, shopName: params.shopName }, labels, i18n.locale);
   return sendEmail(smtp, params.to, subject, html);
 }
 
@@ -361,11 +406,12 @@ export async function sendOtpEmail(params: {
   to: string;
   otp: string;
 }): Promise<SendResult> {
-  const { smtp } = await getSmtpConfig(params.shopDomain);
+  const { smtp, i18n } = await getSmtpConfig(params.shopDomain);
   if (!smtp) return { success: true };
   if (!params.to) return { success: false, error: "No recipient" };
 
-  const { subject, html } = otpEmail(params.otp);
+  const labels = getPortalLabels(i18n.locale);
+  const { subject, html } = otpEmail(params.otp, labels, i18n.locale);
   return sendEmail(smtp, params.to, subject, html);
 }
 

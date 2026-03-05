@@ -1,4 +1,4 @@
-# Return Pro Max — End-to-End Test Cases
+# Fynd Returns — End-to-End Test Cases
 
 Comprehensive test suite covering every flow between **Fynd**, **Shopify**, **Return App Admin**, **Customer Portal**, and **SMTP Notifications**.
 

@@ -1,4 +1,4 @@
-# Return Pro Max — QC Report
+# Fynd Returns — QC Report
 
 **Date:** March 5, 2026
 **Version:** Post-commit `3cd21e1` + bug fix

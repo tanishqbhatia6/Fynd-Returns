@@ -1,4 +1,4 @@
-# Return Pro Max — Render Deployment Guide
+# Fynd Returns — Render Deployment Guide
 
 Complete checklist for deploying to Render and configuring Shopify.
 

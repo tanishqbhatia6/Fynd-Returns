@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Order &amp; Return Tracking | Return Pro Max</title>
+  <title>Order &amp; Return Tracking | Fynd Returns</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -4018,6 +4018,7 @@
       if (!lookVal) { err.textContent = t('portal.error.enterOrderNumber'); return; }
       btn.disabled = true;
       btn.textContent = t('portal.create.lookingUp');
+      function resetBtn() { btn.disabled = false; btn.textContent = t('portal.create.findOrder'); }
       try {
         const orderNumber = lookVal.replace(/^#/, '');
         const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber));
@@ -4030,11 +4031,13 @@
           document.getElementById('create-step2').classList.remove('active');
           document.getElementById('create-step2-manual').classList.remove('active');
           document.getElementById('create-step-existing').classList.add('active');
+          resetBtn();
           return;
         }
 
         if (data.fallback) {
           showManualForm(true, data.orderNumber, data.error);
+          resetBtn();
           return;
         }
         if (!data.order) throw new Error(t('portal.error.orderNotFound'));
@@ -4081,6 +4084,7 @@
           document.getElementById('create-step2-manual').classList.remove('active');
           document.getElementById('create-step-existing').classList.remove('active');
           ineligibleStep.classList.add('active');
+          resetBtn();
           return;
         }
 
@@ -4093,7 +4097,7 @@
           throw new Error('This order has no items to return.');
         }
         const nameEl = document.getElementById('createOrderName');
-        nameEl.textContent = 'Order ' + escapeHtml(createOrderData.name);
+        nameEl.textContent = t('portal.lookup.order') + ' ' + escapeHtml(createOrderData.name);
         const list = document.getElementById('createItemsList');
         // Render returnable items with images
         list.innerHTML = createOrderData.lineItems.map(li => `
@@ -4502,8 +4506,8 @@
     // i18n: update static HTML text on load
     (function applyI18nToStaticElements() {
       var el;
-      el = document.getElementById('portal-title'); if (el) el.textContent = t('portal.header.title');
-      el = document.getElementById('portal-subtitle'); if (el) el.textContent = t('portal.header.subtitle');
+      el = document.getElementById('portal-title'); if (el) el.textContent = t('portal.heading');
+      el = document.getElementById('portal-subtitle'); if (el) el.textContent = t('portal.subheading');
       el = document.getElementById('btnLookup'); if (el) el.textContent = t('portal.lookup.submit');
       el = document.getElementById('btnFetchOrder'); if (el) el.textContent = t('portal.create.findOrder');
       el = document.getElementById('btnSubmitReturn'); if (el) el.textContent = t('portal.create.submit');
@@ -4516,7 +4520,7 @@
       el = document.getElementById('btnDeclineOffer'); if (el) el.textContent = t('portal.offer.decline');
       el = document.getElementById('lookupValueLabel'); if (el) el.textContent = t('portal.lookup.enterOrder');
       el = document.getElementById('resultEmptyTitle'); if (el) el.textContent = t('portal.results.noResults');
-      el = document.getElementById('resultEmptyDesc'); if (el) el.textContent = t('portal.results.noResultsDetail');
+      el = document.getElementById('resultEmptyDesc'); if (el) el.textContent = t('portal.results.noResultsDesc');
       el = document.getElementById('btnBack'); if (el) el.innerHTML = '&larr; ' + t('portal.results.searchAgain');
       el = document.getElementById('btnCreateBack'); if (el) el.innerHTML = '&larr; ' + t('portal.common.back');
       el = document.getElementById('btnManualBack'); if (el) el.innerHTML = '&larr; ' + t('portal.common.back');

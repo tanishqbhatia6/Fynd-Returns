@@ -1,5 +1,5 @@
-# Return Pro Max - Fynd ↔ Shopify Returns Manager
-name = "Return Pro Max"
+# Fynd Returns — Enterprise Returns Management for Shopify
+name = "Fynd Returns"
 client_id = "YOUR_CLIENT_ID"
 application_url = "https://YOUR_APP_URL"
 embedded = true

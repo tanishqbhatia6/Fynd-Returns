@@ -2181,10 +2181,239 @@
   </div>
 
   <script>
+    var _T_FALLBACKS = {
+      'portal.heading': 'Track your orders & returns',
+      'portal.subheading': 'Check the status of your order or start a return — it only takes a minute.',
+      'portal.policyBanner': 'Returns accepted within {days} days of delivery.',
+      'portal.tab.trackOrder': 'Track Order',
+      'portal.tab.trackReturn': 'Track Return',
+      'portal.tab.createReturn': 'Create Return',
+      'portal.tab.trackExisting': 'Track existing return',
+      'portal.tab.createNew': 'Create new return',
+      'portal.lookup.howToSearch': 'How would you like to search?',
+      'portal.lookup.orderNumber': 'Order number',
+      'portal.lookup.returnRequestId': 'Return Request ID',
+      'portal.lookup.returnNumber': 'Return Number',
+      'portal.lookup.emailAddress': 'Email address',
+      'portal.lookup.phoneNumber': 'Phone number',
+      'portal.lookup.forwardAwb': 'Forward AWB / Tracking',
+      'portal.lookup.returnAwb': 'Return AWB / Tracking',
+      'portal.lookup.submit': 'Look Up',
+      'portal.lookup.enterOrder': 'Enter your order number',
+      'portal.lookup.enterEmail': 'Enter your email address',
+      'portal.lookup.enterPhone': 'Enter your phone number',
+      'portal.lookup.enterReturnId': 'Enter your return request ID',
+      'portal.lookup.enterOrderOrReturn': 'Enter your order or return number',
+      'portal.lookup.enterReturnNo': 'Enter your return number',
+      'portal.lookup.enterForwardAwb': 'Enter your forward AWB / tracking number',
+      'portal.lookup.enterReturnAwb': 'Enter your return AWB / tracking number',
+      'portal.lookup.enterDetails': 'Enter your details',
+      'portal.lookup.placeholderOrder': 'e.g. #1001 or 1001',
+      'portal.lookup.placeholderEmail': 'e.g. you@example.com',
+      'portal.lookup.placeholderPhone': 'e.g. +91 9876543210',
+      'portal.lookup.placeholderReturnId': 'e.g. RPM-A1B2C3D4',
+      'portal.lookup.placeholderOrderOrReturn': 'e.g. #1001 or RPM-A1B2C3D4',
+      'portal.lookup.placeholderReturnNo': 'e.g. R-1001',
+      'portal.lookup.placeholderAwb': 'e.g. 1234567890',
+      'portal.lookup.searching': 'Searching...',
+      'portal.results.orders': 'Your orders',
+      'portal.results.returns': 'Your returns',
+      'portal.results.yourOrders': 'Your orders',
+      'portal.results.yourReturns': 'Your returns',
+      'portal.results.noResults': 'No results found',
+      'portal.results.nothingFound': 'No results found',
+      'portal.results.noResultsDesc': 'We couldn\'t find any orders or returns matching your search. Please check your details and try again.',
+      'portal.results.noOrders': 'No orders found for this search.',
+      'portal.results.noReturns': 'No returns found for this search.',
+      'portal.results.searchAgain': 'Search again',
+      'portal.create.heading': 'Create a return',
+      'portal.create.startTitle': 'Start a return',
+      'portal.create.startDesc': 'Enter your order number to begin the return process.',
+      'portal.create.findOrder': 'Find my order',
+      'portal.create.lookingUp': 'Looking up...',
+      'portal.create.or': 'or',
+      'portal.create.manualSubmit': 'Submit manually without order lookup',
+      'portal.create.submitManually': 'Submit manually without order lookup',
+      'portal.create.selectItems': 'Select items to return',
+      'portal.create.submit': 'Submit return request',
+      'portal.create.submitting': 'Submitting...',
+      'portal.create.successTitle': 'Return Submitted',
+      'portal.create.successReturnId': 'Return Request ID',
+      'portal.create.trackThisReturn': 'Track this return',
+      'portal.create.createAnother': 'Create another return',
+      'portal.create.searchDifferentOrder': 'Search a different order',
+      'portal.create.backToSearch': 'Back to search',
+      'portal.create.notAvailable': 'Return not available',
+      'portal.create.returnBeingHandled': 'Your return request is being handled.',
+      'portal.create.returnItemsOnFile': 'Return items on file',
+      'portal.create.alreadySubmittedTitle': 'Return already submitted',
+      'portal.create.alreadySubmittedDesc': 'A return request for this order is already in progress. You can track its status below.',
+      'portal.create.manualTitle': 'Manual return request',
+      'portal.create.manualDesc': 'Fill in the details below and we\'ll process your return.',
+      'portal.create.offerTitle': 'Special offer for you!',
+      'portal.create.acceptOffer': 'Accept Offer',
+      'portal.create.declineOffer': 'Continue with Return',
+      'portal.create.offerAccepted': 'Offer accepted!',
+      'portal.create.offerAcceptedDefault': 'Keep your item and enjoy your discount!',
+      'portal.create.discountCode': 'Your discount code',
+      'portal.create.copyCode': 'Copy Code',
+      'portal.create.successNextSteps': 'You will be notified once your return is reviewed.',
+      'portal.offer.title': 'Special offer for you!',
+      'portal.offer.accept': 'Accept Offer',
+      'portal.offer.decline': 'Continue with Return',
+      'portal.offer.acceptedTitle': 'Offer accepted!',
+      'portal.offer.discountCode': 'Your discount code',
+      'portal.refund.estimated': 'Estimated refund',
+      'portal.refund.disclaimer': 'Final refund amount may vary based on item condition',
+      'portal.common.back': 'Back',
+      'portal.common.loading': 'Loading...',
+      'portal.common.error': 'Something went wrong',
+      'portal.common.copy': 'Copy',
+      'portal.common.copied': 'Copied!',
+      'portal.common.copyCode': 'Copy Code',
+      'portal.common.processing': 'Processing...',
+      'portal.common.item': 'Item',
+      'portal.common.order': 'Order',
+      'portal.common.return': 'Return',
+      'portal.common.unknown': 'Unknown',
+      'portal.common.cod': 'COD',
+      'portal.common.prepaid': 'Prepaid',
+      'portal.common.phone': 'Phone',
+      'portal.error.pleaseEnter': 'Please enter your {field}',
+      'portal.error.validEmail': 'Please enter a valid email address',
+      'portal.error.validPhone': 'Please enter a valid phone number (at least 7 digits)',
+      'portal.error.validAwb': 'Please enter a valid tracking / AWB number',
+      'portal.error.lookupFailed': 'Lookup failed. Please try again.',
+      'portal.error.timeout': 'Request timed out. Please try again.',
+      'portal.error.network': 'Network error. Please check your connection and try again.',
+      'portal.error.orderNotFound': 'Order not found',
+      'portal.error.notEligible': 'This order is not eligible for a return.',
+      'portal.error.noItemsToReturn': 'This order has no items to return.',
+      'portal.error.selectOneItem': 'Please select at least one item to return',
+      'portal.error.failedToSubmit': 'Failed to submit. Please try again.',
+      'portal.error.returnExists': 'A return for this order is already being processed.',
+      'portal.error.returnAlreadyExists': 'A return for this order is already being processed.',
+      'portal.error.returnAlreadyExistsDetail': 'You can track the existing return from the Track Return tab.',
+      'portal.error.invalidResponse': 'Invalid response from server',
+      'portal.error.enterOrderNumber': 'Please enter your order number',
+      'portal.error.enterEmail': 'Please enter your email address',
+      'portal.error.submitFailed': 'Failed to submit. Please try again.',
+      'portal.error.unsupportedFormat': 'is not a supported format. Use images (JPEG, PNG, GIF, WebP) or video (MP4, WebM).',
+      'portal.error.fileTooLarge': 'exceeds size limit.',
+      'portal.error.describeItems': 'Please describe the item(s) you want to return',
+      'portal.error.offerFailed': 'Failed to process offer. Please try again.',
+      'portal.status.pending': 'Pending', 'portal.status.approved': 'Approved', 'portal.status.rejected': 'Rejected',
+      'portal.status.completed': 'Completed', 'portal.status.cancelled': 'Cancelled', 'portal.status.initiated': 'Initiated',
+      'portal.status.processing': 'Processing', 'portal.status.inProgress': 'In Progress',
+      'portal.status.delivered': 'Delivered', 'portal.status.shipped': 'Shipped', 'portal.status.inTransit': 'In Transit',
+      'portal.status.outForDelivery': 'Out for Delivery', 'portal.status.courierAssigned': 'Courier assigned',
+      'portal.status.readyToShip': 'Ready to ship', 'portal.status.orderConfirmed': 'Order confirmed',
+      'portal.status.orderPlaced': 'Order placed', 'portal.status.deliveryAttempted': 'Delivery attempted',
+      'portal.status.returningToSeller': 'Returning to seller', 'portal.status.partiallyShipped': 'Partially shipped',
+      'portal.status.refunded': 'Refunded', 'portal.status.underReview': 'Under Review',
+      'portal.status.refundCompleted': 'Refund Completed', 'portal.status.refundProcessing': 'Refund Processing',
+      'portal.status.returnApproved': 'Return Approved', 'portal.status.returnDeclined': 'Return Declined',
+      'portal.status.returnConfirmed': 'Return Confirmed', 'portal.status.returnAccepted': 'Return Accepted',
+      'portal.status.returnReceived': 'Return Received', 'portal.status.pickedUp': 'Picked Up',
+      'portal.status.courierEnRoute': 'Courier En Route', 'portal.status.pickupScheduled': 'Pickup Scheduled',
+      'portal.status.refundCompletedDesc': 'Your refund has been processed successfully.',
+      'portal.progress.placed': 'Placed', 'portal.progress.confirmed': 'Confirmed', 'portal.progress.shipped': 'Shipped',
+      'portal.progress.outForDelivery': 'Out for delivery', 'portal.progress.delivered': 'Delivered',
+      'portal.progress.submitted': 'Submitted', 'portal.progress.approved': 'Approved',
+      'portal.progress.pickedUp': 'Picked Up', 'portal.progress.inTransit': 'In Transit',
+      'portal.progress.received': 'Received', 'portal.progress.refunded': 'Refunded',
+      'portal.tracking.courier': 'Courier', 'portal.tracking.trackingNo': 'Tracking No.',
+      'portal.tracking.invoice': 'Invoice', 'portal.tracking.status': 'Status',
+      'portal.tracking.shipmentId': 'Shipment ID', 'portal.tracking.weight': 'Weight',
+      'portal.tracking.shippedFrom': 'Shipped from', 'portal.tracking.trackShipment': 'Track shipment',
+      'portal.tracking.trackReturnShipment': 'Track return shipment',
+      'portal.tracking.estimatedDelivery': 'Estimated delivery',
+      'portal.tracking.deliveryAddress': 'Delivery address', 'portal.tracking.shipment': 'Shipment',
+      'portal.tracking.courierUpdates': 'Courier updates', 'portal.tracking.returnId': 'Return ID',
+      'portal.tracking.refund': 'Refund', 'portal.tracking.phone': 'Phone',
+      'portal.tracking.fulfillmentStatus': 'Fulfillment status',
+      'portal.tracking.shippedOn': 'Shipped on', 'portal.tracking.deliveredOn': 'Delivered on',
+      'portal.tracking.willBeAvailable': 'Tracking details will be available soon',
+      'portal.tracking.itemsInShipment': 'Items in this shipment',
+      'portal.tracking.priceDetails': 'Price details',
+      'portal.tracking.shipmentJourney': 'Shipment journey', 'portal.tracking.returnJourney': 'Return journey',
+      'portal.tracking.refresh': 'Refresh',
+      'portal.summary.orderSummary': 'Order summary', 'portal.summary.items': 'Items',
+      'portal.summary.payment': 'Payment', 'portal.summary.order': 'Order',
+      'portal.summary.submitted': 'Submitted', 'portal.summary.returning': 'Returning',
+      'portal.timeline.orderPlaced': 'Order placed', 'portal.timeline.orderConfirmed': 'Order confirmed',
+      'portal.timeline.orderTimeline': 'Order timeline',
+      'portal.order.placed': 'Placed', 'portal.order.qty': 'Qty', 'portal.order.pickupAddress': 'Pickup / return address',
+      'portal.price.subtotal': 'Subtotal', 'portal.price.discount': 'Discount', 'portal.price.total': 'Total',
+      'portal.price.cod': 'COD charges', 'portal.price.delivery': 'Delivery',
+      'portal.price.promotions': 'Promotions', 'portal.price.coupon': 'Coupon',
+      'portal.event.initiated': 'Return request submitted', 'portal.event.approved': 'Return approved by store',
+      'portal.event.rejected': 'Return request declined', 'portal.event.processing': 'Return is being processed',
+      'portal.event.completed': 'Refund processed', 'portal.event.cancelled': 'Return cancelled',
+      'portal.event.fyndSync': 'Return sent to logistics partner', 'portal.event.pickup': 'Package picked up by courier',
+      'portal.event.inTransit': 'Package in transit', 'portal.event.delivered': 'Return package received',
+      'portal.event.dpAssigned': 'Courier assigned for pickup', 'portal.event.note': 'Store added a note',
+      'portal.eligibility.notShipped': 'Not yet shipped', 'portal.eligibility.scheduled': 'Shipment scheduled',
+      'portal.eligibility.onHold': 'Order on hold', 'portal.eligibility.alreadyRefunded': 'Already refunded',
+      'portal.eligibility.voided': 'Order voided', 'portal.eligibility.notEligible': 'Not eligible for return',
+      'portal.statusDesc.delivered': 'Your order has been delivered successfully.',
+      'portal.statusDesc.outForDelivery': 'Your package is on its way to you today.',
+      'portal.statusDesc.inTransit': 'Your package is on its way.',
+      'portal.statusDesc.outForPickup': 'Out for pickup',
+      'portal.statusDesc.courierAssigned': 'A delivery partner has been assigned.',
+      'portal.statusDesc.packedReady': 'Packed & ready', 'portal.statusDesc.packed': 'Packed',
+      'portal.statusDesc.readyToShip': 'Your package is packed and ready to ship.',
+      'portal.statusDesc.orderConfirmed': 'Your order has been confirmed.',
+      'portal.statusDesc.orderPlaced': 'Your order has been placed.',
+      'portal.statusDesc.deliveryAttempted': 'Delivery was attempted but could not be completed.',
+      'portal.statusDesc.returningToSeller': 'Package is being returned to the seller.',
+      'portal.statusDesc.processing': 'Your order is being processed.',
+      'portal.statusDesc.cancelled': 'This order has been cancelled.',
+      'portal.statusDesc.confirmed': 'Confirmed',
+      'portal.statusDesc.refunded': 'Your refund has been processed.',
+      'portal.statusDesc.refundProcessing': 'Refund is being processed',
+      'portal.statusDesc.returnAccepted': 'Your return has been received and accepted',
+      'portal.statusDesc.returnReceived': 'Your return package has been received at the warehouse',
+      'portal.statusDesc.pickedUp': 'Your return package has been picked up by the courier',
+      'portal.statusDesc.courierEnRoute': 'Courier is on the way to pick up your return',
+      'portal.statusDesc.courierEnRoutePickup': 'Courier en route for pickup',
+      'portal.statusDesc.pickupScheduled': 'A courier has been assigned for pickup',
+      'portal.statusDesc.returnConfirmed': 'Your return has been confirmed and is being processed',
+      'portal.statusDesc.returnConfirmedLogistics': 'Return confirmed by logistics',
+      'portal.statusDesc.returnDeclined': 'Your return request has been declined',
+      'portal.statusDesc.returnCancelled': 'This return has been cancelled',
+      'portal.statusDesc.returnCompleted': 'Return completed',
+      'portal.statusDesc.returnApproved': 'Your return has been approved by the store',
+      'portal.statusDesc.underReview': 'Your return request is being reviewed',
+      'portal.statusDesc.returnSubmitted': 'Return request submitted',
+      'portal.statusDesc.returnFee': 'Return fee',
+      'portal.statusDesc.viewReturnDetails': 'View full return details',
+      'portal.statusDesc.needHelp': 'Need help with this order?',
+      'portal.statusDesc.updatedJustNow': 'Updated just now',
+      'portal.statusDesc.messageFromStore': 'Message from the store',
+      'portal.statusDesc.yourUploads': 'Your uploads',
+      'portal.statusDesc.returnDataUnavailable': 'Return data unavailable',
+      'portal.statusDesc.orderDataUnavailable': 'Order data unavailable',
+      'portal.statusDesc.orderCancelled': 'Order cancelled',
+      'portal.statusDesc.orderCancelledDesc': 'This order has been cancelled. If you were charged, a refund will be processed.',
+      'portal.statusDesc.returnPolicy': 'Return policy:',
+      'portal.statusDesc.fileEmpty': 'is empty.',
+      'portal.statusDesc.refundProcessingCreditNote': 'Credit note generated, refund is being processed',
+      'portal.statusDesc.refundProcessingAwaiting': 'Credit note generated, awaiting refund',
+      'portal.statusDesc.outForDeliveryReturn': 'Package is out for delivery to the warehouse',
+      'portal.statusDesc.inTransitReturn': 'Your return package is in transit to the warehouse',
+    };
     function t(key, replacements) {
-      var s = (window.__RPM_LABELS__ && window.__RPM_LABELS__[key]) || key;
+      var s = (window.__RPM_LABELS__ && window.__RPM_LABELS__[key]) || _T_FALLBACKS[key] || key;
       if (replacements) { Object.keys(replacements).forEach(function(k) { s = s.replace('{' + k + '}', replacements[k]); }); }
       return s;
+    }
+    function tSafe(el, key, mode) {
+      var val = t(key);
+      if (val !== key) {
+        if (mode === 'html') el.innerHTML = val;
+        else el.textContent = val;
+      }
     }
     const APP_URL = '%APP_URL%' || window.location.origin;
     const RETURN_POLICY = '%RETURN_POLICY%';
@@ -4492,68 +4721,79 @@
       document.getElementById('createSuccessCard').style.display = 'none';
     };
 
-    // i18n: update static HTML text on load
+    // i18n: update static HTML text on load — uses tSafe to never replace good text with raw keys
     (function applyI18nToStaticElements() {
       var el;
-      el = document.getElementById('portal-title'); if (el) el.textContent = t('portal.heading');
-      el = document.getElementById('portal-subtitle'); if (el) el.textContent = t('portal.subheading');
-      el = document.getElementById('btnLookup'); if (el) el.textContent = t('portal.lookup.submit');
-      el = document.getElementById('btnFetchOrder'); if (el) el.textContent = t('portal.create.findOrder');
-      el = document.getElementById('btnSubmitReturn'); if (el) el.textContent = t('portal.create.submit');
-      el = document.getElementById('btnSubmitManualReturn'); if (el) el.textContent = t('portal.create.submit');
-      el = document.getElementById('btnTrackThisReturn'); if (el) el.textContent = t('portal.create.trackThisReturn');
-      el = document.getElementById('btnCreateAnother'); if (el) el.textContent = t('portal.create.createAnother');
-      el = document.getElementById('btnCopyReturnId'); if (el) el.textContent = t('portal.common.copy');
-      el = document.getElementById('btnCopyOfferCode'); if (el) el.textContent = t('portal.common.copyCode');
-      el = document.getElementById('btnAcceptOffer'); if (el) el.textContent = t('portal.offer.accept');
-      el = document.getElementById('btnDeclineOffer'); if (el) el.textContent = t('portal.offer.decline');
-      el = document.getElementById('lookupValueLabel'); if (el) el.textContent = t('portal.lookup.enterOrder');
-      el = document.getElementById('resultEmptyTitle'); if (el) el.textContent = t('portal.results.noResults');
-      el = document.getElementById('resultEmptyDesc'); if (el) el.textContent = t('portal.results.noResultsDesc');
-      el = document.getElementById('btnBack'); if (el) el.innerHTML = '&larr; ' + t('portal.results.searchAgain');
-      el = document.getElementById('btnCreateBack'); if (el) el.innerHTML = '&larr; ' + t('portal.common.back');
-      el = document.getElementById('btnManualBack'); if (el) el.innerHTML = '&larr; ' + t('portal.common.back');
-      el = document.getElementById('btnExistingBack'); if (el) el.innerHTML = '&larr; ' + t('portal.create.searchDifferentOrder');
-      el = document.getElementById('btnUseManualForm'); if (el) el.textContent = t('portal.create.submitManually');
-      el = document.getElementById('resultOrdersTitle'); if (el) el.textContent = t('portal.results.yourOrders');
-      el = document.getElementById('resultReturnsTitle'); if (el) el.textContent = t('portal.results.yourReturns');
-      el = document.getElementById('createStartTitle'); if (el) el.textContent = t('portal.create.startTitle');
-      el = document.getElementById('createStartDesc'); if (el) el.textContent = t('portal.create.startDesc');
-      el = document.getElementById('createSuccessTitle'); if (el) el.textContent = t('portal.create.successTitle');
-      el = document.getElementById('createReturnRequestIdLabel'); if (el) el.textContent = t('portal.create.successReturnId');
-      el = document.getElementById('lookupTypeLabel'); if (el) el.textContent = t('portal.lookup.howToSearch');
-      el = document.getElementById('subTabTrack'); if (el) el.textContent = t('portal.tab.trackExisting');
-      el = document.getElementById('subTabCreate'); if (el) el.textContent = t('portal.tab.createNew');
-      el = document.getElementById('existingReturnTitle'); if (el) el.textContent = t('portal.create.alreadySubmittedTitle');
-      el = document.getElementById('existingReturnDesc'); if (el) el.textContent = t('portal.create.alreadySubmittedDesc');
-      el = document.getElementById('offerTitle'); if (el) el.textContent = t('portal.offer.title');
-      el = document.getElementById('offerAcceptedTitle'); if (el) el.textContent = t('portal.offer.acceptedTitle');
-      el = document.getElementById('offerDiscountLabel'); if (el) el.textContent = t('portal.offer.discountCode');
-      el = document.getElementById('estimatedRefundLabel'); if (el) el.textContent = t('portal.refund.estimated');
-      el = document.getElementById('estimatedRefundDisclaimer'); if (el) el.textContent = t('portal.refund.disclaimer');
-      el = document.getElementById('createStep2Title'); if (el) el.textContent = t('portal.create.selectItems');
-      el = document.getElementById('manualReturnTitle'); if (el) el.textContent = t('portal.create.manualTitle');
-      el = document.getElementById('manualReturnDesc'); if (el) el.textContent = t('portal.create.manualDesc');
+      el = document.getElementById('portal-title'); if (el) tSafe(el, 'portal.heading');
+      el = document.getElementById('portal-subtitle'); if (el) tSafe(el, 'portal.subheading');
+      el = document.getElementById('btnLookup'); if (el) tSafe(el, 'portal.lookup.submit');
+      el = document.getElementById('btnFetchOrder'); if (el) tSafe(el, 'portal.create.findOrder');
+      el = document.getElementById('btnSubmitReturn'); if (el) tSafe(el, 'portal.create.submit');
+      el = document.getElementById('btnSubmitManualReturn'); if (el) tSafe(el, 'portal.create.submit');
+      el = document.getElementById('btnTrackThisReturn'); if (el) tSafe(el, 'portal.create.trackThisReturn');
+      el = document.getElementById('btnCreateAnother'); if (el) tSafe(el, 'portal.create.createAnother');
+      el = document.getElementById('btnCopyReturnId'); if (el) tSafe(el, 'portal.common.copy');
+      el = document.getElementById('btnCopyOfferCode'); if (el) tSafe(el, 'portal.common.copyCode');
+      el = document.getElementById('btnAcceptOffer'); if (el) tSafe(el, 'portal.offer.accept');
+      el = document.getElementById('btnDeclineOffer'); if (el) tSafe(el, 'portal.offer.decline');
+      el = document.getElementById('lookupValueLabel'); if (el) tSafe(el, 'portal.lookup.enterOrder');
+      el = document.getElementById('resultEmptyTitle'); if (el) tSafe(el, 'portal.results.noResults');
+      el = document.getElementById('resultEmptyDesc'); if (el) tSafe(el, 'portal.results.noResultsDesc');
 
-      // Translate policy banner
+      var backVal = t('portal.results.searchAgain');
+      el = document.getElementById('btnBack'); if (el && backVal !== 'portal.results.searchAgain') el.innerHTML = '&larr; ' + backVal;
+      var cbVal = t('portal.common.back');
+      el = document.getElementById('btnCreateBack'); if (el && cbVal !== 'portal.common.back') el.innerHTML = '&larr; ' + cbVal;
+      el = document.getElementById('btnManualBack'); if (el && cbVal !== 'portal.common.back') el.innerHTML = '&larr; ' + cbVal;
+      var ebVal = t('portal.create.searchDifferentOrder');
+      el = document.getElementById('btnExistingBack'); if (el && ebVal !== 'portal.create.searchDifferentOrder') el.innerHTML = '&larr; ' + ebVal;
+
+      el = document.getElementById('btnUseManualForm'); if (el) tSafe(el, 'portal.create.submitManually');
+      el = document.getElementById('resultOrdersTitle'); if (el) tSafe(el, 'portal.results.yourOrders');
+      el = document.getElementById('resultReturnsTitle'); if (el) tSafe(el, 'portal.results.yourReturns');
+      el = document.getElementById('createStartTitle'); if (el) tSafe(el, 'portal.create.startTitle');
+      el = document.getElementById('createStartDesc'); if (el) tSafe(el, 'portal.create.startDesc');
+      el = document.getElementById('createSuccessTitle'); if (el) tSafe(el, 'portal.create.successTitle');
+      el = document.getElementById('createReturnRequestIdLabel'); if (el) tSafe(el, 'portal.create.successReturnId');
+      el = document.getElementById('lookupTypeLabel'); if (el) tSafe(el, 'portal.lookup.howToSearch');
+      el = document.getElementById('subTabTrack'); if (el) tSafe(el, 'portal.tab.trackExisting');
+      el = document.getElementById('subTabCreate'); if (el) tSafe(el, 'portal.tab.createNew');
+      el = document.getElementById('existingReturnTitle'); if (el) tSafe(el, 'portal.create.alreadySubmittedTitle');
+      el = document.getElementById('existingReturnDesc'); if (el) tSafe(el, 'portal.create.alreadySubmittedDesc');
+      el = document.getElementById('offerTitle'); if (el) tSafe(el, 'portal.offer.title');
+      el = document.getElementById('offerAcceptedTitle'); if (el) tSafe(el, 'portal.offer.acceptedTitle');
+      el = document.getElementById('offerDiscountLabel'); if (el) tSafe(el, 'portal.offer.discountCode');
+      el = document.getElementById('estimatedRefundLabel'); if (el) tSafe(el, 'portal.refund.estimated');
+      el = document.getElementById('estimatedRefundDisclaimer'); if (el) tSafe(el, 'portal.refund.disclaimer');
+      el = document.getElementById('createStep2Title'); if (el) tSafe(el, 'portal.create.selectItems');
+      el = document.getElementById('manualReturnTitle'); if (el) tSafe(el, 'portal.create.manualTitle');
+      el = document.getElementById('manualReturnDesc'); if (el) tSafe(el, 'portal.create.manualDesc');
+
+      // Translate policy banner only when translation exists
       var policyBanner = document.getElementById('policy-banner');
       if (policyBanner) {
-        var strongEl = policyBanner.querySelector('strong');
-        if (strongEl) {
-          var svg = strongEl.querySelector('svg');
-          var svgHtml = svg ? svg.outerHTML + ' ' : '';
-          strongEl.innerHTML = svgHtml + t('portal.statusDesc.returnPolicy');
+        var policyKey = t('portal.statusDesc.returnPolicy');
+        if (policyKey !== 'portal.statusDesc.returnPolicy') {
+          var strongEl = policyBanner.querySelector('strong');
+          if (strongEl) {
+            var svg = strongEl.querySelector('svg');
+            var svgHtml = svg ? svg.outerHTML + ' ' : '';
+            strongEl.innerHTML = svgHtml + policyKey;
+          }
         }
-        var bannerText = policyBanner.childNodes;
-        for (var bi = 0; bi < bannerText.length; bi++) {
-          if (bannerText[bi].nodeType === 3 && bannerText[bi].textContent.trim().length > 10) {
-            var windowDays = (bannerText[bi].textContent.match(/\d+/) || ['30'])[0];
-            bannerText[bi].textContent = ' ' + t('portal.policyBanner', { days: windowDays });
+        var policyText = t('portal.policyBanner', { days: '300' });
+        if (policyText !== 'portal.policyBanner') {
+          var bannerText = policyBanner.childNodes;
+          for (var bi = 0; bi < bannerText.length; bi++) {
+            if (bannerText[bi].nodeType === 3 && bannerText[bi].textContent.trim().length > 10) {
+              var windowDays = (bannerText[bi].textContent.match(/\d+/) || ['300'])[0];
+              bannerText[bi].textContent = ' ' + t('portal.policyBanner', { days: windowDays });
+            }
           }
         }
       }
 
-      // Translate static <select> options
+      // Translate static <select> options only when translation exists
       var lookupSelect = document.getElementById('lookupType');
       if (lookupSelect) {
         var optionKeyMap = {
@@ -4567,8 +4807,11 @@
         };
         for (var i = 0; i < lookupSelect.options.length; i++) {
           var opt = lookupSelect.options[i];
-          var key = optionKeyMap[opt.value];
-          if (key) opt.textContent = t(key);
+          var oKey = optionKeyMap[opt.value];
+          if (oKey) {
+            var oVal = t(oKey);
+            if (oVal !== oKey) opt.textContent = oVal;
+          }
         }
       }
 

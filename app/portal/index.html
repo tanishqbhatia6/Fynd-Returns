@@ -2462,6 +2462,8 @@
       'portal.eligibility.notShipped': 'Not yet shipped',
       'portal.eligibility.onHold': 'Order on hold',
       'portal.eligibility.voided': 'Order voided',
+      'portal.common.upload': 'Upload',
+      'portal.tracking.fyndNo': 'Fynd #',
     };
     function t(key, replacements) {
       var s = (window.__RPM_LABELS__ && window.__RPM_LABELS__[key]) || _T_FALLBACKS[key] || key;
@@ -3619,7 +3621,7 @@
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
         custMedia.forEach(function (m, idx) {
           html += '<a href="' + escapeHtml(m.dataUrl || '') + '" target="_blank" rel="noopener noreferrer" style="display:block;border-radius:8px;overflow:hidden;border:1px solid var(--portal-border);">';
-          html += '<img src="' + escapeHtml(m.dataUrl || '') + '" alt="' + escapeHtml(m.name || 'Upload ' + (idx + 1)) + '" style="width:80px;height:80px;object-fit:cover;display:block;" loading="lazy">';
+          html += '<img src="' + escapeHtml(m.dataUrl || '') + '" alt="' + escapeHtml(m.name || (t('portal.common.upload') + ' ' + (idx + 1))) + '" style="width:80px;height:80px;object-fit:cover;display:block;" loading="lazy">';
           html += '</a>';
         });
         html += '</div></div>';
@@ -4266,7 +4268,7 @@
           '<div>' +
           '<div style="font-weight:700;font-size:0.9375rem;color:' + getStatusTextColor(r.status) + ';margin-bottom:2px;">' + getStatusLabel(r.status) + '</div>' +
           '<div style="font-size:0.8125rem;color:var(--portal-text-muted);">' + t('portal.tracking.returnId') + ': <strong>' + escapeHtml(r.returnRequestId || r.id) + '</strong></div>' +
-          (r.fyndReturnNo ? '<div style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:2px;">Fynd #' + escapeHtml(r.fyndReturnNo) + '</div>' : '') +
+          (r.fyndReturnNo ? '<div style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:2px;">' + t('portal.tracking.fyndNo') + ' ' + escapeHtml(r.fyndReturnNo) + '</div>' : '') +
           '</div>' +
           '<div style="font-size:0.75rem;color:var(--portal-text-muted);text-align:right;">' +
           (dateStr ? t('portal.summary.submitted') + ' ' + dateStr : '') +

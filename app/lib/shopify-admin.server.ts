@@ -706,13 +706,23 @@ export async function fetchAllLocations(admin: AdminGraphQL): Promise<ShopLocati
     const res = await admin.graphql(ALL_LOCATIONS_QUERY);
     const json = (await res.json()) as {
       data?: { locations?: { nodes?: Array<{ id: string; name: string; isActive?: boolean }> } };
+      errors?: Array<{ message?: string }>;
     };
-    return (json.data?.locations?.nodes ?? []).map((l) => ({
+    if (json.errors?.length) {
+      console.error("[fetchAllLocations] GraphQL errors:", json.errors.map(e => e.message).join(", "),
+        "— Ensure the app has the 'read_locations' scope.");
+    }
+    const nodes = json.data?.locations?.nodes ?? [];
+    if (nodes.length === 0) {
+      console.warn("[fetchAllLocations] No locations returned. Check 'read_locations' scope is granted.");
+    }
+    return nodes.map((l) => ({
       id: l.id,
       name: l.name,
       isActive: l.isActive !== false,
     }));
-  } catch {
+  } catch (err) {
+    console.error("[fetchAllLocations] Failed:", err);
     return [];
   }
 }
@@ -798,6 +808,38 @@ export async function createRefund(
     }
     const userErrors = json.data?.refundCreate?.userErrors ?? [];
     if (userErrors.length > 0) {
+      const isLocationError = userErrors.some((e) =>
+        /location|restock/i.test(e.message)
+      );
+      if (isLocationError && normalized.length > 0) {
+        const noRestockInput: Record<string, unknown> = {
+          orderId: gid,
+          note: note || "Return processed via Return Pro Max (no restock)",
+          refundLineItems: normalized.map((item) => ({
+            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+            quantity: item.quantity,
+            restockType: "NO_RESTOCK",
+          })),
+        };
+        const retryRes = await admin.graphql(REFUND_MUTATION, { variables: { input: noRestockInput } });
+        let retryJson: typeof json;
+        try { retryJson = (await retryRes.json()) as typeof json; } catch {
+          return { success: false, error: "Retry without restock failed — invalid response from Shopify." };
+        }
+        const retryErrors = retryJson.data?.refundCreate?.userErrors ?? [];
+        if (retryErrors.length > 0) {
+          return { success: false, error: retryErrors.map((e) => e.message).join(", ") };
+        }
+        const retryRefund = retryJson.data?.refundCreate?.refund;
+        const retryMoney = retryRefund?.totalRefundedSet?.presentmentMoney ?? retryRefund?.totalRefundedSet?.shopMoney;
+        return {
+          success: true,
+          refundId: retryRefund?.id ?? undefined,
+          refundAmount: retryMoney?.amount ?? undefined,
+          refundCurrency: retryMoney?.currencyCode ?? undefined,
+          refundCreatedAt: retryRefund?.createdAt ?? undefined,
+        };
+      }
       return { success: false, error: userErrors.map((e) => e.message).join(", ") };
     }
     const refund = json.data?.refundCreate?.refund;

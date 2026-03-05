@@ -5,7 +5,7 @@ application_url = "https://YOUR_APP_URL"
 embedded = true
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_products,read_customers,read_fulfillments,write_fulfillments,write_returns"
+scopes = "read_orders,write_orders,read_products,read_customers,read_fulfillments,write_fulfillments,write_returns,read_locations"
 
 [auth]
 redirect_urls = [

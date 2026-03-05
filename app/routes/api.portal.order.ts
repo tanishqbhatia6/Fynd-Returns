@@ -44,7 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopId: shopRecord.id,
       OR: [
         { shopifyOrderName: { in: [`#${orderNumber}`, orderNumber] } },
-        { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+        { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
       ],
     },
     include: {
@@ -83,15 +83,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName
     if (!order) {
-      const fyndMapping = await prisma.fyndOrderMapping.findFirst({
+      let fyndMapping = await prisma.fyndOrderMapping.findFirst({
         where: {
           shopId: shopRecord.id,
           OR: [
-            { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+            { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
             { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
           ],
         },
       });
+      if (!fyndMapping) {
+        fyndMapping = await prisma.fyndOrderMapping.findFirst({
+          where: {
+            shopId: shopRecord.id,
+            fyndOrderId: { equals: `#${orderNumber}`, mode: "insensitive" },
+          },
+        });
+      }
       if (fyndMapping) {
         // Fast path: use orderByIdentifier with stored GID
         if (fyndMapping.shopifyOrderId?.startsWith("gid://")) {
@@ -109,7 +117,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: {
           shopId: shopRecord.id,
           OR: [
-            { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+            { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
             { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
           ],
         },

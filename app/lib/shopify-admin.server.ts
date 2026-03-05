@@ -134,8 +134,8 @@ const ORDER_FIELDS_FRAGMENT = `
 `;
 
 const ORDERS_BY_NAME_QUERY = `#graphql
-  query getOrdersByName($query: String!) {
-    orders(first: 1, query: $query, sortKey: CREATED_AT, reverse: true) {
+  query getOrdersByName($query: String!, $first: Int!) {
+    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
       nodes {
         ${ORDER_FIELDS_FRAGMENT}
       }
@@ -288,14 +288,22 @@ export async function fetchOrderByGid(
  * Search orders using a single Shopify Admin GraphQL call.
  * Handles PCDA errors and returns the first matching order node.
  */
+/**
+ * Search Shopify orders by query string. When `exactName` is provided,
+ * fetches up to 25 candidates and returns only the one whose `name`
+ * matches exactly (case-insensitive, ignoring leading #). This prevents
+ * Shopify's substring/prefix matching from returning the wrong order.
+ */
 async function searchOrders(
   admin: AdminGraphQL,
   query: string,
-  throwOnError = true
+  throwOnError = true,
+  exactName?: string
 ): Promise<unknown | null> {
-  const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query } });
+  const limit = exactName ? 25 : 1;
+  const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query, first: limit } });
   const json = (await res.json()) as {
-    data?: { orders?: { nodes?: Array<unknown> } };
+    data?: { orders?: { nodes?: Array<Record<string, unknown>> } };
     errors?: Array<{ message?: string }>;
   };
   const errMsg = json.errors?.[0]?.message ?? "";
@@ -306,7 +314,19 @@ async function searchOrders(
     if (!throwOnError) return null;
     throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
   }
-  const found = json.data?.orders?.nodes?.[0];
+  const nodes = json.data?.orders?.nodes ?? [];
+  if (nodes.length === 0) return null;
+
+  if (exactName) {
+    const norm = exactName.replace(/^#/, "").toLowerCase();
+    const match = nodes.find((n) => {
+      const name = typeof n.name === "string" ? n.name.replace(/^#/, "").toLowerCase() : "";
+      return name === norm;
+    });
+    return match && typeof match === "object" && "name" in match ? match : null;
+  }
+
+  const found = nodes[0];
   return (found && typeof found === "object" && "name" in found) ? found : null;
 }
 
@@ -335,14 +355,15 @@ export async function fetchOrderByOrderNumber(
   }
 
   // Strategy 1: name: filter (primary for standard order names like #1001)
-  // The Shopify docs show name:1001-A — try both with and without #
+  // Shopify does substring matching, so we fetch multiple candidates
+  // and pick only the exact match to avoid returning the wrong order.
   const nameQueries = /^\d+$/.test(clean)
     ? [`name:#${clean}`, `name:${clean}`]
     : [`name:#${clean}`, `name:${clean}`];
 
   for (const q of nameQueries) {
     try {
-      const node = await searchOrders(admin, q);
+      const node = await searchOrders(admin, q, true, clean);
       if (node) return parseOrderNode(node);
     } catch (err) {
       if (err instanceof OrderAccessError) throw err;
@@ -353,8 +374,8 @@ export async function fetchOrderByOrderNumber(
   if (/^\d+$/.test(clean)) return null;
 
   // Strategy 2: metafield search — indexed, O(1), works at any scale.
-  // The app writes affiliate_order_id as a filterable metafield on orders.
-  // See: https://shopify.dev/docs/apps/build/custom-data/metafields/query-by-metafield-value
+  // Metafield values are exact-match by Shopify, but verify the metafield
+  // value to be safe against any fuzzy behavior.
   try {
     const node = await searchOrders(admin, `metafields.$app.fynd_order_id:"${clean}"`, false);
     if (node) return parseOrderNode(node);
@@ -364,7 +385,7 @@ export async function fetchOrderByOrderNumber(
 
   // Strategy 3: source_identifier: — for third-party order IDs (Fynd, POS, etc.)
   try {
-    const node = await searchOrders(admin, `source_identifier:${clean}`, false);
+    const node = await searchOrders(admin, `source_identifier:${clean}`, false, clean);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;
@@ -372,15 +393,15 @@ export async function fetchOrderByOrderNumber(
 
   // Strategy 4: tag: — orders tagged with external IDs
   try {
-    const node = await searchOrders(admin, `tag:${clean}`, false);
+    const node = await searchOrders(admin, `tag:${clean}`, false, clean);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;
   }
 
-  // Strategy 5: free-text search
+  // Strategy 5: free-text search — must also exact-match the name
   try {
-    const node = await searchOrders(admin, clean, false);
+    const node = await searchOrders(admin, clean, false, clean);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;

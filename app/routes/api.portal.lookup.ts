@@ -63,10 +63,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } else if (["return_no", "order_no"].includes(normalizedLookupType)) {
       const normNoHash = norm.replace(/^#/, "");
       where.OR = [
-        { fyndReturnNo: { contains: normNoHash, mode: "insensitive" } },
-        { shopifyOrderName: { contains: normNoHash, mode: "insensitive" } },
-        { shopifyOrderName: { contains: `#${normNoHash}`, mode: "insensitive" } },
-        { fyndOrderId: { contains: normNoHash, mode: "insensitive" } },
+        { fyndReturnNo: { equals: normNoHash, mode: "insensitive" } },
+        { shopifyOrderName: { equals: normNoHash, mode: "insensitive" } },
+        { shopifyOrderName: { equals: `#${normNoHash}`, mode: "insensitive" } },
+        { fyndOrderId: { equals: normNoHash, mode: "insensitive" } },
       ];
     } else if (["forward_awb", "return_awb"].includes(normalizedLookupType)) {
       where.OR = [
@@ -190,15 +190,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName
       if (orders.length === 0) {
         try {
-          const fyndMapping = await prisma.fyndOrderMapping.findFirst({
+          let fyndMapping = await prisma.fyndOrderMapping.findFirst({
             where: {
               shopId: shopRecord.id,
               OR: [
-                { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+                { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
                 { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
               ],
             },
           });
+          if (!fyndMapping) {
+            fyndMapping = await prisma.fyndOrderMapping.findFirst({
+              where: {
+                shopId: shopRecord.id,
+                fyndOrderId: { equals: `#${orderNumber}`, mode: "insensitive" },
+              },
+            });
+          }
           if (fyndMapping) {
             const { admin } = await shopify.unauthenticated.admin(shopDomain);
             // Fast path: direct GID lookup via orderByIdentifier
@@ -223,7 +231,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             where: {
               shopId: shopRecord.id,
               OR: [
-                { fyndOrderId: { contains: orderNumber, mode: "insensitive" } },
+                { fyndOrderId: { equals: orderNumber, mode: "insensitive" } },
                 { shopifyOrderName: { in: [orderNumber, `#${orderNumber}`], mode: "insensitive" } },
               ],
             },

@@ -3197,6 +3197,32 @@
       // Determine if order has active return(s)
       var hasActiveReturn = matchingReturns.length > 0 || returnFyndShipments.length > 0;
 
+      // If there is a linked return, let the unified return state upgrade the primary badge
+      // so customers see "Returned / Refunded" instead of just the shipping status.
+      if (matchingReturns.length > 0) {
+        var bestReturn = null;
+        matchingReturns.forEach(function (ret) {
+          var retStatus = (ret.status || '').toLowerCase();
+          var ti = ret.trackingInfo || {};
+          var fyndSt = (ti.fyndStatus || '').toLowerCase();
+          var retRefundSt = (ret.refundStatus || '').toLowerCase();
+          var retJourney = ret.returnJourney || [];
+          var unified = computeUnifiedReturnState(retStatus, retRefundSt, fyndSt, retJourney);
+          if (!bestReturn || (unified && unified.step > bestReturn.step)) {
+            bestReturn = unified;
+          }
+        });
+        if (bestReturn && bestReturn.step >= 3) {
+          dStatus = bestReturn.label || dStatus;
+          dClass = bestReturn.cls || dClass;
+          if (bestReturn.description) statusDesc = bestReturn.description;
+          // When return has reached step 5+ we also treat latestStatus as delivered/return_done
+          if (bestReturn.step >= 5) {
+            latestStatus = 'delivered_return';
+          }
+        }
+      }
+
       var html = '<div class="order-card-v2" data-order-id="' + escapeHtml(o.id || '') + '">';
 
       // ── Header: Order name, date, payment badge ──

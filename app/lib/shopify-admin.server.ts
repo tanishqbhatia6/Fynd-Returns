@@ -306,66 +306,6 @@ export async function fetchOrderByGid(
  *   GET /admin/api/2026-01/orders.json?status=any&name=#FYNDSHOPIFYX14122
  * (name is URL-encoded, e.g. name=%23FYNDSHOPIFYX14122)
  */
-export async function fetchOrderByNameRest(
-  shopDomain: string,
-  accessToken: string,
-  orderName: string
-): Promise<OrderForPortal | null> {
-  if (!shopDomain || !accessToken || !orderName) return null;
-  const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
-  const nameWithHash = orderName.startsWith("#") ? orderName : `#${orderName}`;
-  const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameWithHash)}&limit=1`;
-  try {
-    const res = await fetch(url, {
-      headers: { "X-Shopify-Access-Token": accessToken, "Content-Type": "application/json" },
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { orders?: Array<Record<string, unknown>> };
-    const order = json.orders?.[0];
-    if (!order || !order.id) return null;
-    const gid = `gid://shopify/Order/${order.id}`;
-    return { _restOrderId: gid } as unknown as OrderForPortal;
-  } catch (err) {
-    console.error("[fetchOrderByNameRest] Error:", err instanceof Error ? err.message : err);
-    return null;
-  }
-}
-
-/**
- * Find order GID by scanning recent orders (no search filter). Shopify's search
- * is unreliable for non-standard names (e.g. FYNDSHOPIFYX14122). This paginates
- * orders(first: 250, sortKey: CREATED_AT, reverse: true) and exact-matches name.
- */
-async function findOrderGidByExactNameScan(
-  admin: AdminGraphQL,
-  orderName: string,
-  maxPages = 5
-): Promise<string | null> {
-  const norm = orderName.replace(/^#/, "").trim().toLowerCase();
-  if (!norm) return null;
-  const pageSize = 250;
-  let after: string | null = null;
-  for (let page = 0; page < maxPages; page++) {
-    const res = await admin.graphql(ORDERS_PAGINATED_QUERY, {
-      variables: { first: pageSize, after },
-    });
-    const json = (await res.json()) as {
-      data?: { orders?: { nodes?: Array<{ id?: string; name?: string }>; pageInfo?: { endCursor?: string; hasNextPage?: boolean } } };
-      errors?: Array<{ message?: string }>;
-    };
-    if (json.errors?.length) return null;
-    const nodes = json.data?.orders?.nodes ?? [];
-    const pageInfo = json.data?.orders?.pageInfo;
-    for (const node of nodes) {
-      const name = (node.name ?? "").replace(/^#/, "").toLowerCase();
-      if (name === norm && node.id) return node.id;
-    }
-    if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
-    after = pageInfo.endCursor;
-  }
-  return null;
-}
-
 /**
  * Search Shopify orders by query string. When `exactName` is provided,
  * fetches up to 50 candidates and returns only the one whose `name`
@@ -422,16 +362,15 @@ async function searchOrders(
  * https://shopify.dev/docs/api/admin-graphql/latest/queries/orders
  *
  * Strategy (in order of priority):
- * 1. orderByIdentifier — O(1) direct GID lookup
- * 2. name: — standard Shopify order name filter
- * 3. source_identifier: — third-party/external order IDs (Fynd, POS, etc.)
- * 4. confirmation_number: — alternate customer-facing order identifier
- * 5. tag: — tagged orders
+ * 1. orderByIdentifier — O(1) direct GID lookup when a GID is provided
+ * 2. GraphQL name: filter — exact name lookup using orders(first: 1, query: "name:#<order>")
+ * 3. Pagination scan — recent orders without search filter (safety net)
+ * 4. metafields.$app.fynd_order_id — lookup by stored Fynd order id
+ * 5. source_identifier — lookup by external/source identifier
  */
 export async function fetchOrderByOrderNumber(
   admin: AdminGraphQL,
-  orderNumber: string,
-  restContext?: { shopDomain: string; accessToken: string }
+  orderNumber: string
 ): Promise<OrderForPortal | null> {
   const clean = orderNumber.replace(/^#/, "").trim();
   if (!clean) return null;
@@ -441,24 +380,9 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1: REST API — GET orders.json?status=any&name=#FYNDSHOPIFYX14122 (URL-encoded)
-  if (restContext) {
-    try {
-      const restResult = await fetchOrderByNameRest(restContext.shopDomain, restContext.accessToken, clean);
-      if (restResult) {
-        const gid = (restResult as unknown as { _restOrderId: string })._restOrderId;
-        if (gid) {
-          const fullOrder = await fetchOrderByGid(admin, gid);
-          if (fullOrder) return fullOrder;
-        }
-      }
-    } catch (err) {
-      if (err instanceof OrderAccessError) throw err;
-    }
-  }
-
-  // Strategy 2: GraphQL — orders(first: 1, query: "name:#FYNDSHOPIFYX14122")
-  for (const q of [`name:#${clean}`, `name:"#${clean}"`, `name:"${clean}"`, `name:${clean}`]) {
+  // Strategy 1 (primary): GraphQL — orders(first: 1, query: "name:#FYNDSHOPIFYX14122")
+  // This mirrors the working curl you shared and should be the first lookup.
+  for (const q of [`name:#${clean}`, `name:${clean}`]) {
     try {
       const node = await searchOrders(admin, q, false, clean);
       if (node) return parseOrderNode(node);
@@ -467,9 +391,33 @@ export async function fetchOrderByOrderNumber(
     }
   }
 
-  // Strategy 3: Pagination scan (recent orders, no search filter)
+  // Strategy 2: Pagination scan (recent orders, no search filter)
   try {
-    const gid = await findOrderGidByExactNameScan(admin, clean, 5);
+    const gid = await (async () => {
+      const norm = clean.replace(/^#/, "").trim().toLowerCase();
+      if (!norm) return null;
+      const pageSize = 250;
+      let after: string | null = null;
+      for (let page = 0; page < 5; page++) {
+        const res = await admin.graphql(ORDERS_PAGINATED_QUERY, {
+          variables: { first: pageSize, after },
+        });
+        const json = (await res.json()) as {
+          data?: { orders?: { nodes?: Array<{ id?: string; name?: string }>; pageInfo?: { endCursor?: string; hasNextPage?: boolean } } };
+          errors?: Array<{ message?: string }>;
+        };
+        if (json.errors?.length) return null;
+        const nodes = json.data?.orders?.nodes ?? [];
+        const pageInfo = json.data?.orders?.pageInfo;
+        for (const node of nodes) {
+          const name = (node.name ?? "").replace(/^#/, "").toLowerCase();
+          if (name === norm && node.id) return node.id;
+        }
+        if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
+        after = pageInfo.endCursor;
+      }
+      return null;
+    })();
     if (gid) return fetchOrderByGid(admin, gid);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;

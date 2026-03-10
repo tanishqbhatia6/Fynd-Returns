@@ -7,6 +7,7 @@ import { formatReturnRequestId } from "../lib/return-request-id";
 import { checkReturnEligibility } from "../lib/return-rules.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parseJsonArray } from "../lib/parse-json";
+import { createFyndClientOrError } from "../lib/fynd.server";
 
 /**
  * Portal order lookup API.
@@ -134,6 +135,42 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           order = await fetchOrderByOrderNumber(admin, fyndCase.shopifyOrderName.replace(/^#/, ""));
         }
       }
+    }
+
+    // Fynd fallback: if Shopify couldn't find the order (e.g. missing read_all_orders scope,
+    // customer entered a Fynd order ID, or order is outside Shopify's default scope window),
+    // search Fynd by external_order_id and use the returned channel_order_id to retry Shopify.
+    if (!order) {
+      try {
+        const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+        if (shopSettings) {
+          const fyndResult = await createFyndClientOrError(
+            shopSettings as Parameters<typeof createFyndClientOrError>[0],
+            { requirePlatform: true }
+          );
+          if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
+            const searchRes = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumber, {
+              searchType: "external_order_id",
+              pageSize: 5,
+              fulfillmentType: "FULFILLMENT",
+            });
+            const items = (
+              searchRes?.items ?? searchRes?.shipments ??
+              (searchRes as { data?: { items?: unknown[] } })?.data?.items ?? []
+            ) as Record<string, unknown>[];
+            if (items.length > 0) {
+              const first = items[0];
+              // Extract the Shopify order name Fynd has on record (channel_order_id)
+              const channelOrderId = String(
+                first.channel_order_id ?? first.marketplaceOrderId ?? ""
+              ).replace(/^#/, "").trim();
+              if (channelOrderId && channelOrderId !== orderNumber) {
+                order = await fetchOrderByOrderNumber(admin, channelOrderId).catch(() => null);
+              }
+            }
+          }
+        }
+      } catch { /* non-fatal — Fynd not configured or unavailable */ }
     }
 
     if (!order) {

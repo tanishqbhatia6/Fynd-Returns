@@ -293,8 +293,72 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Call Fynd API with order no. as external_order_id / channel_order_id / affiliate_order_id and attach fyndData
-    if ((normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && orders.length > 0 && shopRecord.settings) {
+    // Fynd-based order discovery: Shopify returned nothing for this order number.
+    // Search Fynd directly — use channel_order_id from the result to retry Shopify,
+    // or build a synthetic order from Fynd data so Track Order can still show tracking.
+    if (orders.length === 0 && (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && shopRecord.settings) {
+      const searchVal = rawValue.replace(/^#/, "").trim();
+      if (searchVal) {
+        try {
+          const fyndResult = await createFyndClientOrError(shopRecord.settings as Parameters<typeof createFyndClientOrError>[0], { requirePlatform: true });
+          if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
+            const res = await fyndResult.client.searchShipmentsByExternalOrderId(searchVal, {
+              searchType: "external_order_id",
+              pageSize: 10,
+              fulfillmentType: "FULFILLMENT",
+            });
+            const rawItems = ((res?.items ?? res?.shipments ?? (res as { data?: { items?: unknown[] } })?.data?.items ?? []) as Record<string, unknown>[]);
+            const forwardItems = rawItems.filter((item) => {
+              const jt = (typeof item.journey_type === "string" ? item.journey_type : "").toLowerCase();
+              return jt !== "return";
+            });
+            const items = forwardItems.length > 0 ? forwardItems : rawItems;
+            if (items.length > 0) {
+              const payloadJson = JSON.stringify({ ...(res as Record<string, unknown>), items });
+              const parsed = parseFyndOrderDetailsForTab(payloadJson) as FyndOrderDetailsTab | null;
+              let fyndData: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null = null;
+              if (parsed) {
+                (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+                fyndData = parsed as FyndOrderDetailsTab & { forwardJourney?: unknown };
+              }
+              // Try to resolve the real Shopify order using Fynd's channel_order_id
+              const first = items[0] as Record<string, unknown>;
+              const channelOrderId = String(first.channel_order_id ?? first.marketplaceOrderId ?? "").replace(/^#/, "").trim();
+              if (channelOrderId) {
+                try {
+                  const { admin } = await shopify.unauthenticated.admin(shopDomain);
+                  const shopifyOrder = await fetchOrderByOrderNumber(admin, channelOrderId);
+                  if (shopifyOrder) {
+                    orders.push({ ...shopifyOrder, fyndData, _needsFyndEnrich: false });
+                  }
+                } catch { /* non-fatal */ }
+              }
+              // Synthetic order fallback: Shopify still can't find it — build from Fynd data
+              // so the customer can at least see tracking on the Track Order tab.
+              if (orders.length === 0) {
+                const syntheticOrder: PortalOrder = {
+                  id: String(first.order_id ?? first.shipment_id ?? searchVal),
+                  name: String(first.channel_order_id ?? first.marketplaceOrderId ?? `#${searchVal}`),
+                  createdAt: String(first.orderDate ?? first.shipment_created_at ?? new Date().toISOString()),
+                  displayFulfillmentStatus: "FULFILLED",
+                  displayFinancialStatus: "PAID",
+                  lineItems: [],
+                  fyndData,
+                  _needsFyndEnrich: false,
+                };
+                orders.push(syntheticOrder);
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Portal lookup Fynd order discovery:", err);
+        }
+      }
+    }
+
+    // Fynd enrichment: attach live Fynd shipment data to an order already found by Shopify.
+    // Skip if _needsFyndEnrich is false (already enriched by the discovery block above).
+    if ((normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && orders.length > 0 && shopRecord.settings && orders[0]._needsFyndEnrich !== false) {
       const orderNumberForFynd = rawValue.replace(/^#/, "").trim();
       if (orderNumberForFynd) {
         try {

@@ -3334,7 +3334,17 @@
 
       if (forwardShipments.length > 0) {
         // ── Forward delivery shipment section (Fynd) — show only primary shipment ──
-        html += renderShipmentSection(forwardShipments[0], 0, forwardJourney, currency, false);
+        // When we know the order was delivered (latestStatus reflects delivery/return-complete),
+        // correct any stale Fynd forward shipment status so the STATUS row doesn't show an
+        // early-stage label like "Order confirmed" for a fully returned/refunded order.
+        var primaryForwardShip = forwardShipments[0];
+        var fwdSt = (primaryForwardShip.shipmentStatus || '').toLowerCase();
+        var orderIsDelivered = latestStatus === 'delivered_return' || latestStatus === 'delivered';
+        var fwdAppearsStale = orderIsDelivered && !fwdSt.includes('delivered') && !fwdSt.includes('delivery_done') && !fwdSt.includes('out_for_delivery') && !fwdSt.includes('in_transit');
+        if (fwdAppearsStale) {
+          primaryForwardShip = Object.assign({}, primaryForwardShip, { shipmentStatus: 'delivery_done' });
+        }
+        html += renderShipmentSection(primaryForwardShip, 0, forwardJourney, currency, false);
       } else if (hasShopifyTracking) {
         // ── Shopify fulfillment tracking ──
         shopifyFulfillments.forEach(function (ff, ffIdx) {

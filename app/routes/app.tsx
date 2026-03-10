@@ -64,6 +64,7 @@ const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; labe
   "/app/settings/permissions": { parent: "/app/settings", parentLabel: "Settings", label: "Permissions" },
   "/app/settings/blocklist": { parent: "/app/settings", parentLabel: "Settings", label: "Customer Blocklist" },
   "/app/settings/auto-rules": { parent: "/app/settings", parentLabel: "Settings", label: "Auto-Approve Rules" },
+  "/app/settings/webhook-logs": { parent: "/app/settings", parentLabel: "Settings", label: "Fynd Webhook Logs" },
   "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Product Guide" },
 };
 

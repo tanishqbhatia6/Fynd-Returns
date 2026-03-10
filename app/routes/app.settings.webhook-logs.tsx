@@ -27,83 +27,100 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const dateTo = url.searchParams.get("dateTo") ?? "";
 
   // Build where clause
-  const where: Record<string, unknown> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const where: any = {};
   if (actionFilter) where.action = actionFilter;
   if (shipmentSearch) where.shipmentId = { contains: shipmentSearch, mode: "insensitive" };
   if (orderSearch) where.orderId = { contains: orderSearch, mode: "insensitive" };
 
-  const dateFilter: Record<string, Date> = {};
-  if (dateFrom) {
-    const d = new Date(dateFrom);
-    if (!isNaN(d.getTime())) dateFilter.gte = d;
-  }
-  if (dateTo) {
-    const d = new Date(dateTo);
-    if (!isNaN(d.getTime())) {
-      d.setHours(23, 59, 59, 999);
-      dateFilter.lte = d;
+  if (dateFrom || dateTo) {
+    const dateFilter: { gte?: Date; lte?: Date } = {};
+    if (dateFrom) {
+      const d = new Date(dateFrom);
+      if (!isNaN(d.getTime())) dateFilter.gte = d;
     }
-  }
-  if (Object.keys(dateFilter).length > 0) where.createdAt = dateFilter;
-
-  const [totalCount, logs, analytics] = await Promise.all([
-    prisma.fyndWebhookLog.count({ where }),
-    prisma.fyndWebhookLog.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (page - 1) * PAGE_SIZE,
-      take: PAGE_SIZE,
-    }),
-    // Analytics: aggregate counts by action
-    prisma.fyndWebhookLog.groupBy({
-      by: ["action"],
-      _count: { id: true },
-    }),
-  ]);
-
-  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
-
-  // Compute analytics summary
-  const actionCounts: Record<string, number> = {};
-  let totalAll = 0;
-  for (const row of analytics) {
-    const key = row.action ?? "unknown";
-    actionCounts[key] = row._count.id;
-    totalAll += row._count.id;
+    if (dateTo) {
+      const d = new Date(dateTo);
+      if (!isNaN(d.getTime())) {
+        d.setHours(23, 59, 59, 999);
+        dateFilter.lte = d;
+      }
+    }
+    if (dateFilter.gte || dateFilter.lte) where.createdAt = dateFilter;
   }
 
-  const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0);
-  const errorCount = actionCounts["error"] ?? 0;
-  const ignoredCount = actionCounts["ignored"] ?? 0;
-  const duplicateCount = actionCounts["duplicate_ignored"] ?? 0;
-  const successRate = totalAll > 0 ? Math.round(((totalAll - errorCount) / totalAll) * 100) : 100;
+  // Wrap in try/catch to prevent loader crash from blanking the page
+  try {
+    const [totalCount, logs, allLogs] = await Promise.all([
+      prisma.fyndWebhookLog.count({ where }),
+      prisma.fyndWebhookLog.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * PAGE_SIZE,
+        take: PAGE_SIZE,
+      }),
+      // Get all logs for analytics (count by action using simple query)
+      prisma.fyndWebhookLog.findMany({
+        select: { action: true },
+      }),
+    ]);
 
-  return {
-    logs: logs.map((l) => ({
-      id: l.id,
-      shipmentId: l.shipmentId,
-      orderId: l.orderId,
-      refundStatus: l.refundStatus,
-      action: l.action,
-      returnCaseId: l.returnCaseId,
-      error: l.error,
-      rawPayload: l.rawPayload,
-      createdAt: l.createdAt.toISOString(),
-    })),
-    page,
-    totalPages,
-    totalCount,
-    analytics: {
-      total: totalAll,
-      successCount,
-      errorCount,
-      ignoredCount,
-      duplicateCount,
-      successRate,
-      actionCounts,
-    },
-    filters: { actionFilter, shipmentSearch, orderSearch, dateFrom, dateTo },
-  };
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
+
+    // Compute analytics summary from raw data
+    const actionCounts: Record<string, number> = {};
+    let totalAll = 0;
+    for (const row of allLogs) {
+      const key = row.action ?? "unknown";
+      actionCounts[key] = (actionCounts[key] ?? 0) + 1;
+      totalAll++;
+    }
+
+    const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0);
+    const errorCount = actionCounts["error"] ?? 0;
+    const ignoredCount = actionCounts["ignored"] ?? 0;
+    const duplicateCount = actionCounts["duplicate_ignored"] ?? 0;
+    const successRate = totalAll > 0 ? Math.round(((totalAll - errorCount) / totalAll) * 100) : 100;
+
+    return {
+      logs: logs.map((l) => ({
+        id: l.id,
+        shipmentId: l.shipmentId,
+        orderId: l.orderId,
+        refundStatus: l.refundStatus,
+        action: l.action,
+        returnCaseId: l.returnCaseId,
+        error: l.error,
+        rawPayload: l.rawPayload,
+        createdAt: l.createdAt.toISOString(),
+      })),
+      page,
+      totalPages,
+      totalCount,
+      analytics: {
+        total: totalAll,
+        successCount,
+        errorCount,
+        ignoredCount,
+        duplicateCount,
+        successRate,
+        actionCounts,
+      },
+      filters: { actionFilter, shipmentSearch, orderSearch, dateFrom, dateTo },
+      loaderError: null,
+    };
+  } catch (err) {
+    console.error("[webhook-logs] Loader error:", err);
+    return {
+      logs: [],
+      page: 1,
+      totalPages: 1,
+      totalCount: 0,
+      analytics: { total: 0, successCount: 0, errorCount: 0, ignoredCount: 0, duplicateCount: 0, successRate: 100, actionCounts: {} },
+      filters: { actionFilter, shipmentSearch, orderSearch, dateFrom, dateTo },
+      loaderError: err instanceof Error ? err.message : "Failed to load webhook logs",
+    };
+  }
 };
 
 function ActionBadge({ action }: { action: string | null }) {
@@ -148,7 +165,7 @@ function StatCard({ label, value, color, sub }: { label: string; value: number |
 }
 
 export default function WebhookLogsPage() {
-  const { logs, page, totalPages, totalCount, analytics, filters } = useLoaderData<typeof loader>();
+  const { logs, page, totalPages, totalCount, analytics, filters, loaderError } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
@@ -212,8 +229,19 @@ export default function WebhookLogsPage() {
   const hasActiveFilters = !!(actionFilter || shipmentSearch || orderSearch || dateFrom || dateTo);
 
   return (
-    <s-page heading="Fynd Webhook Logs" backAction={{ url: "/app/settings" }}>
+    <s-page heading="Fynd Webhook Logs">
       <div className="app-content">
+
+        {/* ── Loader Error ── */}
+        {loaderError && (
+          <div style={{
+            padding: "14px 18px", marginBottom: 16,
+            background: "#FEF2F2", border: "1px solid #FECACA",
+            borderRadius: 10, color: "#991B1B", fontSize: 13,
+          }}>
+            Failed to load webhook logs: {loaderError}
+          </div>
+        )}
 
         {/* ── Analytics Summary ── */}
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>

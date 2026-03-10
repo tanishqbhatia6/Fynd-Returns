@@ -55,55 +55,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (type === "order" && orderName) {
       const orderNumber = String(orderName).replace(/^#/, "");
 
-      let cachedMapping: { fyndOrderId?: string | null; fyndShipmentId?: string | null; searchStrategy?: string | null } | null = null;
-      try {
-        cachedMapping = await prisma.fyndOrderMapping.findUnique({
-          where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: String(orderName) } },
-        });
-      } catch { /* cache miss is fine */ }
+      // ── Search strategy ordering ───────────────────────────────────────────────
+      // ALWAYS run direct name-based searches first (channel_order_id, external_order_id).
+      // These use the Shopify order name as the lookup key in Fynd — the most exact and
+      // unambiguous match possible.
+      //
+      // Cached strategies (Fynd internal order_id / shipment_id) have been REMOVED from
+      // the search loop because they were the root cause of cross-order contamination:
+      //   1. DB stores fyndOrderId X for order A
+      //   2. By mistake X actually belongs to order B
+      //   3. Cached strategy returns B's data for A → wrong status / shipment ID
+      //   4. Result is re-cached, contamination persists across restarts
+      //
+      // The DB cache is still WRITTEN on successful direct searches so future code paths
+      // can use it, but it is no longer READ as a search fallback.
+      // If neither direct search finds the order → fyndData = null → Shopify data shown.
 
-      // Returns true when a Fynd item CLEARLY belongs to a DIFFERENT order (explicit mismatch).
-      // Uses inverted logic: only rejects when a present, non-empty field unambiguously
-      // references another order. If all identifier fields are absent we cannot determine
-      // ownership, so we return false (do not reject — avoids false negatives).
-      const isWrongOrder = (item: Record<string, unknown>, reqNum: string): boolean => {
-        const req = reqNum.toLowerCase().replace(/^#/, "");
-        const fields = [
-          item.channel_order_id,
-          item.affiliate_order_id,
-          (item.order as Record<string, unknown> | undefined)?.channel_order_id,
-          (item.order as Record<string, unknown> | undefined)?.affiliate_order_id,
-        ];
-        for (const f of fields) {
-          if (f == null) continue;
-          const v = String(f).toLowerCase().replace(/^#/, "");
-          if (!v) continue;
-          // Field is present. If it matches the requested order → this is the right order.
-          // Use only exact or unambiguous containment (req contains v, meaning v is a
-          // suffix/prefix of the full order name, e.g. "14125" inside "fyndshopifyx14125").
-          if (v === req || req.endsWith(v) || req.startsWith(v) || v.includes(req)) {
-            return false; // matches → not the wrong order
-          }
-          // Field is present and doesn't match → clearly a different order.
-          return true;
-        }
-        return false; // no identifier fields present → cannot determine, treat as OK
-      };
-
-      const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType; strategy: string }> = [];
-
-      if (cachedMapping?.fyndOrderId) {
-        searchCandidates.push({ value: cachedMapping.fyndOrderId, type: "order_id" as ShipmentsListingSearchType, strategy: "cached_order_id" });
-      }
-      if (cachedMapping?.fyndShipmentId) {
-        searchCandidates.push({ value: cachedMapping.fyndShipmentId, type: "shipment_id" as ShipmentsListingSearchType, strategy: "cached_shipment_id" });
-      }
-
-      searchCandidates.push({ value: orderNumber, type: "external_order_id", strategy: "external_order_id" });
-      // NOTE: stripped_prefix strategy (removing alpha prefix to search by number only) was removed.
-      // Short numeric suffixes (e.g. "14125" from "FYNDSHOPIFYX14125") are too ambiguous and caused
-      // one order's Fynd data to be returned for a completely different order.
-      searchCandidates.push({ value: orderNumber, type: "channel_order_id", strategy: "channel_order_id" });
+      const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType; strategy: string }> = [
+        { value: orderNumber, type: "channel_order_id", strategy: "channel_order_id" },
+        { value: orderNumber, type: "external_order_id", strategy: "external_order_id" },
+      ];
 
       for (const candidate of searchCandidates) {
         if (!candidate.value) continue;
@@ -123,23 +94,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               return jt !== "return";
             });
             const effectiveItems = forwardItems.length > 0 ? forwardItems : items;
-
-            // Validate the returned data against the requested order for EVERY strategy.
-            // Previous bug: validation only ran for cached strategies, so a live
-            // external_order_id search returning the wrong order's data bypassed the check
-            // and poisoned the cache again on the very next request.
-            const isCachedStrategy = candidate.strategy === "cached_order_id" || candidate.strategy === "cached_shipment_id";
-            const firstItemCheck = effectiveItems[0] as Record<string, unknown>;
-            if (isWrongOrder(firstItemCheck, orderNumber)) {
-              // Fynd returned data for a different order — reject and clean up any stale cache.
-              if (isCachedStrategy) {
-                prisma.fyndOrderMapping.delete({
-                  where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: String(orderName) } },
-                }).catch(() => {});
-              }
-              console.warn(`[fynd-enrich] order mismatch: searched "${orderNumber}" strategy="${candidate.strategy}", got channel_order_id="${String(firstItemCheck.channel_order_id ?? "")}"`);
-              continue;
-            }
 
             const payloadJson = JSON.stringify({ ...searchResult as Record<string, unknown>, items: effectiveItems });
             const parsed = parseFyndOrderDetailsForTab(payloadJson);

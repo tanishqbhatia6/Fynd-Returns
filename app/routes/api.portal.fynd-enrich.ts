@@ -62,23 +62,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       } catch { /* cache miss is fine */ }
 
-      // Returns true when a Fynd item's order identifiers match the requested Shopify order number.
-      // Used to detect stale DB cache that points to a different order's Fynd data.
-      const belongsToOrder = (item: Record<string, unknown>, reqNum: string): boolean => {
+      // Returns true when a Fynd item CLEARLY belongs to a DIFFERENT order (explicit mismatch).
+      // Uses inverted logic: only rejects when a present, non-empty field unambiguously
+      // references another order. If all identifier fields are absent we cannot determine
+      // ownership, so we return false (do not reject — avoids false negatives).
+      const isWrongOrder = (item: Record<string, unknown>, reqNum: string): boolean => {
         const req = reqNum.toLowerCase().replace(/^#/, "");
         const fields = [
           item.channel_order_id,
           item.affiliate_order_id,
-          item.external_order_id,
           (item.order as Record<string, unknown> | undefined)?.channel_order_id,
           (item.order as Record<string, unknown> | undefined)?.affiliate_order_id,
         ];
         for (const f of fields) {
           if (f == null) continue;
           const v = String(f).toLowerCase().replace(/^#/, "");
-          if (v && (v === req || v.includes(req) || req.includes(v))) return true;
+          if (!v) continue;
+          // Field is present. If it matches the requested order → this is the right order.
+          // Use only exact or unambiguous containment (req contains v, meaning v is a
+          // suffix/prefix of the full order name, e.g. "14125" inside "fyndshopifyx14125").
+          if (v === req || req.endsWith(v) || req.startsWith(v) || v.includes(req)) {
+            return false; // matches → not the wrong order
+          }
+          // Field is present and doesn't match → clearly a different order.
+          return true;
         }
-        return false;
+        return false; // no identifier fields present → cannot determine, treat as OK
       };
 
       const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType; strategy: string }> = [];
@@ -115,19 +124,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             });
             const effectiveItems = forwardItems.length > 0 ? forwardItems : items;
 
-            // For cached strategies, validate the returned data actually belongs to this order.
-            // A stale cache entry pointing to a different order's Fynd data would otherwise
-            // cause the wrong shipment ID and status to appear for this order.
+            // Validate the returned data against the requested order for EVERY strategy.
+            // Previous bug: validation only ran for cached strategies, so a live
+            // external_order_id search returning the wrong order's data bypassed the check
+            // and poisoned the cache again on the very next request.
             const isCachedStrategy = candidate.strategy === "cached_order_id" || candidate.strategy === "cached_shipment_id";
-            if (isCachedStrategy) {
-              const firstItem = effectiveItems[0] as Record<string, unknown>;
-              if (!belongsToOrder(firstItem, orderNumber)) {
-                // Stale cache — delete the bad entry so it doesn't persist
+            const firstItemCheck = effectiveItems[0] as Record<string, unknown>;
+            if (isWrongOrder(firstItemCheck, orderNumber)) {
+              // Fynd returned data for a different order — reject and clean up any stale cache.
+              if (isCachedStrategy) {
                 prisma.fyndOrderMapping.delete({
                   where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: String(orderName) } },
                 }).catch(() => {});
-                continue;
               }
+              console.warn(`[fynd-enrich] order mismatch: searched "${orderNumber}" strategy="${candidate.strategy}", got channel_order_id="${String(firstItemCheck.channel_order_id ?? "")}"`);
+              continue;
             }
 
             const payloadJson = JSON.stringify({ ...searchResult as Record<string, unknown>, items: effectiveItems });

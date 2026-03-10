@@ -302,10 +302,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
             const searchTypes: ShipmentsListingSearchType[] = ["channel_order_id", "external_order_id"];
             for (const searchType of searchTypes) {
-              const res = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumberForFynd, { searchType, pageSize: 10 });
-              const items = (res?.items ?? res?.shipments ?? (res as { data?: { items?: unknown[] } })?.data?.items ?? []) as unknown[];
+              const res = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumberForFynd, { searchType, pageSize: 10, fulfillmentType: "FULFILLMENT", parentViewSlug: "all", childViewSlug: "all" });
+              const rawItems = (res?.items ?? res?.shipments ?? (res as { data?: { items?: unknown[] } })?.data?.items ?? []) as unknown[];
+              // Filter to forward shipments only (same guard as fynd-enrich route)
+              const forwardItems = (rawItems as Record<string, unknown>[]).filter((item) => {
+                const jt = (typeof item.journey_type === "string" ? item.journey_type : "").toLowerCase();
+                return jt !== "return";
+              });
+              const items = forwardItems.length > 0 ? forwardItems : rawItems;
               if (Array.isArray(items) && items.length > 0) {
-                const payloadJson = JSON.stringify(res);
+                const payloadJson = JSON.stringify({ ...(res as Record<string, unknown>), items });
                 const parsed = parseFyndOrderDetailsForTab(payloadJson) as FyndOrderDetailsTab | null;
                 if (parsed) {
                   (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");

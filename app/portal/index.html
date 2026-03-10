@@ -3218,12 +3218,16 @@
             bestReturn = unified;
           }
         });
-        if (bestReturn && bestReturn.step >= 3) {
-          dStatus = bestReturn.label || dStatus;
-          dClass = bestReturn.cls || dClass;
-          if (bestReturn.description) statusDesc = bestReturn.description;
-          // If the return is past pickup (step >= 3), the item was already delivered — ensure
-          // the forward progress bar reflects "Delivered" even if Fynd forward status is stale.
+        if (bestReturn && bestReturn.step >= 1) {
+          // Upgrade the order badge label when return is at step 3+ (past pickup)
+          if (bestReturn.step >= 3) {
+            dStatus = bestReturn.label || dStatus;
+            dClass = bestReturn.cls || dClass;
+            if (bestReturn.description) statusDesc = bestReturn.description;
+          }
+          // If ANY return exists, the order must have been delivered already.
+          // Override any stale early-stage Fynd forward status (e.g. bag_confirmed)
+          // so the progress bar and STATUS row don't show "Order Confirmed" etc.
           if (getActiveStepFromStatus((latestStatus || '').toLowerCase()) < 5) {
             latestStatus = 'delivered';
           }
@@ -3928,7 +3932,9 @@
         var showReturns = false;
         if (activeTabId === 'track_order') {
           showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders;
-          showReturns = PORTAL_CONFIG.showReturnTracking && hasReturns;
+          // Returns are shown inline inside the order card — never show the separate returns
+          // section when the user searched from Track Order tab.
+          showReturns = false;
         } else if (activeTabId === 'track_return') {
           showReturns = PORTAL_CONFIG.showReturnTracking && hasReturns;
           showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders && !hasReturns;

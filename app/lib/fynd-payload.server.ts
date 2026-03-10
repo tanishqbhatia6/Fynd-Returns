@@ -415,7 +415,7 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         first.order_id ?? first.orderId ?? first.channel_order_id ?? orderFromFirst.fynd_order_id ?? orderFromFirst.affiliate_order_id ?? first.affiliate_order_id ?? first.id ?? ""
       )
       : null;
-    const shipments = list.map((item) => {
+    const shipmentsRaw = list.map((item) => {
       const raw = (typeof item === "object" && item != null ? item : {}) as Record<string, unknown>;
       const meta = (raw.meta as Record<string, unknown>) ?? {};
       const dpDetails = (raw.dp_details as Record<string, unknown>) ?? {};
@@ -473,7 +473,7 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const creditNoteIdRaw = raw.credit_note_id ?? invoiceObj?.credit_note_id;
       const creditNoteId = typeof creditNoteIdRaw === "string" && creditNoteIdRaw ? creditNoteIdRaw : null;
       const journeyType = typeof raw.journey_type === "string" ? raw.journey_type : null;
-      const status = raw.shipment_status ?? raw.orderStatus ?? raw.status;
+      const status = raw.shipment_status ?? raw.shipmentStatus ?? raw.orderStatus ?? raw.status;
       const statusTitle = status && typeof status === "object" && status !== null && "title" in (status as object)
         ? (status as { title?: string }).title
         : status;
@@ -598,6 +598,11 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const forwardShipmentIdStr = forwardShipmentIdVal != null ? String(forwardShipmentIdVal).trim() : null;
       const returnShipmentId = raw.shipment_id ?? raw.shipmentId ?? raw.id ?? raw.channel_shipment_id;
 
+      const updatedAtRaw =
+        raw.updated_at ?? raw.updatedAt ?? meta.updated_at ?? meta.updatedAt ?? raw.created_at ?? raw.createdAt;
+      const updatedAtMs =
+        typeof updatedAtRaw === "string" && updatedAtRaw ? Date.parse(updatedAtRaw) : (typeof updatedAtRaw === "number" ? updatedAtRaw : 0);
+
       let trackingDetails: Array<{ status: string, time: string, message?: string }> = [];
       const trackingList = raw.tracking_details ?? raw.shipment_status_updates;
       if (Array.isArray(trackingList)) {
@@ -650,8 +655,26 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         pricing: shipmentPricing,
         trackingDetails,
         items,
+        _updatedAtMs: updatedAtMs,
       };
     });
+
+    // Dedupe shipments: Fynd payloads sometimes return multiple rows for the same shipment.
+    // Keep the most recently updated entry per shipmentId to avoid “random” status/history and UI tab explosion.
+    const shipmentsById = new Map<string, (typeof shipmentsRaw)[number]>();
+    for (const s of shipmentsRaw) {
+      const id = String((s as { shipmentId?: string }).shipmentId ?? "—");
+      const prev = shipmentsById.get(id);
+      const sMs = (s as { _updatedAtMs?: number })._updatedAtMs ?? 0;
+      const pMs = prev ? ((prev as { _updatedAtMs?: number })._updatedAtMs ?? 0) : 0;
+      if (!prev || sMs >= pMs) shipmentsById.set(id, s);
+    }
+    const shipments = [...shipmentsById.values()]
+      .sort((a, b) => ((b as { _updatedAtMs?: number })._updatedAtMs ?? 0) - ((a as { _updatedAtMs?: number })._updatedAtMs ?? 0))
+      .map((s) => {
+        const { _updatedAtMs: _omit, ...rest } = s as Record<string, unknown> as { _updatedAtMs?: number };
+        return rest as unknown as FyndOrderDetailsTab["shipments"][number];
+      });
 
     // Order-level fields from first shipment
     const firstRaw = (list[0] && typeof list[0] === "object" ? list[0] : {}) as Record<string, unknown>;

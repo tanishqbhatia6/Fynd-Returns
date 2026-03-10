@@ -1347,8 +1347,8 @@
     }
 
     .oc-shipment-tab {
-      flex: 1;
-      min-width: 0;
+      flex: 0 0 auto;
+      max-width: 220px;
       padding: 8px 14px;
       font-size: 0.75rem;
       font-weight: 600;
@@ -1359,6 +1359,8 @@
       cursor: pointer;
       transition: all 0.2s;
       white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
       font-family: inherit;
     }
 

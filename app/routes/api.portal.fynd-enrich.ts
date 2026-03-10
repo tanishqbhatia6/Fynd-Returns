@@ -62,6 +62,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       } catch { /* cache miss is fine */ }
 
+      // Returns true when a Fynd item's order identifiers match the requested Shopify order number.
+      // Used to detect stale DB cache that points to a different order's Fynd data.
+      const belongsToOrder = (item: Record<string, unknown>, reqNum: string): boolean => {
+        const req = reqNum.toLowerCase().replace(/^#/, "");
+        const fields = [
+          item.channel_order_id,
+          item.affiliate_order_id,
+          item.external_order_id,
+          (item.order as Record<string, unknown> | undefined)?.channel_order_id,
+          (item.order as Record<string, unknown> | undefined)?.affiliate_order_id,
+        ];
+        for (const f of fields) {
+          if (f == null) continue;
+          const v = String(f).toLowerCase().replace(/^#/, "");
+          if (v && (v === req || v.includes(req) || req.includes(v))) return true;
+        }
+        return false;
+      };
+
       const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType; strategy: string }> = [];
 
       if (cachedMapping?.fyndOrderId) {
@@ -72,10 +91,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       searchCandidates.push({ value: orderNumber, type: "external_order_id", strategy: "external_order_id" });
-      const numericPart = orderNumber.replace(/^[A-Za-z]+/i, "");
-      if (numericPart && numericPart !== orderNumber) {
-        searchCandidates.push({ value: numericPart, type: "external_order_id", strategy: "stripped_prefix" });
-      }
+      // NOTE: stripped_prefix strategy (removing alpha prefix to search by number only) was removed.
+      // Short numeric suffixes (e.g. "14125" from "FYNDSHOPIFYX14125") are too ambiguous and caused
+      // one order's Fynd data to be returned for a completely different order.
       searchCandidates.push({ value: orderNumber, type: "channel_order_id", strategy: "channel_order_id" });
 
       for (const candidate of searchCandidates) {
@@ -96,6 +114,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               return jt !== "return";
             });
             const effectiveItems = forwardItems.length > 0 ? forwardItems : items;
+
+            // For cached strategies, validate the returned data actually belongs to this order.
+            // A stale cache entry pointing to a different order's Fynd data would otherwise
+            // cause the wrong shipment ID and status to appear for this order.
+            const isCachedStrategy = candidate.strategy === "cached_order_id" || candidate.strategy === "cached_shipment_id";
+            if (isCachedStrategy) {
+              const firstItem = effectiveItems[0] as Record<string, unknown>;
+              if (!belongsToOrder(firstItem, orderNumber)) {
+                // Stale cache — delete the bad entry so it doesn't persist
+                prisma.fyndOrderMapping.delete({
+                  where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: String(orderName) } },
+                }).catch(() => {});
+                continue;
+              }
+            }
 
             const payloadJson = JSON.stringify({ ...searchResult as Record<string, unknown>, items: effectiveItems });
             const parsed = parseFyndOrderDetailsForTab(payloadJson);

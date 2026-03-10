@@ -14,6 +14,7 @@ export type FyndSettings = {
 
 export type ShipmentsListingSearchType =
   | "external_order_id"
+  | "order_id"
   | "shipment_id"
   | "awb"
   | "customer_phone"

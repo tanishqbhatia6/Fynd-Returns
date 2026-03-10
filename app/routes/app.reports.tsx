@@ -410,7 +410,7 @@ export default function Reports() {
                     <Tooltip
                       contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
                       formatter={(value: number | undefined) => [value ?? 0, "Returns"]}
-                      labelFormatter={(label: string) => `${label}`}
+                      labelFormatter={(label) => `${label}`}
                     />
                     <Area type="monotone" dataKey="returns" stroke="#3b82f6" strokeWidth={2} fill="url(#rptGrad)"
                       dot={returnsOverTime.length < 15 ? { r: 3, fill: "#3b82f6" } : false} />

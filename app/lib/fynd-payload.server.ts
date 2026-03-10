@@ -663,7 +663,10 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
     // Keep the most recently updated entry per shipmentId to avoid “random” status/history and UI tab explosion.
     const shipmentsById = new Map<string, (typeof shipmentsRaw)[number]>();
     for (const s of shipmentsRaw) {
-      const id = String((s as { shipmentId?: string }).shipmentId ?? "—");
+      const rawShipmentId = (s as { shipmentId?: string }).shipmentId;
+      // Use unique keys for null-ID shipments to prevent multiple distinct shipments
+      // from collapsing into one entry keyed "—" (which caused random data to appear).
+      const id = rawShipmentId ? String(rawShipmentId) : `__noId_${shipmentsById.size}`;
       const prev = shipmentsById.get(id);
       const sMs = (s as { _updatedAtMs?: number })._updatedAtMs ?? 0;
       const pMs = prev ? ((prev as { _updatedAtMs?: number })._updatedAtMs ?? 0) : 0;
@@ -719,7 +722,8 @@ export function extractFyndJourney(
       for (const bs of bagStatusList) {
         const mapper = (bs.bag_state_mapper ?? bs.state_mapper ?? {}) as Record<string, unknown>;
         const jt = String(mapper.journey_type ?? mapper.journeyType ?? "").toLowerCase();
-        if (jt !== journeyType) continue;
+        // Only skip when journey_type is explicitly set to a different type; include steps when absent.
+        if (jt && jt !== journeyType) continue;
         const status = String(bs.status ?? bs.shipment_status ?? "").trim();
         const displayName = String(
           mapper.display_name ?? mapper.displayName ?? mapper.app_display_name ?? mapper.name ?? status

@@ -2541,7 +2541,7 @@
       if (s.includes('dp_assigned')) return { label: t('portal.status.courierAssigned'), cls: 'pending', icon: TRANSIT_ICON, desc: t('portal.statusDesc.courierAssigned') };
       if (s.includes('bag_packed')) return { label: t('portal.statusDesc.packedReady'), cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: t('portal.statusDesc.packedReadyDesc') };
       if (s.includes('manifest') || s.includes('ready_to_dispatch') || s.includes('handover') || s.includes('handed_over')) return { label: t('portal.status.readyToShip'), cls: 'pending', icon: PACKAGE_STATUS_ICON, desc: t('portal.statusDesc.readyToShip') };
-      if (s.includes('bag_confirmed') || s === 'confirmed' || s.includes('bag_invoiced')) return { label: t('portal.status.orderConfirmed'), cls: 'ok', icon: CONFIRMED_ICON, desc: t('portal.statusDesc.orderConfirmed') };
+      if (s.includes('bag_confirmed') || s === 'confirmed' || s === 'order_confirmed' || s.includes('bag_invoiced')) return { label: t('portal.status.orderConfirmed'), cls: 'ok', icon: CONFIRMED_ICON, desc: t('portal.statusDesc.orderConfirmed') };
       if (s === 'placed') return { label: t('portal.status.orderPlaced'), cls: 'ok', icon: CONFIRMED_ICON, desc: t('portal.statusDesc.orderPlaced') };
       if (s.includes('delivery_failed') || s.includes('undelivered')) return { label: t('portal.status.deliveryAttempted'), cls: 'error', icon: ALERT_ICON, desc: t('portal.statusDesc.deliveryAttempted') };
       if (s.includes('rto')) return { label: t('portal.status.returningToSeller'), cls: 'error', icon: ALERT_ICON, desc: t('portal.statusDesc.returningToSeller') };
@@ -3194,7 +3194,8 @@
       // Find matching returns for this order from the returns list
       var orderName = o.name || '';
       var matchingReturns = (allReturns || []).filter(function (r) {
-        return r.shopifyOrderName && orderName && r.shopifyOrderName.replace(/^#/, '') === orderName.replace(/^#/, '');
+        return r.shopifyOrderName && orderName &&
+          r.shopifyOrderName.replace(/^#/, '').toLowerCase() === orderName.replace(/^#/, '').toLowerCase();
       });
 
       // Determine if order has active return(s)
@@ -3219,7 +3220,12 @@
           dStatus = bestReturn.label || dStatus;
           dClass = bestReturn.cls || dClass;
           if (bestReturn.description) statusDesc = bestReturn.description;
-          // When return has reached step 5+ we also treat latestStatus as delivered/return_done
+          // If the return is past pickup (step >= 3), the item was already delivered — ensure
+          // the forward progress bar reflects "Delivered" even if Fynd forward status is stale.
+          if (getActiveStepFromStatus((latestStatus || '').toLowerCase()) < 5) {
+            latestStatus = 'delivered';
+          }
+          // When return has reached step 5+ (received/refunded) treat as fully completed
           if (bestReturn.step >= 5) {
             latestStatus = 'delivered_return';
           }
@@ -3408,7 +3414,9 @@
       // ── No tracking info placeholder ──
       var isDelivered = latestStatus.includes('delivered') || latestStatus.includes('fulfilled') || latestStatus.includes('delivery_done');
       var isCancelled = latestStatus.includes('cancel');
-      if (forwardShipments.length === 0 && !hasShopifyTracking && !isCancelled) {
+      // Suppress "tracking not yet available" placeholder when the order has DB-tracked returns —
+      // the customer already received the item so "will be available once shipped" is misleading.
+      if (forwardShipments.length === 0 && !hasShopifyTracking && !isCancelled && matchingReturns.length === 0) {
         if (isDelivered) {
           // Delivered but no tracking data — don't show "will be available once shipped"
         } else if (o._needsFyndEnrich) {

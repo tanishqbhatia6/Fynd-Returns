@@ -6,6 +6,7 @@ import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNu
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
+import { extractShippingDetailsFromFyndPayload } from "../lib/fynd-payload.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 
@@ -304,6 +305,24 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       ? bodyResolutionType
       : "refund";
 
+    // Auto-populate shipping info from Fynd response
+    let autoShippingData: Record<string, string> = {};
+    if (fyndPayloadJson) {
+      const shippingInfo = extractShippingDetailsFromFyndPayload(fyndPayloadJson);
+      if (shippingInfo && (shippingInfo.carrier || shippingInfo.trackingNumber)) {
+        autoShippingData.returnLabelJson = JSON.stringify({
+          carrier: shippingInfo.carrier,
+          trackingNumber: shippingInfo.trackingNumber,
+          trackingUrl: shippingInfo.trackingUrl,
+          labelUrl: shippingInfo.labelUrl,
+          invoiceUrl: shippingInfo.invoiceUrl,
+          invoiceNumber: shippingInfo.invoiceNumber,
+          source: "fynd",
+        });
+        if (shippingInfo.trackingNumber) autoShippingData.forwardAwb = shippingInfo.trackingNumber;
+      }
+    }
+
     await prisma.returnCase.update({
       where: { id },
       data: {
@@ -317,6 +336,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         ...(fyndOrderId && { fyndOrderId }),
         ...(fyndShipmentId && { fyndShipmentId }),
         ...(fyndPayloadJson != null && { fyndPayloadJson }),
+        ...autoShippingData,
       },
     });
     await prisma.returnEvent.create({

@@ -44,6 +44,20 @@ export type FyndWebhookPayload = {
   refund_status?: string;
   refund_status_flag?: string;
   event?: string;
+  shipment_status?: Record<string, unknown> | string;
+  delivery_address?: Record<string, unknown>;
+  billing_address?: Record<string, unknown>;
+  dp_details?: Record<string, unknown>;
+  awb_no?: string;
+  tracking_url?: string;
+  track_url?: string;
+  invoice?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
+  bag_list?: string[];
+  application_id?: string;
+  company_id?: string;
+  current_shipment_status?: string;
+  display_name?: string;
   shipments?: Array<{
     shipment_id?: string;
     shipmentId?: string;
@@ -61,9 +75,13 @@ export type FyndWebhookPayload = {
 };
 
 function extractShipmentId(payload: FyndWebhookPayload): string | null {
+  const shipmentStatusObj = (typeof payload.shipment_status === "object" && payload.shipment_status !== null)
+    ? payload.shipment_status as Record<string, unknown>
+    : null;
   const s =
     payload.shipment_id ??
     payload.shipmentId ??
+    (shipmentStatusObj?.shipment_id as string | undefined) ??
     payload.id ??
     payload.shipments?.[0]?.shipment_id ??
     payload.shipments?.[0]?.shipmentId ??
@@ -86,11 +104,15 @@ function extractRefundStatus(payload: FyndWebhookPayload): string | null {
 }
 
 function extractAffiliateOrderId(payload: FyndWebhookPayload): string | null {
+  const meta = payload.meta as Record<string, unknown> | undefined;
   const s =
     payload.affiliate_order_id ??
     payload.affiliateOrderId ??
     payload.external_order_id ??
     payload.channel_order_id ??
+    (meta?.affiliate_order_id as string | undefined) ??
+    (meta?.external_order_id as string | undefined) ??
+    (meta?.channel_order_id as string | undefined) ??
     payload.order?.affiliate_order_id ??
     payload.shipments?.[0]?.order?.affiliate_order_id;
   return typeof s === "string" && s.trim() ? s.trim() : null;
@@ -98,9 +120,12 @@ function extractAffiliateOrderId(payload: FyndWebhookPayload): string | null {
 
 /** Fynd order_id (internal) — used for lookup when affiliate_order_id not present */
 function extractOrderId(payload: FyndWebhookPayload): string | null {
+  const meta = payload.meta as Record<string, unknown> | undefined;
   const s =
     payload.order_id ??
     payload.orderId ??
+    (meta?.order_id as string | undefined) ??
+    (meta?.fynd_order_id as string | undefined) ??
     payload.order?.fynd_order_id ??
     payload.order?.order_id ??
     payload.shipments?.[0]?.order?.fynd_order_id;
@@ -117,6 +142,72 @@ function extractOrderIdentifiers(payload: FyndWebhookPayload): string[] {
     if (id) ids.add(id);
   }
   return [...ids];
+}
+
+/** Extract customer info from webhook payload (delivery_address, billing_address, meta) */
+function extractCustomerFromWebhookPayload(payload: FyndWebhookPayload): {
+  name?: string; email?: string; phone?: string;
+  city?: string; country?: string; address1?: string;
+  province?: string; zip?: string;
+} | null {
+  const addr = payload.delivery_address ?? payload.billing_address;
+  const meta = payload.meta as Record<string, unknown> | undefined;
+  if (!addr && !meta) return null;
+  const a = (addr ?? {}) as Record<string, unknown>;
+  const firstName = typeof a.first_name === "string" ? a.first_name : "";
+  const lastName = typeof a.last_name === "string" ? a.last_name : "";
+  const fullName = typeof a.name === "string" ? a.name : [firstName, lastName].filter(Boolean).join(" ");
+  const email = (typeof a.email === "string" ? a.email : null) ?? (typeof meta?.email === "string" ? meta.email : null);
+  const phone = (typeof a.phone === "string" ? a.phone : null) ?? (typeof a.mobile === "string" ? a.mobile : null) ?? (typeof meta?.mobile === "string" ? meta.mobile : null) ?? (typeof meta?.phone === "string" ? meta.phone : null);
+  const city = typeof a.city === "string" ? a.city : null;
+  const country = typeof a.country === "string" ? a.country : null;
+  const address1 = (typeof a.address1 === "string" ? a.address1 : null) ?? (typeof a.address === "string" ? a.address : null);
+  const province = (typeof a.state === "string" ? a.state : null) ?? (typeof a.province === "string" ? a.province : null);
+  const zip = (typeof a.pincode === "string" ? a.pincode : null) ?? (typeof a.zip === "string" ? a.zip : null) ?? (typeof a.postal_code === "string" ? a.postal_code : null);
+  if (!fullName && !email && !phone) return null;
+  return {
+    ...(fullName ? { name: fullName } : {}),
+    ...(email ? { email } : {}),
+    ...(phone ? { phone } : {}),
+    ...(city ? { city } : {}),
+    ...(country ? { country } : {}),
+    ...(address1 ? { address1 } : {}),
+    ...(province ? { province } : {}),
+    ...(zip ? { zip } : {}),
+  };
+}
+
+/** Extract shipping/logistics info from webhook payload (dp_details, awb_no, tracking_url, invoice) */
+function extractShippingFromWebhookPayload(payload: FyndWebhookPayload): {
+  carrier?: string; awb?: string; trackingUrl?: string;
+  labelUrl?: string; invoiceUrl?: string; invoiceNumber?: string;
+} | null {
+  const dp = payload.dp_details as Record<string, unknown> | undefined;
+  const meta = payload.meta as Record<string, unknown> | undefined;
+  const inv = payload.invoice as Record<string, unknown> | undefined;
+  const carrier = (typeof dp?.display_name === "string" ? dp.display_name : null)
+    ?? (typeof dp?.name === "string" ? dp.name : null)
+    ?? (typeof payload.display_name === "string" ? payload.display_name : null)
+    ?? (typeof meta?.cp_name === "string" ? meta.cp_name : null);
+  const awb = (typeof dp?.awb_no === "string" ? dp.awb_no : null)
+    ?? (typeof payload.awb_no === "string" ? payload.awb_no : null)
+    ?? (typeof meta?.awb_no === "string" ? meta.awb_no : null);
+  const trackingUrl = (typeof payload.tracking_url === "string" ? payload.tracking_url : null)
+    ?? (typeof payload.track_url === "string" ? payload.track_url : null)
+    ?? (typeof dp?.track_url === "string" ? dp.track_url : null)
+    ?? (typeof dp?.tracking_url === "string" ? dp.tracking_url : null);
+  const invoiceUrl = inv ? ((typeof inv.invoice_url === "string" ? inv.invoice_url : null) ?? (typeof (inv.links as Record<string, unknown> | undefined)?.invoice_a4 === "string" ? (inv.links as Record<string, unknown>).invoice_a4 as string : null)) : null;
+  const labelUrl = inv ? ((typeof inv.label_url === "string" ? inv.label_url : null) ?? (typeof (inv.links as Record<string, unknown> | undefined)?.label === "string" ? (inv.links as Record<string, unknown>).label as string : null)) : null;
+  const invoiceNumber = inv ? ((typeof inv.store_invoice_id === "string" ? inv.store_invoice_id : null) ?? (typeof inv.external_invoice_id === "string" ? inv.external_invoice_id : null)) : null;
+  if (!carrier && !awb && !trackingUrl && !invoiceUrl) return null;
+  return {
+    ...(carrier ? { carrier } : {}),
+    ...(awb ? { awb } : {}),
+    ...(trackingUrl ? { trackingUrl } : {}),
+    ...(labelUrl ? { labelUrl } : {}),
+    ...(invoiceUrl ? { invoiceUrl } : {}),
+    ...(invoiceNumber ? { invoiceNumber } : {}),
+  };
 }
 
 export type ProcessFyndWebhookResult =
@@ -149,7 +240,7 @@ async function logWebhook(params: {
   }
 }
 
-export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<ProcessFyndWebhookResult> {
+export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload?: string): Promise<ProcessFyndWebhookResult> {
   const shipmentId = extractShipmentId(payload);
   const refundStatus = extractRefundStatus(payload);
   const orderIds = extractOrderIdentifiers(payload);
@@ -162,7 +253,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       orderId: null,
       refundStatus,
       action: "ignored",
-      rawPayload: JSON.stringify(payload),
+      rawPayload: rawPayload ?? JSON.stringify(payload),
     });
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
@@ -191,7 +282,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
       refundStatus,
       action: "ignored",
-      rawPayload: JSON.stringify(payload),
+      rawPayload: rawPayload ?? JSON.stringify(payload),
     });
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
@@ -210,6 +301,34 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
   if (returnCase.fyndSyncStatus === "processing" || returnCase.fyndSyncStatus === "pending") {
     backfillData.fyndSyncStatus = "synced";
   }
+  // Backfill customer info from webhook payload
+  if (!returnCase.customerName || !returnCase.customerEmailNorm) {
+    const cust = extractCustomerFromWebhookPayload(payload);
+    if (cust) {
+      if (cust.name && !returnCase.customerName) backfillData.customerName = cust.name;
+      if (cust.email && !returnCase.customerEmailNorm) backfillData.customerEmailNorm = cust.email.toLowerCase();
+      if (cust.phone && !(returnCase as { customerPhoneNorm?: string }).customerPhoneNorm) backfillData.customerPhoneNorm = cust.phone;
+      if (cust.city && !(returnCase as { customerCity?: string }).customerCity) backfillData.customerCity = cust.city;
+      if (cust.country && !(returnCase as { customerCountry?: string }).customerCountry) backfillData.customerCountry = cust.country;
+      if (cust.address1 && !(returnCase as { customerAddress1?: string }).customerAddress1) backfillData.customerAddress1 = cust.address1;
+      if (cust.province && !(returnCase as { customerProvince?: string }).customerProvince) backfillData.customerProvince = cust.province;
+      if (cust.zip && !(returnCase as { customerZip?: string }).customerZip) backfillData.customerZip = cust.zip;
+    }
+  }
+  // Backfill shipping info from webhook payload
+  const shipping = extractShippingFromWebhookPayload(payload);
+  if (shipping) {
+    if (shipping.awb && !(returnCase as { forwardAwb?: string }).forwardAwb) backfillData.forwardAwb = shipping.awb;
+    if ((shipping.carrier || shipping.awb) && !returnCase.returnLabelJson) {
+      backfillData.returnLabelJson = JSON.stringify({
+        carrier: shipping.carrier, trackingNumber: shipping.awb,
+        trackingUrl: shipping.trackingUrl, labelUrl: shipping.labelUrl,
+        invoiceUrl: shipping.invoiceUrl, source: "fynd_webhook",
+      });
+    }
+  }
+  // Always update fyndPayloadJson with latest webhook data
+  backfillData.fyndPayloadJson = rawPayload ?? JSON.stringify(payload);
   if (Object.keys(backfillData).length > 0) {
     try {
       await prisma.returnCase.update({
@@ -267,7 +386,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       refundStatus,
       action: "error",
       returnCaseId: returnCase.id,
-      rawPayload: JSON.stringify(payload),
+      rawPayload: rawPayload ?? JSON.stringify(payload),
       error: errMsg,
     });
     return { ok: false, error: errMsg };
@@ -304,6 +423,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       refundStatus,
       action: "refund_in_progress",
       returnCaseId: returnCase.id,
+      rawPayload: rawPayload ?? JSON.stringify(payload),
     });
     return { ok: true, action: "refund_in_progress", returnCaseId: returnCase.id };
   }
@@ -337,6 +457,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         refundStatus,
         action: "refund_completed",
         returnCaseId: returnCase.id,
+        rawPayload: rawPayload ?? JSON.stringify(payload),
       });
       return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
     }
@@ -367,6 +488,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         refundStatus,
         action: "error",
         returnCaseId: returnCase.id,
+        rawPayload: rawPayload ?? JSON.stringify(payload),
         error: errMsg,
       });
       return { ok: false, error: errMsg };
@@ -432,6 +554,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
           refundStatus,
           action: "refund_completed",
           returnCaseId: returnCase.id,
+          rawPayload: rawPayload ?? JSON.stringify(payload),
         });
         return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
       }
@@ -441,6 +564,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
         refundStatus,
         action: "error",
         returnCaseId: returnCase.id,
+        rawPayload: rawPayload ?? JSON.stringify(payload),
         error: errMsg,
       });
       return { ok: false, error: errMsg };
@@ -482,6 +606,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
       refundStatus,
       action: "refund_completed",
       returnCaseId: returnCase.id,
+      rawPayload: rawPayload ?? JSON.stringify(payload),
     });
     return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
   }
@@ -590,6 +715,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
               refundStatus,
               action: "refund_completed",
               returnCaseId: returnCase.id,
+              rawPayload: rawPayload ?? JSON.stringify(payload),
             });
             return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
           } else {
@@ -636,6 +762,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
     refundStatus,
     action: "ignored",
     returnCaseId: returnCase.id,
+    rawPayload: rawPayload ?? JSON.stringify(payload),
   });
   return { ok: true, action: "ignored", returnCaseId: returnCase.id };
 }

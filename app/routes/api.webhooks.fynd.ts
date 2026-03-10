@@ -56,13 +56,36 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let payload: FyndWebhookPayload;
   try {
     const body = JSON.parse(rawBodyText) as Record<string, unknown>;
-    const inner = body?.payload && typeof body.payload === "object" ? (body.payload as Record<string, unknown>) : body;
+    // Unwrap envelope: body.payload, body.shipment, or direct body
+    let inner: Record<string, unknown>;
+    if (body?.payload && typeof body.payload === "object") {
+      inner = body.payload as Record<string, unknown>;
+    } else if (body?.shipment && typeof body.shipment === "object") {
+      inner = body.shipment as Record<string, unknown>;
+    } else {
+      inner = body;
+    }
+    // Flatten nested shipment_status fields into inner
+    if (inner?.shipment_status && typeof inner.shipment_status === "object") {
+      const ss = inner.shipment_status as Record<string, unknown>;
+      if (ss.shipment_id && !inner.shipment_id) inner.shipment_id = ss.shipment_id;
+      if (ss.status && !inner.status) inner.status = ss.status;
+    }
+    // Extract fields from inner.meta if present
+    if (inner?.meta && typeof inner.meta === "object") {
+      const meta = inner.meta as Record<string, unknown>;
+      if (!inner.order_id && meta.order_id) inner.order_id = meta.order_id;
+      if (!inner.affiliate_order_id && meta.affiliate_order_id) inner.affiliate_order_id = meta.affiliate_order_id;
+      if (!inner.external_order_id && meta.external_order_id) inner.external_order_id = meta.external_order_id;
+      if (!inner.channel_order_id && meta.channel_order_id) inner.channel_order_id = meta.channel_order_id;
+    }
     const event = body?.event && typeof body.event === "object" ? (body.event as { type?: string; name?: string }) : null;
     const eventType = event?.type ?? event?.name;
     const firstShipment = Array.isArray(inner?.shipments) ? inner.shipments[0] : null;
     const statusOrRefund =
       (typeof inner?.refund_status === "string" && inner.refund_status) ||
       (typeof inner?.status === "string" && inner.status) ||
+      (typeof inner?.current_shipment_status === "string" && inner.current_shipment_status) ||
       (typeof firstShipment?.refund_status === "string" && firstShipment.refund_status) ||
       (typeof firstShipment?.status === "string" && firstShipment.status) ||
       eventType;
@@ -104,7 +127,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const result = await processFyndWebhook(payload);
+    const result = await processFyndWebhook(payload, rawBodyText);
     if (!result.ok) {
       console.error("[Fynd webhook]", result.error);
       return Response.json({ error: result.error }, { status: 500 });

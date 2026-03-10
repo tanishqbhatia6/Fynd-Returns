@@ -393,7 +393,7 @@ export default function ReturnsList() {
 
   const fmtDate = (d: string | Date) => {
     try {
-      return new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit", timeZone: shopTimezone || "UTC" }).format(new Date(d));
+      return new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit" }).format(new Date(d));
     } catch { return String(d).slice(0, 10); }
   };
 

@@ -256,7 +256,7 @@ export default function BlocklistSettings() {
                         <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12 }}>{entry.value}</td>
                         <td style={{ padding: "10px 14px", color: entry.reason ? "#374151" : "#9CA3AF" }}>{entry.reason || "--"}</td>
                         <td style={{ padding: "10px 14px", color: "#6d7175", fontSize: 12 }}>
-                          {new Intl.DateTimeFormat(data.shopLocale || "en", { day: "numeric", month: "short", year: "numeric", timeZone: data.shopTimezone || "UTC" }).format(new Date(entry.createdAt))}
+                          {new Intl.DateTimeFormat(data.shopLocale || "en", { day: "numeric", month: "short", year: "numeric" }).format(new Date(entry.createdAt))}
                         </td>
                         <td style={{ padding: "10px 14px", textAlign: "right" }}>
                           <fetcher.Form method="post" style={{ display: "inline" }}>

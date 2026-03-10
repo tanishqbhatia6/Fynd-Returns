@@ -353,7 +353,7 @@ function fmtMoneyZero(currency?: string | null, locale?: string | null): string 
 
 function fmtDate(d: string | Date, locale?: string | null, tz?: string | null): string {
   try {
-    return new Intl.DateTimeFormat(locale || "en", { dateStyle: "medium", timeZone: tz || "UTC" }).format(new Date(d));
+    return new Intl.DateTimeFormat(locale || "en", { dateStyle: "medium" }).format(new Date(d));
   } catch {
     return String(d).slice(0, 10);
   }

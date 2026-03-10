@@ -688,7 +688,7 @@ export default function Dashboard() {
                         {(r as { returnRequestNo?: string | null }).returnRequestNo || r.fyndReturnNo || "—"}
                       </td>
                       <td style={{ padding: "10px 12px", color: "var(--rpm-text-muted)", fontSize: 12 }}>
-                        {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", timeZone: shopTimezone || "UTC" }).format(new Date(r.createdAt))}
+                        {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short" }).format(new Date(r.createdAt))}
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <Link to={`/app/returns/${r.id}`} style={{ color: "var(--rpm-accent, #005bd3)" }}>

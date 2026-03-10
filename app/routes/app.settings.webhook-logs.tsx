@@ -6,21 +6,13 @@ import prisma from "../db.server";
 
 const PAGE_SIZE = 50;
 
-const ACTION_OPTIONS = [
-  { value: "", label: "All actions" },
-  { value: "refund_in_progress", label: "Refund in progress" },
-  { value: "refund_completed", label: "Refund completed" },
-  { value: "ignored", label: "Ignored" },
-  { value: "error", label: "Error" },
-  { value: "duplicate_ignored", label: "Duplicate ignored" },
-];
-
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
 
   const url = new URL(request.url);
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
   const actionFilter = url.searchParams.get("action") ?? "";
+  const statusFilter = url.searchParams.get("status") ?? "";
   const shipmentSearch = (url.searchParams.get("shipment") ?? "").trim();
   const orderSearch = (url.searchParams.get("order") ?? "").trim();
   const dateFrom = url.searchParams.get("dateFrom") ?? "";
@@ -30,6 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const where: any = {};
   if (actionFilter) where.action = actionFilter;
+  if (statusFilter) where.refundStatus = statusFilter;
   if (shipmentSearch) where.shipmentId = { contains: shipmentSearch, mode: "insensitive" };
   if (orderSearch) where.orderId = { contains: orderSearch, mode: "insensitive" };
 
@@ -51,7 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Wrap in try/catch to prevent loader crash from blanking the page
   try {
-    const [totalCount, logs, allLogs] = await Promise.all([
+    const [totalCount, logs, allLogs, distinctActions, distinctStatuses] = await Promise.all([
       prisma.fyndWebhookLog.count({ where }),
       prisma.fyndWebhookLog.findMany({
         where,
@@ -62,6 +55,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // Get all logs for analytics (count by action using simple query)
       prisma.fyndWebhookLog.findMany({
         select: { action: true },
+      }),
+      // Dynamic action options from DB
+      prisma.fyndWebhookLog.findMany({
+        select: { action: true },
+        distinct: ["action"],
+        where: { action: { not: null } },
+      }),
+      // Dynamic refundStatus options from DB
+      prisma.fyndWebhookLog.findMany({
+        select: { refundStatus: true },
+        distinct: ["refundStatus"],
+        where: { refundStatus: { not: null } },
       }),
     ]);
 
@@ -81,6 +86,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const ignoredCount = actionCounts["ignored"] ?? 0;
     const duplicateCount = actionCounts["duplicate_ignored"] ?? 0;
     const successRate = totalAll > 0 ? Math.round(((totalAll - errorCount) / totalAll) * 100) : 100;
+
+    // Build dynamic dropdown options
+    const actionOptions = [
+      { value: "", label: "All actions" },
+      ...distinctActions
+        .map((r) => r.action)
+        .filter((a): a is string => !!a)
+        .sort()
+        .map((a) => ({ value: a, label: a.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) })),
+    ];
+    const statusOptions = [
+      { value: "", label: "All statuses" },
+      ...distinctStatuses
+        .map((r) => r.refundStatus)
+        .filter((s): s is string => !!s)
+        .sort()
+        .map((s) => ({ value: s, label: s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) })),
+    ];
 
     return {
       logs: logs.map((l) => ({
@@ -106,7 +129,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         successRate,
         actionCounts,
       },
-      filters: { actionFilter, shipmentSearch, orderSearch, dateFrom, dateTo },
+      filters: { actionFilter, statusFilter, shipmentSearch, orderSearch, dateFrom, dateTo },
+      actionOptions,
+      statusOptions,
       loaderError: null,
     };
   } catch (err) {
@@ -117,7 +142,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalPages: 1,
       totalCount: 0,
       analytics: { total: 0, successCount: 0, errorCount: 0, ignoredCount: 0, duplicateCount: 0, successRate: 100, actionCounts: {} },
-      filters: { actionFilter, shipmentSearch, orderSearch, dateFrom, dateTo },
+      filters: { actionFilter, statusFilter, shipmentSearch, orderSearch, dateFrom, dateTo },
+      actionOptions: [{ value: "", label: "All actions" }],
+      statusOptions: [{ value: "", label: "All statuses" }],
       loaderError: err instanceof Error ? err.message : "Failed to load webhook logs",
     };
   }
@@ -165,12 +192,13 @@ function StatCard({ label, value, color, sub }: { label: string; value: number |
 }
 
 export default function WebhookLogsPage() {
-  const { logs, page, totalPages, totalCount, analytics, filters, loaderError } = useLoaderData<typeof loader>();
+  const { logs, page, totalPages, totalCount, analytics, filters, actionOptions, statusOptions, loaderError } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
   // Local filter state
   const [actionFilter, setActionFilter] = useState(filters.actionFilter);
+  const [statusFilter, setStatusFilter] = useState(filters.statusFilter);
   const [shipmentSearch, setShipmentSearch] = useState(filters.shipmentSearch);
   const [orderSearch, setOrderSearch] = useState(filters.orderSearch);
   const [dateFrom, setDateFrom] = useState(filters.dateFrom);
@@ -179,6 +207,7 @@ export default function WebhookLogsPage() {
   function applyFilters() {
     const params = new URLSearchParams();
     if (actionFilter) params.set("action", actionFilter);
+    if (statusFilter) params.set("status", statusFilter);
     if (shipmentSearch) params.set("shipment", shipmentSearch);
     if (orderSearch) params.set("order", orderSearch);
     if (dateFrom) params.set("dateFrom", dateFrom);
@@ -189,6 +218,7 @@ export default function WebhookLogsPage() {
 
   function clearFilters() {
     setActionFilter("");
+    setStatusFilter("");
     setShipmentSearch("");
     setOrderSearch("");
     setDateFrom("");
@@ -213,8 +243,11 @@ export default function WebhookLogsPage() {
 
   function formatTimestamp(iso: string) {
     const d = new Date(iso);
-    return d.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) +
-      " " + d.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true });
+    return new Intl.DateTimeFormat(undefined, {
+      day: "2-digit", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: true,
+    }).format(d);
   }
 
   function formatPayload(raw: string | null) {
@@ -226,7 +259,7 @@ export default function WebhookLogsPage() {
     }
   }
 
-  const hasActiveFilters = !!(actionFilter || shipmentSearch || orderSearch || dateFrom || dateTo);
+  const hasActiveFilters = !!(actionFilter || statusFilter || shipmentSearch || orderSearch || dateFrom || dateTo);
 
   return (
     <s-page heading="Fynd Webhook Logs">
@@ -320,7 +353,24 @@ export default function WebhookLogsPage() {
                 minWidth: 140,
               }}
             >
-              {ACTION_OPTIONS.map((o) => (
+              {actionOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280" }}>Fynd Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={{
+                padding: "7px 10px", fontSize: 13, borderRadius: 6,
+                border: "1px solid #D1D5DB", background: "white",
+                minWidth: 140,
+              }}
+            >
+              {statusOptions.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>

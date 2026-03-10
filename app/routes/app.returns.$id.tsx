@@ -7,7 +7,7 @@ import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import { fetchOrder, fetchOrderByOrderNumber, fetchAllLocations } from "../lib/shopify-admin.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
-import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney } from "../lib/fynd-payload.server";
+import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
 
 /** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
@@ -398,7 +398,95 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       }
     }
 
+    // Part D: Resolve Shopify order from Fynd affiliate_order_id if not found
     const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+    if (!shopifyOrder && !isManualReturn && fyndPayloadJson) {
+      try {
+        const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
+        if (affId) {
+          shopifyOrder = await fetchOrderByOrderNumber(admin, affId.replace(/^#/, ""));
+          if (shopifyOrder?.id) {
+            await prisma.returnCase.update({
+              where: { id: returnCase.id },
+              data: { shopifyOrderId: shopifyOrder.id },
+            });
+            returnCase = { ...returnCase, shopifyOrderId: shopifyOrder.id } as typeof returnCase;
+          }
+        }
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    // Part B: Auto-enrich customer info from Shopify order or Fynd payload
+    const needsCustomerEnrich = !returnCase.customerName && !returnCase.customerEmailNorm;
+    if (needsCustomerEnrich) {
+      const enrichData: Record<string, string> = {};
+      // Source 1: Shopify order
+      if (shopifyOrder) {
+        const addr = shopifyOrder.shippingAddress;
+        const name = addr?.name || [addr?.firstName, addr?.lastName].filter(Boolean).join(" ");
+        if (name) enrichData.customerName = name;
+        if (shopifyOrder.email) enrichData.customerEmailNorm = shopifyOrder.email.toLowerCase();
+        if (shopifyOrder.phone) enrichData.customerPhoneNorm = shopifyOrder.phone;
+        if (addr?.city) enrichData.customerCity = addr.city;
+        if (addr?.country) enrichData.customerCountry = addr.country;
+        if (addr?.address1) enrichData.customerAddress1 = addr.address1;
+        if (addr?.address2) enrichData.customerAddress2 = addr.address2;
+        if (addr?.province) enrichData.customerProvince = addr.province;
+        if (addr?.zip) enrichData.customerZip = addr.zip;
+      }
+      // Source 2: Fynd payload delivery_address
+      if (Object.keys(enrichData).length === 0 && fyndPayloadJson) {
+        const fyndCustomer = extractCustomerFromFyndPayload(fyndPayloadJson);
+        if (fyndCustomer) {
+          if (fyndCustomer.name) enrichData.customerName = fyndCustomer.name;
+          if (fyndCustomer.email) enrichData.customerEmailNorm = fyndCustomer.email.toLowerCase();
+          if (fyndCustomer.phone) enrichData.customerPhoneNorm = fyndCustomer.phone;
+          if (fyndCustomer.city) enrichData.customerCity = fyndCustomer.city;
+          if (fyndCustomer.country) enrichData.customerCountry = fyndCustomer.country;
+          if (fyndCustomer.address1) enrichData.customerAddress1 = fyndCustomer.address1;
+          if (fyndCustomer.address2) enrichData.customerAddress2 = fyndCustomer.address2;
+          if (fyndCustomer.province) enrichData.customerProvince = fyndCustomer.province;
+          if (fyndCustomer.zip) enrichData.customerZip = fyndCustomer.zip;
+        }
+      }
+      if (Object.keys(enrichData).length > 0) {
+        try {
+          await prisma.returnCase.update({ where: { id: returnCase.id }, data: enrichData });
+          returnCase = { ...returnCase, ...enrichData } as typeof returnCase;
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
+
+    // Part C: Auto-populate shipping info from Fynd payload if not already set
+    if (!returnCase.returnLabelJson && fyndPayloadJson) {
+      const shippingInfo = extractShippingDetailsFromFyndPayload(fyndPayloadJson);
+      if (shippingInfo && (shippingInfo.carrier || shippingInfo.trackingNumber || shippingInfo.invoiceUrl)) {
+        const shippingUpdate: Record<string, string> = {};
+        shippingUpdate.returnLabelJson = JSON.stringify({
+          carrier: shippingInfo.carrier,
+          trackingNumber: shippingInfo.trackingNumber,
+          trackingUrl: shippingInfo.trackingUrl,
+          labelUrl: shippingInfo.labelUrl,
+          invoiceUrl: shippingInfo.invoiceUrl,
+          invoiceNumber: shippingInfo.invoiceNumber,
+          source: "fynd",
+        });
+        if (shippingInfo.trackingNumber && !(returnCase as { forwardAwb?: string }).forwardAwb) {
+          shippingUpdate.forwardAwb = shippingInfo.trackingNumber;
+        }
+        try {
+          await prisma.returnCase.update({ where: { id: returnCase.id }, data: shippingUpdate });
+          returnCase = { ...returnCase, ...shippingUpdate } as typeof returnCase;
+        } catch {
+          // Non-fatal
+        }
+      }
+    }
+
     const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
     const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
@@ -767,7 +855,7 @@ export default function ReturnDetail() {
                 )}
                 {daysRemaining != null && (
                   <div
-                    title={returnDeadline ? `Return window expires ${new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: shopTimezone || "UTC" }).format(new Date(returnDeadline))}` : undefined}
+                    title={returnDeadline ? `Return window expires ${new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: undefined }).format(new Date(returnDeadline))}` : undefined}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
                       padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
@@ -916,7 +1004,7 @@ export default function ReturnDetail() {
                         </div>
                         {step.time && (
                           <div style={{ fontSize: 8, color: "#9CA3AF", marginTop: 1, whiteSpace: "nowrap" }}>
-                            {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", timeZone: shopTimezone || "UTC" }).format(new Date(step.time))}
+                            {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", timeZone: undefined }).format(new Date(step.time))}
                           </div>
                         )}
                       </div>
@@ -1012,7 +1100,7 @@ export default function ReturnDetail() {
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Order details</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div><div style={C.label}>Order</div><div style={C.val}>{shopifyOrder.name || "—"}</div></div>
-                  <div><div style={C.label}>Placed</div><div style={C.val}>{shopifyOrder.createdAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: shopTimezone || "UTC" }).format(new Date(shopifyOrder.createdAt)) : "—"}</div></div>
+                  <div><div style={C.label}>Placed</div><div style={C.val}>{shopifyOrder.createdAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: undefined }).format(new Date(shopifyOrder.createdAt)) : "—"}</div></div>
                   {shopifyOrder.email && <div><div style={C.label}>Email</div><div style={C.val}>{shopifyOrder.email}</div></div>}
                   {shopifyOrder.phone && <div><div style={C.label}>Phone</div><div style={C.val}>{shopifyOrder.phone}</div></div>}
                   {shopifyOrder.displayFulfillmentStatus && <div><div style={C.label}>Fulfillment</div><div style={C.val}>{shopifyOrder.displayFulfillmentStatus.replace(/_/g, " ")}</div></div>}
@@ -1297,7 +1385,7 @@ export default function ReturnDetail() {
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                             <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: `${sourceColor}15`, color: sourceColor }}>{sourceLabel}</span>
-                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(ev.happenedAt)) : "—"}</span>
+                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(ev.happenedAt)) : "—"}</span>
                             {ev.source === "admin" && evAdminEmail && (
                               <span style={{ fontSize: 11, color: "#6B7280" }}>by {evAdminEmail}</span>
                             )}
@@ -1824,7 +1912,7 @@ export default function ReturnDetail() {
                           {refundInfo.createdAt && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                               <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>Processed</span>
-                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(refundInfo.createdAt))}</span>
+                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(refundInfo.createdAt))}</span>
                             </div>
                           )}
                           {refundInfo.source && (
@@ -1899,8 +1987,8 @@ export default function ReturnDetail() {
                     </div>
                   </div>
                 </div>
-                <div><div style={C.label}>Created</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(returnCase.createdAt))}</div></div>
-                <div><div style={C.label}>Last Updated</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(returnCase.updatedAt))}</div></div>
+                <div><div style={C.label}>Created</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(returnCase.createdAt))}</div></div>
+                <div><div style={C.label}>Last Updated</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(returnCase.updatedAt))}</div></div>
                 {(returnCase.forwardAwb || returnCase.returnAwb) && (
                   <>
                     {returnCase.forwardAwb && <div><div style={C.label}>Forward AWB</div><div style={C.mono}>{returnCase.forwardAwb}</div></div>}

@@ -2570,7 +2570,8 @@
       var returnShipments = [];
       (fyndShipments || []).forEach(function (s) {
         var st = (s.shipmentStatus || '').toLowerCase().replace(/\s+/g, '_');
-        if (st.includes('return') || s.fulfillmentType === 'RETURN') {
+        var jt = (s.journeyType || '').toLowerCase();
+        if (st.includes('return') || s.fulfillmentType === 'RETURN' || jt === 'return' || jt.includes('return')) {
           returnShipments.push(s);
         } else {
           forward.push(s);
@@ -2822,7 +2823,7 @@
     }
 
     function getActiveStepFromStatus(s) {
-      if (s.includes('delivery_done') || s === 'delivered' || (s.includes('fulfilled') && !s.includes('unfulfilled'))) return 5;
+      if (s.includes('delivery_done') || s === 'delivered' || s === 'delivered_return' || s.includes('refund') || (s.includes('fulfilled') && !s.includes('unfulfilled'))) return 5;
       if (s.includes('out_for_delivery')) return 4;
       if (s.includes('in_transit') || s.includes('shipped') || s.includes('dp_assigned') || s.includes('manifest') || s.includes('partial') || s.includes('bag_packed') || s.includes('handed_over') || s.includes('ready_to_dispatch')) return 3;
       if (s.includes('bag_confirmed') || s.includes('bag_invoiced') || s.includes('confirmed') || s.includes('paid') || s.includes('placed')) return 2;

@@ -157,16 +157,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               return jt === "return" || jt.includes("return");
             });
             const candidateItems = returnItems.length > 0 ? returnItems : items;
-            const matched = candidateItems.find(
+            // Try exact match by stored fyndShipmentId first.
+            // Fall back to the first return-type shipment when the stored ID is stale/wrong (e.g. bag ID).
+            const exactMatch = (candidateItems as Record<string, unknown>[]).find(
               (s) => String(s.shipment_id || s.id) === String(r.fyndShipmentId)
             );
+            const matched = exactMatch ?? (candidateItems.length > 0 ? candidateItems[0] as Record<string, unknown> : null);
             if (matched) {
               const payload = JSON.stringify([matched]);
               const trackingInfo = getTrackingInfoFromFyndPayload(payload);
               const returnJourney = extractFyndJourney(payload, "return");
               const pickupAddress = getPickupAddressFromFyndPayload(payload);
-              // Pass the live Fynd shipment_id so portal can show the correct ID
-              // even when the DB has a stale/wrong value (bag ID vs shipment ID).
+              // Always use the live shipment_id from Fynd — overrides any stale bag ID in DB.
               const liveShipmentId = String(
                 (matched as Record<string, unknown>).shipment_id ??
                 (matched as Record<string, unknown>).shipmentId ??

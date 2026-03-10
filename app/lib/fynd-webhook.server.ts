@@ -205,6 +205,11 @@ export async function processFyndWebhook(payload: FyndWebhookPayload): Promise<P
   } else if (affiliateOrderId && !returnCase.fyndOrderId) {
     backfillData.fyndOrderId = affiliateOrderId;
   }
+  // When Fynd sends any webhook for this return, it means Fynd has successfully processed the sync.
+  // Transition "pending" or "processing" → "synced" so the admin UI stops showing the spinner.
+  if (returnCase.fyndSyncStatus === "processing" || returnCase.fyndSyncStatus === "pending") {
+    backfillData.fyndSyncStatus = "synced";
+  }
   if (Object.keys(backfillData).length > 0) {
     try {
       await prisma.returnCase.update({

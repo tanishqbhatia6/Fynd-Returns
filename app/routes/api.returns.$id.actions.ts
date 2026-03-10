@@ -17,6 +17,21 @@ function enrichFyndError(msg: string): string {
   return msg;
 }
 
+function enrichRefundError(msg: string, ctx: { method?: string | null; orderName?: string | null }): string {
+  if (!msg) return msg;
+  if (/no transactions|transactions cannot be empty/i.test(msg) && ctx.method === "original")
+    return `${msg} — This may be a COD or gift-card order. Try "Store credit" or "Discount code" refund method instead.`;
+  if (/customer.*not found|store.*credit.*no.*customer|store_credit.*customer/i.test(msg))
+    return `${msg} — Store credit requires the customer to have a Shopify account. Use "Discount code" method instead.`;
+  if (/already.*been.*refunded|already refunded/i.test(msg))
+    return `${msg} — Check Shopify Admin for order ${ctx.orderName ?? ""} to verify refund status.`;
+  if (/location|restock/i.test(msg))
+    return `${msg} — Try a different restock location, or disable restocking in Settings → Return Settings.`;
+  if (/gift.*card|store_credit.*amount/i.test(msg))
+    return `${msg} — Use "Discount code" refund method for gift card or store credit orders.`;
+  return msg;
+}
+
 function isRedirectResponse(err: unknown): boolean {
   if (err instanceof Response) {
     return err.status >= 300 && err.status < 400;
@@ -225,6 +240,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         status: "approved",
         resolutionType: resolvedType,
         adminNotes: note || returnCase.adminNotes,
+        // Track Fynd sync lifecycle: processing = synced to Fynd, awaiting logistics assignment (AWB etc.)
+        fyndSyncStatus: fyndReturnId ? "processing" : (fyndError ? "failed" : undefined),
         ...(fyndReturnId && { fyndReturnId }),
         ...(fyndReturnNo && { fyndReturnNo }),
         ...(fyndOrderId && { fyndOrderId }),
@@ -261,7 +278,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
     const redirectUrl = fyndError
       ? `/app/returns/${id}?fyndError=${encodeURIComponent(fyndError)}`
-      : `/app/returns/${id}`;
+      : fyndReturnId
+        ? `/app/returns/${id}?fyndProcessing=1`
+        : `/app/returns/${id}`;
     throw redirect(redirectUrl);
   }
 
@@ -471,12 +490,27 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
       if (!isGid && !isNumericId) {
         const orderNumber = (returnCase.shopifyOrderName ?? orderIdForRefund ?? "").replace(/^#/, "").trim();
-        const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
+        const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber).catch(() => null) : null;
         if (orderByNumber?.id) {
           orderIdForRefund = orderByNumber.id;
           if (lineItemsForRefund.length === 0 && orderByNumber.lineItems?.length) {
             lineItemsForRefund = orderByNumber.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           }
+        } else if (orderIdForRefund && !orderIdForRefund.startsWith("manual:")) {
+          // orderIdForRefund is a Fynd order ID (e.g. "FYMP699EB1950") that Shopify cannot resolve.
+          // Attempting to refund via Shopify with this ID would corrupt the request.
+          // Surface a clear, actionable error so the admin knows exactly what to do.
+          const fyndOid = orderIdForRefund;
+          const createFailedEventEarly = async (errorMsg: string) => {
+            await prisma.returnEvent.create({
+              data: { returnCaseId: id, source: "admin", eventType: "refund_failed", payloadJson: JSON.stringify({ error: errorMsg, note: note || null }) },
+            });
+          };
+          const msg = `This return is linked to Fynd order ID "${fyndOid}" which could not be found in Shopify. ` +
+            `Process the refund directly in Fynd or your ERP. ` +
+            `You can mark this return as completed using the status update action.`;
+          await createFailedEventEarly(msg);
+          return Response.json({ error: msg }, { status: 400 });
         }
       }
 
@@ -498,7 +532,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
 
       if (lineItemsForRefund.length === 0) {
-        const order = await fetchOrder(admin, orderIdForRefund);
+        const order = orderIdForRefund ? await fetchOrder(admin, orderIdForRefund).catch(() => null) : null;
         if (order?.lineItems?.length) {
           lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
         }
@@ -594,14 +628,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           refundMethodCfg = { method: settingsMethod as "original" | "store_credit" | "both", storeCreditPct: settingsPct };
         }
         const COD_RE = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
-        try {
-          const orderForCod = await fetchOrder(admin, orderIdForRefund);
-          const isCod = (orderForCod?.paymentGatewayNames ?? []).some((g: string) => COD_RE.test(g))
-            || orderForCod?.displayFinancialStatus === "PENDING";
-          if (isCod && refundMethodCfg?.method === "original") {
-            refundMethodCfg = { method: "store_credit" };
-          }
-        } catch { /* non-fatal; proceed with configured method */ }
+        if (orderIdForRefund && (orderIdForRefund.startsWith("gid://") || /^\d+$/.test(orderIdForRefund))) {
+          try {
+            const orderForCod = await fetchOrder(admin, orderIdForRefund);
+            const isCod = (orderForCod?.paymentGatewayNames ?? []).some((g: string) => COD_RE.test(g))
+              || orderForCod?.displayFinancialStatus === "PENDING";
+            if (isCod && refundMethodCfg?.method === "original") {
+              refundMethodCfg = { method: "store_credit" };
+            }
+          } catch { /* non-fatal; proceed with configured method */ }
+        }
       }
 
       let bonusAmount = 0;
@@ -625,7 +661,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         { bonusAmount, skipLocation },
       );
       if (!result.success) {
-        const msg = result.error ?? "Refund failed due to an unknown Shopify error. Check Shopify Admin.";
+        const rawMsg = result.error ?? "Refund failed due to an unknown Shopify error. Check Shopify Admin.";
+        const msg = enrichRefundError(rawMsg, { method: bodyRefundMethod, orderName: returnCase.shopifyOrderName });
         await createFailedEvent(msg);
         return Response.json({ error: msg }, { status: 400 });
       }

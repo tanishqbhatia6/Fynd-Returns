@@ -563,20 +563,22 @@ export default function ReturnDetail() {
   const fyndError = searchParams.get("fyndError");
   const fyndSuccess = searchParams.get("fyndSuccess");
   const fyndRefresh = searchParams.get("fyndRefresh");
+  const fyndProcessing = searchParams.get("fyndProcessing");
   useEffect(() => {
-    if (fyndError || fyndSuccess || fyndRefresh) {
+    if (fyndError || fyndSuccess || fyndRefresh || fyndProcessing) {
       const t = setTimeout(() => {
         setSearchParams((prev) => {
           const next = new URLSearchParams(prev);
           next.delete("fyndError");
           next.delete("fyndSuccess");
           next.delete("fyndRefresh");
+          next.delete("fyndProcessing");
           return next;
         }, { replace: true });
-      }, 15000);
+      }, 30000);
       return () => clearTimeout(t);
     }
-  }, [fyndError, fyndSuccess, fyndRefresh, setSearchParams]);
+  }, [fyndError, fyndSuccess, fyndRefresh, fyndProcessing, setSearchParams]);
 
   const C = {
     card: { padding: 20, background: "#fff", borderRadius: 12, border: "1px solid #e3e5e7", marginBottom: 16 } as const,
@@ -605,6 +607,16 @@ export default function ReturnDetail() {
   const fyndSyncStatus = (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus;
   const fyndSyncRetries = (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0;
   const fyndSyncError = (returnCase as { fyndSyncError?: string | null }).fyndSyncError;
+
+  // Auto-refresh when Fynd is actively assigning logistics — polls once after 12s
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (fyndSyncStatus !== "processing") return;
+    const t = setTimeout(() => {
+      navigate(0);
+    }, 12000);
+    return () => clearTimeout(t);
+  }, [fyndSyncStatus, navigate]);
 
   const fyndTrackingStatus = fyndPayloadInfo?.shipments?.[0]
     ? safeStr((fyndPayloadInfo.shipments[0] as { shipmentStatus?: string }).shipmentStatus)
@@ -649,6 +661,15 @@ export default function ReturnDetail() {
         )}
         {fyndSuccess && <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>{fyndSuccess === "already_synced" ? "Already synced to Fynd." : fyndSuccess === "already_exists" ? "Return already exists on Fynd — details loaded." : "Synced to Fynd successfully."}</div>}
         {fyndRefresh && <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>Fynd details refreshed.</div>}
+        {(fyndProcessing || fyndSyncStatus === "processing") && (
+          <div style={{ marginBottom: 16, padding: "14px 18px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderLeft: "4px solid #2563EB", borderRadius: 8, display: "flex", alignItems: "center", gap: 12 }}>
+            <svg style={{ flexShrink: 0, animation: "spin 1s linear infinite" }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+            <div>
+              <div style={{ fontWeight: 600, color: "#1D4ED8", fontSize: 14 }}>Fynd is assigning logistics</div>
+              <div style={{ fontSize: 12, color: "#3B82F6", marginTop: 2 }}>AWB and courier assignment typically take 10–30 seconds. This page will refresh automatically.</div>
+            </div>
+          </div>
+        )}
 
         {/* ── Status Hero ── */}
         <div style={{ ...C.card, padding: 0, overflow: "hidden", marginBottom: 20, border: `1px solid ${statusConfig.border}` }}>
@@ -988,11 +1009,28 @@ export default function ReturnDetail() {
                 </div>
                 {/* Fynd sync status indicator */}
                 {fyndSyncStatus && fyndSyncStatus !== "synced" && (
-                  <div style={{ padding: "10px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13, background: fyndSyncStatus === "failed" ? "#FEF2F2" : "#FFFBEB", border: `1px solid ${fyndSyncStatus === "failed" ? "#FECACA" : "#FDE68A"}`, color: fyndSyncStatus === "failed" ? "#991B1B" : "#92400E" }}>
-                    {fyndSyncStatus === "failed" && `Sync failed after ${fyndSyncRetries} attempts. `}
-                    {fyndSyncStatus === "retry_scheduled" && `Retry #${fyndSyncRetries + 1} scheduled. `}
-                    {fyndSyncStatus === "pending" && "Sync pending. "}
-                    {fyndSyncError && <span style={{ opacity: 0.8 }}>{fyndSyncError.slice(0, 200)}</span>}
+                  <div style={{
+                    padding: "12px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
+                    background: fyndSyncStatus === "failed" ? "#FEF2F2" : fyndSyncStatus === "processing" ? "#EFF6FF" : "#FFFBEB",
+                    border: `1px solid ${fyndSyncStatus === "failed" ? "#FECACA" : fyndSyncStatus === "processing" ? "#BFDBFE" : "#FDE68A"}`,
+                    color: fyndSyncStatus === "failed" ? "#991B1B" : fyndSyncStatus === "processing" ? "#1D4ED8" : "#92400E",
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                  }}>
+                    {fyndSyncStatus === "processing" && (
+                      <svg style={{ flexShrink: 0, marginTop: 1, animation: "spin 1s linear infinite" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    )}
+                    <div style={{ flex: 1 }}>
+                      {fyndSyncStatus === "failed" && <strong>Sync failed after {fyndSyncRetries} attempts. </strong>}
+                      {fyndSyncStatus === "retry_scheduled" && <span>Retry #{fyndSyncRetries + 1} scheduled. </span>}
+                      {fyndSyncStatus === "pending" && <span>Queued for Fynd sync. </span>}
+                      {fyndSyncStatus === "processing" && <strong>Fynd is processing — logistics assignment in progress. </strong>}
+                      {fyndSyncError && <span style={{ opacity: 0.85 }}>{fyndSyncError.slice(0, 250)}</span>}
+                      {fyndSyncStatus === "failed" && (
+                        <div style={{ marginTop: 8 }}>
+                          <span style={{ fontSize: 12, opacity: 0.75 }}>Process the refund manually or retry Fynd sync using the button above.</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
                 {/* Quick tracking info */}
@@ -1757,34 +1795,67 @@ export default function ReturnDetail() {
               </div>
             )}
 
-            {/* ── Customer Info ── */}
-            {(returnCase.customerEmailNorm || returnCase.customerPhoneNorm || shopifyOrder?.email || shopifyOrder?.phone) && (
-              <div style={{ ...C.card }}>
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Customer</div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                  {(shopifyOrder?.email || returnCase.customerEmailNorm) && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
-                      <span style={{ fontSize: 13 }}>{shopifyOrder?.email || returnCase.customerEmailNorm}</span>
+            {/* ── Customer Info ── always visible ── */}
+            {(() => {
+              const cEmail = shopifyOrder?.email || returnCase.customerEmailNorm;
+              const cPhone = (shopifyOrder as { phone?: string | null } | null)?.phone || returnCase.customerPhoneNorm;
+              const cName = returnCase.customerName
+                || shopifyOrder?.shippingAddress?.name
+                || (shopifyOrder?.shippingAddress ? [shopifyOrder.shippingAddress.firstName, shopifyOrder.shippingAddress.lastName].filter(Boolean).join(" ") : null);
+              const cCity = returnCase.customerCity || shopifyOrder?.shippingAddress?.city;
+              const cCountry = returnCase.customerCountry || shopifyOrder?.shippingAddress?.country;
+              const hasAny = !!(cEmail || cPhone || cName || cCity);
+              return (
+                <div style={{ ...C.card }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: hasAny ? 14 : 6 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>Customer</div>
+                    {customerReturnCount > 1 && (
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 20, background: customerReturnCount >= 3 ? "#FEE2E2" : "#F3F4F6", color: customerReturnCount >= 3 ? "#DC2626" : "#374151", fontWeight: 600 }}>
+                        {customerReturnCount} returns
+                      </span>
+                    )}
+                  </div>
+                  {!hasAny ? (
+                    <div style={{ fontSize: 13, color: "#9CA3AF", fontStyle: "italic" }}>No customer info captured yet</div>
+                  ) : (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+                      {cName && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><circle cx="12" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/></svg>
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>{cName}</span>
+                        </div>
+                      )}
+                      {cEmail && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,6 12,13 2,6"/></svg>
+                          <a href={`mailto:${cEmail}`} style={{ fontSize: 13, color: "#2563EB", textDecoration: "none", wordBreak: "break-all" }}>{cEmail}</a>
+                        </div>
+                      )}
+                      {cPhone && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                          <a href={`tel:${cPhone}`} style={{ fontSize: 13, color: "#2563EB", textDecoration: "none" }}>{cPhone}</a>
+                        </div>
+                      )}
+                      {(cCity || cCountry) && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                          <span style={{ fontSize: 13, color: "#374151" }}>{[cCity, cCountry].filter(Boolean).join(", ")}</span>
+                        </div>
+                      )}
                     </div>
                   )}
-                  {(shopifyOrder?.phone || returnCase.customerPhoneNorm) && (
-                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                      <span style={{ fontSize: 13 }}>{shopifyOrder?.phone || returnCase.customerPhoneNorm}</span>
+                  {pickupAddress && (pickupAddress.formatted || pickupAddress.address1) && (
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>
+                      <div style={C.label}>Pickup address</div>
+                      <div style={{ fontSize: 13, lineHeight: 1.6, color: "#374151", marginTop: 4 }}>
+                        {pickupAddress.formatted ?? [pickupAddress.name, pickupAddress.address1, pickupAddress.address2, pickupAddress.city, pickupAddress.state, pickupAddress.pincode, pickupAddress.country].filter(Boolean).join(", ")}
+                      </div>
                     </div>
                   )}
                 </div>
-                {pickupAddress && (pickupAddress.formatted || pickupAddress.address1) && (
-                  <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>
-                    <div style={C.label}>Pickup address</div>
-                    <div style={{ fontSize: 13, lineHeight: 1.6, color: "#374151", marginTop: 4 }}>
-                      {pickupAddress.formatted ?? [pickupAddress.name, pickupAddress.address1, pickupAddress.address2, pickupAddress.city, pickupAddress.state, pickupAddress.pincode, pickupAddress.country].filter(Boolean).join(", ")}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
+              );
+            })()}
 
             {/* ── Notes ── */}
             <div style={{ ...C.card }}>

@@ -266,6 +266,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 const orderName = String(first.affiliate_order_id ?? first.external_order_id ?? `#${orderNumber}`);
                 const createdAt = String(first.orderDate ?? first.shipment_created_at ?? first.created_at ?? new Date().toISOString());
 
+                // Extract customer data from Fynd shipment fields
+                const firstBag = Array.isArray(first.bags) ? (first.bags as Record<string, unknown>[])[0] : null;
+                const deliveryAddr = ((firstBag?.delivery_address ?? first.delivery_address ?? {}) as Record<string, unknown>);
+                const customerDet = ((first.customer_details ?? {}) as Record<string, unknown>);
+                const billingDet = ((first.billing_details ?? {}) as Record<string, unknown>);
+                const fyndEmail = String(customerDet.email ?? billingDet.email ?? "").trim() || null;
+                const fyndPhone = String(customerDet.phone ?? deliveryAddr.phone ?? "").trim() || null;
+                const fyndName = String(customerDet.name ?? deliveryAddr.name ?? "").trim() || null;
+                const fyndCity = String(deliveryAddr.city ?? "").trim() || null;
+                const fyndState = String(deliveryAddr.state ?? deliveryAddr.state_code ?? "").trim() || null;
+                const fyndCountry = String(deliveryAddr.country ?? "").trim() || null;
+                const fyndPincode = String(deliveryAddr.pincode ?? deliveryAddr.zip ?? "").trim() || null;
+                const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
+                const fyndLast = fyndRestName.join(" ");
+
                 order = {
                   id: String(first.order_id ?? first.shipment_id ?? orderNumber),
                   name: orderName.startsWith("#") ? orderName : `#${orderName}`,
@@ -274,8 +289,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",
                   currencyCode: String(first.currency ?? "INR"),
-                  shippingCountry: null,
-                  shippingProvince: null,
+                  email: fyndEmail,
+                  phone: fyndPhone,
+                  shippingCountry: fyndCountry || null,
+                  shippingProvince: fyndState || null,
+                  shippingAddress: (fyndName || fyndCity) ? {
+                    firstName: fyndFirst || undefined,
+                    lastName: fyndLast || undefined,
+                    city: fyndCity || undefined,
+                    province: fyndState || undefined,
+                    provinceCode: fyndState || undefined,
+                    zip: fyndPincode || undefined,
+                    country: fyndCountry || undefined,
+                    countryCode: fyndCountry || undefined,
+                  } : null,
                   lineItems: dedupedLineItems,
                   fulfillments: [],
                 } as OrderForPortal;

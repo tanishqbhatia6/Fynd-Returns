@@ -338,13 +338,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               // Synthetic order fallback: Shopify still can't find it — build from Fynd data
               // so the customer can at least see tracking on the Track Order tab.
               if (orders.length === 0) {
+                // Extract customer data from Fynd shipment fields
+                const firstBag = Array.isArray(first.bags) ? (first.bags as Record<string, unknown>[])[0] : null;
+                const deliveryAddr = ((firstBag?.delivery_address ?? first.delivery_address ?? {}) as Record<string, unknown>);
+                const customerDet = ((first.customer_details ?? {}) as Record<string, unknown>);
+                const billingDet = ((first.billing_details ?? {}) as Record<string, unknown>);
+                const fyndEmail = String(customerDet.email ?? billingDet.email ?? "").trim() || null;
+                const fyndName = String(customerDet.name ?? deliveryAddr.name ?? "").trim() || null;
+                const fyndCity = String(deliveryAddr.city ?? "").trim() || null;
+                const fyndState = String(deliveryAddr.state ?? deliveryAddr.state_code ?? "").trim() || null;
+                const fyndCountry = String(deliveryAddr.country ?? "").trim() || null;
+                const fyndPincode = String(deliveryAddr.pincode ?? deliveryAddr.zip ?? "").trim() || null;
+                const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
+                const fyndLast = fyndRestName.join(" ");
+
                 const syntheticOrder: PortalOrder = {
                   id: String(first.order_id ?? first.shipment_id ?? searchVal),
                   name: String(first.affiliate_order_id ?? first.external_order_id ?? `#${searchVal}`),
                   createdAt: String(first.orderDate ?? first.shipment_created_at ?? new Date().toISOString()),
+                  email: fyndEmail,
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",
                   lineItems: [],
+                  shippingAddress: (fyndName || fyndCity) ? {
+                    firstName: fyndFirst || undefined,
+                    lastName: fyndLast || undefined,
+                    city: fyndCity || undefined,
+                    province: fyndState || undefined,
+                    zip: fyndPincode || undefined,
+                    country: fyndCountry || undefined,
+                    countryCode: fyndCountry || undefined,
+                  } : undefined,
                   fyndData,
                   _needsFyndEnrich: false,
                 };

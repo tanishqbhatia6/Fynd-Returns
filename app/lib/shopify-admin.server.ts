@@ -1117,6 +1117,14 @@ export async function createRefund(
           }
         }
       } else {
+        // totalAmount === 0: Shopify reports nothing to refund for this order.
+        // For store_credit/both this means we cannot issue a credit — surface a clear error.
+        if (method === "store_credit" || method === "both") {
+          return {
+            success: false,
+            error: "Shopify reports $0 refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the \"Discount code\" refund method instead, or process manually in Shopify Admin.",
+          };
+        }
         if (suggested?.suggestedTransactions?.length) {
           refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
             orderId: gid,
@@ -1161,6 +1169,17 @@ export async function createRefund(
           ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
         }));
       }
+    }
+
+    // Guard: if no transactions and no refundMethods set for store_credit/both, Shopify will reject.
+    // This can happen when suggestedTransactions is empty for a $0 refund case.
+    if ((method === "store_credit" || method === "both") &&
+      refundInput.refundMethods == null &&
+      (!Array.isArray(refundInput.transactions) || (refundInput.transactions as unknown[]).length === 0)) {
+      return {
+        success: false,
+        error: "No refundable amount found for store credit. Use the \"Discount code\" refund method instead.",
+      };
     }
 
     const res = await admin.graphql(REFUND_MUTATION, { variables: { input: refundInput } });

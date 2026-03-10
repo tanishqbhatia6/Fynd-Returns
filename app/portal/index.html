@@ -4743,6 +4743,16 @@
 
       btn.disabled = true;
       btn.textContent = t('portal.create.submitting');
+      // Multi-phase progress indicator
+      var progressEl = document.createElement('div');
+      progressEl.id = 'submitProgressEl';
+      progressEl.style.cssText = 'margin-top:12px;padding:12px 14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;font-size:0.8125rem;color:#1D4ED8;display:flex;align-items:center;gap:10px;';
+      progressEl.innerHTML = '<svg style="flex-shrink:0;animation:spin 1s linear infinite" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg><span id="submitProgressText">Submitting your return request...</span>';
+      btn.insertAdjacentElement('afterend', progressEl);
+      var phaseTimer = setTimeout(function() {
+        var txt = document.getElementById('submitProgressText');
+        if (txt) txt.textContent = 'Syncing with logistics provider...';
+      }, 3000);
       try {
         var customerMedia = [];
         if (filesStandard.length > 0) {
@@ -4781,6 +4791,9 @@
           err.textContent = msg;
         }
       } finally {
+        clearTimeout(phaseTimer);
+        var prog = document.getElementById('submitProgressEl');
+        if (prog) prog.remove();
         btn.disabled = false;
         btn.textContent = t('portal.create.submit');
       }
@@ -4814,6 +4827,16 @@
       summaryBlock.style.display = 'block';
       nextStepsEl.textContent = summary.nextSteps || t('portal.create.nextSteps');
       nextStepsEl.style.display = 'block';
+      // When auto-approved, add a Fynd logistics note below the next steps
+      var existingNote = document.getElementById('fyndLogisticsNote');
+      if (existingNote) existingNote.remove();
+      if (data.status === 'approved') {
+        var fyndNote = document.createElement('div');
+        fyndNote.id = 'fyndLogisticsNote';
+        fyndNote.style.cssText = 'margin-top:12px;padding:10px 14px;background:#EFF6FF;border-radius:8px;border-left:3px solid #3B82F6;font-size:0.8125rem;color:#1E40AF;line-height:1.5;';
+        fyndNote.textContent = 'Courier pickup will be arranged by our logistics partner. You can track the pickup and return status using the "Track this return" button below.';
+        nextStepsEl.insertAdjacentElement('afterend', fyndNote);
+      }
     }
 
     document.getElementById('btnCopyReturnId').onclick = function () {

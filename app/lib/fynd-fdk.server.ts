@@ -14,8 +14,6 @@ export type FyndLogFn = (step: string, message: string, detail?: string) => void
 export type ShipmentsListingParamsFDK = {
   searchValue?: string;
   searchType?: string;
-  startDate?: string;
-  endDate?: string;
   pageNo?: number;
   pageSize?: number;
   groupEntity?: "shipments" | "orders";
@@ -185,19 +183,10 @@ export class FyndPlatformClientFDK {
     externalOrderId: string,
     params?: Partial<ShipmentsListingParamsFDK>
   ): Promise<{ items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; orderId?: string; shipmentId?: string }> {
-    const now = new Date();
-    const endDate = params?.endDate ?? now.toISOString();
-    const startDate = params?.startDate ?? (() => {
-      const d = new Date(now);
-      d.setMonth(d.getMonth() - 6);
-      return d.toISOString();
-    })();
     const searchParams = new URLSearchParams({
       group_entity: params?.groupEntity ?? "shipments",
       page_no: String(params?.pageNo ?? 1),
       page_size: String(params?.pageSize ?? 50),
-      start_date: startDate,
-      end_date: endDate,
       search_value: externalOrderId.trim(),
       search_type: params?.searchType ?? "external_order_id",
       sort_type: params?.sortType ?? "sla_asc",

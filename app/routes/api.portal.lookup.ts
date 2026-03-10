@@ -300,9 +300,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         try {
           const fyndResult = await createFyndClientOrError(shopRecord.settings as Parameters<typeof createFyndClientOrError>[0], { requirePlatform: true });
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
-            const searchTypes: ShipmentsListingSearchType[] = ["channel_order_id", "external_order_id"];
+            const searchTypes: ShipmentsListingSearchType[] = ["external_order_id"];
             for (const searchType of searchTypes) {
-              const res = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumberForFynd, { searchType, pageSize: 10, fulfillmentType: "FULFILLMENT", parentViewSlug: "all", childViewSlug: "all" });
+              const res = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumberForFynd, { searchType, pageSize: 10, fulfillmentType: "FULFILLMENT" });
               const rawItems = (res?.items ?? res?.shipments ?? (res as { data?: { items?: unknown[] } })?.data?.items ?? []) as unknown[];
               // Filter to forward shipments only (same guard as fynd-enrich route)
               const forwardItems = (rawItems as Record<string, unknown>[]).filter((item) => {

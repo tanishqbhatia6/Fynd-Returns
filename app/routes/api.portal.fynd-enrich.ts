@@ -72,7 +72,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // If neither direct search finds the order → fyndData = null → Shopify data shown.
 
       const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType; strategy: string }> = [
-        { value: orderNumber, type: "channel_order_id", strategy: "channel_order_id" },
         { value: orderNumber, type: "external_order_id", strategy: "external_order_id" },
       ];
 

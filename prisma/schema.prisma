@@ -136,6 +136,27 @@ model ShopSettings {
   // Return offers / incentives
   returnOffersEnabled        Boolean  @default(false) // Offer discounts to keep item instead of returning
 
+  // Portal exchange
+  portalExchangeEnabled      Boolean  @default(false) // Allow customers to request exchange on portal
+
+  // Configurable allowed fulfillment statuses for return eligibility
+  portalAllowedFulfillmentStatuses String? // JSON array e.g. ["FULFILLED","PARTIALLY_FULFILLED","UNFULFILLED"]
+
+  // Fynd return consolidation
+  fyndConsolidateReturns     Boolean  @default(false) // Batch multiple return cases into one Fynd return
+  fyndConsolidateWindowHours Int      @default(4)     // Hours to wait before sending batch (1, 4, 8, 24)
+
+  // WhatsApp / SMS notifications
+  whatsappEnabled        Boolean  @default(false)
+  whatsappProvider       String?  // "meta_cloud" | "twilio" | "wati" | "interakt"
+  whatsappApiKey         String?
+  whatsappPhoneNumberId  String?  // Meta Cloud: phone number ID
+  whatsappFromNumber     String?  // E.164 format e.g. "+911234567890"
+
+  // Portal OTP verification settings
+  portalOtpEmailEnabled  Boolean  @default(false) // Require OTP for email-based lookups
+  portalOtpSmsEnabled    Boolean  @default(false) // Require OTP for phone-based lookups
+
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 
@@ -162,6 +183,11 @@ model ReturnCase {
   customerName      String?
   customerCity      String?
   customerCountry   String?
+  customerAddress1  String?   // Street address line 1 (for return pickup)
+  customerAddress2  String?   // Street address line 2 / apartment
+  customerProvince  String?   // State / Province code
+  customerZip       String?   // Postal code / ZIP / Pincode
+  customerLandmark  String?   // Landmark (important for India logistics)
   status            String
   refundStatus      String?
   refundJson        String?   @db.Text  // JSON: { refundId, amount, currency, createdAt, method }
@@ -182,7 +208,8 @@ model ReturnCase {
   discountCodeValue String?   // Amount of the discount code
   currency          String?   // ISO 4217 currency code of the order (e.g. "INR", "USD")
   orderProcessedAt  DateTime? // Original order processed date (for deadline calculation)
-  fyndSyncStatus    String?   // "pending" | "synced" | "failed" | "retry_scheduled"
+  exchangePreference String?  @db.Text // Customer's free-text exchange request from portal
+  fyndSyncStatus    String?   // "pending" | "synced" | "failed" | "retry_scheduled" | "processing" | "pending_consolidation"
   fyndSyncRetries   Int      @default(0)
   fyndSyncError     String?  @db.Text
   fyndSyncNextRetry DateTime?
@@ -218,6 +245,7 @@ model ReturnItem {
   qty              Int       @default(1)
   reasonCode       String?
   notes            String?
+  condition        String?   // "unused" | "used_good" | "used_damaged" | "defective"
   fyndShipmentId   String?
   fyndBagId        String?
   createdAt        DateTime  @default(now())
@@ -300,4 +328,20 @@ model BlocklistEntry {
 
   @@unique([settingsId, type, value])
   @@index([settingsId, type])
+}
+
+model NotificationLog {
+  id           String   @id @default(cuid())
+  shopId       String
+  returnCaseId String?
+  channel      String   // "email" | "whatsapp" | "sms"
+  recipient    String
+  eventType    String   // "new_return" | "approved" | "rejected" | "refunded" | "otp" | "custom_note"
+  subject      String?
+  status       String   @default("sent") // "sent" | "failed"
+  error        String?  @db.Text
+  createdAt    DateTime @default(now())
+
+  @@index([shopId, createdAt])
+  @@index([returnCaseId])
 }

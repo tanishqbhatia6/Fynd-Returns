@@ -16,6 +16,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     try { emailTemplatesJson = JSON.parse((s as { emailTemplatesJson: string }).emailTemplatesJson); } catch { /* ignore */ }
   }
 
+  const sWa = s as typeof s & { whatsappEnabled?: boolean; whatsappProvider?: string | null; whatsappApiKey?: string | null; whatsappPhoneNumberId?: string | null; whatsappFromNumber?: string | null; portalOtpEmailEnabled?: boolean; portalOtpSmsEnabled?: boolean } | null;
+
+  // Notification log: recent 50 entries
+  const notificationLogs = await prisma.notificationLog.findMany({
+    where: { shopId: shop.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+  });
+
   return {
     notificationNewReturn: s?.notificationNewReturn ?? true,
     notificationApproved: s?.notificationApproved ?? true,
@@ -32,6 +41,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     adminSoundEnabled: s?.adminSoundEnabled ?? true,
     smtpConfigured: !!(s?.smtpHost && s?.smtpUser && s?.smtpPass),
     emailTemplatesJson,
+    whatsappEnabled: sWa?.whatsappEnabled ?? false,
+    whatsappProvider: sWa?.whatsappProvider ?? "meta_cloud",
+    whatsappApiKey: sWa?.whatsappApiKey ?? "",
+    whatsappPhoneNumberId: sWa?.whatsappPhoneNumberId ?? "",
+    whatsappFromNumber: sWa?.whatsappFromNumber ?? "",
+    portalOtpEmailEnabled: sWa?.portalOtpEmailEnabled ?? false,
+    portalOtpSmsEnabled: sWa?.portalOtpSmsEnabled ?? false,
+    notificationLogs,
   };
 };
 
@@ -86,6 +103,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     smtpSecure: fd.get("smtpSecure") === "on",
     adminNotifyEmail: String(fd.get("adminNotifyEmail") || "").trim() || null,
     adminSoundEnabled: fd.get("adminSoundEnabled") === "on",
+    whatsappEnabled: fd.get("whatsappEnabled") === "on",
+    whatsappProvider: String(fd.get("whatsappProvider") || "meta_cloud").trim() || null,
+    whatsappApiKey: String(fd.get("whatsappApiKey") || "").trim() || null,
+    whatsappPhoneNumberId: String(fd.get("whatsappPhoneNumberId") || "").trim() || null,
+    whatsappFromNumber: String(fd.get("whatsappFromNumber") || "").trim() || null,
+    portalOtpEmailEnabled: fd.get("portalOtpEmailEnabled") === "on",
+    portalOtpSmsEnabled: fd.get("portalOtpSmsEnabled") === "on",
   };
 
   try {
@@ -207,6 +231,15 @@ export default function Notifications() {
   const [approved, setApproved] = useState(data.notificationApproved);
   const [rejected, setRejected] = useState(data.notificationRejected);
   const [refunded, setRefunded] = useState(data.notificationRefunded);
+
+  const [waEnabled, setWaEnabled] = useState(data.whatsappEnabled);
+  const [waProvider, setWaProvider] = useState(data.whatsappProvider);
+  const [waApiKey, setWaApiKey] = useState(data.whatsappApiKey);
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState(data.whatsappPhoneNumberId);
+  const [waFromNumber, setWaFromNumber] = useState(data.whatsappFromNumber);
+
+  const [otpEmailEnabled, setOtpEmailEnabled] = useState(data.portalOtpEmailEnabled);
+  const [otpSmsEnabled, setOtpSmsEnabled] = useState(data.portalOtpSmsEnabled);
 
   const [previewTemplate, setPreviewTemplate] = useState<string | null>(null);
 
@@ -721,12 +754,15 @@ export default function Notifications() {
                               }}
                             />
                           ) : (
-                            <div style={{
-                              minHeight: 160, padding: 16, border: "var(--rpm-border)", borderRadius: "var(--rpm-radius-sm)",
-                              background: "#fff", fontSize: 14, lineHeight: 1.7,
-                            }}>
-                              <div dangerouslySetInnerHTML={{ __html: templateBody }} />
-                            </div>
+                            <iframe
+                              sandbox=""
+                              srcDoc={templateBody}
+                              title="Template preview"
+                              style={{
+                                width: "100%", minHeight: 160, border: "var(--rpm-border)", borderRadius: "var(--rpm-radius-sm)",
+                                background: "#fff",
+                              }}
+                            />
                           )}
                         </div>
 
@@ -782,12 +818,153 @@ export default function Notifications() {
             </div>
           </div>
 
+          {/* ────── WhatsApp / SMS Notifications ────── */}
+          <div style={{ background: "var(--rpm-surface)", border: "var(--rpm-border)", borderRadius: "var(--rpm-radius)", padding: "20px 24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>WhatsApp Notifications</div>
+                <div style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>Send real-time WhatsApp messages to customers on key events</div>
+              </div>
+              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                <input type="checkbox" name="whatsappEnabled" checked={waEnabled} onChange={e => setWaEnabled(e.target.checked)} />
+                <span style={{ fontSize: 13, fontWeight: 600 }}>{waEnabled ? "Enabled" : "Disabled"}</span>
+              </label>
+            </div>
+            {waEnabled && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", display: "block", marginBottom: 4 }}>Provider</label>
+                  <select name="whatsappProvider" value={waProvider} onChange={e => setWaProvider(e.target.value)}
+                    style={{ width: "100%", maxWidth: 280, padding: "8px 10px", borderRadius: "var(--rpm-radius-sm)", border: "var(--rpm-border)", fontSize: 13 }}>
+                    <option value="meta_cloud">Meta Cloud API (Official)</option>
+                    <option value="twilio">Twilio</option>
+                    <option value="wati">WATI</option>
+                    <option value="interakt">Interakt</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", display: "block", marginBottom: 4 }}>API Key / Access Token <span style={{ color: "#d72c0d" }}>*</span></label>
+                  <input type="password" name="whatsappApiKey" value={waApiKey} onChange={e => setWaApiKey(e.target.value)}
+                    placeholder="Your WhatsApp API key or bearer token"
+                    style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--rpm-radius-sm)", border: "var(--rpm-border)", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+                {waProvider === "meta_cloud" && (
+                  <div>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", display: "block", marginBottom: 4 }}>Phone Number ID <span style={{ color: "#d72c0d" }}>*</span></label>
+                    <input type="text" name="whatsappPhoneNumberId" value={waPhoneNumberId} onChange={e => setWaPhoneNumberId(e.target.value)}
+                      placeholder="e.g. 1234567890123456"
+                      style={{ width: "100%", padding: "8px 10px", borderRadius: "var(--rpm-radius-sm)", border: "var(--rpm-border)", fontSize: 13, boxSizing: "border-box" }} />
+                    <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 3 }}>Found in Meta Business Suite → WhatsApp → Phone numbers</div>
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)", display: "block", marginBottom: 4 }}>From Number (E.164)</label>
+                  <input type="text" name="whatsappFromNumber" value={waFromNumber} onChange={e => setWaFromNumber(e.target.value)}
+                    placeholder="+911234567890"
+                    style={{ width: "100%", maxWidth: 220, padding: "8px 10px", borderRadius: "var(--rpm-radius-sm)", border: "var(--rpm-border)", fontSize: 13, boxSizing: "border-box" }} />
+                </div>
+                <div style={{ padding: "10px 14px", background: "#EFF6FF", borderRadius: "var(--rpm-radius-sm)", fontSize: 12, color: "#1E40AF" }}>
+                  WhatsApp messages will be sent to the customer's phone number on: return approved, rejected, and refunded events.
+                </div>
+              </div>
+            )}
+            {!waEnabled && (
+              <div style={{ display: "none" }}>
+                <input type="hidden" name="whatsappProvider" value={waProvider} />
+                <input type="hidden" name="whatsappApiKey" value={waApiKey} />
+                <input type="hidden" name="whatsappPhoneNumberId" value={waPhoneNumberId} />
+                <input type="hidden" name="whatsappFromNumber" value={waFromNumber} />
+              </div>
+            )}
+          </div>
+
+          {/* ────── Portal Verification (OTP) ────── */}
+          <div style={{ background: "var(--rpm-surface)", border: "var(--rpm-border)", borderRadius: "var(--rpm-radius)", padding: "20px 24px" }}>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 2 }}>Portal Verification (OTP)</div>
+              <div style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>Require customers to verify their identity via a one-time code before viewing return results on the portal</div>
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <Toggle
+                name="portalOtpEmailEnabled"
+                checked={otpEmailEnabled}
+                onChange={setOtpEmailEnabled}
+                label="Email OTP verification"
+                description="Send a 6-digit code to the customer's email before showing return results for email lookups"
+                accentColor="#6366f1"
+                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,7 12,13 2,7"/></svg>}
+              />
+              <Toggle
+                name="portalOtpSmsEnabled"
+                checked={otpSmsEnabled}
+                onChange={setOtpSmsEnabled}
+                label="SMS / WhatsApp OTP verification"
+                description="Send a 6-digit code via SMS or WhatsApp before showing return results for phone lookups (requires WhatsApp to be configured above)"
+                accentColor="#10b981"
+                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z"/></svg>}
+              />
+            </div>
+            <div style={{ marginTop: 12, padding: "10px 14px", background: "#FFF7ED", borderRadius: "var(--rpm-radius-sm)", fontSize: 12, color: "#92400E", lineHeight: 1.6 }}>
+              When disabled, customers can look up returns directly without verification. Enable OTP for added security — especially recommended for email and phone lookups.
+            </div>
+          </div>
+
           {/* ────── Actions ────── */}
           <div style={{ display: "flex", gap: 10, justifyContent: "flex-start" }}>
             <s-button type="submit" loading={saveFetcher.state !== "idle"}>Save all settings</s-button>
             <Link to="/app/settings"><s-button variant="secondary" type="button">Discard</s-button></Link>
           </div>
         </saveFetcher.Form>
+
+        {/* ────── Notification Log ────── */}
+        <div style={{ background: "var(--rpm-surface)", border: "var(--rpm-border)", borderRadius: "var(--rpm-radius)", padding: "20px 24px", marginTop: 20 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Notification Log</div>
+          <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 14 }}>Recent email and WhatsApp notifications sent from this shop</div>
+          {data.notificationLogs.length === 0 ? (
+            <div style={{ padding: "24px 0", textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 13 }}>
+              No notifications sent yet.
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                <thead>
+                  <tr style={{ borderBottom: "2px solid var(--rpm-border-color, #e5e7eb)" }}>
+                    <th style={{ textAlign: "left", padding: "8px 10px", fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", fontSize: 10, letterSpacing: "0.04em" }}>Time</th>
+                    <th style={{ textAlign: "left", padding: "8px 10px", fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", fontSize: 10, letterSpacing: "0.04em" }}>Channel</th>
+                    <th style={{ textAlign: "left", padding: "8px 10px", fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", fontSize: 10, letterSpacing: "0.04em" }}>Event</th>
+                    <th style={{ textAlign: "left", padding: "8px 10px", fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", fontSize: 10, letterSpacing: "0.04em" }}>Recipient</th>
+                    <th style={{ textAlign: "left", padding: "8px 10px", fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", fontSize: 10, letterSpacing: "0.04em" }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.notificationLogs.map((log) => (
+                    <tr key={log.id} style={{ borderBottom: "1px solid var(--rpm-border-color, #f1f5f9)" }}>
+                      <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: "var(--rpm-text-muted)" }}>
+                        {new Date(log.createdAt).toLocaleString()}
+                      </td>
+                      <td style={{ padding: "8px 10px" }}>
+                        <span style={{
+                          padding: "2px 8px", borderRadius: 4, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+                          background: log.channel === "email" ? "#DBEAFE" : log.channel === "whatsapp" ? "#D1FAE5" : "#F3F4F6",
+                          color: log.channel === "email" ? "#1D4ED8" : log.channel === "whatsapp" ? "#059669" : "#374151",
+                        }}>{log.channel}</span>
+                      </td>
+                      <td style={{ padding: "8px 10px", textTransform: "capitalize" }}>{log.eventType.replace(/_/g, " ")}</td>
+                      <td style={{ padding: "8px 10px", fontFamily: "var(--rpm-font-mono)", color: "var(--rpm-text-muted)" }}>{log.recipient}</td>
+                      <td style={{ padding: "8px 10px" }}>
+                        {log.status === "sent" ? (
+                          <span style={{ color: "#059669", fontWeight: 600 }}>Sent</span>
+                        ) : (
+                          <span style={{ color: "#DC2626", fontWeight: 600 }} title={log.error || undefined}>Failed</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </s-page>
   );

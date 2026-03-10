@@ -3,7 +3,7 @@ import { Link, useLoaderData, useNavigate, useFetcher, useSearchParams, isRouteE
 import React, { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { getStatusColor } from "../lib/status-colors";
+import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import { fetchOrder, fetchOrderByOrderNumber, fetchAllLocations } from "../lib/shopify-admin.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
@@ -444,6 +444,21 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       refundStoreCreditPct = shopSettings?.refundStoreCreditPct ?? 100;
     }
 
+    // Customer return history — fetch other returns by same email (excluding current)
+    let customerReturnHistory: Array<{ id: string; returnRequestNo: string | null; status: string; createdAt: Date }> = [];
+    if (returnCase.customerEmailNorm) {
+      customerReturnHistory = await prisma.returnCase.findMany({
+        where: {
+          shopId: shop.id,
+          customerEmailNorm: returnCase.customerEmailNorm,
+          id: { not: returnCase.id },
+        },
+        select: { id: true, returnRequestNo: true, status: true, createdAt: true },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+      });
+    }
+
     const COD_PATTERNS = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
     const isCodOrder = (shopifyOrder?.paymentGatewayNames ?? []).some((g) => COD_PATTERNS.test(g))
       || shopifyOrder?.displayFinancialStatus === "PENDING";
@@ -500,6 +515,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       daysRemaining = Math.ceil((deadline.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     }
 
+    // Extract current Fynd status for exchange gate check
+    let fyndCurrentStatus: string | null = null;
+    try {
+      const fyndPj = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+      if (fyndPj) {
+        const parsed = JSON.parse(fyndPj) as Record<string, unknown>;
+        fyndCurrentStatus = String(parsed?.status ?? parsed?.shipment_status ?? "").trim() || null;
+      }
+    } catch { /* non-fatal */ }
+
     return {
       returnCase, shopDomain: session.shop, shopifyOrder, isManualReturn,
       fyndPayloadInfo, fyndOrderDetailsTab, pickupAddress, returnJourney,
@@ -512,6 +537,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       shopLocale: shopSettings?.shopLocale ?? "en",
       shopCurrency: shopSettings?.shopCurrency ?? "USD",
       shopTimezone: shopSettings?.shopTimezone ?? "UTC",
+      fyndCurrentStatus,
+      customerReturnHistory,
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -530,6 +557,8 @@ export default function ReturnDetail() {
     daysRemaining, returnDeadline,
     discountCodeRefundEnabled, discountCodePrefix, discountCodeExpiryDays,
     shopLocale, shopCurrency, shopTimezone,
+    fyndCurrentStatus,
+    customerReturnHistory,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -541,6 +570,7 @@ export default function ReturnDetail() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedResolutionType, setSelectedResolutionType] = useState<string>("refund");
   const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
+  const [showEditAddress, setShowEditAddress] = useState(false);
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const [showCancelOrder, setShowCancelOrder] = useState(false);
   const [cancelReason, setCancelReason] = useState("OTHER");
@@ -564,8 +594,9 @@ export default function ReturnDetail() {
   const fyndSuccess = searchParams.get("fyndSuccess");
   const fyndRefresh = searchParams.get("fyndRefresh");
   const fyndProcessing = searchParams.get("fyndProcessing");
+  const consolidationQueued = searchParams.get("consolidationQueued");
   useEffect(() => {
-    if (fyndError || fyndSuccess || fyndRefresh || fyndProcessing) {
+    if (fyndError || fyndSuccess || fyndRefresh || fyndProcessing || consolidationQueued) {
       const t = setTimeout(() => {
         setSearchParams((prev) => {
           const next = new URLSearchParams(prev);
@@ -573,12 +604,13 @@ export default function ReturnDetail() {
           next.delete("fyndSuccess");
           next.delete("fyndRefresh");
           next.delete("fyndProcessing");
+          next.delete("consolidationQueued");
           return next;
         }, { replace: true });
       }, 30000);
       return () => clearTimeout(t);
     }
-  }, [fyndError, fyndSuccess, fyndRefresh, fyndProcessing, setSearchParams]);
+  }, [fyndError, fyndSuccess, fyndRefresh, fyndProcessing, consolidationQueued, setSearchParams]);
 
   const C = {
     card: { padding: 20, background: "#fff", borderRadius: 12, border: "1px solid #e3e5e7", marginBottom: 16 } as const,
@@ -617,6 +649,26 @@ export default function ReturnDetail() {
     }, 12000);
     return () => clearTimeout(t);
   }, [fyndSyncStatus, navigate]);
+
+  // Close refund/exchange modals on successful action; keep open on error
+  useEffect(() => {
+    if (fetcher.state === "idle" && fetcher.data?.success && !fetcher.data?.error) {
+      setShowRefundConfirm(false);
+      setShowExchangeConfirm(false);
+    }
+  }, [fetcher.state, fetcher.data]);
+
+  // Fynd statuses that mean "bag received at warehouse" — exchange is safe to process
+  const FYND_EXCHANGE_ALLOWED_STATUSES = new Set([
+    "return_bag_delivered", "return_accepted", "rto_bag_accepted", "deadstock",
+    "refund_approved", "refund_initiated", "refund_completed", "return_completed",
+    "deadstock_defective", "return_bag_lost", "rto_bag_delivered",
+  ]);
+  const exchangeBlockedByFynd = !!(
+    returnCase.fyndReturnId
+    && fyndCurrentStatus
+    && !FYND_EXCHANGE_ALLOWED_STATUSES.has(fyndCurrentStatus)
+  );
 
   const fyndTrackingStatus = fyndPayloadInfo?.shipments?.[0]
     ? safeStr((fyndPayloadInfo.shipments[0] as { shipmentStatus?: string }).shipmentStatus)
@@ -667,6 +719,15 @@ export default function ReturnDetail() {
             <div>
               <div style={{ fontWeight: 600, color: "#1D4ED8", fontSize: 14 }}>Fynd is assigning logistics</div>
               <div style={{ fontSize: 12, color: "#3B82F6", marginTop: 2 }}>AWB and courier assignment typically take 10–30 seconds. This page will refresh automatically.</div>
+            </div>
+          </div>
+        )}
+        {(consolidationQueued || fyndSyncStatus === "pending_consolidation") && (
+          <div style={{ marginBottom: 16, padding: "14px 18px", background: "#FFFBEB", border: "1px solid #FDE68A", borderLeft: "4px solid #F59E0B", borderRadius: 8, display: "flex", alignItems: "center", gap: 12 }}>
+            <svg style={{ flexShrink: 0 }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            <div>
+              <div style={{ fontWeight: 600, color: "#92400E", fontSize: 14 }}>Queued for Fynd consolidation</div>
+              <div style={{ fontSize: 12, color: "#B45309", marginTop: 2 }}>This return will be combined with other pending returns for this order and synced to Fynd as a single shipment. Check back after the batch window expires.</div>
             </div>
           </div>
         )}
@@ -921,6 +982,20 @@ export default function ReturnDetail() {
                             {item.reasonCode && (
                               <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#FEF3C7", color: "#92400E" }}>{item.reasonCode}</span>
                             )}
+                            {(item as { condition?: string | null }).condition && (() => {
+                              const cond = (item as { condition?: string | null }).condition!;
+                              const condColors: Record<string, { bg: string; color: string }> = {
+                                unused: { bg: "#DCFCE7", color: "#166534" },
+                                used_good: { bg: "#DBEAFE", color: "#1E40AF" },
+                                used_damaged: { bg: "#FEF3C7", color: "#92400E" },
+                                defective: { bg: "#FEE2E2", color: "#991B1B" },
+                              };
+                              const condLabels: Record<string, string> = {
+                                unused: "Unused", used_good: "Used — Good", used_damaged: "Used — Damaged", defective: "Defective",
+                              };
+                              const style = condColors[cond] ?? { bg: "#F3F4F6", color: "#374151" };
+                              return <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: style.bg, color: style.color, fontWeight: 600 }}>{condLabels[cond] ?? cond}</span>;
+                            })()}
                             {price && <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#DBEAFE", color: "#1E40AF" }}>{formatMoney(price, shopifyOrder?.currencyCode || shopCurrency, shopLocale)} each</span>}
                           </div>
                         </div>
@@ -1210,6 +1285,9 @@ export default function ReturnDetail() {
                     const isLatest = i === returnCase.events.length - 1;
                     const sourceColor = ev.source === "fynd_webhook" ? "#059669" : ev.source === "portal" ? "#2563EB" : ev.source === "system" ? "#8B5CF6" : ev.source === "shopify_webhook" ? "#0EA5E9" : "#64748B";
                     const sourceLabel = ev.source === "fynd_webhook" ? "Fynd" : ev.source === "shopify_webhook" ? "Shopify" : ev.source === "system" ? "System" : ev.source === "portal" ? "Portal" : "Admin";
+                    let evPayload: Record<string, unknown> | null = null;
+                    try { if (ev.payloadJson) evPayload = JSON.parse(ev.payloadJson) as Record<string, unknown>; } catch { evPayload = null; }
+                    const evAdminEmail = evPayload?.adminEmail as string | null | undefined;
                     return (
                       <div key={ev.id} style={{ position: "relative", paddingBottom: i < returnCase.events.length - 1 ? 20 : 0 }}>
                         <div style={{ position: "absolute", left: -22, top: 2, width: 12, height: 12, borderRadius: "50%", background: isLatest ? sourceColor : "#D1D5DB", border: "2px solid #fff", boxShadow: isLatest ? `0 0 0 3px ${sourceColor}30` : "none" }} />
@@ -1217,10 +1295,21 @@ export default function ReturnDetail() {
                           <div style={{ fontWeight: 600, fontSize: 14, color: "#1F2937" }}>
                             {(ev.eventType || "unknown").replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                             <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: `${sourceColor}15`, color: sourceColor }}>{sourceLabel}</span>
                             <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: shopTimezone || "UTC" }).format(new Date(ev.happenedAt)) : "—"}</span>
+                            {ev.source === "admin" && evAdminEmail && (
+                              <span style={{ fontSize: 11, color: "#6B7280" }}>by {evAdminEmail}</span>
+                            )}
                           </div>
+                          {ev.payloadJson && (
+                            <details style={{ marginTop: 6 }}>
+                              <summary style={{ fontSize: 11, color: "#9CA3AF", cursor: "pointer", userSelect: "none" }}>Show details</summary>
+                              <pre style={{ marginTop: 4, padding: "6px 8px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 11, color: "#475569", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 200 }}>
+                                {JSON.stringify(evPayload, null, 2)}
+                              </pre>
+                            </details>
+                          )}
                         </div>
                       </div>
                     );
@@ -1314,13 +1403,23 @@ export default function ReturnDetail() {
                       Process Refund
                     </s-button>
                     {showRefundConfirm && (
-                      <div className="app-modal-overlay" onClick={() => setShowRefundConfirm(false)}>
+                      <div className="app-modal-overlay" onClick={() => { if (!fetcher.data?.error) setShowRefundConfirm(false); }}>
                         <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
                           <div className="app-modal-title">Process Refund</div>
                           <div className="app-modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                             <p style={{ margin: 0 }}>
                               Refund for order <strong>{returnCase.shopifyOrderName || "—"}</strong>
                             </p>
+
+                            {/* Error shown INSIDE modal so user doesn't need to close it to read the error */}
+                            {fetcher.data?.error && (
+                              <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderLeft: "4px solid #DC2626", borderRadius: 8, fontSize: 13, color: "#991B1B" }}>
+                                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                                  <svg style={{ flexShrink: 0, marginTop: 1 }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                                  <span>{fetcher.data.error}</span>
+                                </div>
+                              </div>
+                            )}
 
                             {/* Refund Method */}
                             <div style={{ padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
@@ -1329,31 +1428,33 @@ export default function ReturnDetail() {
                                 Refund method
                               </div>
                               {isCodOrder && (
-                                <div style={{ marginBottom: 8, padding: "6px 10px", background: "#FEF3C7", borderRadius: 6, fontSize: 11.5, color: "#92400E", display: "flex", alignItems: "center", gap: 6 }}>
+                                <div style={{ marginBottom: 8, padding: "8px 12px", background: "#FEF3C7", borderRadius: 6, fontSize: 12, color: "#92400E", display: "flex", alignItems: "center", gap: 6, borderLeft: "3px solid #F59E0B" }}>
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                                  COD order detected — Store credit is recommended
+                                  <span><strong>COD order</strong> — Refund to original payment is not available. Use Store credit or Discount code.</span>
                                 </div>
                               )}
                               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                                 {([
-                                  { value: "original" as const, label: "Original payment", desc: "Refund to customer's original payment method", color: "#3B82F6", bg: "#EFF6FF", border: "#3B82F6" },
-                                  { value: "store_credit" as const, label: "Store credit", desc: "Issue as store credit to customer's account", color: "#22C55E", bg: "#F0FDF4", border: "#22C55E" },
-                                  { value: "both" as const, label: "Split refund", desc: "Split between original payment and store credit", color: "#F59E0B", bg: "#FFFBEB", border: "#F59E0B" },
+                                  { value: "original" as const, label: "Original payment", desc: isCodOrder ? "Not available for COD orders" : "Refund to customer's original payment method", color: "#3B82F6", bg: "#EFF6FF", border: "#3B82F6", disabled: isCodOrder },
+                                  { value: "store_credit" as const, label: "Store credit", desc: "Issue as store credit to customer's account", color: "#22C55E", bg: "#F0FDF4", border: "#22C55E", disabled: false },
+                                  { value: "both" as const, label: "Split refund", desc: isCodOrder ? "Not available for COD orders" : "Split between original payment and store credit", color: "#F59E0B", bg: "#FFFBEB", border: "#F59E0B", disabled: isCodOrder },
                                   ...(discountCodeRefundEnabled ? [{
                                     value: "discount_code" as const,
                                     label: "Discount code",
                                     desc: `Generate a single-use discount code (${discountCodePrefix}-...) valid for ${discountCodeExpiryDays} days`,
-                                    color: "#8B5CF6", bg: "#F5F3FF", border: "#8B5CF6",
+                                    color: "#8B5CF6", bg: "#F5F3FF", border: "#8B5CF6", disabled: false,
                                   }] : []),
                                 ]).map((opt) => (
                                   <label key={opt.value} style={{
-                                    display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", cursor: "pointer",
+                                    display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
+                                    cursor: opt.disabled ? "not-allowed" : "pointer",
                                     borderRadius: 8, fontSize: 13,
+                                    opacity: opt.disabled ? 0.45 : 1,
                                     background: modalRefundMethod === opt.value ? opt.bg : "transparent",
                                     border: modalRefundMethod === opt.value ? `1.5px solid ${opt.border}` : "1.5px solid transparent",
                                     transition: "all 0.12s",
                                   }}>
-                                    <input type="radio" checked={modalRefundMethod === opt.value} onChange={() => setModalRefundMethod(opt.value)} style={{ accentColor: opt.color }} />
+                                    <input type="radio" checked={modalRefundMethod === opt.value} disabled={opt.disabled} onChange={() => !opt.disabled && setModalRefundMethod(opt.value)} style={{ accentColor: opt.color }} />
                                     <div style={{ flex: 1 }}>
                                       <div style={{ fontWeight: 600, fontSize: 12.5, color: modalRefundMethod === opt.value ? opt.color : "#374151", display: "flex", alignItems: "center", gap: 6 }}>
                                         {opt.value === "discount_code" && (
@@ -1361,7 +1462,7 @@ export default function ReturnDetail() {
                                         )}
                                         {opt.label}
                                         {opt.value === "store_credit" && isCodOrder && (
-                                          <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", background: "#DCFCE7", borderRadius: 4, color: "#166534", textTransform: "uppercase", letterSpacing: "0.3px" }}>Preferred</span>
+                                          <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", background: "#DCFCE7", borderRadius: 4, color: "#166534", textTransform: "uppercase", letterSpacing: "0.3px" }}>Recommended</span>
                                         )}
                                       </div>
                                       <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1 }}>{opt.desc}</div>
@@ -1498,10 +1599,17 @@ export default function ReturnDetail() {
                                 } : {}),
                               })} />
                               <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
-                                {modalRefundMethod === "original" ? "Refund to original payment" :
-                                 modalRefundMethod === "store_credit" ? "Issue store credit" :
-                                 modalRefundMethod === "discount_code" ? "Generate discount code" :
-                                 "Process split refund"}
+                                {fetcher.state !== "idle" ? (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <svg style={{ animation: "spin 1s linear infinite" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                                    Processing...
+                                  </span>
+                                ) : (
+                                  modalRefundMethod === "original" ? "Refund to original payment" :
+                                  modalRefundMethod === "store_credit" ? "Issue store credit" :
+                                  modalRefundMethod === "discount_code" ? "Generate discount code" :
+                                  "Process split refund"
+                                )}
                               </s-button>
                             </fetcher.Form>
                           </div>
@@ -1517,9 +1625,20 @@ export default function ReturnDetail() {
                 )}
                 {(isApproved || isCompleted) && returnCase.resolutionType === "exchange" && !returnCase.exchangeOrderId && !isManualReturn && (
                   <>
-                    <s-button type="button" variant="primary" disabled={fetcher.state !== "idle"} onClick={() => setShowExchangeConfirm(true)} style={{ width: "100%" }}>
+                    <s-button
+                      type="button"
+                      variant="primary"
+                      disabled={fetcher.state !== "idle" || exchangeBlockedByFynd}
+                      onClick={() => !exchangeBlockedByFynd && setShowExchangeConfirm(true)}
+                      style={{ width: "100%" }}
+                    >
                       Process Exchange
                     </s-button>
+                    {exchangeBlockedByFynd && (
+                      <div style={{ marginTop: 6, padding: "8px 12px", background: "#FEF3C7", borderRadius: 6, fontSize: 12, color: "#92400E", border: "1px solid #FDE68A" }}>
+                        <strong>Exchange unavailable</strong> — Return bag not yet received at warehouse. Current Fynd status: <code style={{ background: "#FDE68A", padding: "1px 5px", borderRadius: 3 }}>{fyndCurrentStatus}</code>. Available after <code style={{ background: "#FDE68A", padding: "1px 5px", borderRadius: 3 }}>return_bag_delivered</code>.
+                      </div>
+                    )}
                     {showExchangeConfirm && (
                       <div className="app-modal-overlay" onClick={() => setShowExchangeConfirm(false)}>
                         <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
@@ -1528,9 +1647,20 @@ export default function ReturnDetail() {
                             <p style={{ margin: 0 }}>
                               Create a draft order in Shopify with the same items from order <strong>{returnCase.shopifyOrderName || "--"}</strong>.
                             </p>
+                            {(returnCase as { exchangePreference?: string | null }).exchangePreference && (
+                              <div style={{ padding: 12, background: "#FFFBEB", borderRadius: 8, border: "1px solid #FDE68A", fontSize: 13 }}>
+                                <div style={{ fontWeight: 600, color: "#92400E", marginBottom: 4 }}>Customer exchange preference:</div>
+                                <div style={{ color: "#78350F" }}>{(returnCase as { exchangePreference?: string | null }).exchangePreference}</div>
+                              </div>
+                            )}
                             <div style={{ padding: 12, background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0", fontSize: 13, color: "#166534" }}>
                               A draft order will be created with the customer's email and the return items. You can then complete the order in Shopify Admin.
                             </div>
+                            {fetcher.data?.error && (
+                              <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderLeft: "4px solid #DC2626", borderRadius: 8, fontSize: 13, color: "#991B1B" }}>
+                                {fetcher.data.error}
+                              </div>
+                            )}
                             <p style={{ color: "#DC2626", fontWeight: 500, fontSize: 13, margin: 0 }}>This action cannot be undone.</p>
                           </div>
                           <div className="app-modal-actions">
@@ -1538,7 +1668,12 @@ export default function ReturnDetail() {
                             <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
                               <input type="hidden" name="json" value={JSON.stringify({ action: "process_exchange" })} />
                               <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
-                                {fetcher.state !== "idle" ? "Creating..." : "Create Exchange Order"}
+                                {fetcher.state !== "idle" ? (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <svg style={{ animation: "spin 1s linear infinite" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                                    Creating...
+                                  </span>
+                                ) : "Create Exchange Order"}
                               </s-button>
                             </fetcher.Form>
                           </div>
@@ -1748,6 +1883,12 @@ export default function ReturnDetail() {
                       {(returnCase.resolutionType || "refund").replace(/_/g, " ")}
                     </span>
                   </div>
+                  {returnCase.resolutionType === "exchange" && (returnCase as { exchangePreference?: string | null }).exchangePreference && (
+                    <div style={{ marginTop: 8, padding: "8px 10px", background: "#FFFBEB", borderRadius: 6, border: "1px solid #FDE68A", fontSize: 12 }}>
+                      <div style={{ fontWeight: 600, color: "#92400E", marginBottom: 2 }}>Customer exchange preference</div>
+                      <div style={{ color: "#78350F" }}>{(returnCase as { exchangePreference?: string | null }).exchangePreference}</div>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div><div style={C.label}>App Status</div><div style={{ ...C.val, fontSize: 12 }}>{returnCase.status}</div></div>
@@ -1792,6 +1933,19 @@ export default function ReturnDetail() {
                     View all customer returns &rarr;
                   </Link>
                 )}
+                {customerReturnHistory.length > 0 && (
+                  <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {customerReturnHistory.slice(0, 5).map((prev) => (
+                        <Link key={prev.id} to={`/app/returns/${prev.id}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #e5e7eb", textDecoration: "none", fontSize: 12, color: "#374151", transition: "background 0.15s" }}>
+                          <span style={{ fontWeight: 600 }}>{prev.returnRequestNo || prev.id.slice(-8).toUpperCase()}</span>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 11, color: "#6b7280" }}>{new Date(prev.createdAt).toLocaleDateString()}</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: getStatusBg(prev.status), color: getStatusColor(prev.status), textTransform: "uppercase" }}>{prev.status}</span>
+                          </span>
+                        </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1804,6 +1958,12 @@ export default function ReturnDetail() {
                 || (shopifyOrder?.shippingAddress ? [shopifyOrder.shippingAddress.firstName, shopifyOrder.shippingAddress.lastName].filter(Boolean).join(" ") : null);
               const cCity = returnCase.customerCity || shopifyOrder?.shippingAddress?.city;
               const cCountry = returnCase.customerCountry || shopifyOrder?.shippingAddress?.country;
+              const cAddress1 = returnCase.customerAddress1;
+              const cAddress2 = returnCase.customerAddress2;
+              const cProvince = returnCase.customerProvince;
+              const cZip = returnCase.customerZip;
+              const cLandmark = returnCase.customerLandmark;
+              const hasFullAddress = !!(cAddress1 || cZip);
               const hasAny = !!(cEmail || cPhone || cName || cCity);
               return (
                 <div style={{ ...C.card }}>
@@ -1843,9 +2003,20 @@ export default function ReturnDetail() {
                           <span style={{ fontSize: 13, color: "#374151" }}>{[cCity, cCountry].filter(Boolean).join(", ")}</span>
                         </div>
                       )}
+                      {hasFullAddress && (
+                        <div style={{ marginTop: 4, padding: "8px 10px", background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6" }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", marginBottom: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>Pickup Address</div>
+                          <div style={{ fontSize: 13, lineHeight: 1.6, color: "#374151" }}>
+                            {[cAddress1, cAddress2].filter(Boolean).join(", ")}
+                            {(cCity || cProvince || cZip) && <div>{[cCity, cProvince, cZip].filter(Boolean).join(", ")}</div>}
+                            {cCountry && <div>{cCountry}</div>}
+                            {cLandmark && <div style={{ color: "#6B7280", fontSize: 12 }}>Landmark: {cLandmark}</div>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
-                  {pickupAddress && (pickupAddress.formatted || pickupAddress.address1) && (
+                  {pickupAddress && (pickupAddress.formatted || pickupAddress.address1) && !hasFullAddress && (
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>
                       <div style={C.label}>Pickup address</div>
                       <div style={{ fontSize: 13, lineHeight: 1.6, color: "#374151", marginTop: 4 }}>
@@ -1853,6 +2024,48 @@ export default function ReturnDetail() {
                       </div>
                     </div>
                   )}
+                  {/* Edit pickup address */}
+                  <div style={{ marginTop: 12 }}>
+                    <button type="button" onClick={() => setShowEditAddress(v => !v)} style={{ fontSize: 12, color: "#2563EB", background: "none", border: "none", cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                      {showEditAddress ? "Cancel" : "Edit pickup address"}
+                    </button>
+                    {showEditAddress && (
+                      <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 10 }} onSubmit={() => setShowEditAddress(false)}>
+                        <input type="hidden" name="action" value="edit_details" />
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Address 1</label>
+                            <input type="text" name="customerAddress1" defaultValue={cAddress1 ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Address 2</label>
+                            <input type="text" name="customerAddress2" defaultValue={cAddress2 ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>City</label>
+                            <input type="text" name="customerCity" defaultValue={returnCase.customerCity ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>State / Province</label>
+                            <input type="text" name="customerProvince" defaultValue={cProvince ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>ZIP / Pincode</label>
+                            <input type="text" name="customerZip" defaultValue={cZip ?? ""} maxLength={20} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Country</label>
+                            <input type="text" name="customerCountry" defaultValue={returnCase.customerCountry ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          </div>
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                          <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Landmark</label>
+                          <input type="text" name="customerLandmark" defaultValue={cLandmark ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                        </div>
+                        <s-button type="submit" variant="secondary" size="slim" disabled={fetcher.state !== "idle"}>Save address</s-button>
+                      </fetcher.Form>
+                    )}
+                  </div>
                 </div>
               );
             })()}

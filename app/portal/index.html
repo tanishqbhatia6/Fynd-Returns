@@ -1931,6 +1931,28 @@
         <p id="err1" class="form-error" aria-live="polite"></p>
       </div>
 
+      <!-- OTP verification step (shown for email lookups) -->
+      <div id="step-otp" class="portal-step">
+        <div style="text-align:center;margin-bottom:20px;">
+          <div style="width:52px;height:52px;border-radius:50%;background:#EFF6FF;display:flex;align-items:center;justify-content:center;margin:0 auto 12px;">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#2563EB" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 3l-4 4-4-4"/></svg>
+          </div>
+          <h2 id="otpTitle" style="font-size:1.125rem;font-weight:700;margin:0 0 6px;letter-spacing:-0.01em;">Check your email</h2>
+          <p id="otpDesc" style="font-size:0.875rem;color:var(--portal-text-muted);margin:0;">We've sent a 6-digit verification code to your email address.</p>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="otpCodeInput">Verification code</label>
+          <input type="text" id="otpCodeInput" class="form-input otp-input" placeholder="000000" maxlength="6" inputmode="numeric" autocomplete="one-time-code">
+        </div>
+        <p id="otpErr" class="form-error" aria-live="polite"></p>
+        <button type="button" id="btnVerifyOtp" class="btn-primary">Verify &amp; continue</button>
+        <div style="margin-top:16px;text-align:center;">
+          <button type="button" id="btnResendOtp" style="background:none;border:none;color:var(--portal-primary);font-size:0.875rem;cursor:pointer;text-decoration:underline;">Resend code</button>
+          <span id="resendCountdown" style="display:none;font-size:0.875rem;color:var(--portal-text-muted);"></span>
+        </div>
+        <button type="button" id="btnOtpBack" class="btn-secondary" style="margin-top:12px;width:100%;">← Use a different search</button>
+      </div>
+
       <div id="step2" class="portal-step">
         <div id="result-orders-wrap" class="result-section" role="tabpanel" aria-label="Orders results" aria-live="polite" style="display:none;">
           <h2 class="result-section-title" id="resultOrdersTitle">Your orders</h2>
@@ -2013,6 +2035,16 @@
           <label class="form-label" for="createReason">Why are you returning?</label>
           <select id="createReason" class="form-select"></select>
         </div>
+        <div class="form-group" id="createItemConditionGroup" style="display:none;">
+          <label class="form-label" for="createItemCondition">Item condition <span style="color:#d72c0d">*</span></label>
+          <select id="createItemCondition" class="form-select">
+            <option value="">— select condition —</option>
+            <option value="unused">Unused / unopened</option>
+            <option value="used_good">Used — good condition</option>
+            <option value="used_damaged">Used — damaged</option>
+            <option value="defective">Defective / not working</option>
+          </select>
+        </div>
         <div class="form-group">
           <label class="form-label" for="createEmail">Email for updates <span
               style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
@@ -2028,8 +2060,7 @@
         </div>
 
         <div class="form-group" id="uploadContainerStandard">
-          <label class="form-label">Upload product condition images or video <span
-              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
+          <label class="form-label" id="uploadLabelStandard">Upload product condition images or video <span id="uploadRequiredBadge" style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
           <div class="upload-area" id="uploadAreaStandard">
             <span class="upload-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
             <div style="font-weight:600; font-size: 0.9375rem; color:var(--portal-text);">Click to upload or drag &amp;
@@ -2078,6 +2109,69 @@
           </div>
           <div style="margin-top:12px;">
             <button type="button" id="btnCopyOfferCode" class="btn-secondary" style="font-size:0.8125rem;padding:8px 16px;">Copy Code</button>
+          </div>
+        </div>
+        <!-- Pickup address confirmation — pre-filled from order, editable -->
+        <details id="pickupAddressSection" style="margin-bottom:16px;border:1px solid var(--portal-border);border-radius:12px;overflow:hidden;">
+          <summary style="padding:12px 14px;font-size:0.875rem;font-weight:600;cursor:pointer;background:var(--portal-surface);list-style:none;display:flex;align-items:center;justify-content:space-between;">
+            <span>Confirm pickup address</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;">
+            <div>
+              <label style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:3px;">Street address</label>
+              <input type="text" id="pickupAddress1" class="form-input" maxlength="500" placeholder="Street address, building no.">
+            </div>
+            <div>
+              <label style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:3px;">Apartment / Floor <span style="font-weight:400;">(optional)</span></label>
+              <input type="text" id="pickupAddress2" class="form-input" maxlength="500" placeholder="Apt, suite, floor, etc.">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:3px;">City</label>
+                <input type="text" id="pickupCity" class="form-input" maxlength="100" placeholder="City">
+              </div>
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:3px;">State / Province</label>
+                <input type="text" id="pickupProvince" class="form-input" maxlength="100" placeholder="State">
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:3px;">Zip / Pincode</label>
+                <input type="text" id="pickupZip" class="form-input" maxlength="20" placeholder="Postal code">
+              </div>
+              <div>
+                <label style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:3px;">Country</label>
+                <input type="text" id="pickupCountry" class="form-input" maxlength="100" placeholder="Country" readonly style="background:var(--portal-muted,#f9fafb);">
+              </div>
+            </div>
+            <div>
+              <label style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:3px;">Landmark <span style="font-weight:400;">(optional)</span></label>
+              <input type="text" id="pickupLandmark" class="form-input" maxlength="500" placeholder="e.g. Near post office, opposite park">
+            </div>
+          </div>
+        </details>
+        <!-- Resolution type (refund vs exchange) — only shown when portalExchangeEnabled -->
+        <div id="resolutionTypeSection" style="display:none;margin-bottom:16px;padding:14px;background:var(--portal-surface);border:1px solid var(--portal-border);border-radius:12px;">
+          <div style="font-size:0.8125rem;font-weight:600;margin-bottom:10px;color:var(--portal-text);">What would you like?</div>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;border:1.5px solid transparent;cursor:pointer;margin-bottom:6px;transition:all 0.12s;" id="resolutionRefundLabel">
+            <input type="radio" name="resolutionType" value="refund" checked style="margin-top:2px;flex-shrink:0;">
+            <div>
+              <div style="font-weight:600;font-size:0.875rem;">Refund</div>
+              <div style="font-size:0.75rem;color:var(--portal-text-muted);">Get your money back to the original payment method or store credit</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:8px;border:1.5px solid transparent;cursor:pointer;transition:all 0.12s;" id="resolutionExchangeLabel">
+            <input type="radio" name="resolutionType" value="exchange" style="margin-top:2px;flex-shrink:0;">
+            <div>
+              <div style="font-weight:600;font-size:0.875rem;">Exchange</div>
+              <div style="font-size:0.75rem;color:var(--portal-text-muted);">Swap for a different size, colour, or variant</div>
+            </div>
+          </label>
+          <div id="exchangePreferenceSection" style="display:none;margin-top:10px;">
+            <label for="exchangePreferenceInput" style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:4px;">Describe what you'd like (size, colour, variant)</label>
+            <textarea id="exchangePreferenceInput" class="form-input" rows="2" maxlength="500" placeholder="e.g. Size M in Red, or same item in Blue" style="width:100%;resize:vertical;font-size:0.875rem;"></textarea>
           </div>
         </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
@@ -3890,6 +3984,159 @@
       return defaultReasons;
     }
 
+    // ── OTP flow state ──
+    var _otpSessionId = null;
+    var _otpShop = null;
+    var _otpLookupType = null;
+    var _otpLookupValue = null;
+    var _otpResendTimer = null;
+
+    function showOtpStep() {
+      document.getElementById('step1').classList.remove('active');
+      document.getElementById('step2').classList.remove('active');
+      document.getElementById('step-otp').classList.add('active');
+      document.getElementById('otpCodeInput').value = '';
+      document.getElementById('otpErr').textContent = '';
+      document.getElementById('btnVerifyOtp').disabled = false;
+      document.getElementById('btnResendOtp').style.display = 'inline';
+      document.getElementById('resendCountdown').style.display = 'none';
+      // Dynamic title/description based on lookup type
+      if (_otpLookupType === 'phone' || _otpLookupType === 'mobile') {
+        document.getElementById('otpTitle').textContent = 'Check your phone';
+        document.getElementById('otpDesc').textContent = "We've sent a 6-digit verification code to your phone number.";
+      } else {
+        document.getElementById('otpTitle').textContent = 'Check your email';
+        document.getElementById('otpDesc').textContent = "We've sent a 6-digit verification code to your email address.";
+      }
+      startResendCountdown(60);
+    }
+
+    function startResendCountdown(seconds) {
+      clearInterval(_otpResendTimer);
+      document.getElementById('btnResendOtp').style.display = 'none';
+      document.getElementById('resendCountdown').style.display = 'inline';
+      var remaining = seconds;
+      document.getElementById('resendCountdown').textContent = 'Resend in ' + remaining + 's';
+      _otpResendTimer = setInterval(function() {
+        remaining--;
+        if (remaining <= 0) {
+          clearInterval(_otpResendTimer);
+          document.getElementById('btnResendOtp').style.display = 'inline';
+          document.getElementById('resendCountdown').style.display = 'none';
+        } else {
+          document.getElementById('resendCountdown').textContent = 'Resend in ' + remaining + 's';
+        }
+      }, 1000);
+    }
+
+    function lockOtpStep() {
+      document.getElementById('otpCodeInput').disabled = true;
+      document.getElementById('btnVerifyOtp').disabled = true;
+      document.getElementById('btnResendOtp').style.display = 'none';
+      document.getElementById('resendCountdown').style.display = 'none';
+      clearInterval(_otpResendTimer);
+      document.getElementById('otpErr').textContent = '';
+      document.getElementById('otpErr').style.display = 'none';
+      var lockMsg = document.createElement('div');
+      lockMsg.style.cssText = 'background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px 16px;margin-top:12px;font-size:0.875rem;color:#DC2626;';
+      lockMsg.innerHTML = '<strong>Too many attempts.</strong> Please start over.<br><button type="button" onclick="resetOtpAndGoBack()" style="margin-top:8px;padding:6px 14px;border-radius:6px;border:1px solid #DC2626;background:none;color:#DC2626;cursor:pointer;font-size:0.875rem;">Start over</button>';
+      document.getElementById('step-otp').appendChild(lockMsg);
+    }
+
+    function resetOtpAndGoBack() {
+      _otpSessionId = null; _otpShop = null; _otpLookupType = null; _otpLookupValue = null;
+      clearInterval(_otpResendTimer);
+      document.getElementById('step-otp').classList.remove('active');
+      document.getElementById('step1').classList.add('active');
+      document.getElementById('otpCodeInput').disabled = false;
+      document.getElementById('btnVerifyOtp').disabled = false;
+      document.getElementById('otpErr').style.display = '';
+      document.getElementById('otpErr').textContent = '';
+      // Remove any lockout messages
+      var lockMsgs = document.querySelectorAll('#step-otp div[style*="FEF2F2"]');
+      lockMsgs.forEach(function(el) { el.remove(); });
+    }
+
+    document.getElementById('btnOtpBack').onclick = function() { resetOtpAndGoBack(); };
+
+    document.getElementById('btnResendOtp').onclick = async function() {
+      if (!_otpSessionId || !_otpShop || !_otpLookupType || !_otpLookupValue) return;
+      this.disabled = true;
+      try {
+        var data = await fetchJson(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: _otpShop, lookupType: _otpLookupType, lookupValue: _otpLookupValue, sessionId: _otpSessionId }) }, 10000);
+        if (data.cooldownMs && data.cooldownMs > 0) {
+          startResendCountdown(Math.ceil(data.cooldownMs / 1000));
+        } else {
+          startResendCountdown(60);
+        }
+        document.getElementById('otpErr').textContent = '';
+      } catch(e) {
+        document.getElementById('otpErr').textContent = e.message || 'Could not resend code. Please try again.';
+      } finally {
+        this.disabled = false;
+      }
+    };
+
+    document.getElementById('btnVerifyOtp').onclick = async function() {
+      var code = document.getElementById('otpCodeInput').value.trim();
+      var errEl = document.getElementById('otpErr');
+      errEl.textContent = '';
+      if (!code || code.length < 4) { errEl.textContent = 'Please enter the 6-digit code.'; return; }
+      if (!_otpSessionId) { errEl.textContent = 'Session lost. Please search again.'; resetOtpAndGoBack(); return; }
+      this.disabled = true;
+      this.textContent = 'Verifying...';
+      try {
+        // Use raw fetch to get full JSON including attemptsRemaining on error
+        var controller = new AbortController();
+        var timeout = setTimeout(function() { controller.abort(); }, 10000);
+        var verifyRes = await fetch(API + '/otp/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: _otpSessionId, otp: code }), signal: controller.signal });
+        clearTimeout(timeout);
+        var verifyData = await verifyRes.json().catch(function() { return {}; });
+
+        if (!verifyRes.ok) {
+          // Check for lockout
+          if (verifyRes.status === 429 || verifyData.locked || verifyData.attemptsRemaining === 0) {
+            lockOtpStep();
+            return;
+          }
+          var msg = verifyData.error || 'Verification failed. Please try again.';
+          if (typeof verifyData.attemptsRemaining === 'number' && verifyData.attemptsRemaining > 0) {
+            msg += ' (' + verifyData.attemptsRemaining + ' attempt' + (verifyData.attemptsRemaining === 1 ? '' : 's') + ' remaining)';
+          }
+          errEl.textContent = msg;
+          return;
+        }
+
+        var portalToken = verifyData.portalToken;
+        if (!portalToken) { errEl.textContent = 'Verification failed. Please try again.'; return; }
+
+        // Verification succeeded — call lookup with portalToken to get results
+        var activeTabBtnPre2 = document.querySelector('.portal-tab.active');
+        var activeTabIdPre2 = activeTabBtnPre2 ? activeTabBtnPre2.dataset.tab : 'track_order';
+        document.getElementById('step-otp').classList.remove('active');
+        document.getElementById('step2').classList.add('active');
+        if (activeTabIdPre2 === 'track_order') {
+          document.getElementById('result-orders-wrap').style.display = 'block';
+          document.getElementById('result-returns-wrap').style.display = 'none';
+          document.getElementById('result-orders').innerHTML = renderLoadingSkeleton(1);
+        } else {
+          document.getElementById('result-orders-wrap').style.display = 'none';
+          document.getElementById('result-returns-wrap').style.display = 'block';
+          document.getElementById('result-returns').innerHTML = renderLoadingSkeleton(1);
+        }
+        document.getElementById('result-empty').style.display = 'none';
+        var lookupData = await fetchJson(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: _otpShop, lookupType: _otpLookupType, lookupValue: _otpLookupValue, sessionId: _otpSessionId, portalToken: portalToken }) }, 20000);
+        processLookupData(lookupData);
+      } catch(e) {
+        errEl.textContent = e.message || 'Verification failed. Please try again.';
+        document.getElementById('step-otp').classList.add('active');
+        document.getElementById('step2').classList.remove('active');
+      } finally {
+        this.disabled = false;
+        this.textContent = 'Verify \u0026 continue';
+      }
+    };
+
     document.getElementById('btnLookup').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
       const lookupType = document.getElementById('lookupType').value;
@@ -3906,9 +4153,9 @@
       if (lookupType === 'mobile' && lookupValue.replace(/[\s\-\+\(\)]/g, '').length < 7) { err.textContent = t('portal.error.validPhone'); return; }
       if ((lookupType === 'forward_awb' || lookupType === 'return_awb') && lookupValue.length < 4) { err.textContent = t('portal.error.validAwb'); return; }
       btn.disabled = true; btn.textContent = t('portal.lookup.searching'); btn.classList.add('searching');
-      // Show loading skeleton immediately
+      // For email lookups — show OTP step first; results come after verification
       document.getElementById('step1').classList.remove('active');
-      document.getElementById('step2').classList.add('active');
+      document.getElementById('step2').classList.remove('active');
       var activeTabBtnPre = document.querySelector('.portal-tab.active');
       var activeTabIdPre = activeTabBtnPre ? activeTabBtnPre.dataset.tab : 'track_order';
       if (activeTabIdPre === 'track_order') {
@@ -3923,164 +4170,181 @@
       document.getElementById('result-empty').style.display = 'none';
       try {
         const data = await fetchJson(API + '/lookup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop, lookupType, lookupValue }) }, 20000);
-        const orders = data.orders || [];
-        const returns = data.returns || [];
-
-        const activeTabBtn = document.querySelector('.portal-tab.active');
-        const activeTabId = activeTabBtn ? activeTabBtn.dataset.tab : (PORTAL_CONFIG.defaultTab === 'order' ? 'track_order' : 'track_return');
-
-        var hasOrders = orders.length > 0;
-        var hasReturns = returns.length > 0;
-
-        var showOrders = false;
-        var showReturns = false;
-        if (activeTabId === 'track_order') {
-          showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders;
-          // Returns are shown inline inside the order card — never show the separate returns
-          // section when the user searched from Track Order tab.
-          showReturns = false;
-        } else if (activeTabId === 'track_return') {
-          showReturns = PORTAL_CONFIG.showReturnTracking && hasReturns;
-          showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders && !hasReturns;
+        // Handle OTP gate: server requires email verification
+        if (data.requiresOtp) {
+          _otpSessionId = data.sessionId;
+          _otpShop = shop;
+          _otpLookupType = lookupType;
+          _otpLookupValue = lookupValue;
+          showOtpStep();
+          btn.disabled = false; btn.textContent = t('portal.lookup.submit'); btn.classList.remove('searching');
+          return;
         }
-        document.getElementById('result-orders-wrap').style.display = showOrders ? 'block' : 'none';
-        document.getElementById('result-returns-wrap').style.display = showReturns ? 'block' : 'none';
-
-        var isEmpty = !hasOrders && !hasReturns;
-        var emptyEl = document.getElementById('result-empty');
-        emptyEl.style.display = isEmpty ? 'block' : 'none';
-        if (isEmpty) {
-          var emptyMsg = activeTabId === 'track_order'
-            ? t('portal.results.noOrders')
-            : t('portal.results.noReturns');
-          emptyEl.innerHTML = '<div style="text-align:center;padding:40px 20px;">'
-            + '<div style="margin-bottom:12px;opacity:0.4;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>'
-            + '<div style="font-size:1rem;font-weight:600;color:var(--portal-text);margin-bottom:6px;">' + t('portal.results.nothingFound') + '</div>'
-            + '<div style="font-size:0.875rem;color:var(--portal-text-muted);max-width:360px;margin:0 auto;">' + emptyMsg + '</div>'
-            + '</div>';
-        }
-
-        function renderOrdersToDOM(ordersList, returnsList) {
-          if (!PORTAL_CONFIG.showOrderTracking) return;
-          try {
-            var container = document.getElementById('result-orders');
-            var newHtml = ordersList.length === 0
-              ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noOrders') + '</p>'
-              : ordersList.map(function (o, orderIdx) {
-                try { return renderOrderCardV3(o, orderIdx, returnsList || []); }
-                catch (renderErr) { console.error('Order render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>' + t('portal.common.order') + ' ' + escapeHtml(o.name || o.id || '') + '</p></div>'; }
-              }).join('');
-            container.style.opacity = '0';
-            container.innerHTML = newHtml;
-            requestAnimationFrame(function () {
-              container.style.transition = 'opacity 0.2s ease';
-              container.style.opacity = '1';
-            });
-          } catch (re) { console.error('Order list render error:', re); }
-          initCollapsibles();
-        }
-        function renderReturnsToDOM(returnsList) {
-          if (!PORTAL_CONFIG.showReturnTracking) return;
-          try {
-            var container = document.getElementById('result-returns');
-            var newHtml = returnsList.length === 0
-              ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noReturns') + '</p>'
-              : returnsList.map(function (x) {
-                try { return renderReturnCardV3(x); }
-                catch (renderErr) { console.error('Return render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>' + t('portal.common.return') + ' ' + escapeHtml(x.returnRequestNo || x.id || '') + '</p></div>'; }
-              }).join('');
-            container.style.opacity = '0';
-            container.innerHTML = newHtml;
-            requestAnimationFrame(function () {
-              container.style.transition = 'opacity 0.2s ease';
-              container.style.opacity = '1';
-            });
-          } catch (re) { console.error('Return list render error:', re); }
-          initCollapsibles();
-        }
-
-        renderOrdersToDOM(orders, returns);
-        renderReturnsToDOM(returns);
-
-        // Phase 2: Background Fynd enrichment (non-blocking)
-        var ordersNeedingFynd = orders.filter(function (o) { return o._needsFyndEnrich && o.name; });
-        var returnsNeedingFynd = returns.filter(function (r) { return r._needsFyndEnrich && r.id; });
-        if (ordersNeedingFynd.length > 0 || returnsNeedingFynd.length > 0) {
-          (async function () {
-            try {
-              var enrichPromises = [];
-              ordersNeedingFynd.forEach(function (o) {
-                enrichPromises.push(
-                  fetchJson(API + '/fynd-enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: shop, type: 'order', orderName: o.name }) }, 12000)
-                    .then(function (res) { return { orderName: o.name, fyndData: res.fyndData }; })
-                    .catch(function () { return { orderName: o.name, fyndData: null }; })
-                );
-              });
-              if (returnsNeedingFynd.length > 0) {
-                enrichPromises.push(
-                  fetchJson(API + '/fynd-enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: shop, type: 'returns', returnIds: returnsNeedingFynd.map(function (r) { return r.id; }) }) }, 12000)
-                    .then(function (res) { return { returnEnrichments: res.returnEnrichments || {} }; })
-                    .catch(function () { return { returnEnrichments: {} }; })
-                );
-              }
-              var enrichResults = await Promise.all(enrichPromises);
-              var anyOrderEnriched = false;
-              var anyReturnEnriched = false;
-              enrichResults.forEach(function (er) {
-                if (er.orderName) {
-                  var matchedOrder = orders.find(function (o) { return o.name === er.orderName; });
-                  if (matchedOrder && er.fyndData) {
-                    matchedOrder.fyndData = er.fyndData;
-                    matchedOrder._needsFyndEnrich = false;
-                    anyOrderEnriched = true;
-                  }
-                }
-                if (er.returnEnrichments) {
-                  Object.keys(er.returnEnrichments).forEach(function (retId) {
-                    var matchedReturn = returns.find(function (r) { return r.id === retId; });
-                    if (matchedReturn) {
-                      var enr = er.returnEnrichments[retId];
-                      if (enr.trackingInfo) matchedReturn.trackingInfo = enr.trackingInfo;
-                      if (enr.returnJourney) matchedReturn.returnJourney = enr.returnJourney;
-                      if (enr.pickupAddress) matchedReturn.pickupAddress = enr.pickupAddress;
-                      if (enr.fyndShipmentId) matchedReturn.fyndShipmentId = enr.fyndShipmentId;
-                      matchedReturn._needsFyndEnrich = false;
-                      anyReturnEnriched = true;
-                    }
-                  });
-                }
-              });
-              if (anyOrderEnriched) renderOrdersToDOM(orders, returns);
-              if (anyReturnEnriched) {
-                renderReturnsToDOM(returns);
-                renderOrdersToDOM(orders, returns);
-              }
-            } catch (_) { /* Fynd enrichment is non-fatal */ }
-          })();
-        }
-
-        // Start auto-refresh if any shipment is in transit
-        try {
-          var hasActiveShipment = orders.some(function (o) {
-            if (o.fyndData && o.fyndData.shipments) return o.fyndData.shipments.some(function (s) { return isInTransit(s.shipmentStatus); });
-            return false;
-          }) || returns.some(function (r) {
-            var ti = r.trackingInfo || {};
-            return isInTransit(ti.fyndStatus) || ['processing', 'in progress', 'approved'].includes((r.status || '').toLowerCase());
-          });
-          if (hasActiveShipment) startAutoRefresh(); else stopAutoRefresh();
-        } catch (_) {}
+        processLookupData(data);
       } catch (e) {
         err.textContent = e.message || t('portal.error.lookupFailed');
         document.getElementById('result-orders').innerHTML = '';
         document.getElementById('result-returns').innerHTML = '';
         document.getElementById('result-empty').style.display = 'none';
         document.getElementById('step2').classList.remove('active');
+        document.getElementById('step-otp').classList.remove('active');
         document.getElementById('step1').classList.add('active');
         stopAutoRefresh();
       }
       finally { btn.disabled = false; btn.textContent = t('portal.lookup.submit'); btn.classList.remove('searching'); }
     };
+
+    function processLookupData(data) {
+      var shop = document.getElementById('shop').value.trim();
+      const orders = data.orders || [];
+      const returns = data.returns || [];
+
+      document.getElementById('step-otp').classList.remove('active');
+      document.getElementById('step2').classList.add('active');
+
+      const activeTabBtn = document.querySelector('.portal-tab.active');
+      const activeTabId = activeTabBtn ? activeTabBtn.dataset.tab : (PORTAL_CONFIG.defaultTab === 'order' ? 'track_order' : 'track_return');
+
+      var hasOrders = orders.length > 0;
+      var hasReturns = returns.length > 0;
+
+      var showOrders = false;
+      var showReturns = false;
+      if (activeTabId === 'track_order') {
+        showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders;
+        showReturns = false;
+      } else if (activeTabId === 'track_return') {
+        showReturns = PORTAL_CONFIG.showReturnTracking && hasReturns;
+        showOrders = PORTAL_CONFIG.showOrderTracking && hasOrders && !hasReturns;
+      }
+      document.getElementById('result-orders-wrap').style.display = showOrders ? 'block' : 'none';
+      document.getElementById('result-returns-wrap').style.display = showReturns ? 'block' : 'none';
+
+      var isEmpty = !hasOrders && !hasReturns;
+      var emptyEl = document.getElementById('result-empty');
+      emptyEl.style.display = isEmpty ? 'block' : 'none';
+      if (isEmpty) {
+        var emptyMsg = activeTabId === 'track_order'
+          ? t('portal.results.noOrders')
+          : t('portal.results.noReturns');
+        emptyEl.innerHTML = '<div style="text-align:center;padding:40px 20px;">'
+          + '<div style="margin-bottom:12px;opacity:0.4;"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></div>'
+          + '<div style="font-size:1rem;font-weight:600;color:var(--portal-text);margin-bottom:6px;">' + t('portal.results.nothingFound') + '</div>'
+          + '<div style="font-size:0.875rem;color:var(--portal-text-muted);max-width:360px;margin:0 auto;">' + emptyMsg + '</div>'
+          + '</div>';
+      }
+
+      function renderOrdersToDOM(ordersList, returnsList) {
+        if (!PORTAL_CONFIG.showOrderTracking) return;
+        try {
+          var container = document.getElementById('result-orders');
+          var newHtml = ordersList.length === 0
+            ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noOrders') + '</p>'
+            : ordersList.map(function (o, orderIdx) {
+              try { return renderOrderCardV3(o, orderIdx, returnsList || []); }
+              catch (renderErr) { console.error('Order render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>' + t('portal.common.order') + ' ' + escapeHtml(o.name || o.id || '') + '</p></div>'; }
+            }).join('');
+          container.style.opacity = '0';
+          container.innerHTML = newHtml;
+          requestAnimationFrame(function () {
+            container.style.transition = 'opacity 0.2s ease';
+            container.style.opacity = '1';
+          });
+        } catch (re) { console.error('Order list render error:', re); }
+        initCollapsibles();
+      }
+      function renderReturnsToDOM(returnsList) {
+        if (!PORTAL_CONFIG.showReturnTracking) return;
+        try {
+          var container = document.getElementById('result-returns');
+          var newHtml = returnsList.length === 0
+            ? '<p style="text-align:center;padding:32px;color:var(--portal-text-muted);font-size:0.9375rem;">' + t('portal.results.noReturns') + '</p>'
+            : returnsList.map(function (x) {
+              try { return renderReturnCardV3(x); }
+              catch (renderErr) { console.error('Return render error:', renderErr); return '<div class="order-card-v2" style="padding:20px;"><p>' + t('portal.common.return') + ' ' + escapeHtml(x.returnRequestNo || x.id || '') + '</p></div>'; }
+            }).join('');
+          container.style.opacity = '0';
+          container.innerHTML = newHtml;
+          requestAnimationFrame(function () {
+            container.style.transition = 'opacity 0.2s ease';
+            container.style.opacity = '1';
+          });
+        } catch (re) { console.error('Return list render error:', re); }
+        initCollapsibles();
+      }
+
+      renderOrdersToDOM(orders, returns);
+      renderReturnsToDOM(returns);
+
+      // Phase 2: Background Fynd enrichment (non-blocking)
+      var ordersNeedingFynd = orders.filter(function (o) { return o._needsFyndEnrich && o.name; });
+      var returnsNeedingFynd = returns.filter(function (r) { return r._needsFyndEnrich && r.id; });
+      if (ordersNeedingFynd.length > 0 || returnsNeedingFynd.length > 0) {
+        (async function () {
+          try {
+            var enrichPromises = [];
+            ordersNeedingFynd.forEach(function (o) {
+              enrichPromises.push(
+                fetchJson(API + '/fynd-enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: shop, type: 'order', orderName: o.name }) }, 12000)
+                  .then(function (res) { return { orderName: o.name, fyndData: res.fyndData }; })
+                  .catch(function () { return { orderName: o.name, fyndData: null }; })
+              );
+            });
+            if (returnsNeedingFynd.length > 0) {
+              enrichPromises.push(
+                fetchJson(API + '/fynd-enrich', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shop: shop, type: 'returns', returnIds: returnsNeedingFynd.map(function (r) { return r.id; }) }) }, 12000)
+                  .then(function (res) { return { returnEnrichments: res.returnEnrichments || {} }; })
+                  .catch(function () { return { returnEnrichments: {} }; })
+              );
+            }
+            var enrichResults = await Promise.all(enrichPromises);
+            var anyOrderEnriched = false;
+            var anyReturnEnriched = false;
+            enrichResults.forEach(function (er) {
+              if (er.orderName) {
+                var matchedOrder = orders.find(function (o) { return o.name === er.orderName; });
+                if (matchedOrder && er.fyndData) {
+                  matchedOrder.fyndData = er.fyndData;
+                  matchedOrder._needsFyndEnrich = false;
+                  anyOrderEnriched = true;
+                }
+              }
+              if (er.returnEnrichments) {
+                Object.keys(er.returnEnrichments).forEach(function (retId) {
+                  var matchedReturn = returns.find(function (r) { return r.id === retId; });
+                  if (matchedReturn) {
+                    var enr = er.returnEnrichments[retId];
+                    if (enr.trackingInfo) matchedReturn.trackingInfo = enr.trackingInfo;
+                    if (enr.returnJourney) matchedReturn.returnJourney = enr.returnJourney;
+                    if (enr.pickupAddress) matchedReturn.pickupAddress = enr.pickupAddress;
+                    if (enr.fyndShipmentId) matchedReturn.fyndShipmentId = enr.fyndShipmentId;
+                    matchedReturn._needsFyndEnrich = false;
+                    anyReturnEnriched = true;
+                  }
+                });
+              }
+            });
+            if (anyOrderEnriched) renderOrdersToDOM(orders, returns);
+            if (anyReturnEnriched) {
+              renderReturnsToDOM(returns);
+              renderOrdersToDOM(orders, returns);
+            }
+          } catch (_) { /* Fynd enrichment is non-fatal */ }
+        })();
+      }
+
+      // Start auto-refresh if any shipment is in transit
+      try {
+        var hasActiveShipment = orders.some(function (o) {
+          if (o.fyndData && o.fyndData.shipments) return o.fyndData.shipments.some(function (s) { return isInTransit(s.shipmentStatus); });
+          return false;
+        }) || returns.some(function (r) {
+          var ti = r.trackingInfo || {};
+          return isInTransit(ti.fyndStatus) || ['processing', 'in progress', 'approved'].includes((r.status || '').toLowerCase());
+        });
+        if (hasActiveShipment) startAutoRefresh(); else stopAutoRefresh();
+      } catch (_) {}
+    }
 
     document.getElementById('btnBack').onclick = () => {
       document.getElementById('step2').classList.remove('active');
@@ -4399,26 +4663,116 @@
         createOrderData._lineItemEstimates = data.lineItemEstimates || [];
         createOrderData._estimatedRefundTotal = data.estimatedRefundTotal || 0;
         createOrderData._returnOffers = data.returnOffers || { enabled: false, offers: [] };
+        createOrderData._returnedQtyMap = data.returnedQtyMap || {};
+        createOrderData._portalExchangeEnabled = data.portalExchangeEnabled || false;
+        createOrderData._photoRequired = data.photoRequired || false;
+
+        // Update upload label based on photoRequired flag
+        var uploadBadge = document.getElementById('uploadRequiredBadge');
+        if (uploadBadge) {
+          if (createOrderData._photoRequired) {
+            uploadBadge.style.color = '#d72c0d';
+            uploadBadge.textContent = '(required *)';
+          } else {
+            uploadBadge.style.color = '';
+            uploadBadge.textContent = '(optional)';
+          }
+        }
+
+        // Pre-fill pickup address from shipping address
+        var sa = data.order.shippingAddress || {};
+        var pickupAddr1El = document.getElementById('pickupAddress1');
+        var pickupAddr2El = document.getElementById('pickupAddress2');
+        var pickupCityEl = document.getElementById('pickupCity');
+        var pickupProvEl = document.getElementById('pickupProvince');
+        var pickupZipEl = document.getElementById('pickupZip');
+        var pickupCountryEl = document.getElementById('pickupCountry');
+        var pickupLandmarkEl = document.getElementById('pickupLandmark');
+        if (pickupAddr1El) pickupAddr1El.value = sa.address1 || '';
+        if (pickupAddr2El) pickupAddr2El.value = sa.address2 || '';
+        if (pickupCityEl) pickupCityEl.value = sa.city || '';
+        if (pickupProvEl) pickupProvEl.value = sa.province || sa.provinceCode || '';
+        if (pickupZipEl) pickupZipEl.value = sa.zip || '';
+        if (pickupCountryEl) pickupCountryEl.value = sa.country || sa.countryCode || '';
+        if (pickupLandmarkEl) pickupLandmarkEl.value = '';
+
+        // Wire up condition dropdown visibility — show for damage/defect reasons
+        var DEFECT_REASON_CODES = new Set(['damaged', 'defective', 'broken', 'not_working', 'wrong_item', 'quality_issue', 'damaged_in_transit']);
+        var createReasonEl = document.getElementById('createReason');
+        var conditionGroup = document.getElementById('createItemConditionGroup');
+        function updateConditionVisibility() {
+          if (!conditionGroup || !createReasonEl) return;
+          var val = createReasonEl.value ? createReasonEl.value.toLowerCase() : '';
+          var show = DEFECT_REASON_CODES.has(val) || val.includes('damage') || val.includes('defect') || val.includes('broken') || val.includes('wrong') || val.includes('quality');
+          conditionGroup.style.display = show ? 'block' : 'none';
+          if (!show) {
+            var condEl = document.getElementById('createItemCondition');
+            if (condEl) condEl.value = '';
+          }
+        }
+        createReasonEl.removeEventListener('change', updateConditionVisibility);
+        createReasonEl.addEventListener('change', updateConditionVisibility);
+        updateConditionVisibility();
+
+        // Show/hide resolution type section based on portalExchangeEnabled
+        var resolutionSection = document.getElementById('resolutionTypeSection');
+        if (resolutionSection) {
+          resolutionSection.style.display = createOrderData._portalExchangeEnabled ? 'block' : 'none';
+          // Reset to refund on each order load
+          var refundRadio = document.querySelector('input[name="resolutionType"][value="refund"]');
+          if (refundRadio) refundRadio.checked = true;
+          document.getElementById('exchangePreferenceSection').style.display = 'none';
+          document.getElementById('exchangePreferenceInput').value = '';
+          // Style the selected label
+          document.getElementById('resolutionRefundLabel').style.borderColor = 'var(--portal-primary)';
+          document.getElementById('resolutionRefundLabel').style.background = 'color-mix(in srgb, var(--portal-primary) 8%, transparent)';
+          document.getElementById('resolutionExchangeLabel').style.borderColor = 'transparent';
+          document.getElementById('resolutionExchangeLabel').style.background = '';
+          // Wire up radio change handlers (remove old listeners by replacing element content approach — use named handler)
+          document.querySelectorAll('input[name="resolutionType"]').forEach(function(radio) {
+            radio.onchange = function() {
+              var isExchange = this.value === 'exchange';
+              document.getElementById('exchangePreferenceSection').style.display = isExchange ? 'block' : 'none';
+              document.getElementById('resolutionRefundLabel').style.borderColor = isExchange ? 'transparent' : 'var(--portal-primary)';
+              document.getElementById('resolutionRefundLabel').style.background = isExchange ? '' : 'color-mix(in srgb, var(--portal-primary) 8%, transparent)';
+              document.getElementById('resolutionExchangeLabel').style.borderColor = isExchange ? 'var(--portal-primary)' : 'transparent';
+              document.getElementById('resolutionExchangeLabel').style.background = isExchange ? 'color-mix(in srgb, var(--portal-primary) 8%, transparent)' : '';
+            };
+          });
+        }
+
         if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
           throw new Error(t('portal.error.noItemsToReturn'));
         }
         const nameEl = document.getElementById('createOrderName');
         nameEl.textContent = t('portal.lookup.order') + ' ' + escapeHtml(createOrderData.name);
         const list = document.getElementById('createItemsList');
-        // Render returnable items with images
-        list.innerHTML = createOrderData.lineItems.map(li => `
-          <div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:var(--portal-surface);">
-            <input type="checkbox" id="item-${li.id}" data-id="${li.id}" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;">
-            ${li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || t('portal.common.item')) + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : ''}
-            <label for="item-${li.id}" style="flex:1;cursor:pointer;font-size:0.875rem;font-weight:500;line-height:1.4;">
-              ${escapeHtml(li.title)}${li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : ''}${li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : ''}
-            </label>
-            <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
-              <span style="font-size:0.75rem;color:var(--portal-text-muted);">${t('portal.order.qty')}</span>
-              <input type="number" class="item-qty form-input" min="1" max="${li.quantity}" value="1" data-id="${li.id}" data-max="${li.quantity}" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">
-            </div>
-          </div>
-        `).join('');
+        // Render returnable items with images and quantity locks
+        list.innerHTML = createOrderData.lineItems.map(li => {
+          var returnedQty = (createOrderData._returnedQtyMap || {})[li.id] || 0;
+          var availableQty = Math.max(0, (li.quantity || 1) - returnedQty);
+          var fullyReturned = availableQty <= 0;
+          return '<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:' + (fullyReturned ? '#F9FAFB' : 'var(--portal-surface)') + ';opacity:' + (fullyReturned ? '0.6' : '1') + ';">' +
+            '<input type="checkbox" id="item-' + li.id + '" data-id="' + li.id + '"' + (fullyReturned ? ' disabled' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:' + (fullyReturned ? 'not-allowed' : 'pointer') + ';">' +
+            (li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || 'Item') + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : '') +
+            '<div style="flex:1;min-width:0;">' +
+              '<label for="item-' + li.id + '" style="cursor:' + (fullyReturned ? 'default' : 'pointer') + ';font-size:0.875rem;font-weight:500;line-height:1.4;display:block;">' +
+                escapeHtml(li.title) +
+                (li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : '') +
+                (li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : '') +
+              '</label>' +
+              (fullyReturned
+                ? '<span style="font-size:0.7rem;color:#DC2626;font-weight:600;background:#FEE2E2;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">Already returned</span>'
+                : (returnedQty > 0
+                  ? '<span style="font-size:0.7rem;color:#D97706;background:#FEF3C7;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">' + availableQty + ' of ' + li.quantity + ' available</span>'
+                  : '')) +
+            '</div>' +
+            (!fullyReturned ? '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
+              '<span style="font-size:0.75rem;color:var(--portal-text-muted);">' + (t('portal.order.qty') || 'Qty') + '</span>' +
+              '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="1" data-id="' + li.id + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
+            '</div>' : '') +
+            '</div>';
+        }).join('');
         list.querySelectorAll('.item-qty').forEach(inp => {
           inp.addEventListener('blur', function () {
             const max = parseInt(this.dataset.max || '1', 10);
@@ -4719,16 +5073,23 @@
       if (checked.length === 0) { err.textContent = t('portal.error.selectItem'); return; }
       const emailVal = document.getElementById('createEmail').value.trim();
       if (emailVal && !EMAIL_REGEX.test(emailVal)) { err.textContent = t('portal.error.validEmail'); return; }
+      // Photo required enforcement
+      if (createOrderData._photoRequired && filesStandard.length === 0) {
+        err.textContent = 'Please upload at least one photo of the item before submitting.';
+        return;
+      }
+      const conditionVal = document.getElementById('createItemCondition')?.value || '';
       const items = [];
       const reasonCode = document.getElementById('createReason').value;
       checked.forEach(cb => {
         const li = createOrderData.lineItems.find(l => l.id === cb.dataset.id);
-        const maxQty = li ? li.quantity : 1;
+        const returnedQty = (createOrderData._returnedQtyMap || {})[cb.dataset.id] || 0;
+        const availableQty = li ? Math.max(0, (li.quantity || 1) - returnedQty) : 1;
         const qtyInput = document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]');
         let qty = parseInt(qtyInput?.value || '1', 10);
         if (isNaN(qty) || qty < 1) qty = 1;
-        if (qty > maxQty) qty = maxQty;
-        items.push({ lineItemId: cb.dataset.id, qty, reasonCode });
+        if (qty > availableQty) qty = availableQty;
+        items.push({ lineItemId: cb.dataset.id, qty, reasonCode, condition: conditionVal || undefined });
       });
       const lineItemsWithPrice = createOrderData.lineItems.map(li => ({
         id: li.id,
@@ -4758,6 +5119,10 @@
         if (filesStandard.length > 0) {
           customerMedia = await filesToBase64(filesStandard);
         }
+        const selectedResolutionType = (createOrderData._portalExchangeEnabled
+          ? (document.querySelector('input[name="resolutionType"]:checked')?.value || 'refund')
+          : 'refund');
+        const exchangePrefRaw = document.getElementById('exchangePreferenceInput')?.value?.trim() || '';
         const data = await fetchJson(API + '/create-return', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -4768,8 +5133,13 @@
             customerEmail: document.getElementById('createEmail').value.trim() || createOrderData.email || undefined,
             customerPhone: createOrderData.phone || (createOrderData.shippingAddress && createOrderData.shippingAddress.phone) || undefined,
             customerName: createOrderData.shippingAddress ? ((createOrderData.shippingAddress.firstName || '') + ' ' + (createOrderData.shippingAddress.lastName || '')).trim() || undefined : undefined,
-            customerCity: (createOrderData.shippingAddress && createOrderData.shippingAddress.city) || undefined,
-            customerCountry: (createOrderData.shippingAddress && (createOrderData.shippingAddress.country || createOrderData.shippingAddress.countryCode)) || undefined,
+            customerCity: document.getElementById('pickupCity')?.value?.trim() || (createOrderData.shippingAddress && createOrderData.shippingAddress.city) || undefined,
+            customerCountry: document.getElementById('pickupCountry')?.value?.trim() || (createOrderData.shippingAddress && (createOrderData.shippingAddress.country || createOrderData.shippingAddress.countryCode)) || undefined,
+            customerAddress1: document.getElementById('pickupAddress1')?.value?.trim() || undefined,
+            customerAddress2: document.getElementById('pickupAddress2')?.value?.trim() || undefined,
+            customerProvince: document.getElementById('pickupProvince')?.value?.trim() || undefined,
+            customerZip: document.getElementById('pickupZip')?.value?.trim() || undefined,
+            customerLandmark: document.getElementById('pickupLandmark')?.value?.trim() || undefined,
             customerNotes: customNotesRaw || undefined,
             orderCreatedAt: createOrderData.createdAt,
             shippingCountry: createOrderData.shippingCountry,
@@ -4777,7 +5147,9 @@
             currency: createOrderData.currencyCode || window.__RPM_CURRENCY__ || undefined,
             items,
             lineItemsWithPrice,
-            customerMedia: customerMedia.length > 0 ? customerMedia : undefined
+            customerMedia: customerMedia.length > 0 ? customerMedia : undefined,
+            resolutionType: selectedResolutionType,
+            exchangePreference: selectedResolutionType === 'exchange' && exchangePrefRaw ? exchangePrefRaw : undefined,
           })
         });
         document.getElementById('create-step2').classList.remove('active');
@@ -4880,6 +5252,16 @@
       document.getElementById('createManualItems').value = '';
       document.getElementById('createCustomerNotes').value = '';
       document.getElementById('createManualCustomerNotes').value = '';
+      var pidEl;
+      pidEl = document.getElementById('pickupAddress1'); if (pidEl) pidEl.value = '';
+      pidEl = document.getElementById('pickupAddress2'); if (pidEl) pidEl.value = '';
+      pidEl = document.getElementById('pickupCity'); if (pidEl) pidEl.value = '';
+      pidEl = document.getElementById('pickupProvince'); if (pidEl) pidEl.value = '';
+      pidEl = document.getElementById('pickupZip'); if (pidEl) pidEl.value = '';
+      pidEl = document.getElementById('pickupCountry'); if (pidEl) pidEl.value = '';
+      pidEl = document.getElementById('pickupLandmark'); if (pidEl) pidEl.value = '';
+      var condEl = document.getElementById('createItemCondition'); if (condEl) condEl.value = '';
+      var condGrp = document.getElementById('createItemConditionGroup'); if (condGrp) condGrp.style.display = 'none';
       document.getElementById('createErr1').textContent = '';
       document.getElementById('createErr2').textContent = '';
       document.getElementById('createErrManual').textContent = '';

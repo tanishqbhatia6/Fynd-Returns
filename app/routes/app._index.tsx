@@ -153,6 +153,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop.settings ? prisma.blocklistEntry.count({ where: { settingsId: shop.settings.id } }) : Promise.resolve(0),
     ]);
 
+    // Revenue at Risk: sum price*qty for items in initiated/pending/approved cases last 30 days
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const atRiskItems = await prisma.returnItem.findMany({
+      where: {
+        returnCase: {
+          shopId: shop.id,
+          createdAt: { gte: thirtyDaysAgo },
+          status: { in: ["initiated", "pending", "approved"] },
+        },
+      },
+      select: { price: true, qty: true },
+    });
+    let revenueAtRisk = 0;
+    for (const item of atRiskItems) {
+      const p = item.price ? parseFloat(item.price) : 0;
+      if (Number.isFinite(p) && p > 0) revenueAtRisk += p * item.qty;
+    }
+
     const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
     const approvedCount = (statusMap.approved ?? 0) + (statusMap.completed ?? 0);
 
@@ -218,6 +236,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? Math.round(((totalReturns - prevPeriodCount) / Math.max(prevPeriodCount, 1)) * 100)
       : 0;
 
+    const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+    const overdueCount = await prisma.returnCase.count({
+      where: { shopId: shop.id, status: { in: ["initiated", "pending"] }, createdAt: { lt: threeDaysAgo } },
+    });
+
     const suggestions = buildSuggestions({
       totalReturns, pendingCount, rejectedCount, approvedCount,
       approvedNotRefundedCount,
@@ -232,7 +255,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       from: from ?? undefined, to: to ?? undefined, allTimeReturns,
       suggestions, error: null,
       revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
-      resolutionMap,
+      resolutionMap, revenueAtRisk, overdueCount,
       shopLocale: shop?.settings?.shopLocale ?? "en",
       shopCurrency: shop?.settings?.shopCurrency ?? "USD",
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
@@ -251,7 +274,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       suggestions: [] as { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[],
       error: "Failed to load dashboard data. Please refresh or try again later.",
       revenueRetained: 0, exchangeRate: 0, greenReturnCount: 0, blocklistCount: 0,
-      resolutionMap: {} as Record<string, number>,
+      resolutionMap: {} as Record<string, number>, revenueAtRisk: 0, overdueCount: 0,
       shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
     };
   }
@@ -265,7 +288,7 @@ export default function Dashboard() {
     returnsOverTime, periodChange, rangeLabel, range, from, to,
     allTimeReturns, suggestions, error,
     revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
-    resolutionMap, shopLocale, shopCurrency, shopTimezone,
+    resolutionMap, revenueAtRisk, overdueCount, shopLocale, shopCurrency, shopTimezone,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -461,6 +484,24 @@ export default function Dashboard() {
             <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>
               <Link to="/app/settings/blocklist" style={{ color: "var(--rpm-accent, #005bd3)", textDecoration: "none", fontSize: 11, fontWeight: 600 }}>Manage blocklist</Link>
             </div>
+          </div>
+
+          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#F59E0B", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Revenue at risk</div>
+            <span style={{ fontSize: 28, fontWeight: 800, color: revenueAtRisk > 0 ? "#D97706" : "var(--rpm-text, #0f172a)", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+              {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueAtRisk)}
+            </span>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>Pending/active returns (30d)</div>
+          </div>
+
+          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
+            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: overdueCount > 0 ? "#DC2626" : "#10B981", opacity: 0.6, borderRadius: "14px 14px 0 0" }} />
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 8 }}>Overdue returns</div>
+            <span style={{ fontSize: 28, fontWeight: 800, color: overdueCount > 0 ? "#DC2626" : "var(--rpm-text, #0f172a)", letterSpacing: "-0.03em", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+              {overdueCount}
+            </span>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>Pending &gt; 3 days</div>
           </div>
         </div>
 

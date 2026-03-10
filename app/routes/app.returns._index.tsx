@@ -25,6 +25,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const query = url.searchParams.get("query") || "";
   const status = url.searchParams.get("status") || "";
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
+  const resolutionType = url.searchParams.get("resolutionType") || "";
+  const dateFrom = url.searchParams.get("from") || "";
+  const dateTo = url.searchParams.get("to") || "";
 
   let shop = await prisma.shop.findUnique({
     where: { shopDomain: session.shop },
@@ -39,6 +42,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const where: Record<string, unknown> = { shopId: shop.id };
   if (status) where.status = status;
+  if (resolutionType) where.resolutionType = resolutionType;
+  if (dateFrom || dateTo) {
+    const createdAt: Record<string, Date> = {};
+    if (dateFrom) createdAt.gte = new Date(dateFrom + "T00:00:00");
+    if (dateTo) createdAt.lte = new Date(dateTo + "T23:59:59.999");
+    where.createdAt = createdAt;
+  }
   if (query.trim()) {
     const q = query.trim();
     where.OR = [
@@ -324,21 +334,24 @@ export default function ReturnsList() {
   }, [selectableReturns]);
 
   const executeBulkAction = useCallback(
-    async (action: "bulk_approve" | "bulk_reject", reason?: string) => {
+    async (action: "bulk_approve" | "bulk_reject" | "bulk_change_resolution", extra?: { reason?: string; resolutionType?: string }) => {
       const ids = Array.from(selectedIds);
       if (ids.length === 0) return;
       setBulkLoading(true);
       setBulkError(null);
       setBulkSuccess(null);
       try {
+        const payload: Record<string, unknown> = { action, returnIds: ids };
+        if (extra?.reason) payload.rejectionReason = extra.reason;
+        if (extra?.resolutionType) payload.resolutionType = extra.resolutionType;
         const res = await fetch("/api/returns/bulk", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action, returnIds: ids, ...(reason ? { rejectionReason: reason } : {}) }),
+          body: JSON.stringify(payload),
         });
         const data = (await res.json()) as { successCount?: number; errorCount?: number; error?: string; results?: Array<{ id: string; success: boolean; error?: string }> };
         if (!res.ok) { setBulkError(data.error || "Bulk action failed"); return; }
-        const label = action === "bulk_approve" ? "approved" : "rejected";
+        const label = action === "bulk_approve" ? "approved" : action === "bulk_reject" ? "rejected" : "updated";
         if (data.errorCount && data.errorCount > 0) {
           const firstError = (data.results ?? []).find((r) => !r.success)?.error ?? "Unknown error";
           setBulkSuccess(`${data.successCount} ${label}, ${data.errorCount} failed: ${firstError}`);
@@ -362,8 +375,11 @@ export default function ReturnsList() {
     if (!reason) return;
     setShowRejectModal(false);
     setRejectionReason("");
-    executeBulkAction("bulk_reject", reason);
+    executeBulkAction("bulk_reject", { reason });
   }, [rejectionReason, executeBulkAction]);
+  const handleBulkResolutionChange = useCallback((resolutionType: string) => {
+    executeBulkAction("bulk_change_resolution", { resolutionType });
+  }, [executeBulkAction]);
 
   const goToPage = (p: number) => {
     const next = new URLSearchParams(searchParams);
@@ -442,7 +458,7 @@ export default function ReturnsList() {
               style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}
             />
           </div>
-          <div style={{ flex: "0 0 160px" }}>
+          <div style={{ flex: "0 0 140px" }}>
             <label style={S.fieldLabel}>Status</label>
             <select name="status" defaultValue={status} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
               {STATUS_OPTIONS.map((opt) => (
@@ -450,9 +466,27 @@ export default function ReturnsList() {
               ))}
             </select>
           </div>
+          <div style={{ flex: "0 0 140px" }}>
+            <label style={S.fieldLabel}>Resolution</label>
+            <select name="resolutionType" defaultValue={searchParams.get("resolutionType") || ""} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
+              <option value="">All types</option>
+              <option value="refund">Refund</option>
+              <option value="exchange">Exchange</option>
+              <option value="store_credit">Store Credit</option>
+              <option value="replacement">Replacement</option>
+            </select>
+          </div>
+          <div style={{ flex: "0 0 130px" }}>
+            <label style={S.fieldLabel}>From</label>
+            <input type="date" name="from" defaultValue={searchParams.get("from") || ""} className="app-input" style={{ width: "100%", padding: "7px 10px", fontSize: 13 }} />
+          </div>
+          <div style={{ flex: "0 0 130px" }}>
+            <label style={S.fieldLabel}>To</label>
+            <input type="date" name="to" defaultValue={searchParams.get("to") || ""} className="app-input" style={{ width: "100%", padding: "7px 10px", fontSize: 13 }} />
+          </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 1 }}>
             <button type="submit" className="app-btn-primary" style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "#4f46e5", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Search</button>
-            {(query || status) && (
+            {(query || status || searchParams.get("resolutionType") || searchParams.get("from") || searchParams.get("to")) && (
               <Link to="/app/returns" style={{ textDecoration: "none" }}>
                 <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Clear</button>
               </Link>
@@ -460,13 +494,24 @@ export default function ReturnsList() {
           </div>
           {totalCount > 0 && (
             <a
-              href={`/api/returns/export?${new URLSearchParams({ query, status }).toString()}`}
+              href={(() => {
+                const p = new URLSearchParams();
+                if (query) p.set("query", query);
+                if (status) p.set("status", status);
+                const range = searchParams.get("range");
+                const fromDate = searchParams.get("from");
+                const toDate = searchParams.get("to");
+                if (range) p.set("range", range);
+                if (fromDate) p.set("from", fromDate);
+                if (toDate) p.set("to", toDate);
+                return `/api/returns/export?${p.toString()}`;
+              })()}
               target="_blank" rel="noopener noreferrer"
               style={{ textDecoration: "none", marginLeft: "auto" }}
             >
               <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                Export CSV
+                Export current view
               </button>
             </a>
           )}
@@ -546,14 +591,18 @@ export default function ReturnsList() {
                   </thead>
                   <tbody>
                     {returns.map((r) => {
-                      const fyndRetId = (r as { fyndReturnId?: string | null }).fyndReturnId;
-                      const fyndRetNo = (r as { fyndReturnNo?: string | null }).fyndReturnNo;
-                      const fyndShipId = (r as { fyndShipmentId?: string | null }).fyndShipmentId;
-                      const fyndOrdId = (r as { fyndOrderId?: string | null }).fyndOrderId;
+                      const fyndRetId = r.fyndReturnId;
+                      const fyndRetNo = r.fyndReturnNo;
+                      const fyndShipId = r.fyndShipmentId;
+                      const fyndOrdId = r.fyndOrderId;
+                      // Aging indicator for pending returns
+                      const ageDays = Math.floor((Date.now() - new Date(r.createdAt).getTime()) / (1000 * 60 * 60 * 24));
+                      const isPending = ["initiated", "pending", "processing"].includes(r.status.toLowerCase());
+                      const ageColor = !isPending ? null : ageDays > 5 ? "#DC2626" : ageDays > 2 ? "#D97706" : "#16A34A";
                       const hasFynd = !!(fyndRetId || fyndRetNo || fyndShipId);
                       const isSelectable = selectableIds.has(r.id);
                       const isSelected = selectedIds.has(r.id);
-                      const resType = (r as { resolutionType?: string }).resolutionType;
+                      const resType = r.resolutionType;
 
                       return (
                         <tr
@@ -592,7 +641,7 @@ export default function ReturnsList() {
                               onClick={(e) => e.stopPropagation()}
                               style={S.returnIdLink}
                             >
-                              {(r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)}
+                              {r.returnRequestNo ?? formatReturnRequestId(r.id)}
                             </Link>
                           </td>
 
@@ -647,6 +696,12 @@ export default function ReturnsList() {
                               )}
                               {hasFynd && r.status === "approved" && (
                                 <span style={{ fontSize: 10, color: "#059669", fontWeight: 600 }}>Fynd synced</span>
+                              )}
+                              {ageColor && (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: ageColor, fontWeight: 600 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: "50%", background: ageColor, flexShrink: 0 }} />
+                                  {ageDays}d
+                                </span>
                               )}
                             </div>
                           </td>
@@ -740,6 +795,23 @@ export default function ReturnsList() {
         >
           Reject
         </button>
+        <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.15)" }} />
+        <select
+          disabled={bulkLoading}
+          defaultValue=""
+          onChange={(e) => { if (e.target.value) { handleBulkResolutionChange(e.target.value); e.target.value = ""; } }}
+          style={{
+            padding: "7px 10px", borderRadius: 7, border: "1px solid rgba(255,255,255,0.25)",
+            background: "rgba(255,255,255,0.1)", color: "#fff",
+            fontSize: 12, fontWeight: 600, cursor: "pointer",
+          }}
+        >
+          <option value="" disabled>Change resolution...</option>
+          <option value="refund">Refund</option>
+          <option value="exchange">Exchange</option>
+          <option value="store_credit">Store Credit</option>
+          <option value="replacement">Replacement</option>
+        </select>
         <button
           onClick={() => setSelectedIds(new Set())}
           disabled={bulkLoading}

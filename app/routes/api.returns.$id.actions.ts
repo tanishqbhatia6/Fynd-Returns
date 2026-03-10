@@ -5,7 +5,9 @@ import prisma from "../db.server";
 import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNumber, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification } from "../lib/notification.server";
+import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
+
+const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 
 function enrichFyndError(msg: string): string {
   if (!msg) return msg;
@@ -74,8 +76,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (!id) return Response.json({ error: "Return ID required" }, { status: 400 });
 
   const { session, admin } = await authenticate.admin(request);
-  const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
-  if (!shop) return Response.json({ error: "Shop not found" }, { status: 404 });
+  const sessionEmail = (session as unknown as { email?: string | null }).email ?? null;
+  const shopWithSettings = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
+  if (!shopWithSettings) return Response.json({ error: "Shop not found" }, { status: 404 });
+  const shop = shopWithSettings;
 
   const returnCase = await prisma.returnCase.findFirst({
     where: { id, shopId: shop.id },
@@ -83,8 +87,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   });
   if (!returnCase) return Response.json({ error: "Return not found" }, { status: 404 });
 
-  const terminalStatuses = ["approved", "rejected", "completed", "cancelled"];
-  const isTerminal = terminalStatuses.includes(returnCase.status.toLowerCase());
+  const isTerminal = TERMINAL_STATUSES.includes(returnCase.status.toLowerCase());
 
   let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string; refundMethod?: string; storeCreditPct?: number; bonusAmount?: number; resolutionType?: string; exchangeItems?: Array<{ variantId: string; quantity: number }> };
   const contentType = request.headers.get("content-type") || "";
@@ -113,6 +116,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (noteVal !== null && noteVal !== undefined) body.note = noteVal;
     if (notesForCustomerVal !== null && notesForCustomerVal !== undefined) body.notesForCustomer = notesForCustomerVal;
     if (rejectionReasonVal !== null && rejectionReasonVal !== undefined) body.rejectionReason = rejectionReasonVal;
+    // Address fields for edit_details
+    const addrFields = ["customerAddress1", "customerAddress2", "customerCity", "customerProvince", "customerZip", "customerCountry", "customerLandmark"] as const;
+    for (const field of addrFields) {
+      const val = formData.get(field) as string | null;
+      if (val !== null) (body as Record<string, unknown>)[field] = val;
+    }
   }
 
   const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId, refundMethod: bodyRefundMethod, storeCreditPct: bodyStoreCreditPct, bonusAmount: bodyBonusAmount, resolutionType: bodyResolutionType, exchangeItems: bodyExchangeItems } = body;
@@ -132,7 +141,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         returnCaseId: id,
         source: "admin",
         eventType: "status_updated",
-        payloadJson: JSON.stringify({ from: returnCase.status, to: newStatus, note }),
+        payloadJson: JSON.stringify({ from: returnCase.status, to: newStatus, note, adminEmail: sessionEmail }),
       },
     });
     throw redirect(`/app/returns/${id}`);
@@ -148,7 +157,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         returnCaseId: id,
         source: "admin",
         eventType: "note_added",
-        payloadJson: note ? JSON.stringify({ note }) : null,
+        payloadJson: JSON.stringify({ note: note || null, adminEmail: sessionEmail }),
       },
     });
     throw redirect(`/app/returns/${id}`);
@@ -165,9 +174,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         returnCaseId: id,
         source: "admin",
         eventType: "notes_for_customer_published",
-        payloadJson: notesForCustomer ? JSON.stringify({ notesForCustomer }) : null,
+        payloadJson: notesForCustomer ? JSON.stringify({ notesForCustomer, adminEmail: sessionEmail }) : null,
       },
     });
+    // Send email notification to customer when a note is published
+    if (val && returnCase.customerEmailNorm) {
+      sendCustomerNoteNotification({
+        shopDomain: session.shop,
+        to: returnCase.customerEmailNorm,
+        orderName: returnCase.shopifyOrderName,
+        note: val,
+        shopName: undefined,
+        returnId: returnCase.returnRequestNo ?? returnCase.id,
+      }).catch((e) => console.warn("[save_notes_for_customer] Notification failed:", e));
+    }
     throw redirect(`/app/returns/${id}`);
   }
 
@@ -183,14 +203,51 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     let fyndShipmentId: string | null = null;
     let fyndPayloadJson: string | null = null;
 
+    const settingsForApprove = shop.settings as NonNullable<typeof shop.settings> & { fyndApiType?: string | null; fyndConsolidateReturns?: boolean; fyndConsolidateWindowHours?: number } | undefined;
+
+    // Consolidation mode: queue for batch instead of immediate Fynd sync
+    const consolidateEnabled = settingsForApprove?.fyndConsolidateReturns === true;
+    if (consolidateEnabled && !isGreenReturn) {
+      const validResolutionTypes = ["refund", "exchange", "store_credit", "replacement"];
+      const resolvedType = bodyResolutionType && validResolutionTypes.includes(bodyResolutionType)
+        ? bodyResolutionType
+        : "refund";
+      await prisma.returnCase.update({
+        where: { id },
+        data: {
+          status: "approved",
+          resolutionType: resolvedType,
+          adminNotes: note || returnCase.adminNotes,
+          fyndSyncStatus: "pending_consolidation",
+        },
+      });
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "approved",
+          payloadJson: JSON.stringify({ note: note || null, resolutionType: resolvedType, consolidation: true, adminEmail: sessionEmail }),
+        },
+      });
+      if (returnCase.customerEmailNorm) {
+        try {
+          await sendApprovalNotification({
+            shopDomain: session.shop,
+            to: returnCase.customerEmailNorm,
+            orderName: returnCase.shopifyOrderName || "your order",
+            notes: note || undefined,
+            shopName: session.shop?.replace(".myshopify.com", ""),
+          });
+        } catch (err) {
+          console.warn("[Approve] Consolidation notification failed:", err);
+        }
+      }
+      throw redirect(`/app/returns/${id}?consolidationQueued=1`);
+    }
+
     if (isGreenReturn) {
       console.log(`[Approve] Green return ${id} — skipping Fynd sync (no shipment needed)`);
     } else {
-      const shopWithSettings = await prisma.shop.findUnique({
-        where: { id: shop.id },
-        include: { settings: true },
-      });
-      const settingsForApprove = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
       const fyndClientResult = settingsForApprove
         ? await createFyndClientOrError(settingsForApprove, { requirePlatform: true })
         : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations and connect Fynd with Platform API to create returns on Fynd." };
@@ -204,7 +261,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           affiliateOrderId = order?.affiliateOrderId ?? null;
         }
         try {
-          const fyndResult = await createReturnOnFynd(fyndClient, returnCase, { affiliateOrderId });
+          const fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
+            affiliateOrderId,
+            pickupAddress: returnCase.customerAddress1 || returnCase.customerCity ? {
+              address1: returnCase.customerAddress1 ?? null,
+              address2: returnCase.customerAddress2 ?? null,
+              city: returnCase.customerCity ?? null,
+              province: returnCase.customerProvince ?? null,
+              zip: returnCase.customerZip ?? null,
+              country: returnCase.customerCountry ?? null,
+              landmark: returnCase.customerLandmark ?? null,
+              name: returnCase.customerName ?? null,
+              phone: returnCase.customerPhoneNorm ?? null,
+            } : null,
+          });
           if (fyndResult.success && fyndResult.fyndReturnId) {
             fyndReturnId = fyndResult.fyndReturnId;
             fyndReturnNo = fyndResult.fyndReturnNo ?? null;
@@ -259,6 +329,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           resolutionType: resolvedType,
           fyndReturnId: fyndReturnId || null,
           fyndReturnNo: fyndReturnNo || null,
+          adminEmail: sessionEmail,
         }),
       },
     });
@@ -291,11 +362,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (returnCase.fyndReturnId) {
       throw redirect(`/app/returns/${id}?fyndSuccess=already_synced`);
     }
-    const shopWithSettings = await prisma.shop.findUnique({
-      where: { id: shop.id },
-      include: { settings: true },
-    });
-    const settingsRetry = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
+    const settingsRetry = shop.settings as NonNullable<typeof shop.settings> & { fyndApiType?: string | null } | undefined;
     const fyndRetryResult = settingsRetry
       ? await createFyndClientOrError(settingsRetry, { requirePlatform: true })
       : { ok: false as const, error: "Fynd is not configured. Configure Fynd with Platform API in Settings → Integrations." };
@@ -313,7 +380,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
       affiliateOrderId = order?.affiliateOrderId ?? null;
     }
-    const fyndResult = await createReturnOnFynd(fyndClient, returnCase, { affiliateOrderId });
+    const fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
+      affiliateOrderId,
+      pickupAddress: returnCase.customerAddress1 || returnCase.customerCity ? {
+        address1: returnCase.customerAddress1 ?? null,
+        address2: returnCase.customerAddress2 ?? null,
+        city: returnCase.customerCity ?? null,
+        province: returnCase.customerProvince ?? null,
+        zip: returnCase.customerZip ?? null,
+        country: returnCase.customerCountry ?? null,
+        landmark: returnCase.customerLandmark ?? null,
+        name: returnCase.customerName ?? null,
+        phone: returnCase.customerPhoneNorm ?? null,
+      } : null,
+    });
     const hasFyndId = fyndResult.fyndReturnId ?? fyndResult.fyndShipmentId;
     if (fyndResult.success && (hasFyndId || fyndResult.alreadyExists)) {
       let payloadJson: string | null = null;
@@ -341,6 +421,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             fyndReturnId: fyndResult.fyndReturnId,
             fyndReturnNo: fyndResult.fyndReturnNo ?? null,
             alreadyExists: fyndResult.alreadyExists ?? false,
+            adminEmail: sessionEmail,
           }),
         },
       });
@@ -359,11 +440,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (!externalOrderId || returnCase.shopifyOrderId?.startsWith("manual:")) {
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("No order number. Refresh from Fynd requires a valid order number.")}`);
     }
-    const shopWithSettings = await prisma.shop.findUnique({
-      where: { id: shop.id },
-      include: { settings: true },
-    });
-    const settings = shopWithSettings?.settings as NonNullable<typeof shopWithSettings>["settings"] & { fyndApiType?: string | null } | undefined;
+    const settings = shop.settings as NonNullable<typeof shop.settings> & { fyndApiType?: string | null } | undefined;
     const fyndResult = settings
       ? await createFyndClientOrError(settings, { requirePlatform: true })
       : { ok: false as const, error: "Fynd is not configured. Go to Settings → Integrations." };
@@ -447,7 +524,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         returnCaseId: id,
         source: "admin",
         eventType: "rejected",
-        payloadJson: JSON.stringify({ rejectionReason: reason, note: note || null }),
+        payloadJson: JSON.stringify({ rejectionReason: reason, note: note || null, adminEmail: sessionEmail }),
       },
     });
     if (returnCase.customerEmailNorm) {
@@ -538,15 +615,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }
       }
 
-      const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-      const bonusCreditEnabled = shopSettings?.bonusCreditEnabled ?? false;
-      const bonusCreditPct = shopSettings?.bonusCreditPct ?? 10;
+      const bonusCreditEnabled = shop.settings?.bonusCreditEnabled ?? false;
+      const bonusCreditPct = shop.settings?.bonusCreditPct ?? 10;
       const isGreenReturn = returnCase.isGreenReturn === true;
 
       if (bodyRefundMethod === "discount_code") {
-        const shopSettingsForDiscount = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-        const prefix = shopSettingsForDiscount?.discountCodePrefix || "RETURN";
-        const expiryDays = shopSettingsForDiscount?.discountCodeExpiryDays ?? 90;
+        const prefix = shop.settings?.discountCodePrefix || "RETURN";
+        const expiryDays = shop.settings?.discountCodeExpiryDays ?? 90;
         const returnRequestNo = (returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id.slice(0, 8).toUpperCase();
 
         const dcResult = await createDiscountCodeRefund(admin, {
@@ -597,7 +672,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             returnCaseId: id,
             source: "admin",
             eventType: "refund_processed",
-            payloadJson: JSON.stringify({ ...refundDetails, note: "Discount code refund created" }),
+            payloadJson: JSON.stringify({ ...refundDetails, note: "Discount code refund created", adminEmail: sessionEmail }),
           },
         });
 
@@ -618,12 +693,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         throw redirect(`/app/returns/${id}`);
       }
 
+      // Validate storeCreditPct when method is "both"
+      if (bodyRefundMethod === "both") {
+        const pct = Number(bodyStoreCreditPct ?? shop.settings?.refundStoreCreditPct ?? 50);
+        if (isNaN(pct) || pct < 5 || pct > 95) {
+          return Response.json({ error: "Store credit percentage must be between 5 and 95." }, { status: 400 });
+        }
+      }
+
       let refundMethodCfg: RefundMethodConfig | null = null;
       if (bodyRefundMethod && ["original", "store_credit", "both"].includes(bodyRefundMethod)) {
         refundMethodCfg = { method: bodyRefundMethod as "original" | "store_credit" | "both", storeCreditPct: bodyStoreCreditPct };
       } else {
-        const settingsMethod = shopSettings?.refundPaymentMethod ?? "original";
-        const settingsPct = shopSettings?.refundStoreCreditPct ?? 100;
+        const settingsMethod = shop.settings?.refundPaymentMethod ?? "original";
+        const settingsPct = shop.settings?.refundStoreCreditPct ?? 100;
         if (["original", "store_credit", "both"].includes(settingsMethod)) {
           refundMethodCfg = { method: settingsMethod as "original" | "store_credit" | "both", storeCreditPct: settingsPct };
         }
@@ -696,6 +779,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             ...refundDetails,
             note: "Refund created in Shopify",
             ...(bonusAmount > 0 ? { bonusCreditAmount: bonusAmount.toFixed(2), bonusCreditPct } : {}),
+            adminEmail: sessionEmail,
           }),
         },
       });
@@ -745,6 +829,25 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
       if (returnCase.shopifyOrderId?.startsWith("manual:")) {
         return Response.json({ error: "Cannot create exchange for manual returns" }, { status: 400 });
+      }
+
+      // Fynd status gate: exchange order can only be created after bag is received at warehouse
+      const FYND_EXCHANGE_ALLOWED_STATUSES = new Set([
+        "return_bag_delivered", "return_accepted", "rto_bag_accepted", "deadstock",
+        "refund_approved", "refund_initiated", "refund_completed", "return_completed",
+        "deadstock_defective", "return_bag_lost", "rto_bag_delivered",
+      ]);
+      if (returnCase.fyndReturnId) {
+        let fyndCurrentStatus: string | null = null;
+        try {
+          const payload = returnCase.fyndPayloadJson ? JSON.parse(returnCase.fyndPayloadJson) as Record<string, unknown> : null;
+          fyndCurrentStatus = payload?.status ? String(payload.status) : null;
+        } catch { /* ignore */ }
+        if (fyndCurrentStatus && !FYND_EXCHANGE_ALLOWED_STATUSES.has(fyndCurrentStatus)) {
+          return Response.json({
+            error: `Exchange order can only be created after the return bag is received at the warehouse. Current Fynd status: "${fyndCurrentStatus}". Wait until the status is "return_bag_delivered" or later.`,
+          }, { status: 400 });
+        }
       }
 
       const order = returnCase.shopifyOrderId
@@ -858,6 +961,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             draftOrderId: draftOrder.id,
             draftOrderName: draftOrder.name,
             itemCount: exchangeItemsData.length,
+            adminEmail: sessionEmail,
           }),
         },
       });
@@ -910,6 +1014,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       trackingNumber: trackingNumber || null,
       labelUrl: labelUrl || null,
       qrCodeUrl: qrCodeUrl || null,
+      adminEmail: sessionEmail,
     });
 
     await prisma.returnCase.update({
@@ -933,23 +1038,17 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (actionType === "update_instructions") {
     const instructions = (bodyReturnInstructions ?? "").trim();
 
-    const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-    if (shopSettings) {
-      await prisma.shopSettings.update({
-        where: { shopId: shop.id },
-        data: { defaultReturnInstructions: instructions || null },
-      });
-    } else {
-      await prisma.shopSettings.create({
-        data: { shopId: shop.id, defaultReturnInstructions: instructions || null },
-      });
-    }
+    await prisma.shopSettings.upsert({
+      where: { shopId: shop.id },
+      create: { shopId: shop.id, defaultReturnInstructions: instructions || null },
+      update: { defaultReturnInstructions: instructions || null },
+    });
     await prisma.returnEvent.create({
       data: {
         returnCaseId: id,
         source: "admin",
         eventType: "instructions_updated",
-        payloadJson: JSON.stringify({ returnInstructions: instructions || null }),
+        payloadJson: JSON.stringify({ returnInstructions: instructions || null, adminEmail: sessionEmail }),
       },
     });
     throw redirect(`/app/returns/${id}`);
@@ -1031,6 +1130,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             refund: doRefundCancel,
             restock: doRestock,
             note: note || null,
+            adminEmail: sessionEmail,
           }),
         },
       });
@@ -1044,6 +1144,29 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       console.error("[cancel_order] Error:", err);
       return Response.json({ error: message }, { status: 500 });
     }
+  }
+
+  if (actionType === "edit_details") {
+    const b = body as Record<string, unknown>;
+    const trim = (v: unknown, max = 500) => typeof v === "string" ? v.trim().slice(0, max) || null : null;
+    const updateData: Record<string, string | null> = {};
+    if ("customerAddress1" in b) updateData.customerAddress1 = trim(b.customerAddress1);
+    if ("customerAddress2" in b) updateData.customerAddress2 = trim(b.customerAddress2);
+    if ("customerCity" in b) updateData.customerCity = trim(b.customerCity, 100);
+    if ("customerProvince" in b) updateData.customerProvince = trim(b.customerProvince, 100);
+    if ("customerZip" in b) updateData.customerZip = trim(b.customerZip, 20);
+    if ("customerCountry" in b) updateData.customerCountry = trim(b.customerCountry, 100);
+    if ("customerLandmark" in b) updateData.customerLandmark = trim(b.customerLandmark);
+    await prisma.returnCase.update({ where: { id }, data: updateData });
+    await prisma.returnEvent.create({
+      data: {
+        returnCaseId: id,
+        source: "admin",
+        eventType: "details_edited",
+        payloadJson: JSON.stringify({ fields: Object.keys(updateData), adminEmail: sessionEmail }),
+      },
+    });
+    throw redirect(`/app/returns/${id}`);
   }
 
   return Response.json({ error: "Unknown action" }, { status: 400 });

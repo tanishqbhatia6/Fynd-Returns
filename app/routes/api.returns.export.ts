@@ -44,10 +44,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         { status: 400, headers: { "Content-Type": "text/plain" } }
       );
     }
+
     const returns = await prisma.returnCase.findMany({
       where,
       orderBy: { createdAt: "desc" },
       take: MAX_EXPORT_ROWS,
+      include: { items: true, events: { orderBy: { happenedAt: "asc" } } },
     });
 
     const escape = (v: string | null | undefined) => {
@@ -58,32 +60,121 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         : s;
     };
 
+    const formatId = (r: { returnRequestNo?: string | null; id: string }) => {
+      const rno = r.returnRequestNo;
+      if (rno) return rno;
+      return `RPM-${r.id.slice(-8).toUpperCase().replace(/[^A-Z0-9]/g, "X")}`;
+    };
+
     const headers = [
       "Return Request ID",
       "Order",
-      "Return #",
-      "Forward AWB",
-      "Return AWB",
       "Status",
+      "Resolution Type",
+      "Customer Name",
       "Customer Email",
+      "Customer Phone",
+      "Customer City",
+      "Customer Country",
+      "Customer Address 1",
+      "Customer Address 2",
+      "Customer Province",
+      "Customer Zip",
+      "Customer Landmark",
+      "Fynd Return #",
+      "Fynd Return ID",
+      "Fynd Shipment ID",
+      "Return AWB",
+      "Forward AWB",
       "Refund Status",
-      "Created",
+      "Refund Method",
+      "Refund Amount",
+      "Refund Currency",
+      "Refund Date",
+      "Approved At",
+      "Created At",
+      "Updated At",
+      "Item SKU",
+      "Item Title",
+      "Item Qty",
+      "Item Price",
+      "Item Condition",
+      "Item Reason Code",
     ];
-    const formatReturnRequestId = (id: string) => {
-      if (!id || id.length < 8) return id;
-      return `RPM-${id.slice(-8).toUpperCase().replace(/[^A-Z0-9]/g, "X")}`;
+
+    type ReturnCaseWithRelations = typeof returns[0];
+
+    const parseRefundJson = (rc: ReturnCaseWithRelations) => {
+      try {
+        if (!rc.refundJson) return { method: null, amount: null, currency: null, date: null };
+        const j = JSON.parse(rc.refundJson) as { method?: string; amount?: string | number; currency?: string; createdAt?: string };
+        return {
+          method: j.method ?? null,
+          amount: j.amount != null ? String(j.amount) : null,
+          currency: j.currency ?? null,
+          date: j.createdAt ?? null,
+        };
+      } catch { return { method: null, amount: null, currency: null, date: null }; }
     };
-    const rows = returns.map((r) => [
-      escape((r as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(r.id)),
-      escape(r.shopifyOrderName),
-      escape(r.fyndReturnNo),
-      escape(r.forwardAwb),
-      escape(r.returnAwb),
-      escape(r.status),
-      escape(r.customerEmailNorm),
-      escape(r.refundStatus),
-      escape(r.createdAt ? new Date(r.createdAt).toISOString() : ""),
-    ]);
+
+    const getEventTimestamp = (rc: ReturnCaseWithRelations, eventType: string): string | null => {
+      const ev = rc.events.find((e) => e.eventType === eventType);
+      return ev?.happenedAt ? new Date(ev.happenedAt).toISOString() : null;
+    };
+
+    const rows: string[][] = [];
+
+    for (const rc of returns) {
+      const refund = parseRefundJson(rc);
+      const approvedAt = getEventTimestamp(rc, "approved");
+      const rcTyped = rc;
+
+      const caseFields = [
+        escape(formatId(rcTyped)),
+        escape(rc.shopifyOrderName),
+        escape(rc.status),
+        escape(rc.resolutionType),
+        escape(rc.customerName),
+        escape(rc.customerEmailNorm),
+        escape(rc.customerPhoneNorm),
+        escape(rc.customerCity),
+        escape(rc.customerCountry),
+        escape(rcTyped.customerAddress1),
+        escape(rcTyped.customerAddress2),
+        escape(rcTyped.customerProvince),
+        escape(rcTyped.customerZip),
+        escape(rcTyped.customerLandmark),
+        escape(rc.fyndReturnNo),
+        escape(rc.fyndReturnId),
+        escape(rcTyped.fyndShipmentId),
+        escape(rc.returnAwb),
+        escape(rc.forwardAwb),
+        escape(rc.refundStatus),
+        escape(refund.method),
+        escape(refund.amount),
+        escape(refund.currency),
+        escape(refund.date),
+        escape(approvedAt),
+        escape(rc.createdAt ? new Date(rc.createdAt).toISOString() : ""),
+        escape(rc.updatedAt ? new Date(rc.updatedAt).toISOString() : ""),
+      ];
+
+      if (rc.items.length === 0) {
+        rows.push([...caseFields, "", "", "", "", "", ""]);
+      } else {
+        for (const item of rc.items) {
+          rows.push([
+            ...caseFields,
+            escape(item.sku),
+            escape(item.title),
+            escape(String(item.qty)),
+            escape(item.price),
+            escape(item.condition),
+            escape(item.reasonCode),
+          ]);
+        }
+      }
+    }
 
     const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
     const filename = `returns-export-${new Date().toISOString().slice(0, 10)}.csv`;

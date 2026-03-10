@@ -10,9 +10,10 @@ const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 const MAX_BULK_IDS = 100;
 
 interface BulkRequestBody {
-  action: "bulk_approve" | "bulk_reject";
+  action: "bulk_approve" | "bulk_reject" | "bulk_change_resolution";
   returnIds: string[];
   rejectionReason?: string;
+  resolutionType?: string;
 }
 
 interface BulkResultItem {
@@ -43,11 +44,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const { action: actionType, returnIds, rejectionReason } = body;
 
-  if (!actionType || !["bulk_approve", "bulk_reject"].includes(actionType)) {
+  if (!actionType || !["bulk_approve", "bulk_reject", "bulk_change_resolution"].includes(actionType)) {
     return Response.json(
-      { error: "Invalid action. Must be bulk_approve or bulk_reject." },
+      { error: "Invalid action. Must be bulk_approve, bulk_reject, or bulk_change_resolution." },
       { status: 400 },
     );
+  }
+
+  const VALID_RESOLUTION_TYPES = ["refund", "exchange", "store_credit", "replacement"];
+  if (actionType === "bulk_change_resolution") {
+    if (!body.resolutionType || !VALID_RESOLUTION_TYPES.includes(body.resolutionType)) {
+      return Response.json(
+        { error: `resolutionType must be one of: ${VALID_RESOLUTION_TYPES.join(", ")}` },
+        { status: 400 },
+      );
+    }
   }
 
   if (!Array.isArray(returnIds) || returnIds.length === 0) {
@@ -213,6 +224,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           success: false,
           error: err instanceof Error ? err.message : "Unknown error",
         });
+      }
+    }
+  }
+
+  if (actionType === "bulk_change_resolution") {
+    const newResType = body.resolutionType!;
+    for (const rc of returnCases) {
+      if (["rejected", "cancelled"].includes(rc.status.toLowerCase())) {
+        results.push({ id: rc.id, success: false, error: `Cannot change resolution: return is ${rc.status}` });
+        continue;
+      }
+      try {
+        await prisma.returnCase.update({
+          where: { id: rc.id },
+          data: { resolutionType: newResType },
+        });
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: rc.id,
+            source: "admin",
+            eventType: "resolution_changed",
+            payloadJson: JSON.stringify({ resolutionType: newResType, previousType: rc.resolutionType, bulk: true }),
+          },
+        });
+        results.push({ id: rc.id, success: true });
+      } catch (err) {
+        console.error(`[BulkResolution] Failed for ${rc.id}:`, err);
+        results.push({ id: rc.id, success: false, error: err instanceof Error ? err.message : "Unknown error" });
       }
     }
   }

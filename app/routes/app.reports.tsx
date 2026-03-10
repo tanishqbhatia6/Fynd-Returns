@@ -131,6 +131,53 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (times.length > 0) avgProcessingDays = times.reduce((a, b) => a + b, 0) / times.length;
     }
 
+    // Revenue analytics queries
+    const [refundedCasesForRevenue, topProductsByReturns, customerReturnFrequency] = await Promise.all([
+      prisma.returnCase.findMany({
+        where: { ...where, status: { in: ["approved", "completed"] }, refundJson: { not: null } },
+        select: { refundJson: true, currency: true },
+      }),
+      prisma.returnItem.groupBy({
+        by: ["title"],
+        where: { returnCase: where, title: { not: null } },
+        _count: { title: true },
+        orderBy: { _count: { title: "desc" } },
+        take: 10,
+      }),
+      prisma.returnCase.groupBy({
+        by: ["customerEmailNorm"],
+        where: { ...where, customerEmailNorm: { not: null } },
+        _count: { customerEmailNorm: true },
+        orderBy: { _count: { customerEmailNorm: "desc" } },
+        take: 10,
+      }),
+    ]);
+
+    // Sum refund amounts
+    let totalRefundAmount = 0;
+    const refundMethodCounts: Record<string, number> = {};
+    for (const rc of refundedCasesForRevenue) {
+      try {
+        const parsed = JSON.parse(rc.refundJson ?? "{}");
+        const amt = parseFloat(parsed.amount ?? "0");
+        if (Number.isFinite(amt) && amt > 0) totalRefundAmount += amt;
+        const method = String(parsed.method ?? "unknown");
+        refundMethodCounts[method] = (refundMethodCounts[method] ?? 0) + 1;
+      } catch { /* skip */ }
+    }
+
+    const topProductsData = topProductsByReturns
+      .filter((r) => r.title != null)
+      .map((r) => ({ title: String(r.title), count: r._count.title }));
+
+    const customerFrequencyData = customerReturnFrequency
+      .filter((r) => r.customerEmailNorm != null)
+      .map((r) => ({ email: String(r.customerEmailNorm), count: r._count.customerEmailNorm }));
+
+    const refundMethodBreakdown = Object.entries(refundMethodCounts)
+      .map(([method, count]) => ({ method, count }))
+      .sort((a, b) => b.count - a.count);
+
     const prevPeriodStart = new Date(rangeStart);
     prevPeriodStart.setTime(prevPeriodStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime()));
     const prevPeriodCount = await prisma.returnCase.count({
@@ -151,6 +198,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopLocale: shop?.settings?.shopLocale ?? "en",
       shopCurrency: shop?.settings?.shopCurrency ?? "USD",
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
+      // Revenue analytics
+      totalRefundAmount,
+      topProductsData,
+      customerFrequencyData,
+      refundMethodBreakdown,
     };
   } catch (err) {
     console.error("Reports loader error:", err);
@@ -169,6 +221,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       resolutionChartData: [] as { name: string; value: number; color: string }[],
       revenueRetained: 0, greenReturnCount: 0,
       shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
+      totalRefundAmount: 0,
+      topProductsData: [] as { title: string; count: number }[],
+      customerFrequencyData: [] as { email: string; count: number }[],
+      refundMethodBreakdown: [] as { method: string; count: number }[],
     };
   }
 };
@@ -201,6 +257,7 @@ export default function Reports() {
     hasFyndConfig, error,
     resolutionChartData, revenueRetained, greenReturnCount,
     shopLocale, shopCurrency, shopTimezone,
+    totalRefundAmount, topProductsData, customerFrequencyData, refundMethodBreakdown,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -353,7 +410,7 @@ export default function Reports() {
                     <Tooltip
                       contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
                       formatter={(value: number | undefined) => [value ?? 0, "Returns"]}
-                      labelFormatter={(label) => `${label}`}
+                      labelFormatter={(label: string) => `${label}`}
                     />
                     <Area type="monotone" dataKey="returns" stroke="#3b82f6" strokeWidth={2} fill="url(#rptGrad)"
                       dot={returnsOverTime.length < 15 ? { r: 3, fill: "#3b82f6" } : false} />
@@ -653,6 +710,85 @@ export default function Reports() {
                   <strong>Returns down {Math.abs(periodChange)}%</strong> — Return rate is decreasing.
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ── Revenue Impact ── */}
+        {(totalRefundAmount > 0 || refundMethodBreakdown.length > 0) && (
+          <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+            <div style={{ ...cardStyle }}>
+              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "var(--rpm-text)" }}>Revenue Impact</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>Total refunds issued</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#DC2626" }}>
+                    {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalRefundAmount)}
+                  </span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>Revenue retained (credit/exchange)</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#059669" }}>
+                    {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
+                  </span>
+                </div>
+              </div>
+            </div>
+            {refundMethodBreakdown.length > 0 && (
+              <div style={{ ...cardStyle }}>
+                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "var(--rpm-text)" }}>Refund Method Breakdown</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {refundMethodBreakdown.map((item) => (
+                    <div key={item.method} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                      <span style={{ fontSize: 13, color: "var(--rpm-text-muted)", textTransform: "capitalize" }}>{item.method.replace(/_/g, " ")}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{item.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Top Products by Returns ── */}
+        {topProductsData.length > 0 && (
+          <div style={{ ...cardStyle, marginTop: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "var(--rpm-text)" }}>Top 10 Products by Return Count</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {topProductsData.map((item, idx) => {
+                const maxCount = topProductsData[0]?.count || 1;
+                const pct = Math.round((item.count / maxCount) * 100);
+                return (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", width: 18, textAlign: "right" }}>{idx + 1}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{item.title}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>{item.count}</span>
+                      </div>
+                      <div style={{ height: 5, borderRadius: 3, background: "#E5E7EB" }}>
+                        <div style={{ height: "100%", borderRadius: 3, background: "#3B82F6", width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Customer Return Frequency ── */}
+        {customerFrequencyData.length > 0 && customerFrequencyData[0].count >= 2 && (
+          <div style={{ ...cardStyle, marginTop: 20 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: "var(--rpm-text)" }}>Top Customers by Return Frequency</div>
+            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 12 }}>Customers with the highest return counts in this period</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {customerFrequencyData.filter(c => c.count >= 2).map((item, idx) => (
+                <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", borderRadius: 8, background: item.count >= 3 ? "#FEF2F2" : "#F9FAFB" }}>
+                  <span style={{ fontSize: 12, color: item.count >= 3 ? "#DC2626" : "var(--rpm-text-muted)" }}>{item.email}</span>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: item.count >= 3 ? "#DC2626" : "#374151", padding: "1px 8px", borderRadius: 20, background: item.count >= 3 ? "#FEE2E2" : "#E5E7EB" }}>{item.count} returns</span>
+                </div>
+              ))}
             </div>
           </div>
         )}

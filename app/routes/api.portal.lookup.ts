@@ -1,4 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import crypto from "crypto";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, parseFyndOrderDetailsForTab, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
@@ -7,6 +8,15 @@ import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid } from ".
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
+import { sendOtpEmail } from "../lib/notification.server";
+
+const OTP_TTL_MS = 10 * 60 * 1000; // 10 min
+const OTP_COOLDOWN_MS = 60_000; // 60s resend cooldown
+const MAX_OTP_ATTEMPTS = 5;
+
+function hashOtp(otp: string): string {
+  return crypto.createHash("sha256").update(otp).digest("hex");
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -25,7 +35,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
-    const { shop, lookupType, lookupValue } = await request.json();
+    const body = await request.json() as { shop?: string; lookupType?: string; lookupValue?: string; portalToken?: string; sessionId?: string };
+    const { shop, lookupType, lookupValue, portalToken, sessionId } = body;
     if (!shop || !lookupType || !lookupValue) {
       return withCors(Response.json({ error: "shop, lookupType, lookupValue required" }, { status: 400 }), request);
     }
@@ -48,6 +59,82 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const shopRecord = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
     if (!shopRecord) {
       return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
+    }
+
+    // ── OTP gate (configurable per shop) ──
+    // If portalOtpEmailEnabled / portalOtpSmsEnabled is true for this shop,
+    // gate results behind OTP verification.
+    // First call (no portalToken): create session + send OTP → return { requiresOtp, sessionId }.
+    // Second call (with portalToken): verify session token → proceed to return results.
+    const settingsAny = shopRecord.settings as (typeof shopRecord.settings & { portalOtpEmailEnabled?: boolean; portalOtpSmsEnabled?: boolean }) | null;
+    const otpEmailEnabled = settingsAny?.portalOtpEmailEnabled ?? false;
+    const otpSmsEnabled = settingsAny?.portalOtpSmsEnabled ?? false;
+    const otpRequired = (otpEmailEnabled && normalizedLookupType === "email") ||
+                        (otpSmsEnabled && normalizedLookupType === "phone");
+
+    if (otpRequired) {
+      const contactNorm = String(lookupValue).toLowerCase().trim();
+      const lookupValueHash = crypto.createHash("sha256").update(contactNorm).digest("hex");
+
+      if (!portalToken) {
+        // First call — create or reuse a session and send OTP
+        const existing = sessionId
+          ? await prisma.lookupSession.findUnique({ where: { id: sessionId } })
+          : null;
+
+        // Reuse existing unexpired session if resend requested (sessionId provided)
+        if (existing && existing.expiresAt > new Date() && existing.attemptsCount < MAX_OTP_ATTEMPTS) {
+          const cooldownRemaining = existing.otpSentAt
+            ? Math.max(0, OTP_COOLDOWN_MS - (Date.now() - existing.otpSentAt.getTime()))
+            : 0;
+          if (cooldownRemaining > 0) {
+            return withCors(Response.json({ requiresOtp: true, sessionId: existing.id, cooldownMs: cooldownRemaining }), request);
+          }
+          // Resend: generate new OTP
+          const otp = String(Math.floor(100000 + Math.random() * 900000));
+          await prisma.lookupSession.update({
+            where: { id: existing.id },
+            data: { otpTarget: hashOtp(otp), otpSentAt: new Date(), attemptsCount: existing.attemptsCount + 1 },
+          });
+          try {
+            await sendOtpEmail({ shopDomain, to: contactNorm, otp });
+          } catch (e) { console.warn("[lookup OTP] email send failed:", e); }
+          return withCors(Response.json({ requiresOtp: true, sessionId: existing.id }), request);
+        }
+
+        // Create new session
+        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const session = await prisma.lookupSession.create({
+          data: {
+            shopId: shopRecord.id,
+            lookupType: normalizedLookupType,
+            lookupValueHash,
+            lookupValueNorm: contactNorm,
+            otpTarget: hashOtp(otp),
+            otpSentAt: new Date(),
+            attemptsCount: 1,
+            expiresAt: new Date(Date.now() + OTP_TTL_MS),
+          },
+        });
+        try {
+          await sendOtpEmail({ shopDomain, to: contactNorm, otp });
+        } catch (e) { console.warn("[lookup OTP] email send failed:", e); }
+        return withCors(Response.json({ requiresOtp: true, sessionId: session.id }), request);
+      }
+
+      // Second call — portalToken provided: verify it against DB session
+      const session = sessionId ? await prisma.lookupSession.findUnique({ where: { id: sessionId } }) : null;
+      if (!session || session.expiresAt < new Date()) {
+        return withCors(Response.json({ error: "Session expired. Please search again.", sessionExpired: true }, { status: 401 }), request);
+      }
+      if (!session.verifiedAt) {
+        return withCors(Response.json({ error: "OTP not verified", requiresOtp: true, sessionId: session.id }, { status: 401 }), request);
+      }
+      // Token must match what was stored at verify time
+      if (session.portalToken !== portalToken) {
+        return withCors(Response.json({ error: "Invalid session token", requiresOtp: true, sessionId: session.id }, { status: 401 }), request);
+      }
+      // Verified — proceed to return results below
     }
 
     const norm = String(lookupValue).toLowerCase().trim();

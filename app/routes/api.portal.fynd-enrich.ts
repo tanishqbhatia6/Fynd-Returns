@@ -89,13 +89,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           });
           const items = extractSearchItems(searchResult as Record<string, unknown>);
           if (items.length > 0) {
-            const payloadJson = JSON.stringify(searchResult);
+            // Secondary client-side filter: prefer forward shipments (journey_type !== 'return').
+            // This is a safety net in case Fynd ignores the fulfillment_type URL param.
+            const forwardItems = (items as Record<string, unknown>[]).filter((item) => {
+              const jt = (typeof item.journey_type === "string" ? item.journey_type : "").toLowerCase();
+              return jt !== "return";
+            });
+            const effectiveItems = forwardItems.length > 0 ? forwardItems : items;
+
+            const payloadJson = JSON.stringify({ ...searchResult as Record<string, unknown>, items: effectiveItems });
             const parsed = parseFyndOrderDetailsForTab(payloadJson);
             if (parsed) {
               (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
             }
 
-            const firstItem = items[0] as Record<string, unknown>;
+            // Cache the forward shipment ID, not a return pickup ID.
+            const firstItem = effectiveItems[0] as Record<string, unknown>;
             const mappedFyndOrderId = String(firstItem?.order_id ?? firstItem?.fynd_order_id ?? candidate.value ?? "");
             const mappedFyndShipmentId = String(firstItem?.shipment_id ?? firstItem?.id ?? "");
             if (mappedFyndOrderId || mappedFyndShipmentId) {
@@ -142,7 +151,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               fulfillmentType: "RETURN",
             });
             const items = extractSearchItems(searchResult as Record<string, unknown>);
-            const matched = (items as Record<string, unknown>[]).find(
+            // Prefer return shipments only; fall back to all if journey_type is absent.
+            const returnItems = (items as Record<string, unknown>[]).filter((s) => {
+              const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
+              return jt === "return" || jt.includes("return");
+            });
+            const candidateItems = returnItems.length > 0 ? returnItems : items;
+            const matched = candidateItems.find(
               (s) => String(s.shipment_id || s.id) === String(r.fyndShipmentId)
             );
             if (matched) {

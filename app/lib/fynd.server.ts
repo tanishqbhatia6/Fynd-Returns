@@ -299,6 +299,7 @@ export class FyndPlatformClient {
       sort_type: params?.sortType ?? "sla_asc",
     });
     if (params?.orderStatus) searchParams.set("bag_status", params.orderStatus);
+    if (params?.fulfillmentType) searchParams.set("fulfillment_type", params.fulfillmentType);
     const path = `${this.platformOrderPath}/shipments-listing?${searchParams.toString()}`;
     const res = await this.request("GET", path);
     const body = res as { items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; order?: { id?: string }; results?: unknown[] };

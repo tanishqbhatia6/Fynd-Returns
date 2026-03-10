@@ -180,6 +180,7 @@ model ReturnCase {
   bonusCreditAmount String?   // Extra bonus credit applied
   discountCode      String?   // Generated discount code for refund
   discountCodeValue String?   // Amount of the discount code
+  currency          String?   // ISO 4217 currency code of the order (e.g. "INR", "USD")
   orderProcessedAt  DateTime? // Original order processed date (for deadline calculation)
   fyndSyncStatus    String?   // "pending" | "synced" | "failed" | "retry_scheduled"
   fyndSyncRetries   Int      @default(0)

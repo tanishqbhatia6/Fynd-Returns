@@ -128,6 +128,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
     const customerNotes = (body.customerNotes as string | undefined)?.trim();
     const customerMediaRaw = body.customerMedia as Array<{ name?: string; mimeType?: string; size?: number; dataUrl?: string }> | undefined;
+    const currencyCode = (body.currency as string | undefined)?.trim().toUpperCase().slice(0, 10) || null;
 
     if (!shop || !shopifyOrderName) {
       return withCors(
@@ -554,6 +555,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             customerCountry: customerCountry || null,
             customerNotes: customerNotes || null,
             customerMediaJson: customerMediaJson,
+            currency: currencyCode,
             status,
             isGreenReturn: qualifiesForGreenReturn,
             fyndSyncStatus: status === "approved" && !qualifiesForGreenReturn ? "pending" : null,

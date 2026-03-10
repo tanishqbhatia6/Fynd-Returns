@@ -3644,7 +3644,7 @@
           html += '<div class="oc-item-title">' + escapeHtml(itemTitle) + '</div>';
           if (ri.variantTitle) html += '<div class="oc-item-variant">' + escapeHtml(ri.variantTitle) + '</div>';
           html += '<div class="oc-item-meta">';
-          if (ri.price) html += '<span class="oc-item-price-tag">' + formatMoney(ri.price, window.__RPM_CURRENCY__ || 'USD') + '</span>';
+          if (ri.price) html += '<span class="oc-item-price-tag">' + formatMoney(ri.price, x.currency || window.__RPM_CURRENCY__ || 'USD') + '</span>';
           var qty = ri.qty || ri.quantity || 1;
           if (qty > 1) html += '<span class="oc-item-qty-tag">' + t('portal.order.qty') + ': ' + qty + '</span>';
           html += '</div>';
@@ -4764,6 +4764,7 @@
             orderCreatedAt: createOrderData.createdAt,
             shippingCountry: createOrderData.shippingCountry,
             shippingProvince: createOrderData.shippingProvince,
+            currency: createOrderData.currencyCode || window.__RPM_CURRENCY__ || undefined,
             items,
             lineItemsWithPrice,
             customerMedia: customerMedia.length > 0 ? customerMedia : undefined

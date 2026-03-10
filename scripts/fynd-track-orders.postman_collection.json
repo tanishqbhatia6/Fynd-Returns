@@ -1,0 +1,385 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Fynd — Track Orders (Portal)",
+    "description": "All Fynd Commerce API calls used in the Track Orders page of the ReturnProMax Customer Portal.\n\nFlow:\n1. Run 'Step 1 — Get OAuth Token' first — it auto-saves {{access_token}}\n2. Run 'Step 2 — Forward Shipments' for the Order Tracking tab\n3. Run 'Step 3 — Return Shipments' for the Returns tab\n\nFill in Collection Variables (base_url, company_id, client_id, client_secret, order_number) before running.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.fynd.com",
+      "type": "string",
+      "description": "Fynd base URL. UAT: https://api.fyndx1.de | Prod: https://api.fynd.com"
+    },
+    {
+      "key": "company_id",
+      "value": "",
+      "type": "string",
+      "description": "Fynd Company ID (Settings > Integrations)"
+    },
+    {
+      "key": "client_id",
+      "value": "",
+      "type": "string",
+      "description": "Fynd Platform Client ID"
+    },
+    {
+      "key": "client_secret",
+      "value": "",
+      "type": "string",
+      "description": "Fynd Platform Client Secret"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "Auto-set by Step 1 — Get OAuth Token"
+    },
+    {
+      "key": "order_number",
+      "value": "1001",
+      "type": "string",
+      "description": "Shopify order number WITHOUT # prefix (e.g. 1001 for #1001)"
+    }
+  ],
+  "item": [
+    {
+      "name": "Step 1 — Get OAuth Token",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Guard: ensure required variables are set before sending",
+              "var clientId = pm.collectionVariables.get('client_id');",
+              "var clientSecret = pm.collectionVariables.get('client_secret');",
+              "var companyId = pm.collectionVariables.get('company_id');",
+              "",
+              "if (!clientId || clientId.trim() === '') {",
+              "    throw new Error('client_id is not set. Go to Collection > Variables and fill it in.');",
+              "}",
+              "if (!clientSecret || clientSecret.trim() === '') {",
+              "    throw new Error('client_secret is not set. Go to Collection > Variables and fill it in.');",
+              "}",
+              "if (!companyId || companyId.trim() === '') {",
+              "    throw new Error('company_id is not set. Go to Collection > Variables and fill it in.');",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Status check",
+              "pm.test('Status is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "// Response time",
+              "pm.test('Response time under 10s', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(10000);",
+              "});",
+              "",
+              "// Handle HTTP errors gracefully",
+              "if (pm.response.code === 401) {",
+              "    console.error('401 Unauthorized — check client_id and client_secret in Collection Variables.');",
+              "    return;",
+              "}",
+              "if (pm.response.code === 404) {",
+              "    console.error('404 Not Found — check company_id and base_url in Collection Variables.');",
+              "    return;",
+              "}",
+              "if (pm.response.code >= 500) {",
+              "    console.error('Fynd server error (' + pm.response.code + '). Try again later.');",
+              "    return;",
+              "}",
+              "",
+              "// Parse and validate response",
+              "var json;",
+              "try {",
+              "    json = pm.response.json();",
+              "} catch (e) {",
+              "    console.error('Response is not valid JSON:', pm.response.text());",
+              "    return;",
+              "}",
+              "",
+              "pm.test('Response has access_token', function () {",
+              "    pm.expect(json).to.have.property('access_token');",
+              "    pm.expect(json.access_token).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "// Save token to collection",
+              "if (json.access_token) {",
+              "    pm.collectionVariables.set('access_token', json.access_token);",
+              "    var expiresIn = json.expires_in ? json.expires_in + 's' : 'unknown';",
+              "    console.log('access_token saved. Expires in: ' + expiresIn);",
+              "} else {",
+              "    console.error('No access_token in response:', JSON.stringify(json));",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "basic",
+          "basic": [
+            { "key": "username", "value": "{{client_id}}", "type": "string" },
+            { "key": "password", "value": "{{client_secret}}", "type": "string" }
+          ]
+        },
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"grant_type\": \"client_credentials\"\n}",
+          "options": {
+            "raw": { "language": "json" }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/service/panel/authentication/v1.0/company/{{company_id}}/oauth/token",
+          "host": ["{{base_url}}"],
+          "path": ["service", "panel", "authentication", "v1.0", "company", "{{company_id}}", "oauth", "token"]
+        },
+        "description": "OAuth2 client_credentials flow to get a Platform access token.\n\nOn success, the Tests script automatically saves access_token to collection variables. Token is valid for ~1 hour (app caches for 50 min).\n\nSource: fynd.server.ts → fetchFyndPlatformToken()"
+      },
+      "response": []
+    },
+    {
+      "name": "Step 2 — Forward Shipments (Order Tracking tab)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Guard: ensure access_token is available",
+              "var token = pm.collectionVariables.get('access_token');",
+              "if (!token || token.trim() === '') {",
+              "    throw new Error('access_token is empty. Run Step 1 first to get a token.');",
+              "}",
+              "",
+              "// Guard: ensure order_number is set",
+              "var orderNumber = pm.collectionVariables.get('order_number');",
+              "if (!orderNumber || orderNumber.trim() === '') {",
+              "    throw new Error('order_number is not set. Go to Collection > Variables and fill it in.');",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Status check",
+              "pm.test('Status is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "// Response time",
+              "pm.test('Response time under 10s', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(10000);",
+              "});",
+              "",
+              "// Handle HTTP errors gracefully",
+              "if (pm.response.code === 401) {",
+              "    console.error('401 Unauthorized — access_token may be expired. Re-run Step 1.');",
+              "    return;",
+              "}",
+              "if (pm.response.code === 403) {",
+              "    console.error('403 Forbidden — OAuth app may lack company/orders/read scope in Fynd Partners.');",
+              "    return;",
+              "}",
+              "if (pm.response.code === 404) {",
+              "    console.error('404 Not Found — check company_id and base_url.');",
+              "    return;",
+              "}",
+              "if (pm.response.code >= 500) {",
+              "    console.error('Fynd server error (' + pm.response.code + '). Try again later.');",
+              "    return;",
+              "}",
+              "",
+              "// Parse and validate response",
+              "var json;",
+              "try {",
+              "    json = pm.response.json();",
+              "} catch (e) {",
+              "    console.error('Response is not valid JSON:', pm.response.text());",
+              "    return;",
+              "}",
+              "",
+              "// Check for shipment items",
+              "var items = json.items || json.shipments || (json.data && json.data.items) || json.results || [];",
+              "",
+              "pm.test('Response contains items array', function () {",
+              "    pm.expect(Array.isArray(items)).to.be.true;",
+              "});",
+              "",
+              "if (items.length === 0) {",
+              "    console.warn('No shipments found for order_number: ' + pm.collectionVariables.get('order_number') +",
+              "        '. The order may not exist in Fynd or may be outside the default date range.');",
+              "} else {",
+              "    console.log('Found ' + items.length + ' shipment(s). First shipment_id: ' +",
+              "        (items[0].shipment_id || items[0].id || 'N/A'));",
+              "    // Warn if any item has journey_type=return (unexpected for FULFILLMENT query)",
+              "    var returnItems = items.filter(function(s) {",
+              "        return typeof s.journey_type === 'string' && s.journey_type.toLowerCase() === 'return';",
+              "    });",
+              "    if (returnItems.length > 0) {",
+              "        console.warn(returnItems.length + ' item(s) have journey_type=return despite fulfillment_type=FULFILLMENT. Fynd may have ignored the filter.');",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/service/platform/order/v1.0/company/{{company_id}}/shipments-listing?group_entity=shipments&page_no=1&page_size=50&search_value={{order_number}}&search_type=external_order_id&sort_type=sla_asc&fulfillment_type=FULFILLMENT",
+          "host": ["{{base_url}}"],
+          "path": ["service", "platform", "order", "v1.0", "company", "{{company_id}}", "shipments-listing"],
+          "query": [
+            { "key": "group_entity",     "value": "shipments" },
+            { "key": "page_no",          "value": "1" },
+            { "key": "page_size",        "value": "50" },
+            { "key": "search_value",     "value": "{{order_number}}", "description": "Shopify order number without # prefix" },
+            { "key": "search_type",      "value": "external_order_id", "description": "Matches Shopify order number as Fynd external_order_id" },
+            { "key": "sort_type",        "value": "sla_asc" },
+            { "key": "fulfillment_type", "value": "FULFILLMENT", "description": "Forward (outbound) shipments only" }
+          ]
+        },
+        "description": "Fetches forward (outbound) shipments for the Order Tracking tab in the portal.\n\nFilters by fulfillment_type=FULFILLMENT to get forward journey shipments. Response is filtered client-side to exclude any items where journey_type==='return'.\n\nIf items[] is empty, the portal falls back to showing Shopify-only data.\n\nSource: api.portal.fynd-enrich.ts lines 82–132 → fynd.server.ts → searchShipmentsByExternalOrderId()"
+      },
+      "response": []
+    },
+    {
+      "name": "Step 3 — Return Shipments (Returns tab)",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Guard: ensure access_token is available",
+              "var token = pm.collectionVariables.get('access_token');",
+              "if (!token || token.trim() === '') {",
+              "    throw new Error('access_token is empty. Run Step 1 first to get a token.');",
+              "}",
+              "",
+              "// Guard: ensure order_number is set",
+              "var orderNumber = pm.collectionVariables.get('order_number');",
+              "if (!orderNumber || orderNumber.trim() === '') {",
+              "    throw new Error('order_number is not set. Go to Collection > Variables and fill it in.');",
+              "}"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Status check",
+              "pm.test('Status is 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "// Response time",
+              "pm.test('Response time under 10s', function () {",
+              "    pm.expect(pm.response.responseTime).to.be.below(10000);",
+              "});",
+              "",
+              "// Handle HTTP errors gracefully",
+              "if (pm.response.code === 401) {",
+              "    console.error('401 Unauthorized — access_token may be expired. Re-run Step 1.');",
+              "    return;",
+              "}",
+              "if (pm.response.code === 403) {",
+              "    console.error('403 Forbidden — OAuth app may lack company/orders/read scope in Fynd Partners.');",
+              "    return;",
+              "}",
+              "if (pm.response.code === 404) {",
+              "    console.error('404 Not Found — check company_id and base_url.');",
+              "    return;",
+              "}",
+              "if (pm.response.code >= 500) {",
+              "    console.error('Fynd server error (' + pm.response.code + '). Try again later.');",
+              "    return;",
+              "}",
+              "",
+              "// Parse and validate response",
+              "var json;",
+              "try {",
+              "    json = pm.response.json();",
+              "} catch (e) {",
+              "    console.error('Response is not valid JSON:', pm.response.text());",
+              "    return;",
+              "}",
+              "",
+              "// Check for shipment items",
+              "var items = json.items || json.shipments || (json.data && json.data.items) || json.results || [];",
+              "",
+              "pm.test('Response contains items array', function () {",
+              "    pm.expect(Array.isArray(items)).to.be.true;",
+              "});",
+              "",
+              "if (items.length === 0) {",
+              "    console.warn('No return shipments found for order_number: ' + pm.collectionVariables.get('order_number') +",
+              "        '. No return may have been created for this order yet.');",
+              "} else {",
+              "    // Filter return items (journey_type=return)",
+              "    var returnItems = items.filter(function(s) {",
+              "        return typeof s.journey_type === 'string' && s.journey_type.toLowerCase().indexOf('return') !== -1;",
+              "    });",
+              "    console.log('Total items: ' + items.length + ', journey_type=return: ' + returnItems.length);",
+              "    if (returnItems.length === 0) {",
+              "        console.warn('No items with journey_type=return found despite fulfillment_type=RETURN. Fynd may have ignored the filter — all ' + items.length + ' item(s) will be used as fallback.');",
+              "    } else {",
+              "        console.log('First return shipment_id: ' + (returnItems[0].shipment_id || returnItems[0].id || 'N/A'));",
+              "    }",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "GET",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{access_token}}" }
+        ],
+        "url": {
+          "raw": "{{base_url}}/service/platform/order/v1.0/company/{{company_id}}/shipments-listing?group_entity=shipments&page_no=1&page_size=50&search_value={{order_number}}&search_type=external_order_id&sort_type=sla_asc&fulfillment_type=RETURN",
+          "host": ["{{base_url}}"],
+          "path": ["service", "platform", "order", "v1.0", "company", "{{company_id}}", "shipments-listing"],
+          "query": [
+            { "key": "group_entity",     "value": "shipments" },
+            { "key": "page_no",          "value": "1" },
+            { "key": "page_size",        "value": "50" },
+            { "key": "search_value",     "value": "{{order_number}}", "description": "Shopify order number without # prefix" },
+            { "key": "search_type",      "value": "external_order_id" },
+            { "key": "sort_type",        "value": "sla_asc" },
+            { "key": "fulfillment_type", "value": "RETURN", "description": "Return (inbound) shipments only" }
+          ]
+        },
+        "description": "Fetches return (inbound) shipments for the Returns tab enrichment in the portal.\n\nCalled once per return case (up to 10 in parallel in the app). Response is filtered client-side to prefer items where journey_type==='return'. Falls back to all items if none match.\n\nThe app then matches by stored fyndShipmentId for exact match, falling back to first return-type item.\n\nSource: api.portal.fynd-enrich.ts lines 148–180 → fynd.server.ts → searchShipmentsByExternalOrderId()"
+      },
+      "response": []
+    }
+  ]
+}

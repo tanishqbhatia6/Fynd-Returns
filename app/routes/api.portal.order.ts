@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError } from "../lib/shopify-admin.server";
+import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError, type OrderForPortal } from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -138,10 +138,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // Fynd fallback: if Shopify couldn't find the order (e.g. missing read_all_orders scope,
-    // or order is outside Shopify's default scope window), search Fynd by external_order_id
-    // and use the returned channel_order_id to retry Shopify.
-    // If Fynd finds the order but Shopify still can't resolve it, trigger the manual fallback
-    // so the customer can still submit their return request.
+    // or order is outside Shopify's default scope window), search Fynd by external_order_id.
+    // First retry Shopify using Fynd's channel_order_id.
+    // If Shopify still can't resolve it, build a synthetic order from Fynd bag/item data
+    // so the customer can see the item selector with quantities and submit a proper return.
     if (!order) {
       try {
         const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
@@ -156,12 +156,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               pageSize: 5,
               fulfillmentType: "FULFILLMENT",
             });
-            const items = (
+            const rawShipments = (
               searchRes?.items ?? searchRes?.shipments ??
               (searchRes as { data?: { items?: unknown[] } })?.data?.items ?? []
             ) as Record<string, unknown>[];
-            if (items.length > 0) {
-              const first = items[0];
+            // Filter to forward shipments only
+            const forwardShipments = rawShipments.filter((s) => {
+              const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
+              return jt !== "return";
+            });
+            const shipments = forwardShipments.length > 0 ? forwardShipments : rawShipments;
+            if (shipments.length > 0) {
+              const first = shipments[0];
               // Extract the Shopify order name Fynd has on record (channel_order_id)
               const channelOrderId = String(
                 first.channel_order_id ?? first.marketplaceOrderId ?? ""
@@ -170,15 +176,105 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               if (channelOrderId && channelOrderId !== orderNumber) {
                 order = await fetchOrderByOrderNumber(admin, channelOrderId).catch(() => null);
               }
-              // Fynd found the order but Shopify can't resolve it — trigger manual fallback
+              // Shopify still can't resolve it — build synthetic order from Fynd bags/items
+              // so the portal can show the item selector with checkboxes and quantities.
               if (!order) {
-                return withCors(Response.json({
-                  fallback: true,
-                  orderNumber: orderNumber?.replace(/^#/, "").trim(),
-                  error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
-                  existingReturns: formattedReturns,
-                  activeReturns,
-                }, { status: 200 }), request);
+                // Collect all items/bags across all shipments for this order
+                const lineItems: Array<{
+                  id: string;
+                  title: string;
+                  variantTitle: string | null;
+                  sku: string | null;
+                  quantity: number;
+                  price: string;
+                  imageUrl: string | null;
+                  productTags: string[];
+                }> = [];
+
+                for (const shipment of shipments) {
+                  // Fynd structures items under bags[].articles, bags[].items, or top-level bags
+                  const bags = (Array.isArray(shipment.bags) ? shipment.bags : []) as Record<string, unknown>[];
+                  for (const bag of bags) {
+                    const articles = Array.isArray(bag.articles) ? bag.articles
+                      : Array.isArray(bag.items) ? bag.items
+                      : bag.item ? [bag.item] : [];
+                    for (const article of articles as Record<string, unknown>[]) {
+                      const itemObj = (article.item ?? article) as Record<string, unknown>;
+                      const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
+                      const price = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                      const qty = typeof bag.quantity === "number" ? bag.quantity
+                        : typeof article.quantity === "number" ? article.quantity : 1;
+                      const itemId = String(bag.bag_id ?? bag.id ?? article.id ?? article.article_id ?? `fynd-${lineItems.length}`);
+                      const title = String(itemObj.name ?? itemObj.item_name ?? itemObj.title ?? article.name ?? "Item");
+                      const size = String(itemObj.l3_category_name ?? itemObj.size ?? article.size ?? bag.size ?? "");
+                      const skuVal = article.seller_identifier ?? article.uid ?? itemObj.item_id ?? null;
+                      const sku = skuVal != null ? String(skuVal) : null;
+                      const imageArr = Array.isArray(itemObj.images) ? itemObj.images : [];
+                      const imageUrl = imageArr.length > 0 ? String(imageArr[0]) : null;
+                      lineItems.push({
+                        id: itemId,
+                        title,
+                        variantTitle: size || null,
+                        sku,
+                        quantity: qty,
+                        price: String(price),
+                        imageUrl,
+                        productTags: [],
+                      });
+                    }
+                    // Fallback: if no articles, use bag-level item data
+                    if ((Array.isArray(bag.articles) ? bag.articles : []).length === 0 &&
+                        (Array.isArray(bag.items) ? bag.items : []).length === 0 &&
+                        !bag.item) {
+                      const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<string, unknown>;
+                      const price = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                      const qty = typeof bag.quantity === "number" ? bag.quantity : 1;
+                      const itemId = String(bag.bag_id ?? bag.id ?? `fynd-bag-${lineItems.length}`);
+                      const bagItem = (bag.item ?? {}) as Record<string, unknown>;
+                      const title = String(bagItem.name ?? bagItem.item_name ?? bag.item_name ?? bag.name ?? "Item");
+                      const size = String(bagItem.l3_category_name ?? bagItem.size ?? bag.size ?? "");
+                      const sku = bag.seller_identifier != null ? String(bag.seller_identifier)
+                        : bag.article_id != null ? String(bag.article_id) : null;
+                      const imageArr = Array.isArray(bagItem.images) ? bagItem.images : [];
+                      const imageUrl = imageArr.length > 0 ? String(imageArr[0]) : null;
+                      lineItems.push({
+                        id: itemId,
+                        title,
+                        variantTitle: size || null,
+                        sku,
+                        quantity: qty,
+                        price: String(price),
+                        imageUrl,
+                        productTags: [],
+                      });
+                    }
+                  }
+                }
+
+                // Deduplicate by id in case same bag appears across shipments
+                const seen = new Set<string>();
+                const dedupedLineItems = lineItems.filter((li) => {
+                  if (seen.has(li.id)) return false;
+                  seen.add(li.id);
+                  return true;
+                });
+
+                const orderName = String(first.channel_order_id ?? first.marketplaceOrderId ?? `#${orderNumber}`);
+                const createdAt = String(first.orderDate ?? first.shipment_created_at ?? first.created_at ?? new Date().toISOString());
+
+                order = {
+                  id: String(first.order_id ?? first.shipment_id ?? orderNumber),
+                  name: orderName.startsWith("#") ? orderName : `#${orderName}`,
+                  createdAt,
+                  processedAt: createdAt,
+                  displayFulfillmentStatus: "FULFILLED",
+                  displayFinancialStatus: "PAID",
+                  currencyCode: String(first.currency ?? "INR"),
+                  shippingCountry: null,
+                  shippingProvince: null,
+                  lineItems: dedupedLineItems,
+                  fulfillments: [],
+                } as OrderForPortal;
               }
             }
           }

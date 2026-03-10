@@ -138,8 +138,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // Fynd fallback: if Shopify couldn't find the order (e.g. missing read_all_orders scope,
-    // customer entered a Fynd order ID, or order is outside Shopify's default scope window),
-    // search Fynd by external_order_id and use the returned channel_order_id to retry Shopify.
+    // or order is outside Shopify's default scope window), search Fynd by external_order_id
+    // and use the returned channel_order_id to retry Shopify.
+    // If Fynd finds the order but Shopify still can't resolve it, trigger the manual fallback
+    // so the customer can still submit their return request.
     if (!order) {
       try {
         const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
@@ -164,8 +166,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               const channelOrderId = String(
                 first.channel_order_id ?? first.marketplaceOrderId ?? ""
               ).replace(/^#/, "").trim();
+              // Only retry Shopify if channel_order_id differs from what was already searched
               if (channelOrderId && channelOrderId !== orderNumber) {
                 order = await fetchOrderByOrderNumber(admin, channelOrderId).catch(() => null);
+              }
+              // Fynd found the order but Shopify can't resolve it — trigger manual fallback
+              if (!order) {
+                return withCors(Response.json({
+                  fallback: true,
+                  orderNumber: orderNumber?.replace(/^#/, "").trim(),
+                  error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
+                  existingReturns: formattedReturns,
+                  activeReturns,
+                }, { status: 200 }), request);
               }
             }
           }

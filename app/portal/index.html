@@ -3326,25 +3326,8 @@
       var hasShopifyTracking = !hasFynd && shopifyFulfillments.length > 0;
 
       if (forwardShipments.length > 0) {
-        // ── Forward delivery shipment sections (Fynd) — excludes return shipments ──
-        if (forwardShipments.length > 1) {
-          html += '<div class="oc-shipment-tabs" id="oc-ship-tabs-' + orderIdx + '">';
-          forwardShipments.forEach(function (s, i) {
-            var tabFriendly = friendlyOrderStatus(s.shipmentStatus || '');
-            html += '<button type="button" class="oc-shipment-tab' + (i === 0 ? ' active' : '') + '" data-ship-idx="' + i + '" data-order-idx="' + orderIdx + '" onclick="switchShipmentTab(this)">';
-            html += t('portal.tracking.shipment') + ' ' + (i + 1);
-            if (s.shipmentStatus) html += ' — ' + escapeHtml(tabFriendly.label);
-            html += '</button>';
-          });
-          html += '</div>';
-          forwardShipments.forEach(function (s, i) {
-            html += '<div class="oc-shipment-panel' + (i === 0 ? ' active' : '') + '" data-ship-panel="' + orderIdx + '-' + i + '">';
-            html += renderShipmentSection(s, i, i === 0 ? forwardJourney : [], currency, false);
-            html += '</div>';
-          });
-        } else if (forwardShipments.length === 1) {
-          html += renderShipmentSection(forwardShipments[0], 0, forwardJourney, currency, false);
-        }
+        // ── Forward delivery shipment section (Fynd) — show only primary shipment ──
+        html += renderShipmentSection(forwardShipments[0], 0, forwardJourney, currency, false);
       } else if (hasShopifyTracking) {
         // ── Shopify fulfillment tracking ──
         shopifyFulfillments.forEach(function (ff, ffIdx) {
@@ -3720,9 +3703,9 @@
 
       if (timelineItems.length > 0) {
         html += '<div style="padding:16px 20px 0;">';
-        html += '<button type="button" class="oc-collapsible-header open" onclick="toggleCollapsible(this)">';
+        html += '<button type="button" class="oc-collapsible-header" onclick="toggleCollapsible(this)">';
         html += t('portal.tracking.returnJourney') + ' (' + timelineItems.length + ')' + CHEVRON_SVG + '</button>';
-        html += '<div class="oc-collapsible-body open"><div class="oc-timeline">';
+        html += '<div class="oc-collapsible-body"><div class="oc-timeline">';
         timelineItems.forEach(function (ev, idx) {
           var isLast = idx === timelineItems.length - 1;
           var sourceTag = ev.source === 'fynd' ? '<span style="display:inline-block;font-size:0.5625rem;padding:1px 5px;border-radius:4px;background:#ecfdf5;color:#059669;font-weight:600;margin-left:6px;vertical-align:middle;">Fynd</span>' : '';

@@ -61,6 +61,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let shopCurrency = "USD";
   let shopTimezone = "UTC";
   let portalLabelOverrides: Record<string, string> = {};
+  let brandLogoUrl: string | null = null;
+  let brandFaviconUrl: string | null = null;
   try {
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -82,6 +84,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       if (shop.settings.portalLabelsJson) {
         try { portalLabelOverrides = JSON.parse(shop.settings.portalLabelsJson); } catch { /* ignore */ }
       }
+      brandLogoUrl = (shop.settings as { brandLogoUrl?: string | null }).brandLogoUrl ?? null;
+      brandFaviconUrl = (shop.settings as { brandFaviconUrl?: string | null }).brandFaviconUrl ?? null;
     }
   } catch (err) {
     console.error("Portal theme load error:", err);
@@ -110,6 +114,11 @@ window.__RPM_TIMEZONE__=${JSON.stringify(shopTimezone)};
 </script>`;
   const isRtl = ["ar", "he", "fa", "ur"].includes(effectiveLocale.split("-")[0].toLowerCase());
 
+  // Build favicon tag: use custom brand favicon if set, else fall back to default APP_URL favicon
+  const faviconHtml = brandFaviconUrl
+    ? `  <link rel="icon" type="image/png" href="${escapeHtmlAttr(brandFaviconUrl)}" sizes="96x96" />\n  <link rel="icon" href="${escapeHtmlAttr(brandFaviconUrl)}" />`
+    : `  <link rel="icon" type="image/png" href="${escapeHtmlAttr(appUrl)}/favicon-96x96.png" sizes="96x96" />\n  <link rel="icon" type="image/svg+xml" href="${escapeHtmlAttr(appUrl)}/favicon.svg" />\n  <link rel="shortcut icon" href="${escapeHtmlAttr(appUrl)}/favicon.ico" />\n  <link rel="apple-touch-icon" sizes="180x180" href="${escapeHtmlAttr(appUrl)}/apple-touch-icon.png" />\n  <link rel="manifest" href="${escapeHtmlAttr(appUrl)}/site.webmanifest" />`;
+
   portalHtml = portalHtml
     .replace("%SHOP%", escapeHtmlAttr(shopDomain))
     .replaceAll("%APP_URL%", escapeHtmlAttr(appUrl))
@@ -118,6 +127,8 @@ window.__RPM_TIMEZONE__=${JSON.stringify(shopTimezone)};
     .replace("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))
     .replace("%RETURN_REASONS_BY_CATEGORY_JSON%", escapeJsonInHtml(returnReasonsByCategoryJson || "{}"))
     .replace("%PORTAL_CONFIG%", escapeJsonInHtml(JSON.stringify(portalConfig)))
+    .replace("%BRAND_LOGO_URL%", escapeHtmlAttr(brandLogoUrl ?? ""))
+    .replace("<!-- %FAVICON% -->", faviconHtml)
     .replace("</head>", `${i18nScript}\n</head>`)
     .replace('<html lang="en"', `<html lang="${escapeHtmlAttr(effectiveLocale)}"${isRtl ? ' dir="rtl"' : ''}`);
 

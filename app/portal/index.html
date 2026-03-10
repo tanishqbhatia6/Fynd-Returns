@@ -4447,7 +4447,7 @@
           var fee = createOrderData._returnFee ? createOrderData._returnFee.amount : 0;
           var refund = Math.max(0, total - fee);
           box.style.display = 'block';
-          var refundCurrency = (createOrderData._returnFee && createOrderData._returnFee.currency) || createOrderData.currency || window.__RPM_CURRENCY__ || 'USD';
+          var refundCurrency = (createOrderData._returnFee && createOrderData._returnFee.currency) || createOrderData.currencyCode || createOrderData.currency || window.__RPM_CURRENCY__ || 'USD';
           amountEl.textContent = formatMoney(refund, refundCurrency);
           if (fee > 0) {
             feeEl.style.display = 'block';
@@ -4666,7 +4666,7 @@
             shopifyOrderName: createOrderData.name,
             customerEmail: createOrderData.email || undefined,
             customerPhone: createOrderData.phone || (createOrderData.shippingAddress && createOrderData.shippingAddress.phone) || undefined,
-            customerName: (createOrderData.shippingAddress && (createOrderData.shippingAddress.firstName || '') + ' ' + (createOrderData.shippingAddress.lastName || '')).trim() || undefined,
+            customerName: createOrderData.shippingAddress ? ((createOrderData.shippingAddress.firstName || '') + ' ' + (createOrderData.shippingAddress.lastName || '')).trim() || undefined : undefined,
             customerCity: (createOrderData.shippingAddress && createOrderData.shippingAddress.city) || undefined,
             customerCountry: (createOrderData.shippingAddress && (createOrderData.shippingAddress.country || createOrderData.shippingAddress.countryCode)) || undefined,
             orderCreatedAt: createOrderData.createdAt,
@@ -4757,7 +4757,7 @@
             shopifyOrderName: createOrderData.name,
             customerEmail: document.getElementById('createEmail').value.trim() || createOrderData.email || undefined,
             customerPhone: createOrderData.phone || (createOrderData.shippingAddress && createOrderData.shippingAddress.phone) || undefined,
-            customerName: (createOrderData.shippingAddress && (createOrderData.shippingAddress.firstName || '') + ' ' + (createOrderData.shippingAddress.lastName || '')).trim() || undefined,
+            customerName: createOrderData.shippingAddress ? ((createOrderData.shippingAddress.firstName || '') + ' ' + (createOrderData.shippingAddress.lastName || '')).trim() || undefined : undefined,
             customerCity: (createOrderData.shippingAddress && createOrderData.shippingAddress.city) || undefined,
             customerCountry: (createOrderData.shippingAddress && (createOrderData.shippingAddress.country || createOrderData.shippingAddress.countryCode)) || undefined,
             customerNotes: customNotesRaw || undefined,

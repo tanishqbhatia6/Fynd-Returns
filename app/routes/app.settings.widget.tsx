@@ -28,6 +28,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     shopLocale: shop.settings?.shopLocale ?? "en",
     shopCurrency: shop.settings?.shopCurrency ?? "USD",
     shopTimezone: shop.settings?.shopTimezone ?? "UTC",
+    brandLogoUrl: shop.settings?.brandLogoUrl ?? null,
+    brandFaviconUrl: shop.settings?.brandFaviconUrl ?? null,
   };
 };
 
@@ -75,6 +77,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
+  const brandLogoUrl = (formData.get("brandLogoUrl") as string | null) || null;
+  const brandFaviconUrl = (formData.get("brandFaviconUrl") as string | null) || null;
+
   const portalLanguage = (formData.get("portalLanguage") as string) || "en";
   const portalLabelsRaw = formData.get("portalLabelsJson") as string | null;
   let portalLabelsJson: string | null = null;
@@ -94,12 +99,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     await prisma.shopSettings.upsert({
       where: { shopId: shop.id },
-      create: { shopId: shop.id, portalThemeJson, portalConfigJson, portalLanguage, portalLabelsJson },
+      create: { shopId: shop.id, portalThemeJson, portalConfigJson, portalLanguage, portalLabelsJson, brandLogoUrl, brandFaviconUrl },
       update: {
         portalThemeJson: portalThemeJson ?? undefined,
         portalConfigJson,
         portalLanguage,
         portalLabelsJson,
+        brandLogoUrl,
+        brandFaviconUrl,
       },
     });
     return { success: true };
@@ -150,7 +157,7 @@ function ToggleRow({ icon, title, description, checked, onChange, last }: {
 }
 
 export default function Widget() {
-  const { portalTheme, portalConfig, fontOptions, portalUrl, portalLanguage, portalLabelOverrides, labelKeys, supportedLanguages, shopLocale, shopCurrency, shopTimezone } = useLoaderData<typeof loader>();
+  const { portalTheme, portalConfig, fontOptions, portalUrl, portalLanguage, portalLabelOverrides, labelKeys, supportedLanguages, shopLocale, shopCurrency, shopTimezone, brandLogoUrl: savedLogoUrl, brandFaviconUrl: savedFaviconUrl } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean }>();
   const [labelOverrides, setLabelOverrides] = useState<Record<string, string>>(portalLabelOverrides);
   const [showCustomLabels, setShowCustomLabels] = useState(Object.keys(portalLabelOverrides).length > 0);
@@ -158,6 +165,17 @@ export default function Widget() {
   const [returnTracking, setReturnTracking] = useState(portalConfig.showReturnTracking);
   const [createReturn, setCreateReturn] = useState(portalConfig.showCreateReturnTab);
   const [mediaUploads, setMediaUploads] = useState(portalConfig.allowMediaUploads);
+  const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(savedLogoUrl);
+  const [brandFaviconUrl, setBrandFaviconUrl] = useState<string | null>(savedFaviconUrl);
+
+  function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>, setter: (v: string | null) => void, maxBytes = 512 * 1024) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > maxBytes) { alert(`Image too large. Max ${Math.round(maxBytes / 1024)} KB.`); e.target.value = ""; return; }
+    const reader = new FileReader();
+    reader.onload = () => setter(reader.result as string);
+    reader.readAsDataURL(file);
+  }
 
   return (
     <s-page heading="Assure Return Widget">
@@ -171,6 +189,8 @@ export default function Widget() {
 
         <fetcher.Form method="post">
           <input type="hidden" name="portalLabelsJson" value={JSON.stringify(labelOverrides)} />
+          <input type="hidden" name="brandLogoUrl" value={brandLogoUrl ?? ""} />
+          <input type="hidden" name="brandFaviconUrl" value={brandFaviconUrl ?? ""} />
           <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
             Manage your return portal. Choose which sections to show and customize the look and feel.
           </p>
@@ -274,6 +294,76 @@ export default function Widget() {
               </div>
             )}
           </s-section>
+          <s-section heading="Branding">
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+              Upload your brand logo and favicon. These appear on the customer portal — the logo shows in the page header, and the favicon appears in browser tabs and when saved to a home screen. Max 512 KB each. PNG or SVG recommended for best quality.
+            </p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 32, marginBottom: 8 }}>
+              {/* Brand Logo */}
+              <div style={{ flex: "1 1 260px" }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Portal logo</div>
+                <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 10 }}>Shown in the portal header. Recommended: 200×60 px, PNG/SVG, transparent background.</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{
+                    width: 120, height: 48, borderRadius: 8, border: "1px dashed #e1e3e5",
+                    background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0,
+                  }}>
+                    {brandLogoUrl
+                      ? <img src={brandLogoUrl} alt="Brand logo" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
+                      : <span style={{ fontSize: 11, color: "#9ca3af" }}>No logo</span>
+                    }
+                  </div>
+                  <div>
+                    <label style={{ display: "inline-block", padding: "6px 14px", background: "#f3f4f6", border: "1px solid #e1e3e5", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", color: "#374151" }}>
+                      Upload
+                      <input type="file" accept="image/png,image/svg+xml,image/jpeg,image/webp" style={{ display: "none" }}
+                        onChange={(e) => handleImageUpload(e, setBrandLogoUrl, 512 * 1024)} />
+                    </label>
+                    {brandLogoUrl && (
+                      <button type="button" onClick={() => setBrandLogoUrl(null)}
+                        style={{ marginLeft: 8, padding: "6px 12px", background: "none", border: "1px solid #e1e3e5", borderRadius: 6, fontSize: 12, color: "#dc2626", cursor: "pointer" }}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Favicon */}
+              <div style={{ flex: "1 1 260px" }}>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6 }}>Favicon</div>
+                <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 10 }}>Shows in browser tabs, bookmarks, and mobile home screens. Recommended: 96×96 px square PNG or SVG.</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{
+                    width: 48, height: 48, borderRadius: 8, border: "1px dashed #e1e3e5",
+                    background: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", flexShrink: 0,
+                  }}>
+                    {brandFaviconUrl
+                      ? <img src={brandFaviconUrl} alt="Favicon" style={{ width: 32, height: 32, objectFit: "contain" }} />
+                      : <span style={{ fontSize: 11, color: "#9ca3af" }}>None</span>
+                    }
+                  </div>
+                  <div>
+                    <label style={{ display: "inline-block", padding: "6px 14px", background: "#f3f4f6", border: "1px solid #e1e3e5", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", color: "#374151" }}>
+                      Upload
+                      <input type="file" accept="image/png,image/svg+xml,image/x-icon,image/jpeg,image/webp" style={{ display: "none" }}
+                        onChange={(e) => handleImageUpload(e, setBrandFaviconUrl, 512 * 1024)} />
+                    </label>
+                    {brandFaviconUrl && (
+                      <button type="button" onClick={() => setBrandFaviconUrl(null)}
+                        style={{ marginLeft: 8, padding: "6px 12px", background: "none", border: "1px solid #e1e3e5", borderRadius: 6, fontSize: 12, color: "#dc2626", cursor: "pointer" }}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: "#6d7175", background: "#f8fafc", border: "1px solid #e5e7eb", borderRadius: 6, padding: "8px 12px" }}>
+              <strong>Default:</strong> When no logo or favicon is uploaded, the Fynd Returns logo and favicon are used.
+            </div>
+          </s-section>
+
           <s-section heading="Portal theme">
             <div className="app-grid" style={{ marginBottom: 20 }}>
               <div className="app-field">

@@ -56,6 +56,8 @@ model ShopSettings {
   notificationToggles          String?
   portalThemeJson            String?
   portalConfigJson           String?
+  brandLogoUrl               String?  @db.Text // Base64 data URI or HTTPS URL for portal header logo
+  brandFaviconUrl            String?  @db.Text // Base64 data URI or HTTPS URL for portal favicon
   returnWindowDays           Int      @default(30)
   returnReasonsJson          String?
   returnReasonsByCategoryJson String?

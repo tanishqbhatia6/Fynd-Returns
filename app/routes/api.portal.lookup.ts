@@ -294,8 +294,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Fynd-based order discovery: Shopify returned nothing for this order number.
-    // Search Fynd directly — use channel_order_id from the result to retry Shopify,
-    // or build a synthetic order from Fynd data so Track Order can still show tracking.
+    // Search Fynd directly using external_order_id — use affiliate_order_id from the result
+    // to retry Shopify, or build a synthetic order from Fynd data so Track Order can still show tracking.
     if (orders.length === 0 && (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && shopRecord.settings) {
       const searchVal = rawValue.replace(/^#/, "").trim();
       if (searchVal) {
@@ -321,13 +321,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
                 fyndData = parsed as FyndOrderDetailsTab & { forwardJourney?: unknown };
               }
-              // Try to resolve the real Shopify order using Fynd's channel_order_id
+              // Try to resolve the real Shopify order using Fynd's affiliate_order_id.
+              // Fynd stores the Shopify order name as affiliate_order_id (primary) or external_order_id.
+              // There is no channel_order_id field in Fynd's shipments-listing response.
               const first = items[0] as Record<string, unknown>;
-              const channelOrderId = String(first.channel_order_id ?? first.marketplaceOrderId ?? "").replace(/^#/, "").trim();
-              if (channelOrderId) {
+              const affiliateOrderId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
+              if (affiliateOrderId) {
                 try {
                   const { admin } = await shopify.unauthenticated.admin(shopDomain);
-                  const shopifyOrder = await fetchOrderByOrderNumber(admin, channelOrderId);
+                  const shopifyOrder = await fetchOrderByOrderNumber(admin, affiliateOrderId);
                   if (shopifyOrder) {
                     orders.push({ ...shopifyOrder, fyndData, _needsFyndEnrich: false });
                   }
@@ -338,7 +340,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               if (orders.length === 0) {
                 const syntheticOrder: PortalOrder = {
                   id: String(first.order_id ?? first.shipment_id ?? searchVal),
-                  name: String(first.channel_order_id ?? first.marketplaceOrderId ?? `#${searchVal}`),
+                  name: String(first.affiliate_order_id ?? first.external_order_id ?? `#${searchVal}`),
                   createdAt: String(first.orderDate ?? first.shipment_created_at ?? new Date().toISOString()),
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",

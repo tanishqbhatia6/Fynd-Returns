@@ -139,7 +139,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // Fynd fallback: if Shopify couldn't find the order (e.g. missing read_all_orders scope,
     // or order is outside Shopify's default scope window), search Fynd by external_order_id.
-    // First retry Shopify using Fynd's channel_order_id.
+    // The searched value IS the Shopify order name (e.g. FYNDSHOPIFYX14126 = #FYNDSHOPIFYX14126).
+    // Fynd stores the Shopify order name as affiliate_order_id / external_order_id in the shipment.
+    // First retry Shopify using Fynd's affiliate_order_id.
     // If Shopify still can't resolve it, build a synthetic order from Fynd bag/item data
     // so the customer can see the item selector with quantities and submit a proper return.
     if (!order) {
@@ -168,13 +170,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             const shipments = forwardShipments.length > 0 ? forwardShipments : rawShipments;
             if (shipments.length > 0) {
               const first = shipments[0];
-              // Extract the Shopify order name Fynd has on record (channel_order_id)
-              const channelOrderId = String(
-                first.channel_order_id ?? first.marketplaceOrderId ?? ""
+              // Extract the Shopify order name Fynd has on record.
+              // Fynd stores this as affiliate_order_id (primary) or external_order_id.
+              // There is no channel_order_id field in Fynd's shipments-listing response.
+              const affiliateOrderId = String(
+                first.affiliate_order_id ?? first.external_order_id ?? ""
               ).replace(/^#/, "").trim();
-              // Only retry Shopify if channel_order_id differs from what was already searched
-              if (channelOrderId && channelOrderId !== orderNumber) {
-                order = await fetchOrderByOrderNumber(admin, channelOrderId).catch(() => null);
+              // Only retry Shopify if the affiliate_order_id differs from what was already searched
+              if (affiliateOrderId && affiliateOrderId !== orderNumber) {
+                order = await fetchOrderByOrderNumber(admin, affiliateOrderId).catch(() => null);
               }
               // Shopify still can't resolve it — build synthetic order from Fynd bags/items
               // so the portal can show the item selector with checkboxes and quantities.
@@ -259,7 +263,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   return true;
                 });
 
-                const orderName = String(first.channel_order_id ?? first.marketplaceOrderId ?? `#${orderNumber}`);
+                const orderName = String(first.affiliate_order_id ?? first.external_order_id ?? `#${orderNumber}`);
                 const createdAt = String(first.orderDate ?? first.shipment_created_at ?? first.created_at ?? new Date().toISOString());
 
                 order = {

@@ -112,7 +112,7 @@ window.__RPM_TIMEZONE__=${JSON.stringify(shopTimezone)};
 
   portalHtml = portalHtml
     .replace("%SHOP%", escapeHtmlAttr(shopDomain))
-    .replace("%APP_URL%", escapeHtmlAttr(appUrl))
+    .replaceAll("%APP_URL%", escapeHtmlAttr(appUrl))
     .replace("%RETURN_WINDOW%", String(returnWindowDays))
     .replace("%RETURN_POLICY%", escapeHtmlContent(returnPolicyText))
     .replace("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))

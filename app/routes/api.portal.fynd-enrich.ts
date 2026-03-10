@@ -165,7 +165,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const trackingInfo = getTrackingInfoFromFyndPayload(payload);
               const returnJourney = extractFyndJourney(payload, "return");
               const pickupAddress = getPickupAddressFromFyndPayload(payload);
-              returnEnrichments[r.id] = { trackingInfo, returnJourney, pickupAddress };
+              // Pass the live Fynd shipment_id so portal can show the correct ID
+              // even when the DB has a stale/wrong value (bag ID vs shipment ID).
+              const liveShipmentId = String(
+                (matched as Record<string, unknown>).shipment_id ??
+                (matched as Record<string, unknown>).shipmentId ??
+                ""
+              ) || undefined;
+              returnEnrichments[r.id] = { trackingInfo, returnJourney, pickupAddress, fyndShipmentId: liveShipmentId };
             }
           } catch {
             // Non-fatal: return will show cached data

@@ -109,7 +109,7 @@ export async function createReturnOnFynd(
     const s = shipment as Record<string, unknown>;
     const toStr = (v: unknown) => (v != null ? String(v).trim() : "");
     let shipmentId =
-      toStr(s.id ?? s.identifier ?? s._id ?? s.shipment_id ?? s.shipmentId ?? s.channel_shipment_id) || null;
+      toStr(s.shipment_id ?? s.shipmentId ?? s.channel_shipment_id ?? s.id ?? s.identifier ?? s._id) || null;
     if (!shipmentId && searchRes?.shipmentId) {
       shipmentId = String(searchRes.shipmentId).trim() || null;
     }

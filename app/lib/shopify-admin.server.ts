@@ -380,9 +380,10 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1 (primary): GraphQL — orders(first: 1, query: "name:#FYNDSHOPIFYX14122")
-  // This mirrors the working curl you shared and should be the first lookup.
-  for (const q of [`name:#${clean}`, `name:${clean}`]) {
+  // Strategy 1 (primary): GraphQL search by name.
+  // Quote the value so Shopify's search parser doesn't misinterpret # or special chars.
+  // e.g. name:"#FYNDSHOPIFYX14126" instead of name:#FYNDSHOPIFYX14126
+  for (const q of [`name:"#${clean}"`, `name:"${clean}"`]) {
     try {
       const node = await searchOrders(admin, q, false, clean);
       if (node) return parseOrderNode(node);
@@ -436,7 +437,7 @@ export async function fetchOrderByOrderNumber(
 
   // Strategy 5: source_identifier
   try {
-    const node = await searchOrders(admin, `source_identifier:${clean}`, false, clean);
+    const node = await searchOrders(admin, `source_identifier:"${clean}"`, false, clean);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;

@@ -172,6 +172,54 @@ const ORDER_BY_IDENTIFIER_QUERY = `#graphql
   }
 `;
 
+/**
+ * Minimal query that fetches ONLY order id, name, and line items.
+ * Does NOT request any PCDA-protected fields (email, phone, addresses).
+ * Safe to use even without Protected Customer Data Access approval.
+ */
+const ORDER_LINE_ITEMS_ONLY_QUERY = `#graphql
+  query getOrderLineItemsOnly($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Order {
+        id
+        name
+        lineItems(first: 50) {
+          nodes {
+            id
+            title
+            variantTitle
+            sku
+            quantity
+            originalUnitPriceSet { shopMoney { amount } }
+            discountedUnitPriceSet { shopMoney { amount } }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const ORDER_LINE_ITEMS_BY_NAME_QUERY = `#graphql
+  query getOrderLineItemsByName($query: String!, $first: Int!) {
+    orders(first: $first, query: $query, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        id
+        name
+        lineItems(first: 50) {
+          nodes {
+            id
+            title
+            variantTitle
+            sku
+            quantity
+            originalUnitPriceSet { shopMoney { amount } }
+            discountedUnitPriceSet { shopMoney { amount } }
+          }
+        }
+      }
+    }
+  }
+`;
 
 /* All multi-order queries now use fetchOrdersByFilter() with inline GQL */
 
@@ -961,6 +1009,121 @@ export async function fetchOrder(
       })),
     })),
   };
+}
+
+/**
+ * Fetch ONLY order line items — no customer data, no addresses, no email/phone.
+ * This query is PCDA-safe: it works even without Protected Customer Data Access approval.
+ * Used as the primary strategy for refund line-item resolution.
+ */
+export async function fetchOrderLineItemsOnly(
+  admin: AdminGraphQL,
+  orderId: string
+): Promise<{ id: string; name: string; lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }> } | null> {
+  const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+
+  // Strategy 1: Direct GID lookup via nodes()
+  try {
+    const res = await admin.graphql(ORDER_LINE_ITEMS_ONLY_QUERY, { variables: { ids: [gid] } });
+    const json = (await res.json()) as { data?: { nodes?: Array<Record<string, unknown>> }; errors?: Array<{ message?: string }> };
+    if (json.errors?.length) {
+      console.warn(`[fetchOrderLineItemsOnly] GID query errors:`, json.errors[0]?.message);
+    }
+    const node = json.data?.nodes?.[0] as { id?: string; name?: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }> } } | undefined;
+    if (node?.id && node?.lineItems?.nodes?.length) {
+      return {
+        id: node.id,
+        name: node.name ?? "",
+        lineItems: node.lineItems.nodes.map((li) => ({ id: li.id, title: li.title, sku: li.sku ?? null, quantity: li.quantity })),
+      };
+    }
+  } catch (err) {
+    console.warn(`[fetchOrderLineItemsOnly] GID query failed for "${gid}":`, (err as Error)?.message ?? err);
+  }
+
+  return null;
+}
+
+/**
+ * Fetch order line items by order name/number — PCDA-safe (no customer data fields).
+ * Tries the name-based search query which avoids PCDA-protected fields.
+ */
+export async function fetchOrderLineItemsByName(
+  admin: AdminGraphQL,
+  orderName: string
+): Promise<{ id: string; name: string; lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }> } | null> {
+  const clean = orderName.replace(/^#/, "").trim();
+  if (!clean) return null;
+
+  for (const q of [`name:#${clean}`, `name:${clean}`]) {
+    try {
+      const res = await admin.graphql(ORDER_LINE_ITEMS_BY_NAME_QUERY, { variables: { query: q, first: 50 } });
+      const json = (await res.json()) as {
+        data?: { orders?: { nodes?: Array<{ id: string; name: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }> } }> } };
+        errors?: Array<{ message?: string }>;
+      };
+      if (json.errors?.length) {
+        console.warn(`[fetchOrderLineItemsByName] query="${q}" errors:`, json.errors[0]?.message);
+        continue;
+      }
+      const nodes = json.data?.orders?.nodes ?? [];
+      // Find exact name match
+      const norm = clean.toLowerCase();
+      const match = nodes.find((n) => n.name.replace(/^#/, "").toLowerCase() === norm);
+      if (match?.lineItems?.nodes?.length) {
+        return {
+          id: match.id,
+          name: match.name,
+          lineItems: match.lineItems.nodes.map((li) => ({ id: li.id, title: li.title, sku: li.sku ?? null, quantity: li.quantity })),
+        };
+      }
+    } catch (err) {
+      console.warn(`[fetchOrderLineItemsByName] query="${q}" failed:`, (err as Error)?.message ?? err);
+    }
+  }
+
+  // Also try via raw REST + minimal GraphQL if REST creds are available
+  if (admin._rest?.accessToken) {
+    const { shopDomain, accessToken } = admin._rest;
+    const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
+    const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
+    for (const q of [`name:#${clean}`, `name:${clean}`]) {
+      try {
+        const gqlQuery = `query searchOrdersMinimal($q: String!, $first: Int!) {
+          orders(first: $first, query: $q, sortKey: CREATED_AT, reverse: true) {
+            nodes {
+              id
+              name
+              lineItems(first: 50) {
+                nodes { id title sku quantity }
+              }
+            }
+          }
+        }`;
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": accessToken },
+          body: JSON.stringify({ query: gqlQuery, variables: { q, first: 50 } }),
+        });
+        if (!res.ok) continue;
+        const json = (await res.json()) as { data?: { orders?: { nodes?: Array<{ id: string; name: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }> } }> } } };
+        const nodes = json.data?.orders?.nodes ?? [];
+        const norm2 = clean.toLowerCase();
+        const match = nodes.find((n) => n.name.replace(/^#/, "").toLowerCase() === norm2);
+        if (match?.lineItems?.nodes?.length) {
+          return {
+            id: match.id,
+            name: match.name,
+            lineItems: match.lineItems.nodes.map((li) => ({ id: li.id, title: li.title, sku: li.sku ?? null, quantity: li.quantity })),
+          };
+        }
+      } catch (err) {
+        console.warn(`[fetchOrderLineItemsByName] raw fetch query="${q}" failed:`, (err as Error)?.message ?? err);
+      }
+    }
+  }
+
+  return null;
 }
 
 const ALL_LOCATIONS_QUERY = `#graphql

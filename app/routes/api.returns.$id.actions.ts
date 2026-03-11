@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
@@ -728,59 +728,83 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       if (lineItemsForRefund.length === 0) {
         console.log(`[refund] lineItemsForRefund is empty, fetching Shopify order to resolve line items`);
-        // Try multiple strategies to fetch the Shopify order for line item resolution
-        let order: Awaited<ReturnType<typeof fetchOrder>> = null;
+        // Use PCDA-safe minimal queries first — these don't request email/phone/addresses
+        // so they work even without Protected Customer Data Access approval.
+        let minimalOrder: { id: string; name: string; lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }> } | null = null;
+
+        // Strategy 0 (PRIMARY — PCDA-safe): Fetch line items only via GID
         if (orderIdForRefund) {
-          // Strategy A: fetchOrder via nodes() query
-          order = await fetchOrder(admin, orderIdForRefund).catch((err) => {
-            console.warn(`[refund] fetchOrder(nodes) failed for "${orderIdForRefund}":`, err?.message ?? err);
+          minimalOrder = await fetchOrderLineItemsOnly(admin, orderIdForRefund).catch((err) => {
+            console.warn(`[refund] fetchOrderLineItemsOnly failed for "${orderIdForRefund}":`, (err as Error)?.message ?? err);
             return null;
           });
-          // Strategy B: fetchOrderByGid via orderByIdentifier query (different API, may succeed when nodes fails)
-          if (!order && orderIdForRefund.startsWith("gid://")) {
-            order = await fetchOrderByGid(admin, orderIdForRefund).catch((err) => {
-              console.warn(`[refund] fetchOrderByGid failed for "${orderIdForRefund}":`, err?.message ?? err);
+          console.log(`[refund] Strategy 0 (PCDA-safe GID): ${minimalOrder ? `found ${minimalOrder.lineItems.length} line items` : "no result"}`);
+        }
+
+        // Strategy 0b (PCDA-safe by name): If GID didn't work, try order name search
+        if (!minimalOrder && returnCase.shopifyOrderName) {
+          const orderName = returnCase.shopifyOrderName.replace(/^#/, "").trim();
+          if (orderName) {
+            minimalOrder = await fetchOrderLineItemsByName(admin, orderName).catch((err) => {
+              console.warn(`[refund] fetchOrderLineItemsByName("${orderName}") failed:`, (err as Error)?.message ?? err);
               return null;
             });
-          }
-          // Strategy C: fetchOrderByOrderNumber via REST API using the order name
-          if (!order && returnCase.shopifyOrderName) {
-            const orderName = returnCase.shopifyOrderName.replace(/^#/, "").trim();
-            if (orderName) {
-              order = await fetchOrderByOrderNumber(admin, orderName).catch((err) => {
-                console.warn(`[refund] fetchOrderByOrderNumber("${orderName}") failed:`, err?.message ?? err);
-                return null;
-              });
-              if (order?.id && order.id !== orderIdForRefund) {
-                // Update stored GID for future lookups
-                orderIdForRefund = order.id;
-                await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: order.id } }).catch(() => {});
-              }
+            console.log(`[refund] Strategy 0b (PCDA-safe name "${orderName}"): ${minimalOrder ? `found ${minimalOrder.lineItems.length} line items` : "no result"}`);
+            if (minimalOrder?.id && minimalOrder.id !== orderIdForRefund) {
+              orderIdForRefund = minimalOrder.id;
+              await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: minimalOrder.id } }).catch(() => {});
             }
           }
         }
-        if (order?.lineItems?.length) {
+
+        if (minimalOrder?.lineItems?.length) {
           const returnItems = returnCase.items ?? [];
-          if (returnItems.length > 0 && returnItems.some((i) => i.sku)) {
+          if (returnItems.length > 0 && returnItems.some((i: { sku?: string | null }) => i.sku)) {
             // Match by SKU to get correct quantities
             const matched: Array<{ id: string; quantity: number }> = [];
             for (const ri of returnItems) {
-              const riSku = (ri.sku ?? "").toLowerCase().trim();
+              const riSku = ((ri as { sku?: string | null }).sku ?? "").toLowerCase().trim();
               if (!riSku) continue;
-              const shopifyLi = order.lineItems.find(
+              const shopifyLi = minimalOrder.lineItems.find(
                 (li) => li.sku && li.sku.toLowerCase().trim() === riSku
               );
               if (shopifyLi) matched.push({ id: shopifyLi.id, quantity: ri.qty });
             }
             lineItemsForRefund = matched.length > 0
               ? matched
-              : order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+              : minimalOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           } else {
-            lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            lineItemsForRefund = minimalOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           }
-          console.log(`[refund] Resolved ${lineItemsForRefund.length} line items from Shopify order`);
+          console.log(`[refund] Resolved ${lineItemsForRefund.length} line items from PCDA-safe query`);
         } else {
-          console.error(`[refund] ALL order fetch strategies failed for orderIdForRefund="${orderIdForRefund}" shopifyOrderName="${returnCase.shopifyOrderName}"`);
+          // Fallback: try full queries (may fail due to PCDA, but worth trying)
+          let order: Awaited<ReturnType<typeof fetchOrder>> = null;
+          if (orderIdForRefund) {
+            order = await fetchOrder(admin, orderIdForRefund).catch((err) => {
+              console.warn(`[refund] fetchOrder(full) failed for "${orderIdForRefund}":`, (err as Error)?.message ?? err);
+              return null;
+            });
+            if (!order && returnCase.shopifyOrderName) {
+              const orderName = returnCase.shopifyOrderName.replace(/^#/, "").trim();
+              if (orderName) {
+                order = await fetchOrderByOrderNumber(admin, orderName).catch((err) => {
+                  console.warn(`[refund] fetchOrderByOrderNumber("${orderName}") failed:`, (err as Error)?.message ?? err);
+                  return null;
+                });
+                if (order?.id && order.id !== orderIdForRefund) {
+                  orderIdForRefund = order.id;
+                  await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: order.id } }).catch(() => {});
+                }
+              }
+            }
+          }
+          if (order?.lineItems?.length) {
+            lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            console.log(`[refund] Resolved ${lineItemsForRefund.length} line items from full query fallback`);
+          } else {
+            console.error(`[refund] ALL order fetch strategies failed for orderIdForRefund="${orderIdForRefund}" shopifyOrderName="${returnCase.shopifyOrderName}"`);
+          }
         }
       }
 

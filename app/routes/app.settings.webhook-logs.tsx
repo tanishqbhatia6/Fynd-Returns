@@ -82,7 +82,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalAll++;
     }
 
-    const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0) + (actionCounts["status_updated"] ?? 0);
+    const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0) + (actionCounts["status_updated"] ?? 0) + (actionCounts["status_noted"] ?? 0);
     const errorCount = actionCounts["error"] ?? 0;
     const ignoredCount = actionCounts["ignored"] ?? 0;
     const duplicateCount = actionCounts["duplicate_ignored"] ?? 0;
@@ -150,6 +150,7 @@ function ActionBadge({ action }: { action: string | null }) {
     refund_in_progress: { bg: "#DBEAFE", color: "#1E40AF", label: "In Progress" },
     refund_completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
     status_updated: { bg: "#E0E7FF", color: "#3730A3", label: "Status Updated" },
+    status_noted: { bg: "#DBEAFE", color: "#1E40AF", label: "Status Noted" },
     ignored: { bg: "#F3F4F6", color: "#6B7280", label: "Ignored" },
     error: { bg: "#FEE2E2", color: "#991B1B", label: "Error" },
     duplicate_ignored: { bg: "#FEF3C7", color: "#92400E", label: "Duplicate" },
@@ -556,13 +557,13 @@ export default function WebhookLogsPage() {
             <div style={{ display: "flex", gap: 4, height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
               {Object.entries(analytics.actionCounts).map(([action, count]) => {
                 const pct = (count / analytics.total) * 100;
-                const c: Record<string, string> = { refund_completed: "#059669", refund_in_progress: "#3B82F6", ignored: "#D1D5DB", error: "#DC2626", duplicate_ignored: "#F59E0B" };
+                const c: Record<string, string> = { refund_completed: "#059669", refund_in_progress: "#3B82F6", status_updated: "#6366F1", status_noted: "#3B82F6", ignored: "#D1D5DB", error: "#DC2626", duplicate_ignored: "#F59E0B" };
                 return <div key={action} style={{ width: `${pct}%`, minWidth: pct > 0 ? 3 : 0, background: c[action] ?? "#9CA3AF", borderRadius: 2 }} title={`${action}: ${count}`} />;
               })}
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {Object.entries(analytics.actionCounts).map(([action, count]) => {
-                const c: Record<string, string> = { refund_completed: "#059669", refund_in_progress: "#3B82F6", ignored: "#9CA3AF", error: "#DC2626", duplicate_ignored: "#F59E0B" };
+                const c: Record<string, string> = { refund_completed: "#059669", refund_in_progress: "#3B82F6", status_updated: "#6366F1", status_noted: "#3B82F6", ignored: "#9CA3AF", error: "#DC2626", duplicate_ignored: "#F59E0B" };
                 return (
                   <div key={action} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
                     <span style={{ width: 7, height: 7, borderRadius: "50%", background: c[action] ?? "#9CA3AF" }} />

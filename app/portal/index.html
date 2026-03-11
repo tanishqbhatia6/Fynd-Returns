@@ -2490,6 +2490,7 @@
       'portal.statusDesc.returnDeclined': 'Your return request has been declined',
       'portal.statusDesc.returnCancelled': 'This return has been cancelled',
       'portal.statusDesc.returnCompleted': 'Return completed',
+      'portal.statusDesc.returnReceivedAwaitingRefund': 'Your return has been received, refund is pending',
       'portal.statusDesc.returnApproved': 'Your return has been approved by the store',
       'portal.statusDesc.underReview': 'Your return request is being reviewed',
       'portal.statusDesc.returnSubmitted': 'Return request submitted',
@@ -2758,11 +2759,12 @@
         return { label: t('portal.status.refundProcessing'), cls: 'processing', step: 6, description: t('portal.statusDesc.refundProcessing') };
       }
 
-      if (latestJourneyStatus.includes('return_accepted') || journeyHas('return_accepted')) {
+      if (latestJourneyStatus.includes('return_accepted') || journeyHas('return_accepted') || f.includes('return_accepted')) {
         return { label: t('portal.status.returnAccepted'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnAccepted') };
       }
-      if (latestJourneyStatus.includes('return_delivered') || latestJourneyStatus.includes('delivery_done') ||
-          f.includes('return_delivered') || f.includes('delivery_done') || journeyHas('return_delivered') || journeyHas('delivery_done')) {
+      if (latestJourneyStatus.includes('return_delivered') || latestJourneyStatus.includes('delivery_done') || latestJourneyStatus.includes('return_bag_delivered') ||
+          f.includes('return_delivered') || f.includes('delivery_done') || f.includes('return_bag_delivered') ||
+          journeyHas('return_delivered') || journeyHas('delivery_done') || journeyHas('return_bag_delivered')) {
         return { label: t('portal.status.returnReceived'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnReceived') };
       }
 
@@ -2802,7 +2804,7 @@
         return { label: t('portal.status.cancelled'), cls: 'error', step: -1, description: t('portal.statusDesc.returnCancelled') };
       }
       if (s === 'completed') {
-        return { label: t('portal.status.completed'), cls: 'ok', step: 6, description: t('portal.statusDesc.returnCompleted') };
+        return { label: t('portal.status.returnReceived'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnReceivedAwaitingRefund') };
       }
       if (s === 'approved') {
         return { label: t('portal.status.returnApproved'), cls: 'ok', step: 2, description: t('portal.statusDesc.returnApproved') };
@@ -2860,7 +2862,7 @@
         dp_out_for_pickup: 2, out_for_pickup: 2,
         return_bag_picked: 2, bag_picked: 2,
         return_bag_in_transit: 3, in_transit: 3,
-        out_for_delivery_to_store: 3, out_for_delivery: 3,
+        out_for_delivery_to_store: 3, out_for_delivery: 3, return_bag_out_for_delivery: 3,
         return_delivered: 4, delivery_done: 4, return_bag_delivered: 4,
         return_accepted: 4,
         credit_note_generated: 5, credit_note: 5, refund_initiated: 5,

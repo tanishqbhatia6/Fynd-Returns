@@ -27,6 +27,15 @@ const DEFAULT_LIMITS: Record<string, RateLimitConfig> = {
   "portal.otp.send": { maxRequests: 5, windowMs: 5 * 60_000 },
   "portal.otp.verify": { maxRequests: 10 },
   "portal.returns": { maxRequests: 30 },
+  // External API endpoints
+  "external.returns.list": { maxRequests: 120 },
+  "external.returns.detail": { maxRequests: 120 },
+  "external.settings": { maxRequests: 120 },
+  "external.returns.approve": { maxRequests: 30 },
+  "external.returns.reject": { maxRequests: 30 },
+  "external.returns.refund": { maxRequests: 30 },
+  "external.webhooks": { maxRequests: 10 },
+  "external.postman": { maxRequests: 10 },
   default: { maxRequests: 60 },
 };
 

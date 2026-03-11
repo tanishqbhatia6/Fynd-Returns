@@ -72,23 +72,23 @@ function computeAdminReturnState(
     return processing("Refund Processing", 6, "Credit note generated, awaiting refund");
   }
   if (f.includes("refund") || r === "in_progress") return processing("Refund Processing", 6, "Refund is being processed");
-  if (latestJs.includes("return_accepted") || journeyHas("return_accepted")) return ok("Return Accepted", 5, "Return received and accepted at warehouse");
-  if (latestJs.includes("return_delivered") || latestJs.includes("delivery_done") || journeyHas("return_delivered") || journeyHas("delivery_done"))
+  if (latestJs.includes("return_accepted") || journeyHas("return_accepted") || f.includes("return_accepted")) return ok("Return Accepted", 5, "Return received and accepted at warehouse");
+  if (latestJs.includes("return_delivered") || latestJs.includes("delivery_done") || latestJs.includes("return_bag_delivered") || journeyHas("return_delivered") || journeyHas("delivery_done") || journeyHas("return_bag_delivered") || f.includes("return_delivered") || f.includes("delivery_done") || f.includes("return_bag_delivered"))
     return ok("Return Received", 5, "Return package delivered to warehouse");
-  if (latestJs.includes("out_for_delivery") || journeyHas("out_for_delivery")) return transit("Out for Delivery", 4, "Package out for delivery to warehouse");
-  if (latestJs.includes("in_transit") || latestJs.includes("return_bag_in_transit") || journeyHas("in_transit") || journeyHas("return_bag_in_transit"))
+  if (latestJs.includes("out_for_delivery") || journeyHas("out_for_delivery") || f.includes("out_for_delivery")) return transit("Out for Delivery", 4, "Package out for delivery to warehouse");
+  if (latestJs.includes("in_transit") || latestJs.includes("return_bag_in_transit") || journeyHas("in_transit") || journeyHas("return_bag_in_transit") || f.includes("in_transit") || f.includes("return_bag_in_transit"))
     return transit("In Transit", 4, "Return package in transit to warehouse");
-  if (latestJs.includes("bag_picked") || latestJs.includes("return_bag_picked") || journeyHas("bag_picked"))
+  if (latestJs.includes("bag_picked") || latestJs.includes("return_bag_picked") || journeyHas("bag_picked") || f.includes("bag_picked") || f.includes("return_bag_picked"))
     return transit("Picked Up", 3, "Return package picked up by courier");
-  if (latestJs.includes("out_for_pickup") || latestJs.includes("dp_out_for_pickup") || journeyHas("out_for_pickup"))
+  if (latestJs.includes("out_for_pickup") || latestJs.includes("dp_out_for_pickup") || journeyHas("out_for_pickup") || f.includes("out_for_pickup"))
     return pending("Courier En Route", 3, "Courier on the way for pickup");
-  if (latestJs.includes("dp_assigned") || latestJs.includes("return_dp_assigned") || journeyHas("dp_assigned"))
+  if (latestJs.includes("dp_assigned") || latestJs.includes("return_dp_assigned") || journeyHas("dp_assigned") || f.includes("dp_assigned"))
     return pending("Pickup Scheduled", 3, "Courier assigned for pickup");
-  if (latestJs.includes("return_initiated") || latestJs.includes("bag_confirmed") || journeyHas("return_initiated") || journeyHas("bag_confirmed"))
+  if (latestJs.includes("return_initiated") || latestJs.includes("bag_confirmed") || journeyHas("return_initiated") || journeyHas("bag_confirmed") || f.includes("return_initiated") || f.includes("bag_confirmed"))
     return ok("Return Confirmed", 2, "Confirmed on Fynd logistics");
   if (s === "rejected") return error("Rejected", "Return request has been declined");
   if (s === "cancelled") return error("Cancelled", "Return has been cancelled");
-  if (s === "completed") return done("Completed", 6, "Return completed");
+  if (s === "completed") return ok("Return Received", 5, "Return received, awaiting refund processing");
   if (s === "approved") return ok("Approved", 2, "Return approved, awaiting logistics pickup");
   if (s === "pending" || s === "initiated") return pending("Awaiting Review", 1, "Return request submitted, pending review");
   return ({ label: appStatus || "Unknown", cls: "info", step: 1, description: "Return in progress", bg: "#F9FAFB", border: "#E5E7EB", color: "#6B7280", icon: "info" });
@@ -900,11 +900,13 @@ export default function ReturnDetail() {
   const fyndTrackingStatus = fyndPayloadInfo?.shipments?.[0]
     ? safeStr((fyndPayloadInfo.shipments[0] as { shipmentStatus?: string }).shipmentStatus)
     : null;
+  // Use fyndCurrentStatus (directly updated by webhook) as fallback when parsed payload has no shipment status
+  const effectiveFyndStatus = fyndTrackingStatus || fyndCurrentStatus;
   const unifiedState = computeAdminReturnState(
     returnCase.status,
     returnCase.refundStatus,
     (returnJourney ?? []) as FyndJourneyStep[],
-    fyndTrackingStatus
+    effectiveFyndStatus
   );
   const statusConfig = {
     bg: unifiedState.bg,
@@ -1075,7 +1077,7 @@ export default function ReturnDetail() {
               dp_out_for_pickup: 2, out_for_pickup: 2,
               return_bag_picked: 2, bag_picked: 2,
               return_bag_in_transit: 3, in_transit: 3,
-              out_for_delivery_to_store: 3, out_for_delivery: 3,
+              out_for_delivery_to_store: 3, out_for_delivery: 3, return_bag_out_for_delivery: 3,
               return_delivered: 4, delivery_done: 4, return_bag_delivered: 4,
               return_accepted: 4,
               credit_note_generated: 5, credit_note: 5, refund_initiated: 5,

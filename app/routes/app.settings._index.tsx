@@ -284,6 +284,16 @@ export default function SettingsDashboard() {
               : { label: "Fynd not connected", variant: "off" as const },
           ],
         },
+        {
+          to: "/app/settings/api-keys",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
+          iconBg: "#FDF4FF", iconStroke: "#A855F7",
+          title: "External API Keys",
+          desc: "Generate API keys for ERP systems and external integrations. View API docs and download Postman collection.",
+          status: [
+            { label: "API access", variant: "info" as const },
+          ],
+        },
       ],
     },
     {

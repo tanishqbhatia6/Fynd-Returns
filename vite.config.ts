@@ -46,5 +46,7 @@ export default defineConfig({
     include: ["app/**/*.test.ts", "app/**/*.e2e.test.ts"],
     environment: "node",
     globals: true,
+    setupFiles: ["./app/test/setup.ts"],
+    testTimeout: 10000,
   },
 }) satisfies UserConfig;

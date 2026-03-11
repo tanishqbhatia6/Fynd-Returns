@@ -57,7 +57,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let eventType: string | undefined;
   try {
     ({ payload, eventType } = unwrapFyndWebhookPayload(rawBodyText));
-  } catch {
+  } catch (parseErr) {
+    const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
+    console.error("[Fynd webhook] Parse error:", errMsg, "Body preview:", rawBodyText.slice(0, 300));
+    // Store the failed webhook for later inspection
+    try {
+      const { default: prismaClient } = await import("../db.server");
+      await prismaClient.fyndWebhookLog.create({
+        data: {
+          action: "error",
+          rawPayload: rawBodyText.slice(0, 50000),
+          error: `JSON parse error: ${errMsg}`,
+        },
+      });
+    } catch { /* non-fatal */ }
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 

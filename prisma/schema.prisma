@@ -36,8 +36,10 @@ model Shop {
   installedAt DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  settings    ShopSettings?
-  returnCases ReturnCase[]
+  settings              ShopSettings?
+  returnCases           ReturnCase[]
+  apiKeys               ApiKey[]
+  webhookSubscriptions  WebhookSubscription[]
 }
 
 model ShopSettings {
@@ -278,7 +280,7 @@ model FyndWebhookLog {
   refundStatus     String?
   fyndStatus       String?
   eventType        String?
-  action           String?  // ignored | refund_in_progress | refund_completed | status_updated | error | duplicate_ignored
+  action           String?  // ignored | refund_in_progress | refund_completed | status_updated | status_noted | error | duplicate_ignored
   returnCaseId     String?
   carrier          String?
   awbNumber        String?
@@ -289,6 +291,8 @@ model FyndWebhookLog {
   shopDomain       String?
   rawPayload       String?  @db.Text
   error            String?  @db.Text
+  retryCount       Int      @default(0)
+  retryAfter       DateTime?
   createdAt        DateTime @default(now())
 
   @@index([shipmentId])
@@ -296,6 +300,7 @@ model FyndWebhookLog {
   @@index([affiliateOrderId])
   @@index([returnCaseId])
   @@index([createdAt])
+  @@index([action, retryAfter])
 }
 
 model FyndOrderMapping {
@@ -360,4 +365,36 @@ model NotificationLog {
 
   @@index([shopId, createdAt])
   @@index([returnCaseId])
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  shopId      String
+  shop        Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  name        String
+  keyHash     String    // bcrypt hash of the full API key
+  keyPrefix   String    // first 8 chars for identification (e.g. "rpm_a1b2")
+  permissions String    // JSON array: ["read_returns","write_returns","read_settings","manage_webhooks"]
+  isActive    Boolean   @default(true)
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([shopId])
+  @@index([keyPrefix])
+}
+
+model WebhookSubscription {
+  id         String   @id @default(cuid())
+  shopId     String
+  shop       Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  url        String
+  events     String   // JSON array: ["return.created","return.approved","return.rejected","return.refunded","return.status_changed"]
+  secret     String   // HMAC secret for signature verification
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([shopId])
 }

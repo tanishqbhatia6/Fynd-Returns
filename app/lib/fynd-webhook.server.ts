@@ -38,7 +38,14 @@ const FYND_JOURNEY_STATUSES = new Set([
   "bag_picked", "out_for_delivery", "delivery_done", "handed_over_to_customer",
   // Return journey
   "return_initiated", "return_dp_assigned", "return_bag_in_transit",
-  "return_bag_delivered", "return_accepted", "return_completed",
+  "return_bag_delivered", "return_delivered", "return_bag_picked",
+  "return_accepted", "return_completed",
+  // Return delivery/warehouse statuses
+  "return_bag_out_for_delivery", "out_for_delivery_to_store",
+  // Return failure/rejection statuses
+  "return_bag_not_received", "bag_not_received", "return_bag_rejected",
+  // Return cancellation
+  "return_request_cancelled",
   // RTO journey
   "rto_initiated", "rto_dp_assigned", "rto_bag_in_transit",
   "rto_bag_delivered", "rto_bag_accepted",
@@ -297,14 +304,23 @@ export function unwrapFyndWebhookPayload(rawBodyText: string): {
   eventType: string | undefined;
 } {
   const body = JSON.parse(rawBodyText) as Record<string, unknown>;
-  // Unwrap envelope: body.payload, body.data, body.shipment, or direct body
+  // Unwrap envelope: merge envelope contents WITH top-level body fields.
+  // CRITICAL: Never discard top-level fields (shipment_id, order_id, etc.) —
+  // Fynd puts authoritative IDs at the top level alongside nested envelope objects.
+  // Strategy: spread envelope as base, then body on top (body wins on conflict).
   let inner: Record<string, unknown>;
-  if (body?.payload && typeof body.payload === "object") {
-    inner = body.payload as Record<string, unknown>;
-  } else if (body?.data && typeof body.data === "object") {
-    inner = body.data as Record<string, unknown>;
-  } else if (body?.shipment && typeof body.shipment === "object") {
-    inner = body.shipment as Record<string, unknown>;
+  if (body?.payload && typeof body.payload === "object" && !Array.isArray(body.payload)) {
+    const envelope = body.payload as Record<string, unknown>;
+    inner = { ...envelope, ...body };
+    delete inner.payload;
+  } else if (body?.data && typeof body.data === "object" && !Array.isArray(body.data)) {
+    const envelope = body.data as Record<string, unknown>;
+    inner = { ...envelope, ...body };
+    delete inner.data;
+  } else if (body?.shipment && typeof body.shipment === "object" && !Array.isArray(body.shipment)) {
+    const envelope = body.shipment as Record<string, unknown>;
+    inner = { ...envelope, ...body };
+    delete inner.shipment;
   } else {
     inner = body;
   }
@@ -398,7 +414,7 @@ export function unwrapFyndWebhookPayload(rawBodyText: string): {
 }
 
 export type ProcessFyndWebhookResult =
-  | { ok: true; action: "refund_in_progress" | "refund_completed" | "status_updated" | "ignored"; returnCaseId?: string }
+  | { ok: true; action: "refund_in_progress" | "refund_completed" | "status_updated" | "status_noted" | "ignored"; returnCaseId?: string }
   | { ok: false; error: string };
 
 async function logWebhook(params: {
@@ -1234,10 +1250,10 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     if ((statusLower === "return_initiated" || statusLower === "bag_confirmed") && currentLevel < 2) {
       journeyUpdate.status = "approved";
     }
-    if (["return_dp_assigned", "bag_picked", "return_bag_in_transit", "out_for_pickup", "dp_out_for_pickup"].includes(statusLower) && currentLevel < 3) {
+    if (["return_dp_assigned", "bag_picked", "return_bag_picked", "return_bag_in_transit", "out_for_pickup", "dp_out_for_pickup", "return_bag_out_for_delivery", "out_for_delivery_to_store"].includes(statusLower) && currentLevel < 3) {
       journeyUpdate.status = "in progress";
     }
-    if (["return_bag_delivered", "return_accepted", "return_completed"].includes(statusLower) && currentLevel < 4) {
+    if (["return_bag_delivered", "return_delivered", "return_accepted", "return_completed"].includes(statusLower) && currentLevel < 4) {
       journeyUpdate.status = "completed";
     }
   }
@@ -1261,8 +1277,10 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     });
   }
 
-  // Log as "status_updated" for known journey statuses, "ignored" for truly unrecognized
-  const finalAction = isKnownJourneyStatus ? "status_updated" : "ignored";
+  // Log as "status_updated" for known journey statuses, "status_noted" for unrecognized
+  // statuses that were still recorded on the ReturnCase. Never log "ignored" when we
+  // actually found and updated a ReturnCase.
+  const finalAction = isKnownJourneyStatus ? "status_updated" : "status_noted";
   await logWebhook({
     shipmentId,
     orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
@@ -1273,5 +1291,5 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     ...logEnrichment,
     shopDomain,
   });
-  return { ok: true, action: finalAction as "status_updated" | "ignored", returnCaseId: returnCase.id };
+  return { ok: true, action: finalAction as "status_updated" | "status_noted", returnCaseId: returnCase.id };
 }

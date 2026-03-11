@@ -584,19 +584,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       let orderIdForRefund = returnCase.shopifyOrderId;
 
-      // Collect line items — only trust IDs that look like Shopify GIDs or pure numeric
+      // Collect line items — ONLY trust IDs that are proper Shopify GIDs (gid://shopify/LineItem/...)
+      // Bare numeric IDs could be Fynd bag IDs (e.g. "3777852") which are NOT Shopify line items
       const rawLineItems = (returnCase.items ?? [])
         .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
         .map((i) => ({ id: i.shopifyLineItemId, quantity: i.qty, sku: i.sku }));
       const hasValidLineItemIds = rawLineItems.length > 0 && rawLineItems.every(
-        (li) => li.id.startsWith("gid://shopify/LineItem/") || /^\d+$/.test(li.id)
+        (li) => li.id.startsWith("gid://shopify/LineItem/")
       );
       let lineItemsForRefund: Array<{ id: string; quantity: number }> = hasValidLineItemIds
         ? rawLineItems.map((li) => ({ id: li.id, quantity: li.quantity }))
-        : []; // Invalid IDs (Fynd IDs) — will be resolved from Shopify order below
+        : []; // Invalid IDs (Fynd bag IDs) — will be resolved from Shopify order below
 
       if (!hasValidLineItemIds && rawLineItems.length > 0) {
-        console.log(`[refund] Line item IDs are not valid Shopify GIDs (sample: "${rawLineItems[0]?.id}") — will resolve from Shopify order`);
+        console.log(`[refund] Line item IDs are not Shopify GIDs (sample: "${rawLineItems[0]?.id}") — will fetch from Shopify order`);
       }
 
       // Helper: persist resolved Shopify order back to DB + fill line items by SKU match

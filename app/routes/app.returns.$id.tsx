@@ -403,7 +403,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
         if (!shopifyOrder) {
           const candidates = new Set<string>();
           if (returnCase.shopifyOrderName) candidates.add(returnCase.shopifyOrderName.replace(/^#/, "").trim());
-          if (returnCase.shopifyOrderId && !isGid && !isNumeric) candidates.add(returnCase.shopifyOrderId.replace(/^(#|fynd:)/, "").trim());
+          if (returnCase.shopifyOrderId && !isGid && !isNumeric) candidates.add(returnCase.shopifyOrderId.replace(/^#/, "").trim());
           if (fyndPayloadJson) {
             const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
             if (affId) candidates.add(affId.replace(/^#/, "").trim());

@@ -600,7 +600,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
       if (!isGid && !isNumericId && orderIdForRefund && !orderIdForRefund.startsWith("manual:")) {
         // shopifyOrderId is not a valid Shopify GID/numeric — resolve it
-        // Strip fynd: prefix if present (marks Fynd internal IDs that need resolution)
         let resolved = false;
 
         // Strategy 1: Try shopifyOrderName directly (may contain affiliate_order_id)
@@ -612,9 +611,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           if (order?.id) { await applyResolvedOrder(order); resolved = true; }
         }
 
-        // Strategy 2: Try shopifyOrderId as a Fynd affiliate_order_id (strip Fynd/fynd: prefixes)
+        // Strategy 2: Try shopifyOrderId as an order name (strip # prefix)
         if (!resolved) {
-          const cleanedOrderId = (orderIdForRefund ?? "").replace(/^fynd:/, "");
+          const cleanedOrderId = (orderIdForRefund ?? "").replace(/^#/, "").trim();
           const order = await fetchOrderByFyndAffiliateId(admin, cleanedOrderId).catch((err) => {
             console.warn(`[refund] Strategy 2 (cleanedOrderId="${cleanedOrderId}") failed:`, err?.message ?? err);
             return null;

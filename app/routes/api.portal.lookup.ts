@@ -450,14 +450,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
                 const fyndLast = fyndRestName.join(" ");
 
-                // Use affiliate_order_id (= Shopify order name) as the synthetic order's ID
-                // so it gets stored as shopifyOrderId and can be resolved for refunds.
-                // NEVER use the Fynd internal ID (e.g. FYMP699EB195013CB17C) as shopifyOrderId.
-                const fyndInternalOrderId = String(first.order_id ?? first.shipment_id ?? searchVal);
+                // shopifyOrderId must ONLY be a Shopify GID, legacyResourceId, or order name.
+                // affiliate_order_id IS the Shopify order name (e.g. FYNDSHOPIFYX14126).
+                // Never store a Fynd internal ID (e.g. FYMP699EB195013CB17C).
                 const affiliateId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
-                // Only use affiliate_order_id (which is the Shopify order name).
-                // If unavailable, prefix with "fynd:" so it's never mistaken for a Shopify ID.
-                const syntheticOrderId = affiliateId || `fynd:${fyndInternalOrderId}`;
+                const orderName = String(first.affiliate_order_id ?? first.external_order_id ?? searchVal);
+                const syntheticOrderId = affiliateId || orderName;
                 // Extract currency from Fynd prices
                 const fyndPrices = (firstBag?.prices ?? first.prices ?? {}) as Record<string, unknown>;
                 const fyndCurrency = String(fyndPrices.currency_code ?? fyndPrices.currency ?? (first.order_value as Record<string, unknown> | undefined)?.currency ?? "INR").trim();

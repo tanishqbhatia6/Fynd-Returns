@@ -230,13 +230,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     let effectiveOrderId = manualMode ? `manual:${shopifyOrderName}` : orderId!;
 
     // Ensure shopifyOrderId is always a valid Shopify GID when possible.
-    // If the portal sends an affiliate_order_id (e.g. FYNDSHOPIFYX14126) or a fynd: prefixed ID,
-    // resolve it to the real Shopify GID now so it never gets stored as a Fynd internal ID.
+    // If the portal sends an order name (e.g. FYNDSHOPIFYX14126) instead of a GID,
+    // resolve it to the real Shopify GID now so future lookups are instant.
     if (!manualMode && effectiveOrderId && !effectiveOrderId.startsWith("gid://") && !/^\d+$/.test(effectiveOrderId)) {
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
-        const searchId = effectiveOrderId.replace(/^fynd:/, "").replace(/^#/, "").trim();
+        const searchId = effectiveOrderId.replace(/^#/, "").trim();
         const resolved = await fetchOrderByFyndAffiliateId(admin, searchId);
         if (resolved?.id) {
           console.log(`[create-return] Resolved orderId "${effectiveOrderId}" → "${resolved.id}"`);

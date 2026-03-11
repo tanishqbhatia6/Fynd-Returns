@@ -217,9 +217,19 @@ export type ProcessFyndWebhookResult =
 async function logWebhook(params: {
   shipmentId: string | null;
   orderId: string | null;
+  affiliateOrderId?: string | null;
   refundStatus: string | null;
+  fyndStatus?: string | null;
+  eventType?: string | null;
   action: string;
   returnCaseId?: string | null;
+  carrier?: string | null;
+  awbNumber?: string | null;
+  trackingUrl?: string | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  customerPhone?: string | null;
+  shopDomain?: string | null;
   rawPayload?: string | null;
   error?: string | null;
 }) {
@@ -228,10 +238,20 @@ async function logWebhook(params: {
       data: {
         shipmentId: params.shipmentId ?? undefined,
         orderId: params.orderId ?? undefined,
+        affiliateOrderId: params.affiliateOrderId ?? undefined,
         refundStatus: params.refundStatus ?? undefined,
+        fyndStatus: params.fyndStatus ?? undefined,
+        eventType: params.eventType ?? undefined,
         action: params.action,
         returnCaseId: params.returnCaseId ?? undefined,
-        rawPayload: params.rawPayload ? params.rawPayload.slice(0, 10000) : undefined,
+        carrier: params.carrier ?? undefined,
+        awbNumber: params.awbNumber ?? undefined,
+        trackingUrl: params.trackingUrl ?? undefined,
+        customerName: params.customerName ?? undefined,
+        customerEmail: params.customerEmail ?? undefined,
+        customerPhone: params.customerPhone ?? undefined,
+        shopDomain: params.shopDomain ?? undefined,
+        rawPayload: params.rawPayload ?? undefined,
         error: params.error ? params.error.slice(0, 2000) : undefined,
       },
     });
@@ -240,12 +260,27 @@ async function logWebhook(params: {
   }
 }
 
-export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload?: string): Promise<ProcessFyndWebhookResult> {
+export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload?: string, eventType?: string): Promise<ProcessFyndWebhookResult> {
   const shipmentId = extractShipmentId(payload);
   const refundStatus = extractRefundStatus(payload);
   const orderIds = extractOrderIdentifiers(payload);
   const affiliateOrderId = extractAffiliateOrderId(payload);
   const orderId = extractOrderId(payload);
+
+  // Pre-compute enrichment fields for webhook logging
+  const customer = extractCustomerFromWebhookPayload(payload);
+  const shippingInfo = extractShippingFromWebhookPayload(payload);
+  const logEnrichment = {
+    affiliateOrderId: affiliateOrderId ?? undefined,
+    fyndStatus: refundStatus ?? undefined,
+    eventType: eventType ?? undefined,
+    carrier: shippingInfo?.carrier ?? undefined,
+    awbNumber: shippingInfo?.awb ?? undefined,
+    trackingUrl: shippingInfo?.trackingUrl ?? undefined,
+    customerName: customer?.name ?? undefined,
+    customerEmail: customer?.email ?? undefined,
+    customerPhone: customer?.phone ?? undefined,
+  };
 
   if (!shipmentId && orderIds.length === 0) {
     await logWebhook({
@@ -254,6 +289,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       refundStatus,
       action: "ignored",
       rawPayload: rawPayload ?? JSON.stringify(payload),
+      ...logEnrichment,
     });
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
@@ -283,6 +319,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       refundStatus,
       action: "ignored",
       rawPayload: rawPayload ?? JSON.stringify(payload),
+      ...logEnrichment,
     });
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
@@ -388,6 +425,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       returnCaseId: returnCase.id,
       rawPayload: rawPayload ?? JSON.stringify(payload),
       error: errMsg,
+      ...logEnrichment,
+      shopDomain,
     });
     return { ok: false, error: errMsg };
   }
@@ -447,6 +486,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       action: "refund_in_progress",
       returnCaseId: returnCase.id,
       rawPayload: rawPayload ?? JSON.stringify(payload),
+      ...logEnrichment,
+      shopDomain,
     });
     return { ok: true, action: "refund_in_progress", returnCaseId: returnCase.id };
   }
@@ -481,6 +522,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         action: "refund_completed",
         returnCaseId: returnCase.id,
         rawPayload: rawPayload ?? JSON.stringify(payload),
+        ...logEnrichment,
+        shopDomain,
       });
       return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
     }
@@ -513,6 +556,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         returnCaseId: returnCase.id,
         rawPayload: rawPayload ?? JSON.stringify(payload),
         error: errMsg,
+        ...logEnrichment,
+        shopDomain,
       });
       return { ok: false, error: errMsg };
     }
@@ -578,6 +623,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
           action: "refund_completed",
           returnCaseId: returnCase.id,
           rawPayload: rawPayload ?? JSON.stringify(payload),
+          ...logEnrichment,
+          shopDomain,
         });
         return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
       }
@@ -589,6 +636,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         returnCaseId: returnCase.id,
         rawPayload: rawPayload ?? JSON.stringify(payload),
         error: errMsg,
+        ...logEnrichment,
+        shopDomain,
       });
       return { ok: false, error: errMsg };
     }
@@ -630,6 +679,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       action: "refund_completed",
       returnCaseId: returnCase.id,
       rawPayload: rawPayload ?? JSON.stringify(payload),
+      ...logEnrichment,
+      shopDomain,
     });
     return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
   }
@@ -739,6 +790,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
               action: "refund_completed",
               returnCaseId: returnCase.id,
               rawPayload: rawPayload ?? JSON.stringify(payload),
+              ...logEnrichment,
+              shopDomain,
             });
             return { ok: true, action: "refund_completed", returnCaseId: returnCase.id };
           } else {
@@ -786,6 +839,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     action: "ignored",
     returnCaseId: returnCase.id,
     rawPayload: rawPayload ?? JSON.stringify(payload),
+    ...logEnrichment,
+    shopDomain,
   });
   return { ok: true, action: "ignored", returnCaseId: returnCase.id };
 }

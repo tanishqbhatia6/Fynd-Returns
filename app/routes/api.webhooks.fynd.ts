@@ -54,6 +54,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   let payload: FyndWebhookPayload;
+  let eventType: string | undefined;
   try {
     const body = JSON.parse(rawBodyText) as Record<string, unknown>;
     // Unwrap envelope: body.payload, body.shipment, or direct body
@@ -80,7 +81,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!inner.channel_order_id && meta.channel_order_id) inner.channel_order_id = meta.channel_order_id;
     }
     const event = body?.event && typeof body.event === "object" ? (body.event as { type?: string; name?: string }) : null;
-    const eventType = event?.type ?? event?.name;
+    eventType = event?.type ?? event?.name ?? undefined;
     const firstShipment = Array.isArray(inner?.shipments) ? inner.shipments[0] : null;
     const statusOrRefund =
       (typeof inner?.refund_status === "string" && inner.refund_status) ||
@@ -127,7 +128,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   try {
-    const result = await processFyndWebhook(payload, rawBodyText);
+    const result = await processFyndWebhook(payload, rawBodyText, eventType);
     if (!result.ok) {
       console.error("[Fynd webhook]", result.error);
       return Response.json({ error: result.error }, { status: 500 });

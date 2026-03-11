@@ -34,6 +34,17 @@ export async function createReturnOnFynd(
     affiliateOrderId?: string | null;
     defaultReasonId?: number;
     defaultReasonText?: string;
+    pickupAddress?: {
+      address1?: string | null;
+      address2?: string | null;
+      city?: string | null;
+      province?: string | null;
+      zip?: string | null;
+      country?: string | null;
+      landmark?: string | null;
+      name?: string | null;
+      phone?: string | null;
+    } | null;
   }
 ): Promise<CreateFyndReturnResult> {
   if (returnCase.shopifyOrderId?.startsWith("manual:")) {

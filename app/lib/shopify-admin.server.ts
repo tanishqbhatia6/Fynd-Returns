@@ -85,6 +85,7 @@ const ORDERS_QUERY = `#graphql
 
 const ORDER_FIELDS_FRAGMENT = `
   id
+  legacyResourceId
   name
   createdAt
   processedAt
@@ -242,6 +243,7 @@ export type ShopifyFulfillment = {
 
 export type OrderForPortal = {
   id: string;
+  legacyResourceId?: string;
   name: string;
   createdAt: string;
   processedAt?: string | null;
@@ -424,6 +426,61 @@ export function withRestCredentials(admin: AdminGraphQL, shopDomain: string, acc
   return { ...admin, _rest: { shopDomain, accessToken } };
 }
 
+/**
+ * Raw-fetch GraphQL search that bypasses the Shopify SDK entirely.
+ * The SDK's admin.graphql() wraps responses through multiple layers
+ * (@shopify/graphql-client → @shopify/shopify-api → @shopify/shopify-app-react-router)
+ * which can interfere with search results. This raw fetch is proven to work via curl.
+ */
+async function rawGraphQLSearch(
+  shopDomain: string,
+  accessToken: string,
+  queryString: string,
+  exactName?: string
+): Promise<OrderForPortal | null> {
+  const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
+  const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
+  const limit = exactName ? 50 : 1;
+  const gqlQuery = `query searchOrders($q: String!, $first: Int!) {
+    orders(first: $first, query: $q, sortKey: CREATED_AT, reverse: true) {
+      nodes { ${ORDER_FIELDS_FRAGMENT} }
+    }
+  }`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Shopify-Access-Token": accessToken,
+    },
+    body: JSON.stringify({ query: gqlQuery, variables: { q: queryString, first: limit } }),
+  });
+  if (!res.ok) {
+    console.warn(`[rawGraphQLSearch] HTTP ${res.status} for query="${queryString}"`);
+    return null;
+  }
+  const json = (await res.json()) as {
+    data?: { orders?: { nodes?: Array<Record<string, unknown>> } };
+    errors?: Array<{ message?: string }>;
+  };
+  if (json.errors?.length) {
+    console.warn(`[rawGraphQLSearch] GraphQL errors for query="${queryString}":`, json.errors[0]?.message);
+    return null;
+  }
+  const nodes = json.data?.orders?.nodes ?? [];
+  if (nodes.length === 0) return null;
+
+  if (exactName) {
+    const norm = exactName.replace(/^#/, "").toLowerCase();
+    const match = nodes.find((n) => {
+      const name = typeof n.name === "string" ? n.name.replace(/^#/, "").toLowerCase() : "";
+      return name === norm;
+    });
+    if (!match) return null;
+    return parseOrderNode(match);
+  }
+  return parseOrderNode(nodes[0]);
+}
+
 export async function fetchOrderByOrderNumber(
   admin: AdminGraphQL,
   orderNumber: string
@@ -436,14 +493,46 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1 (primary): GraphQL search by name — try multiple query formats.
-  // Shopify's search parser can be unreliable with non-standard order names,
-  // so we try: quoted with #, quoted without #, unquoted with #, unquoted without #.
+  // Strategy 1 (PRIMARY — bypasses SDK, uses raw fetch proven to work via curl):
+  // When REST credentials are available, use direct fetch to Shopify GraphQL API.
+  // This eliminates any SDK response wrapping issues.
+  if (admin._rest?.accessToken) {
+    const { shopDomain, accessToken } = admin._rest;
+    for (const q of [
+      `name:#${clean}`,     // format proven to work (same as curl)
+      `name:${clean}`,      // without #
+      `name:"#${clean}"`,   // quoted with #
+      `name:"${clean}"`,    // quoted without #
+    ]) {
+      try {
+        const order = await rawGraphQLSearch(shopDomain, accessToken, q, clean);
+        if (order) {
+          console.log(`[fetchOrderByOrderNumber] Found order via raw fetch: query="${q}" → ${order.id}`);
+          return order;
+        }
+      } catch (err) {
+        console.warn(`[fetchOrderByOrderNumber] Raw search failed for query="${q}":`, err);
+      }
+    }
+
+    // Also try REST API exact name match
+    try {
+      const gid = await restOrderLookupByName(shopDomain, accessToken, clean);
+      if (gid) {
+        console.log(`[fetchOrderByOrderNumber] Found order via REST API: ${gid}`);
+        return fetchOrderByGid(admin, gid);
+      }
+    } catch (err) {
+      console.warn("[fetchOrderByOrderNumber] REST lookup error:", err);
+    }
+  }
+
+  // Strategy 2 (FALLBACK — uses SDK's admin.graphql() for cases without REST credentials):
   for (const q of [
-    `name:"#${clean}"`,   // quoted with # (e.g. name:"#FYNDSHOPIFYX14126")
-    `name:"${clean}"`,    // quoted without # (e.g. name:"FYNDSHOPIFYX14126")
-    `name:#${clean}`,     // unquoted with # (e.g. name:#FYNDSHOPIFYX14126)
-    `name:${clean}`,      // unquoted without # (e.g. name:FYNDSHOPIFYX14126)
+    `name:#${clean}`,
+    `name:${clean}`,
+    `name:"#${clean}"`,
+    `name:"${clean}"`,
   ]) {
     try {
       const node = await searchOrders(admin, q, false, clean);
@@ -453,28 +542,7 @@ export async function fetchOrderByOrderNumber(
     }
   }
 
-  // Strategy 2: General search (no name: prefix) — searches across all order fields
-  for (const q of [`"#${clean}"`, `"${clean}"`]) {
-    try {
-      const node = await searchOrders(admin, q, false, clean);
-      if (node) return parseOrderNode(node);
-    } catch (err) {
-      if (err instanceof OrderAccessError) throw err;
-    }
-  }
-
-  // Strategy 3: REST API exact name match (most reliable for non-standard names)
-  if (admin._rest) {
-    try {
-      const gid = await restOrderLookupByName(admin._rest.shopDomain, admin._rest.accessToken, clean);
-      if (gid) return fetchOrderByGid(admin, gid);
-    } catch (err) {
-      if (err instanceof OrderAccessError) throw err;
-      console.warn("[fetchOrderByOrderNumber] REST fallback error:", err);
-    }
-  }
-
-  // Strategy 4: Pagination scan (recent orders, no search filter)
+  // Strategy 3: Pagination scan (recent orders, no search filter)
   try {
     const gid = await (async () => {
       const norm = clean.replace(/^#/, "").trim().toLowerCase();
@@ -509,7 +577,7 @@ export async function fetchOrderByOrderNumber(
   // For pure numeric order names, no further strategies needed
   if (/^\d+$/.test(clean)) return null;
 
-  // Strategy 5: metafield search
+  // Strategy 4: metafield search
   try {
     const node = await searchOrders(admin, `metafields.$app.fynd_order_id:"${clean}"`, false);
     if (node) return parseOrderNode(node);
@@ -517,7 +585,7 @@ export async function fetchOrderByOrderNumber(
     if (err instanceof OrderAccessError) throw err;
   }
 
-  // Strategy 6: source_identifier
+  // Strategy 5: source_identifier
   try {
     const node = await searchOrders(admin, `source_identifier:"${clean}"`, false, clean);
     if (node) return parseOrderNode(node);
@@ -598,6 +666,7 @@ export async function fetchOrderByFyndAffiliateId(
 
 type RawOrderNode = {
   id: string;
+  legacyResourceId?: string;
   name: string;
   createdAt: string;
   processedAt?: string | null;
@@ -669,6 +738,7 @@ function parseOrderNode(node: unknown): OrderForPortal {
   }));
   return {
     id: o.id,
+    legacyResourceId: o.legacyResourceId ?? o.id.replace(/^gid:\/\/shopify\/Order\//, ""),
     name: o.name,
     createdAt: o.createdAt,
     email: o.email ?? null,

@@ -737,9 +737,13 @@ export default function ReturnDetail() {
   const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both" | "discount_code">(defaultRefundMethod);
   const [modalStoreCreditPct, setModalStoreCreditPct] = useState(refundStoreCreditPct ?? 100);
   const storeName = shopDomain.replace(".myshopify.com", "");
-  // Extract numeric Shopify order ID for the admin URL. Prefer the GID (always correct).
-  // Fall back to shopifyOrderId only if it's numeric (a valid Shopify legacy ID).
+  // Extract numeric Shopify order ID for the admin URL.
+  // Prefer legacyResourceId (guaranteed numeric), then extract from GID, then stored numeric ID.
   const orderIdForLink = (() => {
+    // Best: legacyResourceId from resolved Shopify order (always the correct numeric ID)
+    if (shopifyOrder?.legacyResourceId) {
+      return shopifyOrder.legacyResourceId;
+    }
     // From resolved Shopify order GID: gid://shopify/Order/7440416669846 → 7440416669846
     if (shopifyOrder?.id?.startsWith("gid://shopify/Order/")) {
       return shopifyOrder.id.replace(/^gid:\/\/shopify\/Order\//, "");

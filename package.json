@@ -8,7 +8,7 @@
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
     "deploy": "shopify app deploy",
-    "start": "node scripts/backfill-shopify-order-ids.mjs && node scripts/backfill-webhook-logs.mjs && react-router-serve ./build/server/index.js",
+    "start": "node scripts/backfill-shopify-order-ids.mjs && node scripts/backfill-webhook-logs.mjs && node scripts/backfill-customer-info.mjs && react-router-serve ./build/server/index.js",
     "setup": "prisma generate && prisma migrate deploy",
     "shopify": "shopify",
     "prisma": "prisma",

@@ -327,6 +327,17 @@ export class FyndPlatformClient {
     return this.request("PUT", `${this.platformOrderManagePath}/shipment/status-internal`, payload);
   }
 
+  /**
+   * FileStorage API: Get signed URLs for private Fynd assets (labels, invoices).
+   * Docs: https://docs.fynd.com/partners/commerce/sdk/latest/platform/company/filestorage#getSignUrls
+   */
+  async getSignedUrls(urls: string[], expiry = 3600): Promise<Array<{ url: string; signed_url: string; expiry: number }>> {
+    const path = `/service/platform/assets/v1.0/company/${this.companyId}/sign-urls/`;
+    const res = await this.request("POST", path, { urls, expiry });
+    const body = res as { urls?: Array<{ url: string; signed_url: string; expiry: number }> };
+    return body?.urls ?? [];
+  }
+
   async testConnection(): Promise<{ ok: true; warning?: string }> {
     try {
       await this.getReturnReasons();
@@ -339,6 +350,39 @@ export class FyndPlatformClient {
       throw err;
     }
   }
+}
+
+/** Check if a URL looks like a private Fynd storage URL that needs signing */
+export function isFyndPrivateUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return /storage\.googleapis\.com\/fynd.*assets.*private/i.test(url)
+    || /cdn\.fynd\.com\/.*private/i.test(url)
+    || /fynd.*-assets-private/i.test(url);
+}
+
+/**
+ * Sign a Fynd private URL using Platform FileStorage API.
+ * Returns the signed URL, or the original URL if signing fails or isn't needed.
+ */
+export async function signFyndUrl(
+  settings: FyndSettings & { fyndApiType?: string | null },
+  url: string,
+  log?: FyndLogFn
+): Promise<{ signedUrl: string; expiry: number } | null> {
+  if (!isFyndPrivateUrl(url)) return null;
+  try {
+    const clientResult = await createFyndClientOrError(settings, { requirePlatform: true, log });
+    if (!clientResult.ok) return null;
+    const client = clientResult.client;
+    if (!('getSignedUrls' in client)) return null;
+    const results = await (client as FyndPlatformClient).getSignedUrls([url]);
+    if (results.length > 0 && results[0].signed_url) {
+      return { signedUrl: results[0].signed_url, expiry: results[0].expiry };
+    }
+  } catch (err) {
+    log?.("fynd-sign-url", "Failed to sign URL", err instanceof Error ? err.message : String(err));
+  }
+  return null;
 }
 
 // --- Storefront API (Basic auth) ---

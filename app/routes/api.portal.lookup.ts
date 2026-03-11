@@ -439,13 +439,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
                 const fyndLast = fyndRestName.join(" ");
 
+                // Use affiliate_order_id (= Shopify order name) as the synthetic order's ID
+                // so it gets stored as shopifyOrderId and can be resolved for refunds.
+                // Keep the Fynd internal order ID separately.
+                const fyndInternalOrderId = String(first.order_id ?? first.shipment_id ?? searchVal);
+                const affiliateId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
+                const syntheticOrderId = affiliateId || fyndInternalOrderId;
+                // Extract currency from Fynd prices
+                const fyndPrices = (firstBag?.prices ?? first.prices ?? {}) as Record<string, unknown>;
+                const fyndCurrency = String(fyndPrices.currency_code ?? fyndPrices.currency ?? (first.order_value as Record<string, unknown> | undefined)?.currency ?? "INR").trim();
+
                 const syntheticOrder: PortalOrder = {
-                  id: String(first.order_id ?? first.shipment_id ?? searchVal),
+                  id: syntheticOrderId,
                   name: String(first.affiliate_order_id ?? first.external_order_id ?? `#${searchVal}`),
                   createdAt: String(first.orderDate ?? first.shipment_created_at ?? new Date().toISOString()),
                   email: fyndEmail,
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",
+                  currencyCode: fyndCurrency,
                   lineItems: [],
                   shippingAddress: (fyndName || fyndCity) ? {
                     firstName: fyndFirst || undefined,

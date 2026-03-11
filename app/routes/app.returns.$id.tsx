@@ -9,6 +9,7 @@ import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
+import { isFyndPrivateUrl, signFyndUrl } from "../lib/fynd.server";
 
 /** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
 function safeStr(v: unknown): string {
@@ -551,11 +552,64 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const isCodOrder = (shopifyOrder?.paymentGatewayNames ?? []).some((g) => COD_PATTERNS.test(g))
       || shopifyOrder?.displayFinancialStatus === "PENDING";
 
-    // Return label info
-    let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null } | null = null;
+    // Return label info — with Fynd signed URL refresh for private storage URLs
+    let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null; signedLabelUrl?: string | null; signedAt?: number | null; signedInvoiceUrl?: string | null } | null = null;
     try {
       if (returnCase.returnLabelJson) returnLabelInfo = JSON.parse(returnCase.returnLabelJson);
     } catch { /* ignore */ }
+
+    // Sign Fynd private URLs (labels, invoices) if needed — expire after 50 min
+    if (returnLabelInfo) {
+      const SIGN_TTL_MS = 50 * 60 * 1000; // refresh if older than 50 min
+      const needsSign = (url: string | null | undefined, signedAt: number | null | undefined) =>
+        isFyndPrivateUrl(url) && (!signedAt || Date.now() - signedAt > SIGN_TTL_MS);
+
+      const rawLabel = (returnLabelInfo as Record<string, unknown>).labelUrl as string | null;
+      const rawInvoice = (returnLabelInfo as Record<string, unknown>).invoiceUrl as string | null;
+      const labelNeedsSign = needsSign(rawLabel, returnLabelInfo.signedAt);
+      const invoiceNeedsSign = needsSign(rawInvoice, (returnLabelInfo as Record<string, unknown>).signedInvoiceAt as number | null);
+
+      if (labelNeedsSign || invoiceNeedsSign) {
+        try {
+          const fyndSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+          if (fyndSettings) {
+            const settings = {
+              fyndEnvironment: (fyndSettings as Record<string, unknown>).fyndEnvironment as string | null,
+              fyndCustomBaseUrl: (fyndSettings as Record<string, unknown>).fyndCustomBaseUrl as string | null,
+              fyndCompanyId: fyndSettings.fyndCompanyId ?? null,
+              fyndApplicationId: fyndSettings.fyndApplicationId ?? null,
+              fyndCredentials: fyndSettings.fyndCredentials ?? null,
+            };
+            let updated = false;
+            if (labelNeedsSign && rawLabel) {
+              const result = await signFyndUrl(settings, rawLabel);
+              if (result) {
+                returnLabelInfo.signedLabelUrl = result.signedUrl;
+                returnLabelInfo.signedAt = Date.now();
+                updated = true;
+              }
+            }
+            if (invoiceNeedsSign && rawInvoice) {
+              const result = await signFyndUrl(settings, rawInvoice);
+              if (result) {
+                (returnLabelInfo as Record<string, unknown>).signedInvoiceUrl = result.signedUrl;
+                (returnLabelInfo as Record<string, unknown>).signedInvoiceAt = Date.now();
+                updated = true;
+              }
+            }
+            if (updated) {
+              // Persist refreshed signed URLs back to DB
+              try {
+                await prisma.returnCase.update({
+                  where: { id: returnCase.id },
+                  data: { returnLabelJson: JSON.stringify(returnLabelInfo) },
+                });
+              } catch { /* non-fatal */ }
+            }
+          }
+        } catch { /* non-fatal — show raw URL if signing fails */ }
+      }
+    }
 
     // Default return instructions from settings
     let defaultReturnInstructions: string | null = null;
@@ -623,7 +677,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       daysRemaining, returnDeadline,
       discountCodeRefundEnabled, discountCodePrefix, discountCodeExpiryDays,
       shopLocale: shopSettings?.shopLocale ?? "en",
-      shopCurrency: shopSettings?.shopCurrency ?? "USD",
+      shopCurrency: (returnCase as { currency?: string | null }).currency || shopifyOrder?.currencyCode || shopSettings?.shopCurrency || "USD",
       shopTimezone: shopSettings?.shopTimezone ?? "UTC",
       fyndCurrentStatus,
       customerReturnHistory,
@@ -1243,28 +1297,13 @@ export default function ReturnDetail() {
               return (
                 <div style={{ ...C.card }}>
                   <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Return Shipping</div>
-                  {hasLabel && (
-                    <div style={{ marginBottom: 16, padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                        {returnLabelInfo?.carrier && <div><div style={C.label}>Carrier</div><div style={C.val}>{returnLabelInfo.carrier}</div></div>}
-                        {returnLabelInfo?.trackingNumber && <div><div style={C.label}>Tracking Number</div><div style={C.mono}>{returnLabelInfo.trackingNumber}</div></div>}
-                      </div>
-                      {returnLabelInfo?.labelUrl && (
-                        <div style={{ marginBottom: 8 }}>
-                          <div style={C.label}>Label URL</div>
-                          <a href={returnLabelInfo.labelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", wordBreak: "break-all" }}>
-                            {returnLabelInfo.labelUrl} &rarr;
-                          </a>
-                        </div>
-                      )}
-                      {returnLabelInfo?.qrCodeUrl && (
-                        <div>
-                          <div style={C.label}>QR Code</div>
-                          <a href={returnLabelInfo.qrCodeUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>
-                            View QR Code &rarr;
-                          </a>
-                        </div>
-                      )}
+                  {/* Tracking link if available */}
+                  {(returnLabelInfo as { trackingUrl?: string })?.trackingUrl && (
+                    <div style={{ marginBottom: 14, padding: "10px 14px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0", display: "flex", alignItems: "center", gap: 8 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                      <a href={(returnLabelInfo as { trackingUrl?: string }).trackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>
+                        Track Shipment &rarr;
+                      </a>
                     </div>
                   )}
                   {defaultReturnInstructions && (
@@ -1317,20 +1356,34 @@ export default function ReturnDetail() {
                     </div>
                     <div className="app-field" style={{ marginBottom: 12 }}>
                       <label style={{ fontSize: 12, fontWeight: 600 }}>Label URL</label>
-                      <input type="url" name="labelUrl" defaultValue={returnLabelInfo?.labelUrl ?? ""} placeholder="https://..." className="app-input" style={{ fontSize: 13 }}
-                        onChange={(e) => {
-                          const form = e.target.closest("form");
-                          if (form) {
-                            const hidden = form.querySelector('input[name="json"]') as HTMLInputElement;
-                            if (hidden) {
-                              const val = JSON.parse(hidden.value);
-                              val.labelUrl = e.target.value;
-                              hidden.value = JSON.stringify(val);
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <input type="url" name="labelUrl" defaultValue={returnLabelInfo?.labelUrl ?? ""} placeholder="https://..." className="app-input" style={{ fontSize: 13, flex: 1 }}
+                          onChange={(e) => {
+                            const form = e.target.closest("form");
+                            if (form) {
+                              const hidden = form.querySelector('input[name="json"]') as HTMLInputElement;
+                              if (hidden) {
+                                const val = JSON.parse(hidden.value);
+                                val.labelUrl = e.target.value;
+                                hidden.value = JSON.stringify(val);
+                              }
                             }
-                          }
-                        }}
-                      />
+                          }}
+                        />
+                        {returnLabelInfo?.labelUrl && (
+                          <a href={returnLabelInfo.signedLabelUrl || returnLabelInfo.labelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", whiteSpace: "nowrap", textDecoration: "none" }}>
+                            View &rarr;
+                          </a>
+                        )}
+                      </div>
                     </div>
+                    {returnLabelInfo?.qrCodeUrl && (
+                      <div style={{ marginBottom: 12 }}>
+                        <a href={returnLabelInfo.qrCodeUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>
+                          View QR Code &rarr;
+                        </a>
+                      </div>
+                    )}
                     <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save Label Info</s-button>
                   </fetcher.Form>
                   <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>

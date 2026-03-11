@@ -594,45 +594,68 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             lineItemsForRefund = orderByNumber.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           }
         } else if (orderIdForRefund && !orderIdForRefund.startsWith("manual:")) {
-          // orderIdForRefund is a Fynd internal order ID. Last resort: resolve the real Shopify
-          // order via affiliate_order_id stored in the Fynd payload (affiliate_order_id == Shopify order name).
-          let resolvedFromAffiliate = false;
+          // orderIdForRefund is not a valid Shopify ID. Try multiple strategies to resolve it.
+          let resolvedOrder = false;
+
+          // Strategy 1: Extract affiliate_order_id from Fynd payload (= Shopify order name)
           if ((returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson) {
             try {
               const fp = JSON.parse((returnCase as { fyndPayloadJson: string }).fyndPayloadJson) as Record<string, unknown>;
-              const items = (fp.items ?? fp.shipments ?? []) as Record<string, unknown>[];
-              const affiliateId = String(
-                fp.affiliate_order_id ??
-                (fp.order as Record<string, unknown> | undefined)?.affiliate_order_id ??
-                items[0]?.affiliate_order_id ??
-                ""
-              ).replace(/^#/, "").trim();
-              if (affiliateId) {
-                const shopifyOrder = await fetchOrderByOrderNumber(admin, affiliateId).catch(() => null);
+              const inner = (fp.payload ?? fp.shipment ?? fp) as Record<string, unknown>;
+              const items = (inner.items ?? inner.shipments ?? []) as Record<string, unknown>[];
+              const meta = (inner.meta ?? {}) as Record<string, unknown>;
+              const orderObj = (inner.order ?? {}) as Record<string, unknown>;
+              const candidateIds = [
+                inner.affiliate_order_id, inner.external_order_id, inner.channel_order_id,
+                meta.affiliate_order_id, meta.external_order_id, meta.channel_order_id,
+                orderObj.affiliate_order_id, orderObj.external_order_id,
+                items[0]?.affiliate_order_id, items[0]?.external_order_id,
+                (items[0]?.order as Record<string, unknown> | undefined)?.affiliate_order_id,
+              ];
+              for (const raw of candidateIds) {
+                const cleaned = typeof raw === "string" ? raw.replace(/^#/, "").trim() : "";
+                if (!cleaned) continue;
+                const shopifyOrder = await fetchOrderByOrderNumber(admin, cleaned).catch(() => null);
                 if (shopifyOrder?.id) {
                   orderIdForRefund = shopifyOrder.id;
-                  resolvedFromAffiliate = true;
-                  // Persist fix so future operations don't hit this path again
-                  await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: shopifyOrder.id } });
+                  resolvedOrder = true;
+                  await prisma.returnCase.update({
+                    where: { id },
+                    data: { shopifyOrderId: shopifyOrder.id, ...(shopifyOrder.name && !returnCase.shopifyOrderName ? { shopifyOrderName: shopifyOrder.name } : {}) },
+                  });
                   if (lineItemsForRefund.length === 0 && shopifyOrder.lineItems?.length) {
                     lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
                   }
+                  break;
                 }
               }
             } catch { /* Non-fatal */ }
           }
 
-          if (!resolvedFromAffiliate) {
+          // Strategy 2: Try shopifyOrderId itself as a search query (it might be an order name without #)
+          if (!resolvedOrder) {
+            try {
+              const cleaned = orderIdForRefund.replace(/^#/, "").trim();
+              const shopifyOrder = await fetchOrderByOrderNumber(admin, cleaned).catch(() => null);
+              if (shopifyOrder?.id) {
+                orderIdForRefund = shopifyOrder.id;
+                resolvedOrder = true;
+                await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: shopifyOrder.id } });
+                if (lineItemsForRefund.length === 0 && shopifyOrder.lineItems?.length) {
+                  lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+                }
+              }
+            } catch { /* Non-fatal */ }
+          }
+
+          if (!resolvedOrder) {
             const fyndOid = orderIdForRefund;
-            const createFailedEventEarly = async (errorMsg: string) => {
-              await prisma.returnEvent.create({
-                data: { returnCaseId: id, source: "admin", eventType: "refund_failed", payloadJson: JSON.stringify({ error: errorMsg, note: note || null }) },
-              });
-            };
+            await prisma.returnEvent.create({
+              data: { returnCaseId: id, source: "admin", eventType: "refund_failed", payloadJson: JSON.stringify({ error: `Could not resolve Shopify order from "${fyndOid}"`, note: note || null }) },
+            });
             const msg = `This return is linked to Fynd order ID "${fyndOid}" which could not be found in Shopify. ` +
               `Process the refund directly in Fynd or your ERP. ` +
               `You can mark this return as completed using the status update action.`;
-            await createFailedEventEarly(msg);
             return Response.json({ error: msg }, { status: 400 });
           }
         }

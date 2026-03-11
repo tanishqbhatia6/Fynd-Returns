@@ -3,6 +3,12 @@
  * Handles various response shapes: array, { items }, { shipments }, single object.
  */
 
+/** Fynd shipment IDs are 15+ digit all-numeric strings — not real courier AWBs.
+ * Use this to filter them out before storing or displaying as tracking numbers. */
+export function isLikelyFyndId(val: unknown): boolean {
+  return typeof val === "string" && /^\d{15,}$/.test(val.trim());
+}
+
 export type FyndDisplayField = { label: string; value: string; key?: string };
 
 /** Known Fynd payload key variants -> display label */
@@ -211,9 +217,7 @@ export function getTrackingInfoFromFyndPayload(fyndPayloadJson: string | null | 
       : status;
     const awb = dpDetails.awb_no ?? first.awb_no ?? first.awbNumber ?? first.awb;
     const awbStr = Array.isArray(awb) ? awb[0] : awb;
-    // Validate AWB: Fynd shipment IDs are 15+ digit all-numeric strings — not real courier AWBs
-    const isLikelyFyndId = typeof awbStr === "string" && /^\d{15,}$/.test(awbStr.trim());
-    const validAwb = typeof awbStr === "string" && !isLikelyFyndId ? awbStr : null;
+    const validAwb = typeof awbStr === "string" && !isLikelyFyndId(awbStr) ? awbStr : null;
     return {
       trackingUrl: typeof trackUrl === "string" ? trackUrl : null,
       logisticsPartner: typeof dp === "string" ? dp : (dp && typeof dp === "object" && "name" in dp ? String((dp as { name?: string }).name) : null),
@@ -769,7 +773,8 @@ export function extractShippingDetailsFromFyndPayload(fyndPayloadJson: string | 
     // AWB
     const awbRaw = dpDetails.awb_no ?? first.awb_no ?? first.awbNumber ?? first.awb ?? meta.awb_no ?? meta.awb;
     const awbVal = Array.isArray(awbRaw) ? awbRaw[0] : awbRaw;
-    const trackingNumber = typeof awbVal === "string" && awbVal.trim() ? awbVal.trim() : null;
+    const awbCandidate = typeof awbVal === "string" && awbVal.trim() ? awbVal.trim() : null;
+    const trackingNumber = awbCandidate && !isLikelyFyndId(awbCandidate) ? awbCandidate : null;
     // Tracking URL
     let trackingUrl = first.tracking_url ?? first.track_url ?? first.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url ?? meta.tracking_url ?? meta.track_url;
     let trackingUrlStr = typeof trackingUrl === "string" && trackingUrl.trim() ? trackingUrl.trim() : null;

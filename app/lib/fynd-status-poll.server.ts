@@ -6,7 +6,7 @@
 
 import prisma from "../db.server";
 import { createFyndClientOrError, type FyndPlatformClient } from "./fynd.server";
-import { parseFyndOrderDetailsForTab, extractFyndJourney } from "./fynd-payload.server";
+import { parseFyndOrderDetailsForTab, extractFyndJourney, isLikelyFyndId } from "./fynd-payload.server";
 
 const STALE_THRESHOLD_MS = 30 * 60_000; // 30 minutes
 const BATCH_SIZE = 5;
@@ -70,7 +70,7 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
               updateData.status = "completed";
             }
 
-            if (parsed.shipments[0].forwardAwb && !rc.forwardAwb) {
+            if (parsed.shipments[0].forwardAwb && !rc.forwardAwb && !isLikelyFyndId(parsed.shipments[0].forwardAwb)) {
               updateData.forwardAwb = parsed.shipments[0].forwardAwb;
             }
           }
@@ -143,7 +143,7 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
 
     if (parsed?.shipments?.[0]) {
       const ship = parsed.shipments[0];
-      if (ship.forwardAwb && !rc.forwardAwb) updateData.forwardAwb = ship.forwardAwb;
+      if (ship.forwardAwb && !rc.forwardAwb && !isLikelyFyndId(ship.forwardAwb)) updateData.forwardAwb = ship.forwardAwb;
       const status = (ship.shipmentStatus ?? "").toLowerCase();
       if (status.includes("delivered") || status.includes("delivery_done")) {
         updateData.status = "completed";

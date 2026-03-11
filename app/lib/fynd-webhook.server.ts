@@ -12,6 +12,7 @@
 import prisma from "../db.server";
 import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, extractShopifyOrderNumberVariants, withRestCredentials, type RefundMethodConfig } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
+import { isLikelyFyndId } from "./fynd-payload.server";
 
 /** Fynd refund statuses that indicate refund is in progress */
 const REFUND_IN_PROGRESS = [
@@ -258,9 +259,10 @@ function extractShippingFromWebhookPayload(payload: FyndWebhookPayload): {
     ?? (typeof dp?.name === "string" ? dp.name : null)
     ?? (typeof payload.display_name === "string" ? payload.display_name : null)
     ?? (typeof meta?.cp_name === "string" ? meta.cp_name : null);
-  const awb = (typeof dp?.awb_no === "string" ? dp.awb_no : null)
+  const awbRaw = (typeof dp?.awb_no === "string" ? dp.awb_no : null)
     ?? (typeof payload.awb_no === "string" ? payload.awb_no : null)
     ?? (typeof meta?.awb_no === "string" ? meta.awb_no : null);
+  const awb = awbRaw && !isLikelyFyndId(awbRaw) ? awbRaw : null;
   const trackingUrl = (typeof payload.tracking_url === "string" ? payload.tracking_url : null)
     ?? (typeof payload.track_url === "string" ? payload.track_url : null)
     ?? (typeof dp?.track_url === "string" ? dp.track_url : null)

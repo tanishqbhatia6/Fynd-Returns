@@ -7,7 +7,7 @@ import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchAllLocations, withRestCredentials } from "../lib/shopify-admin.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
-import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload } from "../lib/fynd-payload.server";
+import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
 import { isFyndPrivateUrl, signFyndUrl } from "../lib/fynd.server";
 
@@ -497,7 +497,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
           invoiceNumber: shippingInfo.invoiceNumber,
           source: "fynd",
         });
-        if (shippingInfo.trackingNumber && !(returnCase as { forwardAwb?: string }).forwardAwb) {
+        if (shippingInfo.trackingNumber && !isLikelyFyndId(shippingInfo.trackingNumber) && !(returnCase as { forwardAwb?: string }).forwardAwb) {
           shippingUpdate.forwardAwb = shippingInfo.trackingNumber;
         }
         try {

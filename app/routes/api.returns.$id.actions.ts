@@ -6,7 +6,7 @@ import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByGid, fe
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
-import { extractShippingDetailsFromFyndPayload } from "../lib/fynd-payload.server";
+import { extractShippingDetailsFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 
@@ -323,7 +323,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           invoiceNumber: shippingInfo.invoiceNumber,
           source: "fynd",
         });
-        if (shippingInfo.trackingNumber) autoShippingData.forwardAwb = shippingInfo.trackingNumber;
+        if (shippingInfo.trackingNumber && !isLikelyFyndId(shippingInfo.trackingNumber)) autoShippingData.forwardAwb = shippingInfo.trackingNumber;
       }
     }
 

@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
-import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchAllLocations } from "../lib/shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchAllLocations, withRestCredentials } from "../lib/shopify-admin.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload } from "../lib/fynd-payload.server";
@@ -388,30 +388,32 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
     let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
     const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+    // Attach REST credentials so order lookup can fall back to REST API (exact name match)
+    const adminWithRest = withRestCredentials(admin, session.shop, session.accessToken ?? "");
     if (!isManualReturn && returnCase.shopifyOrderId) {
       try {
         // Try direct GID/numeric lookup first
         const isGid = returnCase.shopifyOrderId.startsWith("gid://");
         const isNumeric = /^\d+$/.test(returnCase.shopifyOrderId);
         if (isGid || isNumeric) {
-          shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
+          shopifyOrder = await fetchOrder(adminWithRest, returnCase.shopifyOrderId);
         }
 
         // Try shopifyOrderName with Fynd prefix stripping (e.g. FYNDSHOPIFYX14126 → 14126)
         if (!shopifyOrder && returnCase.shopifyOrderName) {
-          shopifyOrder = await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderName);
+          shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, returnCase.shopifyOrderName);
         }
 
         // Try shopifyOrderId itself with Fynd prefix stripping
         if (!shopifyOrder) {
-          shopifyOrder = await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderId);
+          shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, returnCase.shopifyOrderId);
         }
 
         // Try affiliate_order_id from Fynd payload
         if (!shopifyOrder && fyndPayloadJson) {
           const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
           if (affId) {
-            shopifyOrder = await fetchOrderByFyndAffiliateId(admin, affId);
+            shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, affId);
           }
         }
 
@@ -735,12 +737,27 @@ export default function ReturnDetail() {
   const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both" | "discount_code">(defaultRefundMethod);
   const [modalStoreCreditPct, setModalStoreCreditPct] = useState(refundStoreCreditPct ?? 100);
   const storeName = shopDomain.replace(".myshopify.com", "");
-  const orderIdForLink = shopifyOrder?.id
-    ? shopifyOrder.id.replace(/^gid:\/\/shopify\/Order\//, "")
-    : returnCase.shopifyOrderId;
-  const orderUrl = isManualReturn
+  // Extract numeric Shopify order ID for the admin URL. Prefer the GID (always correct).
+  // Fall back to shopifyOrderId only if it's numeric (a valid Shopify legacy ID).
+  const orderIdForLink = (() => {
+    // From resolved Shopify order GID: gid://shopify/Order/7440416669846 → 7440416669846
+    if (shopifyOrder?.id?.startsWith("gid://shopify/Order/")) {
+      return shopifyOrder.id.replace(/^gid:\/\/shopify\/Order\//, "");
+    }
+    // From stored shopifyOrderId if it's already a GID
+    if (returnCase.shopifyOrderId?.startsWith("gid://shopify/Order/")) {
+      return returnCase.shopifyOrderId.replace(/^gid:\/\/shopify\/Order\//, "");
+    }
+    // From stored shopifyOrderId if it's purely numeric
+    if (returnCase.shopifyOrderId && /^\d+$/.test(returnCase.shopifyOrderId)) {
+      return returnCase.shopifyOrderId;
+    }
+    // Otherwise we don't have a valid Shopify ID — link to orders list
+    return null;
+  })();
+  const orderUrl = isManualReturn || !orderIdForLink
     ? `https://admin.shopify.com/store/${storeName}/orders`
-    : `https://admin.shopify.com/store/${storeName}/orders/${orderIdForLink ?? returnCase.shopifyOrderId}`;
+    : `https://admin.shopify.com/store/${storeName}/orders/${orderIdForLink}`;
 
   const fyndError = searchParams.get("fyndError");
   const fyndSuccess = searchParams.get("fyndSuccess");

@@ -4,7 +4,7 @@ import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, parseFyndOrderDetailsForTab, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
 import { createFyndClientOrError, type ShipmentsListingSearchType } from "../lib/fynd.server";
-import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid, fetchOrderByFyndAffiliateId } from "../lib/shopify-admin.server";
+import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid, fetchOrderByFyndAffiliateId, withRestCredentials } from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
@@ -246,11 +246,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null;
       _needsFyndEnrich?: boolean;
     };
+    const shopSession = await prisma.session.findFirst({ where: { shop: shopDomain } });
+    const shopAccessToken = shopSession?.accessToken ?? "";
+
     let orders: PortalOrder[] = [];
     if (normalizedLookupType === "email" && norm.includes("@")) {
       // Shopify documented filter: email:<address>
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         orders = (await fetchOrdersByFilter(admin, `email:${norm}`)).map((o) => ({ ...o, fyndData: null, _needsFyndEnrich: true }));
       } catch (err) {
         console.error("Portal lookup orders by email:", err);
@@ -258,7 +262,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } else if (normalizedLookupType === "phone") {
       // Shopify doesn't have a documented phone: filter on orders, so use free-text search
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         orders = (await fetchOrdersByFilter(admin, rawValue)).map((o) => ({ ...o, fyndData: null, _needsFyndEnrich: true }));
       } catch (err) {
         console.error("Portal lookup orders by phone:", err);
@@ -266,7 +271,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } else if (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") {
       const orderNumber = rawValue.replace(/^#/, "");
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const order = await fetchOrderByOrderNumber(admin, orderNumber);
         if (order) {
           orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
@@ -289,7 +295,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             },
           });
           if (fyndMapping) {
-            const { admin } = await shopify.unauthenticated.admin(shopDomain);
+            const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+            const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
             // Fast path: direct GID lookup via orderByIdentifier
             if (fyndMapping.shopifyOrderId?.startsWith("gid://")) {
               const order = await fetchOrderByGid(admin, fyndMapping.shopifyOrderId);
@@ -325,7 +332,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             const rc = fyndCases[0];
             if (rc.shopifyOrderId?.startsWith("gid://")) {
               try {
-                const { admin } = await shopify.unauthenticated.admin(shopDomain);
+                const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+                const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
                 const order = await fetchOrderByGid(admin, rc.shopifyOrderId);
                 if (order) {
                   orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
@@ -336,7 +344,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
             if (orders.length === 0 && rc.shopifyOrderName) {
               try {
-                const { admin } = await shopify.unauthenticated.admin(shopDomain);
+                const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+                const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
                 const order = await fetchOrderByOrderNumber(admin, rc.shopifyOrderName.replace(/^#/, ""));
                 if (order) {
                   orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
@@ -415,7 +424,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const affiliateOrderId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
               if (affiliateOrderId) {
                 try {
-                  const { admin } = await shopify.unauthenticated.admin(shopDomain);
+                  const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+                  const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
                   // Use prefix-stripping to handle FYNDSHOPIFYX14126 → try 14126, X14126, etc.
                   const shopifyOrder = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId);
                   if (shopifyOrder) {
@@ -519,7 +529,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // For AWB lookups, also search Shopify orders by fulfillment tracking number
     if ((normalizedLookupType === "forward_awb" || normalizedLookupType === "return_awb") && orders.length === 0) {
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const awbOrder = await fetchOrderByOrderNumber(admin, rawValue);
         if (awbOrder) {
           const hasTN = awbOrder.fulfillments?.some((f) =>

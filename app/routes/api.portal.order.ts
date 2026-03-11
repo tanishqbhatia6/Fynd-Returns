@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError, type OrderForPortal } from "../lib/shopify-admin.server";
+import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError, withRestCredentials, type OrderForPortal } from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -80,7 +80,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   );
 
   try {
-    const { admin } = await shopify.unauthenticated.admin(shopDomain);
+    const shopSession = await prisma.session.findFirst({ where: { shop: shopDomain } });
+    const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+    const admin = withRestCredentials(rawAdmin, shopDomain, shopSession?.accessToken ?? "");
     let order = await fetchOrderByOrderNumber(admin, orderNumber);
 
     // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName

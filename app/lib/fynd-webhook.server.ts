@@ -10,7 +10,7 @@
  */
 
 import prisma from "../db.server";
-import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, type RefundMethodConfig } from "./shopify-admin.server";
+import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials, type RefundMethodConfig } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
 
 /** Fynd refund statuses that indicate refund is in progress */
@@ -431,7 +431,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     return { ok: false, error: errMsg };
   }
 
-  const admin = createAdminClient(shopDomain, session.accessToken);
+  const admin = withRestCredentials(createAdminClient(shopDomain, session.accessToken), shopDomain, session.accessToken);
 
   // Backfill shopifyOrderId using Fynd's affiliate_order_id when the stored ID is not a valid
   // Shopify identifier (GID or numeric). affiliate_order_id == Shopify order name/ID.

@@ -5,7 +5,7 @@ import { checkReturnEligibility } from "../lib/return-rules.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber, withRestCredentials } from "../lib/shopify-admin.server";
 import { sendNewReturnNotification } from "../lib/notification.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
@@ -162,6 +162,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const settings = shopRecord.settings;
     const returnWindowDays = settings?.returnWindowDays ?? 30;
 
+    const shopSession = await prisma.session.findFirst({ where: { shop: shopDomain } });
+    const shopAccessToken = shopSession?.accessToken ?? "";
+
     // Blocklist check
     if (settings?.blocklistEnabled && settings.id) {
       const blockChecks: { type: string; value: string }[] = [];
@@ -201,7 +204,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return withCors(Response.json({ error: "No matching offer found" }, { status: 400 }), request);
       }
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const discountResult = await createDiscountCode(admin, matchedOffer, shopDomain);
         if (discountResult.error || !discountResult.code) {
           return withCors(Response.json({ error: discountResult.error || "Failed to generate discount code" }, { status: 500 }), request);
@@ -264,7 +268,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       // Best-effort fulfillment check for manual returns
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const manualOrderLookup = await fetchOrderByOrderNumber(admin, orderNameClean);
         if (manualOrderLookup) {
           const manualFulfill = (manualOrderLookup.displayFulfillmentStatus ?? "").toUpperCase();
@@ -343,7 +348,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Server-side fulfillment status validation (non-manual mode)
     if (!manualMode && orderId) {
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const liveOrder = await fetchOrder(admin, orderId);
         if (liveOrder) {
           const fulfillStatus = (liveOrder.displayFulfillmentStatus ?? "").toUpperCase();
@@ -645,7 +651,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // When auto-approved, sync to Fynd so webhook can match returns (skip for green returns)
     if (status === "approved" && !manualMode && orderId && !qualifiesForGreenReturn) {
       try {
-        const { admin } = await shopify.unauthenticated.admin(shopDomain);
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const order = await fetchOrder(admin, orderId);
         const affiliateOrderId = order?.affiliateOrderId ?? null;
         const fyndSettings = shopRecord.settings as Parameters<typeof createFyndClientOrError>[0] | null;

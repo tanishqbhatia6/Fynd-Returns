@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
@@ -76,7 +76,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const id = params.id;
   if (!id) return Response.json({ error: "Return ID required" }, { status: 400 });
 
-  const { session, admin } = await authenticate.admin(request);
+  const { session, admin: rawAdmin } = await authenticate.admin(request);
+  // Attach REST credentials so order lookups can fall back to REST API (exact name match)
+  const admin = withRestCredentials(rawAdmin, session.shop, session.accessToken ?? "");
   const sessionEmail = (session as unknown as { email?: string | null }).email ?? null;
   const shopWithSettings = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
   if (!shopWithSettings) return Response.json({ error: "Shop not found" }, { status: 404 });
@@ -602,13 +604,19 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
         // Strategy 1: Try shopifyOrderName directly (may contain affiliate_order_id)
         if (!resolved && returnCase.shopifyOrderName) {
-          const order = await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderName).catch(() => null);
+          const order = await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderName).catch((err) => {
+            console.warn(`[refund] Strategy 1 (shopifyOrderName="${returnCase.shopifyOrderName}") failed:`, err?.message ?? err);
+            return null;
+          });
           if (order?.id) { await applyResolvedOrder(order); resolved = true; }
         }
 
         // Strategy 2: Try shopifyOrderId as a Fynd affiliate_order_id (strip Fynd prefixes)
         if (!resolved) {
-          const order = await fetchOrderByFyndAffiliateId(admin, orderIdForRefund).catch(() => null);
+          const order = await fetchOrderByFyndAffiliateId(admin, orderIdForRefund).catch((err) => {
+            console.warn(`[refund] Strategy 2 (orderIdForRefund="${orderIdForRefund}") failed:`, err?.message ?? err);
+            return null;
+          });
           if (order?.id) { await applyResolvedOrder(order); resolved = true; }
         }
 
@@ -632,14 +640,19 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
               const cleaned = typeof raw === "string" ? raw.replace(/^#/, "").trim() : "";
               if (!cleaned || seen.has(cleaned)) continue;
               seen.add(cleaned);
-              const shopifyOrder = await fetchOrderByFyndAffiliateId(admin, cleaned).catch(() => null);
+              const shopifyOrder = await fetchOrderByFyndAffiliateId(admin, cleaned).catch((err) => {
+                console.warn(`[refund] Strategy 3 (candidate="${cleaned}") failed:`, err?.message ?? err);
+                return null;
+              });
               if (shopifyOrder?.id) {
                 await applyResolvedOrder(shopifyOrder);
                 resolved = true;
                 break;
               }
             }
-          } catch { /* Non-fatal */ }
+          } catch (err) {
+            console.warn("[refund] Strategy 3 (payload extraction) failed:", err);
+          }
         }
 
         if (!resolved) {

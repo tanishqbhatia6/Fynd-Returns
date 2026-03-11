@@ -594,20 +594,47 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             lineItemsForRefund = orderByNumber.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           }
         } else if (orderIdForRefund && !orderIdForRefund.startsWith("manual:")) {
-          // orderIdForRefund is a Fynd order ID (e.g. "FYMP699EB1950") that Shopify cannot resolve.
-          // Attempting to refund via Shopify with this ID would corrupt the request.
-          // Surface a clear, actionable error so the admin knows exactly what to do.
-          const fyndOid = orderIdForRefund;
-          const createFailedEventEarly = async (errorMsg: string) => {
-            await prisma.returnEvent.create({
-              data: { returnCaseId: id, source: "admin", eventType: "refund_failed", payloadJson: JSON.stringify({ error: errorMsg, note: note || null }) },
-            });
-          };
-          const msg = `This return is linked to Fynd order ID "${fyndOid}" which could not be found in Shopify. ` +
-            `Process the refund directly in Fynd or your ERP. ` +
-            `You can mark this return as completed using the status update action.`;
-          await createFailedEventEarly(msg);
-          return Response.json({ error: msg }, { status: 400 });
+          // orderIdForRefund is a Fynd internal order ID. Last resort: resolve the real Shopify
+          // order via affiliate_order_id stored in the Fynd payload (affiliate_order_id == Shopify order name).
+          let resolvedFromAffiliate = false;
+          if ((returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson) {
+            try {
+              const fp = JSON.parse((returnCase as { fyndPayloadJson: string }).fyndPayloadJson) as Record<string, unknown>;
+              const items = (fp.items ?? fp.shipments ?? []) as Record<string, unknown>[];
+              const affiliateId = String(
+                fp.affiliate_order_id ??
+                (fp.order as Record<string, unknown> | undefined)?.affiliate_order_id ??
+                items[0]?.affiliate_order_id ??
+                ""
+              ).replace(/^#/, "").trim();
+              if (affiliateId) {
+                const shopifyOrder = await fetchOrderByOrderNumber(admin, affiliateId).catch(() => null);
+                if (shopifyOrder?.id) {
+                  orderIdForRefund = shopifyOrder.id;
+                  resolvedFromAffiliate = true;
+                  // Persist fix so future operations don't hit this path again
+                  await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: shopifyOrder.id } });
+                  if (lineItemsForRefund.length === 0 && shopifyOrder.lineItems?.length) {
+                    lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+                  }
+                }
+              }
+            } catch { /* Non-fatal */ }
+          }
+
+          if (!resolvedFromAffiliate) {
+            const fyndOid = orderIdForRefund;
+            const createFailedEventEarly = async (errorMsg: string) => {
+              await prisma.returnEvent.create({
+                data: { returnCaseId: id, source: "admin", eventType: "refund_failed", payloadJson: JSON.stringify({ error: errorMsg, note: note || null }) },
+              });
+            };
+            const msg = `This return is linked to Fynd order ID "${fyndOid}" which could not be found in Shopify. ` +
+              `Process the refund directly in Fynd or your ERP. ` +
+              `You can mark this return as completed using the status update action.`;
+            await createFailedEventEarly(msg);
+            return Response.json({ error: msg }, { status: 400 });
+          }
         }
       }
 

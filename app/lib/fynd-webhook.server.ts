@@ -394,6 +394,29 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
 
   const admin = createAdminClient(shopDomain, session.accessToken);
 
+  // Backfill shopifyOrderId using Fynd's affiliate_order_id when the stored ID is not a valid
+  // Shopify identifier (GID or numeric). affiliate_order_id == Shopify order name/ID.
+  const isValidShopifyId =
+    returnCase.shopifyOrderId?.startsWith("gid://") ||
+    (returnCase.shopifyOrderId != null && /^\d+$/.test(returnCase.shopifyOrderId));
+  if (!isValidShopifyId && affiliateOrderId) {
+    try {
+      const affiliateClean = affiliateOrderId.replace(/^#/, "").trim();
+      const shopifyOrder = await fetchOrderByOrderNumber(admin, affiliateClean);
+      if (shopifyOrder?.id) {
+        const shopifyBackfill: Record<string, string> = { shopifyOrderId: shopifyOrder.id };
+        if (!returnCase.shopifyOrderName && shopifyOrder.name) {
+          shopifyBackfill.shopifyOrderName = shopifyOrder.name;
+        }
+        await prisma.returnCase.update({ where: { id: returnCase.id }, data: shopifyBackfill });
+        returnCase = { ...returnCase, ...shopifyBackfill };
+        console.log(`[Fynd webhook] Backfilled shopifyOrderId=${shopifyOrder.id} from affiliate_order_id="${affiliateOrderId}" for return ${returnCase.id}`);
+      }
+    } catch {
+      // Non-fatal — refund can still be processed manually
+    }
+  }
+
   // Map Fynd status to our action
   const statusLower = (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
   const isInProgress =

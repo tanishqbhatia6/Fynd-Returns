@@ -1,0 +1,221 @@
+{
+  "info": {
+    "name": "Order Lookup Debug — ReturnProMax",
+    "description": "Tests every Shopify order lookup strategy to diagnose why order resolution fails for Fynd orders.\n\n## Setup\n1. Set `shop_domain` (e.g. fynd-store-1.myshopify.com)\n2. Set `access_token` from the Session table in your database\n3. Set `order_name` to the order you're testing (e.g. FYNDSHOPIFYX14126)\n4. Set `app_url` to your deployed app URL (e.g. https://returnpromax-1.onrender.com)\n\n## Flow\nThe app resolves Fynd orders via this chain:\n1. GraphQL `name:\"#FYNDSHOPIFYX14126\"` (quoted with #)\n2. GraphQL `name:\"FYNDSHOPIFYX14126\"` (quoted without #)\n3. GraphQL `name:#FYNDSHOPIFYX14126` (unquoted with #)\n4. GraphQL `name:FYNDSHOPIFYX14126` (unquoted without #)\n5. GraphQL general search `\"#FYNDSHOPIFYX14126\"` (no name: prefix)\n6. REST API `GET /orders.json?name=%23FYNDSHOPIFYX14126` (exact match)\n7. Pagination scan of recent 1250 orders\n8. Metafield search `metafields.$app.fynd_order_id:\"...\"`\n9. source_identifier search",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "shop_domain", "value": "fynd-store-1.myshopify.com", "type": "string" },
+    { "key": "access_token", "value": "YOUR_SHOPIFY_ACCESS_TOKEN", "type": "string" },
+    { "key": "order_name", "value": "FYNDSHOPIFYX14126", "type": "string" },
+    { "key": "api_version", "value": "2026-01", "type": "string" },
+    { "key": "app_url", "value": "https://returnpromax-1.onrender.com", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "0. App Debug Endpoint (all strategies at once)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{app_url}}/api/debug/order-lookup?name={{order_name}}",
+          "host": ["{{app_url}}"],
+          "path": ["api", "debug", "order-lookup"],
+          "query": [
+            { "key": "name", "value": "{{order_name}}" }
+          ]
+        },
+        "description": "Runs ALL lookup strategies from within the app (uses the app's own Shopify session). This is the easiest way to diagnose — just open this URL while logged into the Shopify admin."
+      }
+    },
+    {
+      "name": "1. GraphQL: name:\"#FYNDSHOPIFYX14126\" (quoted with #)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"{ orders(first: 10, query: \\\"name:\\\\\\\"#{{order_name}}\\\\\\\"\\\") { nodes { id name createdAt } } }\"\n}"
+        },
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/graphql.json",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "graphql.json"]
+        },
+        "description": "Query: name:\"#FYNDSHOPIFYX14126\" — quoted value with # prefix"
+      }
+    },
+    {
+      "name": "2. GraphQL: name:\"FYNDSHOPIFYX14126\" (quoted without #)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"{ orders(first: 10, query: \\\"name:\\\\\\\"{{order_name}}\\\\\\\"\\\") { nodes { id name createdAt } } }\"\n}"
+        },
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/graphql.json",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "graphql.json"]
+        },
+        "description": "Query: name:\"FYNDSHOPIFYX14126\" — quoted value without # prefix"
+      }
+    },
+    {
+      "name": "3. GraphQL: name:#FYNDSHOPIFYX14126 (unquoted with #)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"{ orders(first: 10, query: \\\"name:#{{order_name}}\\\") { nodes { id name createdAt } } }\"\n}"
+        },
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/graphql.json",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "graphql.json"]
+        },
+        "description": "Query: name:#FYNDSHOPIFYX14126 — unquoted with # prefix"
+      }
+    },
+    {
+      "name": "4. GraphQL: name:FYNDSHOPIFYX14126 (unquoted without #)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"{ orders(first: 10, query: \\\"name:{{order_name}}\\\") { nodes { id name createdAt } } }\"\n}"
+        },
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/graphql.json",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "graphql.json"]
+        },
+        "description": "Query: name:FYNDSHOPIFYX14126 — unquoted without # prefix"
+      }
+    },
+    {
+      "name": "5. GraphQL: general search \"FYNDSHOPIFYX14126\" (no name: prefix)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"{ orders(first: 10, query: \\\"{{order_name}}\\\") { nodes { id name createdAt } } }\"\n}"
+        },
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/graphql.json",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "graphql.json"]
+        },
+        "description": "Query: FYNDSHOPIFYX14126 — general text search, no name: field prefix"
+      }
+    },
+    {
+      "name": "6. REST API: GET orders.json?name=%23FYNDSHOPIFYX14126 (exact match with #)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/orders.json?status=any&name=%23{{order_name}}&fields=id,name",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "orders.json"],
+          "query": [
+            { "key": "status", "value": "any" },
+            { "key": "name", "value": "%23{{order_name}}" },
+            { "key": "fields", "value": "id,name" }
+          ]
+        },
+        "description": "REST API exact name filter: name=#FYNDSHOPIFYX14126 (URL-encoded as %23). This is the most reliable method — exact match, no search tokenization."
+      }
+    },
+    {
+      "name": "7. REST API: GET orders.json?name=FYNDSHOPIFYX14126 (exact match without #)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/orders.json?status=any&name={{order_name}}&fields=id,name",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "orders.json"],
+          "query": [
+            { "key": "status", "value": "any" },
+            { "key": "name", "value": "{{order_name}}" },
+            { "key": "fields", "value": "id,name" }
+          ]
+        },
+        "description": "REST API exact name filter without # prefix"
+      }
+    },
+    {
+      "name": "8. Pagination scan: list recent 50 orders",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"{ orders(first: 50, sortKey: CREATED_AT, reverse: true) { nodes { id name } } }\"\n}"
+        },
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/graphql.json",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "graphql.json"]
+        },
+        "description": "Lists the 50 most recent orders. Check if FYNDSHOPIFYX14126 appears in the list. If not, the order may be too old for the pagination scan."
+      }
+    },
+    {
+      "name": "9. Direct GID lookup (once you have the ID)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "X-Shopify-Access-Token", "value": "{{access_token}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"{ orderByIdentifier(identifier: { id: \\\"gid://shopify/Order/7440416669846\\\" }) { id name email totalPriceSet { shopMoney { amount currencyCode } } } }\"\n}"
+        },
+        "url": {
+          "raw": "https://{{shop_domain}}/admin/api/{{api_version}}/graphql.json",
+          "protocol": "https",
+          "host": ["{{shop_domain}}"],
+          "path": ["admin", "api", "{{api_version}}", "graphql.json"]
+        },
+        "description": "Direct O(1) lookup by GID — use the numeric ID from the REST API result. This ALWAYS works if the order exists and you have the correct ID."
+      }
+    }
+  ]
+}

@@ -62,11 +62,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (!isValid) {
-      await prisma.lookupSession.update({
+      const updatedSession = await prisma.lookupSession.update({
         where: { id: sessionId },
         data: { attemptsCount: session.attemptsCount + 1 },
       });
-      return withCors(Response.json({ error: "Invalid verification code" }, { status: 400 }), request);
+      const attemptsRemaining = Math.max(0, MAX_VERIFY_ATTEMPTS - updatedSession.attemptsCount);
+      if (attemptsRemaining === 0) {
+        return withCors(Response.json({ error: "Too many attempts. Please request a new code.", attemptsRemaining: 0, locked: true }, { status: 429 }), request);
+      }
+      return withCors(Response.json({ error: "Invalid verification code", attemptsRemaining }, { status: 400 }), request);
     }
 
     const portalToken = createPortalToken({

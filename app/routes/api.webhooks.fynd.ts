@@ -57,10 +57,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let eventType: string | undefined;
   try {
     const body = JSON.parse(rawBodyText) as Record<string, unknown>;
-    // Unwrap envelope: body.payload, body.shipment, or direct body
+    // Unwrap envelope: body.payload, body.data, body.shipment, or direct body
     let inner: Record<string, unknown>;
     if (body?.payload && typeof body.payload === "object") {
       inner = body.payload as Record<string, unknown>;
+    } else if (body?.data && typeof body.data === "object") {
+      inner = body.data as Record<string, unknown>;
     } else if (body?.shipment && typeof body.shipment === "object") {
       inner = body.shipment as Record<string, unknown>;
     } else {
@@ -71,6 +73,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const ss = inner.shipment_status as Record<string, unknown>;
       if (ss.shipment_id && !inner.shipment_id) inner.shipment_id = ss.shipment_id;
       if (ss.status && !inner.status) inner.status = ss.status;
+      if (ss.order_id && !inner.order_id) inner.order_id = ss.order_id;
+      if (ss.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = ss.affiliate_order_id;
+    }
+    // Promote fields from first shipment in shipments[] array
+    const firstShipment = (Array.isArray(inner?.shipments) ? inner.shipments[0] : null) as Record<string, unknown> | null;
+    if (firstShipment && typeof firstShipment === "object") {
+      if (firstShipment.shipment_id && !inner.shipment_id) inner.shipment_id = firstShipment.shipment_id;
+      if (firstShipment.id && !inner.shipment_id && !inner.id) inner.id = firstShipment.id;
+      if (firstShipment.order_id && !inner.order_id) inner.order_id = firstShipment.order_id;
+      if (firstShipment.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = firstShipment.affiliate_order_id;
+      if (firstShipment.external_order_id && !inner.external_order_id) inner.external_order_id = firstShipment.external_order_id;
+      if (firstShipment.channel_order_id && !inner.channel_order_id) inner.channel_order_id = firstShipment.channel_order_id;
+      // Promote order sub-object fields
+      const shipOrder = firstShipment.order as Record<string, unknown> | undefined;
+      if (shipOrder && typeof shipOrder === "object") {
+        if (shipOrder.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = shipOrder.affiliate_order_id;
+        if (shipOrder.fynd_order_id && !inner.order_id) inner.order_id = shipOrder.fynd_order_id;
+        if (shipOrder.order_id && !inner.order_id) inner.order_id = shipOrder.order_id;
+      }
+      // Promote dp_details for AWB extraction
+      if (firstShipment.dp_details && !inner.dp_details) inner.dp_details = firstShipment.dp_details;
+      // Promote tracking_url
+      if (firstShipment.tracking_url && !inner.tracking_url) inner.tracking_url = firstShipment.tracking_url;
     }
     // Extract fields from inner.meta if present
     if (inner?.meta && typeof inner.meta === "object") {
@@ -79,10 +104,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!inner.affiliate_order_id && meta.affiliate_order_id) inner.affiliate_order_id = meta.affiliate_order_id;
       if (!inner.external_order_id && meta.external_order_id) inner.external_order_id = meta.external_order_id;
       if (!inner.channel_order_id && meta.channel_order_id) inner.channel_order_id = meta.channel_order_id;
+      if (!inner.shipment_id && meta.shipment_id) inner.shipment_id = meta.shipment_id;
+    }
+    // ── Promote from affiliate_details (real Fynd payload structure) ──
+    if (inner.affiliate_details && typeof inner.affiliate_details === "object") {
+      const ad = inner.affiliate_details as Record<string, unknown>;
+      if (ad.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = ad.affiliate_order_id;
+      if (ad.affiliate_bag_id && !inner.affiliate_bag_id) inner.affiliate_bag_id = ad.affiliate_bag_id;
+      if (ad.company_affiliate_tag && !inner.company_affiliate_tag) inner.company_affiliate_tag = ad.company_affiliate_tag;
+    }
+    // ── Promote from delivery_partner_details (real Fynd payload structure) ──
+    if (inner.delivery_partner_details && typeof inner.delivery_partner_details === "object") {
+      const dpd = inner.delivery_partner_details as Record<string, unknown>;
+      if (!inner.dp_details) inner.dp_details = inner.delivery_partner_details;
+      if (dpd.awb_no && !inner.awb_no) inner.awb_no = dpd.awb_no;
+      if (dpd.tracking_url && !inner.tracking_url) inner.tracking_url = dpd.tracking_url;
+    }
+    // ── Promote from bags[0] (real Fynd payload structure) ──
+    const firstBag = (Array.isArray(inner.bags) ? inner.bags[0] : null) as Record<string, unknown> | null;
+    if (firstBag && typeof firstBag === "object") {
+      const abd = firstBag.affiliate_bag_details as Record<string, unknown> | undefined;
+      if (abd && typeof abd === "object") {
+        if (abd.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = abd.affiliate_order_id;
+        const affMeta = abd.affiliate_meta as Record<string, unknown> | undefined;
+        if (affMeta && typeof affMeta === "object") {
+          if (affMeta.shop_domain && !inner._shop_domain) inner._shop_domain = affMeta.shop_domain;
+        }
+      }
+      if (Array.isArray(firstBag.bag_status_history) && firstBag.bag_status_history.length > 0) {
+        const latestBagStatus = firstBag.bag_status_history[firstBag.bag_status_history.length - 1] as Record<string, unknown>;
+        const mapper = latestBagStatus?.bag_state_mapper as Record<string, unknown> | undefined;
+        if (mapper?.journey_type && !inner._journey_type) inner._journey_type = mapper.journey_type;
+        if (mapper?.name && !inner.status) inner.status = mapper.name;
+      }
+    }
+    // ── Handle nested status object (Fynd sends status as {status: "..."} sometimes) ──
+    if (inner.status && typeof inner.status === "object") {
+      const statusObj = inner.status as Record<string, unknown>;
+      inner.status = statusObj.status ?? statusObj.name ?? statusObj.current_status;
     }
     const event = body?.event && typeof body.event === "object" ? (body.event as { type?: string; name?: string }) : null;
-    eventType = event?.type ?? event?.name ?? undefined;
-    const firstShipment = Array.isArray(inner?.shipments) ? inner.shipments[0] : null;
+    eventType = event?.type ?? event?.name ?? (typeof body?.event === "string" ? body.event as string : undefined);
     const statusOrRefund =
       (typeof inner?.refund_status === "string" && inner.refund_status) ||
       (typeof inner?.status === "string" && inner.status) ||

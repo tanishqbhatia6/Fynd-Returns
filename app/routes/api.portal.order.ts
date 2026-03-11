@@ -9,6 +9,22 @@ import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { createFyndClientOrError } from "../lib/fynd.server";
 
+/** Safely extract a numeric price string from Fynd price fields that may be objects */
+function extractNumericPrice(val: unknown): string {
+  if (val == null) return "0";
+  if (typeof val === "number") return String(val);
+  if (typeof val === "string") {
+    const n = parseFloat(val);
+    return isNaN(n) ? "0" : val;
+  }
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    const numeric = obj.amount ?? obj.value ?? obj.effective ?? obj.transfer_price ?? obj.price_effective ?? obj.mrp;
+    if (numeric != null && typeof numeric !== "object") return String(numeric);
+  }
+  return "0";
+}
+
 /**
  * Portal order lookup API.
  * Returns order details + any existing return cases for the order.
@@ -207,7 +223,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     for (const article of articles as Record<string, unknown>[]) {
                       const itemObj = (article.item ?? article) as Record<string, unknown>;
                       const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
-                      const price = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                      const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                      const price = extractNumericPrice(rawPrice);
                       const qty = typeof bag.quantity === "number" ? bag.quantity
                         : typeof article.quantity === "number" ? article.quantity : 1;
                       const itemId = String(bag.bag_id ?? bag.id ?? article.id ?? article.article_id ?? `fynd-${lineItems.length}`);
@@ -223,7 +240,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         variantTitle: size || null,
                         sku,
                         quantity: qty,
-                        price: String(price),
+                        price,
                         imageUrl,
                         productTags: [],
                       });
@@ -233,7 +250,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         (Array.isArray(bag.items) ? bag.items : []).length === 0 &&
                         !bag.item) {
                       const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<string, unknown>;
-                      const price = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                      const rawBagPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                      const price = extractNumericPrice(rawBagPrice);
                       const qty = typeof bag.quantity === "number" ? bag.quantity : 1;
                       const itemId = String(bag.bag_id ?? bag.id ?? `fynd-bag-${lineItems.length}`);
                       const bagItem = (bag.item ?? {}) as Record<string, unknown>;
@@ -249,7 +267,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         variantTitle: size || null,
                         sku,
                         quantity: qty,
-                        price: String(price),
+                        price,
                         imageUrl,
                         productTags: [],
                       });
@@ -323,21 +341,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }, { status: 404 }), request);
     }
 
-    // Fulfillment status gate: only allow returns for fulfilled orders
+    // Load shop settings for eligibility gates (load once, reuse below)
+    const settings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+
+    // Fulfillment status gate: allowed statuses are configurable in settings
     const fulfillmentStatus = (order.displayFulfillmentStatus ?? "").toUpperCase();
     const financialStatus = (order.displayFinancialStatus ?? "").toUpperCase();
 
-    const FULFILLED_STATUSES = ["FULFILLED", "PARTIALLY_FULFILLED"];
-    const BLOCKED_FINANCIAL = ["REFUNDED", "VOIDED"];
-    const BLOCKED_FULFILLMENT = ["UNFULFILLED", "SCHEDULED", "ON_HOLD"];
+    const ALWAYS_BLOCKED_FINANCIAL = ["REFUNDED", "VOIDED"];
 
-    const isFulfilled = FULFILLED_STATUSES.includes(fulfillmentStatus);
-    const isBlocked = BLOCKED_FULFILLMENT.includes(fulfillmentStatus) || BLOCKED_FINANCIAL.includes(financialStatus);
+    // Admin-configurable allowed fulfillment statuses; default to FULFILLED + PARTIALLY_FULFILLED
+    let allowedFulfillmentStatuses: string[] = ["FULFILLED", "PARTIALLY_FULFILLED"];
+    try {
+      const raw = (settings as { portalAllowedFulfillmentStatuses?: string | null } | null)?.portalAllowedFulfillmentStatuses;
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          allowedFulfillmentStatuses = (parsed as unknown[]).map((s) => String(s).toUpperCase());
+        }
+      }
+    } catch { /* use defaults */ }
+
+    // For Fynd synthetic orders (displayFulfillmentStatus = "FULFILLED" set by us), trust the synthetic value
+    // The Fynd status check already happened when we built the synthetic order — we only allow
+    // delivery_done / handed_over_to_customer above, so no extra check needed here for synthetic orders.
+
+    const isEligibleFulfillment = allowedFulfillmentStatuses.includes(fulfillmentStatus);
+    const isBlockedFinancial = ALWAYS_BLOCKED_FINANCIAL.includes(financialStatus);
 
     let returnEligibility: { eligible: boolean; reason?: string } = { eligible: true };
 
-    if (!isFulfilled || isBlocked) {
-      if (financialStatus === "REFUNDED" || financialStatus === "VOIDED") {
+    if (!isEligibleFulfillment || isBlockedFinancial) {
+      if (isBlockedFinancial) {
         returnEligibility = {
           eligible: false,
           reason: "This order has already been refunded and is not eligible for a return.",
@@ -357,8 +392,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           eligible: false,
           reason: "This order is scheduled for fulfillment but has not shipped yet. Returns can only be created after delivery.",
         };
-      } else if (fulfillmentStatus === "PARTIALLY_FULFILLED") {
-        returnEligibility = { eligible: true };
       } else {
         returnEligibility = {
           eligible: false,
@@ -369,7 +402,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // Product-level eligibility: check tags, return window, region restrictions
     if (returnEligibility.eligible) {
-      const settings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
       const allProductTags = (order.lineItems ?? []).flatMap((li) => li.productTags ?? []);
       const ruleCheck = checkReturnEligibility(settings, {
         orderDate: order.createdAt ? new Date(order.createdAt) : undefined,
@@ -383,7 +415,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // Per-item eligibility: mark items with restricted tags as non-returnable
-    const settings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+    // (settings already loaded above)
     const itemEligibility = (order.lineItems ?? []).map((li) => {
       const itemCheck = checkReturnEligibility(settings, {
         orderDate: order.createdAt ? new Date(order.createdAt) : undefined,
@@ -425,6 +457,68 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       returnOffersData = { enabled: true, offers: offersArr };
     }
 
+    // Per-line-item quantity already in return (excluding rejected/cancelled cases)
+    // This allows the portal to grey out fully-returned items and cap quantity inputs
+    const lineItemIds = (order.lineItems ?? []).map((li) => li.id);
+    const returnedQtyMap: Record<string, number> = {};
+    if (lineItemIds.length > 0) {
+      try {
+        const existingReturnItems = await prisma.returnItem.findMany({
+          where: {
+            shopifyLineItemId: { in: lineItemIds },
+            returnCase: {
+              shopId: shopRecord.id,
+              status: { notIn: ["rejected", "cancelled"] },
+            },
+          },
+          select: { shopifyLineItemId: true, qty: true },
+        });
+        for (const ri of existingReturnItems) {
+          if (ri.shopifyLineItemId) {
+            returnedQtyMap[ri.shopifyLineItemId] = (returnedQtyMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
+          }
+        }
+      } catch { /* non-fatal — quantity locks are advisory */ }
+    }
+
+    // SKU-based fallback for Fynd orders where stored shopifyLineItemId
+    // may be a Fynd bag ID that doesn't match the current order's line item IDs
+    if (order.lineItems && order.lineItems.length > 0) {
+      const orderSkus = (order.lineItems ?? [])
+        .filter((li: { id: string; sku?: string | null }) => li.sku)
+        .map((li: { id: string; sku?: string | null }) => ({ id: li.id, sku: li.sku! }));
+      if (orderSkus.length > 0) {
+        try {
+          const skuReturnItems = await prisma.returnItem.findMany({
+            where: {
+              sku: { in: orderSkus.map((s) => s.sku) },
+              returnCase: {
+                shopId: shopRecord.id,
+                shopifyOrderName: order.name,
+                status: { notIn: ["rejected", "cancelled"] },
+              },
+            },
+            select: { sku: true, qty: true, shopifyLineItemId: true },
+          });
+          for (const ri of skuReturnItems) {
+            if (!ri.sku) continue;
+            const matchingItem = orderSkus.find((s) => s.sku === ri.sku);
+            if (matchingItem) {
+              // Avoid double-counting: skip if this line item was already counted via direct ID match
+              const alreadyCounted = ri.shopifyLineItemId && returnedQtyMap[ri.shopifyLineItemId];
+              if (!alreadyCounted) {
+                returnedQtyMap[matchingItem.id] = (returnedQtyMap[matchingItem.id] ?? 0) + ri.qty;
+              }
+            }
+          }
+        } catch { /* non-fatal */ }
+      }
+    }
+
+    // Portal exchange feature flag
+    const portalExchangeEnabled = (settings as { portalExchangeEnabled?: boolean } | null)?.portalExchangeEnabled ?? false;
+    const photoRequired = settings?.photoRequired ?? false;
+
     return withCors(Response.json({
       order,
       existingReturns: formattedReturns,
@@ -437,6 +531,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       estimatedRefundTotal,
       lineItemEstimates,
       returnOffers: returnOffersData,
+      returnedQtyMap,
+      portalExchangeEnabled,
+      photoRequired,
     }), request);
   } catch (err) {
     console.error("Portal order fetch:", err);

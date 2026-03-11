@@ -202,7 +202,7 @@ export function getTrackingInfoFromFyndPayload(fyndPayloadJson: string | null | 
     const list = normalizeFyndPayload(payload);
     const first = list[0] as Record<string, unknown> | undefined;
     if (!first || typeof first !== "object") return null;
-    const dpDetails = (first.dp_details as Record<string, unknown>) ?? {};
+    const dpDetails = (first.delivery_partner_details as Record<string, unknown>) ?? (first.dp_details as Record<string, unknown>) ?? {};
     const trackUrl = first.tracking_url ?? first.track_url ?? first.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url;
     const dp = dpDetails.display_name ?? dpDetails.name ?? first.dp_name ?? first.dp ?? first.courierName ?? first.courier_name ?? first.logistics_partner;
     const status = first.shipment_status ?? first.orderStatus ?? first.status;
@@ -211,11 +211,14 @@ export function getTrackingInfoFromFyndPayload(fyndPayloadJson: string | null | 
       : status;
     const awb = dpDetails.awb_no ?? first.awb_no ?? first.awbNumber ?? first.awb;
     const awbStr = Array.isArray(awb) ? awb[0] : awb;
+    // Validate AWB: Fynd shipment IDs are 15+ digit all-numeric strings — not real courier AWBs
+    const isLikelyFyndId = typeof awbStr === "string" && /^\d{15,}$/.test(awbStr.trim());
+    const validAwb = typeof awbStr === "string" && !isLikelyFyndId ? awbStr : null;
     return {
       trackingUrl: typeof trackUrl === "string" ? trackUrl : null,
       logisticsPartner: typeof dp === "string" ? dp : (dp && typeof dp === "object" && "name" in dp ? String((dp as { name?: string }).name) : null),
       fyndStatus: typeof statusTitle === "string" ? statusTitle : (typeof status === "string" ? status : null),
-      awbNo: typeof awbStr === "string" ? awbStr : null,
+      awbNo: validAwb,
     };
   } catch {
     return null;
@@ -277,11 +280,14 @@ export function getPickupAddressFromFyndPayload(fyndPayloadJson: string | null |
     const list = normalizeFyndPayload(payload);
     const first = list[0] as Record<string, unknown> | undefined;
     if (!first || typeof first !== "object") return null;
+    const bags = first.bags as Array<Record<string, unknown>> | undefined;
+    const bagReturnAddr = (bags?.[0]?.return_config as Record<string, unknown>)?.return_address as Record<string, unknown> | undefined;
     const addr =
       (first.return_address as Record<string, unknown>) ??
       (first.pickup_address as Record<string, unknown>) ??
       (first.pickupAddress as Record<string, unknown>) ??
       (first.returnAddress as Record<string, unknown>) ??
+      bagReturnAddr ??
       (first.address as Record<string, unknown>);
     if (!addr || typeof addr !== "object") return null;
     const a1 = toDisplayString(addr.address1 ?? addr.address ?? addr.street);
@@ -755,7 +761,7 @@ export function extractShippingDetailsFromFyndPayload(fyndPayloadJson: string | 
     const list = normalizeFyndPayload(payload);
     const first = list[0] as Record<string, unknown> | undefined;
     if (!first || typeof first !== "object") return null;
-    const dpDetails = (first.dp_details as Record<string, unknown>) ?? {};
+    const dpDetails = (first.delivery_partner_details as Record<string, unknown>) ?? (first.dp_details as Record<string, unknown>) ?? {};
     const meta = (first.meta as Record<string, unknown>) ?? {};
     const inv = first.invoice as Record<string, unknown> | undefined;
     // Carrier

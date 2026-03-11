@@ -45,6 +45,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     discountCodeRefundEnabled,
     discountCodePrefix,
     discountCodeExpiryDays,
+    portalExchangeEnabled: s?.portalExchangeEnabled ?? false,
+    portalAllowedFulfillmentStatuses: (() => {
+      try { return s?.portalAllowedFulfillmentStatuses ? JSON.parse(s.portalAllowedFulfillmentStatuses) as string[] : ["FULFILLED", "PARTIALLY_FULFILLED"]; }
+      catch { return ["FULFILLED", "PARTIALLY_FULFILLED"]; }
+    })(),
+    fyndConsolidateReturns: s?.fyndConsolidateReturns ?? false,
+    fyndConsolidateWindowHours: s?.fyndConsolidateWindowHours ?? 4,
   };
 };
 
@@ -67,6 +74,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const discountCodeRefundEnabled = formData.get("discountCodeRefundEnabled") === "on";
   const discountCodePrefix = (formData.get("discountCodePrefix") as string | null)?.trim() || "RETURN";
   const discountCodeExpiryDays = Math.max(1, parseInt(String(formData.get("discountCodeExpiryDays") ?? "90"), 10) || 90);
+  const portalExchangeEnabled = formData.get("portalExchangeEnabled") === "on";
+  const portalAllowedFulfillmentStatusesRaw = formData.getAll("portalAllowedFulfillmentStatuses") as string[];
+  const portalAllowedFulfillmentStatuses = portalAllowedFulfillmentStatusesRaw.length > 0
+    ? JSON.stringify(portalAllowedFulfillmentStatusesRaw)
+    : JSON.stringify(["FULFILLED", "PARTIALLY_FULFILLED"]);
+  const fyndConsolidateReturns = formData.get("fyndConsolidateReturns") === "on";
+  const fyndConsolidateWindowHours = [1, 4, 8, 24].includes(parseInt(String(formData.get("fyndConsolidateWindowHours") ?? "4"), 10))
+    ? parseInt(String(formData.get("fyndConsolidateWindowHours")), 10)
+    : 4;
 
   const shop = await findOrCreateShop(session.shop);
 
@@ -108,6 +124,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         discountCodeRefundEnabled,
         discountCodePrefix,
         discountCodeExpiryDays,
+        portalExchangeEnabled,
+        portalAllowedFulfillmentStatuses,
+        fyndConsolidateReturns,
+        fyndConsolidateWindowHours,
       },
       update: {
         noReturnPeriodEnabled,
@@ -126,6 +146,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         discountCodeRefundEnabled,
         discountCodePrefix,
         discountCodeExpiryDays,
+        portalExchangeEnabled,
+        portalAllowedFulfillmentStatuses,
+        fyndConsolidateReturns,
+        fyndConsolidateWindowHours,
       },
     });
     return { success: true };
@@ -152,6 +176,10 @@ export default function ReturnSettings() {
   const [dcPrefix, setDcPrefix] = React.useState(data.discountCodePrefix);
   const [dcExpiryDays, setDcExpiryDays] = React.useState(data.discountCodeExpiryDays);
   const [noReturnEnabled, setNoReturnEnabled] = React.useState(data.noReturnPeriodEnabled);
+  const [portalExchangeEnabled, setPortalExchangeEnabled] = React.useState(data.portalExchangeEnabled);
+  const [allowedFulfillStatuses, setAllowedFulfillStatuses] = React.useState<string[]>(data.portalAllowedFulfillmentStatuses);
+  const [fyndConsolidateReturns, setFyndConsolidateReturns] = React.useState(data.fyndConsolidateReturns);
+  const [fyndConsolidateWindowHours, setFyndConsolidateWindowHours] = React.useState(data.fyndConsolidateWindowHours);
 
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
@@ -166,7 +194,11 @@ export default function ReturnSettings() {
     setDcPrefix(data.discountCodePrefix);
     setDcExpiryDays(data.discountCodeExpiryDays);
     setNoReturnEnabled(data.noReturnPeriodEnabled);
-  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays, data.noReturnPeriodEnabled]);
+    setPortalExchangeEnabled(data.portalExchangeEnabled);
+    setAllowedFulfillStatuses(data.portalAllowedFulfillmentStatuses);
+    setFyndConsolidateReturns(data.fyndConsolidateReturns);
+    setFyndConsolidateWindowHours(data.fyndConsolidateWindowHours);
+  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays, data.noReturnPeriodEnabled, data.portalExchangeEnabled, data.portalAllowedFulfillmentStatuses, data.fyndConsolidateReturns, data.fyndConsolidateWindowHours]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -193,6 +225,11 @@ export default function ReturnSettings() {
     fd.set("discountCodeRefundEnabled", dcEnabled ? "on" : "off");
     fd.set("discountCodePrefix", dcPrefix);
     fd.set("discountCodeExpiryDays", String(dcExpiryDays));
+    fd.set("portalExchangeEnabled", portalExchangeEnabled ? "on" : "off");
+    fd.delete("portalAllowedFulfillmentStatuses");
+    allowedFulfillStatuses.forEach((s) => fd.append("portalAllowedFulfillmentStatuses", s));
+    fd.set("fyndConsolidateReturns", fyndConsolidateReturns ? "on" : "off");
+    fd.set("fyndConsolidateWindowHours", String(fyndConsolidateWindowHours));
     fetcher.submit(fd, { method: "post" });
   };
 
@@ -754,6 +791,111 @@ export default function ReturnSettings() {
                 No locations found. Make sure your Shopify store has at least one active location.
               </div>
             )}
+          </s-section>
+
+          {/* Portal Exchange */}
+          <s-section>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: portalExchangeEnabled ? "#EFF6FF" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={portalExchangeEnabled ? "#3B82F6" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.15s" }}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Portal Exchange</div>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" checked={portalExchangeEnabled} onChange={(e) => setPortalExchangeEnabled(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: portalExchangeEnabled ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: portalExchangeEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
+              </label>
+            </div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 10 }}>
+              Allow customers to request an exchange (instead of a refund) directly from the customer portal. Customers will see a "Refund / Exchange" choice and can describe the variant they want.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: portalExchangeEnabled ? "#22C55E" : "#D1D5DB", transition: "background 0.15s" }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: portalExchangeEnabled ? "#15803D" : "#6B7280", transition: "color 0.15s" }}>
+                {portalExchangeEnabled ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+          </s-section>
+
+          {/* Allowed Fulfillment Statuses */}
+          <s-section>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>Allowed Fulfillment Statuses for Return Eligibility</div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
+              Only orders with these Shopify fulfillment statuses will be eligible for returns on the customer portal.
+              For Fynd-managed orders, the system also checks Fynd delivery status automatically.
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {(["FULFILLED", "PARTIALLY_FULFILLED", "UNFULFILLED", "IN_PROGRESS", "ON_HOLD", "SCHEDULED"] as const).map((status) => {
+                const recommended = status === "FULFILLED" || status === "PARTIALLY_FULFILLED";
+                const checked = allowedFulfillStatuses.includes(status);
+                return (
+                  <label key={status} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "10px 12px", background: checked ? "#EFF6FF" : "#F9FAFB", borderRadius: 8, border: checked ? "1.5px solid #BFDBFE" : "1px solid #E5E7EB", transition: "all 0.15s" }}>
+                    <input type="checkbox" checked={checked}
+                      onChange={(e) => {
+                        if (e.target.checked) setAllowedFulfillStatuses([...allowedFulfillStatuses, status]);
+                        else setAllowedFulfillStatuses(allowedFulfillStatuses.filter((s) => s !== status));
+                      }}
+                      style={{ width: 16, height: 16, flexShrink: 0 }}
+                    />
+                    <div style={{ flex: 1 }}>
+                      <span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{status}</span>
+                      {recommended && <span style={{ marginLeft: 8, fontSize: 11, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>Recommended</span>}
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            <p style={{ fontSize: 12, color: "#6d7175", marginTop: 10 }}>
+              For Fynd orders, return is also allowed when Fynd status is <code>delivery_done</code> or <code>handed_over_to_customer</code>, regardless of Shopify status.
+            </p>
+          </s-section>
+
+          {/* Fynd Return Consolidation */}
+          <s-section>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: fyndConsolidateReturns ? "#F0FDF4" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={fyndConsolidateReturns ? "#22C55E" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.15s" }}><rect x="2" y="3" width="6" height="4" rx="1"/><rect x="16" y="3" width="6" height="4" rx="1"/><rect x="9" y="17" width="6" height="4" rx="1"/><path d="M5 7v4a1 1 0 001 1h4"/><path d="M19 7v4a1 1 0 01-1 1h-4"/><path d="M12 12v5"/></svg>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Fynd Return Consolidation</div>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" checked={fyndConsolidateReturns} onChange={(e) => setFyndConsolidateReturns(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: fyndConsolidateReturns ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: fyndConsolidateReturns ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
+              </label>
+            </div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 10 }}>
+              When enabled, multiple return requests for the same Fynd order are batched into a single Fynd return shipment instead of creating separate pickups. This reduces logistics cost and courier visits.
+            </p>
+            {fyndConsolidateReturns && (
+              <div style={{ padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0", marginBottom: 10 }}>
+                <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 10 }}>Batch window</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {([1, 4, 8, 24] as const).map((h) => (
+                    <label key={h} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", background: fyndConsolidateWindowHours === h ? "#DCFCE7" : "#fff", borderRadius: 8, border: fyndConsolidateWindowHours === h ? "1.5px solid #22C55E" : "1px solid #E5E7EB", transition: "all 0.15s" }}>
+                      <input type="radio" name="fyndConsolidateWindowHours" value={h} checked={fyndConsolidateWindowHours === h} onChange={() => setFyndConsolidateWindowHours(h)} />
+                      <span style={{ fontWeight: fyndConsolidateWindowHours === h ? 600 : 400, fontSize: 13 }}>
+                        {h === 1 ? "1 hour" : `${h} hours`}
+                        {h === 4 && <span style={{ marginLeft: 8, fontSize: 11, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>Recommended</span>}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: fyndConsolidateReturns ? "#22C55E" : "#D1D5DB", transition: "background 0.15s" }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: fyndConsolidateReturns ? "#15803D" : "#6B7280", transition: "color 0.15s" }}>
+                {fyndConsolidateReturns ? `Enabled — ${fyndConsolidateWindowHours}h batch window` : "Disabled — each return syncs to Fynd immediately"}
+              </span>
+            </div>
           </s-section>
         </div>
 

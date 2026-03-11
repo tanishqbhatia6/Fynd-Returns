@@ -2601,6 +2601,20 @@
     const API = APP_URL + '/api/portal';
     function escapeHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 
+    // ── AWB validation: Fynd shipment IDs are 15+ digit all-numeric, not real courier AWBs ──
+    function isLikelyFyndId(v) { return v && /^\d{15,}$/.test(String(v).trim()); }
+
+    // ── Price safety: Fynd may store price as object {amount:10} instead of "10" ──
+    function safePrice(val) {
+      if (!val) return val;
+      if (typeof val === 'object') {
+        var v = val.amount || val.value || val.effective || val.transfer_price || val.price_effective || val.mrp;
+        return v != null ? String(v) : null;
+      }
+      if (typeof val === 'string' && val.indexOf('[object') === 0) return null;
+      return val;
+    }
+
     // ── Currency formatting ──
     function formatMoney(amount, currency) {
       var cur = currency || (window.__RPM_CURRENCY__) || 'USD';
@@ -3570,8 +3584,13 @@
           // Return info
           var retInfo = [];
           if (ret.createdAt) retInfo.push({ l: t('portal.summary.submitted'), v: formatDate(ret.createdAt) });
-          if (ti.awbNo || ret.returnAwb) retInfo.push({ l: t('portal.tracking.trackingNo'), v: ti.awbNo || ret.returnAwb });
-          if (ti.logisticsPartner) retInfo.push({ l: t('portal.tracking.courier'), v: ti.logisticsPartner });
+          var retAwb = (ret.returnLabel && ret.returnLabel.trackingNumber && !isLikelyFyndId(ret.returnLabel.trackingNumber) ? ret.returnLabel.trackingNumber : null)
+            || (ret.returnAwb && !isLikelyFyndId(ret.returnAwb) ? ret.returnAwb : null)
+            || (ret.forwardAwb && !isLikelyFyndId(ret.forwardAwb) ? ret.forwardAwb : null)
+            || (ti.awbNo && !isLikelyFyndId(ti.awbNo) ? ti.awbNo : null);
+          if (retAwb) retInfo.push({ l: t('portal.tracking.trackingNo'), v: retAwb });
+          var retCourier = (ret.returnLabel && ret.returnLabel.carrier) || ti.logisticsPartner;
+          if (retCourier) retInfo.push({ l: t('portal.tracking.courier'), v: retCourier });
           if (retInfo.length > 0) {
             html += '<div class="oc-return-block-info">';
             retInfo.forEach(function (item) {
@@ -3709,9 +3728,15 @@
       var info = [];
       if (x.returnRequestNo) info.push({ l: t('portal.tracking.returnId'), v: x.returnRequestNo, copy: true });
       if (x.shopifyOrderName) info.push({ l: t('portal.summary.order'), v: x.shopifyOrderName, copy: false });
-      if (ti.awbNo || x.returnAwb) info.push({ l: t('portal.tracking.trackingNo'), v: ti.awbNo || x.returnAwb, copy: true });
-      if (ti.logisticsPartner) info.push({ l: t('portal.tracking.courier'), v: ti.logisticsPartner, copy: false });
-      if (x.fyndShipmentId) info.push({ l: t('portal.tracking.shipmentId'), v: x.fyndShipmentId, copy: true });
+      // Prefer validated AWB sources: returnLabel > returnAwb > forwardAwb > enriched ti.awbNo
+      // Filter out Fynd shipment IDs (15+ digit all-numeric) masquerading as AWBs
+      var displayAwb = (x.returnLabel && x.returnLabel.trackingNumber && !isLikelyFyndId(x.returnLabel.trackingNumber) ? x.returnLabel.trackingNumber : null)
+        || (x.returnAwb && !isLikelyFyndId(x.returnAwb) ? x.returnAwb : null)
+        || (x.forwardAwb && !isLikelyFyndId(x.forwardAwb) ? x.forwardAwb : null)
+        || (ti.awbNo && !isLikelyFyndId(ti.awbNo) ? ti.awbNo : null);
+      if (displayAwb) info.push({ l: t('portal.tracking.trackingNo'), v: displayAwb, copy: true });
+      var displayCourier = (x.returnLabel && x.returnLabel.carrier) || ti.logisticsPartner;
+      if (displayCourier) info.push({ l: t('portal.tracking.courier'), v: displayCourier, copy: false });
       if (info.length) {
         html += '<div style="padding:16px 20px 0;"><div class="oc-info-grid">';
         info.forEach(function (item) { html += renderInfoGridRow(item.l, item.v, item.copy); });
@@ -3738,7 +3763,8 @@
           html += '<div class="oc-item-title">' + escapeHtml(itemTitle) + '</div>';
           if (ri.variantTitle) html += '<div class="oc-item-variant">' + escapeHtml(ri.variantTitle) + '</div>';
           html += '<div class="oc-item-meta">';
-          if (ri.price) html += '<span class="oc-item-price-tag">' + formatMoney(ri.price, x.currency || window.__RPM_CURRENCY__ || 'USD') + '</span>';
+          var itemPrice = safePrice(ri.price);
+          if (itemPrice) html += '<span class="oc-item-price-tag">' + formatMoney(itemPrice, x.currency || window.__RPM_CURRENCY__ || 'INR') + '</span>';
           var qty = ri.qty || ri.quantity || 1;
           if (qty > 1) html += '<span class="oc-item-qty-tag">' + t('portal.order.qty') + ': ' + qty + '</span>';
           html += '</div>';
@@ -3749,6 +3775,26 @@
           html += '</div>';
         });
         html += '</div>';
+
+        // Article count summary based on Fynd journey status
+        var totalReturnQty = returnItems.reduce(function(sum, ri) { return sum + (ri.qty || ri.quantity || 1); }, 0);
+        var fyndSt = (x.fyndCurrentStatus || '').toLowerCase().replace(/\s+/g, '_');
+        var itemWord = totalReturnQty === 1 ? (t('portal.common.item') || 'item') : (t('portal.common.items') || 'items');
+        var summaryCls = '';
+        var summaryText = '';
+        if (['return_bag_delivered', 'return_accepted', 'return_completed'].indexOf(fyndSt) >= 0) {
+          summaryText = totalReturnQty + ' ' + itemWord + ' ' + (t('portal.status.received') || 'received');
+          summaryCls = 'color:#059669;';
+        } else if (['bag_picked', 'return_bag_in_transit'].indexOf(fyndSt) >= 0) {
+          summaryText = totalReturnQty + ' ' + itemWord + ' ' + (t('portal.status.inTransit') || 'in transit');
+          summaryCls = 'color:#2563eb;';
+        } else if (['return_dp_assigned', 'out_for_pickup', 'dp_out_for_pickup'].indexOf(fyndSt) >= 0) {
+          summaryText = totalReturnQty + ' ' + itemWord + ' \u2014 ' + (t('portal.status.pickupScheduled') || 'pickup scheduled');
+          summaryCls = 'color:#d97706;';
+        }
+        if (summaryText) {
+          html += '<div style="padding:4px 20px 0;"><div style="font-size:0.75rem;font-weight:500;' + summaryCls + '">' + escapeHtml(summaryText) + '</div></div>';
+        }
       }
 
       // Customer-uploaded images

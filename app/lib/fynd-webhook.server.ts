@@ -88,6 +88,11 @@ export type FyndWebhookPayload = {
     order_id?: string;
     shipments?: Array<{ shipment_id?: string; shipmentId?: string; status?: string; refund_status?: string }>;
   };
+  affiliate_details?: { affiliate_order_id?: string; [key: string]: unknown };
+  delivery_partner_details?: Record<string, unknown>;
+  bags?: Array<Record<string, unknown>>;
+  _shop_domain?: string;
+  _journey_type?: string;
 };
 
 function extractShipmentId(payload: FyndWebhookPayload): string | null {
@@ -121,9 +126,14 @@ function extractRefundStatus(payload: FyndWebhookPayload): string | null {
 
 function extractAffiliateOrderId(payload: FyndWebhookPayload): string | null {
   const meta = payload.meta as Record<string, unknown> | undefined;
+  const affiliateDetails = payload.affiliate_details as Record<string, unknown> | undefined;
+  const firstBag = Array.isArray(payload.bags) ? payload.bags[0] as Record<string, unknown> : null;
+  const bagAffDetails = firstBag?.affiliate_bag_details as Record<string, unknown> | undefined;
   const s =
     payload.affiliate_order_id ??
     payload.affiliateOrderId ??
+    (affiliateDetails?.affiliate_order_id as string | undefined) ??
+    (bagAffDetails?.affiliate_order_id as string | undefined) ??
     payload.external_order_id ??
     payload.channel_order_id ??
     (meta?.affiliate_order_id as string | undefined) ??
@@ -160,6 +170,15 @@ function extractOrderIdentifiers(payload: FyndWebhookPayload): string[] {
   return [...ids];
 }
 
+/** Extract shop domain from webhook payload (bags[0].affiliate_bag_details.affiliate_meta.shop_domain) */
+function extractShopDomain(payload: FyndWebhookPayload): string | null {
+  if (typeof payload._shop_domain === "string" && payload._shop_domain.includes(".")) return payload._shop_domain;
+  const meta = payload.meta as Record<string, unknown> | undefined;
+  if (typeof meta?.shop_domain === "string") return meta.shop_domain as string;
+  if (typeof meta?.channel_domain === "string") return meta.channel_domain as string;
+  return null;
+}
+
 /** Extract customer info from webhook payload (delivery_address, billing_address, meta) */
 function extractCustomerFromWebhookPayload(payload: FyndWebhookPayload): {
   name?: string; email?: string; phone?: string;
@@ -193,12 +212,46 @@ function extractCustomerFromWebhookPayload(payload: FyndWebhookPayload): {
   };
 }
 
+/** Detect whether a webhook is for forward, return, or RTO journey */
+function detectJourneyType(statusLower: string, payload: FyndWebhookPayload): "forward" | "return" | "rto" | null {
+  // Infer from status prefix
+  if (statusLower.startsWith("return_") || statusLower === "return_initiated") return "return";
+  if (statusLower.startsWith("rto_")) return "rto";
+  // Check promoted journey_type from bags[0].bag_status_history
+  if (typeof payload._journey_type === "string") {
+    const jtPromoted = payload._journey_type.toLowerCase();
+    if (jtPromoted === "return") return "return";
+    if (jtPromoted === "rto") return "rto";
+    if (jtPromoted === "forward") return "forward";
+  }
+  // Check meta.journey_type or shipment_status.journey_type
+  const meta = payload.meta as Record<string, unknown> | undefined;
+  const shipmentStatusObj = (typeof payload.shipment_status === "object" && payload.shipment_status !== null)
+    ? payload.shipment_status as Record<string, unknown>
+    : null;
+  const jt = (meta?.journey_type ?? shipmentStatusObj?.journey_type) as string | null | undefined;
+  if (jt) {
+    const jtLower = String(jt).toLowerCase();
+    if (jtLower === "return") return "return";
+    if (jtLower === "rto") return "rto";
+    if (jtLower === "forward") return "forward";
+  }
+  // Known forward-only statuses
+  const forwardOnly = new Set(["bag_confirmed", "bag_invoiced", "dp_assigned", "bag_packed",
+    "bag_picked", "out_for_delivery", "delivery_done", "handed_over_to_customer"]);
+  if (forwardOnly.has(statusLower)) return "forward";
+  // Return-specific statuses
+  if (["out_for_pickup", "dp_out_for_pickup", "return_bag_lost"].includes(statusLower)) return "return";
+  return null;
+}
+
 /** Extract shipping/logistics info from webhook payload (dp_details, awb_no, tracking_url, invoice) */
 function extractShippingFromWebhookPayload(payload: FyndWebhookPayload): {
   carrier?: string; awb?: string; trackingUrl?: string;
   labelUrl?: string; invoiceUrl?: string; invoiceNumber?: string;
 } | null {
-  const dp = payload.dp_details as Record<string, unknown> | undefined;
+  const dpd = payload.delivery_partner_details as Record<string, unknown> | undefined;
+  const dp = dpd ?? (payload.dp_details as Record<string, unknown> | undefined);
   const meta = payload.meta as Record<string, unknown> | undefined;
   const inv = payload.invoice as Record<string, unknown> | undefined;
   const carrier = (typeof dp?.display_name === "string" ? dp.display_name : null)
@@ -299,6 +352,9 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
   };
 
   if (!shipmentId && orderIds.length === 0) {
+    // Log payload keys for debugging unrecognized webhook formats
+    const payloadKeys = Object.keys(payload).filter((k) => payload[k as keyof FyndWebhookPayload] != null).join(", ");
+    console.warn(`[Fynd webhook] No identifiers extracted. Payload keys: [${payloadKeys}]. Status: ${refundStatus ?? "null"}`);
     await logWebhook({
       shipmentId: null,
       orderId: null,
@@ -306,6 +362,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       action: "ignored",
       rawPayload: rawPayload ?? JSON.stringify(payload),
       ...logEnrichment,
+      error: `No shipment/order ID found. Keys: ${payloadKeys}`,
     });
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
@@ -378,7 +435,84 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     } catch { /* non-fatal */ }
   }
 
+  // Strategy 6: Direct shopifyOrderName match using all order identifiers
+  // Fynd often sends the Shopify order name as affiliate_order_id or external_order_id
+  if (!returnCase && orderIds.length > 0) {
+    try {
+      for (const oid of orderIds) {
+        const clean = oid.replace(/^#/, "").trim();
+        if (!clean) continue;
+        for (const candidate of [clean, `#${clean}`]) {
+          returnCase = await prisma.returnCase.findFirst({
+            where: { shopifyOrderName: { equals: candidate, mode: "insensitive" } },
+            include: { items: true, shop: true },
+          });
+          if (returnCase) {
+            console.log(`[Fynd webhook] Matched via direct shopifyOrderName="${candidate}" from oid="${oid}"`);
+            break;
+          }
+        }
+        if (returnCase) break;
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Strategy 7: Match by shopifyOrderId when Fynd sends a Shopify GID or numeric ID
+  if (!returnCase && orderIds.length > 0) {
+    try {
+      for (const oid of orderIds) {
+        if (oid.startsWith("gid://") || /^\d+$/.test(oid)) {
+          const gid = oid.startsWith("gid://") ? oid : `gid://shopify/Order/${oid}`;
+          returnCase = await prisma.returnCase.findFirst({
+            where: { shopifyOrderId: gid },
+            include: { items: true, shop: true },
+          });
+          if (returnCase) {
+            console.log(`[Fynd webhook] Matched via shopifyOrderId="${gid}"`);
+            break;
+          }
+        }
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Strategy 8: Shop-scoped match using shop_domain from payload + order identifiers
   if (!returnCase) {
+    const webhookShopDomain = extractShopDomain(payload);
+    if (webhookShopDomain) {
+      try {
+        const shop = await prisma.shop.findUnique({ where: { shopDomain: webhookShopDomain } });
+        if (shop) {
+          if (affiliateOrderId) {
+            const variants = extractShopifyOrderNumberVariants(affiliateOrderId);
+            for (const variant of variants) {
+              for (const candidate of [variant, `#${variant}`]) {
+                returnCase = await prisma.returnCase.findFirst({
+                  where: { shopId: shop.id, shopifyOrderName: { equals: candidate, mode: "insensitive" } },
+                  include: { items: true, shop: true },
+                });
+                if (returnCase) {
+                  console.log(`[Fynd webhook] Matched via shop-scoped shopifyOrderName="${candidate}" (shop=${webhookShopDomain})`);
+                  break;
+                }
+              }
+              if (returnCase) break;
+            }
+          }
+          if (!returnCase && shipmentId) {
+            returnCase = await prisma.returnCase.findFirst({
+              where: { shopId: shop.id, fyndShipmentId: shipmentId },
+              include: { items: true, shop: true },
+            });
+            if (returnCase) console.log(`[Fynd webhook] Matched via shop-scoped fyndShipmentId="${shipmentId}"`);
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+  }
+
+  if (!returnCase) {
+    const webhookShopDomain = extractShopDomain(payload);
     await logWebhook({
       shipmentId,
       orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
@@ -386,6 +520,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       action: "ignored",
       rawPayload: rawPayload ?? JSON.stringify(payload),
       ...logEnrichment,
+      shopDomain: webhookShopDomain ?? undefined,
     });
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
@@ -420,8 +555,17 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
   }
   // Update shipping info from webhook payload (always update, not just first time)
   const shipping = extractShippingFromWebhookPayload(payload);
+  const earlyStatusLower = (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  const journeyType = detectJourneyType(earlyStatusLower, payload);
   if (shipping) {
-    if (shipping.awb) backfillData.forwardAwb = shipping.awb;
+    if (shipping.awb) {
+      // Route AWB to the correct field based on journey type
+      if (journeyType === "return") {
+        backfillData.returnAwb = shipping.awb;
+      } else {
+        backfillData.forwardAwb = shipping.awb;
+      }
+    }
     if (shipping.carrier || shipping.awb) {
       let existingLabel: Record<string, unknown> = {};
       try {
@@ -916,16 +1060,31 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
   const isKnownJourneyStatus = FYND_JOURNEY_STATUSES.has(statusLower) ||
     FYND_JOURNEY_STATUSES.has((refundStatus ?? "").toLowerCase());
 
-  // Update fyndCurrentStatus on every webhook
+  // Update fyndCurrentStatus on every webhook — use statusLower for journey statuses,
+  // fall back to refundStatus for refund-specific webhooks
   const journeyUpdate: Record<string, string> = {};
-  if (refundStatus) {
-    journeyUpdate.fyndCurrentStatus = refundStatus.toLowerCase().replace(/\s+/g, "_");
+  const effectiveStatus = isKnownJourneyStatus ? statusLower : (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  if (effectiveStatus) {
+    journeyUpdate.fyndCurrentStatus = effectiveStatus;
   }
+
+  // Status ordering for forward-only advancement (never downgrade)
+  const STATUS_ORDER: Record<string, number> = {
+    initiated: 0, pending: 1, approved: 2, "in progress": 3, processing: 3, completed: 4,
+  };
+  const currentLevel = STATUS_ORDER[returnCase.status.toLowerCase()] ?? 0;
 
   // For key milestones, advance ReturnCase.status
   if (isKnownJourneyStatus) {
-    if ((statusLower === "return_initiated" || statusLower === "bag_confirmed") && returnCase.status === "pending") {
+    // Return journey: approved → in progress → completed
+    if ((statusLower === "return_initiated" || statusLower === "bag_confirmed") && currentLevel < 2) {
       journeyUpdate.status = "approved";
+    }
+    if (["return_dp_assigned", "bag_picked", "return_bag_in_transit", "out_for_pickup", "dp_out_for_pickup"].includes(statusLower) && currentLevel < 3) {
+      journeyUpdate.status = "in progress";
+    }
+    if (["return_bag_delivered", "return_accepted", "return_completed"].includes(statusLower) && currentLevel < 4) {
+      journeyUpdate.status = "completed";
     }
   }
 

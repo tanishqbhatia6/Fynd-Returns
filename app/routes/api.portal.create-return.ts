@@ -91,7 +91,7 @@ async function createDiscountCode(
   }
 }
 
-const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress"];
+const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress", "approved"];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -123,12 +123,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const customerName = (body.customerName as string | undefined)?.trim() || null;
     const customerCity = (body.customerCity as string | undefined)?.trim() || null;
     const customerCountry = (body.customerCountry as string | undefined)?.trim() || null;
-    const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string }> | undefined;
+    const customerAddress1 = (body.customerAddress1 as string | undefined)?.trim().slice(0, 500) || null;
+    const customerAddress2 = (body.customerAddress2 as string | undefined)?.trim().slice(0, 500) || null;
+    const customerProvince = (body.customerProvince as string | undefined)?.trim().slice(0, 100) || null;
+    const customerZip = (body.customerZip as string | undefined)?.trim().slice(0, 20) || null;
+    const customerLandmark = (body.customerLandmark as string | undefined)?.trim().slice(0, 500) || null;
+    const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string; condition?: string }> | undefined;
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
     const customerNotes = (body.customerNotes as string | undefined)?.trim();
     const customerMediaRaw = body.customerMedia as Array<{ name?: string; mimeType?: string; size?: number; dataUrl?: string }> | undefined;
     const currencyCode = (body.currency as string | undefined)?.trim().toUpperCase().slice(0, 10) || null;
+    const resolutionType = (body.resolutionType as string | undefined) === "exchange" ? "exchange" : "refund";
+    const exchangePreference = resolutionType === "exchange"
+      ? (body.exchangePreference as string | undefined)?.trim().slice(0, 500) || null
+      : null;
 
     if (!shop || !shopifyOrderName) {
       return withCors(
@@ -246,7 +255,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.warn(`[create-return] Could not resolve orderId "${effectiveOrderId}":`, err);
       }
     }
-    let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string }>;
+    let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string }>;
     let lineItemsWithPrice: Array<{
       id: string;
       title?: string;
@@ -343,6 +352,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         lineItemId: String(it.lineItemId).slice(0, 256),
         qty: Math.min(Math.max(1, Math.floor(it.qty)), 999),
         reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
+        condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
       }));
     }
 
@@ -412,21 +422,50 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Race-safe duplicate check: will be re-checked inside transaction
-    const existingPreCheck = await prisma.returnCase.findFirst({
-      where: {
-        shopId: shopRecord.id,
-        shopifyOrderId: effectiveOrderId,
-        status: { in: NON_TERMINAL_STATUSES },
-      },
-    });
-    if (existingPreCheck) {
-      return withCors(
-        Response.json({
-          error: "A return request for this order is already pending. Please wait for approval or rejection.",
-        }, { status: 409 }),
-        request
-      );
+    // Per-line-item quantity pre-check: allow new returns for the same order
+    // as long as there is remaining quantity for the requested line items.
+    // This replaces the old blanket duplicate check that blocked ALL returns
+    // for an order if any non-terminal return existed.
+    if (!manualMode && itemsToCreate.length > 0 && effectiveOrderId && !effectiveOrderId.startsWith("manual:")) {
+      const preCheckLineItemIds = itemsToCreate.map((it) => it.lineItemId).filter((id) => id !== "manual");
+      if (preCheckLineItemIds.length > 0) {
+        const existingReturnItems = await prisma.returnItem.findMany({
+          where: {
+            shopifyLineItemId: { in: preCheckLineItemIds },
+            returnCase: {
+              shopId: shopRecord.id,
+              shopifyOrderId: effectiveOrderId,
+              status: { notIn: ["rejected", "cancelled"] },
+            },
+          },
+          select: { shopifyLineItemId: true, qty: true },
+        });
+        const preAlreadyReturnedMap: Record<string, number> = {};
+        for (const ri of existingReturnItems) {
+          if (ri.shopifyLineItemId) {
+            preAlreadyReturnedMap[ri.shopifyLineItemId] = (preAlreadyReturnedMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
+          }
+        }
+        const lineItemEstimates = (body.lineItemEstimates ?? []) as Array<{ lineItemId: string; quantity: number }>;
+        for (const sel of itemsToCreate) {
+          if (sel.lineItemId === "manual") continue;
+          const alreadyReturned = preAlreadyReturnedMap[sel.lineItemId] ?? 0;
+          const originalQty = lineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity
+            ?? (body.lineItemsWithPrice as Array<{ id: string; quantity?: number }> | undefined)
+              ?.find((l) => l.id === sel.lineItemId)?.quantity
+            ?? 999;
+          if (alreadyReturned + sel.qty > originalQty) {
+            const liInfo = (body.lineItemsWithPrice as Array<{ id: string; title?: string }> | undefined)
+              ?.find((l) => l.id === sel.lineItemId);
+            return withCors(
+              Response.json({
+                error: `Return quantity exceeds available for "${liInfo?.title ?? sel.lineItemId}". ${alreadyReturned} already in return, ${sel.qty} requested, but only ${originalQty} ordered.`,
+              }, { status: 400 }),
+              request,
+            );
+          }
+        }
+      }
     }
 
     // Server-side fulfillment status validation (non-manual mode)
@@ -611,20 +650,73 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       qualifiesForGreenReturn = belowThreshold || tagsMatch;
     }
 
-    // Atomic transaction: re-check for duplicates + create return + event in one go
+    // Atomic transaction: per-line-item quantity validation + create return + event in one go
+    const txLineItemEstimates = (body.lineItemEstimates ?? []) as Array<{ lineItemId: string; quantity: number }>;
     let returnCase: Awaited<ReturnType<typeof prisma.returnCase.create>> & { returnRequestNo?: string | null };
     try {
       returnCase = await prisma.$transaction(async (tx) => {
-        // Re-check inside transaction to prevent race conditions
-        const dup = await tx.returnCase.findFirst({
-          where: {
-            shopId: shopRecord.id,
-            shopifyOrderId: effectiveOrderId,
-            status: { in: NON_TERMINAL_STATUSES },
-          },
-        });
-        if (dup) {
-          throw new Error("DUPLICATE_RETURN");
+        // Per-line-item quantity validation inside transaction (race-safe)
+        if (!manualMode && itemsToCreate.length > 0 && effectiveOrderId && !effectiveOrderId.startsWith("manual:")) {
+          const requestedLineItemIds = itemsToCreate.map((it) => it.lineItemId).filter((id) => id !== "manual");
+          const existingReturnItems = await tx.returnItem.findMany({
+            where: {
+              shopifyLineItemId: { in: requestedLineItemIds },
+              returnCase: {
+                shopId: shopRecord.id,
+                shopifyOrderId: effectiveOrderId,
+                status: { notIn: ["rejected", "cancelled"] },
+              },
+            },
+            select: { shopifyLineItemId: true, qty: true },
+          });
+          const alreadyReturnedMap: Record<string, number> = {};
+          for (const ri of existingReturnItems) {
+            if (ri.shopifyLineItemId) {
+              alreadyReturnedMap[ri.shopifyLineItemId] = (alreadyReturnedMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
+            }
+          }
+          // SKU fallback: for Fynd orders, stored shopifyLineItemId may differ from current IDs
+          const txRequestedSkus = itemsToCreate
+            .map((it) => resolvedLineItemSkus.get(it.lineItemId) || (lineItemsWithPrice.find((l) => l.id === it.lineItemId) as { sku?: string } | undefined)?.sku)
+            .filter(Boolean) as string[];
+          if (txRequestedSkus.length > 0) {
+            try {
+              const skuItems = await tx.returnItem.findMany({
+                where: {
+                  sku: { in: txRequestedSkus },
+                  returnCase: {
+                    shopId: shopRecord.id,
+                    shopifyOrderId: effectiveOrderId,
+                    status: { notIn: ["rejected", "cancelled"] },
+                  },
+                },
+                select: { sku: true, qty: true, shopifyLineItemId: true },
+              });
+              for (const ri of skuItems) {
+                if (!ri.sku) continue;
+                const matchingItem = itemsToCreate.find((it) => {
+                  const itSku = resolvedLineItemSkus.get(it.lineItemId)
+                    || (lineItemsWithPrice.find((l) => l.id === it.lineItemId) as { sku?: string } | undefined)?.sku;
+                  return itSku === ri.sku;
+                });
+                if (matchingItem && !(alreadyReturnedMap[matchingItem.lineItemId] > 0)) {
+                  alreadyReturnedMap[matchingItem.lineItemId] = (alreadyReturnedMap[matchingItem.lineItemId] ?? 0) + ri.qty;
+                }
+              }
+            } catch { /* non-fatal SKU fallback */ }
+          }
+          for (const sel of itemsToCreate) {
+            if (sel.lineItemId === "manual") continue;
+            const alreadyReturned = alreadyReturnedMap[sel.lineItemId] ?? 0;
+            const liInfo = lineItemsWithPrice.find((l) => l.id === sel.lineItemId);
+            const originalQty = txLineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity
+              ?? (body.lineItemsWithPrice as Array<{ id: string; quantity?: number }> | undefined)
+                ?.find((l) => l.id === sel.lineItemId)?.quantity
+              ?? 999;
+            if (alreadyReturned + sel.qty > originalQty) {
+              throw new Error(`QUANTITY_EXCEEDED:${liInfo?.title ?? sel.lineItemId}`);
+            }
+          }
         }
 
         const orderCreatedAtValue = body.orderCreatedAt
@@ -643,10 +735,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             customerName: customerName || null,
             customerCity: customerCity || null,
             customerCountry: customerCountry || null,
+            customerAddress1: customerAddress1 || null,
+            customerAddress2: customerAddress2 || null,
+            customerProvince: customerProvince || null,
+            customerZip: customerZip || null,
+            customerLandmark: customerLandmark || null,
             customerNotes: customerNotes || null,
             customerMediaJson: customerMediaJson,
             currency: currencyCode,
             status,
+            resolutionType,
+            exchangePreference: exchangePreference || null,
             isGreenReturn: qualifiesForGreenReturn,
             fyndSyncStatus: status === "approved" && !qualifiesForGreenReturn ? "pending" : null,
             orderProcessedAt: orderCreatedAtValue,
@@ -662,11 +761,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   title: liInfo?.title || it.notes || null,
                   variantTitle: liInfo?.variantTitle || null,
                   sku: resolvedSku || (liInfo as { sku?: string } | undefined)?.sku || null,
-                  price: liInfo?.price || null,
+                  price: (() => {
+                    const raw = liInfo?.price;
+                    if (!raw) return null;
+                    if (typeof raw === "object") {
+                      const obj = raw as Record<string, unknown>;
+                      const v = obj.amount ?? obj.value ?? obj.effective ?? obj.transfer_price ?? obj.price_effective;
+                      return v != null ? String(v) : null;
+                    }
+                    return String(raw);
+                  })(),
                   imageUrl: liInfo?.imageUrl || null,
                   qty: it.qty,
                   reasonCode: it.reasonCode || null,
                   notes: it.notes || null,
+                  condition: it.condition || null,
                 };
               }),
             },
@@ -712,11 +821,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return { ...rc, returnRequestNo };
       });
     } catch (txErr) {
-      if (txErr instanceof Error && txErr.message === "DUPLICATE_RETURN") {
+      if (txErr instanceof Error && txErr.message.startsWith("QUANTITY_EXCEEDED:")) {
+        const itemTitle = txErr.message.replace("QUANTITY_EXCEEDED:", "");
         return withCors(
           Response.json({
-            error: "A return request for this order is already pending. Please wait for approval or rejection.",
-          }, { status: 409 }),
+            error: `Return quantity exceeds available quantity for: ${itemTitle}. Please refresh and try again.`,
+          }, { status: 400 }),
           request
         );
       }

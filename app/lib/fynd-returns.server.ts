@@ -159,6 +159,21 @@ export async function createReturnOnFynd(
       });
     }
 
+    // Build delivery_address from pickupAddress option if provided
+    const pa = options?.pickupAddress;
+    const deliveryAddress = pa && (pa.address1 || pa.city || pa.zip) ? {
+      address: [pa.address1, pa.address2].filter(Boolean).join(", "),
+      address1: pa.address1 || undefined,
+      address2: pa.address2 || undefined,
+      city: pa.city || undefined,
+      state: pa.province || undefined,
+      pincode: pa.zip || undefined,
+      country: pa.country || undefined,
+      landmark: pa.landmark || undefined,
+      name: pa.name || undefined,
+      phone: pa.phone || undefined,
+    } : undefined;
+
     const payload = {
       statuses: [
         {
@@ -167,6 +182,7 @@ export async function createReturnOnFynd(
               identifier: String(shipmentId),
               products,
               reasons: { products: reasonProducts },
+              ...(deliveryAddress ? { delivery_address: deliveryAddress } : {}),
             },
           ],
           status: "return_initiated",

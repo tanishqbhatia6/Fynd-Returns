@@ -4,7 +4,7 @@ import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, parseFyndOrderDetailsForTab, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
 import { createFyndClientOrError, type ShipmentsListingSearchType } from "../lib/fynd.server";
-import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid } from "../lib/shopify-admin.server";
+import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid, fetchOrderByFyndAffiliateId } from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
@@ -416,7 +416,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               if (affiliateOrderId) {
                 try {
                   const { admin } = await shopify.unauthenticated.admin(shopDomain);
-                  const shopifyOrder = await fetchOrderByOrderNumber(admin, affiliateOrderId);
+                  // Use prefix-stripping to handle FYNDSHOPIFYX14126 → try 14126, X14126, etc.
+                  const shopifyOrder = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId);
                   if (shopifyOrder) {
                     orders.push({ ...shopifyOrder, fyndData, _needsFyndEnrich: false });
                   }

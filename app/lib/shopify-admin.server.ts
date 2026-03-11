@@ -445,6 +445,74 @@ export async function fetchOrderByOrderNumber(
   return null;
 }
 
+/**
+ * Extract Shopify order number variants from a Fynd affiliate_order_id.
+ *
+ * Fynd prefixes affiliate_order_ids like:
+ *   FYNDSHOPIFYX14126 → Shopify order #14126 (or #X14126)
+ *   FYNDSHOPIFY14126  → Shopify order #14126
+ *   #FYNDSHOPIFYX14126 → same with # prefix
+ *
+ * Returns an array of candidate order names to search, most specific first.
+ */
+export function extractShopifyOrderNumberVariants(affiliateOrderId: string | null | undefined): string[] {
+  if (!affiliateOrderId) return [];
+  const clean = affiliateOrderId.replace(/^#/, "").trim();
+  if (!clean) return [];
+
+  const variants: string[] = [];
+  // Always try the full value first
+  variants.push(clean);
+
+  // Strip common Fynd prefixes: FYNDSHOPIFY, FYND_SHOPIFY_, FYND-SHOPIFY-, etc.
+  const prefixPatterns = [
+    /^FYNDSHOPIFY/i,
+    /^FYND[_-]?SHOPIFY[_-]?/i,
+    /^FYND[_-]?/i,
+  ];
+
+  for (const pattern of prefixPatterns) {
+    if (pattern.test(clean)) {
+      const stripped = clean.replace(pattern, "").trim();
+      if (stripped && stripped !== clean) {
+        variants.push(stripped);
+        // If stripped starts with a letter prefix (X, O, etc.) followed by numbers, also try just the numbers
+        const numMatch = stripped.match(/^[A-Za-z](\d+)$/);
+        if (numMatch) {
+          variants.push(numMatch[1]);
+        }
+      }
+    }
+  }
+
+  // If the entire value looks like a pure number, it's already a Shopify order number
+  // (no prefix stripping needed, already included)
+
+  // Deduplicate while preserving order
+  return [...new Set(variants)];
+}
+
+/**
+ * Try to find a Shopify order from a Fynd affiliate_order_id by trying multiple
+ * variants (with Fynd prefixes stripped).
+ */
+export async function fetchOrderByFyndAffiliateId(
+  admin: AdminGraphQL,
+  affiliateOrderId: string
+): Promise<OrderForPortal | null> {
+  const variants = extractShopifyOrderNumberVariants(affiliateOrderId);
+  for (const variant of variants) {
+    try {
+      const order = await fetchOrderByOrderNumber(admin, variant);
+      if (order) return order;
+    } catch (err) {
+      if (err instanceof OrderAccessError) throw err;
+      // Continue trying other variants
+    }
+  }
+  return null;
+}
+
 type RawOrderNode = {
   id: string;
   name: string;

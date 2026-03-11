@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
-import { fetchOrder, fetchOrderByOrderNumber, fetchAllLocations } from "../lib/shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchAllLocations } from "../lib/shopify-admin.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload } from "../lib/fynd-payload.server";
@@ -387,35 +387,45 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
     let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
+    const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
     if (!isManualReturn && returnCase.shopifyOrderId) {
       try {
-        shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
+        // Try direct GID/numeric lookup first
+        const isGid = returnCase.shopifyOrderId.startsWith("gid://");
+        const isNumeric = /^\d+$/.test(returnCase.shopifyOrderId);
+        if (isGid || isNumeric) {
+          shopifyOrder = await fetchOrder(admin, returnCase.shopifyOrderId);
+        }
+
+        // Try shopifyOrderName with Fynd prefix stripping (e.g. FYNDSHOPIFYX14126 → 14126)
         if (!shopifyOrder && returnCase.shopifyOrderName) {
-          const orderNum = returnCase.shopifyOrderName.replace(/^#/, "").trim();
-          if (orderNum) shopifyOrder = await fetchOrderByOrderNumber(admin, orderNum);
+          shopifyOrder = await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderName);
+        }
+
+        // Try shopifyOrderId itself with Fynd prefix stripping
+        if (!shopifyOrder) {
+          shopifyOrder = await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderId);
+        }
+
+        // Try affiliate_order_id from Fynd payload
+        if (!shopifyOrder && fyndPayloadJson) {
+          const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
+          if (affId) {
+            shopifyOrder = await fetchOrderByFyndAffiliateId(admin, affId);
+          }
+        }
+
+        // Persist resolved Shopify order ID back to DB for future lookups
+        if (shopifyOrder?.id && shopifyOrder.id !== returnCase.shopifyOrderId) {
+          try {
+            const updates: Record<string, string> = { shopifyOrderId: shopifyOrder.id };
+            if (shopifyOrder.name && !returnCase.shopifyOrderName) updates.shopifyOrderName = shopifyOrder.name;
+            await prisma.returnCase.update({ where: { id: returnCase.id }, data: updates });
+            returnCase = { ...returnCase, ...updates } as typeof returnCase;
+          } catch { /* non-fatal */ }
         }
       } catch (err) {
         console.warn("Could not fetch Shopify order:", err);
-      }
-    }
-
-    // Part D: Resolve Shopify order from Fynd affiliate_order_id if not found
-    const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
-    if (!shopifyOrder && !isManualReturn && fyndPayloadJson) {
-      try {
-        const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
-        if (affId) {
-          shopifyOrder = await fetchOrderByOrderNumber(admin, affId.replace(/^#/, ""));
-          if (shopifyOrder?.id) {
-            await prisma.returnCase.update({
-              where: { id: returnCase.id },
-              data: { shopifyOrderId: shopifyOrder.id },
-            });
-            returnCase = { ...returnCase, shopifyOrderId: shopifyOrder.id } as typeof returnCase;
-          }
-        }
-      } catch {
-        // Non-fatal
       }
     }
 

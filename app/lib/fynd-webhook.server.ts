@@ -10,7 +10,7 @@
  */
 
 import prisma from "../db.server";
-import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, type RefundMethodConfig } from "./shopify-admin.server";
+import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, type RefundMethodConfig } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
 
 /** Fynd refund statuses that indicate refund is in progress */
@@ -440,8 +440,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     (returnCase.shopifyOrderId != null && /^\d+$/.test(returnCase.shopifyOrderId));
   if (!isValidShopifyId && affiliateOrderId) {
     try {
-      const affiliateClean = affiliateOrderId.replace(/^#/, "").trim();
-      const shopifyOrder = await fetchOrderByOrderNumber(admin, affiliateClean);
+      const shopifyOrder = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId);
       if (shopifyOrder?.id) {
         const shopifyBackfill: Record<string, string> = { shopifyOrderId: shopifyOrder.id };
         if (!returnCase.shopifyOrderName && shopifyOrder.name) {
@@ -536,8 +535,18 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     const isGid = orderIdForRefund?.startsWith("gid://");
     const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
     if (!isGid && !isNumericId) {
-      const orderNumber = (returnCase.shopifyOrderName ?? orderIdForRefund ?? "").replace(/^#/, "").trim();
-      const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
+      // Try shopifyOrderName with Fynd prefix stripping
+      let orderByNumber = returnCase.shopifyOrderName
+        ? await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderName).catch(() => null)
+        : null;
+      // Try shopifyOrderId with prefix stripping
+      if (!orderByNumber && orderIdForRefund) {
+        orderByNumber = await fetchOrderByFyndAffiliateId(admin, orderIdForRefund).catch(() => null);
+      }
+      // Try affiliate_order_id from webhook payload
+      if (!orderByNumber && affiliateOrderId) {
+        orderByNumber = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId).catch(() => null);
+      }
       if (orderByNumber?.id) {
         orderIdForRefund = orderByNumber.id;
         if (lineItemsForRefund.length === 0 && orderByNumber.lineItems?.length) {
@@ -702,8 +711,15 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         const isGid = orderIdForRefund?.startsWith("gid://");
         const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
         if (!isGid && !isNumericId) {
-          const orderNumber = (returnCase.shopifyOrderName ?? orderIdForRefund ?? "").replace(/^#/, "").trim();
-          const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber) : null;
+          let orderByNumber = returnCase.shopifyOrderName
+            ? await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderName).catch(() => null)
+            : null;
+          if (!orderByNumber && orderIdForRefund) {
+            orderByNumber = await fetchOrderByFyndAffiliateId(admin, orderIdForRefund).catch(() => null);
+          }
+          if (!orderByNumber && affiliateOrderId) {
+            orderByNumber = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId).catch(() => null);
+          }
           if (orderByNumber?.id) {
             orderIdForRefund = orderByNumber.id;
             if (lineItemsForRefund.length === 0 && orderByNumber.lineItems?.length) {

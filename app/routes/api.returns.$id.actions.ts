@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNumber, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
@@ -583,81 +583,74 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
         .map((i) => ({ id: i.shopifyLineItemId, quantity: i.qty }));
 
+      // Helper: persist resolved Shopify order back to DB + fill line items
+      const applyResolvedOrder = async (shopifyOrder: { id: string; name?: string; lineItems?: Array<{ id: string; quantity: number }> }) => {
+        orderIdForRefund = shopifyOrder.id;
+        const updates: Record<string, string> = { shopifyOrderId: shopifyOrder.id };
+        if (shopifyOrder.name && !returnCase.shopifyOrderName) updates.shopifyOrderName = shopifyOrder.name;
+        await prisma.returnCase.update({ where: { id }, data: updates }).catch(() => { /* non-fatal */ });
+        if (lineItemsForRefund.length === 0 && shopifyOrder.lineItems?.length) {
+          lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+        }
+      };
+
       const isGid = orderIdForRefund?.startsWith("gid://");
       const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
-      if (!isGid && !isNumericId) {
-        const orderNumber = (returnCase.shopifyOrderName ?? orderIdForRefund ?? "").replace(/^#/, "").trim();
-        const orderByNumber = orderNumber ? await fetchOrderByOrderNumber(admin, orderNumber).catch(() => null) : null;
-        if (orderByNumber?.id) {
-          orderIdForRefund = orderByNumber.id;
-          if (lineItemsForRefund.length === 0 && orderByNumber.lineItems?.length) {
-            lineItemsForRefund = orderByNumber.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
-          }
-        } else if (orderIdForRefund && !orderIdForRefund.startsWith("manual:")) {
-          // orderIdForRefund is not a valid Shopify ID. Try multiple strategies to resolve it.
-          let resolvedOrder = false;
+      if (!isGid && !isNumericId && orderIdForRefund && !orderIdForRefund.startsWith("manual:")) {
+        // shopifyOrderId is not a valid Shopify GID/numeric — resolve it
+        let resolved = false;
 
-          // Strategy 1: Extract affiliate_order_id from Fynd payload (= Shopify order name)
-          if ((returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson) {
-            try {
-              const fp = JSON.parse((returnCase as { fyndPayloadJson: string }).fyndPayloadJson) as Record<string, unknown>;
-              const inner = (fp.payload ?? fp.shipment ?? fp) as Record<string, unknown>;
-              const items = (inner.items ?? inner.shipments ?? []) as Record<string, unknown>[];
-              const meta = (inner.meta ?? {}) as Record<string, unknown>;
-              const orderObj = (inner.order ?? {}) as Record<string, unknown>;
-              const candidateIds = [
-                inner.affiliate_order_id, inner.external_order_id, inner.channel_order_id,
-                meta.affiliate_order_id, meta.external_order_id, meta.channel_order_id,
-                orderObj.affiliate_order_id, orderObj.external_order_id,
-                items[0]?.affiliate_order_id, items[0]?.external_order_id,
-                (items[0]?.order as Record<string, unknown> | undefined)?.affiliate_order_id,
-              ];
-              for (const raw of candidateIds) {
-                const cleaned = typeof raw === "string" ? raw.replace(/^#/, "").trim() : "";
-                if (!cleaned) continue;
-                const shopifyOrder = await fetchOrderByOrderNumber(admin, cleaned).catch(() => null);
-                if (shopifyOrder?.id) {
-                  orderIdForRefund = shopifyOrder.id;
-                  resolvedOrder = true;
-                  await prisma.returnCase.update({
-                    where: { id },
-                    data: { shopifyOrderId: shopifyOrder.id, ...(shopifyOrder.name && !returnCase.shopifyOrderName ? { shopifyOrderName: shopifyOrder.name } : {}) },
-                  });
-                  if (lineItemsForRefund.length === 0 && shopifyOrder.lineItems?.length) {
-                    lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
-                  }
-                  break;
-                }
-              }
-            } catch { /* Non-fatal */ }
-          }
+        // Strategy 1: Try shopifyOrderName directly (may contain affiliate_order_id)
+        if (!resolved && returnCase.shopifyOrderName) {
+          const order = await fetchOrderByFyndAffiliateId(admin, returnCase.shopifyOrderName).catch(() => null);
+          if (order?.id) { await applyResolvedOrder(order); resolved = true; }
+        }
 
-          // Strategy 2: Try shopifyOrderId itself as a search query (it might be an order name without #)
-          if (!resolvedOrder) {
-            try {
-              const cleaned = orderIdForRefund.replace(/^#/, "").trim();
-              const shopifyOrder = await fetchOrderByOrderNumber(admin, cleaned).catch(() => null);
+        // Strategy 2: Try shopifyOrderId as a Fynd affiliate_order_id (strip Fynd prefixes)
+        if (!resolved) {
+          const order = await fetchOrderByFyndAffiliateId(admin, orderIdForRefund).catch(() => null);
+          if (order?.id) { await applyResolvedOrder(order); resolved = true; }
+        }
+
+        // Strategy 3: Extract all candidate IDs from Fynd payload
+        if (!resolved && (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson) {
+          try {
+            const fp = JSON.parse((returnCase as { fyndPayloadJson: string }).fyndPayloadJson) as Record<string, unknown>;
+            const inner = (fp.payload ?? fp.shipment ?? fp) as Record<string, unknown>;
+            const items = (inner.items ?? inner.shipments ?? []) as Record<string, unknown>[];
+            const meta = (inner.meta ?? {}) as Record<string, unknown>;
+            const orderObj = (inner.order ?? {}) as Record<string, unknown>;
+            const candidateIds = [
+              inner.affiliate_order_id, inner.external_order_id, inner.channel_order_id,
+              meta.affiliate_order_id, meta.external_order_id, meta.channel_order_id,
+              orderObj.affiliate_order_id, orderObj.external_order_id,
+              items[0]?.affiliate_order_id, items[0]?.external_order_id,
+              (items[0]?.order as Record<string, unknown> | undefined)?.affiliate_order_id,
+            ];
+            const seen = new Set<string>();
+            for (const raw of candidateIds) {
+              const cleaned = typeof raw === "string" ? raw.replace(/^#/, "").trim() : "";
+              if (!cleaned || seen.has(cleaned)) continue;
+              seen.add(cleaned);
+              const shopifyOrder = await fetchOrderByFyndAffiliateId(admin, cleaned).catch(() => null);
               if (shopifyOrder?.id) {
-                orderIdForRefund = shopifyOrder.id;
-                resolvedOrder = true;
-                await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: shopifyOrder.id } });
-                if (lineItemsForRefund.length === 0 && shopifyOrder.lineItems?.length) {
-                  lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
-                }
+                await applyResolvedOrder(shopifyOrder);
+                resolved = true;
+                break;
               }
-            } catch { /* Non-fatal */ }
-          }
+            }
+          } catch { /* Non-fatal */ }
+        }
 
-          if (!resolvedOrder) {
-            const fyndOid = orderIdForRefund;
-            await prisma.returnEvent.create({
-              data: { returnCaseId: id, source: "admin", eventType: "refund_failed", payloadJson: JSON.stringify({ error: `Could not resolve Shopify order from "${fyndOid}"`, note: note || null }) },
-            });
-            const msg = `This return is linked to Fynd order ID "${fyndOid}" which could not be found in Shopify. ` +
-              `Process the refund directly in Fynd or your ERP. ` +
-              `You can mark this return as completed using the status update action.`;
-            return Response.json({ error: msg }, { status: 400 });
-          }
+        if (!resolved) {
+          const fyndOid = orderIdForRefund;
+          await prisma.returnEvent.create({
+            data: { returnCaseId: id, source: "admin", eventType: "refund_failed", payloadJson: JSON.stringify({ error: `Could not resolve Shopify order from "${fyndOid}"`, note: note || null }) },
+          });
+          const msg = `This return is linked to Fynd order ID "${fyndOid}" which could not be found in Shopify. ` +
+            `Process the refund directly in Fynd or your ERP. ` +
+            `You can mark this return as completed using the status update action.`;
+          return Response.json({ error: msg }, { status: 400 });
         }
       }
 

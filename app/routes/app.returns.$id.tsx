@@ -1,5 +1,5 @@
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useNavigate, useFetcher, useSearchParams, isRouteErrorResponse, useRouteError } from "react-router";
+import { Link, useLoaderData, useNavigate, useFetcher, useSearchParams, isRouteErrorResponse, useRouteError, useRevalidator } from "react-router";
 import React, { useState, useEffect } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -514,6 +514,40 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
     const returnJourney = extractFyndJourney(fyndPayloadJson, "return");
 
+    // Detect if Fynd has actually assigned logistics (real AWB exists in shipment data)
+    const hasRealShipmentData = (fyndOrderDetailsTab?.shipments ?? []).some(
+      (s: { forwardAwb?: string | null }) => s.forwardAwb && !isLikelyFyndId(s.forwardAwb)
+    );
+
+    // Auto-heal stale fyndSyncStatus: if status is "processing" but real shipment data exists, webhook was missed
+    if ((returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus === "processing" && hasRealShipmentData) {
+      try {
+        await prisma.returnCase.update({ where: { id: returnCase.id }, data: { fyndSyncStatus: "synced" } });
+        (returnCase as Record<string, unknown>).fyndSyncStatus = "synced";
+      } catch { /* non-fatal */ }
+    }
+
+    // Clean Fynd shipment IDs stored as AWB numbers (one-time DB cleanup for bad legacy data)
+    if (isLikelyFyndId((returnCase as { forwardAwb?: string | null }).forwardAwb)) {
+      try {
+        await prisma.returnCase.update({ where: { id: returnCase.id }, data: { forwardAwb: null } });
+        (returnCase as Record<string, unknown>).forwardAwb = null;
+      } catch { /* non-fatal */ }
+    }
+
+    // Display-safe AWB values (filter out Fynd IDs)
+    const displayForwardAwb = isLikelyFyndId((returnCase as { forwardAwb?: string | null }).forwardAwb) ? null : ((returnCase as { forwardAwb?: string | null }).forwardAwb ?? null);
+    const displayReturnAwb = isLikelyFyndId((returnCase as { returnAwb?: string | null }).returnAwb) ? null : ((returnCase as { returnAwb?: string | null }).returnAwb ?? null);
+
+    // Filter Fynd IDs from shipment AWBs for display
+    if (fyndOrderDetailsTab?.shipments) {
+      for (const s of fyndOrderDetailsTab.shipments) {
+        if (isLikelyFyndId((s as { forwardAwb?: string | null }).forwardAwb)) {
+          (s as Record<string, unknown>).forwardAwb = null;
+        }
+      }
+    }
+
     const isRefundEligible = ["approved", "completed"].includes(returnCase.status.toLowerCase())
       && returnCase.refundStatus !== "refunded"
       && !isManualReturn;
@@ -554,21 +588,6 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       refundStoreCreditPct = shopSettings?.refundStoreCreditPct ?? 100;
     }
 
-    // Customer return history — fetch other returns by same email (excluding current)
-    let customerReturnHistory: Array<{ id: string; returnRequestNo: string | null; status: string; createdAt: Date }> = [];
-    if (returnCase.customerEmailNorm) {
-      customerReturnHistory = await prisma.returnCase.findMany({
-        where: {
-          shopId: shop.id,
-          customerEmailNorm: returnCase.customerEmailNorm,
-          id: { not: returnCase.id },
-        },
-        select: { id: true, returnRequestNo: true, status: true, createdAt: true },
-        orderBy: { createdAt: "desc" },
-        take: 10,
-      });
-    }
-
     const COD_PATTERNS = /cash.on.delivery|cod|manual|money.order|bank.deposit|bank.transfer/i;
     const isCodOrder = (shopifyOrder?.paymentGatewayNames ?? []).some((g) => COD_PATTERNS.test(g))
       || shopifyOrder?.displayFinancialStatus === "PENDING";
@@ -592,31 +611,28 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
       if (labelNeedsSign || invoiceNeedsSign) {
         try {
-          const fyndSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-          if (fyndSettings) {
+          if (shopSettings) {
             const settings = {
-              fyndEnvironment: (fyndSettings as Record<string, unknown>).fyndEnvironment as string | null,
-              fyndCustomBaseUrl: (fyndSettings as Record<string, unknown>).fyndCustomBaseUrl as string | null,
-              fyndCompanyId: fyndSettings.fyndCompanyId ?? null,
-              fyndApplicationId: fyndSettings.fyndApplicationId ?? null,
-              fyndCredentials: fyndSettings.fyndCredentials ?? null,
+              fyndEnvironment: (shopSettings as Record<string, unknown>).fyndEnvironment as string | null,
+              fyndCustomBaseUrl: (shopSettings as Record<string, unknown>).fyndCustomBaseUrl as string | null,
+              fyndCompanyId: shopSettings.fyndCompanyId ?? null,
+              fyndApplicationId: shopSettings.fyndApplicationId ?? null,
+              fyndCredentials: shopSettings.fyndCredentials ?? null,
             };
             let updated = false;
-            if (labelNeedsSign && rawLabel) {
-              const result = await signFyndUrl(settings, rawLabel);
-              if (result) {
-                returnLabelInfo.signedLabelUrl = result.signedUrl;
-                returnLabelInfo.signedAt = Date.now();
-                updated = true;
-              }
+            const [labelResult, invoiceResult] = await Promise.all([
+              labelNeedsSign && rawLabel ? signFyndUrl(settings, rawLabel).catch(() => null) : null,
+              invoiceNeedsSign && rawInvoice ? signFyndUrl(settings, rawInvoice).catch(() => null) : null,
+            ]);
+            if (labelResult) {
+              returnLabelInfo.signedLabelUrl = labelResult.signedUrl;
+              returnLabelInfo.signedAt = Date.now();
+              updated = true;
             }
-            if (invoiceNeedsSign && rawInvoice) {
-              const result = await signFyndUrl(settings, rawInvoice);
-              if (result) {
-                (returnLabelInfo as Record<string, unknown>).signedInvoiceUrl = result.signedUrl;
-                (returnLabelInfo as Record<string, unknown>).signedInvoiceAt = Date.now();
-                updated = true;
-              }
+            if (invoiceResult) {
+              (returnLabelInfo as Record<string, unknown>).signedInvoiceUrl = invoiceResult.signedUrl;
+              (returnLabelInfo as Record<string, unknown>).signedInvoiceAt = Date.now();
+              updated = true;
             }
             if (updated) {
               // Persist refreshed signed URLs back to DB
@@ -633,37 +649,41 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     }
 
     // Default return instructions from settings
-    let defaultReturnInstructions: string | null = null;
-    try {
-      const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-      defaultReturnInstructions = (shopSettings as { defaultReturnInstructions?: string | null } | null)?.defaultReturnInstructions ?? null;
-    } catch { /* ignore */ }
+    const defaultReturnInstructions: string | null = (shopSettings as { defaultReturnInstructions?: string | null } | null)?.defaultReturnInstructions ?? null;
 
-    // Customer return history count
+    // Parallelize independent tail queries: customer history, return count, blocklist check
     const customerEmail = returnCase.customerEmailNorm || shopifyOrder?.email;
-    let customerReturnCount = 0;
-    if (customerEmail) {
-      customerReturnCount = await prisma.returnCase.count({
-        where: { shopId: shop.id, customerEmailNorm: { equals: customerEmail, mode: "insensitive" } },
-      });
-    }
-
-    // Blocklist flag
-    let isBlocklisted = false;
-    try {
-      const blSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-      if (blSettings) {
-        const blChecks: { type: string; value: string }[] = [];
-        if (customerEmail) blChecks.push({ type: "email", value: customerEmail.toLowerCase() });
-        if (returnCase.customerPhoneNorm) blChecks.push({ type: "phone", value: returnCase.customerPhoneNorm });
-        if (blChecks.length > 0) {
+    const [customerReturnHistory, customerReturnCount, isBlocklisted] = await Promise.all([
+      // Customer return history
+      returnCase.customerEmailNorm
+        ? prisma.returnCase.findMany({
+            where: { shopId: shop.id, customerEmailNorm: returnCase.customerEmailNorm, id: { not: returnCase.id } },
+            select: { id: true, returnRequestNo: true, status: true, createdAt: true },
+            orderBy: { createdAt: "desc" },
+            take: 10,
+          })
+        : Promise.resolve([] as Array<{ id: string; returnRequestNo: string | null; status: string; createdAt: Date }>),
+      // Customer return count
+      customerEmail
+        ? prisma.returnCase.count({
+            where: { shopId: shop.id, customerEmailNorm: { equals: customerEmail, mode: "insensitive" } },
+          })
+        : Promise.resolve(0),
+      // Blocklist check
+      (async () => {
+        if (!shopSettings) return false;
+        try {
+          const blChecks: { type: string; value: string }[] = [];
+          if (customerEmail) blChecks.push({ type: "email", value: customerEmail.toLowerCase() });
+          if (returnCase.customerPhoneNorm) blChecks.push({ type: "phone", value: returnCase.customerPhoneNorm });
+          if (blChecks.length === 0) return false;
           const blocked = await prisma.blocklistEntry.findFirst({
-            where: { settingsId: blSettings.id, OR: blChecks.map((c) => ({ type: c.type, value: c.value })) },
+            where: { settingsId: shopSettings.id, OR: blChecks.map((c) => ({ type: c.type, value: c.value })) },
           });
-          if (blocked) isBlocklisted = true;
-        }
-      }
-    } catch { /* non-fatal */ }
+          return !!blocked;
+        } catch { return false; }
+      })(),
+    ]);
 
     const returnWindowDays = shopSettings?.returnWindowDays ?? 30;
     const orderDateStr = shopifyOrder?.processedAt ?? shopifyOrder?.createdAt ?? returnCase.orderProcessedAt?.toISOString() ?? null;
@@ -707,6 +727,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       shopTimezone: shopSettings?.shopTimezone ?? "UTC",
       fyndCurrentStatus,
       customerReturnHistory,
+      hasRealShipmentData,
+      displayForwardAwb,
+      displayReturnAwb,
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -727,8 +750,14 @@ export default function ReturnDetail() {
     shopLocale, shopCurrency, shopTimezone,
     fyndCurrentStatus,
     customerReturnHistory,
+    hasRealShipmentData,
+    displayForwardAwb,
+    displayReturnAwb,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
+  const [pollCount, setPollCount] = useState(0);
+  const MAX_POLLS = 10;
   const [searchParams, setSearchParams] = useSearchParams();
   const [showRawFynd, setShowRawFynd] = useState(false);
   const [expandedShipment, setExpandedShipment] = useState<number | null>(null);
@@ -827,15 +856,17 @@ export default function ReturnDetail() {
   const fyndSyncRetries = (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0;
   const fyndSyncError = (returnCase as { fyndSyncError?: string | null }).fyndSyncError;
 
-  // Auto-refresh when Fynd is actively assigning logistics — polls once after 12s
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Auto-refresh when Fynd is actively assigning logistics — bounded polling (max 10 polls / ~2 min)
   useEffect(() => {
-    if (fyndSyncStatus !== "processing") return;
+    if (fyndSyncStatus !== "processing" || hasRealShipmentData) return;
+    const isStale = Date.now() - new Date(returnCase.updatedAt).getTime() > 10 * 60 * 1000;
+    if (isStale || pollCount >= MAX_POLLS) return;
     const t = setTimeout(() => {
-      navigate(0);
+      setPollCount((c) => c + 1);
+      revalidator.revalidate();
     }, 12000);
     return () => clearTimeout(t);
-  }, [fyndSyncStatus, navigate]);
+  }, [fyndSyncStatus, hasRealShipmentData, pollCount, revalidator, returnCase.updatedAt]);
 
   // Close refund/exchange modals on successful action; keep open on error
   useEffect(() => {
@@ -876,7 +907,7 @@ export default function ReturnDetail() {
 
   const hasShipments = (fyndOrderDetailsTab?.shipments?.length ?? 0) > 0;
   const firstShipment = fyndOrderDetailsTab?.shipments?.[0];
-  const awb = returnCase.forwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb;
+  const awb = displayForwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb;
   const courier = firstShipment ? safeStr((firstShipment as { cpName?: string }).cpName) : "";
   const trackingUrl = firstShipment ? (firstShipment as { trackingUrl?: string | null }).trackingUrl : null;
 
@@ -900,12 +931,21 @@ export default function ReturnDetail() {
         )}
         {fyndSuccess && <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>{fyndSuccess === "already_synced" ? "Already synced to Fynd." : fyndSuccess === "already_exists" ? "Return already exists on Fynd — details loaded." : "Synced to Fynd successfully."}</div>}
         {fyndRefresh && <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>Fynd details refreshed.</div>}
-        {(fyndProcessing || fyndSyncStatus === "processing") && (
+        {(fyndProcessing || fyndSyncStatus === "processing") && !hasRealShipmentData && !(pollCount >= MAX_POLLS || Date.now() - new Date(returnCase.updatedAt).getTime() > 10 * 60 * 1000) && (
           <div style={{ marginBottom: 16, padding: "14px 18px", background: "#EFF6FF", border: "1px solid #BFDBFE", borderLeft: "4px solid #2563EB", borderRadius: 8, display: "flex", alignItems: "center", gap: 12 }}>
             <svg style={{ flexShrink: 0, animation: "spin 1s linear infinite" }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563EB" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
             <div>
               <div style={{ fontWeight: 600, color: "#1D4ED8", fontSize: 14 }}>Fynd is assigning logistics</div>
               <div style={{ fontSize: 12, color: "#3B82F6", marginTop: 2 }}>AWB and courier assignment typically take 10–30 seconds. This page will refresh automatically.</div>
+            </div>
+          </div>
+        )}
+        {fyndSyncStatus === "processing" && !hasRealShipmentData && (pollCount >= MAX_POLLS || Date.now() - new Date(returnCase.updatedAt).getTime() > 10 * 60 * 1000) && (
+          <div style={{ marginBottom: 16, padding: "14px 18px", background: "#FFFBEB", border: "1px solid #FDE68A", borderLeft: "4px solid #F59E0B", borderRadius: 8 }}>
+            <div style={{ fontWeight: 600, color: "#92400E", fontSize: 14 }}>Sync timed out</div>
+            <div style={{ fontSize: 12, color: "#B45309", marginTop: 2 }}>
+              Fynd logistics assignment is taking longer than expected.{" "}
+              <button type="button" onClick={() => { setPollCount(0); revalidator.revalidate(); }} style={{ background: "none", border: "none", color: "#2563EB", cursor: "pointer", textDecoration: "underline", fontSize: 12, padding: 0 }}>Click to retry</button>
             </div>
           </div>
         )}
@@ -2087,10 +2127,10 @@ export default function ReturnDetail() {
                 </div>
                 <div><div style={C.label}>Created</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(returnCase.createdAt))}</div></div>
                 <div><div style={C.label}>Last Updated</div><div style={{ ...C.val, fontSize: 13 }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(returnCase.updatedAt))}</div></div>
-                {(returnCase.forwardAwb || returnCase.returnAwb) && (
+                {(displayForwardAwb || displayReturnAwb) && (
                   <>
-                    {returnCase.forwardAwb && <div><div style={C.label}>Forward AWB</div><div style={C.mono}>{returnCase.forwardAwb}</div></div>}
-                    {returnCase.returnAwb && <div><div style={C.label}>Return AWB</div><div style={C.mono}>{returnCase.returnAwb}</div></div>}
+                    {displayForwardAwb && <div><div style={C.label}>Forward AWB</div><div style={C.mono}>{displayForwardAwb}</div></div>}
+                    {displayReturnAwb && <div><div style={C.label}>Return AWB</div><div style={C.mono}>{displayReturnAwb}</div></div>}
                   </>
                 )}
               </div>

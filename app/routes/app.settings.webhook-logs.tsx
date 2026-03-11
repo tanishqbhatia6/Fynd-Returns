@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useSearchParams, Link } from "react-router";
+import { useLoaderData, useSearchParams, Link, useFetcher, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 
@@ -345,9 +345,59 @@ function PayloadViewer({ rawPayload }: { rawPayload: string | null }) {
   );
 }
 
-/* ─── Detail Row (Expanded) ─── */
+/* ─── Retry Button ─── */
 
 type LogEntry = ReturnType<typeof useLoaderData<typeof loader>>["logs"][number];
+
+function RetryButton({ log }: { log: LogEntry }) {
+  const fetcher = useFetcher<{ ok?: boolean; action?: string; error?: string }>();
+  const isRetrying = fetcher.state !== "idle";
+  const result = fetcher.data;
+
+  if (!log.rawPayload || (log.action !== "ignored" && log.action !== "error")) return null;
+
+  const handleRetry = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    fetcher.submit(
+      { logId: log.id },
+      { method: "POST", action: "/api/webhooks/fynd/retry", encType: "application/json" },
+    );
+  };
+
+  if (isRetrying) {
+    return <span style={{ fontSize: 10, color: "#6B7280" }}>...</span>;
+  }
+
+  if (result) {
+    if (result.ok && result.action && result.action !== "ignored") {
+      return <span style={{ fontSize: 10, color: "#059669", fontWeight: 600 }}>Matched!</span>;
+    }
+    if (result.ok && result.action === "ignored") {
+      return <span style={{ fontSize: 10, color: "#F59E0B" }}>Still ignored</span>;
+    }
+    return (
+      <span style={{ fontSize: 10, color: "#DC2626" }} title={result.error ?? "Failed"}>
+        Failed
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={handleRetry}
+      style={{
+        padding: "2px 8px", fontSize: 10, fontWeight: 600, borderRadius: 4,
+        border: "1px solid #D1D5DB", background: "white", color: "#6366F1",
+        cursor: "pointer", whiteSpace: "nowrap",
+      }}
+    >
+      Retry
+    </button>
+  );
+}
+
+/* ─── Detail Row (Expanded) ─── */
 
 function DetailPanel({ log }: { log: LogEntry }) {
   return (
@@ -425,6 +475,10 @@ export default function WebhookLogsPage() {
   const { logs, page, totalPages, totalCount, analytics, filters, actionOptions, statusOptions, loaderError } = useLoaderData<typeof loader>();
   const [, setSearchParams] = useSearchParams();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const revalidator = useRevalidator();
+  const bulkFetcher = useFetcher<{ ok?: boolean; total?: number; succeeded?: number; stillIgnored?: number; failed?: number }>();
+  const isBulkRetrying = bulkFetcher.state !== "idle";
+  const bulkResult = bulkFetcher.data;
 
   const [actionFilter, setActionFilter] = useState(filters.actionFilter);
   const [statusFilter, setStatusFilter] = useState(filters.statusFilter);
@@ -558,9 +612,53 @@ export default function WebhookLogsPage() {
           </div>
           <button onClick={applyFilters} style={primaryBtnStyle}>Filter</button>
           {hasFilters && <button onClick={clearFilters} style={ghostBtnStyle}>Clear</button>}
+          {analytics.ignoredCount > 0 && (
+            <button
+              onClick={() => {
+                bulkFetcher.submit(
+                  { action: "retry_all_ignored" },
+                  { method: "POST", action: "/api/webhooks/fynd/retry", encType: "application/json" },
+                );
+              }}
+              disabled={isBulkRetrying}
+              style={{
+                padding: "6px 14px", fontSize: 12, fontWeight: 600,
+                borderRadius: 5, border: "none",
+                background: isBulkRetrying ? "#9CA3AF" : "#6366F1", color: "white",
+                cursor: isBulkRetrying ? "default" : "pointer", height: 30, whiteSpace: "nowrap",
+              }}
+            >
+              {isBulkRetrying ? "Retrying..." : `Retry All Ignored (${analytics.ignoredCount})`}
+            </button>
+          )}
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 11, color: "#9CA3AF" }}>{totalCount} log{totalCount !== 1 ? "s" : ""}{hasFilters ? " (filtered)" : ""}</span>
         </div>
+
+        {/* Bulk Retry Result */}
+        {bulkResult && bulkResult.ok && (
+          <div style={{
+            padding: "10px 14px", marginBottom: 14,
+            background: bulkResult.succeeded ? "#F0FDF4" : "#FFFBEB",
+            border: `1px solid ${bulkResult.succeeded ? "#BBF7D0" : "#FDE68A"}`,
+            borderRadius: 8, display: "flex", alignItems: "center", gap: 10,
+          }}>
+            <div style={{ flex: 1, fontSize: 13, color: "#1E293B" }}>
+              Bulk retry complete: <strong style={{ color: "#059669" }}>{bulkResult.succeeded} matched</strong>,{" "}
+              <span style={{ color: "#F59E0B" }}>{bulkResult.stillIgnored} still ignored</span>,{" "}
+              <span style={{ color: "#DC2626" }}>{bulkResult.failed} failed</span>
+            </div>
+            <button
+              onClick={() => revalidator.revalidate()}
+              style={{
+                padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 4,
+                border: "1px solid #D1D5DB", background: "white", color: "#374151", cursor: "pointer",
+              }}
+            >
+              Refresh
+            </button>
+          </div>
+        )}
 
         {/* Table */}
         <div style={{ background: "white", borderRadius: 8, border: "1px solid #E5E7EB", overflow: "hidden" }}>
@@ -652,7 +750,10 @@ export default function WebhookLogsPage() {
                         </td>
                         {/* Action */}
                         <td style={tdStyle}>
-                          <ActionBadge action={log.action} />
+                          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <ActionBadge action={log.action} />
+                            <RetryButton log={log} />
+                          </div>
                           {log.error && (
                             <div style={{ fontSize: 10, color: "#DC2626", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }} title={log.error}>
                               {log.error.slice(0, 40)}...

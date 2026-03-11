@@ -268,6 +268,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         try {
           const fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
             affiliateOrderId,
+            targetShipmentId: returnCase.fyndShipmentId || null,
             pickupAddress: returnCase.customerAddress1 || returnCase.customerCity ? {
               address1: returnCase.customerAddress1 ?? null,
               address2: returnCase.customerAddress2 ?? null,
@@ -406,6 +407,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
     const fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
       affiliateOrderId,
+      targetShipmentId: returnCase.fyndShipmentId || null,
       pickupAddress: returnCase.customerAddress1 || returnCase.customerCity ? {
         address1: returnCase.customerAddress1 ?? null,
         address2: returnCase.customerAddress2 ?? null,

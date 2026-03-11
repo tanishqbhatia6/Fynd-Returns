@@ -48,10 +48,12 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
 
   if (pendingCases.length === 0) return result;
 
-  // Group by fyndOrderId (preferred) or shopifyOrderName as fallback
+  // Group by fyndOrderId + fyndShipmentId so returns for different shipments are sent separately
   const groups = new Map<string, typeof pendingCases>();
   for (const rc of pendingCases) {
-    const groupKey = rc.fyndOrderId?.trim() || rc.shopifyOrderName?.replace(/^#/, "").trim() || rc.id;
+    const orderPart = rc.fyndOrderId?.trim() || rc.shopifyOrderName?.replace(/^#/, "").trim() || rc.id;
+    const shipmentPart = rc.fyndShipmentId?.trim() || "unknown";
+    const groupKey = `${orderPart}:${shipmentPart}`;
     if (!groups.has(groupKey)) groups.set(groupKey, []);
     groups.get(groupKey)!.push(rc);
   }
@@ -72,6 +74,7 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
         const rc = cases[0];
         const fyndSync = await createReturnOnFynd(fyndClient, rc, {
           affiliateOrderId: rc.fyndOrderId || null,
+          targetShipmentId: rc.fyndShipmentId || null,
         });
         if (fyndSync.success && (fyndSync.fyndReturnId || fyndSync.alreadyExists)) {
           await prisma.returnCase.update({
@@ -104,16 +107,14 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
           result.errors.push(`[${rc.id}] ${errMsg}`);
         }
       } else {
-        // Multiple cases for same order — use the primary (first) case to call Fynd
-        // Fynd's return_initiated API creates a return for the shipment; subsequent calls
-        // for additional bags in the same order are appended to the same return.
-        // We send each sequentially and share the fyndReturnId from the first success.
+        // Multiple cases for same order+shipment — send each sequentially, share fyndReturnId
         let sharedFyndReturnId: string | null = null;
         let sharedFyndReturnNo: string | null = null;
 
         for (const rc of cases) {
           const fyndSync = await createReturnOnFynd(fyndClient, rc, {
             affiliateOrderId: rc.fyndOrderId || null,
+            targetShipmentId: rc.fyndShipmentId || null,
           });
           if (fyndSync.success && (fyndSync.fyndReturnId || fyndSync.alreadyExists)) {
             if (!sharedFyndReturnId && fyndSync.fyndReturnId) {

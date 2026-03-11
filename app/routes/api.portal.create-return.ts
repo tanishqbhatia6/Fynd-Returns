@@ -128,7 +128,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const customerProvince = (body.customerProvince as string | undefined)?.trim().slice(0, 100) || null;
     const customerZip = (body.customerZip as string | undefined)?.trim().slice(0, 20) || null;
     const customerLandmark = (body.customerLandmark as string | undefined)?.trim().slice(0, 500) || null;
-    const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string; condition?: string }> | undefined;
+    const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string; condition?: string; fyndShipmentId?: string; fyndBagId?: string }> | undefined;
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
     const customerNotes = (body.customerNotes as string | undefined)?.trim();
@@ -255,7 +255,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         console.warn(`[create-return] Could not resolve orderId "${effectiveOrderId}":`, err);
       }
     }
-    let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string }>;
+    let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string; fyndShipmentId?: string; fyndBagId?: string }>;
     let lineItemsWithPrice: Array<{
       id: string;
       title?: string;
@@ -353,6 +353,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         qty: Math.min(Math.max(1, Math.floor(it.qty)), 999),
         reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
         condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
+        fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
+        fyndBagId: it.fyndBagId ? String(it.fyndBagId).slice(0, 256) : undefined,
       }));
     }
 
@@ -752,6 +754,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             isGreenReturn: qualifiesForGreenReturn,
             fyndSyncStatus: status === "approved" && !qualifiesForGreenReturn ? "pending" : null,
             orderProcessedAt: orderCreatedAtValue,
+            // Set fyndShipmentId from items (use first item's shipmentId, or common shipmentId if all match)
+            fyndShipmentId: (() => {
+              const shipIds = (itemsToCreate ?? []).map(it => it.fyndShipmentId).filter(Boolean) as string[];
+              if (shipIds.length === 0) return null;
+              const unique = [...new Set(shipIds)];
+              return unique.length === 1 ? unique[0] : shipIds[0]; // prefer single shipment; fallback to first
+            })(),
             items: {
               create: itemsToCreate.map((it) => {
                 // After line item ID resolution, the ID may have changed from a Fynd bag ID
@@ -779,6 +788,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   reasonCode: it.reasonCode || null,
                   notes: it.notes || null,
                   condition: it.condition || null,
+                  fyndShipmentId: it.fyndShipmentId || null,
+                  fyndBagId: it.fyndBagId || null,
                 };
               }),
             },
@@ -867,7 +878,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             include: { items: true },
           });
           if (!rcWithItems) throw new Error("Return case not found after creation");
-          const fyndSync = await createReturnOnFynd(fyndResult.client, rcWithItems, { affiliateOrderId });
+          const fyndSync = await createReturnOnFynd(fyndResult.client, rcWithItems, {
+            affiliateOrderId,
+            targetShipmentId: rcWithItems.fyndShipmentId || null,
+          });
           if (fyndSync.success && (fyndSync.fyndReturnId ?? fyndSync.fyndShipmentId ?? fyndSync.alreadyExists)) {
             await prisma.returnCase.update({
               where: { id: returnCase.id },

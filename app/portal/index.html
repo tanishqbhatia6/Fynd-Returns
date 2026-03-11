@@ -3455,11 +3455,47 @@
       var shopifyFulfillments = o.fulfillments || [];
       var hasShopifyTracking = !hasFynd && shopifyFulfillments.length > 0;
 
-      if (forwardShipments.length > 0) {
-        // ── Forward delivery shipment section (Fynd) — show only primary shipment ──
-        // When we know the order was delivered (latestStatus reflects delivery/return-complete),
-        // correct any stale Fynd forward shipment status so the STATUS row doesn't show an
-        // early-stage label like "Order confirmed" for a fully returned/refunded order.
+      if (forwardShipments.length > 1) {
+        // ── Multiple forward shipments — render tabs ──
+        var orderIsDelivered = latestStatus === 'delivered_return' || latestStatus === 'delivered';
+        html += '<div class="oc-shipment-tabs" style="padding:0 20px;">';
+        forwardShipments.forEach(function (ship, sIdx) {
+          var sLabel = (ship.shipmentStatus || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); }) || 'Shipment';
+          html += '<button class="oc-shipment-tab' + (sIdx === 0 ? ' active' : '') + '" data-order-idx="' + orderIdx + '" data-ship-idx="' + sIdx + '" onclick="switchShipmentTab(this)">Shipment ' + (sIdx + 1) + ' · ' + escapeHtml(sLabel) + '</button>';
+        });
+        html += '</div>';
+        forwardShipments.forEach(function (ship, sIdx) {
+          var panelShip = ship;
+          var fwdSt = (panelShip.shipmentStatus || '').toLowerCase();
+          var fwdAppearsStale = orderIsDelivered && !fwdSt.includes('delivered') && !fwdSt.includes('delivery_done') && !fwdSt.includes('out_for_delivery') && !fwdSt.includes('in_transit');
+          if (fwdAppearsStale) {
+            panelShip = Object.assign({}, panelShip, { shipmentStatus: 'delivery_done' });
+          }
+          html += '<div class="oc-shipment-panel' + (sIdx === 0 ? ' active' : '') + '" data-ship-panel="' + orderIdx + '-' + sIdx + '">';
+          html += renderShipmentSection(panelShip, sIdx, forwardJourney, currency, false);
+          // Per-shipment items
+          if (panelShip.items && panelShip.items.length > 0) {
+            html += '<div class="oc-items-v2" style="padding:0 20px 12px;">';
+            panelShip.items.forEach(function(li) {
+              var liTitle = li.title || li.sku || 'Item';
+              html += '<div class="oc-item-v2">';
+              html += '<div class="oc-item-img">';
+              if (li.imageUrl) {
+                html += '<img src="' + escapeHtml(li.imageUrl) + '" alt="' + escapeHtml(liTitle) + '" loading="lazy">';
+              } else {
+                html += '<span class="oc-item-img-placeholder">' + PACKAGE_SVG + '</span>';
+              }
+              html += '</div><div class="oc-item-info">';
+              html += '<div class="oc-item-title">' + escapeHtml(liTitle) + '</div>';
+              if (li.quantity && li.quantity > 1) html += '<div class="oc-item-meta"><span class="oc-item-qty-tag">Qty: ' + li.quantity + '</span></div>';
+              html += '</div></div>';
+            });
+            html += '</div>';
+          }
+          html += '</div>';
+        });
+      } else if (forwardShipments.length === 1) {
+        // ── Single forward shipment — render as before ──
         var primaryForwardShip = forwardShipments[0];
         var fwdSt = (primaryForwardShip.shipmentStatus || '').toLowerCase();
         var orderIsDelivered = latestStatus === 'delivered_return' || latestStatus === 'delivered';
@@ -4729,6 +4765,8 @@
         createOrderData._estimatedRefundTotal = data.estimatedRefundTotal || 0;
         createOrderData._returnOffers = data.returnOffers || { enabled: false, offers: [] };
         createOrderData._returnedQtyMap = data.returnedQtyMap || {};
+        createOrderData._shipments = data.shipments || null;
+        createOrderData._shipmentReturnedQtyMap = data.shipmentReturnedQtyMap || {};
         createOrderData._portalExchangeEnabled = data.portalExchangeEnabled || false;
         createOrderData._photoRequired = data.photoRequired || false;
 
@@ -4818,16 +4856,20 @@
         const nameEl = document.getElementById('createOrderName');
         nameEl.textContent = t('portal.lookup.order') + ' ' + escapeHtml(createOrderData.name);
         const list = document.getElementById('createItemsList');
-        // Render returnable items with images and quantity locks
-        list.innerHTML = createOrderData.lineItems.map(li => {
-          var returnedQty = (createOrderData._returnedQtyMap || {})[li.id] || 0;
+
+        // Helper to render a single item row
+        function renderItemRow(li, shipmentId, bagId, returnedQtyMapForItem) {
+          var returnedQty = returnedQtyMapForItem || 0;
           var availableQty = Math.max(0, (li.quantity || 1) - returnedQty);
           var fullyReturned = availableQty <= 0;
           return '<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:' + (fullyReturned ? '#F9FAFB' : 'var(--portal-surface)') + ';opacity:' + (fullyReturned ? '0.6' : '1') + ';">' +
-            '<input type="checkbox" id="item-' + li.id + '" data-id="' + li.id + '"' + (fullyReturned ? ' disabled' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:' + (fullyReturned ? 'not-allowed' : 'pointer') + ';">' +
+            '<input type="checkbox" id="item-' + li.id + '-' + (shipmentId || 'flat') + '" data-id="' + li.id + '"' +
+              (shipmentId ? ' data-shipment-id="' + escapeHtml(shipmentId) + '"' : '') +
+              (bagId ? ' data-bag-id="' + escapeHtml(bagId) + '"' : '') +
+              (fullyReturned ? ' disabled' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:' + (fullyReturned ? 'not-allowed' : 'pointer') + ';">' +
             (li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || 'Item') + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : '') +
             '<div style="flex:1;min-width:0;">' +
-              '<label for="item-' + li.id + '" style="cursor:' + (fullyReturned ? 'default' : 'pointer') + ';font-size:0.875rem;font-weight:500;line-height:1.4;display:block;">' +
+              '<label for="item-' + li.id + '-' + (shipmentId || 'flat') + '" style="cursor:' + (fullyReturned ? 'default' : 'pointer') + ';font-size:0.875rem;font-weight:500;line-height:1.4;display:block;">' +
                 escapeHtml(li.title) +
                 (li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : '') +
                 (li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : '') +
@@ -4843,7 +4885,47 @@
               '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="1" data-id="' + li.id + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
             '</div>' : '') +
             '</div>';
-        }).join('');
+        }
+
+        // Multi-shipment: group items by shipment with eligibility badges
+        var hasMultiShipment = createOrderData._shipments && createOrderData._shipments.length > 1;
+        if (hasMultiShipment) {
+          var shipmentQtyMap = createOrderData._shipmentReturnedQtyMap || {};
+          list.innerHTML = createOrderData._shipments.map(function(ship, idx) {
+            var statusLabel = (ship.shipmentStatus || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+            var isEligible = ship.eligible !== false;
+            var headerHtml = '<div class="shipment-group" data-shipment-id="' + escapeHtml(ship.shipmentId) + '" style="margin-bottom:16px;">' +
+              '<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--portal-bg);border:1px solid var(--portal-border);border-radius:10px;margin-bottom:8px;">' +
+                '<span style="font-size:0.8125rem;font-weight:600;color:var(--portal-text);">Shipment ' + (idx + 1) + '</span>' +
+                '<span style="font-size:0.7rem;padding:2px 8px;border-radius:6px;font-weight:500;' +
+                  (isEligible
+                    ? 'background:#DCFCE7;color:#166534;">' + escapeHtml(statusLabel || 'Delivered')
+                    : 'background:#FEE2E2;color:#991B1B;">' + escapeHtml(statusLabel || 'Not Eligible')) +
+                '</span>' +
+                (!isEligible && ship.eligibilityReason ? '<span style="font-size:0.7rem;color:var(--portal-text-muted);margin-left:auto;">' + escapeHtml(ship.eligibilityReason) + '</span>' : '') +
+              '</div>';
+            var perShipMap = shipmentQtyMap[ship.shipmentId] || {};
+            var itemsHtml = (ship.items || []).map(function(li) {
+              var retQty = perShipMap[li.id] || (createOrderData._returnedQtyMap || {})[li.id] || 0;
+              var disabled = !isEligible;
+              if (disabled) {
+                return '<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:#F9FAFB;opacity:0.5;">' +
+                  (li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : '') +
+                  '<div style="flex:1;"><span style="font-size:0.875rem;font-weight:500;">' + escapeHtml(li.title) +
+                  (li.variantTitle ? ' · ' + escapeHtml(li.variantTitle) : '') + '</span>' +
+                  '<br><span style="font-size:0.7rem;color:#991B1B;background:#FEE2E2;padding:1px 6px;border-radius:4px;">Not eligible for return</span></div></div>';
+              }
+              return renderItemRow(li, ship.shipmentId, li.bagId, retQty);
+            }).join('');
+            return headerHtml + itemsHtml + '</div>';
+          }).join('');
+        } else {
+          // Single shipment or no shipment data — flat list (backward compatible)
+          list.innerHTML = createOrderData.lineItems.map(function(li) {
+            var returnedQty = (createOrderData._returnedQtyMap || {})[li.id] || 0;
+            return renderItemRow(li, null, null, returnedQty);
+          }).join('');
+        }
         list.querySelectorAll('.item-qty').forEach(inp => {
           inp.addEventListener('blur', function () {
             const max = parseInt(this.dataset.max || '1', 10);
@@ -5161,7 +5243,14 @@
         let qty = parseInt(qtyInput?.value || '1', 10);
         if (isNaN(qty) || qty < 1) qty = 1;
         if (qty > availableQty) qty = availableQty;
-        items.push({ lineItemId: cb.dataset.id, qty, reasonCode, condition: conditionVal || undefined });
+        items.push({
+          lineItemId: cb.dataset.id,
+          qty,
+          reasonCode,
+          condition: conditionVal || undefined,
+          fyndShipmentId: cb.dataset.shipmentId || undefined,
+          fyndBagId: cb.dataset.bagId || undefined,
+        });
       });
       const lineItemsWithPrice = createOrderData.lineItems.map(li => ({
         id: li.id,

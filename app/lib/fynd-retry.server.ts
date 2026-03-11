@@ -62,7 +62,9 @@ export async function runFyndRetryQueue(): Promise<{
           throw new Error("Fynd client does not support Platform API");
         }
 
-        const syncResult = await createReturnOnFynd(clientResult.client, rc);
+        const syncResult = await createReturnOnFynd(clientResult.client, rc, {
+          targetShipmentId: rc.fyndShipmentId || null,
+        });
         if (syncResult.success) {
           await prisma.returnCase.update({
             where: { id: rc.id },

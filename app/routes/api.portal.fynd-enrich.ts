@@ -100,10 +100,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
             }
 
-            // Cache the forward shipment ID, not a return pickup ID.
+            // Cache ALL forward shipment IDs (comma-separated), not just the first one.
             const firstItem = effectiveItems[0] as Record<string, unknown>;
             const mappedFyndOrderId = String(firstItem?.order_id ?? firstItem?.fynd_order_id ?? candidate.value ?? "");
-            const mappedFyndShipmentId = String(firstItem?.shipment_id ?? firstItem?.id ?? "");
+            const allShipmentIds = (effectiveItems as Record<string, unknown>[])
+              .map(s => String(s.shipment_id ?? s.id ?? "")).filter(Boolean);
+            const mappedFyndShipmentId = allShipmentIds.length > 0 ? allShipmentIds.join(",") : String(firstItem?.shipment_id ?? firstItem?.id ?? "");
             if (mappedFyndOrderId || mappedFyndShipmentId) {
               prisma.fyndOrderMapping.upsert({
                 where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: String(orderName) } },

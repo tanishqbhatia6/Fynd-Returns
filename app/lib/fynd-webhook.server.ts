@@ -1262,6 +1262,21 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     try {
       await prisma.returnCase.update({ where: { id: returnCase.id }, data: journeyUpdate });
     } catch { /* non-fatal */ }
+
+    // Multi-shipment: propagate fyndCurrentStatus to sibling ReturnCases with the same fyndShipmentId
+    // This ensures all return cases for the same shipment stay in sync
+    if (returnCase.fyndShipmentId && journeyUpdate.fyndCurrentStatus) {
+      try {
+        await prisma.returnCase.updateMany({
+          where: {
+            fyndShipmentId: returnCase.fyndShipmentId,
+            id: { not: returnCase.id },
+            status: { notIn: ["rejected", "cancelled"] },
+          },
+          data: { fyndCurrentStatus: journeyUpdate.fyndCurrentStatus },
+        });
+      } catch { /* non-fatal */ }
+    }
   }
 
   // Log journey status to timeline

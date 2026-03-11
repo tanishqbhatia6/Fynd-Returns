@@ -32,6 +32,7 @@ export async function createReturnOnFynd(
   returnCase: ReturnCase & { items: ReturnItem[] },
   options?: {
     affiliateOrderId?: string | null;
+    targetShipmentId?: string | null;
     defaultReasonId?: number;
     defaultReasonText?: string;
     pickupAddress?: {
@@ -111,7 +112,18 @@ export async function createReturnOnFynd(
       ?? (shipmentsRes as { bags?: unknown[] })?.bags
       ?? [];
 
-    const shipment = Array.isArray(shipments) ? shipments[0] : null;
+    // Select the target shipment: prefer targetShipmentId match, fallback to first
+    let shipment: unknown = null;
+    const targetShipId = options?.targetShipmentId?.trim();
+    if (targetShipId && Array.isArray(shipments)) {
+      shipment = shipments.find((s: unknown) => {
+        const o = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
+        return String(o.shipment_id ?? o.shipmentId ?? o.id ?? o.identifier ?? "").trim() === targetShipId;
+      }) ?? null;
+    }
+    if (!shipment) {
+      shipment = Array.isArray(shipments) ? shipments[0] : null;
+    }
     const fullPayload = shipmentsRes != null ? shipmentsRes : undefined;
     if (!shipment || typeof shipment !== "object") {
       return { success: false, error: "Order not found in Fynd or no shipments" };
@@ -135,7 +147,12 @@ export async function createReturnOnFynd(
       data: { reason_id: number; reason_text: string };
     }> = [];
 
-    const items = returnCase.items ?? [];
+    // Filter items to target shipment when fyndShipmentId is populated
+    const allItems = returnCase.items ?? [];
+    const hasShipmentContext = targetShipId && allItems.some(it => it.fyndShipmentId);
+    const items = hasShipmentContext
+      ? allItems.filter(it => !it.fyndShipmentId || it.fyndShipmentId === targetShipId)
+      : allItems;
     items.forEach((item, idx) => {
       const sku = item.sku || item.shopifyLineItemId;
       if (sku && item.shopifyLineItemId !== "manual") {

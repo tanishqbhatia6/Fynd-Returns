@@ -389,7 +389,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
     const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
     // Attach REST credentials so order lookup can fall back to REST API (exact name match)
-    const adminWithRest = withRestCredentials(admin, session.shop, session.accessToken ?? "");
+    const sessionAccessToken = session.accessToken ?? "";
+    console.log(`[return-detail-loader] shopifyOrderId="${returnCase.shopifyOrderId}" shopifyOrderName="${returnCase.shopifyOrderName ?? ""}" hasAccessToken=${!!sessionAccessToken} shop="${session.shop}"`);
+    const adminWithRest = withRestCredentials(admin, session.shop, sessionAccessToken);
     if (!isManualReturn && returnCase.shopifyOrderId) {
       try {
         // Fast path: direct GID/numeric lookup (single API call, instant)
@@ -408,11 +410,18 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
             if (affId) candidates.add(affId.replace(/^#/, "").trim());
           }
+          console.log(`[return-detail-loader] Slow path candidates: [${[...candidates].join(", ")}]`);
           // Try each unique candidate with fetchOrderByFyndAffiliateId (stops on first hit)
           for (const candidate of candidates) {
             if (!candidate) continue;
             shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, candidate);
-            if (shopifyOrder) break;
+            if (shopifyOrder) {
+              console.log(`[return-detail-loader] Resolved via candidate="${candidate}" → ${shopifyOrder.id}`);
+              break;
+            }
+          }
+          if (!shopifyOrder) {
+            console.warn(`[return-detail-loader] Failed to resolve order from any candidate: [${[...candidates].join(", ")}]`);
           }
         }
 

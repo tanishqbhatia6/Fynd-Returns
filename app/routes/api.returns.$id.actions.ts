@@ -78,7 +78,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const { session, admin: rawAdmin } = await authenticate.admin(request);
   // Attach REST credentials so order lookups can fall back to REST API (exact name match)
-  const admin = withRestCredentials(rawAdmin, session.shop, session.accessToken ?? "");
+  const sessionAccessToken = session.accessToken ?? "";
+  console.log(`[actions] shop="${session.shop}" hasAccessToken=${!!sessionAccessToken} tokenLength=${sessionAccessToken.length}`);
+  const admin = withRestCredentials(rawAdmin, session.shop, sessionAccessToken);
   const sessionEmail = (session as unknown as { email?: string | null }).email ?? null;
   const shopWithSettings = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
   if (!shopWithSettings) return Response.json({ error: "Shop not found" }, { status: 404 });
@@ -598,6 +600,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
       const isGid = orderIdForRefund?.startsWith("gid://");
       const isNumericId = orderIdForRefund != null && /^\d+$/.test(orderIdForRefund);
+      console.log(`[refund] orderIdForRefund="${orderIdForRefund}" isGid=${isGid} isNumeric=${isNumericId} shopifyOrderName="${returnCase.shopifyOrderName ?? ""}"`);
       if (!isGid && !isNumericId && orderIdForRefund && !orderIdForRefund.startsWith("manual:")) {
         // shopifyOrderId is not a valid Shopify GID/numeric — resolve it
         let resolved = false;

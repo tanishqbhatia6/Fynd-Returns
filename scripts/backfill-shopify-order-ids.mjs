@@ -3,8 +3,10 @@
  * Data migration: backfill shopifyOrderId from Fynd's affiliate_order_id.
  *
  * Finds return cases where shopifyOrderId is a Fynd internal ID (not a Shopify
- * GID or numeric ID) and replaces it with the affiliate_order_id extracted from
- * the stored fyndPayloadJson. This unblocks refund processing.
+ * GID or numeric ID) and:
+ * 1. Extracts affiliate_order_id from fyndPayloadJson (using same normalization as the app)
+ * 2. Resolves the order name to a Shopify GID via REST API
+ * 3. Updates shopifyOrderId to the GID (fast path) and shopifyOrderName
  *
  * Idempotent — safe to run on every deploy. Exits silently when nothing to fix.
  *
@@ -16,6 +18,7 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 const DRY_RUN = process.argv.includes("--dry-run");
+const API_VERSION = "2026-01";
 
 function isValidShopifyId(id) {
   if (!id) return false;
@@ -25,44 +28,136 @@ function isValidShopifyId(id) {
   return false;
 }
 
+/**
+ * Normalize Fynd payload to an array of shipment-like objects.
+ * Mirrors the app's normalizeFyndPayload() logic exactly.
+ */
+function normalizeFyndPayload(payload) {
+  if (payload == null) return [];
+  if (Array.isArray(payload)) return payload;
+  const o = payload;
+  if (Array.isArray(o.items)) return o.items;
+  if (Array.isArray(o.shipments)) return o.shipments;
+  if (Array.isArray(o.results)) return o.results;
+  if (o.data && Array.isArray(o.data.items)) return o.data.items;
+  if (o.order && typeof o.order === "object" && Array.isArray(o.order.shipments)) return o.order.shipments;
+  if (o.order && typeof o.order === "object" && Array.isArray(o.order.bags)) return o.order.bags;
+  if (typeof o === "object" && Object.keys(o).length > 0) return [o];
+  return [];
+}
+
+/**
+ * Extract affiliate_order_id from Fynd payload using proper normalization.
+ * Mirrors the app's extractAffiliateOrderIdFromFyndPayload() logic.
+ */
 function extractAffiliateOrderId(payloadJson) {
   if (!payloadJson) return null;
   try {
-    const fp = JSON.parse(payloadJson);
-    // Top-level
-    const topLevel =
-      fp.affiliate_order_id ??
-      fp.affiliateOrderId ??
-      fp.external_order_id ??
-      fp.channel_order_id;
-    if (typeof topLevel === "string" && topLevel.trim()) return topLevel.trim();
-    // Nested under .order
-    if (fp.order) {
-      const nested = fp.order.affiliate_order_id ?? fp.order.external_order_id;
-      if (typeof nested === "string" && nested.trim()) return nested.trim();
-    }
-    // From items/shipments array
-    const items = fp.items ?? fp.shipments ?? [];
-    if (Array.isArray(items) && items.length > 0) {
-      const first = items[0];
-      const fromItem =
-        first.affiliate_order_id ??
-        first.external_order_id ??
-        first.order?.affiliate_order_id;
-      if (typeof fromItem === "string" && fromItem.trim()) return fromItem.trim();
-    }
+    const payload = JSON.parse(payloadJson);
+    const list = normalizeFyndPayload(payload);
+    const first = list[0];
+    if (!first || typeof first !== "object") return null;
+
+    const order = first.order;
+    const meta = first.meta;
+
+    const s =
+      first.affiliate_order_id ??
+      first.external_order_id ??
+      first.channel_order_id ??
+      order?.affiliate_order_id ??
+      order?.external_order_id ??
+      meta?.affiliate_order_id ??
+      meta?.external_order_id ??
+      meta?.channel_order_id;
+
+    return typeof s === "string" && s.trim() ? s.trim() : null;
   } catch {
-    // Invalid JSON
+    return null;
+  }
+}
+
+/**
+ * Look up a Shopify order by name via REST API.
+ * Returns { gid, name } if found, null otherwise.
+ */
+async function resolveOrderByName(shopDomain, accessToken, orderName) {
+  const clean = orderName.replace(/^#/, "").trim();
+  if (!clean) return null;
+
+  const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
+
+  for (const nameQuery of [`#${clean}`, clean]) {
+    try {
+      const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
+      const res = await fetch(url, {
+        headers: { "X-Shopify-Access-Token": accessToken },
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const orders = data?.orders ?? [];
+      const norm = clean.toLowerCase();
+      const match = orders.find((o) => {
+        const n = (o.name ?? "").replace(/^#/, "").toLowerCase();
+        return n === norm;
+      });
+      if (match?.id) {
+        return { gid: `gid://shopify/Order/${match.id}`, name: match.name ?? `#${clean}` };
+      }
+    } catch {
+      // Continue
+    }
   }
   return null;
 }
 
+/**
+ * Generate order name variants from a Fynd affiliate_order_id.
+ * e.g. FYNDSHOPIFYX14126 → ["FYNDSHOPIFYX14126", "X14126", "14126"]
+ */
+function getOrderNameVariants(affiliateOrderId) {
+  const clean = affiliateOrderId.replace(/^#/, "").trim();
+  if (!clean) return [];
+  const variants = [clean];
+  const prefixPatterns = [
+    /^FYNDSHOPIFY/i,
+    /^FYND[_-]?SHOPIFY[_-]?/i,
+    /^FYND[_-]?/i,
+  ];
+  for (const pattern of prefixPatterns) {
+    if (pattern.test(clean)) {
+      const stripped = clean.replace(pattern, "").trim();
+      if (stripped && stripped !== clean && !variants.includes(stripped)) {
+        variants.push(stripped);
+        const numMatch = stripped.match(/^[A-Za-z](\d+)$/);
+        if (numMatch && !variants.includes(numMatch[1])) {
+          variants.push(numMatch[1]);
+        }
+      }
+    }
+  }
+  return variants;
+}
+
 async function main() {
-  // Find all return cases with a non-Shopify shopifyOrderId that have Fynd payload
+  // Get offline session for Shopify REST API calls
+  const offlineSession = await prisma.session.findFirst({
+    where: { isOnline: false, accessToken: { not: "" } },
+    select: { shop: true, accessToken: true },
+  });
+
+  if (!offlineSession) {
+    console.log("[backfill] No offline Shopify session found. Skipping order ID backfill.");
+    return;
+  }
+
+  const { shop: shopDomain, accessToken } = offlineSession;
+  console.log(`[backfill] Using shop: ${shopDomain}`);
+
+  // Find all return cases with a non-Shopify shopifyOrderId
   const candidates = await prisma.returnCase.findMany({
     where: {
       shopifyOrderId: { not: { equals: null } },
-      fyndPayloadJson: { not: { equals: null } },
     },
     select: {
       id: true,
@@ -83,32 +178,83 @@ async function main() {
   console.log(`[backfill] Found ${toFix.length} return case(s) with invalid shopifyOrderId.`);
   if (DRY_RUN) console.log("[backfill] DRY RUN — no changes will be made.\n");
 
-  let updated = 0;
+  let resolved = 0;
+  let updatedNameOnly = 0;
   let noAffiliate = 0;
+  let notFoundInShopify = 0;
 
   for (const rc of toFix) {
+    // Collect all candidate order names to try
+    const candidateNames = new Set();
+
+    // From shopifyOrderName (might already contain the affiliate_order_id)
+    if (rc.shopifyOrderName) {
+      candidateNames.add(rc.shopifyOrderName.replace(/^#/, "").trim());
+    }
+
+    // From Fynd payload
     const affiliateId = extractAffiliateOrderId(rc.fyndPayloadJson);
-    if (!affiliateId) {
+    if (affiliateId) {
+      candidateNames.add(affiliateId.replace(/^#/, "").trim());
+    }
+
+    // Also try the current shopifyOrderId (might be an order name)
+    if (rc.shopifyOrderId && !rc.shopifyOrderId.startsWith("FYMP") && !rc.shopifyOrderId.startsWith("FY")) {
+      candidateNames.add(rc.shopifyOrderId.replace(/^#/, "").trim());
+    }
+
+    if (candidateNames.size === 0) {
       noAffiliate++;
-      if (DRY_RUN) console.log(`  SKIP ${rc.returnRequestNo ?? rc.id}: no affiliate_order_id in payload`);
+      console.log(`  SKIP ${rc.returnRequestNo ?? rc.id}: no affiliate_order_id in payload or shopifyOrderName`);
       continue;
     }
 
-    const newId = affiliateId.replace(/^#/, "").trim();
-    if (!newId || newId === rc.shopifyOrderId) continue;
-
-    if (DRY_RUN) {
-      console.log(`  WOULD FIX ${rc.returnRequestNo ?? rc.id}: "${rc.shopifyOrderId}" → "${newId}"`);
-    } else {
-      await prisma.returnCase.update({
-        where: { id: rc.id },
-        data: { shopifyOrderId: newId },
-      });
+    // Try to resolve each candidate to a Shopify GID via REST API
+    let resolvedOrder = null;
+    for (const candidate of candidateNames) {
+      if (!candidate) continue;
+      // Try all name variants (with Fynd prefix stripped)
+      const variants = getOrderNameVariants(candidate);
+      for (const variant of variants) {
+        resolvedOrder = await resolveOrderByName(shopDomain, accessToken, variant);
+        if (resolvedOrder) break;
+      }
+      if (resolvedOrder) break;
     }
-    updated++;
+
+    if (resolvedOrder) {
+      const data = { shopifyOrderId: resolvedOrder.gid };
+      if (!rc.shopifyOrderName) data.shopifyOrderName = resolvedOrder.name;
+
+      if (DRY_RUN) {
+        console.log(`  WOULD RESOLVE ${rc.returnRequestNo ?? rc.id}: "${rc.shopifyOrderId}" → "${resolvedOrder.gid}" (name: ${resolvedOrder.name})`);
+      } else {
+        await prisma.returnCase.update({ where: { id: rc.id }, data });
+        console.log(`  RESOLVED ${rc.returnRequestNo ?? rc.id}: "${rc.shopifyOrderId}" → "${resolvedOrder.gid}" (name: ${resolvedOrder.name})`);
+      }
+      resolved++;
+    } else {
+      // Fallback: at least update to the affiliate_order_id (better than Fynd internal ID)
+      const bestName = affiliateId?.replace(/^#/, "").trim();
+      if (bestName && bestName !== rc.shopifyOrderId) {
+        if (DRY_RUN) {
+          console.log(`  WOULD UPDATE NAME ${rc.returnRequestNo ?? rc.id}: "${rc.shopifyOrderId}" → "${bestName}" (could not resolve GID)`);
+        } else {
+          await prisma.returnCase.update({
+            where: { id: rc.id },
+            data: { shopifyOrderId: bestName },
+          });
+          console.log(`  UPDATED NAME ${rc.returnRequestNo ?? rc.id}: "${rc.shopifyOrderId}" → "${bestName}" (could not resolve GID)`);
+        }
+        updatedNameOnly++;
+      } else {
+        notFoundInShopify++;
+        console.log(`  NOT FOUND ${rc.returnRequestNo ?? rc.id}: "${rc.shopifyOrderId}" — tried: [${[...candidateNames].join(", ")}]`);
+      }
+    }
   }
 
-  console.log(`[backfill] ${DRY_RUN ? "Would fix" : "Fixed"}: ${updated} | No affiliate_order_id: ${noAffiliate}`);
+  console.log(`[backfill] Results: Resolved to GID: ${resolved} | Updated name only: ${updatedNameOnly} | Not found: ${notFoundInShopify} | No affiliate ID: ${noAffiliate}`);
 }
 
 main()

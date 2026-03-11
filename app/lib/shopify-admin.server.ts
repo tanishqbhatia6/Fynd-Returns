@@ -494,8 +494,10 @@ export async function fetchOrderByOrderNumber(
   }
 
   // Strategy 1 (PRIMARY — raw fetch, bypasses SDK wrapping issues):
-  if (admin._rest?.accessToken) {
-    const { shopDomain, accessToken } = admin._rest;
+  const hasRestCreds = !!(admin._rest?.accessToken);
+  console.log(`[fetchOrderByOrderNumber] clean="${clean}" hasRestCreds=${hasRestCreds} shopDomain=${admin._rest?.shopDomain ?? "none"}`);
+  if (hasRestCreds) {
+    const { shopDomain, accessToken } = admin._rest!;
     // name:#ORDER is the proven working format; try it first, then without #
     for (const q of [`name:#${clean}`, `name:${clean}`]) {
       try {
@@ -518,15 +520,22 @@ export async function fetchOrderByOrderNumber(
     } catch (err) {
       console.warn("[fetchOrderByOrderNumber] REST lookup error:", err);
     }
+  } else {
+    console.warn(`[fetchOrderByOrderNumber] No REST credentials — skipping raw fetch. accessToken present: ${!!admin._rest?.accessToken}, _rest present: ${!!admin._rest}`);
   }
 
   // Strategy 2 (FALLBACK — SDK's admin.graphql(), for cases without REST credentials):
   for (const q of [`name:#${clean}`, `name:${clean}`]) {
     try {
+      console.log(`[fetchOrderByOrderNumber] Strategy 2 (SDK): trying query="${q}"`);
       const node = await searchOrders(admin, q, false, clean);
-      if (node) return parseOrderNode(node);
+      if (node) {
+        console.log(`[fetchOrderByOrderNumber] Found via SDK: query="${q}"`);
+        return parseOrderNode(node);
+      }
     } catch (err) {
       if (err instanceof OrderAccessError) throw err;
+      console.warn(`[fetchOrderByOrderNumber] Strategy 2 failed for query="${q}":`, err);
     }
   }
 

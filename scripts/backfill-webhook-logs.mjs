@@ -2,9 +2,9 @@
 /**
  * Data migration: backfill FyndWebhookLog records with enrichment fields.
  *
- * Parses each log's rawPayload JSON and extracts:
- *   affiliateOrderId, fyndStatus, eventType, carrier, awbNumber, trackingUrl,
- *   customerName, customerEmail, customerPhone
+ * Parses each log's rawPayload JSON (or uses regex for truncated payloads)
+ * and extracts: affiliateOrderId, fyndStatus, eventType, carrier, awbNumber,
+ * trackingUrl, customerName, customerEmail, customerPhone
  *
  * Idempotent — safe to run on every deploy. Exits silently when nothing to fix.
  *
@@ -17,80 +17,98 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 const DRY_RUN = process.argv.includes("--dry-run");
 
-/** Unwrap Fynd envelope: body may wrap real payload under .payload, .shipment, or be flat */
-function unwrapPayload(raw) {
+function str(val) {
+  return typeof val === "string" && val.trim() ? val.trim() : null;
+}
+
+/** Try JSON.parse; if it fails (truncated payload), return null */
+function safeParse(raw) {
   if (!raw) return null;
   try {
-    const body = JSON.parse(raw);
-    const inner = body.payload ?? body.shipment ?? body;
-    // Merge meta fields up
-    if (inner?.meta && typeof inner.meta === "object") {
-      const meta = inner.meta;
-      if (!inner.order_id && meta.order_id) inner.order_id = meta.order_id;
-      if (!inner.affiliate_order_id && meta.affiliate_order_id) inner.affiliate_order_id = meta.affiliate_order_id;
-      if (!inner.external_order_id && meta.external_order_id) inner.external_order_id = meta.external_order_id;
-      if (!inner.channel_order_id && meta.channel_order_id) inner.channel_order_id = meta.channel_order_id;
-    }
-    // Extract event type from envelope
-    const event = body?.event && typeof body.event === "object" ? body.event : null;
-    const eventType = event?.type ?? event?.name ?? null;
-    return { inner, eventType, body };
+    return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 
-function str(val) {
-  return typeof val === "string" && val.trim() ? val.trim() : null;
+/** Extract a JSON string value via regex — works on truncated payloads */
+function regexExtract(raw, key) {
+  if (!raw) return null;
+  const re = new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`, "i");
+  const m = raw.match(re);
+  return m ? m[1].trim() : null;
 }
 
-function extractAffiliateOrderId(p) {
-  return str(p.affiliate_order_id)
-    ?? str(p.affiliateOrderId)
-    ?? str(p.external_order_id)
-    ?? str(p.channel_order_id)
-    ?? str(p.meta?.affiliate_order_id)
-    ?? str(p.meta?.external_order_id)
-    ?? str(p.meta?.channel_order_id)
-    ?? str(p.order?.affiliate_order_id)
-    ?? str(p.shipments?.[0]?.order?.affiliate_order_id)
-    ?? null;
-}
+/** Unwrap Fynd envelope and extract fields via JSON parsing */
+function extractViaJson(raw) {
+  const body = safeParse(raw);
+  if (!body) return null;
 
-function extractFyndStatus(p) {
-  return str(p.refund_status)
-    ?? str(p.refund_status_flag)
-    ?? str(p.status)
-    ?? str(p.current_shipment_status)
-    ?? str(p.shipments?.[0]?.refund_status)
-    ?? str(p.shipments?.[0]?.status)
-    ?? str(p.order?.shipments?.[0]?.refund_status)
-    ?? str(p.order?.shipments?.[0]?.status)
-    ?? null;
-}
+  const inner = body.payload ?? body.shipment ?? body;
 
-function extractCustomer(p) {
-  const addr = p.delivery_address ?? p.billing_address ?? {};
-  const meta = p.meta ?? {};
+  // Merge meta fields
+  if (inner?.meta && typeof inner.meta === "object") {
+    const meta = inner.meta;
+    if (!inner.order_id && meta.order_id) inner.order_id = meta.order_id;
+    if (!inner.affiliate_order_id && meta.affiliate_order_id) inner.affiliate_order_id = meta.affiliate_order_id;
+    if (!inner.external_order_id && meta.external_order_id) inner.external_order_id = meta.external_order_id;
+    if (!inner.channel_order_id && meta.channel_order_id) inner.channel_order_id = meta.channel_order_id;
+  }
+
+  const event = body?.event && typeof body.event === "object" ? body.event : null;
+  const eventType = str(event?.type) ?? str(event?.name);
+
+  const affiliateOrderId =
+    str(inner.affiliate_order_id) ?? str(inner.affiliateOrderId) ??
+    str(inner.external_order_id) ?? str(inner.channel_order_id) ??
+    str(inner.meta?.affiliate_order_id) ?? str(inner.meta?.external_order_id) ??
+    str(inner.order?.affiliate_order_id) ??
+    str(inner.shipments?.[0]?.order?.affiliate_order_id);
+
+  const fyndStatus =
+    str(inner.refund_status) ?? str(inner.refund_status_flag) ??
+    str(inner.status) ?? str(inner.current_shipment_status) ??
+    str(inner.shipments?.[0]?.refund_status) ?? str(inner.shipments?.[0]?.status);
+
+  const addr = inner.delivery_address ?? inner.billing_address ?? {};
+  const meta = inner.meta ?? {};
   const firstName = str(addr.first_name) ?? "";
   const lastName = str(addr.last_name) ?? "";
-  const name = str(addr.name) ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
-  const email = str(addr.email) ?? str(meta.email) ?? null;
-  const phone = str(addr.phone) ?? str(addr.mobile) ?? str(meta.mobile) ?? str(meta.phone) ?? null;
-  return { name, email, phone };
+  const customerName = str(addr.name) ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
+  const customerEmail = str(addr.email) ?? str(meta.email);
+  const customerPhone = str(addr.phone) ?? str(addr.mobile) ?? str(meta.mobile) ?? str(meta.phone);
+
+  const dp = inner.dp_details ?? {};
+  const carrier = str(dp.display_name) ?? str(dp.name) ?? str(inner.display_name) ?? str(meta.cp_name);
+  const awbNumber = str(dp.awb_no) ?? str(inner.awb_no) ?? str(meta.awb_no);
+  const trackingUrl = str(inner.tracking_url) ?? str(inner.track_url) ?? str(dp.track_url) ?? str(dp.tracking_url);
+
+  return { affiliateOrderId, fyndStatus, eventType, customerName, customerEmail, customerPhone, carrier, awbNumber, trackingUrl };
 }
 
-function extractShipping(p) {
-  const dp = p.dp_details ?? {};
-  const meta = p.meta ?? {};
-  const carrier = str(dp.display_name) ?? str(dp.name) ?? str(p.display_name) ?? str(meta.cp_name) ?? null;
-  const awb = str(dp.awb_no) ?? str(p.awb_no) ?? str(meta.awb_no) ?? null;
-  const trackingUrl = str(p.tracking_url) ?? str(p.track_url) ?? str(dp.track_url) ?? str(dp.tracking_url) ?? null;
-  return { carrier, awb, trackingUrl };
+/** Regex-based extraction for truncated/unparseable payloads */
+function extractViaRegex(raw) {
+  if (!raw) return {};
+  return {
+    affiliateOrderId:
+      regexExtract(raw, "affiliate_order_id") ??
+      regexExtract(raw, "external_order_id") ??
+      regexExtract(raw, "channel_order_id"),
+    fyndStatus:
+      regexExtract(raw, "refund_status") ??
+      regexExtract(raw, "current_shipment_status") ??
+      regexExtract(raw, "status"),
+    eventType: regexExtract(raw, "event_type") ?? regexExtract(raw, "event_name"),
+    carrier: regexExtract(raw, "display_name") ?? regexExtract(raw, "cp_name"),
+    awbNumber: regexExtract(raw, "awb_no"),
+    trackingUrl: regexExtract(raw, "tracking_url") ?? regexExtract(raw, "track_url"),
+    customerName: regexExtract(raw, "name"),
+    customerEmail: regexExtract(raw, "email"),
+    customerPhone: regexExtract(raw, "phone") ?? regexExtract(raw, "mobile"),
+  };
 }
 
 async function main() {
-  // Find logs that have rawPayload but are missing enrichment fields
   const logs = await prisma.fyndWebhookLog.findMany({
     where: {
       rawPayload: { not: { equals: null } },
@@ -105,6 +123,8 @@ async function main() {
     select: {
       id: true,
       rawPayload: true,
+      orderId: true,
+      refundStatus: true,
       affiliateOrderId: true,
       fyndStatus: true,
       eventType: true,
@@ -129,28 +149,37 @@ async function main() {
   let skipped = 0;
 
   for (const log of logs) {
-    const parsed = unwrapPayload(log.rawPayload);
-    if (!parsed) {
-      skipped++;
-      continue;
+    // Try JSON parsing first, fall back to regex for truncated payloads
+    const jsonExtracted = extractViaJson(log.rawPayload);
+    const regexExtracted = extractViaRegex(log.rawPayload);
+
+    const merged = {
+      affiliateOrderId: jsonExtracted?.affiliateOrderId ?? regexExtracted.affiliateOrderId ?? null,
+      fyndStatus: jsonExtracted?.fyndStatus ?? regexExtracted.fyndStatus ?? null,
+      eventType: jsonExtracted?.eventType ?? regexExtracted.eventType ?? null,
+      carrier: jsonExtracted?.carrier ?? regexExtracted.carrier ?? null,
+      awbNumber: jsonExtracted?.awbNumber ?? regexExtracted.awbNumber ?? null,
+      trackingUrl: jsonExtracted?.trackingUrl ?? regexExtracted.trackingUrl ?? null,
+      customerName: jsonExtracted?.customerName ?? regexExtracted.customerName ?? null,
+      customerEmail: jsonExtracted?.customerEmail ?? regexExtracted.customerEmail ?? null,
+      customerPhone: jsonExtracted?.customerPhone ?? regexExtracted.customerPhone ?? null,
+    };
+
+    // Also backfill fyndStatus from the existing refundStatus column if available
+    if (!merged.fyndStatus && log.refundStatus) {
+      merged.fyndStatus = log.refundStatus;
     }
 
-    const { inner, eventType } = parsed;
-    const affiliateOrderId = extractAffiliateOrderId(inner);
-    const fyndStatus = extractFyndStatus(inner);
-    const customer = extractCustomer(inner);
-    const shipping = extractShipping(inner);
-
     const data = {};
-    if (!log.affiliateOrderId && affiliateOrderId) data.affiliateOrderId = affiliateOrderId;
-    if (!log.fyndStatus && fyndStatus) data.fyndStatus = fyndStatus;
-    if (!log.eventType && eventType) data.eventType = eventType;
-    if (!log.carrier && shipping.carrier) data.carrier = shipping.carrier;
-    if (!log.awbNumber && shipping.awb) data.awbNumber = shipping.awb;
-    if (!log.trackingUrl && shipping.trackingUrl) data.trackingUrl = shipping.trackingUrl;
-    if (!log.customerName && customer.name) data.customerName = customer.name;
-    if (!log.customerEmail && customer.email) data.customerEmail = customer.email;
-    if (!log.customerPhone && customer.phone) data.customerPhone = customer.phone;
+    if (!log.affiliateOrderId && merged.affiliateOrderId) data.affiliateOrderId = merged.affiliateOrderId;
+    if (!log.fyndStatus && merged.fyndStatus) data.fyndStatus = merged.fyndStatus;
+    if (!log.eventType && merged.eventType) data.eventType = merged.eventType;
+    if (!log.carrier && merged.carrier) data.carrier = merged.carrier;
+    if (!log.awbNumber && merged.awbNumber) data.awbNumber = merged.awbNumber;
+    if (!log.trackingUrl && merged.trackingUrl) data.trackingUrl = merged.trackingUrl;
+    if (!log.customerName && merged.customerName) data.customerName = merged.customerName;
+    if (!log.customerEmail && merged.customerEmail) data.customerEmail = merged.customerEmail;
+    if (!log.customerPhone && merged.customerPhone) data.customerPhone = merged.customerPhone;
 
     if (Object.keys(data).length === 0) {
       skipped++;

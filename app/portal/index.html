@@ -2618,13 +2618,14 @@
     // ── Currency formatting ──
     function formatMoney(amount, currency) {
       var cur = currency || (window.__RPM_CURRENCY__) || 'USD';
+      if (typeof cur !== 'string') cur = 'USD';
       var loc = window.__RPM_LOCALE__ || undefined;
       var num = parseFloat(amount);
       if (isNaN(num)) return '';
       try {
         return new Intl.NumberFormat(loc, { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
       } catch(e) {
-        return (currency || '') + ' ' + num.toFixed(2);
+        return String(cur) + ' ' + num.toFixed(2);
       }
     }
 
@@ -3797,7 +3798,7 @@
         }
       }
 
-      // Customer-uploaded images
+      // Customer-uploaded images and videos
       var custMedia = [];
       try { if (x.customerMediaJson) custMedia = JSON.parse(x.customerMediaJson); } catch (e) {}
       if (Array.isArray(custMedia) && custMedia.length > 0) {
@@ -3805,8 +3806,13 @@
         html += '<div style="font-size:0.6875rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;color:var(--portal-text-muted);margin-bottom:8px;">' + t('portal.statusDesc.yourUploads') + '</div>';
         html += '<div style="display:flex;gap:10px;flex-wrap:wrap;">';
         custMedia.forEach(function (m, idx) {
+          var isVideo = m.mimeType && m.mimeType.startsWith('video/');
           html += '<a href="' + escapeHtml(m.dataUrl || '') + '" target="_blank" rel="noopener noreferrer" style="display:block;border-radius:8px;overflow:hidden;border:1px solid var(--portal-border);">';
-          html += '<img src="' + escapeHtml(m.dataUrl || '') + '" alt="' + escapeHtml(m.name || (t('portal.common.upload') + ' ' + (idx + 1))) + '" style="width:80px;height:80px;object-fit:cover;display:block;" loading="lazy">';
+          if (isVideo) {
+            html += '<video src="' + escapeHtml(m.dataUrl || '') + '" style="width:80px;height:80px;object-fit:cover;display:block;" muted playsinline></video>';
+          } else {
+            html += '<img src="' + escapeHtml(m.dataUrl || '') + '" alt="' + escapeHtml(m.name || (t('portal.common.upload') + ' ' + (idx + 1))) + '" style="width:80px;height:80px;object-fit:cover;display:block;" loading="lazy">';
+          }
           html += '</a>';
         });
         html += '</div></div>';
@@ -4543,8 +4549,17 @@
 
     function renderFiles(arr, previewId, inputId) {
       var html = arr.map((f, i) => {
-        var icon = f.type.startsWith('video/') ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>' : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
-        return '<div class="upload-preview-item">' + icon + ' ' + Math.round(f.size / 1024) + 'KB ' + escapeHtml(f.name.substring(0, 15)) + '... <span class="upload-preview-remove" data-idx="' + i + '">×</span></div>';
+        var isImg = f.type.startsWith('image/');
+        var isVid = f.type.startsWith('video/');
+        var preview = '';
+        if (isImg) {
+          preview = '<img src="' + URL.createObjectURL(f) + '" style="width:36px;height:36px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:6px;">';
+        } else if (isVid) {
+          preview = '<video src="' + URL.createObjectURL(f) + '" style="width:36px;height:36px;object-fit:cover;border-radius:4px;vertical-align:middle;margin-right:6px;" muted></video>';
+        } else {
+          preview = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px;"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>';
+        }
+        return '<div class="upload-preview-item" style="display:flex;align-items:center;">' + preview + Math.round(f.size / 1024) + 'KB ' + escapeHtml(f.name.substring(0, 15)) + '... <span class="upload-preview-remove" data-idx="' + i + '">×</span></div>';
       }).join('');
       document.getElementById(previewId).innerHTML = html;
       const dt = new DataTransfer();
@@ -4740,7 +4755,13 @@
         if (pickupProvEl) pickupProvEl.value = sa.province || sa.provinceCode || '';
         if (pickupZipEl) pickupZipEl.value = sa.zip || '';
         if (pickupCountryEl) pickupCountryEl.value = sa.country || sa.countryCode || '';
-        if (pickupLandmarkEl) pickupLandmarkEl.value = '';
+        if (pickupLandmarkEl) pickupLandmarkEl.value = sa.landmark || '';
+
+        // Auto-open pickup address section if any address field was pre-filled
+        var pickupSection = document.getElementById('pickupAddressSection');
+        if (pickupSection && (sa.address1 || sa.city || sa.zip)) {
+          pickupSection.setAttribute('open', '');
+        }
 
         // Wire up condition dropdown visibility — show for damage/defect reasons
         var DEFECT_REASON_CODES = new Set(['damaged', 'defective', 'broken', 'not_working', 'wrong_item', 'quality_issue', 'damaged_in_transit']);

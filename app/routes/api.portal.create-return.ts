@@ -551,10 +551,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Validate and sanitize uploaded media (max 5 files, images only for DB storage, max 5MB each)
+    // Validate and sanitize uploaded media (max 5 files, images + videos, max 5MB each)
     const MAX_MEDIA_FILES = 5;
     const MAX_MEDIA_SIZE = 5 * 1024 * 1024;
-    const ALLOWED_MEDIA_PREFIXES = ["data:image/jpeg", "data:image/png", "data:image/gif", "data:image/webp"];
+    const ALLOWED_MEDIA_PREFIXES = [
+      "data:image/jpeg", "data:image/png", "data:image/gif", "data:image/webp",
+      "data:video/mp4", "data:video/webm", "data:video/quicktime",
+    ];
     let customerMediaJson: string | null = null;
     if (Array.isArray(customerMediaRaw) && customerMediaRaw.length > 0) {
       const validMedia = customerMediaRaw

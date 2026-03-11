@@ -298,6 +298,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 const fyndState = String(deliveryAddr.state ?? deliveryAddr.state_code ?? "").trim() || null;
                 const fyndCountry = String(deliveryAddr.country ?? "").trim() || null;
                 const fyndPincode = String(deliveryAddr.pincode ?? deliveryAddr.zip ?? "").trim() || null;
+                const fyndAddress1 = String(deliveryAddr.address ?? deliveryAddr.address1 ?? "").trim() || null;
+                const fyndAddress2 = String(deliveryAddr.area ?? deliveryAddr.address2 ?? "").trim() || null;
+                const fyndLandmark = String(deliveryAddr.landmark ?? "").trim() || null;
                 const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
                 const fyndLast = fyndRestName.join(" ");
 
@@ -313,7 +316,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   phone: fyndPhone,
                   shippingCountry: fyndCountry || null,
                   shippingProvince: fyndState || null,
-                  shippingAddress: (fyndName || fyndCity) ? {
+                  shippingAddress: (fyndName || fyndCity || fyndAddress1) ? {
+                    address1: fyndAddress1 || undefined,
+                    address2: fyndAddress2 || undefined,
                     firstName: fyndFirst || undefined,
                     lastName: fyndLast || undefined,
                     city: fyndCity || undefined,
@@ -322,6 +327,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     zip: fyndPincode || undefined,
                     country: fyndCountry || undefined,
                     countryCode: fyndCountry || undefined,
+                    landmark: fyndLandmark || undefined,
                   } : null,
                   lineItems: dedupedLineItems,
                   fulfillments: [],

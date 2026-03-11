@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
@@ -727,7 +727,38 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
 
       if (lineItemsForRefund.length === 0) {
-        const order = orderIdForRefund ? await fetchOrder(admin, orderIdForRefund).catch(() => null) : null;
+        console.log(`[refund] lineItemsForRefund is empty, fetching Shopify order to resolve line items`);
+        // Try multiple strategies to fetch the Shopify order for line item resolution
+        let order: Awaited<ReturnType<typeof fetchOrder>> = null;
+        if (orderIdForRefund) {
+          // Strategy A: fetchOrder via nodes() query
+          order = await fetchOrder(admin, orderIdForRefund).catch((err) => {
+            console.warn(`[refund] fetchOrder(nodes) failed for "${orderIdForRefund}":`, err?.message ?? err);
+            return null;
+          });
+          // Strategy B: fetchOrderByGid via orderByIdentifier query (different API, may succeed when nodes fails)
+          if (!order && orderIdForRefund.startsWith("gid://")) {
+            order = await fetchOrderByGid(admin, orderIdForRefund).catch((err) => {
+              console.warn(`[refund] fetchOrderByGid failed for "${orderIdForRefund}":`, err?.message ?? err);
+              return null;
+            });
+          }
+          // Strategy C: fetchOrderByOrderNumber via REST API using the order name
+          if (!order && returnCase.shopifyOrderName) {
+            const orderName = returnCase.shopifyOrderName.replace(/^#/, "").trim();
+            if (orderName) {
+              order = await fetchOrderByOrderNumber(admin, orderName).catch((err) => {
+                console.warn(`[refund] fetchOrderByOrderNumber("${orderName}") failed:`, err?.message ?? err);
+                return null;
+              });
+              if (order?.id && order.id !== orderIdForRefund) {
+                // Update stored GID for future lookups
+                orderIdForRefund = order.id;
+                await prisma.returnCase.update({ where: { id }, data: { shopifyOrderId: order.id } }).catch(() => {});
+              }
+            }
+          }
+        }
         if (order?.lineItems?.length) {
           const returnItems = returnCase.items ?? [];
           if (returnItems.length > 0 && returnItems.some((i) => i.sku)) {
@@ -748,6 +779,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
           }
           console.log(`[refund] Resolved ${lineItemsForRefund.length} line items from Shopify order`);
+        } else {
+          console.error(`[refund] ALL order fetch strategies failed for orderIdForRefund="${orderIdForRefund}" shopifyOrderName="${returnCase.shopifyOrderName}"`);
         }
       }
 

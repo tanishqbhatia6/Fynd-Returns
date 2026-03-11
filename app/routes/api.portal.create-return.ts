@@ -350,6 +350,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // When the portal sends Fynd bag IDs (e.g. "3777852") instead of Shopify GIDs
     // (e.g. "gid://shopify/LineItem/16891834630294"), fetch the Shopify order and
     // match items by title/SKU to get the correct GIDs for refund processing.
+    // Also stores resolved SKU for future SKU matching in refund flow.
+    const resolvedLineItemSkus = new Map<string, string>(); // newLineItemId → sku
+    const lineItemIdMapping = new Map<string, string>(); // newLineItemId → originalPortalId
     if (!manualMode && effectiveOrderId.startsWith("gid://")) {
       const hasNonGidLineItems = itemsToCreate.some(
         (it) => it.lineItemId !== "manual" && !it.lineItemId.startsWith("gid://shopify/LineItem/")
@@ -380,6 +383,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
             for (const it of itemsToCreate) {
               if (it.lineItemId === "manual" || it.lineItemId.startsWith("gid://shopify/LineItem/")) continue;
+              const originalId = it.lineItemId;
               // Try to find the matching Shopify line item
               const portalItem = portalItemById.get(it.lineItemId);
               const titleToMatch = portalItem?.title?.toLowerCase();
@@ -394,8 +398,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               if (!matched && shopifyLineItems.length === 1) matched = shopifyLineItems[0];
 
               if (matched) {
-                console.log(`[create-return] Resolved lineItemId "${it.lineItemId}" → "${matched.id}" (${matched.title})`);
+                console.log(`[create-return] Resolved lineItemId "${it.lineItemId}" → "${matched.id}" (${matched.title}, sku: ${matched.sku})`);
                 it.lineItemId = matched.id;
+                lineItemIdMapping.set(matched.id, originalId);
+                if (matched.sku) resolvedLineItemSkus.set(matched.id, matched.sku);
               }
             }
           }
@@ -646,12 +652,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             orderProcessedAt: orderCreatedAtValue,
             items: {
               create: itemsToCreate.map((it) => {
-                const liInfo = lineItemsWithPrice?.find((l) => l.id === it.lineItemId);
+                // After line item ID resolution, the ID may have changed from a Fynd bag ID
+                // to a Shopify GID. Look up liInfo using the original portal ID if needed.
+                const originalPortalId = lineItemIdMapping.get(it.lineItemId) ?? it.lineItemId;
+                const liInfo = lineItemsWithPrice?.find((l) => l.id === it.lineItemId || l.id === originalPortalId);
+                const resolvedSku = resolvedLineItemSkus.get(it.lineItemId);
                 return {
                   shopifyLineItemId: it.lineItemId,
                   title: liInfo?.title || it.notes || null,
                   variantTitle: liInfo?.variantTitle || null,
-                  sku: null,
+                  sku: resolvedSku || (liInfo as { sku?: string } | undefined)?.sku || null,
                   price: liInfo?.price || null,
                   imageUrl: liInfo?.imageUrl || null,
                   qty: it.qty,

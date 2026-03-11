@@ -583,18 +583,55 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
 
       let orderIdForRefund = returnCase.shopifyOrderId;
-      let lineItemsForRefund: Array<{ id: string; quantity: number }> = (returnCase.items ?? [])
-        .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
-        .map((i) => ({ id: i.shopifyLineItemId, quantity: i.qty }));
 
-      // Helper: persist resolved Shopify order back to DB + fill line items
-      const applyResolvedOrder = async (shopifyOrder: { id: string; name?: string; lineItems?: Array<{ id: string; quantity: number }> }) => {
+      // Collect line items — only trust IDs that look like Shopify GIDs or pure numeric
+      const rawLineItems = (returnCase.items ?? [])
+        .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
+        .map((i) => ({ id: i.shopifyLineItemId, quantity: i.qty, sku: i.sku }));
+      const hasValidLineItemIds = rawLineItems.length > 0 && rawLineItems.every(
+        (li) => li.id.startsWith("gid://shopify/LineItem/") || /^\d+$/.test(li.id)
+      );
+      let lineItemsForRefund: Array<{ id: string; quantity: number }> = hasValidLineItemIds
+        ? rawLineItems.map((li) => ({ id: li.id, quantity: li.quantity }))
+        : []; // Invalid IDs (Fynd IDs) — will be resolved from Shopify order below
+
+      if (!hasValidLineItemIds && rawLineItems.length > 0) {
+        console.log(`[refund] Line item IDs are not valid Shopify GIDs (sample: "${rawLineItems[0]?.id}") — will resolve from Shopify order`);
+      }
+
+      // Helper: persist resolved Shopify order back to DB + fill line items by SKU match
+      const applyResolvedOrder = async (shopifyOrder: { id: string; name?: string; lineItems?: Array<{ id: string; quantity: number; sku?: string | null }> }) => {
         orderIdForRefund = shopifyOrder.id;
         const updates: Record<string, string> = { shopifyOrderId: shopifyOrder.id };
         if (shopifyOrder.name && !returnCase.shopifyOrderName) updates.shopifyOrderName = shopifyOrder.name;
         await prisma.returnCase.update({ where: { id }, data: updates }).catch(() => { /* non-fatal */ });
-        if (lineItemsForRefund.length === 0 && shopifyOrder.lineItems?.length) {
-          lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+        // Always replace line items from the Shopify order (match by SKU or use all)
+        if (shopifyOrder.lineItems?.length) {
+          const returnItems = returnCase.items ?? [];
+          if (returnItems.length > 0 && returnItems.some((i) => i.sku)) {
+            // Match by SKU
+            const matched: Array<{ id: string; quantity: number }> = [];
+            for (const ri of returnItems) {
+              const riSku = (ri.sku ?? "").toLowerCase().trim();
+              if (!riSku) continue;
+              const shopifyLi = shopifyOrder.lineItems.find(
+                (li) => li.sku && li.sku.toLowerCase().trim() === riSku
+              );
+              if (shopifyLi) {
+                matched.push({ id: shopifyLi.id, quantity: ri.qty });
+              }
+            }
+            if (matched.length > 0) {
+              lineItemsForRefund = matched;
+              console.log(`[refund] Matched ${matched.length} line items by SKU`);
+            } else {
+              // SKU match failed — use all Shopify line items
+              lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+              console.log(`[refund] SKU match failed, using all ${lineItemsForRefund.length} Shopify line items`);
+            }
+          } else {
+            lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+          }
         }
       };
 
@@ -691,7 +728,25 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (lineItemsForRefund.length === 0) {
         const order = orderIdForRefund ? await fetchOrder(admin, orderIdForRefund).catch(() => null) : null;
         if (order?.lineItems?.length) {
-          lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+          const returnItems = returnCase.items ?? [];
+          if (returnItems.length > 0 && returnItems.some((i) => i.sku)) {
+            // Match by SKU to get correct quantities
+            const matched: Array<{ id: string; quantity: number }> = [];
+            for (const ri of returnItems) {
+              const riSku = (ri.sku ?? "").toLowerCase().trim();
+              if (!riSku) continue;
+              const shopifyLi = order.lineItems.find(
+                (li) => li.sku && li.sku.toLowerCase().trim() === riSku
+              );
+              if (shopifyLi) matched.push({ id: shopifyLi.id, quantity: ri.qty });
+            }
+            lineItemsForRefund = matched.length > 0
+              ? matched
+              : order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+          } else {
+            lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+          }
+          console.log(`[refund] Resolved ${lineItemsForRefund.length} line items from Shopify order`);
         }
       }
 

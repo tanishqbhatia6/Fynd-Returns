@@ -440,36 +440,37 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     }
 
     // Part B: Auto-enrich customer info from Shopify order or Fynd payload
-    const needsCustomerEnrich = !returnCase.customerName && !returnCase.customerEmailNorm;
+    // Enrich if ANY key customer field is missing (not just all)
+    const needsCustomerEnrich = !returnCase.customerName || !returnCase.customerEmailNorm || !returnCase.customerCity;
     if (needsCustomerEnrich) {
       const enrichData: Record<string, string> = {};
       // Source 1: Shopify order
       if (shopifyOrder) {
         const addr = shopifyOrder.shippingAddress;
         const name = addr?.name || [addr?.firstName, addr?.lastName].filter(Boolean).join(" ");
-        if (name) enrichData.customerName = name;
-        if (shopifyOrder.email) enrichData.customerEmailNorm = shopifyOrder.email.toLowerCase();
-        if (shopifyOrder.phone) enrichData.customerPhoneNorm = shopifyOrder.phone;
-        if (addr?.city) enrichData.customerCity = addr.city;
-        if (addr?.country) enrichData.customerCountry = addr.country;
-        if (addr?.address1) enrichData.customerAddress1 = addr.address1;
-        if (addr?.address2) enrichData.customerAddress2 = addr.address2;
-        if (addr?.province) enrichData.customerProvince = addr.province;
-        if (addr?.zip) enrichData.customerZip = addr.zip;
+        if (!returnCase.customerName && name) enrichData.customerName = name;
+        if (!returnCase.customerEmailNorm && shopifyOrder.email) enrichData.customerEmailNorm = shopifyOrder.email.toLowerCase();
+        if (!(returnCase as { customerPhoneNorm?: string }).customerPhoneNorm && shopifyOrder.phone) enrichData.customerPhoneNorm = shopifyOrder.phone;
+        if (!(returnCase as { customerCity?: string }).customerCity && addr?.city) enrichData.customerCity = addr.city;
+        if (!(returnCase as { customerCountry?: string }).customerCountry && addr?.country) enrichData.customerCountry = addr.country;
+        if (!(returnCase as { customerAddress1?: string }).customerAddress1 && addr?.address1) enrichData.customerAddress1 = addr.address1;
+        if (!(returnCase as { customerAddress2?: string }).customerAddress2 && addr?.address2) enrichData.customerAddress2 = addr.address2;
+        if (!(returnCase as { customerProvince?: string }).customerProvince && addr?.province) enrichData.customerProvince = addr.province;
+        if (!(returnCase as { customerZip?: string }).customerZip && addr?.zip) enrichData.customerZip = addr.zip;
       }
-      // Source 2: Fynd payload delivery_address
-      if (Object.keys(enrichData).length === 0 && fyndPayloadJson) {
+      // Source 2: Fynd payload delivery_address (fill any still-missing fields)
+      if (fyndPayloadJson) {
         const fyndCustomer = extractCustomerFromFyndPayload(fyndPayloadJson);
         if (fyndCustomer) {
-          if (fyndCustomer.name) enrichData.customerName = fyndCustomer.name;
-          if (fyndCustomer.email) enrichData.customerEmailNorm = fyndCustomer.email.toLowerCase();
-          if (fyndCustomer.phone) enrichData.customerPhoneNorm = fyndCustomer.phone;
-          if (fyndCustomer.city) enrichData.customerCity = fyndCustomer.city;
-          if (fyndCustomer.country) enrichData.customerCountry = fyndCustomer.country;
-          if (fyndCustomer.address1) enrichData.customerAddress1 = fyndCustomer.address1;
-          if (fyndCustomer.address2) enrichData.customerAddress2 = fyndCustomer.address2;
-          if (fyndCustomer.province) enrichData.customerProvince = fyndCustomer.province;
-          if (fyndCustomer.zip) enrichData.customerZip = fyndCustomer.zip;
+          if (!enrichData.customerName && !returnCase.customerName && fyndCustomer.name) enrichData.customerName = fyndCustomer.name;
+          if (!enrichData.customerEmailNorm && !returnCase.customerEmailNorm && fyndCustomer.email) enrichData.customerEmailNorm = fyndCustomer.email.toLowerCase();
+          if (!enrichData.customerPhoneNorm && !(returnCase as { customerPhoneNorm?: string }).customerPhoneNorm && fyndCustomer.phone) enrichData.customerPhoneNorm = fyndCustomer.phone;
+          if (!enrichData.customerCity && !(returnCase as { customerCity?: string }).customerCity && fyndCustomer.city) enrichData.customerCity = fyndCustomer.city;
+          if (!enrichData.customerCountry && !(returnCase as { customerCountry?: string }).customerCountry && fyndCustomer.country) enrichData.customerCountry = fyndCustomer.country;
+          if (!enrichData.customerAddress1 && !(returnCase as { customerAddress1?: string }).customerAddress1 && fyndCustomer.address1) enrichData.customerAddress1 = fyndCustomer.address1;
+          if (!enrichData.customerAddress2 && !(returnCase as { customerAddress2?: string }).customerAddress2 && fyndCustomer.address2) enrichData.customerAddress2 = fyndCustomer.address2;
+          if (!enrichData.customerProvince && !(returnCase as { customerProvince?: string }).customerProvince && fyndCustomer.province) enrichData.customerProvince = fyndCustomer.province;
+          if (!enrichData.customerZip && !(returnCase as { customerZip?: string }).customerZip && fyndCustomer.zip) enrichData.customerZip = fyndCustomer.zip;
         }
       }
       if (Object.keys(enrichData).length > 0) {

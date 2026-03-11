@@ -2038,11 +2038,12 @@
         <div class="form-group" id="createItemConditionGroup" style="display:none;">
           <label class="form-label" for="createItemCondition">Item condition <span style="color:#d72c0d">*</span></label>
           <select id="createItemCondition" class="form-select">
-            <option value="">— select condition —</option>
-            <option value="unused">Unused / unopened</option>
-            <option value="used_good">Used — good condition</option>
-            <option value="used_damaged">Used — damaged</option>
-            <option value="defective">Defective / not working</option>
+            <option value="">Select item condition</option>
+            <option value="unused">New &ndash; Unused with original packaging</option>
+            <option value="used_good">Used &ndash; Good condition, fully functional</option>
+            <option value="used_fair">Used &ndash; Fair condition, minor signs of wear</option>
+            <option value="used_damaged">Used &ndash; Damaged or has visible defects</option>
+            <option value="defective">Defective &ndash; Not functioning as expected</option>
           </select>
         </div>
         <div class="form-group">
@@ -2617,15 +2618,16 @@
 
     // ── Currency formatting ──
     function formatMoney(amount, currency) {
-      var cur = currency || (window.__RPM_CURRENCY__) || 'USD';
-      if (typeof cur !== 'string') cur = 'USD';
+      var raw = currency || (window.__RPM_CURRENCY__) || 'USD';
+      var cur = (typeof raw === 'string') ? raw.trim() : 'USD';
+      if (!cur || cur.length < 2 || cur.length > 4) cur = 'USD';
       var loc = window.__RPM_LOCALE__ || undefined;
-      var num = parseFloat(amount);
+      var num = typeof amount === 'number' ? amount : parseFloat(String(amount));
       if (isNaN(num)) return '';
       try {
         return new Intl.NumberFormat(loc, { style: 'currency', currency: cur, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
       } catch(e) {
-        return String(cur) + ' ' + num.toFixed(2);
+        return cur + ' ' + num.toFixed(2);
       }
     }
 
@@ -4868,7 +4870,8 @@
           var fee = createOrderData._returnFee ? createOrderData._returnFee.amount : 0;
           var refund = Math.max(0, total - fee);
           box.style.display = 'block';
-          var refundCurrency = (createOrderData._returnFee && createOrderData._returnFee.currency) || createOrderData.currencyCode || createOrderData.currency || window.__RPM_CURRENCY__ || 'USD';
+          var rawCur = (createOrderData._returnFee && createOrderData._returnFee.currency) || createOrderData.currencyCode || window.__RPM_CURRENCY__ || 'USD';
+          var refundCurrency = (typeof rawCur === 'string') ? rawCur : 'USD';
           amountEl.textContent = formatMoney(refund, refundCurrency);
           if (fee > 0) {
             feeEl.style.display = 'block';

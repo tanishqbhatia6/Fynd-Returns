@@ -1039,6 +1039,42 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       where: { shopId: returnCase.shop.id },
     });
     if (shopSettings?.autoRefundEnabled) {
+      // Fynd status gate: block auto-refund if current Fynd status is not in the allowed list
+      let autoRefundBlockedByGate = false;
+      try {
+        const rawAllowed = shopSettings.allowedFyndStatusesForRefund;
+        if (rawAllowed) {
+          const parsedAllowed = JSON.parse(rawAllowed) as unknown;
+          if (Array.isArray(parsedAllowed) && parsedAllowed.length > 0) {
+            const allowedSet = new Set(parsedAllowed.map((s) => String(s).toLowerCase().trim()));
+            const currentStatus = (returnCase.fyndCurrentStatus ?? statusLower ?? "").toLowerCase().trim();
+            if (!currentStatus || !allowedSet.has(currentStatus)) {
+              autoRefundBlockedByGate = true;
+              const displayAllowed = [...allowedSet].map((s) => `"${s}"`).join(", ");
+              console.log(`[webhook] Auto-refund blocked by Fynd status gate: current="${currentStatus || "(none)"}", allowed=[${displayAllowed}]`);
+              await prisma.returnEvent.create({
+                data: {
+                  returnCaseId: returnCase.id,
+                  source: "fynd_webhook",
+                  eventType: "auto_refund_blocked_by_status_gate",
+                  payloadJson: JSON.stringify({
+                    currentFyndStatus: currentStatus || null,
+                    allowedStatuses: [...allowedSet],
+                    trigger: statusLower,
+                    shipment_id: shipmentId,
+                    note: "Auto-refund was not processed because the current Fynd status is not in the allowed list. Configure allowed statuses in Settings → Return Settings.",
+                  }),
+                },
+              });
+            }
+          }
+        }
+      } catch { /* malformed JSON — treat as feature disabled, allow refund */ }
+
+      if (autoRefundBlockedByGate) {
+        // Skip auto-refund but still update the status
+        await prisma.returnCase.update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } }).catch(() => {});
+      } else {
       let orderIdForRefund = returnCase.shopifyOrderId;
       let lineItemsForRefund: Array<{ id: string; quantity: number }> = (returnCase.items ?? [])
         .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
@@ -1159,6 +1195,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
           }
         }
       }
+      } // close: else { /* autoRefundBlockedByGate === false */ }
     } else {
       await prisma.returnCase.update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } }).catch(() => {});
       await prisma.returnEvent.create({

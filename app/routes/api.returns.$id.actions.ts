@@ -582,6 +582,36 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }, { status: 400 });
       }
 
+      // Fynd status gate: block refund if current Fynd status is not in the allowed list
+      const isFyndIntegrated = !!(returnCase.fyndOrderId || returnCase.fyndShipmentId || returnCase.fyndReturnId);
+      if (isFyndIntegrated) {
+        let allowedFyndStatuses: string[] = [];
+        try {
+          const raw = shop.settings?.allowedFyndStatusesForRefund;
+          if (raw) {
+            const parsed = JSON.parse(raw) as unknown;
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              allowedFyndStatuses = parsed.map((s) => String(s).toLowerCase().trim()).filter(Boolean);
+            }
+          }
+        } catch { /* malformed JSON — treat as feature disabled */ }
+
+        if (allowedFyndStatuses.length > 0) {
+          const currentFyndStatus = (returnCase.fyndCurrentStatus ?? "").toLowerCase().trim();
+          if (!currentFyndStatus) {
+            return Response.json({
+              error: "Cannot process refund: Fynd shipment status has not been received yet. Wait for a Fynd webhook update or manually sync the return status before processing the refund.",
+            }, { status: 400 });
+          }
+          if (!allowedFyndStatuses.includes(currentFyndStatus)) {
+            const displayAllowed = allowedFyndStatuses.map((s) => `"${s}"`).join(", ");
+            return Response.json({
+              error: `Cannot process refund: current Fynd status "${returnCase.fyndCurrentStatus}" is not in the allowed list. Allowed statuses: ${displayAllowed}. Update the allowed statuses in Settings → Return Settings, or wait for the Fynd status to change.`,
+            }, { status: 400 });
+          }
+        }
+      }
+
       let orderIdForRefund = returnCase.shopifyOrderId;
 
       // Collect line items — ONLY trust IDs that are proper Shopify GIDs (gid://shopify/LineItem/...)

@@ -74,7 +74,7 @@ function extractCustomer(p) {
   const meta = p.meta ?? {};
   const firstName = str(addr.first_name) ?? "";
   const lastName = str(addr.last_name) ?? "";
-  const name = str(addr.name) ?? [firstName, lastName].filter(Boolean).join(" ") || null;
+  const name = str(addr.name) ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
   const email = str(addr.email) ?? str(meta.email) ?? null;
   const phone = str(addr.phone) ?? str(addr.mobile) ?? str(meta.mobile) ?? str(meta.phone) ?? null;
   return { name, email, phone };
@@ -93,7 +93,7 @@ async function main() {
   // Find logs that have rawPayload but are missing enrichment fields
   const logs = await prisma.fyndWebhookLog.findMany({
     where: {
-      rawPayload: { not: null },
+      rawPayload: { not: { equals: null } },
       OR: [
         { affiliateOrderId: null },
         { fyndStatus: null },

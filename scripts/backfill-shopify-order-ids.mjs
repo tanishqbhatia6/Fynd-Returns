@@ -61,8 +61,8 @@ async function main() {
   // Find all return cases with a non-Shopify shopifyOrderId that have Fynd payload
   const candidates = await prisma.returnCase.findMany({
     where: {
-      shopifyOrderId: { not: null },
-      fyndPayloadJson: { not: null },
+      shopifyOrderId: { not: { equals: null } },
+      fyndPayloadJson: { not: { equals: null } },
     },
     select: {
       id: true,

@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useNavigate, useFetcher, useSearchParams, isRouteErrorResponse, useRouteError, useRevalidator } from "react-router";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
@@ -779,6 +779,15 @@ export default function ReturnDetail() {
     : (["original", "store_credit", "both", "discount_code"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both" | "discount_code";
   const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both" | "discount_code">(defaultRefundMethod);
   const [modalStoreCreditPct, setModalStoreCreditPct] = useState(refundStoreCreditPct ?? 100);
+  const [splitMode, setSplitMode] = useState<"percentage" | "amount">("percentage");
+  const [splitScAmount, setSplitScAmount] = useState("");
+  const [splitOrigAmount, setSplitOrigAmount] = useState("");
+  const refundItemTotal = useMemo(() => {
+    return (returnCase.items ?? []).reduce((sum, it) => {
+      const p = (it as { price?: string | null }).price;
+      return sum + (p ? parseFloat(p) * it.qty : 0);
+    }, 0);
+  }, [returnCase.items]);
   const storeName = shopDomain.replace(".myshopify.com", "");
   // Extract numeric Shopify order ID for the admin URL.
   // Prefer legacyResourceId (guaranteed numeric), then extract from GID, then stored numeric ID.
@@ -1697,18 +1706,110 @@ export default function ReturnDetail() {
                                 ))}
                               </div>
                               {modalRefundMethod === "both" && (
-                                <div style={{ marginTop: 10, padding: "10px 12px", background: "#FEF3C7", borderRadius: 8 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#92400E" }}>Store credit: {modalStoreCreditPct}%</span>
-                                    <span style={{ fontSize: 11, color: "#B45309" }}>|</span>
-                                    <span style={{ fontSize: 12, fontWeight: 600, color: "#92400E" }}>Original: {100 - modalStoreCreditPct}%</span>
+                                <div style={{ marginTop: 10, padding: "12px 14px", background: "#FEF3C7", borderRadius: 8 }}>
+                                  <div style={{ fontSize: 12, color: "#92400E", marginBottom: 8, fontWeight: 500 }}>
+                                    Eligible refund: <strong>{formatMoney(String(refundItemTotal.toFixed(2)), shopCurrency, shopLocale)}</strong>
                                   </div>
-                                  <input
-                                    type="range" min={5} max={95} step={5}
-                                    value={modalStoreCreditPct}
-                                    onChange={(e) => setModalStoreCreditPct(parseInt(e.target.value, 10))}
-                                    style={{ width: "100%", accentColor: "#F59E0B" }}
-                                  />
+                                  <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => setSplitMode("percentage")}
+                                      style={{
+                                        padding: "4px 12px", fontSize: 11, borderRadius: 6, border: "1px solid #D97706",
+                                        background: splitMode === "percentage" ? "#F59E0B" : "transparent",
+                                        color: splitMode === "percentage" ? "#fff" : "#92400E",
+                                        cursor: "pointer", fontWeight: 600,
+                                      }}
+                                    >
+                                      Percentage
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSplitMode("amount");
+                                        const sc = Math.round(refundItemTotal * (modalStoreCreditPct / 100) * 100) / 100;
+                                        const orig = Math.round((refundItemTotal - sc) * 100) / 100;
+                                        setSplitScAmount(sc.toFixed(2));
+                                        setSplitOrigAmount(orig >= 0 ? orig.toFixed(2) : "0.00");
+                                      }}
+                                      style={{
+                                        padding: "4px 12px", fontSize: 11, borderRadius: 6, border: "1px solid #D97706",
+                                        background: splitMode === "amount" ? "#F59E0B" : "transparent",
+                                        color: splitMode === "amount" ? "#fff" : "#92400E",
+                                        cursor: "pointer", fontWeight: 600,
+                                      }}
+                                    >
+                                      Amount
+                                    </button>
+                                  </div>
+                                  {splitMode === "percentage" ? (
+                                    <>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: "#92400E" }}>Store credit: {modalStoreCreditPct}%</span>
+                                        <span style={{ fontSize: 11, color: "#B45309" }}>|</span>
+                                        <span style={{ fontSize: 12, fontWeight: 600, color: "#92400E" }}>Original: {100 - modalStoreCreditPct}%</span>
+                                      </div>
+                                      <input
+                                        type="range" min={5} max={95} step={5}
+                                        value={modalStoreCreditPct}
+                                        onChange={(e) => setModalStoreCreditPct(parseInt(e.target.value, 10))}
+                                        style={{ width: "100%", accentColor: "#F59E0B" }}
+                                      />
+                                    </>
+                                  ) : (
+                                    <>
+                                      <div style={{ display: "flex", gap: 10, marginBottom: 6 }}>
+                                        <div style={{ flex: 1 }}>
+                                          <label style={{ fontSize: 11, fontWeight: 600, color: "#92400E", display: "block", marginBottom: 3 }}>Store Credit</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            max={refundItemTotal}
+                                            value={splitScAmount}
+                                            onChange={(e) => {
+                                              const v = e.target.value;
+                                              setSplitScAmount(v);
+                                              const sc = parseFloat(v) || 0;
+                                              const remaining = Math.round((refundItemTotal - sc) * 100) / 100;
+                                              setSplitOrigAmount(remaining >= 0 ? remaining.toFixed(2) : "0.00");
+                                            }}
+                                            style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #D97706", fontSize: 13, background: "#fff" }}
+                                          />
+                                        </div>
+                                        <div style={{ flex: 1 }}>
+                                          <label style={{ fontSize: 11, fontWeight: 600, color: "#92400E", display: "block", marginBottom: 3 }}>Original Payment</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            step="0.01"
+                                            max={refundItemTotal}
+                                            value={splitOrigAmount}
+                                            onChange={(e) => {
+                                              const v = e.target.value;
+                                              setSplitOrigAmount(v);
+                                              const orig = parseFloat(v) || 0;
+                                              const remaining = Math.round((refundItemTotal - orig) * 100) / 100;
+                                              setSplitScAmount(remaining >= 0 ? remaining.toFixed(2) : "0.00");
+                                            }}
+                                            style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #D97706", fontSize: 13, background: "#fff" }}
+                                          />
+                                        </div>
+                                      </div>
+                                      {(() => {
+                                        const sum = (parseFloat(splitScAmount) || 0) + (parseFloat(splitOrigAmount) || 0);
+                                        const diff = Math.abs(sum - refundItemTotal);
+                                        if (diff > 0.01) {
+                                          return (
+                                            <div style={{ fontSize: 11, color: "#DC2626", marginTop: 4 }}>
+                                              Sum ({formatMoney(String(sum.toFixed(2)), shopCurrency, shopLocale)}) does not match eligible amount ({formatMoney(String(refundItemTotal.toFixed(2)), shopCurrency, shopLocale)}).
+                                            </div>
+                                          );
+                                        }
+                                        return null;
+                                      })()}
+                                    </>
+                                  )}
                                 </div>
                               )}
                               {modalRefundMethod === "store_credit" && (
@@ -1729,15 +1830,18 @@ export default function ReturnDetail() {
 
                             {/* Bonus Credit Preview */}
                             {bonusCreditEnabled && (modalRefundMethod === "store_credit" || modalRefundMethod === "both") && (() => {
-                              const itemTotal = (returnCase.items ?? []).reduce((sum, it) => {
-                                const p = (it as { price?: string | null }).price;
-                                return sum + (p ? parseFloat(p) * it.qty : 0);
-                              }, 0);
-                              if (itemTotal <= 0) return null;
-                              const bonusAmt = Math.round(itemTotal * (bonusCreditPct / 100) * 100) / 100;
+                              if (refundItemTotal <= 0) return null;
+                              const bonusAmt = Math.round(refundItemTotal * (bonusCreditPct / 100) * 100) / 100;
                               const scPortion = modalRefundMethod === "both"
-                                ? Math.round(itemTotal * (modalStoreCreditPct / 100) * 100) / 100
-                                : itemTotal;
+                                ? (splitMode === "amount"
+                                  ? (parseFloat(splitScAmount) || 0)
+                                  : Math.round(refundItemTotal * (modalStoreCreditPct / 100) * 100) / 100)
+                                : refundItemTotal;
+                              const scPortionLabel = modalRefundMethod === "both"
+                                ? (splitMode === "amount"
+                                  ? `Store credit portion (${formatMoney(String(scPortion.toFixed(2)), shopCurrency, shopLocale)})`
+                                  : `Store credit portion (${modalStoreCreditPct}%)`)
+                                : "Refund amount";
                               const totalCredit = Math.round((scPortion + bonusAmt) * 100) / 100;
                               return (
                                 <div style={{ padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
@@ -1747,8 +1851,8 @@ export default function ReturnDetail() {
                                   </div>
                                   <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13 }}>
                                     <div style={{ display: "flex", justifyContent: "space-between" }}>
-                                      <span style={{ color: "#374151" }}>{modalRefundMethod === "both" ? `Store credit portion (${modalStoreCreditPct}%)` : "Refund amount"}</span>
-                                      <span style={{ fontWeight: 500 }}>{formatMoney(String(scPortion), shopCurrency, shopLocale)}</span>
+                                      <span style={{ color: "#374151" }}>{scPortionLabel}</span>
+                                      <span style={{ fontWeight: 500 }}>{formatMoney(String(scPortion.toFixed(2)), shopCurrency, shopLocale)}</span>
                                     </div>
                                     <div style={{ display: "flex", justifyContent: "space-between", color: "#059669" }}>
                                       <span>+ Bonus credit ({bonusCreditPct}%)</span>
@@ -1814,14 +1918,11 @@ export default function ReturnDetail() {
                                   : (selectedLocationId || null)),
                                 refundMethod: modalRefundMethod,
                                 storeCreditPct: modalRefundMethod === "both" ? modalStoreCreditPct : undefined,
+                                splitMode: modalRefundMethod === "both" ? splitMode : undefined,
+                                splitScAmount: modalRefundMethod === "both" && splitMode === "amount" ? (parseFloat(splitScAmount) || 0) : undefined,
+                                splitOrigAmount: modalRefundMethod === "both" && splitMode === "amount" ? (parseFloat(splitOrigAmount) || 0) : undefined,
                                 ...(bonusCreditEnabled && (modalRefundMethod === "store_credit" || modalRefundMethod === "both") ? {
-                                  bonusAmount: (() => {
-                                    const itemTotal = (returnCase.items ?? []).reduce((sum, it) => {
-                                      const p = (it as { price?: string | null }).price;
-                                      return sum + (p ? parseFloat(p) * it.qty : 0);
-                                    }, 0);
-                                    return itemTotal > 0 ? Math.round(itemTotal * (bonusCreditPct / 100) * 100) / 100 : undefined;
-                                  })(),
+                                  bonusAmount: refundItemTotal > 0 ? Math.round(refundItemTotal * (bonusCreditPct / 100) * 100) / 100 : undefined,
                                 } : {}),
                               })} />
                               <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>

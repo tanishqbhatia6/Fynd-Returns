@@ -1181,6 +1181,8 @@ export type RefundResult = {
 export type RefundMethodConfig = {
   method: "original" | "store_credit" | "both" | "discount_code";
   storeCreditPct?: number;
+  storeCreditAmount?: number;
+  originalAmount?: number;
 };
 
 const DISCOUNT_CODE_CREATE_MUTATION = `#graphql
@@ -1439,8 +1441,23 @@ export async function createRefund(
             },
           }];
         } else if (method === "both") {
-          const scAmount = Math.round((totalAmount * (storeCreditPct / 100) + bonusAmount) * 100) / 100;
-          const origAmount = Math.round((totalAmount - (totalAmount * (storeCreditPct / 100))) * 100) / 100;
+          let scAmount: number;
+          let origAmount: number;
+
+          if (refundMethodConfig?.storeCreditAmount != null && refundMethodConfig?.originalAmount != null) {
+            const requestedTotal = refundMethodConfig.storeCreditAmount + refundMethodConfig.originalAmount;
+            if (requestedTotal > totalAmount + 0.01) {
+              return {
+                success: false,
+                error: `Requested refund total (${requestedTotal.toFixed(2)}) exceeds Shopify's refundable amount (${totalAmount.toFixed(2)}). Please adjust the split amounts.`,
+              };
+            }
+            scAmount = Math.round((refundMethodConfig.storeCreditAmount + bonusAmount) * 100) / 100;
+            origAmount = Math.round(refundMethodConfig.originalAmount * 100) / 100;
+          } else {
+            scAmount = Math.round((totalAmount * (storeCreditPct / 100) + bonusAmount) * 100) / 100;
+            origAmount = Math.round((totalAmount - (totalAmount * (storeCreditPct / 100))) * 100) / 100;
+          }
 
           if (origAmount > 0 && suggested?.suggestedTransactions?.length) {
             const txn = suggested.suggestedTransactions[0];
@@ -1560,6 +1577,7 @@ export async function createRefund(
         if (retryResult.success) retryResult.refundMethod = method;
         return retryResult;
       }
+      result.refundMethod = method;
       return result;
     }
 

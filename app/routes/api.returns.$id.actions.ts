@@ -94,7 +94,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const isTerminal = TERMINAL_STATUSES.includes(returnCase.status.toLowerCase());
 
-  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string; refundMethod?: string; storeCreditPct?: number; bonusAmount?: number; resolutionType?: string; exchangeItems?: Array<{ variantId: string; quantity: number }> };
+  let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string; refundMethod?: string; storeCreditPct?: number; bonusAmount?: number; resolutionType?: string; exchangeItems?: Array<{ variantId: string; quantity: number }>; splitMode?: string; splitScAmount?: number; splitOrigAmount?: number };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
     try {
@@ -129,7 +129,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     }
   }
 
-  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId, refundMethod: bodyRefundMethod, storeCreditPct: bodyStoreCreditPct, bonusAmount: bodyBonusAmount, resolutionType: bodyResolutionType, exchangeItems: bodyExchangeItems } = body;
+  const { action: actionType, status: newStatus, note, notesForCustomer, refund: doRefund, rejectionReason, locationId: requestedLocationId, refundMethod: bodyRefundMethod, storeCreditPct: bodyStoreCreditPct, bonusAmount: bodyBonusAmount, resolutionType: bodyResolutionType, exchangeItems: bodyExchangeItems, splitMode: bodySplitMode, splitScAmount: bodySplitScAmount, splitOrigAmount: bodySplitOrigAmount } = body;
   const { carrier: bodyCarrier, trackingNumber: bodyTrackingNumber, labelUrl: bodyLabelUrl, qrCodeUrl: bodyQrCodeUrl, returnInstructions: bodyReturnInstructions } = body as typeof body & { carrier?: string; trackingNumber?: string; labelUrl?: string; qrCodeUrl?: string; returnInstructions?: string };
 
   if (actionType === "update_status" && newStatus) {
@@ -916,17 +916,36 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         throw redirect(`/app/returns/${id}`);
       }
 
-      // Validate storeCreditPct when method is "both"
-      if (bodyRefundMethod === "both") {
+      // Validate storeCreditPct when method is "both" (percentage mode)
+      if (bodyRefundMethod === "both" && bodySplitMode !== "amount") {
         const pct = Number(bodyStoreCreditPct ?? shop.settings?.refundStoreCreditPct ?? 50);
         if (isNaN(pct) || pct < 5 || pct > 95) {
           return Response.json({ error: "Store credit percentage must be between 5 and 95." }, { status: 400 });
         }
       }
 
+      // Validate absolute amounts when splitMode is "amount"
+      if (bodyRefundMethod === "both" && bodySplitMode === "amount") {
+        const scAmt = Number(bodySplitScAmount);
+        const origAmt = Number(bodySplitOrigAmount);
+        if (isNaN(scAmt) || isNaN(origAmt) || scAmt < 0 || origAmt < 0) {
+          return Response.json({ error: "Both store credit and original payment amounts must be non-negative numbers." }, { status: 400 });
+        }
+        if (scAmt === 0 && origAmt === 0) {
+          return Response.json({ error: "At least one refund amount must be greater than zero." }, { status: 400 });
+        }
+      }
+
       let refundMethodCfg: RefundMethodConfig | null = null;
       if (bodyRefundMethod && ["original", "store_credit", "both"].includes(bodyRefundMethod)) {
-        refundMethodCfg = { method: bodyRefundMethod as "original" | "store_credit" | "both", storeCreditPct: bodyStoreCreditPct };
+        refundMethodCfg = {
+          method: bodyRefundMethod as "original" | "store_credit" | "both",
+          storeCreditPct: bodyStoreCreditPct,
+          ...(bodySplitMode === "amount" ? {
+            storeCreditAmount: Number(bodySplitScAmount),
+            originalAmount: Number(bodySplitOrigAmount),
+          } : {}),
+        };
       } else {
         const settingsMethod = shop.settings?.refundPaymentMethod ?? "original";
         const settingsPct = shop.settings?.refundStoreCreditPct ?? 100;

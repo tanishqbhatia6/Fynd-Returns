@@ -493,33 +493,26 @@ export async function fetchOrderByOrderNumber(
     return fetchOrderByGid(admin, clean);
   }
 
-  // Strategy 1 (PRIMARY — bypasses SDK, uses raw fetch proven to work via curl):
-  // When REST credentials are available, use direct fetch to Shopify GraphQL API.
-  // This eliminates any SDK response wrapping issues.
+  // Strategy 1 (PRIMARY — raw fetch, bypasses SDK wrapping issues):
   if (admin._rest?.accessToken) {
     const { shopDomain, accessToken } = admin._rest;
-    for (const q of [
-      `name:#${clean}`,     // format proven to work (same as curl)
-      `name:${clean}`,      // without #
-      `name:"#${clean}"`,   // quoted with #
-      `name:"${clean}"`,    // quoted without #
-    ]) {
+    // name:#ORDER is the proven working format; try it first, then without #
+    for (const q of [`name:#${clean}`, `name:${clean}`]) {
       try {
         const order = await rawGraphQLSearch(shopDomain, accessToken, q, clean);
         if (order) {
-          console.log(`[fetchOrderByOrderNumber] Found order via raw fetch: query="${q}" → ${order.id}`);
+          console.log(`[fetchOrderByOrderNumber] Found via raw fetch: query="${q}" → ${order.id}`);
           return order;
         }
       } catch (err) {
         console.warn(`[fetchOrderByOrderNumber] Raw search failed for query="${q}":`, err);
       }
     }
-
-    // Also try REST API exact name match
+    // REST API exact name match (single call, fast)
     try {
       const gid = await restOrderLookupByName(shopDomain, accessToken, clean);
       if (gid) {
-        console.log(`[fetchOrderByOrderNumber] Found order via REST API: ${gid}`);
+        console.log(`[fetchOrderByOrderNumber] Found via REST API: ${gid}`);
         return fetchOrderByGid(admin, gid);
       }
     } catch (err) {
@@ -527,13 +520,8 @@ export async function fetchOrderByOrderNumber(
     }
   }
 
-  // Strategy 2 (FALLBACK — uses SDK's admin.graphql() for cases without REST credentials):
-  for (const q of [
-    `name:#${clean}`,
-    `name:${clean}`,
-    `name:"#${clean}"`,
-    `name:"${clean}"`,
-  ]) {
+  // Strategy 2 (FALLBACK — SDK's admin.graphql(), for cases without REST credentials):
+  for (const q of [`name:#${clean}`, `name:${clean}`]) {
     try {
       const node = await searchOrders(admin, q, false, clean);
       if (node) return parseOrderNode(node);
@@ -542,52 +530,12 @@ export async function fetchOrderByOrderNumber(
     }
   }
 
-  // Strategy 3: Pagination scan (recent orders, no search filter)
-  try {
-    const gid = await (async () => {
-      const norm = clean.replace(/^#/, "").trim().toLowerCase();
-      if (!norm) return null;
-      const pageSize = 250;
-      let after: string | null = null;
-      for (let page = 0; page < 5; page++) {
-        const res = await admin.graphql(ORDERS_PAGINATED_QUERY, {
-          variables: { first: pageSize, after },
-        });
-        const json = (await res.json()) as {
-          data?: { orders?: { nodes?: Array<{ id?: string; name?: string }>; pageInfo?: { endCursor?: string; hasNextPage?: boolean } } };
-          errors?: Array<{ message?: string }>;
-        };
-        if (json.errors?.length) return null;
-        const nodes = json.data?.orders?.nodes ?? [];
-        const pageInfo = json.data?.orders?.pageInfo;
-        for (const node of nodes) {
-          const name = (node.name ?? "").replace(/^#/, "").toLowerCase();
-          if (name === norm && node.id) return node.id;
-        }
-        if (!pageInfo?.hasNextPage || !pageInfo?.endCursor) break;
-        after = pageInfo.endCursor;
-      }
-      return null;
-    })();
-    if (gid) return fetchOrderByGid(admin, gid);
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
-  }
-
   // For pure numeric order names, no further strategies needed
   if (/^\d+$/.test(clean)) return null;
 
-  // Strategy 4: metafield search
+  // Strategy 3: metafield search (single API call)
   try {
     const node = await searchOrders(admin, `metafields.$app.fynd_order_id:"${clean}"`, false);
-    if (node) return parseOrderNode(node);
-  } catch (err) {
-    if (err instanceof OrderAccessError) throw err;
-  }
-
-  // Strategy 5: source_identifier
-  try {
-    const node = await searchOrders(admin, `source_identifier:"${clean}"`, false, clean);
     if (node) return parseOrderNode(node);
   } catch (err) {
     if (err instanceof OrderAccessError) throw err;
@@ -652,7 +600,13 @@ export async function fetchOrderByFyndAffiliateId(
   affiliateOrderId: string
 ): Promise<OrderForPortal | null> {
   const variants = extractShopifyOrderNumberVariants(affiliateOrderId);
+  const startTime = Date.now();
+  const TIMEOUT_MS = 8000; // give up after 8 seconds
   for (const variant of variants) {
+    if (Date.now() - startTime > TIMEOUT_MS) {
+      console.warn(`[fetchOrderByFyndAffiliateId] Timed out after ${TIMEOUT_MS}ms, tried variants: ${variants.join(", ")}`);
+      return null;
+    }
     try {
       const order = await fetchOrderByOrderNumber(admin, variant);
       if (order) return order;

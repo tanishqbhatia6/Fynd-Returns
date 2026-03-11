@@ -392,32 +392,31 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     const adminWithRest = withRestCredentials(admin, session.shop, session.accessToken ?? "");
     if (!isManualReturn && returnCase.shopifyOrderId) {
       try {
-        // Try direct GID/numeric lookup first
+        // Fast path: direct GID/numeric lookup (single API call, instant)
         const isGid = returnCase.shopifyOrderId.startsWith("gid://");
         const isNumeric = /^\d+$/.test(returnCase.shopifyOrderId);
         if (isGid || isNumeric) {
           shopifyOrder = await fetchOrder(adminWithRest, returnCase.shopifyOrderId);
         }
 
-        // Try shopifyOrderName with Fynd prefix stripping (e.g. FYNDSHOPIFYX14126 → 14126)
-        if (!shopifyOrder && returnCase.shopifyOrderName) {
-          shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, returnCase.shopifyOrderName);
-        }
-
-        // Try shopifyOrderId itself with Fynd prefix stripping
+        // Slow path: search by name — collect unique candidate IDs, try each ONCE
         if (!shopifyOrder) {
-          shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, returnCase.shopifyOrderId);
-        }
-
-        // Try affiliate_order_id from Fynd payload
-        if (!shopifyOrder && fyndPayloadJson) {
-          const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
-          if (affId) {
-            shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, affId);
+          const candidates = new Set<string>();
+          if (returnCase.shopifyOrderName) candidates.add(returnCase.shopifyOrderName.replace(/^#/, "").trim());
+          if (returnCase.shopifyOrderId && !isGid && !isNumeric) candidates.add(returnCase.shopifyOrderId.replace(/^#/, "").trim());
+          if (fyndPayloadJson) {
+            const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
+            if (affId) candidates.add(affId.replace(/^#/, "").trim());
+          }
+          // Try each unique candidate with fetchOrderByFyndAffiliateId (stops on first hit)
+          for (const candidate of candidates) {
+            if (!candidate) continue;
+            shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, candidate);
+            if (shopifyOrder) break;
           }
         }
 
-        // Persist resolved Shopify order ID back to DB for future lookups
+        // Persist resolved Shopify GID back to DB so future loads are instant (fast path)
         if (shopifyOrder?.id && shopifyOrder.id !== returnCase.shopifyOrderId) {
           try {
             const updates: Record<string, string> = { shopifyOrderId: shopifyOrder.id };

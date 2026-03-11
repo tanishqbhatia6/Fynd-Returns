@@ -5009,7 +5009,7 @@
           items.push({ lineItemId: cb.dataset.id, qty: parseInt(qtyInput?.value || '1', 10), reasonCode: reasonCode });
         });
         var lineItemsWithPrice = createOrderData.lineItems.map(function(li) {
-          return { id: li.id, title: li.title, variantTitle: li.variantTitle || null, price: li.price || li.discountedPrice || null, imageUrl: li.imageUrl || null, productTags: li.productTags || [] };
+          return { id: li.id, title: li.title, variantTitle: li.variantTitle || null, sku: li.sku || null, price: li.price || li.discountedPrice || null, imageUrl: li.imageUrl || null, productTags: li.productTags || [] };
         });
         var data = await fetchJson(API + '/create-return', {
           method: 'POST',
@@ -5095,6 +5095,7 @@
         id: li.id,
         title: li.title,
         variantTitle: li.variantTitle || null,
+        sku: li.sku || null,
         price: li.price || li.discountedPrice || null,
         imageUrl: li.imageUrl || null,
         productTags: li.productTags || []

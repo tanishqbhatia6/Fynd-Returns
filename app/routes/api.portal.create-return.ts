@@ -346,6 +346,66 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }));
     }
 
+    // ── Resolve non-GID lineItemIds to real Shopify line item GIDs ──
+    // When the portal sends Fynd bag IDs (e.g. "3777852") instead of Shopify GIDs
+    // (e.g. "gid://shopify/LineItem/16891834630294"), fetch the Shopify order and
+    // match items by title/SKU to get the correct GIDs for refund processing.
+    if (!manualMode && effectiveOrderId.startsWith("gid://")) {
+      const hasNonGidLineItems = itemsToCreate.some(
+        (it) => it.lineItemId !== "manual" && !it.lineItemId.startsWith("gid://shopify/LineItem/")
+      );
+      if (hasNonGidLineItems) {
+        try {
+          const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+          const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
+          const shopifyOrder = await fetchOrder(admin, effectiveOrderId);
+          if (shopifyOrder?.lineItems && shopifyOrder.lineItems.length > 0) {
+            const shopifyLineItems = shopifyOrder.lineItems;
+            // Build lookup maps for matching: by title (lowercased), by SKU
+            const byTitle = new Map<string, typeof shopifyLineItems[0]>();
+            const bySku = new Map<string, typeof shopifyLineItems[0]>();
+            for (const sli of shopifyLineItems) {
+              if (sli.title) byTitle.set(sli.title.toLowerCase(), sli);
+              if (sli.sku) bySku.set(sli.sku.toLowerCase(), sli);
+            }
+
+            // Also build lineItemsWithPrice title lookup for cross-referencing
+            const portalItemById = new Map<string, { title?: string; sku?: string }>();
+            const rawLineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
+              id: string; title?: string; sku?: string;
+            }>;
+            for (const li of rawLineItemsWithPrice) {
+              portalItemById.set(li.id, li);
+            }
+
+            for (const it of itemsToCreate) {
+              if (it.lineItemId === "manual" || it.lineItemId.startsWith("gid://shopify/LineItem/")) continue;
+              // Try to find the matching Shopify line item
+              const portalItem = portalItemById.get(it.lineItemId);
+              const titleToMatch = portalItem?.title?.toLowerCase();
+              const skuToMatch = portalItem?.sku?.toLowerCase();
+
+              let matched: typeof shopifyLineItems[0] | undefined;
+              // Match by SKU first (more reliable)
+              if (skuToMatch) matched = bySku.get(skuToMatch);
+              // Fall back to title match
+              if (!matched && titleToMatch) matched = byTitle.get(titleToMatch);
+              // If only one Shopify line item exists, use it (common for single-item orders)
+              if (!matched && shopifyLineItems.length === 1) matched = shopifyLineItems[0];
+
+              if (matched) {
+                console.log(`[create-return] Resolved lineItemId "${it.lineItemId}" → "${matched.id}" (${matched.title})`);
+                it.lineItemId = matched.id;
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("[create-return] Could not resolve line item IDs:", err);
+          // Non-fatal: proceed with original IDs; refund flow has its own fallback
+        }
+      }
+    }
+
     // Race-safe duplicate check: will be re-checked inside transaction
     const existingPreCheck = await prisma.returnCase.findFirst({
       where: {

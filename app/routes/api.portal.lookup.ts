@@ -234,7 +234,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       totalPrice?: string; subtotalPrice?: string; totalDiscounts?: string;
       currencyCode?: string;
       displayFinancialStatus?: string; displayFulfillmentStatus?: string;
-      lineItems?: Array<{ id: string; title: string; variantTitle?: string | null; quantity: number; price?: string | null; discountedPrice?: string | null; imageUrl?: string | null }>;
+      lineItems?: Array<{ id: string; title: string; variantTitle?: string | null; sku?: string | null; quantity: number; price?: string | null; discountedPrice?: string | null; imageUrl?: string | null }>;
       shippingAddress?: Record<string, string | null | undefined> | null;
       fulfillments?: Array<{
         id: string; status: string; createdAt: string;
@@ -460,6 +460,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 const fyndPrices = (firstBag?.prices ?? first.prices ?? {}) as Record<string, unknown>;
                 const fyndCurrency = String(fyndPrices.currency_code ?? fyndPrices.currency ?? (first.order_value as Record<string, unknown> | undefined)?.currency ?? "INR").trim();
 
+                // Extract line items from Fynd shipment data so the portal can render them
+                // for item selection. Without these, portal throws "No items to return".
+                const fyndLineItems: PortalOrder["lineItems"] = [];
+                if (fyndData?.shipments) {
+                  const seenSkus = new Set<string>();
+                  for (const shipment of fyndData.shipments) {
+                    for (const fi of shipment.items ?? []) {
+                      // Deduplicate by SKU (same item may appear across shipments)
+                      const dedupeKey = fi.sku || fi.itemId || fi.title || "";
+                      if (seenSkus.has(dedupeKey)) continue;
+                      seenSkus.add(dedupeKey);
+                      fyndLineItems.push({
+                        id: fi.itemId || fi.sku || `fynd-item-${fyndLineItems.length}`,
+                        title: fi.title || fi.sku || fi.identifier || "Item",
+                        variantTitle: null,
+                        sku: fi.sku || fi.identifier || null,
+                        quantity: fi.quantity ?? 1,
+                        price: fi.price ?? fi.originalPrice ?? null,
+                        discountedPrice: fi.discountedPrice ?? null,
+                        imageUrl: null,
+                      });
+                    }
+                  }
+                }
+
                 const syntheticOrder: PortalOrder = {
                   id: syntheticOrderId,
                   name: String(first.affiliate_order_id ?? first.external_order_id ?? `#${searchVal}`),
@@ -468,7 +493,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",
                   currencyCode: fyndCurrency,
-                  lineItems: [],
+                  lineItems: fyndLineItems,
                   shippingAddress: (fyndName || fyndCity) ? {
                     firstName: fyndFirst || undefined,
                     lastName: fyndLast || undefined,

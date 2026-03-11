@@ -88,6 +88,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       status: true,
       refundStatus: true,
       fyndPayloadJson: true,
+      customerName: true,
+      customerEmailNorm: true,
+      customerPhoneNorm: true,
+      customerCity: true,
+      customerCountry: true,
+      items: {
+        select: {
+          id: true,
+          shopifyLineItemId: true,
+          sku: true,
+          title: true,
+          qty: true,
+        },
+      },
     },
     orderBy: { createdAt: "desc" },
     take: 50,
@@ -98,6 +112,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const summary = cases.map((rc) => {
     const valid = isValidShopifyId(rc.shopifyOrderId);
     const affiliateId = extractAffiliateOrderIdFromFyndPayload(rc.fyndPayloadJson);
+    const lineItemsValid = rc.items.every(
+      (i) => i.shopifyLineItemId.startsWith("gid://shopify/LineItem/") || /^\d+$/.test(i.shopifyLineItemId)
+    );
     return {
       id: rc.id,
       returnRequestNo: rc.returnRequestNo,
@@ -109,6 +126,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       extractedAffiliateId: affiliateId,
       hasFyndPayload: !!rc.fyndPayloadJson,
       needsFix: !valid && !rc.shopifyOrderId?.startsWith("manual:"),
+      customerName: rc.customerName,
+      customerEmail: rc.customerEmailNorm,
+      customerPhone: rc.customerPhoneNorm,
+      customerCity: rc.customerCity,
+      customerCountry: rc.customerCountry,
+      items: rc.items.map((i) => ({
+        shopifyLineItemId: i.shopifyLineItemId,
+        sku: i.sku,
+        title: i.title,
+        qty: i.qty,
+        isValidShopifyLineItemId: i.shopifyLineItemId.startsWith("gid://shopify/LineItem/") || i.shopifyLineItemId === "manual",
+        looksNumeric: /^\d+$/.test(i.shopifyLineItemId),
+      })),
+      lineItemsValid,
     };
   });
 

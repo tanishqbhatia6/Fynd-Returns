@@ -452,10 +452,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
                 // Use affiliate_order_id (= Shopify order name) as the synthetic order's ID
                 // so it gets stored as shopifyOrderId and can be resolved for refunds.
-                // Keep the Fynd internal order ID separately.
+                // NEVER use the Fynd internal ID (e.g. FYMP699EB195013CB17C) as shopifyOrderId.
                 const fyndInternalOrderId = String(first.order_id ?? first.shipment_id ?? searchVal);
                 const affiliateId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
-                const syntheticOrderId = affiliateId || fyndInternalOrderId;
+                // Only use affiliate_order_id (which is the Shopify order name).
+                // If unavailable, prefix with "fynd:" so it's never mistaken for a Shopify ID.
+                const syntheticOrderId = affiliateId || `fynd:${fyndInternalOrderId}`;
                 // Extract currency from Fynd prices
                 const fyndPrices = (firstBag?.prices ?? first.prices ?? {}) as Record<string, unknown>;
                 const fyndCurrency = String(fyndPrices.currency_code ?? fyndPrices.currency ?? (first.order_value as Record<string, unknown> | undefined)?.currency ?? "INR").trim();

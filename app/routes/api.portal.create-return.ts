@@ -5,7 +5,7 @@ import { checkReturnEligibility } from "../lib/return-rules.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { fetchOrder, fetchOrderByOrderNumber, withRestCredentials } from "../lib/shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials } from "../lib/shopify-admin.server";
 import { sendNewReturnNotification } from "../lib/notification.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
@@ -227,7 +227,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    const effectiveOrderId = manualMode ? `manual:${shopifyOrderName}` : orderId!;
+    let effectiveOrderId = manualMode ? `manual:${shopifyOrderName}` : orderId!;
+
+    // Ensure shopifyOrderId is always a valid Shopify GID when possible.
+    // If the portal sends an affiliate_order_id (e.g. FYNDSHOPIFYX14126) or a fynd: prefixed ID,
+    // resolve it to the real Shopify GID now so it never gets stored as a Fynd internal ID.
+    if (!manualMode && effectiveOrderId && !effectiveOrderId.startsWith("gid://") && !/^\d+$/.test(effectiveOrderId)) {
+      try {
+        const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+        const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
+        const searchId = effectiveOrderId.replace(/^fynd:/, "").replace(/^#/, "").trim();
+        const resolved = await fetchOrderByFyndAffiliateId(admin, searchId);
+        if (resolved?.id) {
+          console.log(`[create-return] Resolved orderId "${effectiveOrderId}" → "${resolved.id}"`);
+          effectiveOrderId = resolved.id;
+        }
+      } catch (err) {
+        console.warn(`[create-return] Could not resolve orderId "${effectiveOrderId}":`, err);
+      }
+    }
     let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string }>;
     let lineItemsWithPrice: Array<{
       id: string;

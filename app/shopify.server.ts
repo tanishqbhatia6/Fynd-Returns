@@ -33,7 +33,11 @@ const shopify = shopifyApp({
   },
   hooks: {
     afterAuth: async ({ session }) => {
-      shopify.registerWebhooks({ session });
+      try {
+        await shopify.registerWebhooks({ session });
+      } catch (err) {
+        console.error("[afterAuth] Webhook registration failed:", err);
+      }
 
       // Create filterable metafield definition for Fynd order ID on Order.
       // This lets us search orders via: metafields.$app.fynd_order_id:"VALUE"

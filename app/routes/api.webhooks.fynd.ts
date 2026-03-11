@@ -92,7 +92,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       eventType;
     payload = {
       ...inner,
-      ...(statusOrRefund && { refund_status: statusOrRefund }),
+      ...(statusOrRefund && { refund_status: statusOrRefund, current_shipment_status: statusOrRefund }),
     } as FyndWebhookPayload;
   } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 });

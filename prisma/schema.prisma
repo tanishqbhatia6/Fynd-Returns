@@ -176,6 +176,7 @@ model ReturnCase {
   fyndOrderId       String?   // Fynd affiliate_order_id for API (from order customAttributes); NOT Shopify order name
   fyndShipmentId    String?   // main shipment ID from Fynd
   fyndPayloadJson   String?   // full Fynd order/shipment payload for invoice, AWB, DP, etc.
+  fyndCurrentStatus String?   // Latest Fynd shipment status from webhook (e.g. "return_bag_in_transit")
   forwardAwb        String?
   returnAwb         String?
   customerEmailNorm String?
@@ -273,7 +274,7 @@ model FyndWebhookLog {
   refundStatus     String?
   fyndStatus       String?
   eventType        String?
-  action           String?  // ignored | refund_in_progress | refund_completed
+  action           String?  // ignored | refund_in_progress | refund_completed | status_updated | error | duplicate_ignored
   returnCaseId     String?
   carrier          String?
   awbNumber        String?

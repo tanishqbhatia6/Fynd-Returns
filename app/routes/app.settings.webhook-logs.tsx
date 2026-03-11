@@ -82,7 +82,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalAll++;
     }
 
-    const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0);
+    const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0) + (actionCounts["status_updated"] ?? 0);
     const errorCount = actionCounts["error"] ?? 0;
     const ignoredCount = actionCounts["ignored"] ?? 0;
     const duplicateCount = actionCounts["duplicate_ignored"] ?? 0;
@@ -149,6 +149,7 @@ function ActionBadge({ action }: { action: string | null }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
     refund_in_progress: { bg: "#DBEAFE", color: "#1E40AF", label: "In Progress" },
     refund_completed: { bg: "#D1FAE5", color: "#065F46", label: "Completed" },
+    status_updated: { bg: "#E0E7FF", color: "#3730A3", label: "Status Updated" },
     ignored: { bg: "#F3F4F6", color: "#6B7280", label: "Ignored" },
     error: { bg: "#FEE2E2", color: "#991B1B", label: "Error" },
     duplicate_ignored: { bg: "#FEF3C7", color: "#92400E", label: "Duplicate" },
@@ -489,6 +490,7 @@ export default function WebhookLogsPage() {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <StatCard label="Total" value={analytics.total} color="#0F172A" />
           <StatCard label="Processed" value={analytics.successCount} color="#059669" />
+          <StatCard label="Tracked" value={(analytics.actionCounts as Record<string, number>)["status_updated"] ?? 0} color="#3730A3" />
           <StatCard label="Errors" value={analytics.errorCount} color={analytics.errorCount > 0 ? "#DC2626" : "#059669"} />
           <StatCard label="Ignored" value={analytics.ignoredCount} color="#6B7280" />
           <StatCard label="Success" value={`${analytics.successRate}%`} color={analytics.successRate >= 95 ? "#059669" : "#DC2626"} />

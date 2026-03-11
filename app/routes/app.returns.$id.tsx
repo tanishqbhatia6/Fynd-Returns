@@ -681,10 +681,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     // Extract current Fynd status for exchange gate check
     let fyndCurrentStatus: string | null = null;
     try {
-      const fyndPj = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
-      if (fyndPj) {
-        const parsed = JSON.parse(fyndPj) as Record<string, unknown>;
-        fyndCurrentStatus = String(parsed?.status ?? parsed?.shipment_status ?? "").trim() || null;
+      // Prefer the direct DB column (populated by webhook processing)
+      fyndCurrentStatus = (returnCase as { fyndCurrentStatus?: string | null }).fyndCurrentStatus ?? null;
+      // Fallback to parsing from JSON for legacy data
+      if (!fyndCurrentStatus) {
+        const fyndPj = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+        if (fyndPj) {
+          const parsed = JSON.parse(fyndPj) as Record<string, unknown>;
+          fyndCurrentStatus = String(parsed?.status ?? parsed?.shipment_status ?? "").trim() || null;
+        }
       }
     } catch { /* non-fatal */ }
 

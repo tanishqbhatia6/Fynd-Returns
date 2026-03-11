@@ -10,7 +10,7 @@
  */
 
 import prisma from "../db.server";
-import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials, type RefundMethodConfig } from "./shopify-admin.server";
+import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, extractShopifyOrderNumberVariants, withRestCredentials, type RefundMethodConfig } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
 
 /** Fynd refund statuses that indicate refund is in progress */
@@ -29,6 +29,22 @@ const REFUND_COMPLETE = ["refund_done", "refunded", "REFUNDED", "completed", "CO
 
 /** Fynd statuses that trigger auto-refund when autoRefundEnabled is on */
 const AUTO_REFUND_TRIGGERS = ["credit_note_generated", "credit_note"];
+
+/** Known Fynd shipment/return journey statuses that should be tracked (not "ignored") */
+const FYND_JOURNEY_STATUSES = new Set([
+  // Forward journey
+  "bag_confirmed", "bag_invoiced", "dp_assigned", "bag_packed",
+  "bag_picked", "out_for_delivery", "delivery_done", "handed_over_to_customer",
+  // Return journey
+  "return_initiated", "return_dp_assigned", "return_bag_in_transit",
+  "return_bag_delivered", "return_accepted", "return_completed",
+  // RTO journey
+  "rto_initiated", "rto_dp_assigned", "rto_bag_in_transit",
+  "rto_bag_delivered", "rto_bag_accepted",
+  // Edge cases
+  "bag_not_picked", "out_for_pickup", "dp_out_for_pickup",
+  "deadstock", "deadstock_defective", "return_bag_lost",
+]);
 
 export type FyndWebhookPayload = {
   shipment_id?: string;
@@ -211,7 +227,7 @@ function extractShippingFromWebhookPayload(payload: FyndWebhookPayload): {
 }
 
 export type ProcessFyndWebhookResult =
-  | { ok: true; action: "refund_in_progress" | "refund_completed" | "ignored"; returnCaseId?: string }
+  | { ok: true; action: "refund_in_progress" | "refund_completed" | "status_updated" | "ignored"; returnCaseId?: string }
   | { ok: false; error: string };
 
 async function logWebhook(params: {
@@ -312,6 +328,56 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     }
   }
 
+  // Strategy 3: FyndOrderMapping reverse lookup
+  if (!returnCase && (affiliateOrderId || shipmentId)) {
+    try {
+      const mappingWhere: Array<Record<string, string>> = [];
+      if (affiliateOrderId) mappingWhere.push({ fyndOrderId: affiliateOrderId });
+      if (shipmentId) mappingWhere.push({ fyndShipmentId: shipmentId });
+      const mapping = await prisma.fyndOrderMapping.findFirst({
+        where: { OR: mappingWhere },
+      });
+      if (mapping?.shopifyOrderName) {
+        returnCase = await prisma.returnCase.findFirst({
+          where: { shopId: mapping.shopId, shopifyOrderName: mapping.shopifyOrderName },
+          include: { items: true, shop: true },
+        });
+        if (returnCase) console.log(`[Fynd webhook] Matched via FyndOrderMapping: ${mapping.shopifyOrderName}`);
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Strategy 4: Match by shopifyOrderName via Fynd prefix stripping
+  if (!returnCase && affiliateOrderId) {
+    try {
+      const variants = extractShopifyOrderNumberVariants(affiliateOrderId);
+      for (const variant of variants) {
+        for (const candidate of [variant, `#${variant}`]) {
+          returnCase = await prisma.returnCase.findFirst({
+            where: { shopifyOrderName: candidate },
+            include: { items: true, shop: true },
+          });
+          if (returnCase) {
+            console.log(`[Fynd webhook] Matched via shopifyOrderName="${candidate}" from affiliate="${affiliateOrderId}"`);
+            break;
+          }
+        }
+        if (returnCase) break;
+      }
+    } catch { /* non-fatal */ }
+  }
+
+  // Strategy 5: Case-insensitive fyndOrderId match (legacy data)
+  if (!returnCase && affiliateOrderId) {
+    try {
+      returnCase = await prisma.returnCase.findFirst({
+        where: { fyndOrderId: { equals: affiliateOrderId, mode: "insensitive" } },
+        include: { items: true, shop: true },
+      });
+      if (returnCase) console.log(`[Fynd webhook] Matched via case-insensitive fyndOrderId="${affiliateOrderId}"`);
+    } catch { /* non-fatal */ }
+  }
+
   if (!returnCase) {
     await logWebhook({
       shipmentId,
@@ -352,15 +418,23 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       if (cust.zip && !(returnCase as { customerZip?: string }).customerZip) backfillData.customerZip = cust.zip;
     }
   }
-  // Backfill shipping info from webhook payload
+  // Update shipping info from webhook payload (always update, not just first time)
   const shipping = extractShippingFromWebhookPayload(payload);
   if (shipping) {
-    if (shipping.awb && !(returnCase as { forwardAwb?: string }).forwardAwb) backfillData.forwardAwb = shipping.awb;
-    if ((shipping.carrier || shipping.awb) && !returnCase.returnLabelJson) {
+    if (shipping.awb) backfillData.forwardAwb = shipping.awb;
+    if (shipping.carrier || shipping.awb) {
+      let existingLabel: Record<string, unknown> = {};
+      try {
+        if (returnCase.returnLabelJson) existingLabel = JSON.parse(returnCase.returnLabelJson);
+      } catch { /* ignore */ }
       backfillData.returnLabelJson = JSON.stringify({
-        carrier: shipping.carrier, trackingNumber: shipping.awb,
-        trackingUrl: shipping.trackingUrl, labelUrl: shipping.labelUrl,
-        invoiceUrl: shipping.invoiceUrl, source: "fynd_webhook",
+        ...existingLabel,
+        ...(shipping.carrier ? { carrier: shipping.carrier } : {}),
+        ...(shipping.awb ? { trackingNumber: shipping.awb } : {}),
+        ...(shipping.trackingUrl ? { trackingUrl: shipping.trackingUrl } : {}),
+        ...(shipping.labelUrl ? { labelUrl: shipping.labelUrl } : {}),
+        ...(shipping.invoiceUrl ? { invoiceUrl: shipping.invoiceUrl } : {}),
+        source: "fynd_webhook",
       });
     }
   }
@@ -467,8 +541,10 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     if (!alreadyInProgress) {
       await prisma.returnCase.update({
         where: { id: returnCase.id },
-        data: { refundStatus: "in_progress" },
+        data: { refundStatus: "in_progress", fyndCurrentStatus: statusLower },
       });
+    } else {
+      await prisma.returnCase.update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } }).catch(() => {});
     }
     await prisma.returnEvent.create({
       data: {
@@ -496,7 +572,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     if (returnCase.shopifyOrderId?.startsWith("manual:")) {
       await prisma.returnCase.update({
         where: { id: returnCase.id },
-        data: { refundStatus: "refunded", status: "completed" },
+        data: { refundStatus: "refunded", status: "completed", fyndCurrentStatus: statusLower },
       });
       await prisma.returnEvent.create({
         data: {
@@ -615,7 +691,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       if (isAlreadyRefunded) {
         await prisma.returnCase.update({
           where: { id: returnCase.id },
-          data: { refundStatus: "refunded", status: "completed" },
+          data: { refundStatus: "refunded", status: "completed", fyndCurrentStatus: statusLower },
         });
         await prisma.returnEvent.create({
           data: {
@@ -661,7 +737,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     };
     await prisma.returnCase.update({
       where: { id: returnCase.id },
-      data: { refundStatus: "refunded", refundJson: JSON.stringify(refundDetails), status: "completed" },
+      data: { refundStatus: "refunded", refundJson: JSON.stringify(refundDetails), status: "completed", fyndCurrentStatus: statusLower },
     });
     await prisma.returnEvent.create({
       data: {
@@ -779,7 +855,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
             };
             await prisma.returnCase.update({
               where: { id: returnCase.id },
-              data: { refundStatus: "refunded", refundJson: JSON.stringify(refundDetails), status: "completed" },
+              data: { refundStatus: "refunded", refundJson: JSON.stringify(refundDetails), status: "completed", fyndCurrentStatus: statusLower },
             });
             await prisma.returnEvent.create({
               data: {
@@ -823,6 +899,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         }
       }
     } else {
+      await prisma.returnCase.update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } }).catch(() => {});
       await prisma.returnEvent.create({
         data: {
           returnCaseId: returnCase.id,
@@ -834,8 +911,31 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     }
   }
 
-  // Log Fynd status update to timeline even when we don't take refund action
-  // (e.g. return_bag_delivered, return_accepted, etc.) so the full journey is visible
+  // ─── Journey status processing ───
+  // Check if this is a known Fynd shipment journey status
+  const isKnownJourneyStatus = FYND_JOURNEY_STATUSES.has(statusLower) ||
+    FYND_JOURNEY_STATUSES.has((refundStatus ?? "").toLowerCase());
+
+  // Update fyndCurrentStatus on every webhook
+  const journeyUpdate: Record<string, string> = {};
+  if (refundStatus) {
+    journeyUpdate.fyndCurrentStatus = refundStatus.toLowerCase().replace(/\s+/g, "_");
+  }
+
+  // For key milestones, advance ReturnCase.status
+  if (isKnownJourneyStatus) {
+    if ((statusLower === "return_initiated" || statusLower === "bag_confirmed") && returnCase.status === "pending") {
+      journeyUpdate.status = "approved";
+    }
+  }
+
+  if (Object.keys(journeyUpdate).length > 0) {
+    try {
+      await prisma.returnCase.update({ where: { id: returnCase.id }, data: journeyUpdate });
+    } catch { /* non-fatal */ }
+  }
+
+  // Log journey status to timeline
   if (refundStatus) {
     const eventLabel = refundStatus.replace(/_/g, " ");
     await prisma.returnEvent.create({
@@ -848,15 +948,17 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     });
   }
 
+  // Log as "status_updated" for known journey statuses, "ignored" for truly unrecognized
+  const finalAction = isKnownJourneyStatus ? "status_updated" : "ignored";
   await logWebhook({
     shipmentId,
     orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
     refundStatus,
-    action: "ignored",
+    action: finalAction,
     returnCaseId: returnCase.id,
     rawPayload: rawPayload ?? JSON.stringify(payload),
     ...logEnrichment,
     shopDomain,
   });
-  return { ok: true, action: "ignored", returnCaseId: returnCase.id };
+  return { ok: true, action: finalAction as "status_updated" | "ignored", returnCaseId: returnCase.id };
 }

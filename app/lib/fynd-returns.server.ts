@@ -120,11 +120,18 @@ export async function createReturnOnFynd(
 
   const defaultReasonId = options?.defaultReasonId ?? 122;
   const defaultReasonText = options?.defaultReasonText ?? "Other";
-  const targetShipId = options?.targetShipmentId?.trim() || null;
 
   const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
   const affiliateOrderId = options?.affiliateOrderId?.trim() || null;
   const storedFyndOrderId = (returnCase as { fyndOrderId?: string | null }).fyndOrderId?.trim() || null;
+  const storedFyndReturnId = returnCase.fyndReturnId?.trim() || null;
+
+  // Derive targetShipId: explicit option → fyndShipmentId on returnCase → fyndOrderId/fyndReturnId if they look like shipment IDs
+  // The shipment ID often gets stored in fyndOrderId or fyndReturnId by previous failed sync attempts
+  const targetShipId = options?.targetShipmentId?.trim()
+    || (storedFyndOrderId && looksLikeShipmentId(storedFyndOrderId) ? storedFyndOrderId : null)
+    || (storedFyndReturnId && looksLikeShipmentId(storedFyndReturnId) ? storedFyndReturnId : null)
+    || null;
 
   // ─── FAST PATH ───
   // If we have a known shipment ID from a previous attempt AND items to return,

@@ -11,7 +11,7 @@ import { createFyndClientOrError } from "../lib/fynd.server";
 
 /** Fynd statuses that indicate the shipment has been delivered to the customer */
 const FYND_DELIVERED_STATUSES = new Set([
-  "delivery_done", "delivered", "bag_delivered", "handed_over_to_customer",
+  "delivery_done", "delivered", "bag_delivered", "handed_over_to_customer", "handed_over_to_dg",
   "return_initiated", "return_bag_picked", "return_bag_in_transit",
   "return_bag_out_for_delivery", "return_bag_delivered", "return_bag_not_received",
   "return_completed", "credit_note_generated", "refund_initiated", "refund_done",

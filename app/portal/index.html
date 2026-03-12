@@ -2648,6 +2648,11 @@
 
     // ── Customer-friendly status helpers ──
     function friendlyOrderStatus(raw) {
+      // Safety: if raw is an object (Fynd sometimes returns { status: "...", title: "..." }), extract a string
+      if (raw && typeof raw === 'object') {
+        raw = raw.title || raw.status || raw.name || raw.display_name || raw.value || '';
+      }
+      if (typeof raw !== 'string') raw = raw != null ? String(raw) : '';
       // Normalize: lowercase + replace spaces with underscores for consistent matching
       var s = (raw || '').toLowerCase().replace(/\s+/g, '_');
       // Fynd detailed statuses
@@ -2678,15 +2683,22 @@
     var ALERT_ICON = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
 
     function isReturnRelatedFyndStatus(status) {
+      if (status && typeof status === 'object') status = status.title || status.status || status.name || '';
+      if (typeof status !== 'string') status = '';
       var s = (status || '').toLowerCase().replace(/\s+/g, '_');
       return s.includes('return') || s.includes('rto') || s.includes('refund') || s === 'credit_note_generated';
+    }
+
+    function safeStatusStr(val) {
+      if (val && typeof val === 'object') return val.title || val.status || val.name || val.display_name || val.value || '';
+      return typeof val === 'string' ? val : (val != null ? String(val) : '');
     }
 
     function classifyFyndShipments(fyndShipments) {
       var forward = [];
       var returnShipments = [];
       (fyndShipments || []).forEach(function (s) {
-        var st = (s.shipmentStatus || '').toLowerCase().replace(/\s+/g, '_');
+        var st = safeStatusStr(s.shipmentStatus).toLowerCase().replace(/\s+/g, '_');
         var jt = (s.journeyType || '').toLowerCase();
         if (st.includes('return') || s.fulfillmentType === 'RETURN' || jt === 'return' || jt.includes('return')) {
           returnShipments.push(s);
@@ -2700,7 +2712,7 @@
     function getForwardDeliveryStatus(fyndShipments, shopifyFulfillments, shopifyOrderStatus) {
       var classified = classifyFyndShipments(fyndShipments);
       if (classified.forward.length > 0) {
-        var st = (classified.forward[0].shipmentStatus || '').toLowerCase();
+        var st = safeStatusStr(classified.forward[0].shipmentStatus).toLowerCase();
         if (isReturnRelatedFyndStatus(st)) {
           return 'delivered';
         }
@@ -3067,7 +3079,7 @@
     }
 
     function isInTransit(status) {
-      var s = (status || '').toLowerCase().replace(/\s+/g, '_');
+      var s = safeStatusStr(status).toLowerCase().replace(/\s+/g, '_');
       return s.includes('transit') || s.includes('shipped') || s.includes('dispatch')
         || s.includes('out_for') || s.includes('picked') || s.includes('dp_assigned')
         || s.includes('manifest') || s === 'processing' || s === 'in_progress';
@@ -3298,7 +3310,7 @@
 
       // If Fynd has return-related status on the first shipment but the order was delivered, force "Delivered"
       if (forwardShipments.length > 0) {
-        var firstForwardStatus = (forwardShipments[0].shipmentStatus || '').toLowerCase();
+        var firstForwardStatus = safeStatusStr(forwardShipments[0].shipmentStatus).toLowerCase();
         if (!isReturnRelatedFyndStatus(firstForwardStatus)) {
           friendlyResult = friendlyOrderStatus(firstForwardStatus);
         }
@@ -3497,7 +3509,7 @@
       } else if (forwardShipments.length === 1) {
         // ── Single forward shipment — render as before ──
         var primaryForwardShip = forwardShipments[0];
-        var fwdSt = (primaryForwardShip.shipmentStatus || '').toLowerCase();
+        var fwdSt = safeStatusStr(primaryForwardShip.shipmentStatus).toLowerCase();
         var orderIsDelivered = latestStatus === 'delivered_return' || latestStatus === 'delivered';
         var fwdAppearsStale = orderIsDelivered && !fwdSt.includes('delivered') && !fwdSt.includes('delivery_done') && !fwdSt.includes('out_for_delivery') && !fwdSt.includes('in_transit');
         if (fwdAppearsStale) {

@@ -155,8 +155,10 @@ function toDisplayString(val: unknown): string | null {
   if (typeof val === "number" || typeof val === "boolean") return String(val);
   if (typeof val === "object") {
     const o = val as Record<string, unknown>;
-    const s = (o.name ?? o.title ?? o.display_name ?? o.displayName ?? o.code ?? o.id) as string | undefined;
-    return (typeof s === "string" && s) ? s : null;
+    const s = (o.name ?? o.title ?? o.display_name ?? o.displayName ?? o.status ?? o.value ?? o.code ?? o.id) as string | number | undefined;
+    if (typeof s === "string" && s) return s;
+    if (typeof s === "number") return String(s);
+    return null;
   }
   return null;
 }
@@ -212,16 +214,22 @@ export function getTrackingInfoFromFyndPayload(fyndPayloadJson: string | null | 
     const trackUrl = first.tracking_url ?? first.track_url ?? first.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url;
     const dp = dpDetails.display_name ?? dpDetails.name ?? first.dp_name ?? first.dp ?? first.courierName ?? first.courier_name ?? first.logistics_partner;
     const status = first.shipment_status ?? first.orderStatus ?? first.status;
-    const statusTitle = status && typeof status === "object" && status !== null && "title" in status
-      ? (status as { title?: string }).title
-      : status;
+    // Safely extract string from status (can be object like { status: "...", title: "..." })
+    let fyndStatusStr: string | null = null;
+    if (typeof status === "string") {
+      fyndStatusStr = status || null;
+    } else if (status && typeof status === "object") {
+      const so = status as Record<string, unknown>;
+      const extracted = so.title ?? so.status ?? so.name ?? so.display_name ?? so.value;
+      fyndStatusStr = typeof extracted === "string" ? (extracted || null) : null;
+    }
     const awb = dpDetails.awb_no ?? first.awb_no ?? first.awbNumber ?? first.awb;
     const awbStr = Array.isArray(awb) ? awb[0] : awb;
     const validAwb = typeof awbStr === "string" && !isLikelyFyndId(awbStr) ? awbStr : null;
     return {
       trackingUrl: typeof trackUrl === "string" ? trackUrl : null,
       logisticsPartner: typeof dp === "string" ? dp : (dp && typeof dp === "object" && "name" in dp ? String((dp as { name?: string }).name) : null),
-      fyndStatus: typeof statusTitle === "string" ? statusTitle : (typeof status === "string" ? status : null),
+      fyndStatus: fyndStatusStr,
       awbNo: validAwb,
     };
   } catch {
@@ -484,10 +492,16 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const creditNoteId = typeof creditNoteIdRaw === "string" && creditNoteIdRaw ? creditNoteIdRaw : null;
       const journeyType = typeof raw.journey_type === "string" ? raw.journey_type : null;
       const status = raw.shipment_status ?? raw.shipmentStatus ?? raw.orderStatus ?? raw.status;
-      const statusTitle = status && typeof status === "object" && status !== null && "title" in (status as object)
-        ? (status as { title?: string }).title
-        : status;
-      const shipmentStatusStr = toDisplayString(statusTitle ?? status);
+      // Fynd shipment_status can be an object like { status: "bag_picked", title: "..." } or a plain string.
+      // Extract the best string representation, never pass an object downstream.
+      let shipmentStatusStr: string | null = null;
+      if (typeof status === "string") {
+        shipmentStatusStr = status || null;
+      } else if (status && typeof status === "object" && status !== null) {
+        const so = status as Record<string, unknown>;
+        const extracted = so.title ?? so.status ?? so.name ?? so.display_name ?? so.displayName ?? so.value ?? so.code;
+        shipmentStatusStr = typeof extracted === "string" ? (extracted || null) : (typeof extracted === "number" ? String(extracted) : null);
+      }
       // --- Shipment-level pricing (Fynd Konnect orderPrice, breakup, prices_info) ---
       const orderPrice = (raw.orderPrice ?? raw.order_price ?? raw.prices ?? raw.prices_info) as Record<string, unknown> | undefined;
       const breakup = (raw.breakup ?? raw.price_breakup) as Array<{ type?: string; value?: number; display?: string }> | undefined;

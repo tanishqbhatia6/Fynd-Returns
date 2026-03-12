@@ -84,6 +84,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       returnJourney,
       returnLabel: isApprovedOrCompleted ? returnLabelInfo : null,
       returnInstructions: isApprovedOrCompleted ? defaultReturnInstructions : null,
+      cancellationRequestedAt: r.cancellationRequestedAt ?? null,
+      cancellationDeclinedAt: r.cancellationDeclinedAt ?? null,
     };
   });
 

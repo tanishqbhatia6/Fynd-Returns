@@ -51,12 +51,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const showReturnTracking = formData.get("showReturnTracking") === "on";
   const showCreateReturnTab = formData.get("showCreateReturnTab") === "on";
   const allowMediaUploads = formData.get("allowMediaUploads") === "on";
+  const allowReturnCancellation = formData.get("allowReturnCancellation") !== "off";
   const defaultTab = (formData.get("defaultTab") as string) || "return";
   const portalConfigJson = JSON.stringify({
     showOrderTracking,
     showReturnTracking,
     showCreateReturnTab,
     allowMediaUploads,
+    allowReturnCancellation,
     defaultTab: ["order", "return", "create"].includes(defaultTab) ? defaultTab : "return",
   });
 
@@ -165,6 +167,7 @@ export default function Widget() {
   const [returnTracking, setReturnTracking] = useState(portalConfig.showReturnTracking);
   const [createReturn, setCreateReturn] = useState(portalConfig.showCreateReturnTab);
   const [mediaUploads, setMediaUploads] = useState(portalConfig.allowMediaUploads);
+  const [allowCancellation, setAllowCancellation] = useState(portalConfig.allowReturnCancellation ?? true);
   const [brandLogoUrl, setBrandLogoUrl] = useState<string | null>(savedLogoUrl);
   const [brandFaviconUrl, setBrandFaviconUrl] = useState<string | null>(savedFaviconUrl);
 
@@ -202,6 +205,7 @@ export default function Widget() {
             {returnTracking && <input type="hidden" name="showReturnTracking" value="on" />}
             {createReturn && <input type="hidden" name="showCreateReturnTab" value="on" />}
             {mediaUploads && <input type="hidden" name="allowMediaUploads" value="on" />}
+            {!allowCancellation && <input type="hidden" name="allowReturnCancellation" value="off" />}
             <div style={{ display: "flex", flexDirection: "column", borderRadius: 10, border: "1px solid #e5e7eb", overflow: "hidden", marginBottom: 16 }}>
               <ToggleRow
                 icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 8V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h5" /><polyline points="16 2 16 6" /><polyline points="8 2 8 6" /><rect x="14" y="14" width="8" height="8" rx="1.5" /><path d="M18 14v3" /><path d="M18 20v.01" /></svg>}
@@ -230,6 +234,13 @@ export default function Widget() {
                 description="Let customers attach images/videos to return requests"
                 checked={mediaUploads}
                 onChange={setMediaUploads}
+              />
+              <ToggleRow
+                icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="15" y1="9" x2="9" y2="15" /><line x1="9" y1="9" x2="15" y2="15" /></svg>}
+                title="Return cancellation"
+                description="Let customers cancel or request cancellation of returns"
+                checked={allowCancellation}
+                onChange={setAllowCancellation}
                 last
               />
             </div>

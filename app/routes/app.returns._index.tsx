@@ -740,6 +740,22 @@ export default function ReturnsList() {
                                   {String((r as Record<string, unknown>).createdByChannel)}
                                 </span>
                               )}
+                              {!!(r as Record<string, unknown>).cancellationRequestedAt && r.status.toLowerCase() === "approved" && (
+                                <span style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 3,
+                                  padding: "1px 6px",
+                                  borderRadius: 4,
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  background: "#FFFBEB",
+                                  color: "#92400E",
+                                  border: "1px solid #FDE68A",
+                                }}>
+                                  ⚠️ Cancel requested
+                                </span>
+                              )}
                             </div>
                           </td>
 

@@ -9,6 +9,8 @@ import type { ReturnIdConfig, ReturnIdBodyMode } from "../lib/return-request-id"
 import { findOrCreateShop } from "../lib/shop.server";
 import { fetchAllLocations } from "../lib/shopify-admin.server";
 import type { ShopLocation } from "../lib/shopify-admin.server";
+import { inferPresetFromStatuses, getStatusesForPreset, PRESET_LABELS } from "../lib/refund-gate-presets";
+import type { RefundGatePreset } from "../lib/refund-gate-presets";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -58,6 +60,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       try { return s?.allowedFyndStatusesForRefund ? JSON.parse(s.allowedFyndStatusesForRefund) as string[] : []; }
       catch { return []; }
     })(),
+    refundGatePreset: (() => {
+      // If preset is explicitly set, use it
+      if (s?.refundGatePreset) return s.refundGatePreset;
+      // Migration: infer preset from existing statuses for shops that had the old raw config
+      try {
+        const statuses = s?.allowedFyndStatusesForRefund ? JSON.parse(s.allowedFyndStatusesForRefund) as string[] : [];
+        return inferPresetFromStatuses(statuses);
+      } catch { return "none"; }
+    })() as string,
     allowedFyndStatusesForReturn: (() => {
       try { return s?.allowedFyndStatusesForReturn ? JSON.parse(s.allowedFyndStatusesForReturn) as string[] : []; }
       catch { return []; }
@@ -94,10 +105,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const fyndConsolidateWindowHours = [1, 4, 8, 24].includes(parseInt(String(formData.get("fyndConsolidateWindowHours") ?? "4"), 10))
     ? parseInt(String(formData.get("fyndConsolidateWindowHours")), 10)
     : 4;
-  const allowedFyndStatusesForRefundRaw = formData.getAll("allowedFyndStatusesForRefund") as string[];
-  const allowedFyndStatusesForRefund = allowedFyndStatusesForRefundRaw.length > 0
-    ? JSON.stringify(allowedFyndStatusesForRefundRaw.map((s) => s.trim().toLowerCase()).filter(Boolean))
-    : null; // null = feature disabled, all refunds allowed
+  // Refund gate preset + compute allowed statuses
+  const refundGatePreset = (formData.get("refundGatePreset") as string | null) ?? "none";
+  let allowedFyndStatusesForRefund: string | null;
+  if (refundGatePreset === "none") {
+    allowedFyndStatusesForRefund = null; // gate disabled
+  } else if (refundGatePreset === "custom") {
+    // Custom mode — use the raw multi-select values
+    const raw = formData.getAll("allowedFyndStatusesForRefund") as string[];
+    allowedFyndStatusesForRefund = raw.length > 0
+      ? JSON.stringify(raw.map((s) => s.trim().toLowerCase()).filter(Boolean))
+      : null;
+  } else {
+    // Preset — compute from mapping
+    const statuses = getStatusesForPreset(refundGatePreset as RefundGatePreset);
+    allowedFyndStatusesForRefund = statuses ? JSON.stringify(statuses) : null;
+  }
   const allowedFyndStatusesForReturnRaw = formData.getAll("allowedFyndStatusesForReturn") as string[];
   const allowedFyndStatusesForReturn = allowedFyndStatusesForReturnRaw.length > 0
     ? JSON.stringify(allowedFyndStatusesForReturnRaw.map((s) => s.trim().toLowerCase()).filter(Boolean))
@@ -151,6 +174,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndConsolidateReturns,
         fyndConsolidateWindowHours,
         allowedFyndStatusesForRefund,
+        refundGatePreset,
         allowedFyndStatusesForReturn,
         returnIdConfigJson,
       },
@@ -176,6 +200,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndConsolidateReturns,
         fyndConsolidateWindowHours,
         allowedFyndStatusesForRefund,
+        refundGatePreset,
         allowedFyndStatusesForReturn,
         returnIdConfigJson,
       },
@@ -209,7 +234,8 @@ export default function ReturnSettings() {
   const [fyndConsolidateReturns, setFyndConsolidateReturns] = React.useState(data.fyndConsolidateReturns);
   const [fyndConsolidateWindowHours, setFyndConsolidateWindowHours] = React.useState(data.fyndConsolidateWindowHours);
   const [allowedFyndStatuses, setAllowedFyndStatuses] = React.useState<string[]>(data.allowedFyndStatusesForRefund);
-  const [fyndStatusGateEnabled, setFyndStatusGateEnabled] = React.useState(data.allowedFyndStatusesForRefund.length > 0);
+  const [fyndStatusGateEnabled, setFyndStatusGateEnabled] = React.useState(data.refundGatePreset !== "none" && data.refundGatePreset !== null);
+  const [refundGatePreset, setRefundGatePreset] = React.useState<RefundGatePreset>((data.refundGatePreset ?? "none") as RefundGatePreset);
   const [allowedFyndReturnStatuses, setAllowedFyndReturnStatuses] = React.useState<string[]>(data.allowedFyndStatusesForReturn);
   const [fyndReturnGateEnabled, setFyndReturnGateEnabled] = React.useState(data.allowedFyndStatusesForReturn.length > 0);
 
@@ -244,7 +270,8 @@ export default function ReturnSettings() {
     setFyndConsolidateReturns(data.fyndConsolidateReturns);
     setFyndConsolidateWindowHours(data.fyndConsolidateWindowHours);
     setAllowedFyndStatuses(data.allowedFyndStatusesForRefund);
-    setFyndStatusGateEnabled(data.allowedFyndStatusesForRefund.length > 0);
+    setRefundGatePreset((data.refundGatePreset ?? "none") as RefundGatePreset);
+    setFyndStatusGateEnabled(data.refundGatePreset !== "none" && data.refundGatePreset !== null);
     setAllowedFyndReturnStatuses(data.allowedFyndStatusesForReturn);
     setFyndReturnGateEnabled(data.allowedFyndStatusesForReturn.length > 0);
     setRidPrefix(data.returnIdConfig.prefix);
@@ -253,7 +280,7 @@ export default function ReturnSettings() {
     setRidHashLength(data.returnIdConfig.hashLength);
     setRidSeqPadding(data.returnIdConfig.sequentialPadding);
     setRidSuffix(data.returnIdConfig.suffix);
-  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays, data.noReturnPeriodEnabled, data.portalExchangeEnabled, data.portalAllowedFulfillmentStatuses, data.fyndConsolidateReturns, data.fyndConsolidateWindowHours, data.allowedFyndStatusesForRefund, data.allowedFyndStatusesForReturn, data.returnIdConfig]);
+  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays, data.noReturnPeriodEnabled, data.portalExchangeEnabled, data.portalAllowedFulfillmentStatuses, data.fyndConsolidateReturns, data.fyndConsolidateWindowHours, data.allowedFyndStatusesForRefund, data.refundGatePreset, data.allowedFyndStatusesForReturn, data.returnIdConfig]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -285,8 +312,9 @@ export default function ReturnSettings() {
     allowedFulfillStatuses.forEach((s) => fd.append("portalAllowedFulfillmentStatuses", s));
     fd.set("fyndConsolidateReturns", fyndConsolidateReturns ? "on" : "off");
     fd.set("fyndConsolidateWindowHours", String(fyndConsolidateWindowHours));
+    fd.set("refundGatePreset", fyndStatusGateEnabled ? refundGatePreset : "none");
     fd.delete("allowedFyndStatusesForRefund");
-    if (fyndStatusGateEnabled) {
+    if (fyndStatusGateEnabled && refundGatePreset === "custom") {
       allowedFyndStatuses.forEach((s) => fd.append("allowedFyndStatusesForRefund", s));
     }
     fd.delete("allowedFyndStatusesForReturn");
@@ -1158,7 +1186,7 @@ export default function ReturnSettings() {
             )}
           </s-section>
 
-          {/* Allowed Fynd Statuses for Refund */}
+          {/* Fynd Status Gate for Refunds */}
           <s-section>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -1170,7 +1198,14 @@ export default function ReturnSettings() {
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
                 <input type="checkbox" checked={fyndStatusGateEnabled} onChange={(e) => {
                   setFyndStatusGateEnabled(e.target.checked);
-                  if (!e.target.checked) setAllowedFyndStatuses([]);
+                  if (!e.target.checked) {
+                    setRefundGatePreset("none");
+                    setAllowedFyndStatuses([]);
+                  } else if (refundGatePreset === "none") {
+                    setRefundGatePreset("after_delivery");
+                    const presetStatuses = getStatusesForPreset("after_delivery");
+                    if (presetStatuses) setAllowedFyndStatuses(presetStatuses);
+                  }
                 }}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: fyndStatusGateEnabled ? "#F97316" : "#cbd5e1" }}>
@@ -1179,7 +1214,7 @@ export default function ReturnSettings() {
               </label>
             </div>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 12 }}>
-              When enabled, refunds can only be created (manually or via auto-refund) when the Fynd shipment status is one of the selected statuses below. This applies to Fynd-integrated orders only — non-Fynd returns are unaffected.
+              Control when refunds can be processed for Fynd-integrated orders based on the return bag's journey status. Non-Fynd returns are unaffected.
             </p>
             {!fyndStatusGateEnabled && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1189,84 +1224,145 @@ export default function ReturnSettings() {
             )}
             {fyndStatusGateEnabled && (
               <div style={{ padding: 14, background: "#FFF7ED", borderRadius: 10, border: "1px solid #FED7AA", marginBottom: 10 }}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>Select allowed Fynd statuses for refund eligibility</div>
+                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>When should refunds be allowed?</div>
                 <p style={{ fontSize: 12, color: "#92400E", marginBottom: 12 }}>
-                  Refunds will be blocked unless the return's current Fynd status matches one of the checked statuses. Select at least one status.
+                  Choose a refund policy based on the return bag's journey. Refunds will be blocked until the selected milestone is reached.
                 </p>
 
-                {/* Delivery & Handover */}
-                <div style={{ fontWeight: 600, fontSize: 12, color: "#78716C", marginBottom: 6, marginTop: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Delivery &amp; Handover</div>
-                {(["delivery_done", "handed_over_to_customer"] as const).map((status) => {
-                  const recommended = status === "delivery_done" || status === "handed_over_to_customer";
-                  const checked = allowedFyndStatuses.includes(status);
+                {/* Preset Radio Group */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
+                  {(["after_pickup", "after_delivery", "after_qc", "custom"] as const).map((preset) => {
+                    const info = PRESET_LABELS[preset];
+                    const isSelected = refundGatePreset === preset;
+                    const isRecommended = preset === "after_delivery";
+                    return (
+                      <label key={preset} style={{
+                        display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer",
+                        padding: "10px 14px", borderRadius: 10,
+                        border: isSelected ? "2px solid #F97316" : "1.5px solid #E7E5E4",
+                        background: isSelected ? "#FFF7ED" : "#FAFAF9",
+                        transition: "all 0.15s",
+                      }}>
+                        <input
+                          type="radio" name="refundGatePresetRadio" value={preset}
+                          checked={isSelected}
+                          onChange={() => {
+                            setRefundGatePreset(preset);
+                            if (preset !== "custom") {
+                              const presetStatuses = getStatusesForPreset(preset);
+                              if (presetStatuses) setAllowedFyndStatuses(presetStatuses);
+                            }
+                          }}
+                          style={{ marginTop: 2, flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ fontWeight: 600, fontSize: 13 }}>{info.label}</span>
+                            {isRecommended && <span style={{ fontSize: 10, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>Recommended</span>}
+                            {preset === "custom" && <span style={{ fontSize: 10, background: "#F3F4F6", color: "#6B7280", padding: "1px 6px", borderRadius: 4, fontWeight: 500 }}>Advanced</span>}
+                          </div>
+                          <div style={{ fontSize: 12, color: "#78716C", marginTop: 2 }}>{info.description}</div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {/* Preset summary — show which statuses are included (non-custom) */}
+                {refundGatePreset !== "custom" && (() => {
+                  const presetStatuses = getStatusesForPreset(refundGatePreset);
+                  if (!presetStatuses) return null;
                   return (
-                    <label key={status} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", marginBottom: 4, background: checked ? "#FFF7ED" : "#FAFAF9", borderRadius: 8, border: checked ? "1.5px solid #FDBA74" : "1px solid #E7E5E4", transition: "all 0.15s" }}>
-                      <input type="checkbox" checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) setAllowedFyndStatuses([...allowedFyndStatuses, status]);
-                          else setAllowedFyndStatuses(allowedFyndStatuses.filter((s) => s !== status));
-                        }}
-                        style={{ width: 16, height: 16, flexShrink: 0 }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{status}</span>
-                        {recommended && <span style={{ marginLeft: 8, fontSize: 11, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>Recommended</span>}
+                    <details style={{ marginBottom: 8 }}>
+                      <summary style={{ fontSize: 12, color: "#78716C", cursor: "pointer", userSelect: "none" }}>
+                        {presetStatuses.length} Fynd statuses included — click to view
+                      </summary>
+                      <div style={{ marginTop: 6, display: "flex", flexWrap: "wrap", gap: 4 }}>
+                        {presetStatuses.map((s) => (
+                          <span key={s} style={{ fontSize: 11, fontFamily: "monospace", padding: "2px 6px", background: "#FEF3C7", borderRadius: 4, color: "#92400E" }}>{s}</span>
+                        ))}
                       </div>
-                    </label>
+                    </details>
                   );
-                })}
+                })()}
 
-                {/* Return Flow */}
-                <div style={{ fontWeight: 600, fontSize: 12, color: "#78716C", marginBottom: 6, marginTop: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Return Flow</div>
-                {(["return_request_cancelled", "return_cancelled_at_dp", "return_dp_not_assigned", "return_pre_qc", "return_request_rejected", "return_instore_requested"] as const).map((status) => {
-                  const checked = allowedFyndStatuses.includes(status);
-                  return (
-                    <label key={status} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", marginBottom: 4, background: checked ? "#FFF7ED" : "#FAFAF9", borderRadius: 8, border: checked ? "1.5px solid #FDBA74" : "1px solid #E7E5E4", transition: "all 0.15s" }}>
-                      <input type="checkbox" checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) setAllowedFyndStatuses([...allowedFyndStatuses, status]);
-                          else setAllowedFyndStatuses(allowedFyndStatuses.filter((s) => s !== status));
-                        }}
-                        style={{ width: 16, height: 16, flexShrink: 0 }}
-                      />
-                      <span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{status}</span>
-                    </label>
-                  );
-                })}
+                {/* Custom mode — show raw multi-select checkboxes */}
+                {refundGatePreset === "custom" && (
+                  <div style={{ padding: 12, background: "#FAFAF9", borderRadius: 8, border: "1px solid #E7E5E4" }}>
+                    <div style={{ fontWeight: 600, fontSize: 12, color: "#78716C", marginBottom: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Select Fynd statuses manually</div>
 
-                {/* Refund Flow */}
-                <div style={{ fontWeight: 600, fontSize: 12, color: "#78716C", marginBottom: 6, marginTop: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Refund Flow</div>
-                {(["refund_initiated", "refund_on_hold", "refund_acknowledged", "refund_pending", "refund_pending_for_approval", "beneficiary_awaited", "manual_refund"] as const).map((status) => {
-                  const checked = allowedFyndStatuses.includes(status);
-                  return (
-                    <label key={status} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", marginBottom: 4, background: checked ? "#FFF7ED" : "#FAFAF9", borderRadius: 8, border: checked ? "1.5px solid #FDBA74" : "1px solid #E7E5E4", transition: "all 0.15s" }}>
-                      <input type="checkbox" checked={checked}
-                        onChange={(e) => {
-                          if (e.target.checked) setAllowedFyndStatuses([...allowedFyndStatuses, status]);
-                          else setAllowedFyndStatuses(allowedFyndStatuses.filter((s) => s !== status));
-                        }}
-                        style={{ width: 16, height: 16, flexShrink: 0 }}
-                      />
-                      <span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{status}</span>
-                    </label>
-                  );
-                })}
+                    {/* Delivery & Handover */}
+                    <div style={{ fontWeight: 600, fontSize: 11, color: "#78716C", marginBottom: 4, marginTop: 6, textTransform: "uppercase", letterSpacing: 0.5 }}>Delivery &amp; Handover</div>
+                    {(["delivery_done", "handed_over_to_customer"] as const).map((status) => {
+                      const checked = allowedFyndStatuses.includes(status);
+                      return (
+                        <label key={status} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "6px 10px", marginBottom: 3, background: checked ? "#FFF7ED" : "white", borderRadius: 6, border: checked ? "1.5px solid #FDBA74" : "1px solid #E7E5E4", transition: "all 0.15s" }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) setAllowedFyndStatuses([...allowedFyndStatuses, status]);
+                              else setAllowedFyndStatuses(allowedFyndStatuses.filter((s) => s !== status));
+                            }}
+                            style={{ width: 14, height: 14, flexShrink: 0 }}
+                          />
+                          <span style={{ fontWeight: 600, fontSize: 12, fontFamily: "monospace" }}>{status}</span>
+                        </label>
+                      );
+                    })}
 
-                {allowedFyndStatuses.length === 0 && (
-                  <div style={{ marginTop: 12, padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 13, color: "#991B1B", fontWeight: 500 }}>
-                    No statuses selected. When the gate is enabled, at least one Fynd status must be selected — otherwise all refunds for Fynd orders will be blocked.
+                    {/* Return Flow */}
+                    <div style={{ fontWeight: 600, fontSize: 11, color: "#78716C", marginBottom: 4, marginTop: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Return Flow</div>
+                    {(["return_bag_picked", "return_bag_in_transit", "return_bag_out_for_delivery", "out_for_delivery_to_store", "return_bag_delivered", "return_delivered", "return_accepted", "return_completed", "return_request_cancelled", "return_cancelled_at_dp", "return_dp_not_assigned", "return_pre_qc", "return_request_rejected", "return_instore_requested"] as const).map((status) => {
+                      const checked = allowedFyndStatuses.includes(status);
+                      return (
+                        <label key={status} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "6px 10px", marginBottom: 3, background: checked ? "#FFF7ED" : "white", borderRadius: 6, border: checked ? "1.5px solid #FDBA74" : "1px solid #E7E5E4", transition: "all 0.15s" }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) setAllowedFyndStatuses([...allowedFyndStatuses, status]);
+                              else setAllowedFyndStatuses(allowedFyndStatuses.filter((s) => s !== status));
+                            }}
+                            style={{ width: 14, height: 14, flexShrink: 0 }}
+                          />
+                          <span style={{ fontWeight: 600, fontSize: 12, fontFamily: "monospace" }}>{status}</span>
+                        </label>
+                      );
+                    })}
+
+                    {/* Refund Flow */}
+                    <div style={{ fontWeight: 600, fontSize: 11, color: "#78716C", marginBottom: 4, marginTop: 10, textTransform: "uppercase", letterSpacing: 0.5 }}>Refund Flow</div>
+                    {(["refund_initiated", "refund_on_hold", "refund_acknowledged", "refund_pending", "refund_pending_for_approval", "beneficiary_awaited", "manual_refund", "credit_note_generated"] as const).map((status) => {
+                      const checked = allowedFyndStatuses.includes(status);
+                      return (
+                        <label key={status} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "6px 10px", marginBottom: 3, background: checked ? "#FFF7ED" : "white", borderRadius: 6, border: checked ? "1.5px solid #FDBA74" : "1px solid #E7E5E4", transition: "all 0.15s" }}>
+                          <input type="checkbox" checked={checked}
+                            onChange={(e) => {
+                              if (e.target.checked) setAllowedFyndStatuses([...allowedFyndStatuses, status]);
+                              else setAllowedFyndStatuses(allowedFyndStatuses.filter((s) => s !== status));
+                            }}
+                            style={{ width: 14, height: 14, flexShrink: 0 }}
+                          />
+                          <span style={{ fontWeight: 600, fontSize: 12, fontFamily: "monospace" }}>{status}</span>
+                        </label>
+                      );
+                    })}
+
+                    {allowedFyndStatuses.length === 0 && (
+                      <div style={{ marginTop: 8, padding: "8px 12px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 6, fontSize: 12, color: "#991B1B", fontWeight: 500 }}>
+                        No statuses selected — all refunds for Fynd orders will be blocked.
+                      </div>
+                    )}
                   </div>
                 )}
-                <p style={{ fontSize: 12, color: "#78716C", marginTop: 12, lineHeight: 1.5 }}>
-                  These statuses correspond to Fynd shipment states that allow transitioning to <code style={{ background: "#F5F5F4", padding: "1px 4px", borderRadius: 3 }}>return_initiated</code>. Non-Fynd returns (manual or Shopify-only orders) bypass this gate entirely.
+
+                <p style={{ fontSize: 12, color: "#78716C", marginTop: 10, lineHeight: 1.5 }}>
+                  Non-Fynd returns (manual or Shopify-only orders) bypass this gate entirely.
                 </p>
               </div>
             )}
-            {fyndStatusGateEnabled && allowedFyndStatuses.length > 0 && (
+            {fyndStatusGateEnabled && refundGatePreset !== "none" && (
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ width: 8, height: 8, borderRadius: 4, background: "#F97316" }} />
                 <span style={{ fontSize: 12, fontWeight: 500, color: "#C2410C" }}>
-                  Enabled — {allowedFyndStatuses.length} status{allowedFyndStatuses.length !== 1 ? "es" : ""} allowed for refund
+                  Enabled — {PRESET_LABELS[refundGatePreset]?.label ?? refundGatePreset}
                 </span>
               </div>
             )}

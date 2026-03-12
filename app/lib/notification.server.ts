@@ -19,6 +19,7 @@ type NotifToggles = {
   notificationApproved: boolean;
   notificationRejected: boolean;
   notificationRefunded: boolean;
+  notificationCancelled: boolean;
 };
 
 type SendResult = { success: boolean; error?: string };
@@ -73,6 +74,7 @@ async function getSmtpConfig(shopDomain: string): Promise<{
         notificationApproved: s?.notificationApproved ?? true,
         notificationRejected: s?.notificationRejected ?? true,
         notificationRefunded: s?.notificationRefunded ?? true,
+        notificationCancelled: (s as Record<string, unknown> | null)?.notificationCancelled as boolean ?? true,
       },
       adminEmail: s?.adminNotifyEmail ?? null,
       emailTemplates,
@@ -94,6 +96,7 @@ async function getSmtpConfig(shopDomain: string): Promise<{
       notificationApproved: s.notificationApproved,
       notificationRejected: s.notificationRejected,
       notificationRefunded: s.notificationRefunded ?? true,
+      notificationCancelled: (s as Record<string, unknown>).notificationCancelled as boolean ?? true,
     },
     adminEmail: s.adminNotifyEmail ?? null,
     emailTemplates,
@@ -592,4 +595,126 @@ export async function sendWhatsAppNotification(
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
+}
+
+// ─── Cancellation Notifications ──────────────────────────────────────────────
+
+function cancelledEmail(p: { orderName: string; shopName?: string }, labels: Record<string, string>, locale: string): { subject: string; html: string } {
+  const subject = t("email.cancelled.subject", labels, { order: p.orderName });
+  const heading = t("email.cancelled.heading", labels);
+  const bodyText = t("email.cancelled.body", labels, { order: p.orderName });
+  const contact = t("email.cancelled.contact", labels);
+  const body = `
+    <div style="text-align:center;margin:0 0 20px">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:#F1F5F9">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#64748B" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+      </div>
+    </div>
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#475569;text-align:center">${esc(heading)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">${esc(bodyText)}</p>
+    <p style="margin:0;font-size:14px;color:#64748b;text-align:center">${esc(contact)}</p>`;
+  return { subject, html: emailLayout(heading, "#64748B", body, p.shopName, locale, labels) };
+}
+
+function cancellationDeclinedEmail(p: { orderName: string; shopName?: string }, labels: Record<string, string>, locale: string): { subject: string; html: string } {
+  const subject = t("email.cancellationDeclined.subject", labels, { order: p.orderName });
+  const heading = t("email.cancellationDeclined.heading", labels);
+  const bodyText = t("email.cancellationDeclined.body", labels, { order: p.orderName });
+  const contact = t("email.cancellationDeclined.contact", labels);
+  const body = `
+    <div style="text-align:center;margin:0 0 20px">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:56px;height:56px;border-radius:50%;background:#FEF9C3">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#CA8A04" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </div>
+    </div>
+    <h1 style="margin:0 0 12px;font-size:22px;font-weight:700;color:#CA8A04;text-align:center">${esc(heading)}</h1>
+    <p style="margin:0 0 20px;font-size:15px;color:#475569;line-height:1.7;text-align:center">${esc(bodyText)}</p>
+    <p style="margin:0;font-size:14px;color:#64748b;text-align:center">${esc(contact)}</p>`;
+  return { subject, html: emailLayout(heading, "#CA8A04", body, p.shopName, locale, labels) };
+}
+
+export async function sendCancellationNotification(params: {
+  shopDomain: string;
+  to: string;
+  orderName: string;
+  shopName?: string;
+  returnId?: string;
+  customerPhone?: string | null;
+}): Promise<SendResult> {
+  const { smtp, toggles, emailTemplates, i18n } = await getSmtpConfig(params.shopDomain);
+  if (!toggles.notificationCancelled) return { success: true };
+  if (!smtp) return { success: true };
+  if (!params.to) return { success: false, error: "No recipient" };
+
+  const custom = emailTemplates.cancelled;
+  let emailResult: SendResult;
+  if (custom?.subject && custom?.bodyHtml) {
+    const vars: Record<string, string> = {
+      orderName: params.orderName,
+      customerEmail: params.to,
+      shopName: params.shopName ?? "",
+      returnId: params.returnId ?? "",
+      status: "cancelled",
+      refundAmount: "",
+      rejectionReason: "",
+    };
+    emailResult = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+  } else {
+    const labels = getPortalLabels(i18n.locale);
+    const { subject, html } = cancelledEmail({ orderName: params.orderName, shopName: params.shopName }, labels, i18n.locale);
+    emailResult = await sendEmail(smtp, params.to, subject, html);
+  }
+  logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "cancelled", subject: "Return Cancelled", result: emailResult }).catch(() => {});
+  if (params.customerPhone) {
+    const waConfig = await getWhatsAppConfig(params.shopDomain);
+    if (waConfig) {
+      const msg = `Your return for order ${params.orderName} has been cancelled.`;
+      const waResult = await sendWhatsAppNotification(waConfig, params.customerPhone, msg);
+      logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "cancelled", result: waResult }).catch(() => {});
+    }
+  }
+  return emailResult;
+}
+
+export async function sendCancellationDeclinedNotification(params: {
+  shopDomain: string;
+  to: string;
+  orderName: string;
+  shopName?: string;
+  returnId?: string;
+  customerPhone?: string | null;
+}): Promise<SendResult> {
+  const { smtp, toggles, emailTemplates, i18n } = await getSmtpConfig(params.shopDomain);
+  if (!toggles.notificationCancelled) return { success: true };
+  if (!smtp) return { success: true };
+  if (!params.to) return { success: false, error: "No recipient" };
+
+  const custom = emailTemplates.cancellation_declined;
+  let emailResult: SendResult;
+  if (custom?.subject && custom?.bodyHtml) {
+    const vars: Record<string, string> = {
+      orderName: params.orderName,
+      customerEmail: params.to,
+      shopName: params.shopName ?? "",
+      returnId: params.returnId ?? "",
+      status: "cancellation_declined",
+      refundAmount: "",
+      rejectionReason: "",
+    };
+    emailResult = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+  } else {
+    const labels = getPortalLabels(i18n.locale);
+    const { subject, html } = cancellationDeclinedEmail({ orderName: params.orderName, shopName: params.shopName }, labels, i18n.locale);
+    emailResult = await sendEmail(smtp, params.to, subject, html);
+  }
+  logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "cancellation_declined", subject: "Cancellation Request Declined", result: emailResult }).catch(() => {});
+  if (params.customerPhone) {
+    const waConfig = await getWhatsAppConfig(params.shopDomain);
+    if (waConfig) {
+      const msg = `Your cancellation request for the return on order ${params.orderName} was not approved. Please proceed with the return process.`;
+      const waResult = await sendWhatsAppNotification(waConfig, params.customerPhone, msg);
+      logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "cancellation_declined", result: waResult }).catch(() => {});
+    }
+  }
+  return emailResult;
 }

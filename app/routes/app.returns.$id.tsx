@@ -12,6 +12,8 @@ import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.s
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
 import { isFyndPrivateUrl, signFyndUrl } from "../lib/fynd.server";
+import { PRESET_LABELS } from "../lib/refund-gate-presets";
+import type { RefundGatePreset } from "../lib/refund-gate-presets";
 
 /** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
 function safeStr(v: unknown): string {
@@ -748,6 +750,11 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       hasRealShipmentData,
       displayForwardAwb,
       displayReturnAwb,
+      allowedFyndStatusesForRefund: (() => {
+        try { return shopSettings?.allowedFyndStatusesForRefund ? JSON.parse(shopSettings.allowedFyndStatusesForRefund) as string[] : []; }
+        catch { return []; }
+      })(),
+      refundGatePreset: (shopSettings?.refundGatePreset ?? null) as string | null,
     };
   } catch (err) {
     if (err instanceof Response) throw err;
@@ -771,6 +778,8 @@ export default function ReturnDetail() {
     hasRealShipmentData,
     displayForwardAwb,
     displayReturnAwb,
+    allowedFyndStatusesForRefund,
+    refundGatePreset,
   } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -791,6 +800,7 @@ export default function ReturnDetail() {
   const [cancelReason, setCancelReason] = useState("OTHER");
   const [cancelRefund, setCancelRefund] = useState(true);
   const [cancelRestock, setCancelRestock] = useState(true);
+  const [showApproveCancelModal, setShowApproveCancelModal] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string>(fulfillmentLocationId ?? shopLocations[0]?.id ?? "");
   const defaultRefundMethod = isCodOrder
     ? "store_credit" as const
@@ -890,6 +900,13 @@ export default function ReturnDetail() {
   const fyndSyncStatus = (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus;
   const fyndSyncRetries = (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0;
   const fyndSyncError = (returnCase as { fyndSyncError?: string | null }).fyndSyncError;
+
+  // Cancellation request fields
+  const cancellationRequestedAt = (returnCase as { cancellationRequestedAt?: string | Date | null }).cancellationRequestedAt;
+  const cancellationRequestedBy = (returnCase as { cancellationRequestedBy?: string | null }).cancellationRequestedBy;
+  const cancellationReason = (returnCase as { cancellationReason?: string | null }).cancellationReason;
+  const cancellationDeclinedAt = (returnCase as { cancellationDeclinedAt?: string | Date | null }).cancellationDeclinedAt;
+  const hasCancellationRequest = isApproved && !!cancellationRequestedAt;
 
   // Auto-refresh when Fynd is actively assigning logistics — bounded polling (max 10 polls / ~2 min)
   useEffect(() => {
@@ -1761,6 +1778,105 @@ export default function ReturnDetail() {
 
           {/* ── RIGHT SIDEBAR ── */}
           <div>
+            {/* ── Cancellation Request Banner ── */}
+            {hasCancellationRequest && (
+              <div style={{
+                padding: 16, background: "#FFFBEB", borderRadius: 12,
+                border: "1px solid #FDE68A", marginBottom: 16,
+              }}>
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <span style={{ fontSize: 18, flexShrink: 0 }}>⚠️</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: "#92400E", marginBottom: 4 }}>
+                      Customer requested cancellation
+                    </div>
+                    <div style={{ fontSize: 12, color: "#78350F", marginBottom: 2 }}>
+                      Requested on {cancellationRequestedAt ? new Date(cancellationRequestedAt as string).toLocaleString() : "—"}
+                      {cancellationRequestedBy ? ` via ${cancellationRequestedBy}` : ""}
+                    </div>
+                    {cancellationReason && (
+                      <div style={{
+                        fontSize: 12, color: "#78350F", marginTop: 6,
+                        padding: "6px 10px", background: "#FEF3C7", borderRadius: 6,
+                        fontStyle: "italic",
+                      }}>
+                        Reason: &ldquo;{cancellationReason}&rdquo;
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <button
+                        type="button"
+                        disabled={fetcher.state !== "idle"}
+                        onClick={() => setShowApproveCancelModal(true)}
+                        style={{
+                          padding: "6px 14px", fontSize: 12, fontWeight: 600,
+                          background: "#DC2626", color: "#fff", border: "none",
+                          borderRadius: 6, cursor: "pointer",
+                        }}
+                      >
+                        Approve Cancellation
+                      </button>
+                      <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                        <input type="hidden" name="json" value={JSON.stringify({ action: "decline_cancellation" })} />
+                        <button
+                          type="submit"
+                          disabled={fetcher.state !== "idle"}
+                          style={{
+                            padding: "6px 14px", fontSize: 12, fontWeight: 600,
+                            background: "#fff", color: "#374151", border: "1px solid #D1D5DB",
+                            borderRadius: 6, cursor: "pointer",
+                          }}
+                        >
+                          Decline
+                        </button>
+                      </fetcher.Form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Approve Cancellation Confirmation Modal */}
+            {showApproveCancelModal && (
+              <div className="app-modal-overlay" onClick={() => setShowApproveCancelModal(false)}>
+                <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 420 }}>
+                  <div className="app-modal-title">Approve Cancellation</div>
+                  <div className="app-modal-body">
+                    <p style={{ margin: 0, fontSize: 14 }}>
+                      Are you sure you want to approve the customer&apos;s cancellation request for order{" "}
+                      <strong>{returnCase.shopifyOrderName || "—"}</strong>?
+                    </p>
+                    <p style={{ margin: "10px 0 0", fontSize: 13, color: "#6B7280" }}>
+                      This will cancel the return and cannot be undone. If synced to Fynd, a cancellation request will also be sent to Fynd.
+                    </p>
+                  </div>
+                  <div className="app-modal-actions">
+                    <button type="button" onClick={() => setShowApproveCancelModal(false)} style={{ padding: "6px 14px", fontSize: 13, background: "#fff", border: "1px solid #D1D5DB", borderRadius: 6, cursor: "pointer" }}>
+                      Go Back
+                    </button>
+                    <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} onSubmit={() => setShowApproveCancelModal(false)}>
+                      <input type="hidden" name="json" value={JSON.stringify({ action: "approve_cancellation" })} />
+                      <button type="submit" disabled={fetcher.state !== "idle"} style={{ padding: "6px 14px", fontSize: 13, fontWeight: 600, background: "#DC2626", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                        Confirm Cancellation
+                      </button>
+                    </fetcher.Form>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Cancellation Declined Indicator ── */}
+            {!hasCancellationRequest && cancellationDeclinedAt && (
+              <div style={{
+                padding: 12, background: "#F9FAFB", borderRadius: 10,
+                border: "1px solid #E5E7EB", marginBottom: 16,
+                fontSize: 12, color: "#6B7280",
+              }}>
+                ℹ️ Cancellation request declined on{" "}
+                {new Date(cancellationDeclinedAt as string).toLocaleString()}
+              </div>
+            )}
+
             {/* ── Actions Card ── */}
             <div style={{ ...C.card, background: "#F9FAFB" }}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Actions</div>
@@ -1837,9 +1953,35 @@ export default function ReturnDetail() {
                     )}
                   </>
                 )}
-                {(isApproved || isCompleted) && !isRefunded && !isManualReturn && (
+                {(isApproved || isCompleted) && !isRefunded && !isManualReturn && (() => {
+                  const isFyndIntegrated = !!(returnCase.fyndOrderId || returnCase.fyndShipmentId || returnCase.fyndReturnId);
+                  const refundGateStatuses = allowedFyndStatusesForRefund ?? [];
+                  const currentFyndStatusLower = (fyndCurrentStatus ?? "").toLowerCase().trim();
+                  const refundGatedByFynd = isFyndIntegrated
+                    && refundGateStatuses.length > 0
+                    && (!currentFyndStatusLower || !refundGateStatuses.includes(currentFyndStatusLower));
+                  const gatePresetLabel = refundGatePreset && PRESET_LABELS[refundGatePreset as RefundGatePreset]
+                    ? PRESET_LABELS[refundGatePreset as RefundGatePreset].label
+                    : null;
+                  return (
                   <>
-                    <s-button type="button" variant="primary" disabled={fetcher.state !== "idle"} onClick={() => setShowRefundConfirm(true)} style={{ width: "100%" }}>
+                    {refundGatedByFynd && (
+                      <div style={{ padding: "10px 14px", background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: 8, fontSize: 12, color: "#92400E", marginBottom: 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                          <strong>Refund gated by Fynd status</strong>
+                        </div>
+                        {currentFyndStatusLower ? (
+                          <div>Current status: <code style={{ background: "#FDE68A", padding: "1px 5px", borderRadius: 3 }}>{fyndCurrentStatus}</code></div>
+                        ) : (
+                          <div>Waiting for Fynd status update...</div>
+                        )}
+                        {gatePresetLabel && gatePresetLabel !== "Custom" && (
+                          <div style={{ marginTop: 2 }}>Refund available: <strong>{gatePresetLabel}</strong></div>
+                        )}
+                      </div>
+                    )}
+                    <s-button type="button" variant="primary" disabled={fetcher.state !== "idle" || refundGatedByFynd} onClick={() => setShowRefundConfirm(true)} style={{ width: "100%" }}>
                       Process Refund
                     </s-button>
                     {showRefundConfirm && (
@@ -2149,7 +2291,8 @@ export default function ReturnDetail() {
                       </div>
                     )}
                   </>
-                )}
+                  );
+                })()}
                 {(isApproved || isCompleted) && !isRefunded && isManualReturn && (
                   <div style={{ padding: 10, background: "#FEF3C7", borderRadius: 8, fontSize: 13, color: "#92400E" }}>
                     Manual return — process refund in Shopify Admin for <strong>{returnCase.shopifyOrderName || "--"}</strong>

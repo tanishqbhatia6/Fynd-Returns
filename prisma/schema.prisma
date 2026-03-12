@@ -86,6 +86,7 @@ model ShopSettings {
   notificationApproved       Boolean  @default(true)
   notificationRejected       Boolean  @default(true)
   notificationRefunded       Boolean  @default(true)
+  notificationCancelled      Boolean  @default(true)
   smtpHost                   String?
   smtpPort                   Int?     @default(587)
   smtpUser                   String?
@@ -147,6 +148,10 @@ model ShopSettings {
   // Allowed Fynd statuses for refund eligibility — only when Fynd status is one of these can a refund be created
   // JSON array e.g. ["delivery_done","handed_over_to_customer"]. Empty/null = feature disabled (all refunds allowed).
   allowedFyndStatusesForRefund String? @db.Text
+
+  // Refund gate preset: "none" | "after_pickup" | "after_delivery" | "after_qc" | "custom"
+  // Presets auto-populate allowedFyndStatusesForRefund on save. null = "none".
+  refundGatePreset             String?
 
   // Allowed Fynd statuses for return initiation — only when Fynd shipment status is one of these can a return be created from the portal
   // JSON array e.g. ["delivery_done","handed_over_to_customer"]. Empty/null = feature disabled (all forward statuses allowed).
@@ -233,6 +238,12 @@ model ReturnCase {
   fyndSyncError     String?  @db.Text
   fyndSyncNextRetry DateTime?
   lastFyndStatusCheck DateTime?
+  // Cancellation request fields (customer-initiated return cancellation)
+  cancellationRequestedAt  DateTime?  // When customer requested cancellation (null = no request)
+  cancellationRequestedBy  String?    // "portal" | "admin" | "api"
+  cancellationReason       String?    // Optional reason from customer
+  cancellationDeclinedAt   DateTime?  // When admin declined cancellation (null = not declined)
+  cancellationDeclinedBy   String?    // Admin email who declined
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

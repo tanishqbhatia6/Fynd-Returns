@@ -5,7 +5,8 @@ import prisma from "../db.server";
 import { createRefund, createDiscountCodeRefund, createShopifyReturn, closeShopifyReturnBestEffort, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
+import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification, sendCancellationNotification, sendCancellationDeclinedNotification } from "../lib/notification.server";
+import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
 import { extractShippingDetailsFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
 import { scheduleRetry } from "../lib/fynd-retry.server";
 
@@ -879,6 +880,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         }, { status: 400 });
       }
 
+      // Auto-clear pending cancellation request when admin chooses to refund instead
+      if (returnCase.cancellationRequestedAt) {
+        await prisma.returnCase.update({
+          where: { id },
+          data: { cancellationRequestedAt: null },
+        });
+      }
+
       // Fynd status gate: block refund if current Fynd status is not in the allowed list
       const isFyndIntegrated = !!(returnCase.fyndOrderId || returnCase.fyndShipmentId || returnCase.fyndReturnId);
       if (isFyndIntegrated) {
@@ -1596,6 +1605,162 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         payloadJson: JSON.stringify({ returnInstructions: instructions || null, adminEmail: sessionEmail }),
       },
     });
+    throw redirect(`/app/returns/${id}`);
+  }
+
+  // ── Approve customer cancellation request ──
+  if (actionType === "approve_cancellation") {
+    if (returnCase.status.toLowerCase() !== "approved" || !returnCase.cancellationRequestedAt) {
+      return Response.json(
+        { error: "No pending cancellation request to approve" },
+        { status: 400 },
+      );
+    }
+
+    try {
+      await prisma.returnCase.update({
+        where: { id },
+        data: { status: "cancelled" },
+      });
+
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "cancellation_approved",
+          payloadJson: JSON.stringify({
+            reason: returnCase.cancellationReason || null,
+            adminEmail: sessionEmail,
+          }),
+        },
+      });
+
+      // Close Shopify Return (best-effort)
+      await closeShopifyReturnBestEffort(admin, returnCase, {
+        action: "close",
+        logEvent: logShopifyReturnEvent,
+      });
+
+      // Best-effort Fynd cancel: trigger return_request_cancelled on Fynd
+      const fyndReturnIdVal = returnCase.fyndReturnId;
+      const fyndSyncStatus = (returnCase as unknown as { fyndSyncStatus?: string | null }).fyndSyncStatus;
+      const fyndShipmentIdVal = returnCase.fyndShipmentId;
+      const fyndOrderIdVal = returnCase.fyndOrderId;
+      if ((fyndReturnIdVal || fyndSyncStatus === "synced") && fyndShipmentIdVal) {
+        try {
+          const settingsForCancel = shop.settings as NonNullable<typeof shop.settings> & { fyndApiType?: string | null } | undefined;
+          if (settingsForCancel) {
+            const clientResult = await createFyndClientOrError(settingsForCancel, { requirePlatform: true });
+            if (clientResult.ok && "updateShipmentStatus" in clientResult.client) {
+              const fyndClient = clientResult.client as import("../lib/fynd.server").FyndPlatformClient;
+              const cancelPayload = {
+                statuses: [
+                  {
+                    shipments: [{ identifier: fyndShipmentIdVal }],
+                    status: "return_request_cancelled",
+                  },
+                ],
+                task: false,
+                force_transition: false,
+                lock_after_transition: false,
+                unlock_before_transition: false,
+              };
+              const callId = fyndOrderIdVal || fyndShipmentIdVal;
+              await fyndClient.updateShipmentStatus(callId, cancelPayload);
+              console.log(`[approve_cancellation] Fynd return_request_cancelled sent for shipment ${fyndShipmentIdVal}`);
+            }
+          }
+        } catch (fyndErr) {
+          console.warn("[approve_cancellation] Fynd cancel best-effort failed:", fyndErr);
+          // Log event for audit trail but don't block cancellation
+          await prisma.returnEvent.create({
+            data: {
+              returnCaseId: id,
+              source: "admin",
+              eventType: "fynd_cancel_failed",
+              payloadJson: JSON.stringify({
+                error: fyndErr instanceof Error ? fyndErr.message : String(fyndErr),
+                shipmentId: fyndShipmentIdVal,
+              }),
+            },
+          }).catch(() => {});
+        }
+      }
+
+      // Send cancellation confirmation email (fire-and-forget)
+      if (returnCase.customerEmailNorm) {
+        sendCancellationNotification({
+          shopDomain: session.shop,
+          to: returnCase.customerEmailNorm,
+          orderName: returnCase.shopifyOrderName,
+          shopName: undefined,
+          returnId: returnCase.returnRequestNo ?? returnCase.id,
+          customerPhone: returnCase.customerPhoneNorm ?? null,
+        }).catch((e) => console.warn("[approve_cancellation] Notification failed:", e));
+      }
+
+      // Dispatch webhook (fire-and-forget)
+      dispatchWebhookEvent(shop.id, "return.cancelled", {
+        returnCaseId: id,
+        returnRequestNo: returnCase.returnRequestNo,
+        shopifyOrderName: returnCase.shopifyOrderName,
+        previousStatus: "approved",
+        cancelledBy: "admin_approved_customer_request",
+        reason: returnCase.cancellationReason || null,
+      });
+
+      throw redirect(`/app/returns/${id}`);
+    } catch (err) {
+      if (isRedirectResponse(err)) throw err;
+      if (err instanceof Response) throw err;
+      const rawMessage = await extractErrorMessage(err);
+      console.error("[approve_cancellation] Error:", err);
+      return Response.json({ error: rawMessage || "Failed to approve cancellation" }, { status: 500 });
+    }
+  }
+
+  // ── Decline customer cancellation request ──
+  if (actionType === "decline_cancellation") {
+    if (returnCase.status.toLowerCase() !== "approved" || !returnCase.cancellationRequestedAt) {
+      return Response.json(
+        { error: "No pending cancellation request to decline" },
+        { status: 400 },
+      );
+    }
+
+    await prisma.returnCase.update({
+      where: { id },
+      data: {
+        cancellationDeclinedAt: new Date(),
+        cancellationDeclinedBy: sessionEmail,
+        cancellationRequestedAt: null,
+      },
+    });
+
+    await prisma.returnEvent.create({
+      data: {
+        returnCaseId: id,
+        source: "admin",
+        eventType: "cancellation_declined",
+        payloadJson: JSON.stringify({
+          reason: returnCase.cancellationReason || null,
+          adminEmail: sessionEmail,
+        }),
+      },
+    });
+
+    // Send decline notification (fire-and-forget)
+    if (returnCase.customerEmailNorm) {
+      sendCancellationDeclinedNotification({
+        shopDomain: session.shop,
+        to: returnCase.customerEmailNorm,
+        orderName: returnCase.shopifyOrderName,
+        shopName: undefined,
+        returnId: returnCase.returnRequestNo ?? returnCase.id,
+        customerPhone: returnCase.customerPhoneNorm ?? null,
+      }).catch((e) => console.warn("[decline_cancellation] Notification failed:", e));
+    }
+
     throw redirect(`/app/returns/${id}`);
   }
 

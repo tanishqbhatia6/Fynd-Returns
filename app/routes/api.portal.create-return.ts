@@ -7,7 +7,8 @@ import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials } from "../lib/shopify-admin.server";
 import { sendNewReturnNotification } from "../lib/notification.server";
-import { formatReturnRequestId } from "../lib/return-request-id";
+import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from "../lib/return-request-id";
+import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
 import { parseJsonArray } from "../lib/parse-json";
@@ -891,7 +892,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           include: { items: true },
         });
 
-        const returnRequestNo = formatReturnRequestId(rc.id);
+        const idConfig = parseReturnIdConfig(settings?.returnIdConfigJson as string | null);
+        let idCounter: number | undefined;
+        if (idConfig.bodyMode === "sequential" || idConfig.bodyMode === "date_sequential") {
+          idCounter = await nextReturnIdCounter(settings!.id);
+        }
+        const returnRequestNo = buildReturnRequestId(idConfig, rc.id, idCounter);
         await tx.returnCase.update({
           where: { id: rc.id },
           data: { returnRequestNo },
@@ -1030,7 +1036,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       Response.json({
         success: true,
         returnId: returnCase.id,
-        returnRequestId: formatReturnRequestId(returnCase.id),
+        returnRequestId: returnCase.returnRequestNo || formatReturnRequestId(returnCase.id),
         status: returnCase.status,
         message:
           status === "approved"

@@ -4,6 +4,8 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseJsonArray } from "../lib/parse-json";
+import { parseReturnIdConfig, previewReturnRequestId, DEFAULT_RETURN_ID_CONFIG } from "../lib/return-request-id";
+import type { ReturnIdConfig, ReturnIdBodyMode } from "../lib/return-request-id";
 import { findOrCreateShop } from "../lib/shop.server";
 import { fetchAllLocations } from "../lib/shopify-admin.server";
 import type { ShopLocation } from "../lib/shopify-admin.server";
@@ -60,6 +62,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       try { return s?.allowedFyndStatusesForReturn ? JSON.parse(s.allowedFyndStatusesForReturn) as string[] : []; }
       catch { return []; }
     })(),
+    returnIdConfig: parseReturnIdConfig(s?.returnIdConfigJson as string | null),
   };
 };
 
@@ -99,6 +102,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const allowedFyndStatusesForReturn = allowedFyndStatusesForReturnRaw.length > 0
     ? JSON.stringify(allowedFyndStatusesForReturnRaw.map((s) => s.trim().toLowerCase()).filter(Boolean))
     : null; // null = feature disabled, all forward statuses allowed
+
+  // Return ID config
+  const returnIdConfigJson = (formData.get("returnIdConfigJson") as string | null) || null;
 
   const shop = await findOrCreateShop(session.shop);
 
@@ -146,6 +152,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndConsolidateWindowHours,
         allowedFyndStatusesForRefund,
         allowedFyndStatusesForReturn,
+        returnIdConfigJson,
       },
       update: {
         noReturnPeriodEnabled,
@@ -170,6 +177,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndConsolidateWindowHours,
         allowedFyndStatusesForRefund,
         allowedFyndStatusesForReturn,
+        returnIdConfigJson,
       },
     });
     return { success: true };
@@ -205,6 +213,19 @@ export default function ReturnSettings() {
   const [allowedFyndReturnStatuses, setAllowedFyndReturnStatuses] = React.useState<string[]>(data.allowedFyndStatusesForReturn);
   const [fyndReturnGateEnabled, setFyndReturnGateEnabled] = React.useState(data.allowedFyndStatusesForReturn.length > 0);
 
+  // Return ID config
+  const [ridPrefix, setRidPrefix] = React.useState(data.returnIdConfig.prefix);
+  const [ridSeparator, setRidSeparator] = React.useState(data.returnIdConfig.separator);
+  const [ridBodyMode, setRidBodyMode] = React.useState<ReturnIdBodyMode>(data.returnIdConfig.bodyMode);
+  const [ridHashLength, setRidHashLength] = React.useState(data.returnIdConfig.hashLength);
+  const [ridSeqPadding, setRidSeqPadding] = React.useState(data.returnIdConfig.sequentialPadding);
+  const [ridSuffix, setRidSuffix] = React.useState(data.returnIdConfig.suffix);
+
+  const ridPreview = React.useMemo(() => previewReturnRequestId({
+    prefix: ridPrefix, separator: ridSeparator, bodyMode: ridBodyMode,
+    hashLength: ridHashLength, sequentialPadding: ridSeqPadding, suffix: ridSuffix,
+  }), [ridPrefix, ridSeparator, ridBodyMode, ridHashLength, ridSeqPadding, ridSuffix]);
+
   React.useEffect(() => {
     setTags(data.restrictedProductTags);
     setLocationMode(data.refundLocationMode === "manual" ? "manual" : "auto");
@@ -226,7 +247,13 @@ export default function ReturnSettings() {
     setFyndStatusGateEnabled(data.allowedFyndStatusesForRefund.length > 0);
     setAllowedFyndReturnStatuses(data.allowedFyndStatusesForReturn);
     setFyndReturnGateEnabled(data.allowedFyndStatusesForReturn.length > 0);
-  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays, data.noReturnPeriodEnabled, data.portalExchangeEnabled, data.portalAllowedFulfillmentStatuses, data.fyndConsolidateReturns, data.fyndConsolidateWindowHours, data.allowedFyndStatusesForRefund, data.allowedFyndStatusesForReturn]);
+    setRidPrefix(data.returnIdConfig.prefix);
+    setRidSeparator(data.returnIdConfig.separator);
+    setRidBodyMode(data.returnIdConfig.bodyMode);
+    setRidHashLength(data.returnIdConfig.hashLength);
+    setRidSeqPadding(data.returnIdConfig.sequentialPadding);
+    setRidSuffix(data.returnIdConfig.suffix);
+  }, [data.restrictedProductTags, data.refundLocationMode, data.refundLocationId, data.refundPaymentMethod, data.refundStoreCreditPct, data.photoRequired, data.autoApproveEnabled, data.autoRefundEnabled, data.discountCodeRefundEnabled, data.discountCodePrefix, data.discountCodeExpiryDays, data.noReturnPeriodEnabled, data.portalExchangeEnabled, data.portalAllowedFulfillmentStatuses, data.fyndConsolidateReturns, data.fyndConsolidateWindowHours, data.allowedFyndStatusesForRefund, data.allowedFyndStatusesForReturn, data.returnIdConfig]);
 
   const addTag = () => {
     const v = tagInput.trim();
@@ -266,6 +293,10 @@ export default function ReturnSettings() {
     if (fyndReturnGateEnabled) {
       allowedFyndReturnStatuses.forEach((s) => fd.append("allowedFyndStatusesForReturn", s));
     }
+    fd.set("returnIdConfigJson", JSON.stringify({
+      prefix: ridPrefix, separator: ridSeparator, bodyMode: ridBodyMode,
+      hashLength: ridHashLength, sequentialPadding: ridSeqPadding, suffix: ridSuffix,
+    }));
     fetcher.submit(fd, { method: "post" });
   };
 
@@ -346,6 +377,129 @@ export default function ReturnSettings() {
                   <button type="button" onClick={() => removeTag(t)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#6d7175", fontSize: 16 }} aria-label={`Remove ${t}`}>×</button>
                 </span>
               ))}
+            </div>
+          </s-section>
+
+          {/* Return ID Format */}
+          <s-section>
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: "#F0FDF4", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/></svg>
+                </div>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Return ID Format</div>
+                  <div style={{ fontSize: 12, color: "#6d7175" }}>Configure how return request IDs are generated</div>
+                </div>
+              </div>
+
+              {/* Live Preview */}
+              <div style={{ margin: "12px 0", padding: "12px 16px", background: "#F0FDF4", borderRadius: 8, border: "1px solid #BBF7D0", display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 12, color: "#6d7175" }}>Preview:</span>
+                <span style={{ fontWeight: 700, fontSize: 15, fontFamily: "'SF Mono', Menlo, Consolas, monospace", color: "#059669", letterSpacing: "0.03em" }}>{ridPreview}</span>
+              </div>
+
+              <div style={{ padding: 16, background: "#f6f6f7", borderRadius: 8, display: "flex", flexDirection: "column", gap: 14 }}>
+                {/* Prefix */}
+                <div style={{ display: "flex", gap: 16, alignItems: "flex-end", flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Prefix</label>
+                    <input
+                      type="text" value={ridPrefix} maxLength={20}
+                      onChange={(e) => setRidPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
+                      style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, fontFamily: "monospace" }}
+                      placeholder="RPM"
+                    />
+                  </div>
+                  <div style={{ minWidth: 100 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Separator</label>
+                    <select
+                      value={ridSeparator}
+                      onChange={(e) => setRidSeparator(e.target.value)}
+                      style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, background: "white" }}
+                    >
+                      <option value="-">Dash ( - )</option>
+                      <option value="_">Underscore ( _ )</option>
+                      <option value="/">Slash ( / )</option>
+                      <option value="">None</option>
+                    </select>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 120 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Suffix (optional)</label>
+                    <input
+                      type="text" value={ridSuffix} maxLength={10}
+                      onChange={(e) => setRidSuffix(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
+                      style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, fontFamily: "monospace" }}
+                      placeholder="e.g. -US"
+                    />
+                  </div>
+                </div>
+
+                {/* ID Format */}
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 6 }}>ID Format</label>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                    {([
+                      { value: "hash" as const, label: "Hash from ID", desc: "Random alphanumeric (e.g. A1B2C3D4)" },
+                      { value: "sequential" as const, label: "Sequential", desc: "Auto-incrementing counter (e.g. 000042)" },
+                      { value: "date_hash" as const, label: "Date + Hash", desc: "Date prefix + hash (e.g. 260312-A1B2)" },
+                      { value: "date_sequential" as const, label: "Date + Sequential", desc: "Date prefix + counter (e.g. 260312-042)" },
+                    ] as const).map((opt) => (
+                      <label key={opt.value} style={{
+                        display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", borderRadius: 8,
+                        border: `2px solid ${ridBodyMode === opt.value ? "#059669" : "#e1e3e5"}`,
+                        background: ridBodyMode === opt.value ? "#F0FDF4" : "white",
+                        cursor: "pointer", transition: "all 0.15s",
+                      }}>
+                        <input
+                          type="radio" name="ridBodyMode" value={opt.value}
+                          checked={ridBodyMode === opt.value}
+                          onChange={() => setRidBodyMode(opt.value)}
+                          style={{ marginTop: 2 }}
+                        />
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{opt.label}</div>
+                          <div style={{ fontSize: 11, color: "#6d7175" }}>{opt.desc}</div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Conditional: Hash Length or Sequential Padding */}
+                {(ridBodyMode === "hash" || ridBodyMode === "date_hash") && (
+                  <div style={{ maxWidth: 200 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Hash Length</label>
+                    <select
+                      value={ridHashLength}
+                      onChange={(e) => setRidHashLength(Number(e.target.value))}
+                      style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, background: "white" }}
+                    >
+                      <option value="6">6 characters</option>
+                      <option value="8">8 characters (default)</option>
+                      <option value="10">10 characters</option>
+                    </select>
+                  </div>
+                )}
+                {(ridBodyMode === "sequential" || ridBodyMode === "date_sequential") && (
+                  <div style={{ maxWidth: 200 }}>
+                    <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Counter Padding</label>
+                    <select
+                      value={ridSeqPadding}
+                      onChange={(e) => setRidSeqPadding(Number(e.target.value))}
+                      style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, background: "white" }}
+                    >
+                      {[4, 5, 6, 7, 8].map((n) => (
+                        <option key={n} value={n}>{n} digits{n === 6 ? " (default)" : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div style={{ fontSize: 11, color: "#9CA3AF", lineHeight: 1.5 }}>
+                  Changes only affect new returns. Existing return IDs are preserved.
+                </div>
+              </div>
             </div>
           </s-section>
 

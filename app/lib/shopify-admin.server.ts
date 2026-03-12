@@ -1589,6 +1589,252 @@ export async function createRefund(
   }
 }
 
+/* ── Shopify Return creation (returnCreate mutation) ── */
+
+const RETURNABLE_FULFILLMENTS_QUERY = `#graphql
+  query returnableFulfillments($orderId: ID!) {
+    returnableFulfillments(orderId: $orderId, first: 10) {
+      edges {
+        node {
+          returnableFulfillmentLineItems(first: 50) {
+            edges {
+              node {
+                quantity
+                fulfillmentLineItem {
+                  id
+                  lineItem {
+                    id
+                    sku
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const RETURN_CREATE_MUTATION = `#graphql
+  mutation returnCreate($returnInput: ReturnInput!) {
+    returnCreate(returnInput: $returnInput) {
+      return {
+        id
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
+/** Map free-text return reason to Shopify ReturnReason enum */
+function mapReturnReason(reasonCode?: string | null): string {
+  if (!reasonCode) return "OTHER";
+  const lower = reasonCode.toLowerCase();
+  if (/defective|broken|damaged|faulty|not.?working/i.test(lower)) return "DEFECTIVE";
+  if (/wrong.*(product|item)|incorrect|not.*ordered|different/i.test(lower)) return "WRONG_PRODUCT";
+  if (/too.*small|tight|narrow|short/i.test(lower)) return "SIZE_TOO_SMALL";
+  if (/too.*large|big|loose|wide|long/i.test(lower)) return "SIZE_TOO_LARGE";
+  if (/colou?r|shade/i.test(lower)) return "COLOR";
+  if (/style|design|look|appearance/i.test(lower)) return "STYLE";
+  if (/unwanted|not.*need|changed.*mind|don'?t.*want|no.*longer/i.test(lower)) return "UNWANTED";
+  return "OTHER";
+}
+
+export type ShopifyReturnResult = {
+  success: boolean;
+  shopifyReturnId?: string;
+  error?: string;
+};
+
+/**
+ * Create a Shopify Return on an order using the returnCreate mutation.
+ *
+ * Flow:
+ * 1. Query `returnableFulfillments` to get `fulfillmentLineItemId` for each item
+ * 2. Map return items to fulfillment line items by lineItem GID or SKU
+ * 3. Call `returnCreate` mutation
+ *
+ * Returns the Shopify Return GID on success.
+ * Non-fatal: if this fails, the approval flow should continue.
+ */
+export async function createShopifyReturn(
+  admin: AdminGraphQL,
+  orderId: string,
+  returnItems: Array<{
+    shopifyLineItemId: string;
+    qty: number;
+    reasonCode?: string | null;
+    notes?: string | null;
+    sku?: string | null;
+  }>,
+  options?: { notifyCustomer?: boolean; requestedAt?: string },
+): Promise<ShopifyReturnResult> {
+  try {
+    const orderGid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+
+    // Step 1: Query returnable fulfillments to get fulfillmentLineItemIds
+    const fulfillmentsRes = await admin.graphql(RETURNABLE_FULFILLMENTS_QUERY, {
+      variables: { orderId: orderGid },
+    });
+    const fulfillmentsJson = (await fulfillmentsRes.json()) as {
+      data?: {
+        returnableFulfillments?: {
+          edges?: Array<{
+            node?: {
+              returnableFulfillmentLineItems?: {
+                edges?: Array<{
+                  node?: {
+                    quantity: number;
+                    fulfillmentLineItem?: {
+                      id: string;
+                      lineItem?: { id: string; sku?: string | null };
+                    };
+                  };
+                }>;
+              };
+            };
+          }>;
+        };
+      };
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (fulfillmentsJson.errors?.length) {
+      const errMsg = fulfillmentsJson.errors[0]?.message ?? "Unknown error";
+      if (/access denied|not approved|protected/i.test(errMsg)) {
+        return { success: false, error: `Shopify Return creation requires "write_returns" access scope. Error: ${errMsg}` };
+      }
+      return { success: false, error: `Failed to query returnable fulfillments: ${errMsg}` };
+    }
+
+    // Build maps: order lineItem GID → fulfillmentLineItem, and SKU → fulfillmentLineItem
+    const fulfillmentLineItemMap = new Map<string, { fulfillmentLineItemId: string; maxQty: number }>();
+    const skuMap = new Map<string, { fulfillmentLineItemId: string; maxQty: number }>();
+
+    for (const edge of fulfillmentsJson.data?.returnableFulfillments?.edges ?? []) {
+      for (const lineEdge of edge.node?.returnableFulfillmentLineItems?.edges ?? []) {
+        const fli = lineEdge.node?.fulfillmentLineItem;
+        if (!fli?.id) continue;
+        const maxQty = lineEdge.node?.quantity ?? 0;
+
+        if (fli.lineItem?.id) {
+          fulfillmentLineItemMap.set(fli.lineItem.id, { fulfillmentLineItemId: fli.id, maxQty });
+        }
+        if (fli.lineItem?.sku) {
+          const skuKey = fli.lineItem.sku.toLowerCase().trim();
+          if (skuKey && !skuMap.has(skuKey)) {
+            skuMap.set(skuKey, { fulfillmentLineItemId: fli.id, maxQty });
+          }
+        }
+      }
+    }
+
+    if (fulfillmentLineItemMap.size === 0 && skuMap.size === 0) {
+      return { success: false, error: "No returnable fulfillment line items found. The order may not be fulfilled yet, or all items have already been returned." };
+    }
+
+    console.log(`[createShopifyReturn] Found ${fulfillmentLineItemMap.size} fulfillment line items by GID, ${skuMap.size} by SKU`);
+
+    // Step 2: Map return items to fulfillment line items
+    const returnLineItems: Array<{
+      fulfillmentLineItemId: string;
+      quantity: number;
+      returnReason: string;
+      returnReasonNote?: string;
+    }> = [];
+
+    for (const item of returnItems) {
+      let match: { fulfillmentLineItemId: string; maxQty: number } | undefined;
+
+      // Primary: match by order lineItem GID
+      if (item.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")) {
+        match = fulfillmentLineItemMap.get(item.shopifyLineItemId);
+      }
+
+      // Fallback: match by SKU
+      if (!match && item.sku) {
+        const skuKey = item.sku.toLowerCase().trim();
+        match = skuMap.get(skuKey);
+      }
+
+      if (!match) {
+        console.warn(`[createShopifyReturn] No fulfillment line item match for lineItemId="${item.shopifyLineItemId}" sku="${item.sku}" — skipping`);
+        continue;
+      }
+
+      const qty = Math.min(item.qty, match.maxQty);
+      if (qty <= 0) continue;
+
+      const reason = mapReturnReason(item.reasonCode);
+      returnLineItems.push({
+        fulfillmentLineItemId: match.fulfillmentLineItemId,
+        quantity: qty,
+        returnReason: reason,
+        ...(item.notes
+          ? { returnReasonNote: item.notes.slice(0, 255) }
+          : reason === "OTHER"
+            ? { returnReasonNote: item.reasonCode || "Customer return request" }
+            : {}),
+      });
+    }
+
+    if (returnLineItems.length === 0) {
+      return { success: false, error: "Could not match any return items to fulfilled line items. Items may not be fulfilled yet or have already been returned." };
+    }
+
+    console.log(`[createShopifyReturn] Creating Shopify return with ${returnLineItems.length} line items on order ${orderGid}`);
+
+    // Step 3: Call returnCreate mutation
+    const returnInput: Record<string, unknown> = {
+      orderId: orderGid,
+      returnLineItems,
+      notifyCustomer: options?.notifyCustomer ?? false,
+    };
+    if (options?.requestedAt) {
+      returnInput.requestedAt = options.requestedAt;
+    }
+
+    const createRes = await admin.graphql(RETURN_CREATE_MUTATION, {
+      variables: { returnInput },
+    });
+    const createJson = (await createRes.json()) as {
+      data?: {
+        returnCreate?: {
+          return?: { id: string } | null;
+          userErrors?: Array<{ field?: string[]; message: string }>;
+        };
+      };
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (createJson.errors?.length) {
+      return { success: false, error: `Shopify API error: ${createJson.errors[0]?.message ?? "Unknown"}` };
+    }
+
+    const userErrors = createJson.data?.returnCreate?.userErrors ?? [];
+    if (userErrors.length > 0) {
+      const errMsg = userErrors.map((e) => e.message).join("; ");
+      return { success: false, error: `Shopify Return creation failed: ${errMsg}` };
+    }
+
+    const returnId = createJson.data?.returnCreate?.return?.id;
+    if (!returnId) {
+      return { success: false, error: "Shopify Return was created but no ID was returned." };
+    }
+
+    console.log(`[createShopifyReturn] Successfully created Shopify return: ${returnId}`);
+    return { success: true, shopifyReturnId: returnId };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[createShopifyReturn] Error:", err);
+    return { success: false, error: `Shopify Return creation error: ${msg}` };
+  }
+}
+
 /* ── Bulk order info for customer enrichment ── */
 
 const CUSTOMER_ORDERS_QUERY = `#graphql

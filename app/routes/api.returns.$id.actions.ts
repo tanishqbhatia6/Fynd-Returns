@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createDiscountCodeRefund, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, createShopifyReturn, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
@@ -243,6 +243,39 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           payloadJson: JSON.stringify({ note: note || null, resolutionType: resolvedType, consolidation: true, adminEmail: sessionEmail }),
         },
       });
+      // Create Shopify Return even in consolidation mode (Fynd is deferred, but Shopify should know immediately)
+      const consOrderId = returnCase.shopifyOrderId;
+      const canCreateConsReturn = consOrderId
+        && !consOrderId.startsWith("manual:")
+        && (consOrderId.startsWith("gid://") || /^\d+$/.test(consOrderId))
+        && !returnCase.shopifyReturnId;
+      if (canCreateConsReturn) {
+        try {
+          const shopifyReturnResult = await createShopifyReturn(
+            admin, consOrderId,
+            (returnCase.items ?? []).map((item) => ({
+              shopifyLineItemId: item.shopifyLineItemId,
+              qty: item.qty,
+              reasonCode: item.reasonCode ?? null,
+              notes: item.notes ?? null,
+              sku: item.sku ?? null,
+            })),
+            { requestedAt: returnCase.createdAt.toISOString() },
+          );
+          if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
+            await prisma.returnCase.update({
+              where: { id },
+              data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
+            }).catch(() => {});
+            console.log(`[Approve:consolidation] Shopify Return created: ${shopifyReturnResult.shopifyReturnId}`);
+          } else {
+            console.warn(`[Approve:consolidation] Shopify Return creation failed (non-fatal): ${shopifyReturnResult.error}`);
+          }
+        } catch (err) {
+          console.warn("[Approve:consolidation] Shopify Return creation crashed (non-fatal):", err);
+        }
+      }
+
       if (returnCase.customerEmailNorm) {
         try {
           await sendApprovalNotification({
@@ -433,6 +466,72 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       });
     }
 
+    // ── Shopify Return creation (non-blocking) ──
+    // Create a Return record in Shopify so it appears in Shopify Admin's Returns tab.
+    // Only for non-green, non-manual returns with a valid Shopify order GID.
+    const effectiveOrderId = returnCase.shopifyOrderId;
+    const shouldCreateShopifyReturn =
+      !isGreenReturn
+      && effectiveOrderId
+      && !effectiveOrderId.startsWith("manual:")
+      && (effectiveOrderId.startsWith("gid://") || /^\d+$/.test(effectiveOrderId))
+      && !returnCase.shopifyReturnId; // Don't recreate if already exists
+
+    if (shouldCreateShopifyReturn) {
+      try {
+        const shopifyReturnResult = await createShopifyReturn(
+          admin,
+          effectiveOrderId,
+          (returnCase.items ?? []).map((item) => ({
+            shopifyLineItemId: item.shopifyLineItemId,
+            qty: item.qty,
+            reasonCode: item.reasonCode ?? null,
+            notes: item.notes ?? null,
+            sku: item.sku ?? null,
+          })),
+          { requestedAt: returnCase.createdAt.toISOString() },
+        );
+
+        if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
+          await prisma.returnCase.update({
+            where: { id },
+            data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
+          }).catch(() => {});
+          await prisma.returnEvent.create({
+            data: {
+              returnCaseId: id,
+              source: "admin",
+              eventType: "shopify_return_created",
+              payloadJson: JSON.stringify({
+                shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                itemCount: (returnCase.items ?? []).length,
+                adminEmail: sessionEmail,
+              }),
+            },
+          }).catch(() => {});
+          console.log(`[Approve] Shopify Return created: ${shopifyReturnResult.shopifyReturnId}`);
+        } else {
+          // Non-fatal: log the error but don't block approval
+          console.warn(`[Approve] Shopify Return creation failed (non-fatal): ${shopifyReturnResult.error}`);
+          await prisma.returnEvent.create({
+            data: {
+              returnCaseId: id,
+              source: "admin",
+              eventType: "shopify_return_failed",
+              payloadJson: JSON.stringify({
+                error: shopifyReturnResult.error,
+                orderId: effectiveOrderId,
+                adminEmail: sessionEmail,
+              }),
+            },
+          }).catch(() => {});
+        }
+      } catch (err) {
+        // Catch-all: never let Shopify Return creation crash the approval
+        console.warn("[Approve] Shopify Return creation crashed (non-fatal):", err);
+      }
+    }
+
     if (returnCase.customerEmailNorm) {
       try {
         await sendApprovalNotification({
@@ -566,6 +665,41 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           }),
         },
       });
+      // Also create Shopify Return if not already created
+      if (!returnCase.shopifyReturnId) {
+        const retryOrderId = returnCase.shopifyOrderId;
+        const canCreateReturn = retryOrderId
+          && !retryOrderId.startsWith("manual:")
+          && (retryOrderId.startsWith("gid://") || /^\d+$/.test(retryOrderId))
+          && returnCase.isGreenReturn !== true;
+        if (canCreateReturn) {
+          try {
+            const shopifyReturnResult = await createShopifyReturn(
+              admin, retryOrderId,
+              (returnCase.items ?? []).map((item) => ({
+                shopifyLineItemId: item.shopifyLineItemId,
+                qty: item.qty,
+                reasonCode: item.reasonCode ?? null,
+                notes: item.notes ?? null,
+                sku: item.sku ?? null,
+              })),
+              { requestedAt: returnCase.createdAt.toISOString() },
+            );
+            if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
+              await prisma.returnCase.update({
+                where: { id },
+                data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
+              }).catch(() => {});
+              console.log(`[retry_fynd_sync] Also created Shopify Return: ${shopifyReturnResult.shopifyReturnId}`);
+            } else {
+              console.warn(`[retry_fynd_sync] Shopify Return creation failed (non-fatal): ${shopifyReturnResult.error}`);
+            }
+          } catch (err) {
+            console.warn("[retry_fynd_sync] Shopify Return creation crashed (non-fatal):", err);
+          }
+        }
+      }
+
       const successParam = fyndResult.alreadyExists ? "already_exists" : "1";
       throw redirect(`/app/returns/${id}?fyndSuccess=${successParam}`);
     }

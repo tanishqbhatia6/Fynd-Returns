@@ -80,20 +80,36 @@ export async function createReturnOnFynd(
         searchType,
         pageSize: 10,
       });
-      const resolved = searchRes.orderId ?? searchRes.shipmentId;
-      if (resolved) {
-        fyndOrderId = resolved;
+      // ONLY use orderId for fyndOrderId — never use shipmentId as order_id
+      // shipmentId passed to getShipments() causes "No records found for given data against shipment_id" error
+      if (searchRes.orderId) {
+        fyndOrderId = searchRes.orderId;
       }
     }
 
-    try {
-      shipmentsRes = await client.getShipments(fyndOrderId);
-    } catch (getErr) {
-      const msg = getErr instanceof Error ? getErr.message : String(getErr);
-      if ((msg.includes("404") || msg.includes("Not Found") || msg.includes("not found")) && searchRes) {
-        const items = searchRes.items ?? searchRes.shipments ?? [];
-        if (Array.isArray(items) && items.length > 0) {
-          shipmentsRes = items.map((it: unknown) => {
+    // When search returned items but no orderId, skip getShipments() and use search results directly
+    // This happens when Fynd search finds shipments by external_order_id but the response
+    // doesn't contain a Fynd internal order_id — only shipment_ids
+    const searchItems = searchRes?.items ?? searchRes?.shipments ?? [];
+    const hasSearchItems = Array.isArray(searchItems) && searchItems.length > 0;
+    const searchOnlyHasShipmentId = searchRes && !searchRes.orderId && searchRes.shipmentId;
+
+    if (searchOnlyHasShipmentId && hasSearchItems) {
+      // Use search results directly — mapping to a consistent format
+      shipmentsRes = searchItems.map((it: unknown) => {
+        const o = it && typeof it === "object" ? it as Record<string, unknown> : {};
+        const sid = String(o.shipment_id ?? o.shipmentId ?? o.id ?? "");
+        return { ...o, id: sid, identifier: sid };
+      });
+    } else {
+      try {
+        shipmentsRes = await client.getShipments(fyndOrderId);
+      } catch (getErr) {
+        const msg = getErr instanceof Error ? getErr.message : String(getErr);
+        // Handle various Fynd error messages: 404, Not Found, "No records found"
+        const isNotFound = msg.includes("404") || msg.includes("Not Found") || msg.includes("not found") || msg.includes("No records found");
+        if (isNotFound && hasSearchItems) {
+          shipmentsRes = searchItems.map((it: unknown) => {
             const o = it && typeof it === "object" ? it as Record<string, unknown> : {};
             const sid = String(o.shipment_id ?? o.shipmentId ?? o.id ?? "");
             return { ...o, id: sid, identifier: sid };
@@ -101,8 +117,6 @@ export async function createReturnOnFynd(
         } else {
           throw getErr;
         }
-      } else {
-        throw getErr;
       }
     }
     const shipments = Array.isArray(shipmentsRes)

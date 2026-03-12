@@ -3,7 +3,7 @@ import { authenticateApiKey } from "../lib/api-key-auth.server";
 import { apiSuccess, apiError } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
-import { createRefund, createDiscountCodeRefund, createAdminClient, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, createAdminClient, closeShopifyReturnBestEffort, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import prisma from "../db.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -93,6 +93,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           payloadJson: JSON.stringify({ method: "discount_code", apiKeyId: auth.keyId }),
         },
       });
+      // Close the Shopify return after discount code refund
+      await closeShopifyReturnBestEffort(admin, returnCase, {
+        logEvent: async (evt) => {
+          await prisma.returnEvent.create({ data: { returnCaseId: id, source: "external_api", ...evt } }).catch(() => {});
+        },
+      });
 
       dispatchWebhookEvent(auth.shopId, "return.refunded", {
         returnId: id,
@@ -146,6 +152,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         source: "external_api",
         eventType: "refunded",
         payloadJson: JSON.stringify({ method: refundMethod, apiKeyId: auth.keyId }),
+      },
+    });
+    // Close the Shopify return after standard refund
+    await closeShopifyReturnBestEffort(admin, returnCase, {
+      logEvent: async (evt) => {
+        await prisma.returnEvent.create({ data: { returnCaseId: id, source: "external_api", ...evt } }).catch(() => {});
       },
     });
 

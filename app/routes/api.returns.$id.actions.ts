@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createDiscountCodeRefund, createShopifyReturn, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createDiscountCodeRefund, createShopifyReturn, closeShopifyReturnBestEffort, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
@@ -103,6 +103,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const isTerminal = TERMINAL_STATUSES.includes(returnCase.status.toLowerCase());
 
+  // Helper for logging Shopify return close/decline events
+  const logShopifyReturnEvent = async (evt: { eventType: string; payloadJson: string }) => {
+    await prisma.returnEvent.create({ data: { returnCaseId: id, source: "admin", ...evt } }).catch(() => {});
+  };
+
   let body: { action: string; status?: string; note?: string; notesForCustomer?: string; refund?: boolean; rejectionReason?: string; locationId?: string; refundMethod?: string; storeCreditPct?: number; bonusAmount?: number; resolutionType?: string; exchangeItems?: Array<{ variantId: string; quantity: number }>; splitMode?: string; splitScAmount?: number; splitOrigAmount?: number };
   const contentType = request.headers.get("content-type") || "";
   if (contentType.includes("application/json")) {
@@ -158,6 +163,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         payloadJson: JSON.stringify({ from: returnCase.status, to: newStatus, note, adminEmail: sessionEmail }),
       },
     });
+    // Close/decline Shopify return when moving to a terminal status
+    if (["completed", "cancelled", "rejected"].includes(newStatus.toLowerCase())) {
+      const closeAction = newStatus.toLowerCase() === "rejected" ? "decline" : "close";
+      await closeShopifyReturnBestEffort(admin, returnCase, {
+        action: closeAction as "close" | "decline",
+        declineReason: closeAction === "decline" ? (note || "Return rejected") : undefined,
+        logEvent: logShopifyReturnEvent,
+      });
+    }
     throw redirect(`/app/returns/${id}`);
   }
 
@@ -828,6 +842,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         payloadJson: JSON.stringify({ rejectionReason: reason, note: note || null, adminEmail: sessionEmail }),
       },
     });
+    // Decline the Shopify return
+    await closeShopifyReturnBestEffort(admin, returnCase, {
+      action: "decline",
+      declineReason: reason,
+      logEvent: logShopifyReturnEvent,
+    });
     if (returnCase.customerEmailNorm) {
       try {
         await sendRejectionNotification({
@@ -1175,6 +1195,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             payloadJson: JSON.stringify({ ...refundDetails, note: "Discount code refund created", adminEmail: sessionEmail }),
           },
         });
+        // Close the Shopify return after discount code refund
+        await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
 
         if (returnCase.customerEmailNorm) {
           try {
@@ -1302,6 +1324,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           }),
         },
       });
+      // Close the Shopify return after standard refund
+      await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
 
       if (returnCase.customerEmailNorm) {
         try {
@@ -1484,6 +1508,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           }),
         },
       });
+      // Close the Shopify return after exchange order creation
+      await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
 
       if (returnCase.customerEmailNorm) {
         try {

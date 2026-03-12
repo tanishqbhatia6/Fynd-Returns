@@ -1853,6 +1853,187 @@ export async function createShopifyReturn(
   }
 }
 
+/* ── Shopify Return close / decline ── */
+
+const RETURN_CLOSE_MUTATION = `#graphql
+  mutation returnClose($id: ID!) {
+    returnClose(id: $id) {
+      return { id status }
+      userErrors { field message }
+    }
+  }
+`;
+
+const RETURN_DECLINE_MUTATION = `#graphql
+  mutation returnDecline($input: ReturnDeclineRequestInput!) {
+    returnDecline(input: $input) {
+      return { id status }
+      userErrors { field message }
+    }
+  }
+`;
+
+export type CloseShopifyReturnResult = {
+  success: boolean;
+  error?: string;
+  status?: string;
+  alreadyClosed?: boolean;
+};
+
+/** Close a Shopify Return (marks it as returned/closed). Idempotent. */
+export async function closeShopifyReturn(
+  admin: AdminGraphQL,
+  shopifyReturnId: string,
+): Promise<CloseShopifyReturnResult> {
+  try {
+    const gid = shopifyReturnId.startsWith("gid://")
+      ? shopifyReturnId
+      : `gid://shopify/Return/${shopifyReturnId}`;
+
+    const res = await admin.graphql(RETURN_CLOSE_MUTATION, { variables: { id: gid } });
+    const json = (await res.json()) as {
+      data?: { returnClose?: { return?: { id: string; status: string } | null; userErrors?: Array<{ field?: string[]; message: string }> } };
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (json.errors?.length) {
+      const msg = json.errors[0]?.message ?? "Unknown";
+      if (/already closed|CLOSED/i.test(msg)) {
+        console.log(`[closeShopifyReturn] Return already closed: ${gid}`);
+        return { success: true, alreadyClosed: true, status: "CLOSED" };
+      }
+      return { success: false, error: `Shopify API error: ${msg}` };
+    }
+
+    const userErrors = json.data?.returnClose?.userErrors ?? [];
+    if (userErrors.length > 0) {
+      const msg = userErrors.map((e) => e.message).join("; ");
+      if (/already closed|CLOSED|cannot close/i.test(msg)) {
+        console.log(`[closeShopifyReturn] Return already closed (userError): ${gid}`);
+        return { success: true, alreadyClosed: true, status: "CLOSED" };
+      }
+      return { success: false, error: `Return close failed: ${msg}` };
+    }
+
+    const status = json.data?.returnClose?.return?.status ?? "CLOSED";
+    console.log(`[closeShopifyReturn] Successfully closed Shopify return: ${gid} (status: ${status})`);
+    return { success: true, status };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[closeShopifyReturn] Error:", err);
+    return { success: false, error: msg };
+  }
+}
+
+/** Decline a Shopify Return (for rejected returns). Idempotent. */
+export async function declineShopifyReturn(
+  admin: AdminGraphQL,
+  shopifyReturnId: string,
+  reason?: string,
+): Promise<CloseShopifyReturnResult> {
+  try {
+    const gid = shopifyReturnId.startsWith("gid://")
+      ? shopifyReturnId
+      : `gid://shopify/Return/${shopifyReturnId}`;
+
+    const res = await admin.graphql(RETURN_DECLINE_MUTATION, {
+      variables: { input: { id: gid, declineReason: reason || "Return declined" } },
+    });
+    const json = (await res.json()) as {
+      data?: { returnDecline?: { return?: { id: string; status: string } | null; userErrors?: Array<{ field?: string[]; message: string }> } };
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (json.errors?.length) {
+      const msg = json.errors[0]?.message ?? "Unknown";
+      if (/already declined|DECLINED|already closed|CLOSED/i.test(msg)) {
+        console.log(`[declineShopifyReturn] Return already declined/closed: ${gid}`);
+        return { success: true, alreadyClosed: true, status: "DECLINED" };
+      }
+      return { success: false, error: `Shopify API error: ${msg}` };
+    }
+
+    const userErrors = json.data?.returnDecline?.userErrors ?? [];
+    if (userErrors.length > 0) {
+      const msg = userErrors.map((e) => e.message).join("; ");
+      if (/already declined|DECLINED|already closed|CLOSED|cannot decline/i.test(msg)) {
+        console.log(`[declineShopifyReturn] Return already declined/closed (userError): ${gid}`);
+        return { success: true, alreadyClosed: true, status: "DECLINED" };
+      }
+      return { success: false, error: `Return decline failed: ${msg}` };
+    }
+
+    const status = json.data?.returnDecline?.return?.status ?? "DECLINED";
+    console.log(`[declineShopifyReturn] Successfully declined Shopify return: ${gid} (status: ${status})`);
+    return { success: true, status };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[declineShopifyReturn] Error:", err);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Best-effort wrapper: close or decline a Shopify Return.
+ * Skips gracefully if no shopifyReturnId exists or if the order is manual.
+ * Never throws — all errors are logged and optionally recorded as events.
+ */
+export async function closeShopifyReturnBestEffort(
+  admin: AdminGraphQL,
+  returnCase: { id: string; shopifyReturnId?: string | null; shopifyOrderId?: string | null },
+  options?: {
+    action?: "close" | "decline";
+    declineReason?: string;
+    logEvent?: (event: { eventType: string; payloadJson: string }) => Promise<void>;
+  },
+): Promise<void> {
+  try {
+    const { shopifyReturnId, shopifyOrderId } = returnCase;
+
+    if (!shopifyReturnId) {
+      console.log(`[closeShopifyReturnBestEffort] No shopifyReturnId for return ${returnCase.id}, skipping`);
+      await options?.logEvent?.({
+        eventType: "shopify_return_close_skipped",
+        payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
+      }).catch(() => {});
+      return;
+    }
+
+    if (shopifyOrderId?.startsWith("manual:")) {
+      console.log(`[closeShopifyReturnBestEffort] Manual return ${returnCase.id}, skipping Shopify close`);
+      await options?.logEvent?.({
+        eventType: "shopify_return_close_skipped",
+        payloadJson: JSON.stringify({ reason: "manual_return", returnCaseId: returnCase.id }),
+      }).catch(() => {});
+      return;
+    }
+
+    let result: CloseShopifyReturnResult;
+    if (options?.action === "decline") {
+      result = await declineShopifyReturn(admin, shopifyReturnId, options.declineReason);
+    } else {
+      result = await closeShopifyReturn(admin, shopifyReturnId);
+    }
+
+    const eventType = result.success
+      ? (options?.action === "decline" ? "shopify_return_declined" : "shopify_return_closed")
+      : "shopify_return_close_failed";
+
+    await options?.logEvent?.({
+      eventType,
+      payloadJson: JSON.stringify({
+        shopifyReturnId,
+        returnCaseId: returnCase.id,
+        status: result.status,
+        alreadyClosed: result.alreadyClosed,
+        error: result.error,
+      }),
+    }).catch(() => {});
+  } catch (err) {
+    console.warn("[closeShopifyReturnBestEffort] Unexpected error (non-fatal):", err);
+  }
+}
+
 /* ── Bulk order info for customer enrichment ── */
 
 const CUSTOMER_ORDERS_QUERY = `#graphql

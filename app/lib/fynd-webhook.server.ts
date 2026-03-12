@@ -10,7 +10,7 @@
  */
 
 import prisma from "../db.server";
-import { createAdminClient, createRefund, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, extractShopifyOrderNumberVariants, withRestCredentials, type RefundMethodConfig } from "./shopify-admin.server";
+import { createAdminClient, createRefund, closeShopifyReturnBestEffort, fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, extractShopifyOrderNumberVariants, withRestCredentials, type RefundMethodConfig } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
 import { isLikelyFyndId } from "./fynd-payload.server";
 
@@ -860,6 +860,12 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
           payloadJson: JSON.stringify({ note: "Manual return - Fynd refund done, mark complete in app" }),
         },
       });
+      // Close Shopify return (will skip for manual orders, but safe to call)
+      await closeShopifyReturnBestEffort(admin, returnCase, {
+        logEvent: async (evt) => {
+          await prisma.returnEvent.create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } }).catch(() => {});
+        },
+      });
       if (returnCase.customerEmailNorm) {
         sendRefundNotification({
           shopDomain,
@@ -979,6 +985,12 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
             payloadJson: JSON.stringify({ shipment_id: shipmentId, note: "Shopify reported already refunded" }),
           },
         });
+        // Close the Shopify return even though refund was already done
+        await closeShopifyReturnBestEffort(admin, returnCase, {
+          logEvent: async (evt) => {
+            await prisma.returnEvent.create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } }).catch(() => {});
+          },
+        });
         await logWebhook({
           shipmentId,
           orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
@@ -1023,6 +1035,12 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         source: "fynd_webhook",
         eventType: "refund_processed",
         payloadJson: JSON.stringify({ ...refundDetails, shipment_id: shipmentId, fynd_refund_status: refundStatus }),
+      },
+    });
+    // Close the Shopify return after Fynd webhook refund
+    await closeShopifyReturnBestEffort(admin, returnCase, {
+      logEvent: async (evt) => {
+        await prisma.returnEvent.create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } }).catch(() => {});
       },
     });
     if (returnCase.customerEmailNorm) {
@@ -1177,6 +1195,12 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
                 source: "fynd_webhook",
                 eventType: "auto_refund_processed",
                 payloadJson: JSON.stringify({ ...refundDetails, trigger: "credit_note_generated", shipment_id: shipmentId }),
+              },
+            });
+            // Close the Shopify return after auto-refund
+            await closeShopifyReturnBestEffort(admin, returnCase, {
+              logEvent: async (evt) => {
+                await prisma.returnEvent.create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } }).catch(() => {});
               },
             });
             if (returnCase.customerEmailNorm) {

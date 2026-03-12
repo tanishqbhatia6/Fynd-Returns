@@ -862,9 +862,17 @@ export default function ReturnDetail() {
     mono: { fontFamily: "monospace", fontSize: 13, color: "#374151", background: "#f3f4f6", padding: "3px 8px", borderRadius: 6, display: "inline-block" } as const,
   };
 
+  // Show "Sync to Fynd" button when:
+  // - Not a manual return
+  // - Return is approved/completed
+  // - AND either: no fyndReturnId (never synced), or sync explicitly failed/scheduled for retry
   const canRetryFynd = !isManualReturn
     && ["approved", "completed"].includes(returnCase.status.toLowerCase())
-    && !returnCase.fyndReturnId;
+    && (
+      !returnCase.fyndReturnId
+      || (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus === "failed"
+      || (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus === "retry_scheduled"
+    );
 
   const returnRequestId = (returnCase as { returnRequestNo?: string | null }).returnRequestNo ?? formatReturnRequestId(returnCase.id);
   const statusLower = returnCase.status.toLowerCase();
@@ -976,6 +984,36 @@ export default function ReturnDetail() {
               Fynd logistics assignment is taking longer than expected.{" "}
               <button type="button" onClick={() => { setPollCount(0); revalidator.revalidate(); }} style={{ background: "none", border: "none", color: "#2563EB", cursor: "pointer", textDecoration: "underline", fontSize: 12, padding: 0 }}>Click to retry</button>
             </div>
+          </div>
+        )}
+        {/* Prominent banner for approved returns not synced to Fynd */}
+        {canRetryFynd && fyndSyncStatus !== "processing" && fyndSyncStatus !== "pending_consolidation" && (
+          <div style={{ marginBottom: 16, padding: "14px 18px", background: fyndSyncStatus === "failed" ? "#FEF2F2" : "#FFF7ED", border: `1px solid ${fyndSyncStatus === "failed" ? "#FECACA" : "#FED7AA"}`, borderLeft: `4px solid ${fyndSyncStatus === "failed" ? "#DC2626" : "#F59E0B"}`, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+              <svg style={{ flexShrink: 0 }} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={fyndSyncStatus === "failed" ? "#DC2626" : "#D97706"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <div>
+                <div style={{ fontWeight: 600, color: fyndSyncStatus === "failed" ? "#991B1B" : "#92400E", fontSize: 14 }}>
+                  {fyndSyncStatus === "failed" ? "Fynd sync failed" : fyndSyncStatus === "retry_scheduled" ? "Fynd sync retry scheduled" : "Not synced to Fynd"}
+                </div>
+                <div style={{ fontSize: 12, color: fyndSyncStatus === "failed" ? "#B91C1C" : "#B45309", marginTop: 2 }}>
+                  {fyndSyncStatus === "failed"
+                    ? "The return was approved but Fynd sync failed. Click Sync to Fynd to retry."
+                    : fyndSyncStatus === "retry_scheduled"
+                      ? "An automatic retry is scheduled. You can also sync manually now."
+                      : "This return has been approved but not yet synced to Fynd. Click to sync now."}
+                </div>
+              </div>
+            </div>
+            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ flexShrink: 0 }}>
+              <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
+              <button type="submit" disabled={fetcher.state !== "idle"} style={{
+                padding: "8px 20px", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer",
+                background: fyndSyncStatus === "failed" ? "#DC2626" : "#F59E0B", color: "#fff", border: "none",
+                opacity: fetcher.state !== "idle" ? 0.7 : 1,
+              }}>
+                {fetcher.state !== "idle" ? "Syncing..." : "Sync to Fynd"}
+              </button>
+            </fetcher.Form>
           </div>
         )}
         {(consolidationQueued || fyndSyncStatus === "pending_consolidation") && (
@@ -1418,10 +1456,20 @@ export default function ReturnDetail() {
                           if (/etimedout|timeout|timed out|aborted/i.test(err)) {
                             return <span><strong>Timeout</strong> \u2014 The Fynd API took too long to respond. Try again or check Fynd status.</span>;
                           }
-                          return <span><strong>API error</strong> \u2014 Check the Fynd dashboard for this order, or retry using the button above.</span>;
+                          return <span><strong>API error</strong> \u2014 Check the Fynd dashboard for this order.</span>;
                         })()}
-                        <div style={{ marginTop: 6, opacity: 0.75 }}>
-                          You can also process the refund manually if Fynd sync is not required.
+                        <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                          <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                            <input type="hidden" name="json" value={JSON.stringify({ action: "retry_fynd_sync" })} />
+                            <button type="submit" disabled={fetcher.state !== "idle"} style={{
+                              padding: "6px 16px", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                              background: "#DC2626", color: "#fff", border: "none",
+                              opacity: fetcher.state !== "idle" ? 0.7 : 1,
+                            }}>
+                              {fetcher.state !== "idle" ? "Syncing..." : "Retry Sync"}
+                            </button>
+                          </fetcher.Form>
+                          <span style={{ fontSize: 11, opacity: 0.65 }}>or process refund manually</span>
                         </div>
                       </div>
                     )}

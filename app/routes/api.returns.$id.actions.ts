@@ -450,7 +450,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (!["approved", "completed"].includes(returnCase.status.toLowerCase())) {
       return Response.json({ error: "Return must be approved first" }, { status: 400 });
     }
-    if (returnCase.fyndReturnId) {
+    // Allow retry if: no fyndReturnId, OR sync is in a failed/retry state.
+    // This lets admins force-retry even if a previous attempt stored a partial ID.
+    const syncStatus = (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus;
+    if (returnCase.fyndReturnId && syncStatus !== "failed" && syncStatus !== "retry_scheduled") {
       throw redirect(`/app/returns/${id}?fyndSuccess=already_synced`);
     }
     const settingsRetry = shop.settings as NonNullable<typeof shop.settings> & { fyndApiType?: string | null } | undefined;

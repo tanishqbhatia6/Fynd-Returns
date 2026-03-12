@@ -7,6 +7,7 @@ import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification } from "../lib/notification.server";
 import { extractShippingDetailsFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
+import { scheduleRetry } from "../lib/fynd-retry.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 
@@ -18,6 +19,14 @@ function enrichFyndError(msg: string): string {
     return `${msg} — Sync uses the same OAuth flow as Test Platform. If Test Platform passes in Settings → Integrations but sync still fails, the write endpoint may require additional permissions—contact Fynd support.`;
   }
   return msg;
+}
+
+/** Classify a Fynd sync error for structured UI display */
+function classifyFyndError(msg: string): "config_error" | "network_error" | "timeout" | "api_error" {
+  if (/not configured|configure|Platform API|Settings.*Integrations|Client ID|Company ID/i.test(msg)) return "config_error";
+  if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|network|socket hang up|DNS/i.test(msg)) return "network_error";
+  if (/ETIMEDOUT|timeout|timed out|aborted/i.test(msg)) return "timeout";
+  return "api_error";
 }
 
 function enrichRefundError(msg: string, ctx: { method?: string | null; orderName?: string | null }): string {
@@ -250,6 +259,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       throw redirect(`/app/returns/${id}?consolidationQueued=1`);
     }
 
+    let isTransientFyndError = false;
+    let fyndSyncDurationMs: number | null = null;
+
     if (isGreenReturn) {
       console.log(`[Approve] Green return ${id} — skipping Fynd sync (no shipment needed)`);
     } else {
@@ -265,6 +277,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
           affiliateOrderId = order?.affiliateOrderId ?? null;
         }
+        const syncStartTime = Date.now();
         try {
           const fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
             affiliateOrderId,
@@ -281,8 +294,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
               phone: returnCase.customerPhoneNorm ?? null,
             } : null,
           });
-          if (fyndResult.success && fyndResult.fyndReturnId) {
-            fyndReturnId = fyndResult.fyndReturnId;
+          fyndSyncDurationMs = Date.now() - syncStartTime;
+          // BUG FIX: Widen success check — accept fyndShipmentId and alreadyExists (not just fyndReturnId)
+          if (fyndResult.success && (fyndResult.fyndReturnId ?? fyndResult.fyndShipmentId ?? fyndResult.alreadyExists)) {
+            fyndReturnId = fyndResult.fyndReturnId ?? fyndResult.fyndShipmentId ?? null;
             fyndReturnNo = fyndResult.fyndReturnNo ?? null;
             fyndOrderId = fyndResult.fyndOrderId ?? null;
             fyndShipmentId = fyndResult.fyndShipmentId ?? null;
@@ -293,16 +308,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             }
           } else if (fyndResult.error) {
             fyndError = enrichFyndError(fyndResult.error);
+            isTransientFyndError = true;
             console.warn("[Approve] Fynd create return failed:", fyndResult.error);
           }
         } catch (err) {
+          fyndSyncDurationMs = Date.now() - syncStartTime;
           fyndError = enrichFyndError(err instanceof Error ? err.message : String(err));
+          isTransientFyndError = true;
           console.warn("[Approve] Fynd error:", err);
         }
       } else if (!fyndClientResult.ok) {
         fyndError = fyndClientResult.error;
+        // Config errors are NOT transient — don't schedule retry
       } else {
         fyndError = "Fynd return creation requires Platform API (Company ID + Client ID/Secret). Configure in Settings → Integrations.";
+        // Config errors are NOT transient — don't schedule retry
       }
     }
     const validResolutionTypes = ["refund", "exchange", "store_credit", "replacement"];
@@ -328,14 +348,23 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       }
     }
 
+    // Compute retry scheduling for transient failures (2 min initial backoff)
+    const retryNextTime = fyndError && isTransientFyndError ? new Date(Date.now() + 2 * 60_000) : undefined;
+
     await prisma.returnCase.update({
       where: { id },
       data: {
         status: "approved",
         resolutionType: resolvedType,
         adminNotes: note || returnCase.adminNotes,
-        // Track Fynd sync lifecycle: processing = synced to Fynd, awaiting logistics assignment (AWB etc.)
-        fyndSyncStatus: fyndReturnId ? "processing" : (fyndError ? "failed" : undefined),
+        // BUG FIX: "synced" on success (was "processing"), "retry_scheduled" on transient failure, "failed" on config error
+        fyndSyncStatus: fyndReturnId
+          ? "synced"
+          : fyndError
+            ? (isTransientFyndError ? "retry_scheduled" : "failed")
+            : undefined,
+        fyndSyncError: fyndError || null,
+        ...(fyndError && isTransientFyndError ? { fyndSyncRetries: 0, fyndSyncNextRetry: retryNextTime } : {}),
         ...(fyndReturnId && { fyndReturnId }),
         ...(fyndReturnNo && { fyndReturnNo }),
         ...(fyndOrderId && { fyndOrderId }),
@@ -344,6 +373,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         ...autoShippingData,
       },
     });
+    // Approval event
     await prisma.returnEvent.create({
       data: {
         returnCaseId: id,
@@ -352,12 +382,48 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         payloadJson: JSON.stringify({
           note: note || null,
           resolutionType: resolvedType,
-          fyndReturnId: fyndReturnId || null,
-          fyndReturnNo: fyndReturnNo || null,
           adminEmail: sessionEmail,
         }),
       },
     });
+    // Rich Fynd sync event — separate from approval for tracing visibility
+    if (fyndReturnId) {
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "fynd_sync",
+          payloadJson: JSON.stringify({
+            action: "approval_sync",
+            status: "success",
+            fyndReturnId: fyndReturnId || null,
+            fyndReturnNo: fyndReturnNo || null,
+            fyndOrderId: fyndOrderId || null,
+            fyndShipmentId: fyndShipmentId || null,
+            durationMs: fyndSyncDurationMs,
+            adminEmail: sessionEmail,
+          }),
+        },
+      });
+    } else if (fyndError) {
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id,
+          source: "admin",
+          eventType: "fynd_sync_failed",
+          payloadJson: JSON.stringify({
+            action: "approval_sync",
+            status: "failed",
+            error: fyndError,
+            errorType: classifyFyndError(fyndError),
+            durationMs: fyndSyncDurationMs,
+            retryScheduled: isTransientFyndError,
+            nextRetryAt: retryNextTime?.toISOString() || null,
+            adminEmail: sessionEmail,
+          }),
+        },
+      });
+    }
 
     if (returnCase.customerEmailNorm) {
       try {
@@ -375,7 +441,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const redirectUrl = fyndError
       ? `/app/returns/${id}?fyndError=${encodeURIComponent(fyndError)}`
       : fyndReturnId
-        ? `/app/returns/${id}?fyndProcessing=1`
+        ? `/app/returns/${id}?fyndSuccess=1`
         : `/app/returns/${id}`;
     throw redirect(redirectUrl);
   }
@@ -405,6 +471,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
       affiliateOrderId = order?.affiliateOrderId ?? null;
     }
+    const retryStartTime = Date.now();
     const fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
       affiliateOrderId,
       targetShipmentId: returnCase.fyndShipmentId || null,
@@ -420,6 +487,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         phone: returnCase.customerPhoneNorm ?? null,
       } : null,
     });
+    const retryDurationMs = Date.now() - retryStartTime;
     const hasFyndId = fyndResult.fyndReturnId ?? fyndResult.fyndShipmentId;
     if (fyndResult.success && (hasFyndId || fyndResult.alreadyExists)) {
       let payloadJson: string | null = null;
@@ -428,6 +496,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       } catch {
         payloadJson = null;
       }
+      // BUG FIX: Set fyndSyncStatus to "synced" and clear error fields on successful retry
       await prisma.returnCase.update({
         where: { id },
         data: {
@@ -436,6 +505,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           fyndOrderId: fyndResult.fyndOrderId ?? null,
           fyndShipmentId: fyndResult.fyndShipmentId ?? null,
           ...(payloadJson != null && { fyndPayloadJson: payloadJson }),
+          fyndSyncStatus: "synced",
+          fyndSyncError: null,
+          fyndSyncNextRetry: null,
+          fyndSyncRetries: 0,
         },
       });
       await prisma.returnEvent.create({
@@ -444,9 +517,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           source: "admin",
           eventType: "fynd_sync",
           payloadJson: JSON.stringify({
-            fyndReturnId: fyndResult.fyndReturnId,
+            action: "manual_retry",
+            status: "success",
+            fyndReturnId: fyndResult.fyndReturnId ?? null,
             fyndReturnNo: fyndResult.fyndReturnNo ?? null,
+            fyndShipmentId: fyndResult.fyndShipmentId ?? null,
             alreadyExists: fyndResult.alreadyExists ?? false,
+            durationMs: retryDurationMs,
+            retryAttempt: (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0,
             adminEmail: sessionEmail,
           }),
         },
@@ -458,6 +536,23 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const errMsg = enrichFyndError(
       rawErr || (fyndResult.success ? "Sync completed but Fynd did not return a return ID. Check Fynd dashboard." : "Unknown Fynd error")
     );
+    // Log failed manual retry event for tracing
+    await prisma.returnEvent.create({
+      data: {
+        returnCaseId: id,
+        source: "admin",
+        eventType: "fynd_sync_failed",
+        payloadJson: JSON.stringify({
+          action: "manual_retry",
+          status: "failed",
+          error: errMsg,
+          errorType: classifyFyndError(errMsg),
+          durationMs: retryDurationMs,
+          retryAttempt: (returnCase as { fyndSyncRetries?: number }).fyndSyncRetries ?? 0,
+          adminEmail: sessionEmail,
+        }),
+      },
+    });
     throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(errMsg)}`);
   }
 

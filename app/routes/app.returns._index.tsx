@@ -700,9 +700,21 @@ export default function ReturnsList() {
                               {r.refundStatus && r.refundStatus !== "none" && (
                                 <span style={{ fontSize: 10, color: "#7c3aed", fontWeight: 600, textTransform: "capitalize" }}>{r.refundStatus}</span>
                               )}
-                              {hasFynd && r.status === "approved" && (
-                                <span style={{ fontSize: 10, color: "#059669", fontWeight: 600 }}>Fynd synced</span>
-                              )}
+                              {(() => {
+                                const syncStatus = (r as Record<string, unknown>).fyndSyncStatus as string | null;
+                                if (!syncStatus) return null;
+                                const syncCfg: Record<string, { label: string; color: string }> = {
+                                  synced: { label: "Fynd synced", color: "#059669" },
+                                  processing: { label: "Syncing...", color: "#2563EB" },
+                                  failed: { label: "Sync failed", color: "#DC2626" },
+                                  retry_scheduled: { label: "Retrying...", color: "#D97706" },
+                                  pending_consolidation: { label: "Queued", color: "#B45309" },
+                                  pending: { label: "Pending sync", color: "#6B7280" },
+                                };
+                                const c = syncCfg[syncStatus];
+                                if (!c) return null;
+                                return <span style={{ fontSize: 10, color: c.color, fontWeight: 600 }}>{c.label}</span>;
+                              })()}
                               {ageColor && (
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: ageColor, fontWeight: 600 }}>
                                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: ageColor, flexShrink: 0 }} />

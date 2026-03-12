@@ -1337,30 +1337,83 @@ export default function ReturnDetail() {
                     )}
                   </div>
                 </div>
-                {/* Fynd sync status indicator */}
+                {/* Fynd sync status indicator — enhanced with tracing & error guidance */}
                 {fyndSyncStatus && fyndSyncStatus !== "synced" && (
                   <div style={{
-                    padding: "12px 14px", borderRadius: 8, marginBottom: 16, fontSize: 13,
-                    background: fyndSyncStatus === "failed" ? "#FEF2F2" : fyndSyncStatus === "processing" ? "#EFF6FF" : "#FFFBEB",
-                    border: `1px solid ${fyndSyncStatus === "failed" ? "#FECACA" : fyndSyncStatus === "processing" ? "#BFDBFE" : "#FDE68A"}`,
-                    color: fyndSyncStatus === "failed" ? "#991B1B" : fyndSyncStatus === "processing" ? "#1D4ED8" : "#92400E",
-                    display: "flex", alignItems: "flex-start", gap: 10,
+                    padding: "14px 16px", borderRadius: 10, marginBottom: 16, fontSize: 13,
+                    background: fyndSyncStatus === "failed" ? "#FEF2F2"
+                      : fyndSyncStatus === "processing" ? "#EFF6FF"
+                      : fyndSyncStatus === "pending_consolidation" ? "#FFF7ED"
+                      : "#FFFBEB",
+                    border: `1px solid ${
+                      fyndSyncStatus === "failed" ? "#FECACA"
+                      : fyndSyncStatus === "processing" ? "#BFDBFE"
+                      : fyndSyncStatus === "pending_consolidation" ? "#FDBA74"
+                      : "#FDE68A"
+                    }`,
+                    color: fyndSyncStatus === "failed" ? "#991B1B"
+                      : fyndSyncStatus === "processing" ? "#1D4ED8"
+                      : fyndSyncStatus === "pending_consolidation" ? "#C2410C"
+                      : "#92400E",
                   }}>
-                    {fyndSyncStatus === "processing" && (
-                      <svg style={{ flexShrink: 0, marginTop: 1, animation: "spin 1s linear infinite" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      {fyndSyncStatus === "failed" && <strong>Sync failed after {fyndSyncRetries} attempts. </strong>}
-                      {fyndSyncStatus === "retry_scheduled" && <span>Retry #{fyndSyncRetries + 1} scheduled. </span>}
-                      {fyndSyncStatus === "pending" && <span>Queued for Fynd sync. </span>}
-                      {fyndSyncStatus === "processing" && <strong>Fynd is processing — logistics assignment in progress. </strong>}
-                      {fyndSyncError && <span style={{ opacity: 0.85 }}>{fyndSyncError.slice(0, 250)}</span>}
-                      {fyndSyncStatus === "failed" && (
-                        <div style={{ marginTop: 8 }}>
-                          <span style={{ fontSize: 12, opacity: 0.75 }}>Process the refund manually or retry Fynd sync using the button above.</span>
-                        </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: fyndSyncError || fyndSyncStatus === "retry_scheduled" || fyndSyncStatus === "failed" ? 10 : 0 }}>
+                      {fyndSyncStatus === "processing" && (
+                        <svg style={{ flexShrink: 0, animation: "spin 1s linear infinite" }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
                       )}
+                      {fyndSyncStatus === "failed" && (
+                        <svg style={{ flexShrink: 0 }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                      )}
+                      <strong style={{ fontSize: 14 }}>
+                        {fyndSyncStatus === "failed" && `Sync failed after ${fyndSyncRetries} attempt${fyndSyncRetries !== 1 ? "s" : ""}`}
+                        {fyndSyncStatus === "retry_scheduled" && `Retry #${fyndSyncRetries + 1} of 5 scheduled`}
+                        {fyndSyncStatus === "pending" && "Queued for Fynd sync"}
+                        {fyndSyncStatus === "processing" && "Fynd is processing \u2014 logistics assignment in progress"}
+                        {fyndSyncStatus === "pending_consolidation" && "Queued for batch Fynd sync"}
+                      </strong>
                     </div>
+                    {/* Error details */}
+                    {fyndSyncError && (
+                      <div style={{ padding: "8px 10px", background: "rgba(0,0,0,0.04)", borderRadius: 6, marginBottom: 8, fontSize: 12, lineHeight: 1.5, wordBreak: "break-word" }}>
+                        {fyndSyncError}
+                      </div>
+                    )}
+                    {/* Retry schedule info */}
+                    {fyndSyncStatus === "retry_scheduled" && (returnCase as unknown as { fyndSyncNextRetry?: Date | string | null }).fyndSyncNextRetry && (
+                      <div style={{ fontSize: 12, opacity: 0.85, marginBottom: 4 }}>
+                        Next retry: {(() => {
+                          try {
+                            const nextRetry = new Date((returnCase as unknown as { fyndSyncNextRetry: Date | string }).fyndSyncNextRetry);
+                            const diff = nextRetry.getTime() - Date.now();
+                            if (diff <= 0) return "imminent";
+                            if (diff < 60_000) return `in ${Math.ceil(diff / 1000)}s`;
+                            if (diff < 3_600_000) return `in ${Math.ceil(diff / 60_000)} min`;
+                            return `at ${new Intl.DateTimeFormat(shopLocale || "en", { timeStyle: "short" }).format(nextRetry)}`;
+                          } catch { return "scheduled"; }
+                        })()}
+                        {" \u00B7 "}Backoff: 2min \u2192 5min \u2192 15min \u2192 1hr \u2192 4hr
+                      </div>
+                    )}
+                    {/* Actionable guidance for failed state */}
+                    {fyndSyncStatus === "failed" && (
+                      <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.6 }}>
+                        {(() => {
+                          const err = (fyndSyncError || "").toLowerCase();
+                          if (/not configured|configure|settings.*integrations|client id|company id|platform api/i.test(err)) {
+                            return <span><strong>Configuration issue</strong> \u2014 Go to <em>Settings \u2192 Integrations</em> and verify your Fynd Platform API credentials.</span>;
+                          }
+                          if (/econnrefused|enotfound|ehostunreach|network|socket hang up|dns/i.test(err)) {
+                            return <span><strong>Network issue</strong> \u2014 Fynd API may be temporarily unreachable. Try again later.</span>;
+                          }
+                          if (/etimedout|timeout|timed out|aborted/i.test(err)) {
+                            return <span><strong>Timeout</strong> \u2014 The Fynd API took too long to respond. Try again or check Fynd status.</span>;
+                          }
+                          return <span><strong>API error</strong> \u2014 Check the Fynd dashboard for this order, or retry using the button above.</span>;
+                        })()}
+                        <div style={{ marginTop: 6, opacity: 0.75 }}>
+                          You can also process the refund manually if Fynd sync is not required.
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* Quick tracking info */}
@@ -1375,9 +1428,24 @@ export default function ReturnDetail() {
                 )}
                 {/* Fynd IDs */}
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: hasShipments ? 16 : 0 }}>
-                  <div><div style={C.label}>Fynd Order ID</div><div style={C.mono}>{fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "") || "—"}</div></div>
+                  <div><div style={C.label}>Fynd Order ID</div><div style={C.mono}>{fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "") || "\u2014"}</div></div>
                   {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && <div><div style={C.label}>Shipment ID</div><div style={C.mono}>{(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId}</div></div>}
                   {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && <div><div style={C.label}>Fynd Return #</div><div style={C.mono}>{(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}</div></div>}
+                  {fyndSyncStatus && (
+                    <div>
+                      <div style={C.label}>Sync Status</div>
+                      <div style={{
+                        fontSize: 13, fontWeight: 600,
+                        color: fyndSyncStatus === "synced" ? "#059669"
+                          : fyndSyncStatus === "failed" ? "#DC2626"
+                          : fyndSyncStatus === "processing" ? "#2563EB"
+                          : fyndSyncStatus === "retry_scheduled" ? "#D97706"
+                          : "#92400E",
+                      }}>
+                        {fyndSyncStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {/* Shipment details (expandable) */}
                 {hasShipments ? (
@@ -1544,6 +1612,7 @@ export default function ReturnDetail() {
                     let evPayload: Record<string, unknown> | null = null;
                     try { if (ev.payloadJson) evPayload = JSON.parse(ev.payloadJson) as Record<string, unknown>; } catch { evPayload = null; }
                     const evAdminEmail = evPayload?.adminEmail as string | null | undefined;
+                    const isFyndSyncEvent = ["fynd_sync", "fynd_sync_failed", "fynd_sync_retry_success", "fynd_sync_retries_exhausted"].includes(ev.eventType);
                     return (
                       <div key={ev.id} style={{ position: "relative", paddingBottom: i < returnCase.events.length - 1 ? 20 : 0 }}>
                         <div style={{ position: "absolute", left: -22, top: 2, width: 12, height: 12, borderRadius: "50%", background: isLatest ? sourceColor : "#D1D5DB", border: "2px solid #fff", boxShadow: isLatest ? `0 0 0 3px ${sourceColor}30` : "none" }} />
@@ -1553,15 +1622,71 @@ export default function ReturnDetail() {
                           </div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 4, flexWrap: "wrap" }}>
                             <span style={{ fontSize: 11, fontWeight: 600, padding: "1px 6px", borderRadius: 4, background: `${sourceColor}15`, color: sourceColor }}>{sourceLabel}</span>
-                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(ev.happenedAt)) : "—"}</span>
+                            <span style={{ fontSize: 12, color: "#9CA3AF" }}>{ev.happenedAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(ev.happenedAt)) : "\u2014"}</span>
                             {ev.source === "admin" && evAdminEmail && (
                               <span style={{ fontSize: 11, color: "#6B7280" }}>by {evAdminEmail}</span>
                             )}
                           </div>
-                          {ev.payloadJson && (
+                          {/* Structured Fynd sync event display */}
+                          {isFyndSyncEvent && evPayload && (
+                            <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 6, fontSize: 12, lineHeight: 1.6,
+                              background: evPayload.status === "success" ? "#F0FDF4" : evPayload.status === "failed" ? "#FEF2F2" : "#F8FAFC",
+                              border: `1px solid ${evPayload.status === "success" ? "#BBF7D0" : evPayload.status === "failed" ? "#FECACA" : "#E2E8F0"}`,
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                                {evPayload.status === "success" && <span style={{ padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: "#DCFCE7", color: "#166534" }}>SUCCESS</span>}
+                                {evPayload.status === "failed" && <span style={{ padding: "1px 6px", borderRadius: 4, fontSize: 10, fontWeight: 700, background: "#FEE2E2", color: "#991B1B" }}>FAILED</span>}
+                                {!!evPayload.action && <span style={{ fontSize: 11, color: "#6B7280" }}>{String(evPayload.action).replace(/_/g, " ")}</span>}
+                                {typeof evPayload.durationMs === "number" && <span style={{ fontSize: 11, color: "#9CA3AF" }}>{String(evPayload.durationMs)}ms</span>}
+                                {typeof evPayload.attempt === "number" && <span style={{ fontSize: 11, color: "#9CA3AF" }}>attempt #{String(evPayload.attempt)}</span>}
+                                {typeof evPayload.retryAttempt === "number" && <span style={{ fontSize: 11, color: "#9CA3AF" }}>retry #{String(evPayload.retryAttempt)}</span>}
+                              </div>
+                              {/* Success: show IDs */}
+                              {evPayload.status === "success" && !!(evPayload.fyndReturnId || evPayload.fyndShipmentId) && (
+                                <div style={{ display: "flex", gap: 12, flexWrap: "wrap", fontSize: 11 }}>
+                                  {!!evPayload.fyndReturnId && <span><strong>Return ID:</strong> <code style={{ fontFamily: "monospace", fontSize: 10 }}>{String(evPayload.fyndReturnId)}</code></span>}
+                                  {!!evPayload.fyndShipmentId && <span><strong>Shipment:</strong> <code style={{ fontFamily: "monospace", fontSize: 10 }}>{String(evPayload.fyndShipmentId)}</code></span>}
+                                  {!!evPayload.fyndOrderId && <span><strong>Order:</strong> <code style={{ fontFamily: "monospace", fontSize: 10 }}>{String(evPayload.fyndOrderId)}</code></span>}
+                                </div>
+                              )}
+                              {/* Failed: show error + type */}
+                              {evPayload.status === "failed" && !!evPayload.error && (
+                                <div style={{ fontSize: 11 }}>
+                                  {!!evPayload.errorType && (
+                                    <span style={{ padding: "1px 5px", borderRadius: 3, fontSize: 9, fontWeight: 700, textTransform: "uppercase", background: "#FEF3C7", color: "#92400E", marginRight: 6 }}>
+                                      {String(evPayload.errorType).replace(/_/g, " ")}
+                                    </span>
+                                  )}
+                                  <span style={{ color: "#991B1B" }}>{String(evPayload.error).slice(0, 300)}</span>
+                                  {!!evPayload.retryScheduled && !!evPayload.nextRetryAt && (
+                                    <div style={{ marginTop: 4, color: "#B45309" }}>Retry scheduled: {String(evPayload.nextRetryAt)}</div>
+                                  )}
+                                </div>
+                              )}
+                              {/* Exhausted: show guidance */}
+                              {ev.eventType === "fynd_sync_retries_exhausted" && (
+                                <div style={{ fontSize: 11, color: "#991B1B" }}>
+                                  <strong>All {String(evPayload.maxRetries ?? evPayload.attempts)} retries exhausted.</strong>
+                                  {!!evPayload.lastError && <span> Last error: {String(evPayload.lastError).slice(0, 200)}</span>}
+                                  <div style={{ marginTop: 4, color: "#92400E" }}>Use the &ldquo;Sync to Fynd&rdquo; button above, or process the refund manually.</div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {/* Raw JSON fallback for non-sync events */}
+                          {!isFyndSyncEvent && ev.payloadJson && (
                             <details style={{ marginTop: 6 }}>
                               <summary style={{ fontSize: 11, color: "#9CA3AF", cursor: "pointer", userSelect: "none" }}>Show details</summary>
                               <pre style={{ marginTop: 4, padding: "6px 8px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 11, color: "#475569", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 200 }}>
+                                {JSON.stringify(evPayload, null, 2)}
+                              </pre>
+                            </details>
+                          )}
+                          {/* Raw JSON expandable for sync events too (for debugging) */}
+                          {isFyndSyncEvent && ev.payloadJson && (
+                            <details style={{ marginTop: 4 }}>
+                              <summary style={{ fontSize: 10, color: "#C0C0C0", cursor: "pointer", userSelect: "none" }}>Raw JSON</summary>
+                              <pre style={{ marginTop: 4, padding: "6px 8px", background: "#F8FAFC", border: "1px solid #E2E8F0", borderRadius: 6, fontSize: 10, color: "#64748B", overflowX: "auto", whiteSpace: "pre-wrap", wordBreak: "break-all", maxHeight: 160 }}>
                                 {JSON.stringify(evPayload, null, 2)}
                               </pre>
                             </details>

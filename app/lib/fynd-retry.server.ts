@@ -62,9 +62,11 @@ export async function runFyndRetryQueue(): Promise<{
           throw new Error("Fynd client does not support Platform API");
         }
 
+        const retrySyncStart = Date.now();
         const syncResult = await createReturnOnFynd(clientResult.client, rc, {
           targetShipmentId: rc.fyndShipmentId || null,
         });
+        const retrySyncDuration = Date.now() - retrySyncStart;
         if (syncResult.success) {
           await prisma.returnCase.update({
             where: { id: rc.id },
@@ -84,7 +86,14 @@ export async function runFyndRetryQueue(): Promise<{
               returnCaseId: rc.id,
               source: "system",
               eventType: "fynd_sync_retry_success",
-              payloadJson: JSON.stringify({ attempt: rc.fyndSyncRetries + 1 }),
+              payloadJson: JSON.stringify({
+                action: "auto_retry",
+                attempt: rc.fyndSyncRetries + 1,
+                durationMs: retrySyncDuration,
+                fyndReturnId: syncResult.fyndReturnId ?? null,
+                fyndOrderId: syncResult.fyndOrderId ?? null,
+                fyndShipmentId: syncResult.fyndShipmentId ?? null,
+              }),
             },
           });
           result.succeeded++;
@@ -110,7 +119,14 @@ export async function runFyndRetryQueue(): Promise<{
               returnCaseId: rc.id,
               source: "system",
               eventType: "fynd_sync_retries_exhausted",
-              payloadJson: JSON.stringify({ attempts: newRetries, lastError: errMsg.slice(0, 500) }),
+              payloadJson: JSON.stringify({
+                action: "auto_retry",
+                attempts: newRetries,
+                maxRetries: MAX_RETRIES,
+                lastError: errMsg.slice(0, 500),
+                nextAction: "manual_retry_or_manual_refund",
+                backoffSchedule: "2min, 5min, 15min, 1hr, 4hr",
+              }),
             },
           });
           result.exhausted++;

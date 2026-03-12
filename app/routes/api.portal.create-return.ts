@@ -249,10 +249,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const resolved = await fetchOrderByFyndAffiliateId(admin, searchId);
         if (resolved?.id) {
           console.log(`[create-return] Resolved orderId "${effectiveOrderId}" → "${resolved.id}"`);
+          // Backfill the FyndOrderMapping with the resolved Shopify GID for future lookups
+          if (resolved.id.startsWith("gid://") && shopifyOrderName) {
+            prisma.fyndOrderMapping.upsert({
+              where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
+              create: { shopId: shopRecord.id, shopifyOrderName, shopifyOrderId: resolved.id, searchStrategy: "create_return_resolve" },
+              update: { shopifyOrderId: resolved.id },
+            }).catch(() => {});
+          }
           effectiveOrderId = resolved.id;
         }
       } catch (err) {
         console.warn(`[create-return] Could not resolve orderId "${effectiveOrderId}":`, err);
+      }
+
+      // Fallback: check FyndOrderMapping for a cached Shopify GID if Shopify search failed.
+      // The order lookup endpoint caches Fynd → Shopify mappings when building synthetic orders.
+      if (!effectiveOrderId.startsWith("gid://")) {
+        try {
+          const mapping = await prisma.fyndOrderMapping.findFirst({
+            where: {
+              shopId: shopRecord.id,
+              OR: [
+                { shopifyOrderName: { equals: effectiveOrderId, mode: "insensitive" } },
+                { shopifyOrderName: { equals: `#${effectiveOrderId}`, mode: "insensitive" } },
+                { fyndOrderId: { equals: effectiveOrderId, mode: "insensitive" } },
+              ],
+            },
+          });
+          if (mapping?.shopifyOrderId?.startsWith("gid://")) {
+            console.log(`[create-return] Resolved orderId "${effectiveOrderId}" → "${mapping.shopifyOrderId}" via FyndOrderMapping`);
+            effectiveOrderId = mapping.shopifyOrderId;
+          }
+        } catch {
+          // Non-fatal
+        }
       }
     }
     let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string }>;
@@ -363,7 +394,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Also stores resolved SKU for future SKU matching in refund flow.
     const resolvedLineItemSkus = new Map<string, string>(); // newLineItemId → sku
     const lineItemIdMapping = new Map<string, string>(); // newLineItemId → originalPortalId
-    if (!manualMode && effectiveOrderId.startsWith("gid://")) {
+    if (!manualMode) {
       const hasNonGidLineItems = itemsToCreate.some(
         (it) => it.lineItemId !== "manual" && !it.lineItemId.startsWith("gid://shopify/LineItem/")
       );
@@ -371,7 +402,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         try {
           const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
           const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
-          const shopifyOrder = await fetchOrder(admin, effectiveOrderId);
+          // If effectiveOrderId is a GID, fetch directly; otherwise try resolving by name
+          let shopifyOrder = effectiveOrderId.startsWith("gid://")
+            ? await fetchOrder(admin, effectiveOrderId)
+            : null;
+          // Fallback: if not a GID, try searching Shopify by order name/affiliate ID
+          if (!shopifyOrder && !effectiveOrderId.startsWith("gid://")) {
+            const searchId = effectiveOrderId.replace(/^#/, "").trim();
+            const resolved = await fetchOrderByFyndAffiliateId(admin, searchId);
+            if (resolved) {
+              shopifyOrder = resolved;
+              // Also update effectiveOrderId to the resolved GID since we found the order
+              if (resolved.id.startsWith("gid://")) {
+                console.log(`[create-return] Late-resolved orderId "${effectiveOrderId}" → "${resolved.id}" during line item resolution`);
+                effectiveOrderId = resolved.id;
+              }
+            }
+          }
           if (shopifyOrder?.lineItems && shopifyOrder.lineItems.length > 0) {
             const shopifyLineItems = shopifyOrder.lineItems;
             // Build lookup maps for matching: by title (lowercased), by SKU

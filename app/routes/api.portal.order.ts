@@ -304,8 +304,47 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
                 const fyndLast = fyndRestName.join(" ");
 
+                // Use affiliate_order_id (= Shopify order name) as the synthetic order ID,
+                // NOT first.order_id which is the Fynd internal ID (e.g. FYMP69B039D201063966).
+                // This ensures create-return can resolve it to a Shopify GID later, and even if
+                // Shopify can't find the order, we store a meaningful Shopify-side identifier
+                // instead of an opaque Fynd internal ID in the shopifyOrderId field.
+                const syntheticOrderId = String(
+                  affiliateOrderId || first.external_order_id || orderNumber
+                );
+
+                // Cache the Fynd-to-Shopify mapping early so create-return, webhook, and future
+                // lookups can resolve IDs without re-querying Fynd.
+                const fyndInternalOrderId = String(first.order_id ?? "").trim() || null;
+                const fyndFirstShipmentId = String(first.shipment_id ?? "").trim() || null;
+                if (fyndInternalOrderId || fyndFirstShipmentId) {
+                  const cleanOrderName = orderName.startsWith("#") ? orderName : `#${orderName}`;
+                  await prisma.fyndOrderMapping.upsert({
+                    where: {
+                      shopId_shopifyOrderName: {
+                        shopId: shopRecord.id,
+                        shopifyOrderName: cleanOrderName,
+                      },
+                    },
+                    create: {
+                      shopId: shopRecord.id,
+                      shopifyOrderName: cleanOrderName,
+                      shopifyOrderId: syntheticOrderId,
+                      fyndOrderId: fyndInternalOrderId,
+                      fyndShipmentId: fyndFirstShipmentId,
+                      searchStrategy: "fynd_fallback",
+                    },
+                    update: {
+                      ...(fyndInternalOrderId ? { fyndOrderId: fyndInternalOrderId } : {}),
+                      ...(fyndFirstShipmentId ? { fyndShipmentId: fyndFirstShipmentId } : {}),
+                    },
+                  }).catch((e: unknown) => {
+                    console.warn("[portal/order] FyndOrderMapping upsert failed:", e);
+                  });
+                }
+
                 order = {
-                  id: String(first.order_id ?? first.shipment_id ?? orderNumber),
+                  id: syntheticOrderId,
                   name: orderName.startsWith("#") ? orderName : `#${orderName}`,
                   createdAt,
                   processedAt: createdAt,

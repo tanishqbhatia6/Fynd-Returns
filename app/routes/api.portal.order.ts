@@ -80,7 +80,7 @@ function isShipmentEligibleForReturn(
   allowedFyndStatusesForReturn: string[],
 ): boolean {
   if (FYND_DELIVERED_STATUSES.has(status)) return true;
-  if (allowedFyndStatusesForReturn.length === 0) return false;
+  if (allowedFyndStatusesForReturn.length === 0) return true; // Gate OFF (null) = allow all statuses
   const normalized = status.toLowerCase().replace(/[\s_]+/g, "_").trim();
   return allowedFyndStatusesForReturn.some((s) => {
     const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();

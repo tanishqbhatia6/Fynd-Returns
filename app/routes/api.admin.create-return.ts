@@ -33,7 +33,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     : `#${shopifyOrderNameRaw}`;
 
   const items = body.items as
-    | Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string }>
+    | Array<{
+        lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string;
+        sku?: string; fyndShipmentId?: string; fyndBagId?: string;
+        fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
+        fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
+      }>
     | undefined;
   if (!items || !Array.isArray(items) || items.length === 0) {
     return Response.json({ error: "items is required and must be a non-empty array" }, { status: 400 });
@@ -68,7 +73,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const orderCreatedAt = body.orderCreatedAt ? new Date(body.orderCreatedAt as string) : null;
 
   const lineItemsWithPrice = (body.lineItemsWithPrice as
-    | Array<{ id: string; title?: string; variantTitle?: string; price?: string | number; imageUrl?: string }>
+    | Array<{ id: string; title?: string; variantTitle?: string; price?: string | number; imageUrl?: string; sku?: string }>
     | undefined) ?? [];
 
   // --- Shop lookup ---
@@ -155,6 +160,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           crmTicketId,
           crmNotes,
           orderProcessedAt: orderCreatedAt,
+          fyndShipmentId: (() => {
+            const shipIds = items.map(it => it.fyndShipmentId).filter(Boolean) as string[];
+            if (shipIds.length === 0) return null;
+            const unique = [...new Set(shipIds)];
+            return unique.length === 1 ? unique[0] : shipIds[0];
+          })(),
           items: {
             create: items.map((item) => {
               const liInfo = lineItemsWithPrice.find((l) => l.id === item.lineItemId);
@@ -162,12 +173,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 shopifyLineItemId: item.lineItemId,
                 title: liInfo?.title || null,
                 variantTitle: liInfo?.variantTitle || null,
+                sku: item.sku || liInfo?.sku || null,
                 price: liInfo?.price != null ? String(liInfo.price) : null,
                 imageUrl: liInfo?.imageUrl || null,
                 qty: item.qty ?? 1,
                 reasonCode: item.reasonCode || null,
                 notes: item.notes || null,
                 condition: item.condition || null,
+                fyndShipmentId: item.fyndShipmentId || null,
+                fyndBagId: item.fyndBagId || null,
+                fyndArticleId: item.fyndArticleId || null,
+                fyndAffiliateLineId: item.fyndAffiliateLineId || null,
+                fyndSellerIdentifier: item.fyndSellerIdentifier || null,
+                fyndItemId: item.fyndItemId || null,
+                fyndQuantityAvailable: item.fyndQuantityAvailable ?? null,
+                fyndPriceEffective: item.fyndPriceEffective || null,
+                fyndSize: item.fyndSize || null,
               };
             }),
           },

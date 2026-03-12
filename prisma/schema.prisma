@@ -265,8 +265,15 @@ model ReturnItem {
   reasonCode       String?
   notes            String?
   condition        String?   // "unused" | "used_good" | "used_damaged" | "defective"
-  fyndShipmentId   String?
-  fyndBagId        String?
+  fyndShipmentId       String?
+  fyndBagId            String?
+  fyndArticleId        String?
+  fyndAffiliateLineId  String?
+  fyndSellerIdentifier String?
+  fyndItemId           String?
+  fyndQuantityAvailable Int?
+  fyndPriceEffective   String?
+  fyndSize             String?
   createdAt        DateTime  @default(now())
 
   @@index([returnCaseId])

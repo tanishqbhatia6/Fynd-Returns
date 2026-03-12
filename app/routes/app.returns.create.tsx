@@ -40,6 +40,14 @@ type OrderLineItem = {
   quantity: number;
   price: string;
   imageUrl: string | null;
+  bagId?: string;
+  fyndArticleId?: string | null;
+  fyndAffiliateLineId?: string | null;
+  fyndSellerIdentifier?: string | null;
+  fyndItemId?: string | null;
+  fyndQuantityAvailable?: number | null;
+  fyndPriceEffective?: string | null;
+  fyndSize?: string | null;
 };
 
 type ShipmentData = {
@@ -77,6 +85,16 @@ type SelectedItem = {
   reasonCode: string;
   condition: string;
   notes: string;
+  sku: string | null;
+  fyndShipmentId: string | null;
+  fyndBagId: string | null;
+  fyndArticleId: string | null;
+  fyndAffiliateLineId: string | null;
+  fyndSellerIdentifier: string | null;
+  fyndItemId: string | null;
+  fyndQuantityAvailable: number | null;
+  fyndPriceEffective: string | null;
+  fyndSize: string | null;
 };
 
 /* ─── Constants ─── */
@@ -489,17 +507,44 @@ export default function CreateReturn() {
         delete next[id];
       } else {
         const li = orderData?.lineItems.find((l) => l.id === id);
+
+        // Look up Fynd shipment context and metadata from shipmentsData
+        let foundShipmentId: string | null = null;
+        let foundItem: OrderLineItem | undefined;
+        if (shipmentsData && shipmentsData.length > 0) {
+          for (const shipment of shipmentsData) {
+            const item = shipment.items.find((it) => it.id === id);
+            if (item) {
+              foundShipmentId = shipment.shipmentId;
+              foundItem = item;
+              break;
+            }
+          }
+        }
+        // Use shipment item data if available, otherwise fall back to orderData line item
+        const sourceItem = foundItem ?? li;
+
         next[id] = {
           lineItemId: id,
-          qty: li?.quantity ?? 1,
+          qty: sourceItem?.quantity ?? 1,
           reasonCode: "",
           condition: "",
           notes: "",
+          sku: sourceItem?.sku ?? null,
+          fyndShipmentId: foundShipmentId,
+          fyndBagId: foundItem?.bagId ?? null,
+          fyndArticleId: sourceItem?.fyndArticleId ?? null,
+          fyndAffiliateLineId: sourceItem?.fyndAffiliateLineId ?? null,
+          fyndSellerIdentifier: sourceItem?.fyndSellerIdentifier ?? null,
+          fyndItemId: sourceItem?.fyndItemId ?? null,
+          fyndQuantityAvailable: sourceItem?.fyndQuantityAvailable ?? null,
+          fyndPriceEffective: sourceItem?.fyndPriceEffective ?? null,
+          fyndSize: sourceItem?.fyndSize ?? null,
         };
       }
       return next;
     });
-  }, [orderData]);
+  }, [orderData, shipmentsData]);
 
   const updateItem = useCallback(
     (id: string, field: keyof SelectedItem, value: string | number) => {
@@ -567,6 +612,16 @@ export default function CreateReturn() {
       reasonCode: si.reasonCode || undefined,
       notes: si.notes || undefined,
       condition: si.condition || undefined,
+      sku: si.sku || undefined,
+      fyndShipmentId: si.fyndShipmentId || undefined,
+      fyndBagId: si.fyndBagId || undefined,
+      fyndArticleId: si.fyndArticleId || undefined,
+      fyndAffiliateLineId: si.fyndAffiliateLineId || undefined,
+      fyndSellerIdentifier: si.fyndSellerIdentifier || undefined,
+      fyndItemId: si.fyndItemId || undefined,
+      fyndQuantityAvailable: si.fyndQuantityAvailable ?? undefined,
+      fyndPriceEffective: si.fyndPriceEffective || undefined,
+      fyndSize: si.fyndSize || undefined,
     }));
 
     const lineItemsWithPrice = Object.values(selectedItems).map((si) => {
@@ -577,6 +632,7 @@ export default function CreateReturn() {
         variantTitle: li?.variantTitle ?? undefined,
         price: safePrice(li?.price),
         imageUrl: li?.imageUrl ?? undefined,
+        sku: si.sku || li?.sku || undefined,
       };
     });
 

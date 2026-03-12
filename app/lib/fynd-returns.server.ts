@@ -50,7 +50,7 @@ function buildProductsPayload(
     : allItems;
 
   filtered.forEach((item, idx) => {
-    const sku = item.sku || item.shopifyLineItemId;
+    const sku = item.fyndSellerIdentifier || item.sku || item.shopifyLineItemId;
     if (sku && item.shopifyLineItemId !== "manual") {
       const lineNum = idx + 1;
       products.push({ line_number: lineNum, quantity: item.qty, identifier: sku });

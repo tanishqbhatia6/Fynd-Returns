@@ -34,6 +34,13 @@ type FyndShipmentForReturn = {
     price: string;
     imageUrl: string | null;
     productTags: string[];
+    fyndArticleId: string | null;
+    fyndAffiliateLineId: string | null;
+    fyndSellerIdentifier: string | null;
+    fyndItemId: string | null;
+    fyndQuantityAvailable: number | null;
+    fyndPriceEffective: string | null;
+    fyndSize: string | null;
   }>;
 };
 
@@ -330,6 +337,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   price: string;
                   imageUrl: string | null;
                   productTags: string[];
+                  fyndArticleId: string | null;
+                  fyndAffiliateLineId: string | null;
+                  fyndSellerIdentifier: string | null;
+                  fyndItemId: string | null;
+                  fyndQuantityAvailable: number | null;
+                  fyndPriceEffective: string | null;
+                  fyndSize: string | null;
                 };
                 const lineItems: FyndLineItem[] = [];
                 const collectedShipments: FyndShipmentForReturn[] = [];
@@ -360,6 +374,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       const sku = skuVal != null ? String(skuVal) : null;
                       const imageArr = Array.isArray(itemObj.images) ? itemObj.images : [];
                       const imageUrl = imageArr.length > 0 ? safeImageUrl(imageArr[0]) : null;
+
+                      // Extract Fynd metadata
+                      const fyndArticleId = String(article.article_id ?? article._id ?? article.id ?? "").trim() || null;
+                      const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
+                      const fyndAffiliateLineId = String(
+                        affiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
+                      ).trim() || null;
+                      const fyndSellerIdentifier = String(article.seller_identifier ?? "").trim() || null;
+                      const fyndItemId = String(itemObj.item_id ?? itemObj._id ?? "").trim() || null;
+                      const fyndQuantityAvailable = typeof article.quantity_available === "number" ? article.quantity_available
+                        : typeof bag.quantity === "number" ? bag.quantity : null;
+                      const fyndPriceEffective = (() => {
+                        const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
+                        return pe != null ? String(pe) : null;
+                      })();
+                      const fyndSize = safeStr(article.size, "") || safeStr(bag.size, "") || safeStr(itemObj.size, "") || null;
+
                       const item: FyndLineItem = {
                         id: itemId,
                         bagId,
@@ -370,6 +401,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         price,
                         imageUrl,
                         productTags: [],
+                        fyndArticleId,
+                        fyndAffiliateLineId,
+                        fyndSellerIdentifier,
+                        fyndItemId,
+                        fyndQuantityAvailable,
+                        fyndPriceEffective,
+                        fyndSize,
                       };
                       lineItems.push(item);
                       shipmentItems.push(item);
@@ -390,6 +428,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         : bag.article_id != null ? String(bag.article_id) : null;
                       const imageArr = Array.isArray(bagItem.images) ? bagItem.images : [];
                       const imageUrl = imageArr.length > 0 ? safeImageUrl(imageArr[0]) : null;
+
+                      // Extract Fynd metadata from bag-level
+                      const bagAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
+                      const bagFyndAffiliateLineId = String(
+                        bagAffiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
+                      ).trim() || null;
+
                       const item: FyndLineItem = {
                         id: itemId,
                         bagId,
@@ -400,6 +445,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         price,
                         imageUrl,
                         productTags: [],
+                        fyndArticleId: bag.article_id != null ? String(bag.article_id) : null,
+                        fyndAffiliateLineId: bagFyndAffiliateLineId,
+                        fyndSellerIdentifier: bag.seller_identifier != null ? String(bag.seller_identifier) : null,
+                        fyndItemId: bagItem.item_id != null ? String(bagItem.item_id) : null,
+                        fyndQuantityAvailable: typeof bag.quantity === "number" ? bag.quantity : null,
+                        fyndPriceEffective: (() => {
+                          const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
+                          return pe != null ? String(pe) : null;
+                        })(),
+                        fyndSize: safeStr(bagItem.size, "") || safeStr(bag.size, "") || null,
                       };
                       lineItems.push(item);
                       shipmentItems.push(item);
@@ -603,6 +658,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
                     const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
                     const price = matchedShopify?.price ?? extractNumericPrice(rawPrice);
+
+                    // Extract Fynd metadata
+                    const enrichAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
+                    const enrichFyndAffiliateLineId = String(
+                      enrichAffiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
+                    ).trim() || null;
+
                     shipItems.push({
                       id: matchedShopify?.id ?? bagId,
                       bagId,
@@ -613,6 +675,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       price,
                       imageUrl,
                       productTags: matchedShopify?.productTags ?? [],
+                      fyndArticleId: String(article.article_id ?? article._id ?? article.id ?? "").trim() || null,
+                      fyndAffiliateLineId: enrichFyndAffiliateLineId,
+                      fyndSellerIdentifier: String(article.seller_identifier ?? "").trim() || null,
+                      fyndItemId: String(itemObj.item_id ?? itemObj._id ?? "").trim() || null,
+                      fyndQuantityAvailable: typeof article.quantity_available === "number" ? article.quantity_available
+                        : typeof bag.quantity === "number" ? bag.quantity : null,
+                      fyndPriceEffective: (() => {
+                        const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
+                        return pe != null ? String(pe) : null;
+                      })(),
+                      fyndSize: safeStr(article.size, "") || safeStr(bag.size, "") || safeStr(itemObj.size, "") || null,
                     });
                   }
                   // Fallback: bag-level item
@@ -626,6 +699,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<string, unknown>;
                     const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? 0;
                     const price = matchedShopify?.price ?? extractNumericPrice(rawPrice);
+
+                    const fallbackAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
+                    const fallbackFyndAffiliateLineId = String(
+                      fallbackAffiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
+                    ).trim() || null;
+
                     shipItems.push({
                       id: matchedShopify?.id ?? bagId,
                       bagId,
@@ -636,6 +715,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       price,
                       imageUrl: matchedShopify?.imageUrl ?? null,
                       productTags: matchedShopify?.productTags ?? [],
+                      fyndArticleId: bag.article_id != null ? String(bag.article_id) : null,
+                      fyndAffiliateLineId: fallbackFyndAffiliateLineId,
+                      fyndSellerIdentifier: bag.seller_identifier != null ? String(bag.seller_identifier) : null,
+                      fyndItemId: bagItem.item_id != null ? String(bagItem.item_id) : null,
+                      fyndQuantityAvailable: typeof bag.quantity === "number" ? bag.quantity : null,
+                      fyndPriceEffective: (() => {
+                        const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
+                        return pe != null ? String(pe) : null;
+                      })(),
+                      fyndSize: safeStr(bagItem.size, "") || safeStr(bag.size, "") || null,
                     });
                   }
                 }

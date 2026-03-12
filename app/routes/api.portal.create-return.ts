@@ -129,7 +129,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const customerProvince = (body.customerProvince as string | undefined)?.trim().slice(0, 100) || null;
     const customerZip = (body.customerZip as string | undefined)?.trim().slice(0, 20) || null;
     const customerLandmark = (body.customerLandmark as string | undefined)?.trim().slice(0, 500) || null;
-    const items = body.items as Array<{ lineItemId: string; qty: number; reasonCode?: string; condition?: string; fyndShipmentId?: string; fyndBagId?: string }> | undefined;
+    const items = body.items as Array<{
+      lineItemId: string; qty: number; reasonCode?: string; condition?: string;
+      fyndShipmentId?: string; fyndBagId?: string;
+      fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
+      fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
+    }> | undefined;
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
     const customerNotes = (body.customerNotes as string | undefined)?.trim();
@@ -311,7 +316,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
       }
     }
-    let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string; fyndShipmentId?: string; fyndBagId?: string }>;
+    let itemsToCreate: Array<{
+      lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string;
+      fyndShipmentId?: string; fyndBagId?: string;
+      fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
+      fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
+    }>;
     let lineItemsWithPrice: Array<{
       id: string;
       title?: string;
@@ -411,6 +421,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
         fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
         fyndBagId: it.fyndBagId ? String(it.fyndBagId).slice(0, 256) : undefined,
+        fyndArticleId: it.fyndArticleId ? String(it.fyndArticleId).slice(0, 256) : undefined,
+        fyndAffiliateLineId: it.fyndAffiliateLineId ? String(it.fyndAffiliateLineId).slice(0, 256) : undefined,
+        fyndSellerIdentifier: it.fyndSellerIdentifier ? String(it.fyndSellerIdentifier).slice(0, 256) : undefined,
+        fyndItemId: it.fyndItemId ? String(it.fyndItemId).slice(0, 256) : undefined,
+        fyndQuantityAvailable: typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
+        fyndPriceEffective: it.fyndPriceEffective ? String(it.fyndPriceEffective).slice(0, 64) : undefined,
+        fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
       }));
     }
 
@@ -920,6 +937,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   condition: it.condition || null,
                   fyndShipmentId: it.fyndShipmentId || null,
                   fyndBagId: it.fyndBagId || null,
+                  fyndArticleId: it.fyndArticleId || null,
+                  fyndAffiliateLineId: it.fyndAffiliateLineId || null,
+                  fyndSellerIdentifier: it.fyndSellerIdentifier || null,
+                  fyndItemId: it.fyndItemId || null,
+                  fyndQuantityAvailable: it.fyndQuantityAvailable ?? null,
+                  fyndPriceEffective: it.fyndPriceEffective || null,
+                  fyndSize: it.fyndSize || null,
                 };
               }),
             },

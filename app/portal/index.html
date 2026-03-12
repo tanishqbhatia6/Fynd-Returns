@@ -2641,15 +2641,17 @@
     function formatDate(dateStr) {
       if (!dateStr) return '';
       try {
-        return new Intl.DateTimeFormat(window.__RPM_LOCALE__ || undefined, { day: 'numeric', month: 'short', year: 'numeric', timeZone: (function(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||window.__RPM_TIMEZONE__||undefined;}catch(e){return window.__RPM_TIMEZONE__||undefined;}})() }).format(new Date(dateStr));
+        var tz = (function(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||window.__RPM_TIMEZONE__||undefined;}catch(e){return window.__RPM_TIMEZONE__||undefined;}})();
+        return new Intl.DateTimeFormat(window.__RPM_LOCALE__ || undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz }).format(new Date(dateStr));
       } catch(e) {
-        return new Date(dateStr).toLocaleDateString();
+        return new Date(dateStr).toLocaleString();
       }
     }
 
     function formatDateTime(dateStr) {
       if (!dateStr) return '';
-      return new Date(dateStr).toLocaleString(window.__RPM_LOCALE__ || undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: (function(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||window.__RPM_TIMEZONE__||undefined;}catch(e){return window.__RPM_TIMEZONE__||undefined;}})() });
+      var tz = (function(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||window.__RPM_TIMEZONE__||undefined;}catch(e){return window.__RPM_TIMEZONE__||undefined;}})();
+      return new Date(dateStr).toLocaleString(window.__RPM_LOCALE__ || undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: tz });
     }
 
     // ── Customer-friendly status helpers ──
@@ -4704,7 +4706,7 @@
             '</div>';
         }).join('') : '<div style="font-size:0.8125rem;color:var(--portal-text-muted);padding:8px 12px;">' + t('portal.create.returnItemsOnFile') + '</div>';
 
-        var dateStr = r.createdAt ? new Date(r.createdAt).toLocaleDateString(window.__RPM_LOCALE__ || undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+        var dateStr = r.createdAt ? formatDate(r.createdAt) : '';
         var refundHtml = r.refundStatus && r.refundStatus !== 'none' ? '<div style="font-size:0.75rem;margin-top:8px;padding:6px 10px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;color:#5b21b6;">' + t('portal.tracking.refund') + ': ' + escapeHtml(r.refundStatus) + '</div>' : '';
 
         return '<div style="background:' + getStatusBg(r.status) + ';border:1px solid ' + getStatusBorder(r.status) + ';border-radius:var(--portal-radius);padding:20px;margin-bottom:12px;">' +
@@ -5379,7 +5381,7 @@
         summaryHtml += '</ul>';
       }
       if (summary.status) summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.tracking.status') + '</span><span class="summary-value">' + escapeHtml(summary.status) + '</span></div>';
-      if (summary.createdAt) summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.summary.submitted') + '</span><span class="summary-value">' + escapeHtml(new Date(summary.createdAt).toLocaleString(window.__RPM_LOCALE__ || undefined, { timeZone: (function(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||window.__RPM_TIMEZONE__||undefined;}catch(e){return window.__RPM_TIMEZONE__||undefined;}})() })) + '</span></div>';
+      if (summary.createdAt) summaryHtml += '<div class="summary-row"><span class="summary-label">' + t('portal.summary.submitted') + '</span><span class="summary-value">' + escapeHtml(formatDateTime(summary.createdAt)) + '</span></div>';
       summaryBlock.innerHTML = summaryHtml || '<div class="summary-row"><span class="summary-label">' + t('portal.summary.order') + '</span><span class="summary-value">' + escapeHtml(summary.orderName || '—') + '</span></div>';
       summaryBlock.style.display = 'block';
       nextStepsEl.textContent = summary.nextSteps || t('portal.create.nextSteps');

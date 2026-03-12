@@ -373,7 +373,7 @@ export default function WebhookLogsPage() {
   const fmtTime = (iso: string) => {
     const d = new Date(iso);
     return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hour12: true,
+      day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit", hour12: true,
     }).format(d);
   };
 

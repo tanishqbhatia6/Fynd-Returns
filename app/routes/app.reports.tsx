@@ -95,7 +95,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const returnsOverTime = Object.entries(dailyData)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({
-        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", { month: "short", day: "numeric" }).format(new Date(date)),
+        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", { month: "short", day: "numeric", year: "2-digit" }).format(new Date(date)),
         returns: count,
         fullDate: date,
       }));

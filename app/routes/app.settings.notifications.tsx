@@ -940,7 +940,7 @@ export default function Notifications() {
                   {data.notificationLogs.map((log) => (
                     <tr key={log.id} style={{ borderBottom: "1px solid var(--rpm-border-color, #f1f5f9)" }}>
                       <td style={{ padding: "8px 10px", whiteSpace: "nowrap", color: "var(--rpm-text-muted)" }}>
-                        {new Date(log.createdAt).toLocaleString()}
+                        {new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(log.createdAt))}
                       </td>
                       <td style={{ padding: "8px 10px" }}>
                         <span style={{

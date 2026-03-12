@@ -212,7 +212,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const returnsOverTime = Object.entries(dailyData)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({
-        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", { month: "short", day: "numeric" }).format(new Date(date)),
+        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", { month: "short", day: "numeric", year: "2-digit" }).format(new Date(date)),
         returns: count,
         fullDate: date,
       }));
@@ -688,7 +688,7 @@ export default function Dashboard() {
                         {(r as { returnRequestNo?: string | null }).returnRequestNo || r.fyndReturnNo || "—"}
                       </td>
                       <td style={{ padding: "10px 12px", color: "var(--rpm-text-muted)", fontSize: 12 }}>
-                        {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short" }).format(new Date(r.createdAt))}
+                        {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(r.createdAt))}
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <Link to={`/app/returns/${r.id}`} style={{ color: "var(--rpm-accent, #005bd3)" }}>

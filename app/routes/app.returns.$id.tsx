@@ -1061,7 +1061,7 @@ export default function ReturnDetail() {
                 )}
                 {daysRemaining != null && (
                   <div
-                    title={returnDeadline ? `Return window expires ${new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: undefined }).format(new Date(returnDeadline))}` : undefined}
+                    title={returnDeadline ? `Return window expires ${new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(returnDeadline))}` : undefined}
                     style={{
                       display: "inline-flex", alignItems: "center", gap: 5, marginTop: 6,
                       padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700,
@@ -1210,7 +1210,7 @@ export default function ReturnDetail() {
                         </div>
                         {step.time && (
                           <div style={{ fontSize: 8, color: "#9CA3AF", marginTop: 1, whiteSpace: "nowrap" }}>
-                            {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", timeZone: undefined }).format(new Date(step.time))}
+                            {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: undefined }).format(new Date(step.time))}
                           </div>
                         )}
                       </div>
@@ -1316,7 +1316,7 @@ export default function ReturnDetail() {
                 <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Order details</div>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16 }}>
                   <div><div style={C.label}>Order</div><div style={C.val}>{shopifyOrder.name || "—"}</div></div>
-                  <div><div style={C.label}>Placed</div><div style={C.val}>{shopifyOrder.createdAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeZone: undefined }).format(new Date(shopifyOrder.createdAt)) : "—"}</div></div>
+                  <div><div style={C.label}>Placed</div><div style={C.val}>{shopifyOrder.createdAt ? new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(shopifyOrder.createdAt)) : "—"}</div></div>
                   {shopifyOrder.email && <div><div style={C.label}>Email</div><div style={C.val}>{shopifyOrder.email}</div></div>}
                   {shopifyOrder.phone && <div><div style={C.label}>Phone</div><div style={C.val}>{shopifyOrder.phone}</div></div>}
                   {shopifyOrder.displayFulfillmentStatus && <div><div style={C.label}>Fulfillment</div><div style={C.val}>{shopifyOrder.displayFulfillmentStatus.replace(/_/g, " ")}</div></div>}
@@ -2471,7 +2471,7 @@ export default function ReturnDetail() {
                         <Link key={prev.id} to={`/app/returns/${prev.id}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "6px 10px", borderRadius: 6, background: "#fff", border: "1px solid #e5e7eb", textDecoration: "none", fontSize: 12, color: "#374151", transition: "background 0.15s" }}>
                           <span style={{ fontWeight: 600 }}>{prev.returnRequestNo || prev.id.slice(-8).toUpperCase()}</span>
                           <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-                            <span style={{ fontSize: 11, color: "#6b7280" }}>{new Date(prev.createdAt).toLocaleDateString()}</span>
+                            <span style={{ fontSize: 11, color: "#6b7280" }}>{new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(prev.createdAt))}</span>
                             <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: getStatusBg(prev.status), color: getStatusColor(prev.status), textTransform: "uppercase" }}>{prev.status}</span>
                           </span>
                         </Link>

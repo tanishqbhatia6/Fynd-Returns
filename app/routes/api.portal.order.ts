@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { fetchOrderByOrderNumber, fetchOrderByGid, OrderAccessError, withRestCredentials, type OrderForPortal } from "../lib/shopify-admin.server";
+import { fetchOrderByOrderNumber, fetchOrderByGid, fetchOrderByFyndAffiliateId, OrderAccessError, withRestCredentials, type OrderForPortal } from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -289,10 +289,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               const affiliateOrderId = String(
                 first.affiliate_order_id ?? first.external_order_id ?? ""
               ).replace(/^#/, "").trim();
-              // Only retry Shopify if the affiliate_order_id differs from what was already searched
-              if (affiliateOrderId && affiliateOrderId !== orderNumber) {
-                order = await fetchOrderByOrderNumber(admin, affiliateOrderId).catch(() => null);
+              // Try to find the Shopify order using Fynd prefix stripping.
+              // fetchOrderByFyndAffiliateId generates variants like
+              // ["FYNDSHOPIFYX14115", "X14115", "14115"] and searches each.
+              // This is critical because fetchOrderByOrderNumber only tries the exact value,
+              // so searching for "FYNDSHOPIFYX14115" won't find Shopify order #14115.
+              if (affiliateOrderId) {
+                order = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId).catch(() => null);
               }
+
+              // If Shopify order found via affiliate ID resolution, backfill FyndOrderMapping
+              // with the real GID so future lookups (in create-return, webhooks) are instant.
+              if (order && order.id.startsWith("gid://")) {
+                const resolvedCleanName = `#${orderNumber}`;
+                prisma.fyndOrderMapping.upsert({
+                  where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolvedCleanName } },
+                  create: {
+                    shopId: shopRecord.id,
+                    shopifyOrderName: resolvedCleanName,
+                    shopifyOrderId: order.id,
+                    fyndOrderId: String(first.order_id ?? first.fynd_order_id ?? "").trim() || null,
+                    fyndShipmentId: String(first.shipment_id ?? "").trim() || null,
+                    searchStrategy: "fynd_affiliate_resolve",
+                  },
+                  update: { shopifyOrderId: order.id },
+                }).catch(() => {});
+              }
+
               // Shopify still can't resolve it — build synthetic order from Fynd bags/items
               // so the portal can show the item selector with checkboxes and quantities.
               if (!order) {

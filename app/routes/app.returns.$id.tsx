@@ -518,6 +518,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
     const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
+
+    // Filter to only the shipment this return was created for.
+    // Without this, ALL order shipments (Shipment 1, 2, 3) are shown under
+    // every return, even though only one shipment's return was created.
+    const returnShipmentId = (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId;
+    if (fyndOrderDetailsTab && returnShipmentId) {
+      fyndOrderDetailsTab.shipments = fyndOrderDetailsTab.shipments.filter(
+        (s) => s.shipmentId === returnShipmentId
+      );
+    }
+
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
     const returnJourney = extractFyndJourney(fyndPayloadJson, "return");
 

@@ -286,6 +286,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           // Non-fatal
         }
       }
+
+      // Last resort: if order ID still looks like a Fynd affiliate ID (e.g. FYNDSHOPIFYX14115),
+      // try resolving with Fynd prefix stripping to extract the Shopify order number.
+      if (!effectiveOrderId.startsWith("gid://") && /^FYND/i.test(effectiveOrderId.replace(/^#/, ""))) {
+        try {
+          const { admin: rawAdmin2 } = await shopify.unauthenticated.admin(shopDomain);
+          const admin2 = withRestCredentials(rawAdmin2, shopDomain, shopAccessToken);
+          const lastResort = await fetchOrderByFyndAffiliateId(admin2, effectiveOrderId.replace(/^#/, ""));
+          if (lastResort?.id?.startsWith("gid://")) {
+            console.log(`[create-return] Last-resort resolved orderId "${effectiveOrderId}" → "${lastResort.id}"`);
+            effectiveOrderId = lastResort.id;
+            // Backfill FyndOrderMapping for future lookups
+            if (shopifyOrderName) {
+              prisma.fyndOrderMapping.upsert({
+                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
+                create: { shopId: shopRecord.id, shopifyOrderName, shopifyOrderId: lastResort.id, searchStrategy: "create_return_last_resort" },
+                update: { shopifyOrderId: lastResort.id },
+              }).catch(() => {});
+            }
+          }
+        } catch {
+          // Non-fatal — proceed with original ID
+        }
+      }
     }
     let itemsToCreate: Array<{ lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string; fyndShipmentId?: string; fyndBagId?: string }>;
     let lineItemsWithPrice: Array<{

@@ -1774,6 +1774,12 @@
     .oc-no-tracking-icon { font-size: 24px; margin-bottom: 8px; opacity: 0.6; }
     .oc-no-tracking-text { font-size: 0.875rem; color: var(--portal-text-muted); line-height: 1.5; }
 
+    /* Override for Fynd loading state — clean, professional look (no dashed rectangle) */
+    .oc-fynd-loading { border: none; background: transparent; padding: 32px 20px; }
+    .oc-fynd-loading .oc-no-tracking-icon { opacity: 1; margin-bottom: 12px; }
+    .oc-fynd-loading .oc-spinner { width: 36px; height: 36px; border-width: 3px; margin: 0 auto; }
+    .oc-fynd-loading .oc-no-tracking-text { font-size: 0.9rem; color: var(--portal-text); opacity: 0.7; margin-top: 4px; }
+
     /* Order card bottom padding */
     .oc-bottom-pad { padding-bottom: 20px; }
     @media (min-width: 640px) { .oc-bottom-pad { padding-bottom: 24px; } }

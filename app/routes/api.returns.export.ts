@@ -2,6 +2,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange } from "../lib/dashboard-date-utils";
+import { formatReturnRequestId } from "../lib/return-request-id";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
@@ -60,11 +61,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         : s;
     };
 
-    const formatId = (r: { returnRequestNo?: string | null; id: string }) => {
-      const rno = r.returnRequestNo;
-      if (rno) return rno;
-      return `RPM-${r.id.slice(-8).toUpperCase().replace(/[^A-Z0-9]/g, "X")}`;
-    };
+    const formatId = (r: { returnRequestNo?: string | null; id: string }) =>
+      r.returnRequestNo || formatReturnRequestId(r.id);
 
     const headers = [
       "Return Request ID",

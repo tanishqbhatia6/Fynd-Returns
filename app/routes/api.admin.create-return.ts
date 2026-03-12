@@ -1,7 +1,8 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { formatReturnRequestId } from "../lib/return-request-id";
+import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from "../lib/return-request-id";
+import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkReturnEligibility } from "../lib/return-rules.server";
 
 /**
@@ -174,8 +175,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         include: { items: true },
       });
 
-      // Generate user-friendly return request number
-      const returnRequestNo = formatReturnRequestId(rc.id);
+      // Generate user-friendly return request number using shop config
+      const idConfig = parseReturnIdConfig(settings?.returnIdConfigJson as string | null);
+      let counter: number | undefined;
+      if (idConfig.bodyMode === "sequential" || idConfig.bodyMode === "date_sequential") {
+        counter = await nextReturnIdCounter(settings!.id);
+      }
+      const returnRequestNo = buildReturnRequestId(idConfig, rc.id, counter);
       await tx.returnCase.update({
         where: { id: rc.id },
         data: { returnRequestNo },

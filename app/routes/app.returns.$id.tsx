@@ -5,7 +5,9 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchAllLocations, withRestCredentials } from "../lib/shopify-admin.server";
-import { formatReturnRequestId } from "../lib/return-request-id";
+import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from "../lib/return-request-id";
+import { nextReturnIdCounter } from "../lib/return-id-counter.server";
+import { PayloadViewer } from "../components/json-viewer";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
@@ -352,7 +354,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     if (!id) throw new Response("Return ID is required", { status: 400 });
 
     const { session, admin } = await authenticate.admin(request);
-    const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
+    const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
     if (!shop) throw new Response("Shop not found", { status: 404 });
 
     let returnCase;
@@ -373,15 +375,20 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     // Backfill returnRequestNo for existing returns
     if (!(returnCase as { returnRequestNo?: string | null }).returnRequestNo) {
-      const returnRequestNo = formatReturnRequestId(returnCase.id);
       try {
+        const idConfig = parseReturnIdConfig(shop.settings?.returnIdConfigJson as string | null);
+        let counter: number | undefined;
+        if ((idConfig.bodyMode === "sequential" || idConfig.bodyMode === "date_sequential") && shop.settings?.id) {
+          counter = await nextReturnIdCounter(shop.settings.id);
+        }
+        const returnRequestNo = buildReturnRequestId(idConfig, returnCase.id, counter);
         await prisma.returnCase.update({
           where: { id: returnCase.id },
           data: { returnRequestNo },
         });
         returnCase = { ...returnCase, returnRequestNo };
       } catch {
-        // Non-fatal
+        // Non-fatal — fallback to formatReturnRequestId in display
       }
     }
 
@@ -1380,7 +1387,9 @@ export default function ReturnDetail() {
                       {showRawFynd ? "Hide raw payload" : "View raw payload"}
                     </button>
                     {showRawFynd && (
-                      <pre style={{ marginTop: 8, padding: 12, background: "#F3F4F6", borderRadius: 8, overflow: "auto", fontSize: 11, maxHeight: 300, border: "1px solid #E5E7EB" }}>{fyndPayloadInfo?.rawJson}</pre>
+                      <div style={{ marginTop: 8, minWidth: 0 }}>
+                        <PayloadViewer rawPayload={fyndPayloadInfo?.rawJson ?? null} title="Fynd Payload" />
+                      </div>
                     )}
                   </div>
                 )}

@@ -152,6 +152,10 @@ model ShopSettings {
   // JSON array e.g. ["delivery_done","handed_over_to_customer"]. Empty/null = feature disabled (all forward statuses allowed).
   allowedFyndStatusesForReturn String? @db.Text
 
+  // Return ID pattern configuration
+  returnIdConfigJson       String?  @db.Text  // JSON: { prefix, separator, bodyMode, hashLength, sequentialPadding, suffix }
+  returnIdCounter          Int      @default(0)  // Atomic sequential counter per shop
+
   // Fynd return consolidation
   fyndConsolidateReturns     Boolean  @default(false) // Batch multiple return cases into one Fynd return
   fyndConsolidateWindowHours Int      @default(4)     // Hours to wait before sending batch (1, 4, 8, 24)

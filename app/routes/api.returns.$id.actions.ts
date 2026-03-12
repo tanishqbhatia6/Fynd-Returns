@@ -476,29 +476,56 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent("Sync to Fynd requires Platform API. Switch to Platform in Settings → Integrations.")}`);
     }
     let affiliateOrderId: string | null = null;
-    if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
-      const order = returnCase.shopifyOrderId
-        ? await fetchOrder(admin, returnCase.shopifyOrderId)
-        : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
-      affiliateOrderId = order?.affiliateOrderId ?? null;
+    let fyndResult: Awaited<ReturnType<typeof createReturnOnFynd>> | null = null;
+    let retryDurationMs = 0;
+    let retryCrashError: string | null = null;
+
+    try {
+      if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
+        const order = returnCase.shopifyOrderId
+          ? await fetchOrder(admin, returnCase.shopifyOrderId)
+          : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
+        affiliateOrderId = order?.affiliateOrderId ?? null;
+      }
+      const retryStartTime = Date.now();
+      fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
+        affiliateOrderId,
+        targetShipmentId: returnCase.fyndShipmentId || null,
+        pickupAddress: returnCase.customerAddress1 || returnCase.customerCity ? {
+          address1: returnCase.customerAddress1 ?? null,
+          address2: returnCase.customerAddress2 ?? null,
+          city: returnCase.customerCity ?? null,
+          province: returnCase.customerProvince ?? null,
+          zip: returnCase.customerZip ?? null,
+          country: returnCase.customerCountry ?? null,
+          landmark: returnCase.customerLandmark ?? null,
+          name: returnCase.customerName ?? null,
+          phone: returnCase.customerPhoneNorm ?? null,
+        } : null,
+      });
+      retryDurationMs = Date.now() - retryStartTime;
+    } catch (err) {
+      // Catch network errors, timeouts, or any crash from fetchOrder / createReturnOnFynd
+      retryCrashError = enrichFyndError(err instanceof Error ? err.message : String(err));
+      console.error("[retry_fynd_sync] Unhandled error:", err);
     }
-    const retryStartTime = Date.now();
-    const fyndResult = await createReturnOnFynd(fyndClient, returnCase, {
-      affiliateOrderId,
-      targetShipmentId: returnCase.fyndShipmentId || null,
-      pickupAddress: returnCase.customerAddress1 || returnCase.customerCity ? {
-        address1: returnCase.customerAddress1 ?? null,
-        address2: returnCase.customerAddress2 ?? null,
-        city: returnCase.customerCity ?? null,
-        province: returnCase.customerProvince ?? null,
-        zip: returnCase.customerZip ?? null,
-        country: returnCase.customerCountry ?? null,
-        landmark: returnCase.customerLandmark ?? null,
-        name: returnCase.customerName ?? null,
-        phone: returnCase.customerPhoneNorm ?? null,
-      } : null,
-    });
-    const retryDurationMs = Date.now() - retryStartTime;
+
+    // Handle crash — update status and redirect with error
+    if (retryCrashError || !fyndResult) {
+      const crashMsg = retryCrashError || "Fynd sync failed unexpectedly. Check server logs for details.";
+      await prisma.returnCase.update({
+        where: { id },
+        data: { fyndSyncStatus: "failed", fyndSyncError: crashMsg },
+      }).catch(() => {});
+      await prisma.returnEvent.create({
+        data: {
+          returnCaseId: id, source: "admin", eventType: "fynd_sync_failed",
+          payloadJson: JSON.stringify({ action: "manual_retry", status: "crashed", error: crashMsg, errorType: classifyFyndError(crashMsg), adminEmail: sessionEmail }),
+        },
+      }).catch(() => {});
+      throw redirect(`/app/returns/${id}?fyndError=${encodeURIComponent(crashMsg)}`);
+    }
+
     const hasFyndId = fyndResult.fyndReturnId ?? fyndResult.fyndShipmentId;
     if (fyndResult.success && (hasFyndId || fyndResult.alreadyExists)) {
       let payloadJson: string | null = null;
@@ -507,7 +534,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       } catch {
         payloadJson = null;
       }
-      // BUG FIX: Set fyndSyncStatus to "synced" and clear error fields on successful retry
       await prisma.returnCase.update({
         where: { id },
         data: {
@@ -547,7 +573,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const errMsg = enrichFyndError(
       rawErr || (fyndResult.success ? "Sync completed but Fynd did not return a return ID. Check Fynd dashboard." : "Unknown Fynd error")
     );
-    // Log failed manual retry event for tracing
+    // Update status on failure so the UI shows the error
+    await prisma.returnCase.update({
+      where: { id },
+      data: { fyndSyncStatus: "failed", fyndSyncError: errMsg },
+    }).catch(() => {});
     await prisma.returnEvent.create({
       data: {
         returnCaseId: id,

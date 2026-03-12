@@ -37,6 +37,58 @@ type FyndShipmentForReturn = {
   }>;
 };
 
+/** Safely extract a string from a value that may be an object (Fynd API inconsistency) */
+function safeStr(val: unknown, fallback = ""): string {
+  if (val == null) return fallback;
+  if (typeof val === "string") return val;
+  if (typeof val === "number") return String(val);
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    const extracted = obj.status ?? obj.title ?? obj.name ?? obj.display_name ?? obj.value ?? obj.text ?? obj.label;
+    if (extracted != null && typeof extracted !== "object") return String(extracted);
+  }
+  return fallback;
+}
+
+/** Safely extract an image URL from a value that may be a string or object */
+function safeImageUrl(val: unknown): string | null {
+  if (val == null) return null;
+  if (typeof val === "string") return val;
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    const url = obj.secure_url ?? obj.url ?? obj.src ?? obj.original ?? obj.value;
+    if (typeof url === "string") return url;
+  }
+  return null;
+}
+
+/** Check if a Fynd shipment status is eligible for return (delivered OR merchant-allowed) */
+function isShipmentEligibleForReturn(
+  status: string,
+  allowedFyndStatusesForReturn: string[],
+): boolean {
+  if (FYND_DELIVERED_STATUSES.has(status)) return true;
+  if (allowedFyndStatusesForReturn.length === 0) return false;
+  const normalized = status.toLowerCase().replace(/[\s_]+/g, "_").trim();
+  return allowedFyndStatusesForReturn.some((s) => {
+    const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();
+    return normalized === normalizedAllowed || normalized.includes(normalizedAllowed);
+  });
+}
+
+/** Parse the allowedFyndStatusesForReturn JSON setting into a string array */
+function parseAllowedFyndStatuses(settings: { allowedFyndStatusesForReturn?: string | null } | null): string[] {
+  try {
+    const raw = settings?.allowedFyndStatusesForReturn;
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      return (parsed as unknown[]).map((s) => String(s).toLowerCase().trim());
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
 /** Safely extract a numeric price string from Fynd price fields that may be objects */
 function extractNumericPrice(val: unknown): string {
   if (val == null) return "0";
@@ -249,7 +301,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
                 for (const shipment of shipments) {
                   const sShipmentId = String(shipment.shipment_id ?? shipment.id ?? `fynd-ship-${collectedShipments.length}`);
-                  const sStatus = String(shipment.status ?? shipment.shipment_status ?? "").toLowerCase();
+                  const sStatus = safeStr(shipment.status ?? shipment.shipment_status, "").toLowerCase();
                   const shipmentItems: FyndShipmentForReturn["items"] = [];
 
                   // Fynd structures items under bags[].articles, bags[].items, or top-level bags
@@ -267,12 +319,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       const qty = typeof bag.quantity === "number" ? bag.quantity
                         : typeof article.quantity === "number" ? article.quantity : 1;
                       const itemId = String(bag.bag_id ?? bag.id ?? article.id ?? article.article_id ?? `fynd-${lineItems.length}`);
-                      const title = String(itemObj.name ?? itemObj.item_name ?? itemObj.title ?? article.name ?? "Item");
-                      const size = String(itemObj.l3_category_name ?? itemObj.size ?? article.size ?? bag.size ?? "");
+                      const title = safeStr(itemObj.name, "") || safeStr(itemObj.item_name, "") || safeStr(itemObj.title, "") || safeStr(article.name, "") || "Item";
+                      const size = safeStr(itemObj.l3_category_name, "") || safeStr(itemObj.size, "") || safeStr(article.size, "") || safeStr(bag.size, "");
                       const skuVal = article.seller_identifier ?? article.uid ?? itemObj.item_id ?? null;
                       const sku = skuVal != null ? String(skuVal) : null;
                       const imageArr = Array.isArray(itemObj.images) ? itemObj.images : [];
-                      const imageUrl = imageArr.length > 0 ? String(imageArr[0]) : null;
+                      const imageUrl = imageArr.length > 0 ? safeImageUrl(imageArr[0]) : null;
                       const item: FyndLineItem = {
                         id: itemId,
                         bagId,
@@ -297,12 +349,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       const qty = typeof bag.quantity === "number" ? bag.quantity : 1;
                       const itemId = String(bag.bag_id ?? bag.id ?? `fynd-bag-${lineItems.length}`);
                       const bagItem = (bag.item ?? {}) as Record<string, unknown>;
-                      const title = String(bagItem.name ?? bagItem.item_name ?? bag.item_name ?? bag.name ?? "Item");
-                      const size = String(bagItem.l3_category_name ?? bagItem.size ?? bag.size ?? "");
+                      const title = safeStr(bagItem.name, "") || safeStr(bagItem.item_name, "") || safeStr(bag.item_name, "") || safeStr(bag.name, "") || "Item";
+                      const size = safeStr(bagItem.l3_category_name, "") || safeStr(bagItem.size, "") || safeStr(bag.size, "");
                       const sku = bag.seller_identifier != null ? String(bag.seller_identifier)
                         : bag.article_id != null ? String(bag.article_id) : null;
                       const imageArr = Array.isArray(bagItem.images) ? bagItem.images : [];
-                      const imageUrl = imageArr.length > 0 ? String(imageArr[0]) : null;
+                      const imageUrl = imageArr.length > 0 ? safeImageUrl(imageArr[0]) : null;
                       const item: FyndLineItem = {
                         id: itemId,
                         bagId,
@@ -319,13 +371,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     }
                   }
 
-                  // Per-shipment eligibility based on Fynd status
-                  const isDelivered = FYND_DELIVERED_STATUSES.has(sStatus);
+                  // Per-shipment eligibility based on Fynd status + merchant settings
+                  const merchantAllowedStatuses = parseAllowedFyndStatuses(shopSettings as { allowedFyndStatusesForReturn?: string | null } | null);
+                  const isEligible = isShipmentEligibleForReturn(sStatus, merchantAllowedStatuses);
                   collectedShipments.push({
                     shipmentId: sShipmentId,
                     shipmentStatus: sStatus,
-                    eligible: isDelivered,
-                    eligibilityReason: isDelivered ? undefined : "This shipment has not been delivered yet. Returns can only be created after delivery.",
+                    eligible: isEligible,
+                    eligibilityReason: isEligible ? undefined : "This shipment has not been delivered yet. Returns can only be created after delivery.",
                     items: shipmentItems,
                   });
                 }
@@ -339,7 +392,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 });
 
                 const orderName = String(first.affiliate_order_id ?? first.external_order_id ?? `#${orderNumber}`);
-                const createdAt = String(first.orderDate ?? first.shipment_created_at ?? first.created_at ?? new Date().toISOString());
+                const createdAt = safeStr(first.orderDate, "") || safeStr(first.shipment_created_at, "") || safeStr(first.created_at, "") || new Date().toISOString();
 
                 // Extract customer data from Fynd shipment fields
                 const firstBag = Array.isArray(first.bags) ? (first.bags as Record<string, unknown>[])[0] : null;
@@ -399,13 +452,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 }
 
                 // Extract current Fynd shipment status for the return gate
-                const fyndStatusRaw = first.shipment_status ?? first.status;
-                const fyndStatusObj = fyndStatusRaw && typeof fyndStatusRaw === "object" && fyndStatusRaw !== null
-                  ? (fyndStatusRaw as Record<string, unknown>)
-                  : null;
-                const extractedFyndStatus = fyndStatusObj
-                  ? String(fyndStatusObj.status ?? fyndStatusObj.title ?? fyndStatusObj.name ?? fyndStatusObj.value ?? "")
-                  : (typeof fyndStatusRaw === "string" ? fyndStatusRaw : "");
+                const extractedFyndStatus = safeStr(first.shipment_status ?? first.status, "");
 
                 order = {
                   id: syntheticOrderId,
@@ -497,8 +544,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               const enrichedShipments: FyndShipmentForReturn[] = [];
               for (const fShip of fyndShipments) {
                 const sId = String(fShip.shipment_id ?? fShip.id ?? "");
-                const sStatus = String(fShip.status ?? fShip.shipment_status ?? "").toLowerCase();
-                const isDelivered = FYND_DELIVERED_STATUSES.has(sStatus);
+                const sStatus = safeStr(fShip.status ?? fShip.shipment_status, "").toLowerCase();
+                const enrichMerchantStatuses = parseAllowedFyndStatuses(shopSettings as { allowedFyndStatusesForReturn?: string | null } | null);
+                const isEligible = isShipmentEligibleForReturn(sStatus, enrichMerchantStatuses);
                 const bags = (Array.isArray(fShip.bags) ? fShip.bags : []) as Record<string, unknown>[];
                 const shipItems: FyndShipmentForReturn["items"] = [];
                 for (const bag of bags) {
@@ -514,8 +562,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       : typeof article.quantity === "number" ? article.quantity : 1;
                     // Try to match to a Shopify line item by SKU
                     const matchedShopify = sku ? shopifyLineItems.find(li => li.sku === sku) : null;
-                    const title = matchedShopify?.title ?? String(itemObj.name ?? itemObj.item_name ?? "Item");
-                    const variantTitle = (matchedShopify?.variantTitle ?? String(itemObj.size ?? bag.size ?? "")) || null;
+                    const title = matchedShopify?.title ?? (safeStr(itemObj.name, "") || safeStr(itemObj.item_name, "") || "Item");
+                    const variantTitle = (matchedShopify?.variantTitle ?? (safeStr(itemObj.size, "") || safeStr(bag.size, ""))) || null;
                     const imageUrl = matchedShopify?.imageUrl ?? null;
                     const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
                     const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
@@ -539,7 +587,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     const sku = skuVal != null ? String(skuVal) : null;
                     const qty = typeof bag.quantity === "number" ? bag.quantity : 1;
                     const matchedShopify = sku ? shopifyLineItems.find(li => li.sku === sku) : null;
-                    const title = matchedShopify?.title ?? String(bagItem.name ?? bagItem.item_name ?? "Item");
+                    const title = matchedShopify?.title ?? (safeStr(bagItem.name, "") || safeStr(bagItem.item_name, "") || "Item");
                     const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<string, unknown>;
                     const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? 0;
                     const price = matchedShopify?.price ?? extractNumericPrice(rawPrice);
@@ -559,8 +607,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 enrichedShipments.push({
                   shipmentId: sId,
                   shipmentStatus: sStatus,
-                  eligible: isDelivered,
-                  eligibilityReason: isDelivered ? undefined : "This shipment has not been delivered yet.",
+                  eligible: isEligible,
+                  eligibilityReason: isEligible ? undefined : "This shipment has not been delivered yet.",
                   items: shipItems,
                 });
               }
@@ -647,22 +695,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const isFyndSyntheticOrder = orderAny._isFyndSyntheticOrder === true;
 
     if (returnEligibility.eligible && isFyndSyntheticOrder && fyndShipmentStatus) {
-      let allowedFyndReturnStatuses: string[] = [];
-      try {
-        const raw = settings?.allowedFyndStatusesForReturn;
-        if (raw) {
-          const parsed = JSON.parse(raw) as unknown;
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            allowedFyndReturnStatuses = (parsed as unknown[]).map((s) => String(s).toLowerCase().trim());
-          }
-        }
-      } catch { /* ignore parse errors */ }
+      const allowedFyndReturnStatuses = parseAllowedFyndStatuses(settings as { allowedFyndStatusesForReturn?: string | null } | null);
       if (allowedFyndReturnStatuses.length > 0) {
-        const normalizedStatus = fyndShipmentStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
-        const isAllowed = allowedFyndReturnStatuses.some((s) => {
-          const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();
-          return normalizedStatus === normalizedAllowed || normalizedStatus.includes(normalizedAllowed);
-        });
+        const isAllowed = isShipmentEligibleForReturn(fyndShipmentStatus, allowedFyndReturnStatuses);
         if (!isAllowed) {
           const friendlyStatus = fyndShipmentStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
           returnEligibility = {

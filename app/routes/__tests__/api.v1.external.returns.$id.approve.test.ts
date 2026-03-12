@@ -66,6 +66,7 @@ describe("POST /api/v1/external/returns/:id/approve", () => {
       request: makeRequest("PUT"),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/approve",
     });
 
     expect(response.status).toBe(405);
@@ -84,6 +85,7 @@ describe("POST /api/v1/external/returns/:id/approve", () => {
       request: makeRequest(),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/approve",
     });
 
     expect(response.status).toBe(401);
@@ -98,6 +100,7 @@ describe("POST /api/v1/external/returns/:id/approve", () => {
       request: makeRequest(),
       params: { id: "non-existent" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/approve",
     });
 
     expect(response.status).toBe(404);
@@ -117,6 +120,7 @@ describe("POST /api/v1/external/returns/:id/approve", () => {
       request: makeRequest(),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/approve",
     });
 
     expect(response.status).toBe(400);
@@ -146,6 +150,7 @@ describe("POST /api/v1/external/returns/:id/approve", () => {
       request: makeRequest("POST", { note: "Looks good" }),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/approve",
     });
 
     expect(response.status).toBe(200);
@@ -188,6 +193,7 @@ describe("POST /api/v1/external/returns/:id/approve", () => {
       request: makeRequest("POST", { note: "Auto-approved" }),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/approve",
     });
 
     expect(mockPrisma.returnEvent.create).toHaveBeenCalledWith({

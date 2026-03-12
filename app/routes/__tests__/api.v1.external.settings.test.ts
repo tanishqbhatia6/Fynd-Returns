@@ -55,6 +55,7 @@ describe("GET /api/v1/external/settings", () => {
       request: makeRequest(),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/settings",
     });
 
     expect(response.status).toBe(401);
@@ -92,6 +93,7 @@ describe("GET /api/v1/external/settings", () => {
       request: makeRequest(),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/settings",
     });
 
     expect(response.status).toBe(200);
@@ -124,6 +126,7 @@ describe("GET /api/v1/external/settings", () => {
       request: makeRequest(),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/settings",
     });
 
     expect(response.status).toBe(404);

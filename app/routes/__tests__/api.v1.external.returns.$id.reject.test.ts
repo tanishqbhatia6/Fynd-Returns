@@ -64,6 +64,7 @@ describe("POST /api/v1/external/returns/:id/reject", () => {
       request: makeRequest({}),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/reject",
     });
 
     expect(response.status).toBe(400);
@@ -79,6 +80,7 @@ describe("POST /api/v1/external/returns/:id/reject", () => {
       request: makeRequest({ rejectionReason: longReason }),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/reject",
     });
 
     expect(response.status).toBe(400);
@@ -94,6 +96,7 @@ describe("POST /api/v1/external/returns/:id/reject", () => {
       request: makeRequest({ rejectionReason: "Out of window" }),
       params: { id: "non-existent" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/reject",
     });
 
     expect(response.status).toBe(404);
@@ -123,6 +126,7 @@ describe("POST /api/v1/external/returns/:id/reject", () => {
       request: makeRequest({ rejectionReason: "Out of return window" }),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id/reject",
     });
 
     expect(response.status).toBe(200);

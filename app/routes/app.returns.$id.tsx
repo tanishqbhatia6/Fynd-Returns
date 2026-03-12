@@ -1209,7 +1209,17 @@ export default function ReturnDetail() {
                     const title = humanizeFyndSku(rawTitle);
                     const variant = (item as { variantTitle?: string | null }).variantTitle || shopifyItem?.variantTitle;
                     const imageUrl = (item as { imageUrl?: string | null }).imageUrl || shopifyItem?.imageUrl;
-                    const price = (item as { price?: string | null }).price || (shopifyItem?.discountedPrice ?? shopifyItem?.price);
+                    const rawPrice = (item as { price?: string | null }).price || (shopifyItem?.discountedPrice ?? shopifyItem?.price);
+                    const price = (() => {
+                      if (rawPrice == null) return null;
+                      if (typeof rawPrice === "string") return rawPrice;
+                      if (typeof rawPrice === "object") {
+                        const obj = rawPrice as Record<string, unknown>;
+                        const v = obj.amount ?? obj.value ?? obj.effective ?? obj.transfer_price ?? obj.price_effective;
+                        return v != null ? String(v) : null;
+                      }
+                      return String(rawPrice);
+                    })();
                     return (
                       <div key={item.id} style={{ display: "flex", gap: 14, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
                         {imageUrl ? (

@@ -105,6 +105,7 @@ describe("GET /api/v1/external/webhooks", () => {
       request: makeGetRequest(),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/webhooks",
     });
 
     expect(response.status).toBe(200);
@@ -151,6 +152,7 @@ describe("POST /api/v1/external/webhooks", () => {
       }),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/webhooks",
     });
 
     expect(response.status).toBe(201);
@@ -173,6 +175,7 @@ describe("POST /api/v1/external/webhooks", () => {
       }),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/webhooks",
     });
 
     expect(response.status).toBe(400);
@@ -189,6 +192,7 @@ describe("POST /api/v1/external/webhooks", () => {
       }),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/webhooks",
     });
 
     expect(response.status).toBe(400);
@@ -211,6 +215,7 @@ describe("POST /api/v1/external/webhooks", () => {
       }),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/webhooks",
     });
 
     expect(response.status).toBe(400);

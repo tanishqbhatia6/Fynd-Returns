@@ -394,7 +394,8 @@ export function unwrapFyndWebhookPayload(rawBodyText: string): {
   // Handle nested status object (Fynd sends status as {status: "..."} sometimes)
   if (inner.status && typeof inner.status === "object") {
     const statusObj = inner.status as Record<string, unknown>;
-    inner.status = statusObj.status ?? statusObj.name ?? statusObj.current_status;
+    const extracted = statusObj.status ?? statusObj.name ?? statusObj.current_status ?? statusObj.title ?? statusObj.value;
+    inner.status = extracted != null && typeof extracted !== "object" ? extracted : "";
   }
   const event = body?.event && typeof body.event === "object" ? (body.event as { type?: string; name?: string }) : null;
   const eventType = event?.type ?? event?.name ?? (typeof body?.event === "string" ? body.event as string : undefined);

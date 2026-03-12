@@ -52,7 +52,7 @@ describe("GET /api/v1/external/returns", () => {
     );
     mockAuth.mockResolvedValue({ ok: false, response: unauthorizedResponse });
 
-    const response = await loader({ request: makeRequest(), params: {}, context: {} as any });
+    const response = await loader({ request: makeRequest(), params: {}, context: {} as any, unstable_pattern: "/api/v1/external/returns" });
     expect(response.status).toBe(401);
 
     const body = await response.json();
@@ -85,6 +85,7 @@ describe("GET /api/v1/external/returns", () => {
       request: makeRequest("http://localhost/api/v1/external/returns?page=1&pageSize=25"),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns",
     });
 
     expect(response.status).toBe(200);
@@ -113,6 +114,7 @@ describe("GET /api/v1/external/returns", () => {
       request: makeRequest("http://localhost/api/v1/external/returns?status=approved"),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns",
     });
 
     const whereArg = mockPrisma.returnCase.findMany.mock.calls[0][0].where;
@@ -128,6 +130,7 @@ describe("GET /api/v1/external/returns", () => {
       request: makeRequest("http://localhost/api/v1/external/returns?orderName=%231001"),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns",
     });
 
     const whereArg = mockPrisma.returnCase.findMany.mock.calls[0][0].where;
@@ -145,6 +148,7 @@ describe("GET /api/v1/external/returns", () => {
       request: makeRequest(),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns",
     });
 
     expect(response.status).toBe(200);

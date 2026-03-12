@@ -3045,14 +3045,15 @@
 
     function renderPriceBreakdown(pricing, currency) {
       if (!pricing) return '';
+      var cur = currency || safePrice(pricing.currency) || 'INR';
       var rows = [];
-      if (pricing.subtotal) rows.push([t('portal.price.subtotal'), formatMoney(pricing.subtotal, currency || pricing.currency)]);
-      if (pricing.discount && parseFloat(pricing.discount) > 0) rows.push([t('portal.price.discount'), '-' + formatMoney(pricing.discount, currency || pricing.currency), true]);
-      if (pricing.promotions && parseFloat(pricing.promotions) > 0) rows.push([t('portal.price.promotions'), '-' + formatMoney(pricing.promotions, currency || pricing.currency), true]);
-      if (pricing.coupon && parseFloat(pricing.coupon) > 0) rows.push([t('portal.price.coupon'), '-' + formatMoney(pricing.coupon, currency || pricing.currency), true]);
-      if (pricing.deliveryCharges) rows.push([t('portal.price.delivery'), formatMoney(pricing.deliveryCharges, currency || pricing.currency)]);
-      if (pricing.codAmount && parseFloat(pricing.codAmount) > 0) rows.push([t('portal.price.cod'), formatMoney(pricing.codAmount, currency || pricing.currency)]);
-      if (pricing.total) rows.push([t('portal.price.total'), formatMoney(pricing.total, currency || pricing.currency)]);
+      var sub = safePrice(pricing.subtotal); if (sub) rows.push([t('portal.price.subtotal'), formatMoney(sub, cur)]);
+      var disc = safePrice(pricing.discount); if (disc && parseFloat(disc) > 0) rows.push([t('portal.price.discount'), '-' + formatMoney(disc, cur), true]);
+      var promo = safePrice(pricing.promotions); if (promo && parseFloat(promo) > 0) rows.push([t('portal.price.promotions'), '-' + formatMoney(promo, cur), true]);
+      var coupon = safePrice(pricing.coupon); if (coupon && parseFloat(coupon) > 0) rows.push([t('portal.price.coupon'), '-' + formatMoney(coupon, cur), true]);
+      var deliv = safePrice(pricing.deliveryCharges); if (deliv) rows.push([t('portal.price.delivery'), formatMoney(deliv, cur)]);
+      var cod = safePrice(pricing.codAmount); if (cod && parseFloat(cod) > 0) rows.push([t('portal.price.cod'), formatMoney(cod, cur)]);
+      var tot = safePrice(pricing.total); if (tot) rows.push([t('portal.price.total'), formatMoney(tot, cur)]);
       if (rows.length === 0) return '';
       var html = '<table class="oc-price-table">';
       rows.forEach(function (r) {
@@ -3223,7 +3224,8 @@
           if (si.quantity && si.quantity > 1) sub.push(t('portal.order.qty') + ': ' + si.quantity);
           if (sub.length) html += '<div class="oc-item-variant">' + escapeHtml(sub.join(' · ')) + '</div>';
           html += '</div>';
-          if (si.total || si.price) html += '<div class="oc-item-price">' + formatMoney(si.total || si.price, currency) + '</div>';
+          var siPrice = safePrice(si.total) || safePrice(si.price);
+          if (siPrice) html += '<div class="oc-item-price">' + formatMoney(siPrice, currency) + '</div>';
           html += '</div>';
         });
         html += '</div></div>';
@@ -3435,7 +3437,7 @@
           html += '<div class="oc-item-title">' + escapeHtml(liTitle) + '</div>';
           if (li.variantTitle && li.title) html += '<div class="oc-item-variant">' + escapeHtml(li.variantTitle) + '</div>';
           html += '<div class="oc-item-meta">';
-          var itemPrice = li.price || li.discountedPrice;
+          var itemPrice = safePrice(li.price) || safePrice(li.discountedPrice);
           if (itemPrice) html += '<span class="oc-item-price-tag">' + formatMoney(itemPrice, currency) + '</span>';
           if (li.quantity && li.quantity > 1) html += '<span class="oc-item-qty-tag">' + t('portal.order.qty') + ': ' + li.quantity + '</span>';
           html += '</div>';
@@ -3449,17 +3451,20 @@
       html += '<div class="oc-order-summary">';
       html += '<div class="oc-order-summary-title">' + t('portal.summary.orderSummary') + '</div>';
       if (items.length > 0) {
-        html += '<div class="oc-summary-row"><span>' + t('portal.summary.items') + ' (' + items.length + ')</span><span>' + (o.subtotalPrice ? formatMoney(o.subtotalPrice, currency) : '') + '</span></div>';
+        var subtotal = safePrice(o.subtotalPrice);
+        html += '<div class="oc-summary-row"><span>' + t('portal.summary.items') + ' (' + items.length + ')</span><span>' + (subtotal ? formatMoney(subtotal, currency) : '') + '</span></div>';
       }
-      if (o.totalDiscounts && parseFloat(o.totalDiscounts) > 0) {
-        html += '<div class="oc-summary-row"><span>' + t('portal.price.discount') + '</span><span style="color:#059669;">-' + formatMoney(o.totalDiscounts, currency) + '</span></div>';
+      var discountVal = safePrice(o.totalDiscounts);
+      if (discountVal && parseFloat(discountVal) > 0) {
+        html += '<div class="oc-summary-row"><span>' + t('portal.price.discount') + '</span><span style="color:#059669;">-' + formatMoney(discountVal, currency) + '</span></div>';
       }
       if (o.displayFinancialStatus) {
-        var finLabel = o.displayFinancialStatus.replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+        var finLabel = (typeof o.displayFinancialStatus === 'string' ? o.displayFinancialStatus : safeStatusStr(o.displayFinancialStatus)).replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
         html += '<div class="oc-summary-row"><span>' + t('portal.summary.payment') + '</span><span>' + escapeHtml(finLabel) + '</span></div>';
       }
-      if (o.totalPrice) {
-        html += '<div class="oc-summary-row"><span>' + t('portal.price.total') + '</span><span>' + formatMoney(o.totalPrice, currency) + '</span></div>';
+      var totalVal = safePrice(o.totalPrice);
+      if (totalVal) {
+        html += '<div class="oc-summary-row"><span>' + t('portal.price.total') + '</span><span>' + formatMoney(totalVal, currency) + '</span></div>';
       }
       html += '</div>';
 

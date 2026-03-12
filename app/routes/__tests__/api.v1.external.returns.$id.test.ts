@@ -55,6 +55,7 @@ describe("GET /api/v1/external/returns/:id", () => {
       request: makeRequest(),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id",
     });
 
     expect(response.status).toBe(401);
@@ -69,6 +70,7 @@ describe("GET /api/v1/external/returns/:id", () => {
       request: makeRequest(),
       params: { id: "non-existent" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id",
     });
 
     expect(response.status).toBe(404);
@@ -134,6 +136,7 @@ describe("GET /api/v1/external/returns/:id", () => {
       request: makeRequest(),
       params: { id: "ret-1" },
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id",
     });
 
     expect(response.status).toBe(200);
@@ -154,6 +157,7 @@ describe("GET /api/v1/external/returns/:id", () => {
       request: makeRequest(),
       params: {},
       context: {} as any,
+      unstable_pattern: "/api/v1/external/returns/:id",
     });
 
     expect(response.status).toBe(400);

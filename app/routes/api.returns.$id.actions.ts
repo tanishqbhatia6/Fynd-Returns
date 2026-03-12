@@ -305,10 +305,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const fyndClient = fyndClientResult.client;
         let affiliateOrderId: string | null = null;
         if (!returnCase.shopifyOrderId?.startsWith("manual:")) {
-          const order = returnCase.shopifyOrderId
-            ? await fetchOrder(admin, returnCase.shopifyOrderId)
-            : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
-          affiliateOrderId = order?.affiliateOrderId ?? null;
+          try {
+            const order = returnCase.shopifyOrderId
+              ? await fetchOrder(admin, returnCase.shopifyOrderId)
+              : await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim());
+            affiliateOrderId = order?.affiliateOrderId ?? null;
+          } catch (orderFetchErr) {
+            // Non-fatal: Fynd sync can still proceed without affiliateOrderId
+            console.warn("[Approve] Order fetch for affiliateOrderId failed (non-fatal):", orderFetchErr instanceof Error ? orderFetchErr.message : orderFetchErr);
+          }
         }
         const syncStartTime = Date.now();
         try {

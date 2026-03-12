@@ -57,7 +57,6 @@ const ORDERS_QUERY = `#graphql
           estimatedDeliveryAt
           inTransitAt
           totalQuantity
-          location { id name }
           trackingInfo(first: 5) {
             number
             url
@@ -114,7 +113,6 @@ const ORDER_FIELDS_FRAGMENT = `
     estimatedDeliveryAt
     inTransitAt
     totalQuantity
-    location { id name }
     trackingInfo(first: 5) {
       number
       url
@@ -373,7 +371,14 @@ async function searchOrders(
   exactName?: string
 ): Promise<unknown | null> {
   const limit = exactName ? 50 : 1;
-  const res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query, first: limit } });
+  let res: Response;
+  try {
+    res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query, first: limit } });
+  } catch (err) {
+    console.warn(`[searchOrders] GraphQL call failed for query="${query}":`, err instanceof Error ? err.message : err);
+    if (throwOnError) throw err;
+    return null;
+  }
   const json = (await res.json()) as {
     data?: { orders?: { nodes?: Array<Record<string, unknown>> } };
     errors?: Array<{ message?: string }>;
@@ -706,7 +711,6 @@ type RawOrderNode = {
     estimatedDeliveryAt?: string | null;
     inTransitAt?: string | null;
     totalQuantity?: number | null;
-    location?: { id: string; name: string } | null;
     trackingInfo?: Array<{
       number?: string | null;
       url?: string | null;
@@ -781,7 +785,7 @@ function parseOrderNode(node: unknown): OrderForPortal {
       estimatedDeliveryAt: f.estimatedDeliveryAt ?? null,
       inTransitAt: f.inTransitAt ?? null,
       totalQuantity: f.totalQuantity ?? null,
-      location: f.location ? { id: f.location.id, name: f.location.name } : null,
+      location: null, // Location requires read_locations scope; fetched separately via fetchAllLocations when needed
       trackingInfo: (f.trackingInfo ?? []).map((ti) => ({
         number: ti.number ?? null,
         url: ti.url ?? null,
@@ -901,8 +905,23 @@ export async function fetchOrder(
   orderId: string
 ): Promise<OrderForPortal | null> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
-  const res = await admin.graphql(ORDERS_QUERY, { variables: { ids: [gid] } });
-  const json = (await res.json()) as { data?: { nodes?: Array<unknown> } };
+  let res: Response;
+  try {
+    res = await admin.graphql(ORDERS_QUERY, { variables: { ids: [gid] } });
+  } catch (err) {
+    console.warn(`[fetchOrder] GraphQL call failed for "${gid}":`, err instanceof Error ? err.message : err);
+    return null;
+  }
+  let json: { data?: { nodes?: Array<unknown> }; errors?: Array<{ message?: string }> };
+  try {
+    json = (await res.json()) as typeof json;
+  } catch {
+    console.warn(`[fetchOrder] Failed to parse response JSON for "${gid}"`);
+    return null;
+  }
+  if (json.errors?.length) {
+    console.warn(`[fetchOrder] GraphQL errors for "${gid}":`, json.errors.map(e => e.message).join("; "));
+  }
   const node = json.data?.nodes?.[0];
   if (!node || typeof node !== "object" || !("name" in node)) return null;
   const order = node as {
@@ -934,7 +953,6 @@ export async function fetchOrder(
       estimatedDeliveryAt?: string | null;
       inTransitAt?: string | null;
       totalQuantity?: number | null;
-      location?: { id: string; name: string } | null;
       trackingInfo?: Array<{
         number?: string | null;
         url?: string | null;

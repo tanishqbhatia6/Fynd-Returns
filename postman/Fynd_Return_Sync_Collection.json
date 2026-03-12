@@ -182,7 +182,7 @@
       }
     },
     {
-      "name": "2b. Search Shipments (order_id fallback)",
+      "name": "2b. Search Shipments (external_order_id retry)",
       "event": [
         {
           "listen": "test",
@@ -191,7 +191,7 @@
               "const res = pm.response.json();",
               "const items = res.items || res.shipments || res.data?.items || res.results || [];",
               "",
-              "console.log('📦 [order_id search] Items found: ' + items.length);",
+              "console.log('📦 [external_order_id retry] Items found: ' + items.length);",
               "",
               "if (items.length > 0) {",
               "    const first = items[0];",
@@ -229,7 +229,7 @@
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/service/platform/order/v1.0/company/{{companyId}}/shipments-listing?group_entity=shipments&page_no=1&page_size=10&search_value={{searchValue}}&search_type=order_id&sort_type=sla_asc",
+          "raw": "{{baseUrl}}/service/platform/order/v1.0/company/{{companyId}}/shipments-listing?group_entity=shipments&page_no=1&page_size=10&search_value={{searchValue}}&search_type=external_order_id&sort_type=sla_asc",
           "host": ["{{baseUrl}}"],
           "path": ["service", "platform", "order", "v1.0", "company", "{{companyId}}", "shipments-listing"],
           "query": [
@@ -237,11 +237,11 @@
             { "key": "page_no", "value": "1" },
             { "key": "page_size", "value": "10" },
             { "key": "search_value", "value": "{{searchValue}}" },
-            { "key": "search_type", "value": "order_id" },
+            { "key": "search_type", "value": "external_order_id" },
             { "key": "sort_type", "value": "sla_asc" }
           ]
         },
-        "description": "Fallback: search by order_id instead of external_order_id."
+        "description": "Retry: search by external_order_id with alternate search value."
       }
     },
     {

@@ -183,13 +183,13 @@ export async function createReturnOnFynd(
         fyndOrderId = searchRes.orderId;
       }
 
-      // If first search found nothing, try alternate search types
+      // If first search found nothing, retry with fyndOrderId as search value (still external_order_id type)
       const firstSearchItems = searchRes?.items ?? searchRes?.shipments ?? [];
-      if ((!Array.isArray(firstSearchItems) || firstSearchItems.length === 0) && searchType === "external_order_id") {
-        // Try searching by order_id as fallback
+      if ((!Array.isArray(firstSearchItems) || firstSearchItems.length === 0) && fyndOrderId !== searchValue) {
+        // Retry with the resolved fyndOrderId (may differ from externalOrderId)
         try {
-          const altSearchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(searchValue, {
-            searchType: "order_id",
+          const altSearchRes = await (client as FyndPlatformClient).searchShipmentsByExternalOrderId(fyndOrderId, {
+            searchType: "external_order_id",
             pageSize: 10,
           });
           const altItems = altSearchRes?.items ?? altSearchRes?.shipments ?? [];

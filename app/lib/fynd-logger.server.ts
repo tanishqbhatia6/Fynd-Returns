@@ -1,4 +1,9 @@
 /**
+ * @deprecated Use `app/lib/observability/logger.server.ts` instead.
+ * This module is superseded by the structured Pino logger with OTel trace
+ * correlation and PII redaction. It remains here only for backward compatibility
+ * with any code that still imports `createFyndLogger()`.
+ *
  * Fynd integration debug logger.
  * NEVER logs credential values (clientSecret, applicationToken, access_token).
  */

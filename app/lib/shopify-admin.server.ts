@@ -4,6 +4,11 @@ export type AdminGraphQL = {
   _rest?: { shopDomain: string; accessToken: string };
 };
 
+import { refundLogger } from "./observability/logger.server";
+import { withSpan, addBusinessEvent, startTimer } from "./observability/tracing.server";
+import { shopifyApiDuration } from "./observability/metrics.server";
+import { shopifyCircuitBreaker } from "./observability/resilience.server";
+
 const API_VERSION = "2026-01";
 
 /** Create Admin GraphQL client from shop domain and access token (e.g. for webhooks/background jobs) */
@@ -375,7 +380,7 @@ async function searchOrders(
   try {
     res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query, first: limit } });
   } catch (err) {
-    console.warn(`[searchOrders] GraphQL call failed for query="${query}":`, err instanceof Error ? err.message : err);
+    refundLogger.warn({ query, error: err instanceof Error ? err.message : String(err) }, "searchOrders: GraphQL call failed");
     if (throwOnError) throw err;
     return null;
   }
@@ -393,20 +398,20 @@ async function searchOrders(
   }
   const nodes = json.data?.orders?.nodes ?? [];
   if (nodes.length === 0) {
-    console.log(`[searchOrders] query="${query}" returned 0 results`);
+    refundLogger.info({ query }, "searchOrders: returned 0 results");
     return null;
   }
 
   if (exactName) {
     const norm = exactName.replace(/^#/, "").toLowerCase();
     const candidateNames = nodes.map((n) => typeof n.name === "string" ? n.name : "?");
-    console.log(`[searchOrders] query="${query}" exactName="${exactName}" got ${nodes.length} candidates: [${candidateNames.slice(0, 10).join(", ")}]`);
+    refundLogger.info({ query, exactName, candidateCount: nodes.length, candidates: candidateNames.slice(0, 10) }, "searchOrders: got candidates");
     const match = nodes.find((n) => {
       const name = typeof n.name === "string" ? n.name.replace(/^#/, "").toLowerCase() : "";
       return name === norm;
     });
     if (!match) {
-      console.log(`[searchOrders] no exact match for "${norm}" among candidates`);
+      refundLogger.info({ norm }, "searchOrders: no exact match among candidates");
     }
     return match && typeof match === "object" && "name" in match ? match : null;
   }
@@ -452,7 +457,7 @@ async function restOrderLookupByName(
         headers: { "X-Shopify-Access-Token": accessToken },
       });
       if (!res.ok) {
-        console.warn(`[REST order lookup] ${res.status} for name="${nameQuery}"`);
+        refundLogger.warn({ statusCode: res.status, nameQuery }, "REST order lookup: non-OK status");
         continue;
       }
       const data = (await res.json()) as { orders?: Array<{ id?: number; name?: string }> };
@@ -464,11 +469,11 @@ async function restOrderLookupByName(
         return n === norm;
       });
       if (match?.id) {
-        console.log(`[REST order lookup] Found order ${match.name} (ID: ${match.id}) via REST name="${nameQuery}"`);
+        refundLogger.info({ orderName: match.name, orderId: match.id, nameQuery }, "REST order lookup: found order");
         return `gid://shopify/Order/${match.id}`;
       }
     } catch (err) {
-      console.warn(`[REST order lookup] Error for name="${nameQuery}":`, err);
+      refundLogger.warn({ nameQuery, error: err instanceof Error ? err.message : String(err) }, "REST order lookup: error");
     }
   }
   return null;
@@ -508,7 +513,7 @@ async function rawGraphQLSearch(
     body: JSON.stringify({ query: gqlQuery, variables: { q: queryString, first: limit } }),
   });
   if (!res.ok) {
-    console.warn(`[rawGraphQLSearch] HTTP ${res.status} for query="${queryString}"`);
+    refundLogger.warn({ statusCode: res.status, query: queryString }, "rawGraphQLSearch: HTTP error");
     return null;
   }
   const json = (await res.json()) as {
@@ -516,7 +521,7 @@ async function rawGraphQLSearch(
     errors?: Array<{ message?: string }>;
   };
   if (json.errors?.length) {
-    console.warn(`[rawGraphQLSearch] GraphQL errors for query="${queryString}":`, json.errors[0]?.message);
+    refundLogger.warn({ query: queryString, error: json.errors[0]?.message }, "rawGraphQLSearch: GraphQL errors");
     return null;
   }
   const nodes = json.data?.orders?.nodes ?? [];
@@ -548,7 +553,7 @@ export async function fetchOrderByOrderNumber(
 
   // Strategy 1 (PRIMARY — raw fetch, bypasses SDK wrapping issues):
   const hasRestCreds = !!(admin._rest?.accessToken);
-  console.log(`[fetchOrderByOrderNumber] clean="${clean}" hasRestCreds=${hasRestCreds} shopDomain=${admin._rest?.shopDomain ?? "none"}`);
+  refundLogger.info({ clean, hasRestCreds, shopDomain: admin._rest?.shopDomain ?? "none" }, "fetchOrderByOrderNumber: starting lookup");
   if (hasRestCreds) {
     const { shopDomain, accessToken } = admin._rest!;
     // name:#ORDER is the proven working format; try it first, then without #
@@ -556,39 +561,39 @@ export async function fetchOrderByOrderNumber(
       try {
         const order = await rawGraphQLSearch(shopDomain, accessToken, q, clean);
         if (order) {
-          console.log(`[fetchOrderByOrderNumber] Found via raw fetch: query="${q}" → ${order.id}`);
+          refundLogger.info({ query: q, orderId: order.id }, "fetchOrderByOrderNumber: found via raw fetch");
           return order;
         }
       } catch (err) {
-        console.warn(`[fetchOrderByOrderNumber] Raw search failed for query="${q}":`, err);
+        refundLogger.warn({ query: q, error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: raw search failed");
       }
     }
     // REST API exact name match (single call, fast)
     try {
       const gid = await restOrderLookupByName(shopDomain, accessToken, clean);
       if (gid) {
-        console.log(`[fetchOrderByOrderNumber] Found via REST API: ${gid}`);
+        refundLogger.info({ gid }, "fetchOrderByOrderNumber: found via REST API");
         return fetchOrderByGid(admin, gid);
       }
     } catch (err) {
-      console.warn("[fetchOrderByOrderNumber] REST lookup error:", err);
+      refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: REST lookup error");
     }
   } else {
-    console.warn(`[fetchOrderByOrderNumber] No REST credentials — skipping raw fetch. accessToken present: ${!!admin._rest?.accessToken}, _rest present: ${!!admin._rest}`);
+    refundLogger.warn({ hasAccessToken: !!admin._rest?.accessToken, hasRest: !!admin._rest }, "fetchOrderByOrderNumber: no REST credentials, skipping raw fetch");
   }
 
   // Strategy 2 (FALLBACK — SDK's admin.graphql(), for cases without REST credentials):
   for (const q of [`name:#${clean}`, `name:${clean}`]) {
     try {
-      console.log(`[fetchOrderByOrderNumber] Strategy 2 (SDK): trying query="${q}"`);
+      refundLogger.info({ query: q }, "fetchOrderByOrderNumber: Strategy 2 (SDK) trying query");
       const node = await searchOrders(admin, q, false, clean);
       if (node) {
-        console.log(`[fetchOrderByOrderNumber] Found via SDK: query="${q}"`);
+        refundLogger.info({ query: q }, "fetchOrderByOrderNumber: found via SDK");
         return parseOrderNode(node);
       }
     } catch (err) {
       if (err instanceof OrderAccessError) throw err;
-      console.warn(`[fetchOrderByOrderNumber] Strategy 2 failed for query="${q}":`, err);
+      refundLogger.warn({ query: q, error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: Strategy 2 failed");
     }
   }
 
@@ -666,7 +671,7 @@ export async function fetchOrderByFyndAffiliateId(
   const TIMEOUT_MS = 8000; // give up after 8 seconds
   for (const variant of variants) {
     if (Date.now() - startTime > TIMEOUT_MS) {
-      console.warn(`[fetchOrderByFyndAffiliateId] Timed out after ${TIMEOUT_MS}ms, tried variants: ${variants.join(", ")}`);
+      refundLogger.warn({ timeoutMs: TIMEOUT_MS, variants }, "fetchOrderByFyndAffiliateId: timed out");
       return null;
     }
     try {
@@ -856,14 +861,14 @@ export async function fetchOrdersByFilter(
       errors?: Array<{ message?: string }>;
     };
     if (json.errors?.length) {
-      console.warn("[fetchOrdersByFilter] GraphQL errors:", json.errors.map((e) => e.message).join(", "));
+      refundLogger.warn({ errors: json.errors.map((e) => e.message).join(", ") }, "fetchOrdersByFilter: GraphQL errors");
       return [];
     }
     return (json.data?.orders?.nodes ?? [])
       .filter((n): n is Record<string, unknown> => !!n && typeof n === "object" && "name" in n)
       .map(parseOrderNode);
   } catch (err) {
-    console.error("[fetchOrdersByFilter] Error:", err instanceof Error ? err.message : err);
+    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "fetchOrdersByFilter: error");
     return [];
   }
 }
@@ -909,18 +914,18 @@ export async function fetchOrder(
   try {
     res = await admin.graphql(ORDERS_QUERY, { variables: { ids: [gid] } });
   } catch (err) {
-    console.warn(`[fetchOrder] GraphQL call failed for "${gid}":`, err instanceof Error ? err.message : err);
+    refundLogger.warn({ gid, error: err instanceof Error ? err.message : String(err) }, "fetchOrder: GraphQL call failed");
     return null;
   }
   let json: { data?: { nodes?: Array<unknown> }; errors?: Array<{ message?: string }> };
   try {
     json = (await res.json()) as typeof json;
   } catch {
-    console.warn(`[fetchOrder] Failed to parse response JSON for "${gid}"`);
+    refundLogger.warn({ gid }, "fetchOrder: failed to parse response JSON");
     return null;
   }
   if (json.errors?.length) {
-    console.warn(`[fetchOrder] GraphQL errors for "${gid}":`, json.errors.map(e => e.message).join("; "));
+    refundLogger.warn({ gid, errors: json.errors.map(e => e.message).join("; ") }, "fetchOrder: GraphQL errors");
   }
   const node = json.data?.nodes?.[0];
   if (!node || typeof node !== "object" || !("name" in node)) return null;
@@ -1045,7 +1050,7 @@ export async function fetchOrderLineItemsOnly(
     const res = await admin.graphql(ORDER_LINE_ITEMS_ONLY_QUERY, { variables: { ids: [gid] } });
     const json = (await res.json()) as { data?: { nodes?: Array<Record<string, unknown>> }; errors?: Array<{ message?: string }> };
     if (json.errors?.length) {
-      console.warn(`[fetchOrderLineItemsOnly] GID query errors:`, json.errors[0]?.message);
+      refundLogger.warn({ error: json.errors[0]?.message }, "fetchOrderLineItemsOnly: GID query errors");
     }
     const node = json.data?.nodes?.[0] as { id?: string; name?: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }> } } | undefined;
     if (node?.id && node?.lineItems?.nodes?.length) {
@@ -1056,7 +1061,7 @@ export async function fetchOrderLineItemsOnly(
       };
     }
   } catch (err) {
-    console.warn(`[fetchOrderLineItemsOnly] GID query failed for "${gid}":`, (err as Error)?.message ?? err);
+    refundLogger.warn({ gid, error: (err as Error)?.message ?? String(err) }, "fetchOrderLineItemsOnly: GID query failed");
   }
 
   return null;
@@ -1081,7 +1086,7 @@ export async function fetchOrderLineItemsByName(
         errors?: Array<{ message?: string }>;
       };
       if (json.errors?.length) {
-        console.warn(`[fetchOrderLineItemsByName] query="${q}" errors:`, json.errors[0]?.message);
+        refundLogger.warn({ query: q, error: json.errors[0]?.message }, "fetchOrderLineItemsByName: query errors");
         continue;
       }
       const nodes = json.data?.orders?.nodes ?? [];
@@ -1096,7 +1101,7 @@ export async function fetchOrderLineItemsByName(
         };
       }
     } catch (err) {
-      console.warn(`[fetchOrderLineItemsByName] query="${q}" failed:`, (err as Error)?.message ?? err);
+      refundLogger.warn({ query: q, error: (err as Error)?.message ?? String(err) }, "fetchOrderLineItemsByName: query failed");
     }
   }
 
@@ -1136,7 +1141,7 @@ export async function fetchOrderLineItemsByName(
           };
         }
       } catch (err) {
-        console.warn(`[fetchOrderLineItemsByName] raw fetch query="${q}" failed:`, (err as Error)?.message ?? err);
+        refundLogger.warn({ query: q, error: (err as Error)?.message ?? String(err) }, "fetchOrderLineItemsByName: raw fetch query failed");
       }
     }
   }
@@ -1162,12 +1167,11 @@ export async function fetchAllLocations(admin: AdminGraphQL): Promise<ShopLocati
       errors?: Array<{ message?: string }>;
     };
     if (json.errors?.length) {
-      console.error("[fetchAllLocations] GraphQL errors:", json.errors.map(e => e.message).join(", "),
-        "— Ensure the app has the 'read_locations' scope.");
+      refundLogger.error({ errors: json.errors.map(e => e.message).join(", ") }, "fetchAllLocations: GraphQL errors — ensure the app has the 'read_locations' scope");
     }
     const nodes = json.data?.locations?.nodes ?? [];
     if (nodes.length === 0) {
-      console.warn("[fetchAllLocations] No locations returned. Check 'read_locations' scope is granted.");
+      refundLogger.warn("fetchAllLocations: no locations returned — check 'read_locations' scope is granted");
     }
     return nodes.map((l) => ({
       id: l.id,
@@ -1175,7 +1179,7 @@ export async function fetchAllLocations(admin: AdminGraphQL): Promise<ShopLocati
       isActive: l.isActive !== false,
     }));
   } catch (err) {
-    console.error("[fetchAllLocations] Failed:", err);
+    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "fetchAllLocations: failed");
     return [];
   }
 }
@@ -1238,8 +1242,9 @@ export async function createDiscountCodeRefund(
     note?: string;
   },
 ): Promise<DiscountCodeRefundResult> {
+  const gid = opts.orderId.startsWith("gid://") ? opts.orderId : `gid://shopify/Order/${opts.orderId}`;
+  return withSpan("shopify.discount_code.create", { "order.id": gid }, async () => {
   try {
-    const gid = opts.orderId.startsWith("gid://") ? opts.orderId : `gid://shopify/Order/${opts.orderId}`;
     const prefix = (opts.prefix || "RETURN").toUpperCase();
     const expiryDays = opts.expiryDays ?? 90;
     const code = `${prefix}-${opts.returnRequestNo}`;
@@ -1323,6 +1328,7 @@ export async function createDiscountCodeRefund(
     const msg = err instanceof Error ? err.message : "Failed to create discount code";
     return { success: false, error: msg };
   }
+  });
 }
 
 type RefundJson = {
@@ -1384,8 +1390,11 @@ export async function createRefund(
   refundMethodConfig?: RefundMethodConfig | null,
   options?: { bonusAmount?: number; skipLocation?: boolean },
 ): Promise<RefundResult> {
+  const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+  const method = refundMethodConfig?.method ?? "original";
+  return withSpan("shopify.refund.create", { "order.id": gid, "refund.method": method }, async () => {
+  const timer = startTimer();
   try {
-    const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
     const normalized = lineItems.map((item) => {
       if (typeof item === "string") return { id: item, quantity: 1 };
       return item;
@@ -1408,7 +1417,6 @@ export async function createRefund(
       ...(!skipLocation && restockLocationId ? { locationId: restockLocationId } : {}),
     }));
 
-    const method = refundMethodConfig?.method ?? "original";
     const storeCreditPct = refundMethodConfig?.storeCreditPct ?? 100;
 
     const refundInput: Record<string, unknown> = {
@@ -1564,13 +1572,15 @@ export async function createRefund(
       };
     }
 
-    const res = await admin.graphql(REFUND_MUTATION, { variables: { input: refundInput } });
+    const res = await shopifyCircuitBreaker.execute(() => admin.graphql(REFUND_MUTATION, { variables: { input: refundInput } }));
     let json: RefundJson;
     try { json = (await res.json()) as RefundJson; } catch {
+      shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
       return { success: false, error: "Invalid response from Shopify. Please try again." };
     }
 
     if (!res.ok) {
+      shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: String(res.status) });
       return { success: false, error: `Shopify API error (${res.status}). Please try again or refund manually in Shopify Admin.` };
     }
 
@@ -1589,22 +1599,34 @@ export async function createRefund(
         const retryRes = await admin.graphql(REFUND_MUTATION, { variables: { input: noRestockInput } });
         let retryJson: RefundJson;
         try { retryJson = (await retryRes.json()) as RefundJson; } catch {
+          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
           return { success: false, error: "Retry without restock failed." };
         }
         const retryResult = parseRefundResponse(retryJson);
-        if (retryResult.success) retryResult.refundMethod = method;
+        if (retryResult.success) {
+          retryResult.refundMethod = method;
+          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "200" });
+          addBusinessEvent("refund.shopify.created", { "order.id": gid, "refund.method": method, "refund.id": retryResult.refundId ?? "", "refund.amount": retryResult.refundAmount ?? "", retried: "true" });
+        } else {
+          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
+        }
         return retryResult;
       }
       result.refundMethod = method;
+      shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
       return result;
     }
 
     result.refundMethod = method;
+    shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "200" });
+    addBusinessEvent("refund.shopify.created", { "order.id": gid, "refund.method": method, "refund.id": result.refundId ?? "", "refund.amount": result.refundAmount ?? "" });
     return result;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Refund request failed";
+    shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
     return { success: false, error: msg };
   }
+  });
 }
 
 /* ── Shopify Return creation (returnCreate mutation) ── */
@@ -1691,8 +1713,10 @@ export async function createShopifyReturn(
   }>,
   options?: { notifyCustomer?: boolean; requestedAt?: string },
 ): Promise<ShopifyReturnResult> {
+  const orderGid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
+  return withSpan("shopify.return.create", { "order.id": orderGid }, async () => {
+  const timer = startTimer();
   try {
-    const orderGid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
 
     // Step 1: Query returnable fulfillments to get fulfillmentLineItemIds
     const fulfillmentsRes = await admin.graphql(RETURNABLE_FULFILLMENTS_QUERY, {
@@ -1755,7 +1779,7 @@ export async function createShopifyReturn(
       return { success: false, error: "No returnable fulfillment line items found. The order may not be fulfilled yet, or all items have already been returned." };
     }
 
-    console.log(`[createShopifyReturn] Found ${fulfillmentLineItemMap.size} fulfillment line items by GID, ${skuMap.size} by SKU`);
+    refundLogger.info({ gidCount: fulfillmentLineItemMap.size, skuCount: skuMap.size }, "createShopifyReturn: found fulfillment line items");
 
     // Step 2: Map return items to fulfillment line items
     const returnLineItems: Array<{
@@ -1780,7 +1804,7 @@ export async function createShopifyReturn(
       }
 
       if (!match) {
-        console.warn(`[createShopifyReturn] No fulfillment line item match for lineItemId="${item.shopifyLineItemId}" sku="${item.sku}" — skipping`);
+        refundLogger.warn({ lineItemId: item.shopifyLineItemId, sku: item.sku }, "createShopifyReturn: no fulfillment line item match, skipping");
         continue;
       }
 
@@ -1804,7 +1828,7 @@ export async function createShopifyReturn(
       return { success: false, error: "Could not match any return items to fulfilled line items. Items may not be fulfilled yet or have already been returned." };
     }
 
-    console.log(`[createShopifyReturn] Creating Shopify return with ${returnLineItems.length} line items on order ${orderGid}`);
+    refundLogger.info({ lineItemCount: returnLineItems.length, orderGid }, "createShopifyReturn: creating Shopify return");
 
     // Step 3: Call returnCreate mutation
     const returnInput: Record<string, unknown> = {
@@ -1844,13 +1868,17 @@ export async function createShopifyReturn(
       return { success: false, error: "Shopify Return was created but no ID was returned." };
     }
 
-    console.log(`[createShopifyReturn] Successfully created Shopify return: ${returnId}`);
+    refundLogger.info({ returnId }, "createShopifyReturn: successfully created Shopify return");
+    shopifyApiDuration.record(timer(), { operation: "return.create", status_code: "200" });
+    addBusinessEvent("return.shopify.created", { "order.id": orderGid, "return.id": returnId });
     return { success: true, shopifyReturnId: returnId };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[createShopifyReturn] Error:", err);
+    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "createShopifyReturn: error");
+    shopifyApiDuration.record(timer(), { operation: "return.create", status_code: "error" });
     return { success: false, error: `Shopify Return creation error: ${msg}` };
   }
+  });
 }
 
 /* ── Shopify Return close / decline ── */
@@ -1885,11 +1913,11 @@ export async function closeShopifyReturn(
   admin: AdminGraphQL,
   shopifyReturnId: string,
 ): Promise<CloseShopifyReturnResult> {
+  const gid = shopifyReturnId.startsWith("gid://")
+    ? shopifyReturnId
+    : `gid://shopify/Return/${shopifyReturnId}`;
+  return withSpan("shopify.return.close", { "return.id": gid }, async () => {
   try {
-    const gid = shopifyReturnId.startsWith("gid://")
-      ? shopifyReturnId
-      : `gid://shopify/Return/${shopifyReturnId}`;
-
     const res = await admin.graphql(RETURN_CLOSE_MUTATION, { variables: { id: gid } });
     const json = (await res.json()) as {
       data?: { returnClose?: { return?: { id: string; status: string } | null; userErrors?: Array<{ field?: string[]; message: string }> } };
@@ -1899,7 +1927,7 @@ export async function closeShopifyReturn(
     if (json.errors?.length) {
       const msg = json.errors[0]?.message ?? "Unknown";
       if (/already closed|CLOSED/i.test(msg)) {
-        console.log(`[closeShopifyReturn] Return already closed: ${gid}`);
+        refundLogger.info({ gid }, "closeShopifyReturn: return already closed");
         return { success: true, alreadyClosed: true, status: "CLOSED" };
       }
       return { success: false, error: `Shopify API error: ${msg}` };
@@ -1909,20 +1937,21 @@ export async function closeShopifyReturn(
     if (userErrors.length > 0) {
       const msg = userErrors.map((e) => e.message).join("; ");
       if (/already closed|CLOSED|cannot close/i.test(msg)) {
-        console.log(`[closeShopifyReturn] Return already closed (userError): ${gid}`);
+        refundLogger.info({ gid }, "closeShopifyReturn: return already closed (userError)");
         return { success: true, alreadyClosed: true, status: "CLOSED" };
       }
       return { success: false, error: `Return close failed: ${msg}` };
     }
 
     const status = json.data?.returnClose?.return?.status ?? "CLOSED";
-    console.log(`[closeShopifyReturn] Successfully closed Shopify return: ${gid} (status: ${status})`);
+    refundLogger.info({ gid, status }, "closeShopifyReturn: successfully closed Shopify return");
     return { success: true, status };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[closeShopifyReturn] Error:", err);
+    refundLogger.error({ error: msg }, "closeShopifyReturn: error");
     return { success: false, error: msg };
   }
+  });
 }
 
 /** Decline a Shopify Return (for rejected returns). Idempotent. */
@@ -1931,11 +1960,11 @@ export async function declineShopifyReturn(
   shopifyReturnId: string,
   reason?: string,
 ): Promise<CloseShopifyReturnResult> {
+  const gid = shopifyReturnId.startsWith("gid://")
+    ? shopifyReturnId
+    : `gid://shopify/Return/${shopifyReturnId}`;
+  return withSpan("shopify.return.decline", { "return.id": gid }, async () => {
   try {
-    const gid = shopifyReturnId.startsWith("gid://")
-      ? shopifyReturnId
-      : `gid://shopify/Return/${shopifyReturnId}`;
-
     const res = await admin.graphql(RETURN_DECLINE_MUTATION, {
       variables: { input: { id: gid, declineReason: reason || "Return declined" } },
     });
@@ -1947,7 +1976,7 @@ export async function declineShopifyReturn(
     if (json.errors?.length) {
       const msg = json.errors[0]?.message ?? "Unknown";
       if (/already declined|DECLINED|already closed|CLOSED/i.test(msg)) {
-        console.log(`[declineShopifyReturn] Return already declined/closed: ${gid}`);
+        refundLogger.info({ gid }, "declineShopifyReturn: return already declined/closed");
         return { success: true, alreadyClosed: true, status: "DECLINED" };
       }
       return { success: false, error: `Shopify API error: ${msg}` };
@@ -1957,20 +1986,21 @@ export async function declineShopifyReturn(
     if (userErrors.length > 0) {
       const msg = userErrors.map((e) => e.message).join("; ");
       if (/already declined|DECLINED|already closed|CLOSED|cannot decline/i.test(msg)) {
-        console.log(`[declineShopifyReturn] Return already declined/closed (userError): ${gid}`);
+        refundLogger.info({ gid }, "declineShopifyReturn: return already declined/closed (userError)");
         return { success: true, alreadyClosed: true, status: "DECLINED" };
       }
       return { success: false, error: `Return decline failed: ${msg}` };
     }
 
     const status = json.data?.returnDecline?.return?.status ?? "DECLINED";
-    console.log(`[declineShopifyReturn] Successfully declined Shopify return: ${gid} (status: ${status})`);
+    refundLogger.info({ gid, status }, "declineShopifyReturn: successfully declined Shopify return");
     return { success: true, status };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error("[declineShopifyReturn] Error:", err);
+    refundLogger.error({ error: msg }, "declineShopifyReturn: error");
     return { success: false, error: msg };
   }
+  });
 }
 
 /**
@@ -1991,7 +2021,7 @@ export async function closeShopifyReturnBestEffort(
     const { shopifyReturnId, shopifyOrderId } = returnCase;
 
     if (!shopifyReturnId) {
-      console.log(`[closeShopifyReturnBestEffort] No shopifyReturnId for return ${returnCase.id}, skipping`);
+      refundLogger.info({ returnCaseId: returnCase.id }, "closeShopifyReturnBestEffort: no shopifyReturnId, skipping");
       await options?.logEvent?.({
         eventType: "shopify_return_close_skipped",
         payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
@@ -2000,7 +2030,7 @@ export async function closeShopifyReturnBestEffort(
     }
 
     if (shopifyOrderId?.startsWith("manual:")) {
-      console.log(`[closeShopifyReturnBestEffort] Manual return ${returnCase.id}, skipping Shopify close`);
+      refundLogger.info({ returnCaseId: returnCase.id }, "closeShopifyReturnBestEffort: manual return, skipping Shopify close");
       await options?.logEvent?.({
         eventType: "shopify_return_close_skipped",
         payloadJson: JSON.stringify({ reason: "manual_return", returnCaseId: returnCase.id }),
@@ -2030,7 +2060,7 @@ export async function closeShopifyReturnBestEffort(
       }),
     }).catch(() => {});
   } catch (err) {
-    console.warn("[closeShopifyReturnBestEffort] Unexpected error (non-fatal):", err);
+    refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "closeShopifyReturnBestEffort: unexpected error (non-fatal)");
   }
 }
 
@@ -2193,7 +2223,7 @@ export async function fetchOrdersForCustomer(
       };
     });
   } catch (err) {
-    console.error("fetchOrdersForCustomer error:", err);
+    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "fetchOrdersForCustomer: error");
     return [];
   }
 }

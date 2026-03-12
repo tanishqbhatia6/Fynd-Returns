@@ -5,6 +5,7 @@ import { createReadableStreamFromReadable } from "@react-router/node";
 import type { EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
+import { appLogger } from "./lib/observability/logger.server";
 
 export const streamTimeout = 5000;
 
@@ -17,7 +18,7 @@ export default async function handleRequest(
   try {
     addDocumentResponseHeaders(request, responseHeaders);
   } catch (err) {
-    console.error("[entry.server] addDocumentResponseHeaders:", err);
+    appLogger.error({ err }, "addDocumentResponseHeaders failed");
     // Don't fail the request — some routes (e.g. /api/webhooks/fynd) don't have shop context
   }
   const userAgent = request.headers.get("user-agent");
@@ -42,7 +43,7 @@ export default async function handleRequest(
         onShellError: reject,
         onError: (error) => {
           responseStatusCode = 500;
-          console.error(error);
+          appLogger.error({ err: error }, "SSR render error");
         },
       }
     );

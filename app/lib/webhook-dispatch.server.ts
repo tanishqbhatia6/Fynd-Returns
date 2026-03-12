@@ -3,9 +3,19 @@
  * Sends signed POST requests to registered webhook URLs.
  * HMAC-SHA256 signature in X-RPM-Signature header.
  * Fire-and-forget with 3 retry attempts (exponential backoff).
+ *
+ * Instrumented with OpenTelemetry spans, structured logging, and metrics.
  */
 import crypto from "crypto";
 import prisma from "../db.server";
+import { webhookLogger } from "./observability/logger.server";
+import { withSpan, addBusinessEvent } from "./observability/tracing.server";
+import {
+  webhookDispatchCounter,
+  webhookDeliveryAttempts,
+  webhookRetriesExhausted,
+  webhookInflight,
+} from "./observability/metrics.server";
 
 const TIMEOUT_MS = 10_000;
 const MAX_RETRIES = 2; // 0-indexed: initial + 2 retries = 3 total attempts
@@ -47,16 +57,54 @@ async function deliverWithRetry(
   signature: string,
   eventType: string,
 ): Promise<void> {
-  const ok = await deliverWebhook(url, body, signature, eventType);
-  if (ok) return;
+  webhookInflight.add(1, { "webhook.event_type": eventType });
+  try {
+    // Initial attempt
+    const ok = await deliverWebhook(url, body, signature, eventType);
+    webhookDeliveryAttempts.add(1, {
+      "webhook.event_type": eventType,
+      "webhook.attempt": 1,
+      "webhook.outcome": ok ? "success" : "failure",
+    });
+    if (ok) {
+      webhookDispatchCounter.add(1, {
+        "webhook.event_type": eventType,
+        "webhook.outcome": "success",
+      });
+      return;
+    }
 
-  for (let i = 0; i < MAX_RETRIES; i++) {
-    await new Promise((r) => setTimeout(r, RETRY_DELAYS[i]));
-    const retryOk = await deliverWebhook(url, body, signature, eventType);
-    if (retryOk) return;
+    // Retry loop
+    for (let i = 0; i < MAX_RETRIES; i++) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[i]));
+      const retryOk = await deliverWebhook(url, body, signature, eventType);
+      webhookDeliveryAttempts.add(1, {
+        "webhook.event_type": eventType,
+        "webhook.attempt": i + 2,
+        "webhook.outcome": retryOk ? "success" : "failure",
+      });
+      if (retryOk) {
+        webhookDispatchCounter.add(1, {
+          "webhook.event_type": eventType,
+          "webhook.outcome": "success",
+        });
+        return;
+      }
+    }
+
+    // All retries exhausted
+    webhookRetriesExhausted.add(1, { "webhook.event_type": eventType });
+    webhookDispatchCounter.add(1, {
+      "webhook.event_type": eventType,
+      "webhook.outcome": "failure",
+    });
+    webhookLogger.warn(
+      { eventType, url, attempts: MAX_RETRIES + 1 },
+      "Webhook delivery failed after all retry attempts",
+    );
+  } finally {
+    webhookInflight.add(-1, { "webhook.event_type": eventType });
   }
-  // All retries exhausted — silently drop (fire-and-forget)
-  console.warn(`[webhook-dispatch] Failed to deliver ${eventType} to ${url} after ${MAX_RETRIES + 1} attempts`);
 }
 
 /**
@@ -71,23 +119,52 @@ export function dispatchWebhookEvent(
   // Fire-and-forget
   (async () => {
     try {
-      const subscriptions = await prisma.webhookSubscription.findMany({
-        where: { shopId, isActive: true },
-      });
+      await withSpan(
+        "webhook.dispatch",
+        { "webhook.event_type": eventType },
+        async (span) => {
+          const subscriptions = await prisma.webhookSubscription.findMany({
+            where: { shopId, isActive: true },
+          });
 
-      const body = JSON.stringify({ event: eventType, data: payload, timestamp: new Date().toISOString() });
+          const matchingSubs = subscriptions.filter((sub) => {
+            let events: string[] = [];
+            try { events = JSON.parse(sub.events); } catch { /* empty */ }
+            return events.includes(eventType);
+          });
 
-      for (const sub of subscriptions) {
-        let events: string[] = [];
-        try { events = JSON.parse(sub.events); } catch { /* empty */ }
-        if (!events.includes(eventType)) continue;
+          span.setAttribute("webhook.subscriber_count", matchingSubs.length);
 
-        const signature = signPayload(body, sub.secret);
-        // Each delivery runs independently
-        deliverWithRetry(sub.url, body, signature, eventType).catch(() => {});
-      }
+          webhookLogger.info(
+            { eventType, shopId, subscriberCount: matchingSubs.length },
+            "Dispatching webhook event",
+          );
+
+          if (matchingSubs.length === 0) return;
+
+          const body = JSON.stringify({
+            event: eventType,
+            data: payload,
+            timestamp: new Date().toISOString(),
+          });
+
+          addBusinessEvent("webhook.dispatch.started", {
+            "webhook.event_type": eventType,
+            "webhook.subscriber_count": matchingSubs.length,
+          });
+
+          for (const sub of matchingSubs) {
+            const signature = signPayload(body, sub.secret);
+            // Each delivery runs independently
+            deliverWithRetry(sub.url, body, signature, eventType).catch(() => {});
+          }
+        },
+      );
     } catch (err) {
-      console.error("[webhook-dispatch] Error dispatching:", err);
+      webhookLogger.error(
+        { err, eventType, shopId },
+        "Error dispatching webhook event",
+      );
     }
   })();
 }

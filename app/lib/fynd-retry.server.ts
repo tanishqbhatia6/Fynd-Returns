@@ -7,6 +7,9 @@
 import prisma from "../db.server";
 import { createFyndClientOrError } from "./fynd.server";
 import { createReturnOnFynd } from "./fynd-returns.server";
+import { fyndLogger } from "./observability/logger.server";
+import { withSpan } from "./observability/tracing.server";
+import { fyndRetryAttempt, fyndRetryExhausted } from "./observability/metrics.server";
 
 const MAX_RETRIES = 5;
 const BACKOFF_MINUTES = [2, 5, 15, 60, 240];
@@ -31,128 +34,146 @@ export async function runFyndRetryQueue(): Promise<{
   }
   lastRetryRun = Date.now();
 
-  const result = { processed: 0, succeeded: 0, failed: 0, exhausted: 0 };
+  return withSpan("fynd.retry.queue_run", { "retry.batch_size": BATCH_SIZE, "retry.max_retries": MAX_RETRIES }, async (span) => {
+    const result = { processed: 0, succeeded: 0, failed: 0, exhausted: 0 };
 
-  try {
-    const pendingRetries = await prisma.returnCase.findMany({
-      where: {
-        fyndSyncStatus: { in: ["failed", "retry_scheduled"] },
-        fyndSyncRetries: { lt: MAX_RETRIES },
-        fyndSyncNextRetry: { lte: new Date() },
-        status: { in: ["approved", "pending"] },
-      },
-      include: { items: true, shop: { include: { settings: true } } },
-      take: BATCH_SIZE,
-      orderBy: { fyndSyncNextRetry: "asc" },
+    try {
+      const pendingRetries = await prisma.returnCase.findMany({
+        where: {
+          fyndSyncStatus: { in: ["failed", "retry_scheduled"] },
+          fyndSyncRetries: { lt: MAX_RETRIES },
+          fyndSyncNextRetry: { lte: new Date() },
+          status: { in: ["approved", "pending"] },
+        },
+        include: { items: true, shop: { include: { settings: true } } },
+        take: BATCH_SIZE,
+        orderBy: { fyndSyncNextRetry: "asc" },
+      });
+
+      span.setAttribute("retry.pending_count", pendingRetries.length);
+
+      for (const rc of pendingRetries) {
+        result.processed++;
+
+        if (!rc.shop.settings?.fyndCredentials) {
+          continue;
+        }
+
+        try {
+          const clientResult = await createFyndClientOrError(rc.shop.settings);
+          if (!clientResult.ok) {
+            throw new Error("error" in clientResult ? clientResult.error : "Failed to create Fynd client");
+          }
+          if (!("getShipments" in clientResult.client)) {
+            throw new Error("Fynd client does not support Platform API");
+          }
+
+          const retrySyncStart = Date.now();
+          const syncResult = await createReturnOnFynd(clientResult.client, rc, {
+            targetShipmentId: rc.fyndShipmentId || null,
+          });
+          const retrySyncDuration = Date.now() - retrySyncStart;
+          if (syncResult.success) {
+            await prisma.returnCase.update({
+              where: { id: rc.id },
+              data: {
+                fyndSyncStatus: "synced",
+                fyndSyncError: null,
+                fyndSyncNextRetry: null,
+                fyndReturnId: syncResult.fyndReturnId ?? rc.fyndReturnId,
+                fyndReturnNo: syncResult.fyndReturnNo ?? rc.fyndReturnNo,
+                fyndOrderId: syncResult.fyndOrderId ?? rc.fyndOrderId,
+                fyndShipmentId: syncResult.fyndShipmentId ?? rc.fyndShipmentId,
+                fyndPayloadJson: syncResult.fyndPayload ? JSON.stringify(syncResult.fyndPayload) : rc.fyndPayloadJson,
+              },
+            });
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: rc.id,
+                source: "system",
+                eventType: "fynd_sync_retry_success",
+                payloadJson: JSON.stringify({
+                  action: "auto_retry",
+                  attempt: rc.fyndSyncRetries + 1,
+                  durationMs: retrySyncDuration,
+                  fyndReturnId: syncResult.fyndReturnId ?? null,
+                  fyndOrderId: syncResult.fyndOrderId ?? null,
+                  fyndShipmentId: syncResult.fyndShipmentId ?? null,
+                }),
+              },
+            });
+            fyndRetryAttempt.add(1, { attempt_number: rc.fyndSyncRetries + 1, outcome: "success" });
+            result.succeeded++;
+          } else {
+            throw new Error(syncResult.error || "Fynd sync failed");
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : String(err);
+          const newRetries = rc.fyndSyncRetries + 1;
+
+          if (newRetries >= MAX_RETRIES) {
+            await prisma.returnCase.update({
+              where: { id: rc.id },
+              data: {
+                fyndSyncStatus: "failed",
+                fyndSyncRetries: newRetries,
+                fyndSyncError: `Exhausted ${MAX_RETRIES} retries. Last error: ${errMsg}`.slice(0, 2000),
+                fyndSyncNextRetry: null,
+              },
+            });
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: rc.id,
+                source: "system",
+                eventType: "fynd_sync_retries_exhausted",
+                payloadJson: JSON.stringify({
+                  action: "auto_retry",
+                  attempts: newRetries,
+                  maxRetries: MAX_RETRIES,
+                  lastError: errMsg.slice(0, 500),
+                  nextAction: "manual_retry_or_manual_refund",
+                  backoffSchedule: "2min, 5min, 15min, 1hr, 4hr",
+                }),
+              },
+            });
+            fyndRetryAttempt.add(1, { attempt_number: newRetries, outcome: "exhausted" });
+            fyndRetryExhausted.add(1);
+            result.exhausted++;
+          } else {
+            await prisma.returnCase.update({
+              where: { id: rc.id },
+              data: {
+                fyndSyncStatus: "retry_scheduled",
+                fyndSyncRetries: newRetries,
+                fyndSyncError: errMsg.slice(0, 2000),
+                fyndSyncNextRetry: nextRetryTime(newRetries),
+              },
+            });
+            fyndRetryAttempt.add(1, { attempt_number: newRetries, outcome: "retry_scheduled" });
+            result.failed++;
+          }
+        }
+      }
+    } catch (err) {
+      fyndLogger.error({ err }, "[fynd-retry] Queue error");
+    }
+
+    if (result.processed > 0) {
+      fyndLogger.info(
+        { processed: result.processed, succeeded: result.succeeded, failed: result.failed, exhausted: result.exhausted },
+        `[fynd-retry] Processed ${result.processed}: ${result.succeeded} succeeded, ${result.failed} scheduled for retry, ${result.exhausted} exhausted`,
+      );
+    }
+
+    span.setAttributes({
+      "retry.processed": result.processed,
+      "retry.succeeded": result.succeeded,
+      "retry.failed": result.failed,
+      "retry.exhausted": result.exhausted,
     });
 
-    for (const rc of pendingRetries) {
-      result.processed++;
-
-      if (!rc.shop.settings?.fyndCredentials) {
-        continue;
-      }
-
-      try {
-        const clientResult = await createFyndClientOrError(rc.shop.settings);
-        if (!clientResult.ok) {
-          throw new Error("error" in clientResult ? clientResult.error : "Failed to create Fynd client");
-        }
-        if (!("getShipments" in clientResult.client)) {
-          throw new Error("Fynd client does not support Platform API");
-        }
-
-        const retrySyncStart = Date.now();
-        const syncResult = await createReturnOnFynd(clientResult.client, rc, {
-          targetShipmentId: rc.fyndShipmentId || null,
-        });
-        const retrySyncDuration = Date.now() - retrySyncStart;
-        if (syncResult.success) {
-          await prisma.returnCase.update({
-            where: { id: rc.id },
-            data: {
-              fyndSyncStatus: "synced",
-              fyndSyncError: null,
-              fyndSyncNextRetry: null,
-              fyndReturnId: syncResult.fyndReturnId ?? rc.fyndReturnId,
-              fyndReturnNo: syncResult.fyndReturnNo ?? rc.fyndReturnNo,
-              fyndOrderId: syncResult.fyndOrderId ?? rc.fyndOrderId,
-              fyndShipmentId: syncResult.fyndShipmentId ?? rc.fyndShipmentId,
-              fyndPayloadJson: syncResult.fyndPayload ? JSON.stringify(syncResult.fyndPayload) : rc.fyndPayloadJson,
-            },
-          });
-          await prisma.returnEvent.create({
-            data: {
-              returnCaseId: rc.id,
-              source: "system",
-              eventType: "fynd_sync_retry_success",
-              payloadJson: JSON.stringify({
-                action: "auto_retry",
-                attempt: rc.fyndSyncRetries + 1,
-                durationMs: retrySyncDuration,
-                fyndReturnId: syncResult.fyndReturnId ?? null,
-                fyndOrderId: syncResult.fyndOrderId ?? null,
-                fyndShipmentId: syncResult.fyndShipmentId ?? null,
-              }),
-            },
-          });
-          result.succeeded++;
-        } else {
-          throw new Error(syncResult.error || "Fynd sync failed");
-        }
-      } catch (err) {
-        const errMsg = err instanceof Error ? err.message : String(err);
-        const newRetries = rc.fyndSyncRetries + 1;
-
-        if (newRetries >= MAX_RETRIES) {
-          await prisma.returnCase.update({
-            where: { id: rc.id },
-            data: {
-              fyndSyncStatus: "failed",
-              fyndSyncRetries: newRetries,
-              fyndSyncError: `Exhausted ${MAX_RETRIES} retries. Last error: ${errMsg}`.slice(0, 2000),
-              fyndSyncNextRetry: null,
-            },
-          });
-          await prisma.returnEvent.create({
-            data: {
-              returnCaseId: rc.id,
-              source: "system",
-              eventType: "fynd_sync_retries_exhausted",
-              payloadJson: JSON.stringify({
-                action: "auto_retry",
-                attempts: newRetries,
-                maxRetries: MAX_RETRIES,
-                lastError: errMsg.slice(0, 500),
-                nextAction: "manual_retry_or_manual_refund",
-                backoffSchedule: "2min, 5min, 15min, 1hr, 4hr",
-              }),
-            },
-          });
-          result.exhausted++;
-        } else {
-          await prisma.returnCase.update({
-            where: { id: rc.id },
-            data: {
-              fyndSyncStatus: "retry_scheduled",
-              fyndSyncRetries: newRetries,
-              fyndSyncError: errMsg.slice(0, 2000),
-              fyndSyncNextRetry: nextRetryTime(newRetries),
-            },
-          });
-          result.failed++;
-        }
-      }
-    }
-  } catch (err) {
-    console.error("[fynd-retry] Queue error:", err instanceof Error ? err.message : err);
-  }
-
-  if (result.processed > 0) {
-    console.log(`[fynd-retry] Processed ${result.processed}: ${result.succeeded} succeeded, ${result.failed} scheduled for retry, ${result.exhausted} exhausted`);
-  }
-
-  return result;
+    return result;
+  });
 }
 
 export function scheduleRetry(returnCaseId: string, error: string): Promise<void> {

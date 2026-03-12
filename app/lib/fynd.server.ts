@@ -1,6 +1,10 @@
 import { decrypt } from "./encryption.server";
 import { getFyndBaseUrl } from "./fynd-config.server";
 import { createFyndPlatformClient, createFyndApplicationClient, FyndPlatformClientFDK, FyndStorefrontClientFDK, getFyndDomain } from "./fynd-fdk.server";
+import { fyndLogger } from "./observability/logger.server";
+import { withSpan, addBusinessEvent, startTimer } from "./observability/tracing.server";
+import { fyndApiDuration, fyndSyncCounter } from "./observability/metrics.server";
+import { fyndCircuitBreaker, recordTimeout, recordFallback } from "./observability/resilience.server";
 
 export type FyndLogFn = (step: string, message: string, detail?: string) => void;
 
@@ -79,58 +83,88 @@ export async function fetchFyndPlatformToken(
   clientSecret: string,
   log?: FyndLogFn
 ): Promise<string> {
-  const cacheKey = `${baseUrl}:${companyId}:${clientId}`;
-  const cached = tokenCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    log?.("fynd-platform-oauth", "Using cached token", `expires in ${Math.round((cached.expiresAt - Date.now()) / 1000)}s`);
-    return cached.token;
-  }
-  const url = `${baseUrl}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
-  const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  log?.("fynd-platform-oauth", "Fetching token", `url=${url}`);
-  const OAUTH_TIMEOUT_MS = 5_000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), OAUTH_TIMEOUT_MS);
-  let res: Response;
-  try {
-    res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Basic ${basicAuth}`,
-      },
-      body: JSON.stringify({ grant_type: "client_credentials" }),
-      signal: controller.signal,
-    });
-  } catch (netErr) {
+  return withSpan("fynd.oauth.token_fetch", { "fynd.company_id": companyId }, async (span) => {
+    const cacheKey = `${baseUrl}:${companyId}:${clientId}`;
+    const cached = tokenCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      const ttlSec = Math.round((cached.expiresAt - Date.now()) / 1000);
+      fyndLogger.debug({ companyId, ttlSec }, "Using cached OAuth token");
+      log?.("fynd-platform-oauth", "Using cached token", `expires in ${ttlSec}s`);
+      recordFallback("fynd", "cached_token", { company_id: companyId });
+      span.setAttribute("fynd.oauth.cache_hit", true);
+      return cached.token;
+    }
+    span.setAttribute("fynd.oauth.cache_hit", false);
+
+    const url = `${baseUrl}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
+    const basicAuth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+    fyndLogger.info({ companyId, url }, "Fetching OAuth token");
+    log?.("fynd-platform-oauth", "Fetching token", `url=${url}`);
+    const OAUTH_TIMEOUT_MS = 5_000;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), OAUTH_TIMEOUT_MS);
+    const elapsed = startTimer();
+    let res: Response;
+    try {
+      res = await fyndCircuitBreaker.execute(async () => {
+        return fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Basic ${basicAuth}`,
+          },
+          body: JSON.stringify({ grant_type: "client_credentials" }),
+          signal: controller.signal,
+        });
+      });
+    } catch (netErr) {
+      clearTimeout(timer);
+      const elapsedMs = elapsed();
+      if (netErr instanceof Error && netErr.name === "AbortError") {
+        recordTimeout("fynd", "oauth.token_fetch", OAUTH_TIMEOUT_MS);
+        fyndApiDuration.record(elapsedMs, { operation: "oauth.token_fetch", status_code: "timeout" });
+        fyndLogger.error({ companyId, elapsedMs }, "OAuth token fetch timed out");
+        throw new Error(`Fynd OAuth timed out after ${OAUTH_TIMEOUT_MS}ms`);
+      }
+      const m = netErr instanceof Error ? netErr.message : String(netErr);
+      fyndApiDuration.record(elapsedMs, { operation: "oauth.token_fetch", status_code: "network_error" });
+      if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
+        fyndLogger.error({ companyId, error: m }, "Network error reaching Fynd OAuth");
+        throw new Error("Network error: Could not reach Fynd OAuth. Check base URL and internet connection.");
+      }
+      fyndLogger.error({ companyId, error: m }, "Unexpected error during OAuth token fetch");
+      throw netErr;
+    }
     clearTimeout(timer);
-    if (netErr instanceof Error && netErr.name === "AbortError") {
-      throw new Error(`Fynd OAuth timed out after ${OAUTH_TIMEOUT_MS}ms`);
+    const elapsedMs = elapsed();
+    const body = await res.text();
+    fyndApiDuration.record(elapsedMs, { operation: "oauth.token_fetch", status_code: String(res.status) });
+    fyndLogger.info({ companyId, status: res.status, elapsedMs }, "OAuth token response received");
+    log?.("fynd-platform-oauth", "Response", `status=${res.status}`);
+    if (!res.ok) {
+      const hint = res.status === 401 ? " Check Company ID, Client ID & Secret." : res.status >= 500 ? " Fynd server error. Try again later." : "";
+      fyndLogger.error({ companyId, status: res.status, body: body.slice(0, 200) }, "OAuth token fetch failed");
+      throw new Error(`Fynd Platform OAuth error ${res.status}: ${(body || "Unknown error").slice(0, 200)}${hint}`);
     }
-    const m = netErr instanceof Error ? netErr.message : String(netErr);
-    if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
-      throw new Error("Network error: Could not reach Fynd OAuth. Check base URL and internet connection.");
+    let data: { access_token?: string; expires_in?: number };
+    try {
+      data = JSON.parse(body) as { access_token?: string; expires_in?: number };
+    } catch {
+      fyndLogger.error({ companyId, body: body.slice(0, 200) }, "OAuth returned invalid JSON");
+      throw new Error(`Fynd OAuth returned invalid JSON: ${body.slice(0, 200)}`);
     }
-    throw netErr;
-  }
-  clearTimeout(timer);
-  const body = await res.text();
-  log?.("fynd-platform-oauth", "Response", `status=${res.status}`);
-  if (!res.ok) {
-    const hint = res.status === 401 ? " Check Company ID, Client ID & Secret." : res.status >= 500 ? " Fynd server error. Try again later." : "";
-    throw new Error(`Fynd Platform OAuth error ${res.status}: ${(body || "Unknown error").slice(0, 200)}${hint}`);
-  }
-  let data: { access_token?: string; expires_in?: number };
-  try {
-    data = JSON.parse(body) as { access_token?: string; expires_in?: number };
-  } catch {
-    throw new Error(`Fynd OAuth returned invalid JSON: ${body.slice(0, 200)}`);
-  }
-  if (!data.access_token) throw new Error("No access_token in OAuth response");
-  const ttl = data.expires_in ? Math.min(data.expires_in * 1000, TOKEN_CACHE_TTL_MS) : TOKEN_CACHE_TTL_MS;
-  tokenCache.set(cacheKey, { token: data.access_token, expiresAt: Date.now() + ttl });
-  pruneTokenCache();
-  return data.access_token;
+    if (!data.access_token) {
+      fyndLogger.error({ companyId }, "No access_token in OAuth response");
+      throw new Error("No access_token in OAuth response");
+    }
+    const ttl = data.expires_in ? Math.min(data.expires_in * 1000, TOKEN_CACHE_TTL_MS) : TOKEN_CACHE_TTL_MS;
+    tokenCache.set(cacheKey, { token: data.access_token, expiresAt: Date.now() + ttl });
+    pruneTokenCache();
+    addBusinessEvent("fynd.oauth.token_acquired", { "fynd.company_id": companyId, "fynd.token_ttl_ms": ttl });
+    fyndSyncCounter.add(1, { operation: "oauth.token_fetch", outcome: "success" });
+    fyndLogger.info({ companyId, ttlMs: ttl }, "OAuth token acquired and cached");
+    return data.access_token;
+  });
 }
 
 /**
@@ -163,7 +197,9 @@ export async function testPlatformConnectionRaw(
     const token = await fetchFyndPlatformToken(baseUrl, companyId, platform.clientId, platform.clientSecret, log);
     const path = `/service/platform/order/v1.0/company/${companyId}/orders-listing?page_no=1&page_size=1`;
     const url = `${baseUrl}${path}`;
+    fyndLogger.info({ companyId, path }, "Testing platform connection");
     log?.("fynd-test-raw", "Request", `GET ${path}`);
+    const elapsed = startTimer();
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -172,6 +208,9 @@ export async function testPlatformConnectionRaw(
       },
     });
     const text = await res.text();
+    const elapsedMs = elapsed();
+    fyndApiDuration.record(elapsedMs, { operation: "test_connection", status_code: String(res.status) });
+    fyndLogger.info({ companyId, status: res.status, elapsedMs }, "Platform connection test response");
     log?.("fynd-test-raw", "Response", `status=${res.status}`);
     if (res.ok) {
       return { ok: true };
@@ -187,6 +226,7 @@ export async function testPlatformConnectionRaw(
     return { ok: false, error: `Fynd API ${res.status}: ${(text || "Unknown error").slice(0, 150)}${hint}` };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    fyndLogger.error({ companyId, error: msg }, "Platform connection test failed");
     return { ok: false, error: msg };
   }
 }
@@ -213,47 +253,68 @@ export class FyndPlatformClient {
   private static readonly REQUEST_TIMEOUT_MS = 5_000;
 
   private async request(method: string, path: string, body?: unknown) {
-    const url = `${this.baseUrl}${path}`;
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${this.accessToken}`,
-    };
-    this.log?.("fynd-platform", "Request", `${method} ${path}`);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FyndPlatformClient.REQUEST_TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(url, {
-        method,
-        headers,
-        signal: controller.signal,
-        ...(body !== undefined && { body: JSON.stringify(body) }),
-      });
-    } catch (netErr) {
+    return withSpan("fynd.platform.request", { "fynd.path": path, "http.method": method, "fynd.company_id": this.companyId }, async (span) => {
+      const url = `${this.baseUrl}${path}`;
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${this.accessToken}`,
+      };
+      fyndLogger.debug({ companyId: this.companyId, method, path }, "Fynd platform request");
+      this.log?.("fynd-platform", "Request", `${method} ${path}`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FyndPlatformClient.REQUEST_TIMEOUT_MS);
+      const elapsed = startTimer();
+      let res: Response;
+      try {
+        res = await fyndCircuitBreaker.execute(async () => {
+          return fetch(url, {
+            method,
+            headers,
+            signal: controller.signal,
+            ...(body !== undefined && { body: JSON.stringify(body) }),
+          });
+        });
+      } catch (netErr) {
+        clearTimeout(timer);
+        const elapsedMs = elapsed();
+        const m = netErr instanceof Error ? netErr.message : String(netErr);
+        if (netErr instanceof Error && netErr.name === "AbortError") {
+          recordTimeout("fynd", `platform.${method}.${path.split("?")[0]}`, FyndPlatformClient.REQUEST_TIMEOUT_MS);
+          fyndApiDuration.record(elapsedMs, { operation: `platform.${method}`, status_code: "timeout" });
+          fyndLogger.error({ companyId: this.companyId, method, path, elapsedMs }, "Fynd API request timed out");
+          throw new Error(`Fynd API timed out after ${FyndPlatformClient.REQUEST_TIMEOUT_MS}ms: ${method} ${path}`);
+        }
+        fyndApiDuration.record(elapsedMs, { operation: `platform.${method}`, status_code: "network_error" });
+        if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
+          fyndLogger.error({ companyId: this.companyId, method, path, error: m }, "Network error reaching Fynd API");
+          throw new Error("Network error: Could not reach Fynd API. Check base URL, firewall, and internet connection.");
+        }
+        fyndLogger.error({ companyId: this.companyId, method, path, error: m }, "Unexpected error during Fynd API request");
+        throw netErr;
+      }
       clearTimeout(timer);
-      const m = netErr instanceof Error ? netErr.message : String(netErr);
-      if (netErr instanceof Error && netErr.name === "AbortError") {
-        throw new Error(`Fynd API timed out after ${FyndPlatformClient.REQUEST_TIMEOUT_MS}ms: ${method} ${path}`);
+      const elapsedMs = elapsed();
+      const text = await res.text();
+      fyndApiDuration.record(elapsedMs, { operation: `platform.${method}`, status_code: String(res.status) });
+      span.setAttribute("http.status_code", res.status);
+      span.setAttribute("fynd.api.duration_ms", elapsedMs);
+      fyndLogger.info({ companyId: this.companyId, method, path, status: res.status, elapsedMs }, "Fynd platform response");
+      if (!res.ok) {
+        const hint =
+          res.status === 401
+            ? " Invalid or expired credentials. Check Company ID, Client ID & Secret in Settings -> Integrations."
+            : res.status === 403
+              ? " Fynd returned 403 Forbidden—your app may lack required scopes (company/orders/read, company/orders/write). Grant these in Fynd Platform and re-save credentials."
+              : res.status >= 500
+                ? " Fynd server error. Try again later."
+                : "";
+        fyndSyncCounter.add(1, { operation: `platform.${method}`, outcome: "error" });
+        fyndLogger.error({ companyId: this.companyId, method, path, status: res.status, body: text.slice(0, 300) }, "Fynd API error response");
+        throw new Error(`Fynd Platform API error ${res.status}: ${(text || "Unknown error").slice(0, 300)}${hint}`);
       }
-      if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
-        throw new Error("Network error: Could not reach Fynd API. Check base URL, firewall, and internet connection.");
-      }
-      throw netErr;
-    }
-    clearTimeout(timer);
-    const text = await res.text();
-    if (!res.ok) {
-      const hint =
-        res.status === 401
-          ? " Invalid or expired credentials. Check Company ID, Client ID & Secret in Settings → Integrations."
-          : res.status === 403
-            ? " Fynd returned 403 Forbidden—your app may lack required scopes (company/orders/read, company/orders/write). Grant these in Fynd Platform and re-save credentials."
-            : res.status >= 500
-              ? " Fynd server error. Try again later."
-              : "";
-      throw new Error(`Fynd Platform API error ${res.status}: ${(text || "Unknown error").slice(0, 300)}${hint}`);
-    }
-    return text ? (JSON.parse(text) as unknown) : null;
+      fyndSyncCounter.add(1, { operation: `platform.${method}`, outcome: "success" });
+      return text ? (JSON.parse(text) as unknown) : null;
+    });
   }
 
   /**
@@ -380,6 +441,7 @@ export async function signFyndUrl(
       return { signedUrl: results[0].signed_url, expiry: results[0].expiry };
     }
   } catch (err) {
+    fyndLogger.warn({ url, error: err instanceof Error ? err.message : String(err) }, "Failed to sign Fynd URL");
     log?.("fynd-sign-url", "Failed to sign URL", err instanceof Error ? err.message : String(err));
   }
   return null;
@@ -402,42 +464,63 @@ export class FyndStorefrontClient {
   private static readonly REQUEST_TIMEOUT_MS = 5_000;
 
   private async request(method: string, path: string) {
-    const url = `${this.baseUrl}${path}`;
-    const headers = {
-      "Content-Type": "application/json",
-      "Authorization": `Basic ${this.basicAuth}`,
-    };
-    this.log?.("fynd-storefront", "Request", `${method} ${path}`);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FyndStorefrontClient.REQUEST_TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(url, { method, headers, signal: controller.signal });
-    } catch (netErr) {
+    return withSpan("fynd.storefront.request", { "fynd.path": path, "http.method": method, "fynd.application_id": this.applicationId }, async (span) => {
+      const url = `${this.baseUrl}${path}`;
+      const headers = {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${this.basicAuth}`,
+      };
+      fyndLogger.debug({ applicationId: this.applicationId, method, path }, "Fynd storefront request");
+      this.log?.("fynd-storefront", "Request", `${method} ${path}`);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), FyndStorefrontClient.REQUEST_TIMEOUT_MS);
+      const elapsed = startTimer();
+      let res: Response;
+      try {
+        res = await fyndCircuitBreaker.execute(async () => {
+          return fetch(url, { method, headers, signal: controller.signal });
+        });
+      } catch (netErr) {
+        clearTimeout(timer);
+        const elapsedMs = elapsed();
+        if (netErr instanceof Error && netErr.name === "AbortError") {
+          recordTimeout("fynd", `storefront.${method}.${path.split("?")[0]}`, FyndStorefrontClient.REQUEST_TIMEOUT_MS);
+          fyndApiDuration.record(elapsedMs, { operation: `storefront.${method}`, status_code: "timeout" });
+          fyndLogger.error({ applicationId: this.applicationId, method, path, elapsedMs }, "Fynd Storefront API timed out");
+          throw new Error(`Fynd Storefront API timed out after ${FyndStorefrontClient.REQUEST_TIMEOUT_MS}ms: ${method} ${path}`);
+        }
+        const m = netErr instanceof Error ? netErr.message : String(netErr);
+        fyndApiDuration.record(elapsedMs, { operation: `storefront.${method}`, status_code: "network_error" });
+        if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
+          fyndLogger.error({ applicationId: this.applicationId, method, path, error: m }, "Network error reaching Fynd Storefront API");
+          throw new Error("Network error: Could not reach Fynd API. Check base URL and internet connection.");
+        }
+        fyndLogger.error({ applicationId: this.applicationId, method, path, error: m }, "Unexpected error during Fynd Storefront request");
+        throw netErr;
+      }
       clearTimeout(timer);
-      if (netErr instanceof Error && netErr.name === "AbortError") {
-        throw new Error(`Fynd Storefront API timed out after ${FyndStorefrontClient.REQUEST_TIMEOUT_MS}ms: ${method} ${path}`);
+      const elapsedMs = elapsed();
+      const body = await res.text();
+      fyndApiDuration.record(elapsedMs, { operation: `storefront.${method}`, status_code: String(res.status) });
+      span.setAttribute("http.status_code", res.status);
+      span.setAttribute("fynd.api.duration_ms", elapsedMs);
+      fyndLogger.info({ applicationId: this.applicationId, method, path, status: res.status, elapsedMs }, "Fynd storefront response");
+      if (!res.ok) {
+        const hint =
+          res.status === 401
+            ? " Invalid Application Token. Check credentials in Fynd Platform."
+            : res.status === 403
+              ? " Access denied. Check Application Token and permissions."
+              : res.status >= 500
+                ? " Fynd server error. Try again later."
+                : "";
+        fyndSyncCounter.add(1, { operation: `storefront.${method}`, outcome: "error" });
+        fyndLogger.error({ applicationId: this.applicationId, method, path, status: res.status, body: body.slice(0, 300) }, "Fynd Storefront API error");
+        throw new Error(`Fynd Storefront API error ${res.status}: ${(body || "Unknown error").slice(0, 300)}${hint}`);
       }
-      const m = netErr instanceof Error ? netErr.message : String(netErr);
-      if (m.includes("fetch") || m.includes("network") || m.includes("ECONNREFUSED") || m.includes("ETIMEDOUT") || m.includes("ENOTFOUND")) {
-        throw new Error("Network error: Could not reach Fynd API. Check base URL and internet connection.");
-      }
-      throw netErr;
-    }
-    clearTimeout(timer);
-    const body = await res.text();
-    if (!res.ok) {
-      const hint =
-        res.status === 401
-          ? " Invalid Application Token. Check credentials in Fynd Platform."
-          : res.status === 403
-            ? " Access denied. Check Application Token and permissions."
-            : res.status >= 500
-              ? " Fynd server error. Try again later."
-              : "";
-      throw new Error(`Fynd Storefront API error ${res.status}: ${(body || "Unknown error").slice(0, 300)}${hint}`);
-    }
-    return body ? (JSON.parse(body) as unknown) : null;
+      fyndSyncCounter.add(1, { operation: `storefront.${method}`, outcome: "success" });
+      return body ? (JSON.parse(body) as unknown) : null;
+    });
   }
 
   async getLanguages() {
@@ -492,7 +575,7 @@ function parseStoredCredentials(
   log?: FyndLogFn
 ): { ok: true; credentials: NormalizedFyndCreds } | { ok: false; error: string } {
   if (!raw || String(raw).trim() === "") {
-    return { ok: false, error: "Fynd credentials are not set. Enter Client ID & Secret (Platform) and/or Application Token (Storefront) in Settings → Integrations." };
+    return { ok: false, error: "Fynd credentials are not set. Enter Client ID & Secret (Platform) and/or Application Token (Storefront) in Settings -> Integrations." };
   }
   let parsed: FyndCredentials = {};
   try {
@@ -503,15 +586,17 @@ function parseStoredCredentials(
       try {
         parsed = JSON.parse(decrypt(s)) as FyndCredentials;
       } catch (decErr) {
+        fyndLogger.warn({ error: decErr instanceof Error ? decErr.message : String(decErr) }, "Credential decryption failed");
         log?.("fynd-client", "Decrypt failed", decErr instanceof Error ? decErr.message : String(decErr));
-        return { ok: false, error: "Could not read stored credentials (wrong ENCRYPTION_KEY or corrupted). Re-save credentials in Settings → Integrations." };
+        return { ok: false, error: "Could not read stored credentials (wrong ENCRYPTION_KEY or corrupted). Re-save credentials in Settings -> Integrations." };
       }
     } else {
       parsed = JSON.parse(s || "{}") as FyndCredentials;
     }
   } catch (parseErr) {
+    fyndLogger.warn({ error: parseErr instanceof Error ? parseErr.message : String(parseErr) }, "Credential parse failed");
     log?.("fynd-client", "Parse failed", parseErr instanceof Error ? parseErr.message : String(parseErr));
-    return { ok: false, error: "Stored Fynd credentials are invalid. Re-save them in Settings → Integrations." };
+    return { ok: false, error: "Stored Fynd credentials are invalid. Re-save them in Settings -> Integrations." };
   }
   const credentials = normalizeCredentials(parsed);
   return { ok: true, credentials };
@@ -541,13 +626,14 @@ export async function createFyndClientOrError(
   const requireStorefront = options?.requireStorefront ?? false;
 
   if (requireStorefront) {
-    return { ok: false, error: "Storefront API is not used. All Fynd operations use Platform API only. Configure Platform credentials (Company ID + Client ID & Secret) in Settings → Integrations." };
+    return { ok: false, error: "Storefront API is not used. All Fynd operations use Platform API only. Configure Platform credentials (Company ID + Client ID & Secret) in Settings -> Integrations." };
   }
 
   if (!settings?.fyndApplicationId) {
-    return { ok: false, error: "Fynd Application ID is missing. Set it in Settings → Integrations." };
+    return { ok: false, error: "Fynd Application ID is missing. Set it in Settings -> Integrations." };
   }
   const baseUrl = getFyndBaseUrl(settings);
+  fyndLogger.debug({ baseUrl, applicationId: settings.fyndApplicationId }, "Creating Fynd client");
   log?.("fynd-client", "Base URL", baseUrl);
 
   const parsed = parseStoredCredentials(settings.fyndCredentials, log);
@@ -560,11 +646,11 @@ export async function createFyndClientOrError(
         ok: false,
         error:
           "Creating returns and refreshing details require Platform API (Company ID + Client ID & Secret). " +
-          "Add them in Settings → Integrations (Platform section) and Save. If already configured, try re-entering Client ID & Secret and Save again.",
+          "Add them in Settings -> Integrations (Platform section) and Save. If already configured, try re-entering Client ID & Secret and Save again.",
       };
     }
     if (!settings?.fyndCompanyId) {
-      return { ok: false, error: "Fynd Company ID is missing. Set it in Settings → Integrations (Platform API)." };
+      return { ok: false, error: "Fynd Company ID is missing. Set it in Settings -> Integrations (Platform API)." };
     }
     try {
       // Use raw OAuth + fetch (same flow as Test Platform and CURL). FDK uses different auth
@@ -586,8 +672,9 @@ export async function createFyndClientOrError(
       return { ok: true, client };
     } catch (tokenErr) {
       const msg = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+      fyndLogger.error({ companyId: settings.fyndCompanyId, error: msg }, "Platform OAuth failed during client creation");
       log?.("fynd-client", "Platform OAuth failed", msg);
-      return { ok: false, error: `Fynd login failed: ${msg}. Check Company ID, Client ID & Secret and environment (UAT/Prod) in Settings → Integrations.` };
+      return { ok: false, error: `Fynd login failed: ${msg}. Check Company ID, Client ID & Secret and environment (UAT/Prod) in Settings -> Integrations.` };
     }
   }
 
@@ -611,12 +698,13 @@ export async function createFyndClientOrError(
       return { ok: true, client };
     } catch (tokenErr) {
       const msg = tokenErr instanceof Error ? tokenErr.message : String(tokenErr);
+      fyndLogger.error({ companyId: settings.fyndCompanyId, error: msg }, "Platform OAuth failed during client creation");
       log?.("fynd-client", "Platform OAuth failed", msg);
-      return { ok: false, error: `Fynd login failed: ${msg}. Check Company ID, Client ID & Secret in Settings → Integrations.` };
+      return { ok: false, error: `Fynd login failed: ${msg}. Check Company ID, Client ID & Secret in Settings -> Integrations.` };
     }
   }
 
-  return { ok: false, error: "Fynd Platform credentials are required. Enter Company ID, Client ID & Secret in Settings → Integrations." };
+  return { ok: false, error: "Fynd Platform credentials are required. Enter Company ID, Client ID & Secret in Settings -> Integrations." };
 }
 
 export async function createFyndClient(

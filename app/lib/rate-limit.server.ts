@@ -4,6 +4,9 @@
  * Enterprise deployments should swap this for Redis-backed rate limiting.
  */
 
+import { recordRateLimitCheck } from "./observability/security.server";
+import { rateLimiterKeysActive } from "./observability/metrics.server";
+
 const windowMs = 60_000; // 1-minute window
 const store = new Map<string, { count: number; resetAt: number }>();
 
@@ -14,6 +17,11 @@ setInterval(() => {
     if (val.resetAt < now) store.delete(key);
   }
 }, 5 * 60_000);
+
+// Report the number of active rate-limiter keys as an observable gauge
+rateLimiterKeysActive.addCallback((obs) => {
+  obs.observe(store.size);
+});
 
 export type RateLimitConfig = {
   maxRequests: number;
@@ -64,19 +72,24 @@ export function checkRateLimit(
 
   entry.count++;
 
+  let result: { allowed: boolean; remaining: number; retryAfterMs: number };
+
   if (entry.count > config.maxRequests) {
-    return {
+    result = {
       allowed: false,
       remaining: 0,
       retryAfterMs: entry.resetAt - now,
     };
+  } else {
+    result = {
+      allowed: true,
+      remaining: config.maxRequests - entry.count,
+      retryAfterMs: 0,
+    };
   }
 
-  return {
-    allowed: true,
-    remaining: config.maxRequests - entry.count,
-    retryAfterMs: 0,
-  };
+  recordRateLimitCheck(request, endpoint, result.allowed, result.remaining);
+  return result;
 }
 
 export function rateLimitResponse(retryAfterMs: number): Response {

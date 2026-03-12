@@ -2,6 +2,8 @@ import nodemailer from "nodemailer";
 import prisma from "../db.server";
 import { getPortalLabels, t } from "./portal-i18n";
 import { formatMoney, isRtlLocale } from "./i18n.server";
+import { notifLogger } from "./observability/logger.server";
+import { withSpan, addBusinessEvent } from "./observability/tracing.server";
 
 /* ── Types ── */
 type SmtpConfig = {
@@ -123,7 +125,7 @@ async function sendEmail(smtp: SmtpConfig, to: string, subject: string, html: st
     });
     return { success: true };
   } catch (err) {
-    console.error("[Email] Send failed:", err);
+    notifLogger.error({ err, recipient: to, subject }, "Email send failed");
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
@@ -290,7 +292,7 @@ async function logNotification(params: {
       },
     });
   } catch (err) {
-    console.warn("[NotificationLog] Failed to log:", err);
+    notifLogger.warn({ err, shopDomain: params.shopDomain, channel: params.channel, eventType: params.eventType }, "Failed to log notification");
   }
 }
 
@@ -307,7 +309,7 @@ export async function sendNewReturnNotification(params: {
 }): Promise<SendResult> {
   const { smtp, toggles, adminEmail, emailTemplates, i18n } = await getSmtpConfig(params.shopDomain);
   if (!toggles.notificationNewReturn) return { success: true };
-  if (!smtp) { console.warn("[Email] SMTP not configured — skipping new return email"); return { success: true }; }
+  if (!smtp) { notifLogger.warn({ shopDomain: params.shopDomain, notificationType: "new_return" }, "SMTP not configured — skipping new return email"); return { success: true }; }
 
   const recipient = params.to || adminEmail;
   if (!recipient) return { success: false, error: "No admin email configured" };
@@ -323,7 +325,11 @@ export async function sendNewReturnNotification(params: {
       refundAmount: "",
       rejectionReason: "",
     };
-    return sendEmail(smtp, recipient, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+    return withSpan("notification.email.send", { "notification.type": "new_return", "notification.recipient_type": "admin" }, async (span) => {
+      const result = await sendEmail(smtp, recipient, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+      addBusinessEvent("notification.email.sent", { "notification.type": "new_return", "notification.success": result.success });
+      return result;
+    });
   }
 
   const labels = getPortalLabels(i18n.locale);
@@ -333,7 +339,11 @@ export async function sendNewReturnNotification(params: {
     customerEmail: params.customerEmail,
     itemCount: params.itemCount,
   }, labels, i18n.locale);
-  const result = await sendEmail(smtp, recipient, subject, html);
+  const result = await withSpan("notification.email.send", { "notification.type": "new_return", "notification.recipient_type": "admin" }, async (span) => {
+    const r = await sendEmail(smtp, recipient, subject, html);
+    addBusinessEvent("notification.email.sent", { "notification.type": "new_return", "notification.success": r.success });
+    return r;
+  });
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient, eventType: "new_return", subject, result }).catch(() => {});
   return result;
 }
@@ -364,11 +374,19 @@ export async function sendApprovalNotification(params: {
       refundAmount: "",
       rejectionReason: "",
     };
-    emailResult = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+    emailResult = await withSpan("notification.email.send", { "notification.type": "approved", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+      addBusinessEvent("notification.email.sent", { "notification.type": "approved", "notification.success": r.success });
+      return r;
+    });
   } else {
     const labels = getPortalLabels(i18n.locale);
     const { subject, html } = approvedEmail({ orderName: params.orderName, notes: params.notes, shopName: params.shopName }, labels, i18n.locale);
-    emailResult = await sendEmail(smtp, params.to, subject, html);
+    emailResult = await withSpan("notification.email.send", { "notification.type": "approved", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, subject, html);
+      addBusinessEvent("notification.email.sent", { "notification.type": "approved", "notification.success": r.success });
+      return r;
+    });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "approved", subject: "Return Approved", result: emailResult }).catch(() => {});
   // WhatsApp follow-up
@@ -376,7 +394,11 @@ export async function sendApprovalNotification(params: {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
       const msg = `Your return for order ${params.orderName} has been approved. ${params.notes ? `Note: ${params.notes}` : "We'll arrange pickup soon."}`;
-      const waResult = await sendWhatsAppNotification(waConfig, params.customerPhone, msg);
+      const waResult = await withSpan("notification.whatsapp.send", { "notification.type": "approved", "notification.recipient_type": "customer", "whatsapp.provider": waConfig.provider }, async (span) => {
+        const r = await sendWhatsAppNotification(waConfig, params.customerPhone!, msg);
+        addBusinessEvent("notification.whatsapp.sent", { "notification.type": "approved", "notification.success": r.success });
+        return r;
+      });
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "approved", result: waResult }).catch(() => {});
     }
   }
@@ -409,18 +431,30 @@ export async function sendRejectionNotification(params: {
       refundAmount: "",
       rejectionReason: params.rejectionReason,
     };
-    emailResult = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+    emailResult = await withSpan("notification.email.send", { "notification.type": "rejected", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+      addBusinessEvent("notification.email.sent", { "notification.type": "rejected", "notification.success": r.success });
+      return r;
+    });
   } else {
     const labels = getPortalLabels(i18n.locale);
     const { subject, html } = rejectedEmail({ orderName: params.orderName, reason: params.rejectionReason, shopName: params.shopName }, labels, i18n.locale);
-    emailResult = await sendEmail(smtp, params.to, subject, html);
+    emailResult = await withSpan("notification.email.send", { "notification.type": "rejected", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, subject, html);
+      addBusinessEvent("notification.email.sent", { "notification.type": "rejected", "notification.success": r.success });
+      return r;
+    });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "rejected", subject: "Return Rejected", result: emailResult }).catch(() => {});
   if (params.customerPhone) {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
       const msg = `Your return for order ${params.orderName} was not approved. Reason: ${params.rejectionReason || "See portal for details."}`;
-      const waResult = await sendWhatsAppNotification(waConfig, params.customerPhone, msg);
+      const waResult = await withSpan("notification.whatsapp.send", { "notification.type": "rejected", "notification.recipient_type": "customer", "whatsapp.provider": waConfig.provider }, async (span) => {
+        const r = await sendWhatsAppNotification(waConfig, params.customerPhone!, msg);
+        addBusinessEvent("notification.whatsapp.sent", { "notification.type": "rejected", "notification.success": r.success });
+        return r;
+      });
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "rejected", result: waResult }).catch(() => {});
     }
   }
@@ -455,11 +489,19 @@ export async function sendRefundNotification(params: {
       refundAmount,
       rejectionReason: "",
     };
-    emailResult = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+    emailResult = await withSpan("notification.email.send", { "notification.type": "refunded", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+      addBusinessEvent("notification.email.sent", { "notification.type": "refunded", "notification.success": r.success });
+      return r;
+    });
   } else {
     const labels = getPortalLabels(i18n.locale);
     const { subject, html } = refundedEmail({ orderName: params.orderName, amount: params.amount, currency: params.currency || i18n.currency, shopName: params.shopName }, labels, i18n.locale);
-    emailResult = await sendEmail(smtp, params.to, subject, html);
+    emailResult = await withSpan("notification.email.send", { "notification.type": "refunded", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, subject, html);
+      addBusinessEvent("notification.email.sent", { "notification.type": "refunded", "notification.success": r.success });
+      return r;
+    });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "refunded", subject: "Refund Processed", result: emailResult }).catch(() => {});
   if (params.customerPhone) {
@@ -467,7 +509,11 @@ export async function sendRefundNotification(params: {
     if (waConfig) {
       const amountStr = params.amount ? ` of ${params.amount} ${params.currency ?? ""}`.trim() : "";
       const msg = `Your refund${amountStr} for order ${params.orderName} has been processed.`;
-      const waResult = await sendWhatsAppNotification(waConfig, params.customerPhone, msg);
+      const waResult = await withSpan("notification.whatsapp.send", { "notification.type": "refunded", "notification.recipient_type": "customer", "whatsapp.provider": waConfig.provider }, async (span) => {
+        const r = await sendWhatsAppNotification(waConfig, params.customerPhone!, msg);
+        addBusinessEvent("notification.whatsapp.sent", { "notification.type": "refunded", "notification.success": r.success });
+        return r;
+      });
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "refunded", result: waResult }).catch(() => {});
     }
   }
@@ -485,7 +531,11 @@ export async function sendOtpEmail(params: {
 
   const labels = getPortalLabels(i18n.locale);
   const { subject, html } = otpEmail(params.otp, labels, i18n.locale);
-  const result = await sendEmail(smtp, params.to, subject, html);
+  const result = await withSpan("notification.email.send", { "notification.type": "otp", "notification.recipient_type": "customer" }, async (span) => {
+    const r = await sendEmail(smtp, params.to, subject, html);
+    addBusinessEvent("notification.email.sent", { "notification.type": "otp", "notification.success": r.success });
+    return r;
+  });
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "otp", subject, result }).catch(() => {});
   return result;
 }
@@ -512,7 +562,11 @@ export async function sendCustomerNoteNotification(params: {
       <p style="font-size:12px;color:#9CA3AF;margin-top:24px;">You can track your return status in our returns portal.</p>
     </div>
   `;
-  const result = await sendEmail(smtp, params.to, subject, html);
+  const result = await withSpan("notification.email.send", { "notification.type": "custom_note", "notification.recipient_type": "customer" }, async (span) => {
+    const r = await sendEmail(smtp, params.to, subject, html);
+    addBusinessEvent("notification.email.sent", { "notification.type": "custom_note", "notification.success": r.success });
+    return r;
+  });
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "custom_note", subject, result }).catch(() => {});
   return result;
 }
@@ -590,7 +644,7 @@ export async function sendWhatsAppNotification(
       return { success: true };
     }
     // Other providers (twilio/wati/interakt) — log and skip for now
-    console.log(`[WhatsApp/${config.provider}] Would send to ${phone}: ${message.slice(0, 80)}`);
+    notifLogger.info({ provider: config.provider, recipient: phone, messagePreview: message.slice(0, 80) }, "WhatsApp provider not yet implemented, skipping send");
     return { success: true };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
@@ -658,18 +712,30 @@ export async function sendCancellationNotification(params: {
       refundAmount: "",
       rejectionReason: "",
     };
-    emailResult = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+    emailResult = await withSpan("notification.email.send", { "notification.type": "cancelled", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+      addBusinessEvent("notification.email.sent", { "notification.type": "cancelled", "notification.success": r.success });
+      return r;
+    });
   } else {
     const labels = getPortalLabels(i18n.locale);
     const { subject, html } = cancelledEmail({ orderName: params.orderName, shopName: params.shopName }, labels, i18n.locale);
-    emailResult = await sendEmail(smtp, params.to, subject, html);
+    emailResult = await withSpan("notification.email.send", { "notification.type": "cancelled", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, subject, html);
+      addBusinessEvent("notification.email.sent", { "notification.type": "cancelled", "notification.success": r.success });
+      return r;
+    });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "cancelled", subject: "Return Cancelled", result: emailResult }).catch(() => {});
   if (params.customerPhone) {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
       const msg = `Your return for order ${params.orderName} has been cancelled.`;
-      const waResult = await sendWhatsAppNotification(waConfig, params.customerPhone, msg);
+      const waResult = await withSpan("notification.whatsapp.send", { "notification.type": "cancelled", "notification.recipient_type": "customer", "whatsapp.provider": waConfig.provider }, async (span) => {
+        const r = await sendWhatsAppNotification(waConfig, params.customerPhone!, msg);
+        addBusinessEvent("notification.whatsapp.sent", { "notification.type": "cancelled", "notification.success": r.success });
+        return r;
+      });
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "cancelled", result: waResult }).catch(() => {});
     }
   }
@@ -701,18 +767,30 @@ export async function sendCancellationDeclinedNotification(params: {
       refundAmount: "",
       rejectionReason: "",
     };
-    emailResult = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+    emailResult = await withSpan("notification.email.send", { "notification.type": "cancellation_declined", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, replaceTemplateVars(custom.subject, vars), replaceTemplateVars(custom.bodyHtml, vars));
+      addBusinessEvent("notification.email.sent", { "notification.type": "cancellation_declined", "notification.success": r.success });
+      return r;
+    });
   } else {
     const labels = getPortalLabels(i18n.locale);
     const { subject, html } = cancellationDeclinedEmail({ orderName: params.orderName, shopName: params.shopName }, labels, i18n.locale);
-    emailResult = await sendEmail(smtp, params.to, subject, html);
+    emailResult = await withSpan("notification.email.send", { "notification.type": "cancellation_declined", "notification.recipient_type": "customer" }, async (span) => {
+      const r = await sendEmail(smtp, params.to, subject, html);
+      addBusinessEvent("notification.email.sent", { "notification.type": "cancellation_declined", "notification.success": r.success });
+      return r;
+    });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "cancellation_declined", subject: "Cancellation Request Declined", result: emailResult }).catch(() => {});
   if (params.customerPhone) {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
       const msg = `Your cancellation request for the return on order ${params.orderName} was not approved. Please proceed with the return process.`;
-      const waResult = await sendWhatsAppNotification(waConfig, params.customerPhone, msg);
+      const waResult = await withSpan("notification.whatsapp.send", { "notification.type": "cancellation_declined", "notification.recipient_type": "customer", "whatsapp.provider": waConfig.provider }, async (span) => {
+        const r = await sendWhatsAppNotification(waConfig, params.customerPhone!, msg);
+        addBusinessEvent("notification.whatsapp.sent", { "notification.type": "cancellation_declined", "notification.success": r.success });
+        return r;
+      });
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "cancellation_declined", result: waResult }).catch(() => {});
     }
   }

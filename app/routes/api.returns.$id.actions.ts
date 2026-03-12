@@ -325,6 +325,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         // Config errors are NOT transient — don't schedule retry
       }
     }
+    // Safety net: if sync was attempted (non-green, non-consolidation) but produced
+    // neither a return ID nor an explicit error, mark it as a transient failure so it
+    // gets auto-retried and the admin sees a clear status instead of a silent null.
+    if (!isGreenReturn && !fyndReturnId && !fyndError) {
+      fyndError = "Fynd sync completed but did not return a return ID. The return may have been created — check the Fynd dashboard, or retry.";
+      isTransientFyndError = true;
+    }
+
     const validResolutionTypes = ["refund", "exchange", "store_credit", "replacement"];
     const resolvedType = bodyResolutionType && validResolutionTypes.includes(bodyResolutionType)
       ? bodyResolutionType

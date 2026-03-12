@@ -1,0 +1,433 @@
+{
+  "info": {
+    "name": "Fynd Return Sync - Complete Flow",
+    "_postman_id": "fynd-return-sync-v1",
+    "description": "End-to-end Fynd Return Sync flow.\n\nFlow:\n1. Get OAuth token\n2. Search shipments by external_order_id\n3. Get order details (if order ID found)\n4. Create return (updateShipmentStatus → return_initiated)\n\nSetup:\n- Set environment variables: baseUrl, companyId, clientId, clientSecret, searchValue\n- Run requests in order (Collection Runner)\n- Token and IDs auto-propagate between requests",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "https://api.fynd.com",
+      "type": "string"
+    },
+    {
+      "key": "companyId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clientId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "clientSecret",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "searchValue",
+      "value": "FYNDSHOPIFYX14101",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "fyndOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "shipmentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "itemSku",
+      "value": "default",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. OAuth Token",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const res = pm.response.json();",
+              "",
+              "pm.test('Token received', function() {",
+              "    pm.expect(res.access_token).to.be.a('string');",
+              "    pm.expect(res.access_token.length).to.be.above(10);",
+              "});",
+              "",
+              "if (res.access_token) {",
+              "    pm.collectionVariables.set('accessToken', res.access_token);",
+              "    console.log('✅ Token saved. Expires in ' + res.expires_in + 's');",
+              "} else {",
+              "    console.error('❌ No access_token in response:', JSON.stringify(res));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Basic {{basicAuth}}",
+            "description": "Base64(clientId:clientSecret)"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\"grant_type\": \"client_credentials\"}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/service/panel/authentication/v1.0/company/{{companyId}}/oauth/token",
+          "host": ["{{baseUrl}}"],
+          "path": ["service", "panel", "authentication", "v1.0", "company", "{{companyId}}", "oauth", "token"]
+        },
+        "description": "Get OAuth access token using client_credentials grant.\n\nPre-request: Set basicAuth = Base64(clientId:clientSecret)"
+      }
+    },
+    {
+      "name": "2. Search Shipments (external_order_id)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const res = pm.response.json();",
+              "const items = res.items || res.shipments || res.data?.items || res.results || [];",
+              "",
+              "pm.test('Search returned response', function() {",
+              "    pm.expect(pm.response.code).to.equal(200);",
+              "});",
+              "",
+              "console.log('📦 Items found: ' + items.length);",
+              "",
+              "if (items.length > 0) {",
+              "    const first = items[0];",
+              "    console.log('First item keys: ' + Object.keys(first).join(', '));",
+              "",
+              "    // Extract order ID",
+              "    const orderId = first.order_id || first.orderId || first.channel_order_id || null;",
+              "    const shipId = first.id || first.shipment_id || first.shipmentId || first.channel_shipment_id || null;",
+              "",
+              "    console.log('📋 Extracted orderId: ' + orderId);",
+              "    console.log('📋 Extracted shipmentId: ' + shipId);",
+              "",
+              "    if (orderId && !/^\\d{15,}$/.test(String(orderId))) {",
+              "        pm.collectionVariables.set('fyndOrderId', String(orderId));",
+              "        console.log('✅ fyndOrderId set to: ' + orderId);",
+              "    } else {",
+              "        console.warn('⚠️ orderId looks like a shipment ID or is missing. Will use shipmentId directly.');",
+              "    }",
+              "",
+              "    if (shipId) {",
+              "        pm.collectionVariables.set('shipmentId', String(shipId));",
+              "        console.log('✅ shipmentId set to: ' + shipId);",
+              "    }",
+              "",
+              "    // Log full first item for debugging",
+              "    console.log('Full first item: ' + JSON.stringify(first, null, 2).substring(0, 2000));",
+              "} else {",
+              "    console.warn('⚠️ No items found. The search_value may not match any Fynd order.');",
+              "    console.log('Full response: ' + JSON.stringify(res, null, 2).substring(0, 2000));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/service/platform/order/v1.0/company/{{companyId}}/shipments-listing?group_entity=shipments&page_no=1&page_size=10&search_value={{searchValue}}&search_type=external_order_id&sort_type=sla_asc",
+          "host": ["{{baseUrl}}"],
+          "path": ["service", "platform", "order", "v1.0", "company", "{{companyId}}", "shipments-listing"],
+          "query": [
+            { "key": "group_entity", "value": "shipments" },
+            { "key": "page_no", "value": "1" },
+            { "key": "page_size", "value": "10" },
+            { "key": "search_value", "value": "{{searchValue}}" },
+            { "key": "search_type", "value": "external_order_id" },
+            { "key": "sort_type", "value": "sla_asc" }
+          ]
+        },
+        "description": "Search Fynd shipments by external_order_id (Shopify order name).\n\nThis is the primary search used to find Fynd shipments for a Shopify order."
+      }
+    },
+    {
+      "name": "2b. Search Shipments (order_id fallback)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const res = pm.response.json();",
+              "const items = res.items || res.shipments || res.data?.items || res.results || [];",
+              "",
+              "console.log('📦 [order_id search] Items found: ' + items.length);",
+              "",
+              "if (items.length > 0) {",
+              "    const first = items[0];",
+              "    const orderId = first.order_id || first.orderId || first.channel_order_id || null;",
+              "    const shipId = first.id || first.shipment_id || first.shipmentId || first.channel_shipment_id || null;",
+              "",
+              "    console.log('📋 orderId: ' + orderId);",
+              "    console.log('📋 shipmentId: ' + shipId);",
+              "",
+              "    if (orderId && !/^\\d{15,}$/.test(String(orderId))) {",
+              "        pm.collectionVariables.set('fyndOrderId', String(orderId));",
+              "    }",
+              "    if (shipId) {",
+              "        pm.collectionVariables.set('shipmentId', String(shipId));",
+              "    }",
+              "    console.log('Full first item: ' + JSON.stringify(first, null, 2).substring(0, 2000));",
+              "} else {",
+              "    console.log('Full response: ' + JSON.stringify(res, null, 2).substring(0, 2000));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/service/platform/order/v1.0/company/{{companyId}}/shipments-listing?group_entity=shipments&page_no=1&page_size=10&search_value={{searchValue}}&search_type=order_id&sort_type=sla_asc",
+          "host": ["{{baseUrl}}"],
+          "path": ["service", "platform", "order", "v1.0", "company", "{{companyId}}", "shipments-listing"],
+          "query": [
+            { "key": "group_entity", "value": "shipments" },
+            { "key": "page_no", "value": "1" },
+            { "key": "page_size", "value": "10" },
+            { "key": "search_value", "value": "{{searchValue}}" },
+            { "key": "search_type", "value": "order_id" },
+            { "key": "sort_type", "value": "sla_asc" }
+          ]
+        },
+        "description": "Fallback: search by order_id instead of external_order_id."
+      }
+    },
+    {
+      "name": "2c. Search by Shipment ID directly",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const res = pm.response.json();",
+              "const items = res.items || res.shipments || res.data?.items || res.results || [];",
+              "",
+              "console.log('📦 [shipment_id search] Items found: ' + items.length);",
+              "",
+              "if (items.length > 0) {",
+              "    const first = items[0];",
+              "    console.log('Full first item: ' + JSON.stringify(first, null, 2).substring(0, 2000));",
+              "    const shipId = first.id || first.shipment_id || first.shipmentId || null;",
+              "    if (shipId) {",
+              "        pm.collectionVariables.set('shipmentId', String(shipId));",
+              "        console.log('✅ shipmentId confirmed: ' + shipId);",
+              "    }",
+              "} else {",
+              "    console.log('Full response: ' + JSON.stringify(res, null, 2).substring(0, 2000));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/service/platform/order/v1.0/company/{{companyId}}/shipments-listing?group_entity=shipments&page_no=1&page_size=10&search_value={{shipmentId}}&search_type=shipment_id&sort_type=sla_asc",
+          "host": ["{{baseUrl}}"],
+          "path": ["service", "platform", "order", "v1.0", "company", "{{companyId}}", "shipments-listing"],
+          "query": [
+            { "key": "group_entity", "value": "shipments" },
+            { "key": "page_no", "value": "1" },
+            { "key": "page_size", "value": "10" },
+            { "key": "search_value", "value": "{{shipmentId}}" },
+            { "key": "search_type", "value": "shipment_id" },
+            { "key": "sort_type", "value": "sla_asc" }
+          ]
+        },
+        "description": "Search by the known shipment ID to verify it exists and get details."
+      }
+    },
+    {
+      "name": "3. Get Order Details",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "    const res = pm.response.json();",
+              "    const shipments = res.shipments || res.order?.shipments || [];",
+              "    console.log('📦 Shipments in order: ' + (Array.isArray(shipments) ? shipments.length : 'N/A'));",
+              "    if (Array.isArray(shipments) && shipments.length > 0) {",
+              "        shipments.forEach(function(s, i) {",
+              "            const sid = s.shipment_id || s.id || s.identifier || 'unknown';",
+              "            const status = s.status || s.shipment_status || 'unknown';",
+              "            console.log('  Shipment ' + (i+1) + ': id=' + sid + ', status=' + JSON.stringify(status));",
+              "        });",
+              "    }",
+              "    console.log('Full response (truncated): ' + JSON.stringify(res, null, 2).substring(0, 3000));",
+              "} else {",
+              "    console.error('❌ Order details failed: ' + pm.response.code);",
+              "    console.log('Response: ' + pm.response.text().substring(0, 1000));",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/service/platform/order/v1.0/company/{{companyId}}/order-details?order_id={{fyndOrderId}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["service", "platform", "order", "v1.0", "company", "{{companyId}}", "order-details"],
+          "query": [
+            { "key": "order_id", "value": "{{fyndOrderId}}" }
+          ]
+        },
+        "description": "Get order details by Fynd internal order ID.\n\n⚠️ This ONLY works with valid Fynd order IDs (e.g., FYMP...). Passing a shipment ID here will fail with 'No records found for given data against shipment_id'."
+      }
+    },
+    {
+      "name": "4. Create Return (return_initiated)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const res = pm.response.json();",
+              "",
+              "pm.test('Return creation response received', function() {",
+              "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 400]);",
+              "});",
+              "",
+              "console.log('📤 Status: ' + pm.response.code);",
+              "console.log('Full response: ' + JSON.stringify(res, null, 2).substring(0, 3000));",
+              "",
+              "// Check nested status",
+              "if (res.statuses && res.statuses[0] && res.statuses[0].shipments) {",
+              "    const ship = res.statuses[0].shipments[0];",
+              "    console.log('Shipment status: ' + ship.status);",
+              "    console.log('Shipment message: ' + ship.message);",
+              "    if (ship.status === 200) {",
+              "        console.log('✅ Return created successfully!');",
+              "        if (ship.final_state) {",
+              "            console.log('Final state: ' + JSON.stringify(ship.final_state));",
+              "        }",
+              "    } else if (ship.message && /Invalid State Transition/.test(ship.message)) {",
+              "        console.log('ℹ️ Return already exists (Invalid State Transition)');",
+              "    } else {",
+              "        console.error('❌ Return creation failed: ' + ship.message);",
+              "    }",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"statuses\": [\n    {\n      \"shipments\": [\n        {\n          \"identifier\": \"{{shipmentId}}\",\n          \"products\": [\n            {\n              \"line_number\": 1,\n              \"quantity\": 1,\n              \"identifier\": \"{{itemSku}}\"\n            }\n          ],\n          \"reasons\": {\n            \"products\": [\n              {\n                \"filters\": [\n                  {\n                    \"identifier\": \"{{itemSku}}\",\n                    \"line_number\": 1,\n                    \"quantity\": 1\n                  }\n                ],\n                \"data\": {\n                  \"reason_id\": 122,\n                  \"reason_text\": \"Size too Big\"\n                }\n              }\n            ]\n          }\n        }\n      ],\n      \"status\": \"return_initiated\"\n    }\n  ],\n  \"task\": false,\n  \"force_transition\": false,\n  \"lock_after_transition\": false,\n  \"unlock_before_transition\": false\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/service/platform/order-manage/v1.0/company/{{companyId}}/shipment/status-internal",
+          "host": ["{{baseUrl}}"],
+          "path": ["service", "platform", "order-manage", "v1.0", "company", "{{companyId}}", "shipment", "status-internal"]
+        },
+        "description": "Create return by updating shipment status to return_initiated.\n\nThe endpoint is /shipment/status-internal — it uses the shipment 'identifier' from the payload body. The URL does NOT need an order ID."
+      }
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Auto-generate Basic Auth header for OAuth request",
+          "const clientId = pm.collectionVariables.get('clientId');",
+          "const clientSecret = pm.collectionVariables.get('clientSecret');",
+          "if (clientId && clientSecret) {",
+          "    const basicAuth = btoa(clientId + ':' + clientSecret);",
+          "    pm.collectionVariables.set('basicAuth', basicAuth);",
+          "}"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ]
+}

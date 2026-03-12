@@ -3,6 +3,33 @@ import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, Link } from "react-router";
 import { authenticate } from "../shopify.server";
 
+/* ─── Safe Extraction Helpers ─── */
+
+/** Safely extract currency code from a value that may be a Fynd currency object */
+function safeCurrencyCode(val: unknown, fallback = "INR"): string {
+  if (!val) return fallback;
+  if (typeof val === "string") return val.trim() || fallback;
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    const code = obj.currency_code ?? obj.code ?? obj.currency_symbol ?? obj.iso_code ?? obj.value;
+    if (typeof code === "string" && code.trim()) return code.trim();
+  }
+  return fallback;
+}
+
+/** Safely extract a numeric price string from a value that may be a Fynd price object */
+function safePrice(val: unknown): string {
+  if (val == null) return "0";
+  if (typeof val === "number") return String(val);
+  if (typeof val === "string") return isNaN(parseFloat(val)) ? "0" : val;
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    const n = obj.amount ?? obj.value ?? obj.effective ?? obj.transfer_price ?? obj.price_effective ?? obj.mrp;
+    if (n != null && typeof n !== "object") return String(n);
+  }
+  return "0";
+}
+
 /* ─── Types ─── */
 
 type OrderLineItem = {
@@ -13,6 +40,14 @@ type OrderLineItem = {
   quantity: number;
   price: string;
   imageUrl: string | null;
+};
+
+type ShipmentData = {
+  shipmentId: string;
+  shipmentStatus: string;
+  eligible: boolean;
+  eligibilityReason?: string;
+  items: OrderLineItem[];
 };
 
 type OrderData = {
@@ -86,7 +121,7 @@ const STEP_LABELS = [
 /* ─── Styles ─── */
 
 const S = {
-  page: { maxWidth: 760, margin: "0 auto", padding: "0 0 40px" } as React.CSSProperties,
+  page: { maxWidth: 760, margin: "0 auto", padding: "0 0 40px", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', lineHeight: 1.5 } as React.CSSProperties,
 
   section: {
     background: "#fff",
@@ -97,10 +132,11 @@ const S = {
   } as React.CSSProperties,
 
   sectionTitle: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: 700,
     color: "#111827",
     marginBottom: 4,
+    letterSpacing: "-0.01em",
   } as React.CSSProperties,
 
   sectionSubtitle: {
@@ -390,6 +426,11 @@ export default function CreateReturn() {
     orderFetcher.data?.error ?? null;
   const isOrderLoading = orderFetcher.state === "loading" || orderFetcher.state === "submitting";
 
+  // Multi-shipment data (null for single-shipment or non-Fynd orders)
+  const shipmentsData: ShipmentData[] | null =
+    orderFetcher.data?.shipments ?? null;
+  const hasMultiShipment = shipmentsData != null && shipmentsData.length > 1;
+
   // Submit state
   const isSubmitting = submitFetcher.state === "submitting" || submitFetcher.state === "loading";
   const submitError: string | null = submitFetcher.data && !submitFetcher.data.success ? (submitFetcher.data.error ?? null) : null;
@@ -534,7 +575,7 @@ export default function CreateReturn() {
         id: si.lineItemId,
         title: li?.title,
         variantTitle: li?.variantTitle ?? undefined,
-        price: li?.price,
+        price: safePrice(li?.price),
         imageUrl: li?.imageUrl ?? undefined,
       };
     });
@@ -558,7 +599,7 @@ export default function CreateReturn() {
       crmNotes: crmNotes.trim() || undefined,
       createdByStaff: agentName.trim() || "Admin",
       adminOverride: overrideEligibility || undefined,
-      currency: orderData.currencyCode || undefined,
+      currency: safeCurrencyCode(orderData.currencyCode) || undefined,
       orderCreatedAt: orderData.createdAt || undefined,
       lineItemsWithPrice,
     };
@@ -588,7 +629,7 @@ export default function CreateReturn() {
   const selectedItemsList = Object.values(selectedItems);
   const estimatedTotal = selectedItemsList.reduce((sum, si) => {
     const li = orderData?.lineItems.find((l) => l.id === si.lineItemId);
-    return sum + (parseFloat(li?.price ?? "0") * si.qty);
+    return sum + (parseFloat(safePrice(li?.price)) * si.qty);
   }, 0);
 
   return (
@@ -799,7 +840,110 @@ export default function CreateReturn() {
             {validationError && <div style={S.alertError}>{validationError}</div>}
 
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              {orderData.lineItems.map((li) => {
+              {/* Multi-shipment grouping */}
+              {hasMultiShipment && shipmentsData.map((ship, shipIdx) => {
+                const friendlyStatus = ship.shipmentStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                return (
+                  <div key={ship.shipmentId}>
+                    {/* Shipment header */}
+                    <div style={{
+                      display: "flex", alignItems: "center", gap: 10,
+                      padding: "10px 14px", marginBottom: 8,
+                      background: ship.eligible ? "#F0FDF4" : "#FEF2F2",
+                      borderRadius: 8, border: `1px solid ${ship.eligible ? "#BBF7D0" : "#FECACA"}`,
+                    }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: ship.eligible ? "#166534" : "#991B1B" }}>
+                        Shipment {shipIdx + 1}
+                      </span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
+                        background: ship.eligible ? "#DCFCE7" : "#FEE2E2",
+                        color: ship.eligible ? "#15803D" : "#DC2626",
+                      }}>
+                        {friendlyStatus}
+                      </span>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 4, marginLeft: "auto",
+                        background: ship.eligible ? "#DCFCE7" : "#FEE2E2",
+                        color: ship.eligible ? "#15803D" : "#DC2626",
+                      }}>
+                        {ship.eligible ? "Eligible for Return" : "Not Eligible"}
+                      </span>
+                    </div>
+                    {/* Shipment items */}
+                    {ship.items.map((li) => {
+                      const isChecked = !!selectedItems[li.id];
+                      const sel = selectedItems[li.id];
+                      const isDisabled = !ship.eligible;
+                      return (
+                        <div key={li.id} style={{
+                          padding: "14px 16px", borderRadius: 10, marginBottom: 8,
+                          border: isDisabled ? "1px solid #e5e7eb" : isChecked ? "2px solid #4f46e5" : "1px solid #e5e7eb",
+                          background: isDisabled ? "#F9FAFB" : isChecked ? "#FAFBFF" : "#fff",
+                          opacity: isDisabled ? 0.55 : 1,
+                          transition: "all 0.15s",
+                        }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => !isDisabled && toggleItem(li.id)}
+                              disabled={isDisabled}
+                              style={{ width: 18, height: 18, accentColor: "#4f46e5", cursor: isDisabled ? "not-allowed" : "pointer", flexShrink: 0 }}
+                            />
+                            {li.imageUrl && (
+                              <img src={li.imageUrl} alt="" style={{ width: 44, height: 44, borderRadius: 6, objectFit: "cover", border: "1px solid #e5e7eb", flexShrink: 0 }} />
+                            )}
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{li.title}</div>
+                              <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2, display: "flex", gap: 10 }}>
+                                {li.variantTitle && <span>{li.variantTitle}</span>}
+                                {li.sku && <span>SKU: {li.sku}</span>}
+                                <span>Qty ordered: {li.quantity}</span>
+                              </div>
+                            </div>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
+                              {safeCurrencyCode(orderData.currencyCode)} {safePrice(li.price)}
+                            </div>
+                          </div>
+                          {isChecked && sel && !isDisabled && (
+                            <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #eef2ff" }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 10 }}>
+                                <div>
+                                  <label style={S.label}>Return Qty</label>
+                                  <input type="number" min={1} max={li.quantity} value={sel.qty}
+                                    onChange={(e) => updateItem(li.id, "qty", Math.max(1, Math.min(li.quantity, parseInt(e.target.value) || 1)))}
+                                    style={S.input} />
+                                </div>
+                                <div>
+                                  <label style={S.label}>Reason</label>
+                                  <select value={sel.reasonCode} onChange={(e) => updateItem(li.id, "reasonCode", e.target.value)}
+                                    style={{ ...S.select, borderColor: sel.reasonCode ? "#d1d5db" : "#fca5a5" }}>
+                                    {REASON_CODES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
+                                  </select>
+                                </div>
+                                <div>
+                                  <label style={S.label}>Condition</label>
+                                  <select value={sel.condition} onChange={(e) => updateItem(li.id, "condition", e.target.value)} style={S.select}>
+                                    {CONDITIONS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                                  </select>
+                                </div>
+                              </div>
+                              <div>
+                                <label style={S.label}>Notes (optional)</label>
+                                <textarea value={sel.notes} onChange={(e) => updateItem(li.id, "notes", e.target.value)} style={S.textarea} placeholder="Additional notes..." />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {/* Single-shipment / non-Fynd fallback (original layout) */}
+              {!hasMultiShipment && orderData.lineItems.map((li) => {
                 const isChecked = !!selectedItems[li.id];
                 const sel = selectedItems[li.id];
 
@@ -840,7 +984,7 @@ export default function CreateReturn() {
                         </div>
                       </div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                        {orderData.currencyCode} {li.price}
+                        {safeCurrencyCode(orderData.currencyCode)} {safePrice(li.price)}
                       </div>
                     </div>
 
@@ -1226,7 +1370,7 @@ export default function CreateReturn() {
                       )}
                     </div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums", flexShrink: 0 }}>
-                      {orderData.currencyCode} {(parseFloat(li.price) * si.qty).toFixed(2)}
+                      {safeCurrencyCode(orderData.currencyCode)} {(parseFloat(safePrice(li.price)) * si.qty).toFixed(2)}
                     </div>
                   </div>
                 );
@@ -1245,7 +1389,7 @@ export default function CreateReturn() {
             }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: "#6b7280" }}>Estimated Refund:</span>
               <span style={{ fontSize: 16, fontWeight: 800, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
-                {orderData.currencyCode} {estimatedTotal.toFixed(2)}
+                {safeCurrencyCode(orderData.currencyCode)} {estimatedTotal.toFixed(2)}
               </span>
             </div>
           </div>

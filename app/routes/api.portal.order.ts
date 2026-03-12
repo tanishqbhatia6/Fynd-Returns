@@ -50,6 +50,18 @@ function safeStr(val: unknown, fallback = ""): string {
   return fallback;
 }
 
+/** Safely extract a currency code from a value that may be a string or Fynd currency object */
+function safeCurrencyCode(val: unknown, fallback = "INR"): string {
+  if (val == null) return fallback;
+  if (typeof val === "string") return val.trim() || fallback;
+  if (typeof val === "object") {
+    const obj = val as Record<string, unknown>;
+    const code = obj.currency_code ?? obj.code ?? obj.currency_symbol ?? obj.iso_code ?? obj.value;
+    if (typeof code === "string" && code.trim()) return code.trim();
+  }
+  return fallback;
+}
+
 /** Safely extract an image URL from a value that may be a string or object */
 function safeImageUrl(val: unknown): string | null {
   if (val == null) return null;
@@ -461,7 +473,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   processedAt: createdAt,
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",
-                  currencyCode: String(first.currency ?? "INR"),
+                  currencyCode: safeCurrencyCode(first.currency, "INR"),
                   _fyndShipmentStatus: extractedFyndStatus.toLowerCase().trim() || null,
                   _isFyndSyntheticOrder: true,
                   email: fyndEmail,
@@ -694,7 +706,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const fyndShipmentStatus = (orderAny._fyndShipmentStatus as string | null) ?? null;
     const isFyndSyntheticOrder = orderAny._isFyndSyntheticOrder === true;
 
-    if (returnEligibility.eligible && isFyndSyntheticOrder && fyndShipmentStatus) {
+    // For multi-shipment orders, skip the order-level Fynd gate entirely — per-shipment
+    // eligibility is more accurate (each shipment has its own status). The multi-shipment
+    // override block below (anyShipmentEligible) handles the aggregation.
+    const hasMultiShipmentData = fyndShipmentsForReturn && fyndShipmentsForReturn.length > 1;
+
+    if (returnEligibility.eligible && isFyndSyntheticOrder && fyndShipmentStatus && !hasMultiShipmentData) {
       const allowedFyndReturnStatuses = parseAllowedFyndStatuses(settings as { allowedFyndStatusesForReturn?: string | null } | null);
       if (allowedFyndReturnStatuses.length > 0) {
         const isAllowed = isShipmentEligibleForReturn(fyndShipmentStatus, allowedFyndReturnStatuses);

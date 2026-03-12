@@ -5147,7 +5147,7 @@
             customerNotes: customNotesRaw || undefined,
             customerMedia: customerMedia.length > 0 ? customerMedia : undefined
           })
-        });
+        }, 30000);
         document.getElementById('create-step2-manual').classList.remove('active');
         document.getElementById('create-step3').classList.add('active');
         showReturnSuccessCard(data);
@@ -5199,7 +5199,7 @@
             lineItemsWithPrice: lineItemsWithPrice,
             acceptOffer: true
           })
-        });
+        }, 30000);
         if (data.offerAccepted && data.discountCode) {
           document.getElementById('returnOfferBox').style.display = 'none';
           document.getElementById('btnSubmitReturn').style.display = 'none';
@@ -5330,7 +5330,7 @@
             resolutionType: selectedResolutionType,
             exchangePreference: selectedResolutionType === 'exchange' && exchangePrefRaw ? exchangePrefRaw : undefined,
           })
-        });
+        }, 30000);
         document.getElementById('create-step2').classList.remove('active');
         document.getElementById('create-step3').classList.add('active');
         showReturnSuccessCard(data);

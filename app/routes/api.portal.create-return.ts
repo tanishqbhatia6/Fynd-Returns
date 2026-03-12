@@ -958,18 +958,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       throw txErr;
     }
 
-    try {
-      await sendNewReturnNotification({
-        shopDomain,
-        orderName: shopifyOrderName,
-        customerEmail: customerEmail || undefined,
-        itemCount: itemsToCreate.length,
-        returnRequestId: returnCase.returnRequestNo ?? "",
-        shopName: shopDomain.replace(".myshopify.com", ""),
-      });
-    } catch (notifyErr) {
+    // Fire-and-forget: email notification (non-blocking — don't delay the response)
+    sendNewReturnNotification({
+      shopDomain,
+      orderName: shopifyOrderName,
+      customerEmail: customerEmail || undefined,
+      itemCount: itemsToCreate.length,
+      returnRequestId: returnCase.returnRequestNo ?? "",
+      shopName: shopDomain.replace(".myshopify.com", ""),
+    }).catch((notifyErr) => {
       console.warn("[Portal create-return] New return notification failed:", notifyErr);
-    }
+    });
 
     // When auto-approved, sync to Fynd so webhook can match returns (skip for green returns)
     if (status === "approved" && !manualMode && orderId && !qualifiesForGreenReturn) {

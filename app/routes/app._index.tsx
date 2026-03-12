@@ -687,8 +687,9 @@ export default function Dashboard() {
                       <td style={{ padding: "10px 12px", color: "var(--rpm-text-muted)", fontFamily: "ui-monospace, monospace", fontSize: 12 }}>
                         {(r as { returnRequestNo?: string | null }).returnRequestNo || r.fyndReturnNo || "—"}
                       </td>
-                      <td style={{ padding: "10px 12px", color: "var(--rpm-text-muted)", fontSize: 12 }}>
-                        {new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(r.createdAt))}
+                      <td style={{ padding: "10px 12px", fontSize: 12, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                        <div style={{ color: "var(--rpm-text-muted)", fontWeight: 500 }}>{new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit" }).format(new Date(r.createdAt))}</div>
+                        <div style={{ color: "#9ca3af", fontSize: 11 }}>{new Intl.DateTimeFormat(shopLocale || "en", { hour: "2-digit", minute: "2-digit" }).format(new Date(r.createdAt))}</div>
                       </td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>
                         <Link to={`/app/returns/${r.id}`} style={{ color: "var(--rpm-accent, #005bd3)" }}>

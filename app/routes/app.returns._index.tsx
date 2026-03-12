@@ -391,10 +391,14 @@ export default function ReturnsList() {
   const someSelected = selectedIds.size > 0;
   const inProgressCount = Math.max(0, allCount - pendingCount - approvedCount - rejectedCount);
 
-  const fmtDate = (d: string | Date) => {
+  const fmtDateParts = (d: string | Date): { date: string; time: string } => {
     try {
-      return new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(d));
-    } catch { return String(d).slice(0, 10); }
+      const dt = new Date(d);
+      return {
+        date: new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit" }).format(dt),
+        time: new Intl.DateTimeFormat(shopLocale || "en", { hour: "2-digit", minute: "2-digit" }).format(dt),
+      };
+    } catch { return { date: String(d).slice(0, 10), time: "" }; }
   };
 
   const stats = [
@@ -767,9 +771,12 @@ export default function ReturnsList() {
 
                           {/* Created */}
                           <td style={{ ...S.td, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-                            <span style={{ fontSize: 12, color: "#6b7280" }}>
-                              {fmtDate(r.createdAt)}
-                            </span>
+                            {(() => { const p = fmtDateParts(r.createdAt); return (
+                              <div style={{ lineHeight: 1.4 }}>
+                                <div style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>{p.date}</div>
+                                <div style={{ fontSize: 11, color: "#9ca3af" }}>{p.time}</div>
+                              </div>
+                            ); })()}
                           </td>
                         </tr>
                       );

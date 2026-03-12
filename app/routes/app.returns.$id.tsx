@@ -2399,6 +2399,56 @@ export default function ReturnDetail() {
               );
             })()}
 
+            {/* ── CRM / Admin Details ── */}
+            {(() => {
+              const rc = returnCase as Record<string, unknown>;
+              const channel = rc.createdByChannel as string | null;
+              const staff = rc.createdByStaff as string | null;
+              const ticketId = rc.crmTicketId as string | null;
+              const crmNotes = rc.crmNotes as string | null;
+              if (!channel && !staff && !ticketId && !crmNotes) return null;
+              const channelColors: Record<string, { bg: string; color: string }> = {
+                admin: { bg: "#DBEAFE", color: "#1E40AF" },
+                api: { bg: "#F3E8FF", color: "#6B21A8" },
+                portal: { bg: "#DCFCE7", color: "#166534" },
+              };
+              const cc = channelColors[channel ?? ""] ?? { bg: "#F3F4F6", color: "#374151" };
+              return (
+                <div style={{ ...C.card }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700 }}>CRM / Admin Details</div>
+                    {channel && (
+                      <span style={{ padding: "2px 10px", borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", background: cc.bg, color: cc.color }}>
+                        {channel}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {staff && (
+                      <div>
+                        <div style={{ ...C.label, marginBottom: 2 }}>Created by</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#111827" }}>{staff}</div>
+                      </div>
+                    )}
+                    {ticketId && (
+                      <div>
+                        <div style={{ ...C.label, marginBottom: 2 }}>CRM Ticket ID</div>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: "#111827", fontFamily: "var(--rpm-font-mono, monospace)" }}>{ticketId}</div>
+                      </div>
+                    )}
+                    {crmNotes && (
+                      <div>
+                        <div style={{ ...C.label, marginBottom: 4 }}>CRM Notes</div>
+                        <div style={{ padding: 10, background: "#F0F9FF", borderRadius: 8, fontSize: 13, whiteSpace: "pre-wrap", color: "#0C4A6E", border: "1px solid #BAE6FD" }}>
+                          {crmNotes}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* ── Notes ── */}
             <div style={{ ...C.card }}>
               <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 12 }}>Notes</div>

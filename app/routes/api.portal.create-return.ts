@@ -548,6 +548,60 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    // Server-side Fynd status gate for return initiation (skip for admin overrides)
+    if (!manualMode && orderId && !(body.adminOverride === true)) {
+      try {
+        const fyndMapping = await prisma.fyndOrderMapping.findFirst({
+          where: {
+            shopId: shopRecord.id,
+            OR: [
+              { shopifyOrderName: { equals: shopifyOrderName, mode: "insensitive" } },
+              { shopifyOrderName: { equals: `#${shopifyOrderName.replace(/^#/, "")}`, mode: "insensitive" } },
+            ],
+          },
+        });
+        if (fyndMapping?.fyndOrderId && settings?.allowedFyndStatusesForReturn) {
+          let allowedReturnStatuses: string[] = [];
+          try {
+            const parsed = JSON.parse(settings.allowedFyndStatusesForReturn);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              allowedReturnStatuses = parsed.map((s: unknown) => String(s).toLowerCase().trim());
+            }
+          } catch { /* ignore */ }
+
+          if (allowedReturnStatuses.length > 0) {
+            // Try to get current Fynd status from existing return cases or webhook logs
+            const latestLog = await prisma.fyndWebhookLog.findFirst({
+              where: {
+                affiliateOrderId: { equals: fyndMapping.fyndOrderId, mode: "insensitive" },
+                fyndStatus: { not: null },
+              },
+              orderBy: { createdAt: "desc" },
+              select: { fyndStatus: true },
+            });
+            if (latestLog?.fyndStatus) {
+              const currentStatus = latestLog.fyndStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+              const isAllowed = allowedReturnStatuses.some((s) => {
+                const norm = s.replace(/[\s_]+/g, "_").trim();
+                return currentStatus === norm || currentStatus.includes(norm);
+              });
+              if (!isAllowed) {
+                const friendly = latestLog.fyndStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                return withCors(
+                  Response.json({
+                    error: `Return cannot be initiated. Current shipment status is "${friendly}". Returns are allowed when status is: ${allowedReturnStatuses.map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}.`,
+                  }, { status: 400 }),
+                  request,
+                );
+              }
+            }
+          }
+        }
+      } catch (gateErr) {
+        console.warn("[Portal create-return] Fynd status gate check failed:", gateErr);
+      }
+    }
+
     if (!manualMode) {
       const orderCreatedAt = body.orderCreatedAt as string | undefined;
       const orderDate = orderCreatedAt ? new Date(orderCreatedAt) : new Date();
@@ -796,6 +850,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             status,
             resolutionType,
             exchangePreference: exchangePreference || null,
+            createdByChannel: (body.createdByChannel as string) ?? "portal",
+            createdByStaff: (body.createdByStaff as string) ?? null,
+            crmTicketId: (body.crmTicketId as string) ?? null,
+            crmNotes: (body.crmNotes as string) ?? null,
             isGreenReturn: qualifiesForGreenReturn,
             fyndSyncStatus: status === "approved" && !qualifiesForGreenReturn ? "pending" : null,
             orderProcessedAt: orderCreatedAtValue,

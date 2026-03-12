@@ -492,6 +492,12 @@ export default function ReturnsList() {
               </Link>
             )}
           </div>
+          <Link to="/app/returns/create" style={{ textDecoration: "none" }}>
+            <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: "#059669", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              Create Return
+            </button>
+          </Link>
           {totalCount > 0 && (
             <a
               href={(() => {
@@ -701,6 +707,21 @@ export default function ReturnsList() {
                                 <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, color: ageColor, fontWeight: 600 }}>
                                   <span style={{ width: 6, height: 6, borderRadius: "50%", background: ageColor, flexShrink: 0 }} />
                                   {ageDays}d
+                                </span>
+                              )}
+                              {!!(r as Record<string, unknown>).createdByChannel && (r as Record<string, unknown>).createdByChannel !== "portal" && (
+                                <span style={{
+                                  padding: "1px 5px",
+                                  borderRadius: 4,
+                                  fontSize: 9,
+                                  fontWeight: 700,
+                                  textTransform: "uppercase",
+                                  letterSpacing: "0.02em",
+                                  ...((r as Record<string, unknown>).createdByChannel === "admin"
+                                    ? { background: "#DBEAFE", color: "#1E40AF" }
+                                    : { background: "#F3F4F6", color: "#374151" }),
+                                }}>
+                                  {String((r as Record<string, unknown>).createdByChannel)}
                                 </span>
                               )}
                             </div>

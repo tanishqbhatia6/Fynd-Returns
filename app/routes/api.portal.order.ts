@@ -343,6 +343,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   });
                 }
 
+                // Extract current Fynd shipment status for the return gate
+                const fyndStatusRaw = first.shipment_status ?? first.status;
+                const fyndStatusObj = fyndStatusRaw && typeof fyndStatusRaw === "object" && fyndStatusRaw !== null
+                  ? (fyndStatusRaw as Record<string, unknown>)
+                  : null;
+                const extractedFyndStatus = fyndStatusObj
+                  ? String(fyndStatusObj.status ?? fyndStatusObj.title ?? fyndStatusObj.name ?? fyndStatusObj.value ?? "")
+                  : (typeof fyndStatusRaw === "string" ? fyndStatusRaw : "");
+
                 order = {
                   id: syntheticOrderId,
                   name: orderName.startsWith("#") ? orderName : `#${orderName}`,
@@ -351,6 +360,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",
                   currencyCode: String(first.currency ?? "INR"),
+                  _fyndShipmentStatus: extractedFyndStatus.toLowerCase().trim() || null,
+                  _isFyndSyntheticOrder: true,
                   email: fyndEmail,
                   phone: fyndPhone,
                   shippingCountry: fyndCountry || null,
@@ -442,6 +453,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           eligible: false,
           reason: "This order is not eligible for a return at this time.",
         };
+      }
+    }
+
+    // Fynd Status Gate for Return Initiation: when enabled, check if the Fynd shipment status
+    // allows return initiation (only applies to Fynd synthetic orders)
+    const orderAny = order as Record<string, unknown>;
+    const fyndShipmentStatus = (orderAny._fyndShipmentStatus as string | null) ?? null;
+    const isFyndSyntheticOrder = orderAny._isFyndSyntheticOrder === true;
+
+    if (returnEligibility.eligible && isFyndSyntheticOrder && fyndShipmentStatus) {
+      let allowedFyndReturnStatuses: string[] = [];
+      try {
+        const raw = settings?.allowedFyndStatusesForReturn;
+        if (raw) {
+          const parsed = JSON.parse(raw) as unknown;
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            allowedFyndReturnStatuses = (parsed as unknown[]).map((s) => String(s).toLowerCase().trim());
+          }
+        }
+      } catch { /* ignore parse errors */ }
+      if (allowedFyndReturnStatuses.length > 0) {
+        const normalizedStatus = fyndShipmentStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+        const isAllowed = allowedFyndReturnStatuses.some((s) => {
+          const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();
+          return normalizedStatus === normalizedAllowed || normalizedStatus.includes(normalizedAllowed);
+        });
+        if (!isAllowed) {
+          const friendlyStatus = fyndShipmentStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          returnEligibility = {
+            eligible: false,
+            reason: `This order's current status is "${friendlyStatus}". Returns can be initiated when the shipment status is: ${allowedFyndReturnStatuses.map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}.`,
+          };
+        }
       }
     }
 
@@ -579,6 +623,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       returnedQtyMap,
       portalExchangeEnabled,
       photoRequired,
+      fyndShipmentStatus,
     }), request);
   } catch (err) {
     console.error("Portal order fetch:", err);

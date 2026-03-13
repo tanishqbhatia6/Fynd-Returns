@@ -26,7 +26,7 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
 const { NodeSDK } = require("@opentelemetry/sdk-node");
-const { Resource } = require("@opentelemetry/resources");
+const { resourceFromAttributes } = require("@opentelemetry/resources");
 const { HttpInstrumentation } = require("@opentelemetry/instrumentation-http");
 const { ExpressInstrumentation } = require("@opentelemetry/instrumentation-express");
 const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-proto");
@@ -62,7 +62,7 @@ const metricsReader = otlpEndpoint
 // ---------------------------------------------------------------------------
 // Build resource with deployment metadata
 // ---------------------------------------------------------------------------
-const resource = new Resource({
+const resource = resourceFromAttributes({
   [ATTR_SERVICE_NAME]: process.env.OTEL_SERVICE_NAME || "returnpromax",
   [ATTR_SERVICE_VERSION]: process.env.BUILD_VERSION || process.env.npm_package_version || "0.0.0",
   [ATTR_DEPLOYMENT_ENVIRONMENT_NAME]:

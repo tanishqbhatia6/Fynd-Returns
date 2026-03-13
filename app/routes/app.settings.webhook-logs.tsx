@@ -64,12 +64,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.fyndWebhookLog.findMany({
         select: { action: true },
         distinct: ["action"],
-        where: { action: { not: { equals: null } } },
+        where: { action: { not: null } },
       }),
       prisma.fyndWebhookLog.findMany({
         select: { fyndStatus: true },
         distinct: ["fyndStatus"],
-        where: { fyndStatus: { not: { equals: null } } },
+        where: { fyndStatus: { not: null } },
       }),
     ]);
 

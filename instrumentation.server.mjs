@@ -19,37 +19,24 @@
 import os from "node:os";
 import { performance, PerformanceObserver, monitorEventLoopDelay } from "node:perf_hooks";
 
-// All @opentelemetry/* packages ship as CJS — named ESM imports break on
-// Node 22+.  Use default-import + destructure for full compatibility.
-import _sdkNode from "@opentelemetry/sdk-node";
-const { NodeSDK } = _sdkNode;
+// @opentelemetry/* packages are CJS — named ESM imports break on Node 22+.
+// Use createRequire() which always works for CJS modules.
+// @prisma/instrumentation is ESM — use a normal named import for it.
+import { createRequire } from "node:module";
+const require = createRequire(import.meta.url);
 
-import _resources from "@opentelemetry/resources";
-const { Resource } = _resources;
+const { NodeSDK } = require("@opentelemetry/sdk-node");
+const { Resource } = require("@opentelemetry/resources");
+const { HttpInstrumentation } = require("@opentelemetry/instrumentation-http");
+const { ExpressInstrumentation } = require("@opentelemetry/instrumentation-express");
+const { OTLPTraceExporter } = require("@opentelemetry/exporter-trace-otlp-proto");
+const { OTLPMetricExporter } = require("@opentelemetry/exporter-metrics-otlp-proto");
+const { ConsoleSpanExporter } = require("@opentelemetry/sdk-trace-node");
+const { PeriodicExportingMetricReader } = require("@opentelemetry/sdk-metrics");
+const { metrics } = require("@opentelemetry/api");
 
-import _instrHttp from "@opentelemetry/instrumentation-http";
-const { HttpInstrumentation } = _instrHttp;
-
-import _instrExpress from "@opentelemetry/instrumentation-express";
-const { ExpressInstrumentation } = _instrExpress;
-
-import _instrPrisma from "@prisma/instrumentation";
-const { PrismaInstrumentation } = _instrPrisma;
-
-import _exporterTrace from "@opentelemetry/exporter-trace-otlp-proto";
-const { OTLPTraceExporter } = _exporterTrace;
-
-import _exporterMetrics from "@opentelemetry/exporter-metrics-otlp-proto";
-const { OTLPMetricExporter } = _exporterMetrics;
-
-import _sdkTraceNode from "@opentelemetry/sdk-trace-node";
-const { ConsoleSpanExporter } = _sdkTraceNode;
-
-import _sdkMetrics from "@opentelemetry/sdk-metrics";
-const { PeriodicExportingMetricReader } = _sdkMetrics;
-
-import _api from "@opentelemetry/api";
-const { metrics } = _api;
+// @prisma/instrumentation is a true ESM package — named import works
+import { PrismaInstrumentation } from "@prisma/instrumentation";
 
 // Semantic convention attribute keys (string literals avoid CJS interop issues)
 const ATTR_SERVICE_NAME = "service.name";

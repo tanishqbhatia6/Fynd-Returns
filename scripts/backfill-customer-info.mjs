@@ -83,7 +83,7 @@ async function main() {
   // Find return cases missing customer info OR currency that have Fynd payload
   const cases = await prisma.returnCase.findMany({
     where: {
-      fyndPayloadJson: { not: { equals: null } },
+      fyndPayloadJson: { not: null },
       OR: [
         { customerName: null },
         { customerEmailNorm: null },

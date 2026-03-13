@@ -111,7 +111,7 @@ function extractViaRegex(raw) {
 async function main() {
   const logs = await prisma.fyndWebhookLog.findMany({
     where: {
-      rawPayload: { not: { equals: null } },
+      rawPayload: { not: null },
       OR: [
         { affiliateOrderId: null },
         { fyndStatus: null },

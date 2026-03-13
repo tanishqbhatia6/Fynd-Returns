@@ -86,209 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 };
 
-/* ── Styles (scoped) ── */
-const S = {
-  page: {} as React.CSSProperties,
-
-  statsRow: {
-    display: "grid",
-    gridTemplateColumns: "repeat(5, 1fr)",
-    gap: 8,
-    marginBottom: 20,
-  } as React.CSSProperties,
-
-  statCard: (color: string, bg: string, border: string, active: boolean, clickable: boolean): React.CSSProperties => ({
-    padding: "14px 12px",
-    background: active ? bg : "#fff",
-    borderRadius: 10,
-    border: active ? `2px solid ${color}` : `1px solid ${border}`,
-    cursor: clickable ? "pointer" : "default",
-    textAlign: "center",
-    transition: "all 0.15s ease",
-    position: "relative",
-  }),
-
-  statValue: (color: string): React.CSSProperties => ({
-    fontSize: 22,
-    fontWeight: 800,
-    color,
-    lineHeight: 1,
-    marginBottom: 4,
-    fontVariantNumeric: "tabular-nums",
-  }),
-
-  statLabel: (color: string): React.CSSProperties => ({
-    fontSize: 10,
-    fontWeight: 700,
-    color,
-    opacity: 0.75,
-    textTransform: "uppercase",
-    letterSpacing: "0.05em",
-  }),
-
-  toolbar: {
-    display: "flex",
-    gap: 10,
-    alignItems: "flex-end",
-    flexWrap: "wrap",
-    padding: "16px 20px",
-    background: "#fff",
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    marginBottom: 16,
-  } as React.CSSProperties,
-
-  fieldLabel: {
-    display: "block",
-    fontSize: 11,
-    fontWeight: 600,
-    color: "#6b7280",
-    marginBottom: 5,
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-  } as React.CSSProperties,
-
-  tableWrap: {
-    background: "#fff",
-    borderRadius: 12,
-    border: "1px solid #e5e7eb",
-    overflow: "hidden",
-  } as React.CSSProperties,
-
-  th: (width?: string | number): React.CSSProperties => ({
-    padding: "10px 16px",
-    textAlign: "left",
-    fontSize: 11,
-    fontWeight: 700,
-    color: "#6b7280",
-    textTransform: "uppercase",
-    letterSpacing: "0.04em",
-    background: "#f9fafb",
-    borderBottom: "1px solid #e5e7eb",
-    whiteSpace: "nowrap",
-    ...(width ? { width } : {}),
-  }),
-
-  td: {
-    padding: "12px 16px",
-    fontSize: 13,
-    borderBottom: "1px solid #f3f4f6",
-    verticalAlign: "middle",
-    lineHeight: 1.4,
-  } as React.CSSProperties,
-
-  checkboxCell: {
-    padding: "12px 12px 12px 16px",
-    width: 44,
-    borderBottom: "1px solid #f3f4f6",
-    verticalAlign: "middle",
-    textAlign: "center",
-  } as React.CSSProperties,
-
-  checkboxThCell: {
-    padding: "10px 12px 10px 16px",
-    width: 44,
-    background: "#f9fafb",
-    borderBottom: "1px solid #e5e7eb",
-    textAlign: "center",
-    verticalAlign: "middle",
-  } as React.CSSProperties,
-
-  checkbox: (disabled?: boolean): React.CSSProperties => ({
-    width: 16,
-    height: 16,
-    cursor: disabled ? "default" : "pointer",
-    accentColor: "#4f46e5",
-    opacity: disabled ? 0.25 : 1,
-    margin: 0,
-    display: "block",
-  }),
-
-  returnIdLink: {
-    color: "#4f46e5",
-    fontWeight: 700,
-    textDecoration: "none",
-    fontSize: 12,
-    fontFamily: "var(--rpm-font-mono, 'SF Mono', 'Fira Code', monospace)",
-    letterSpacing: "0.01em",
-    lineHeight: 1.3,
-    display: "inline-block",
-  } as React.CSSProperties,
-
-  orderName: {
-    fontWeight: 600,
-    color: "#111827",
-    fontSize: 13,
-    lineHeight: 1.3,
-  } as React.CSSProperties,
-
-  fyndSub: {
-    fontSize: 10,
-    color: "#9ca3af",
-    marginTop: 2,
-    fontFamily: "var(--rpm-font-mono, monospace)",
-    lineHeight: 1.3,
-    maxWidth: 160,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-  } as React.CSSProperties,
-
-  emptyState: {
-    padding: "64px 24px",
-    textAlign: "center",
-    color: "#6b7280",
-  } as React.CSSProperties,
-
-  paginationBar: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    padding: "16px 0",
-  } as React.CSSProperties,
-
-  countBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: "0 4px",
-    marginBottom: 8,
-    flexWrap: "wrap",
-    gap: 6,
-  } as React.CSSProperties,
-
-  bulkBar: (visible: boolean): React.CSSProperties => ({
-    position: "fixed",
-    bottom: visible ? 24 : -80,
-    left: "50%",
-    transform: "translateX(-50%)",
-    background: "#1e293b",
-    color: "#fff",
-    borderRadius: 12,
-    padding: "10px 20px",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
-    zIndex: 1000,
-    transition: "bottom 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-    whiteSpace: "nowrap",
-    maxWidth: "calc(100vw - 48px)",
-  }),
-
-  bulkBtn: (bg: string, hoverBg: string): React.CSSProperties => ({
-    padding: "7px 16px",
-    borderRadius: 7,
-    border: "none",
-    background: bg,
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: 700,
-    cursor: "pointer",
-    transition: "background 0.15s",
-  }),
-} as const;
+/* Styles moved to app/styles.css — see .returns-* classes */
 
 export default function ReturnsList() {
   const { returns, query, status, page, totalCount, totalPages, pendingCount, approvedCount, rejectedCount, allCount, error, shopLocale, shopTimezone } = useLoaderData<typeof loader>();
@@ -433,26 +231,31 @@ export default function ReturnsList() {
         )}
 
         {/* ── Stats Bar ── */}
-        <div style={S.statsRow}>
+        <div className="returns-stats-row">
           {stats.map((s) => {
             const isActive = (status === s.filterStatus) || (!status && s.filterStatus === "");
             return (
               <div
                 key={s.label}
                 onClick={() => s.value > 0 || s.filterStatus === "" ? setSearchParams(s.filterStatus ? { status: s.filterStatus } : {}) : undefined}
-                style={S.statCard(s.color, s.bg, s.border, isActive, s.value > 0 || s.filterStatus === "")}
+                className={`returns-stat-card${isActive ? " returns-stat-card--active" : ""}`}
+                style={{
+                  background: isActive ? s.bg : undefined,
+                  borderColor: isActive ? s.color : s.border,
+                  cursor: s.value > 0 || s.filterStatus === "" ? "pointer" : "default",
+                }}
               >
-                <div style={S.statValue(s.color)}>{s.value}</div>
-                <div style={S.statLabel(s.color)}>{s.label}</div>
+                <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
+                <div className="stat-label" style={{ color: s.color }}>{s.label}</div>
               </div>
             );
           })}
         </div>
 
         {/* ── Search & Filter Toolbar ── */}
-        <Form method="get" style={S.toolbar}>
+        <Form method="get" className="returns-toolbar">
           <div style={{ flex: "1 1 240px", minWidth: 180 }}>
-            <label style={S.fieldLabel}>Search</label>
+            <label className="field-label">Search</label>
             <input
               name="query"
               type="text"
@@ -463,7 +266,7 @@ export default function ReturnsList() {
             />
           </div>
           <div style={{ flex: "0 0 140px" }}>
-            <label style={S.fieldLabel}>Status</label>
+            <label className="field-label">Status</label>
             <select name="status" defaultValue={status} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -471,7 +274,7 @@ export default function ReturnsList() {
             </select>
           </div>
           <div style={{ flex: "0 0 140px" }}>
-            <label style={S.fieldLabel}>Resolution</label>
+            <label className="field-label">Resolution</label>
             <select name="resolutionType" defaultValue={searchParams.get("resolutionType") || ""} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
               <option value="">All types</option>
               <option value="refund">Refund</option>
@@ -481,11 +284,11 @@ export default function ReturnsList() {
             </select>
           </div>
           <div style={{ flex: "0 0 130px" }}>
-            <label style={S.fieldLabel}>From</label>
+            <label className="field-label">From</label>
             <input type="date" name="from" defaultValue={searchParams.get("from") || ""} className="app-input" style={{ width: "100%", padding: "7px 10px", fontSize: 13 }} />
           </div>
           <div style={{ flex: "0 0 130px" }}>
-            <label style={S.fieldLabel}>To</label>
+            <label className="field-label">To</label>
             <input type="date" name="to" defaultValue={searchParams.get("to") || ""} className="app-input" style={{ width: "100%", padding: "7px 10px", fontSize: 13 }} />
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 1 }}>
@@ -529,7 +332,7 @@ export default function ReturnsList() {
 
         {/* ── Count Bar ── */}
         {totalCount > 0 && (
-          <div style={S.countBar}>
+          <div className="returns-count-bar">
             <span style={{ fontSize: 12, color: "#6b7280" }}>
               Showing <strong style={{ color: "#111827" }}>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</strong> of <strong style={{ color: "#111827" }}>{totalCount}</strong>
             </span>
@@ -544,7 +347,7 @@ export default function ReturnsList() {
 
         {/* ── Table or Empty ── */}
         {returns.length === 0 ? (
-          <div style={S.emptyState as React.CSSProperties}>
+          <div className="returns-empty-state">
             <div style={{ marginBottom: 14, opacity: 0.4 }}>
               <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
             </div>
@@ -567,9 +370,9 @@ export default function ReturnsList() {
           </div>
         ) : (
           <>
-            <div style={S.tableWrap}>
+            <div className="returns-table-wrap">
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                <table className="returns-table">
                   <colgroup>
                     <col style={{ width: 44 }} />
                     <col style={{ width: "14%" }} />
@@ -581,22 +384,22 @@ export default function ReturnsList() {
                   </colgroup>
                   <thead>
                     <tr>
-                      <th style={S.checkboxThCell as React.CSSProperties}>
+                      <th className="checkbox-th">
                         <input
                           type="checkbox"
                           checked={allSelectableSelected}
                           onChange={toggleSelectAll}
                           disabled={selectableReturns.length === 0}
                           title={allSelectableSelected ? "Deselect all" : "Select all actionable returns"}
-                          style={S.checkbox(selectableReturns.length === 0)}
+                          style={{ width: 16, height: 16, cursor: selectableReturns.length === 0 ? "default" : "pointer", accentColor: "#4f46e5", opacity: selectableReturns.length === 0 ? 0.25 : 1, margin: 0, display: "block" }}
                         />
                       </th>
-                      <th style={S.th()}>Return ID</th>
-                      <th style={S.th()}>Order</th>
-                      <th style={S.th()}>Status</th>
-                      <th style={S.th()} className="app-hide-mobile">Fynd Return ID</th>
-                      <th style={S.th()} className="app-hide-mobile">Customer</th>
-                      <th style={S.th()}>Created</th>
+                      <th>Return ID</th>
+                      <th>Order</th>
+                      <th>Status</th>
+                      <th className="app-hide-mobile">Fynd Return ID</th>
+                      <th className="app-hide-mobile">Customer</th>
+                      <th>Created</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -628,7 +431,7 @@ export default function ReturnsList() {
                         >
                           {/* Checkbox */}
                           <td
-                            style={S.checkboxCell as React.CSSProperties}
+                            className="checkbox-cell"
                             onClick={(e) => {
                               e.stopPropagation();
                               if (isSelectable) toggleSelection(r.id);
@@ -640,33 +443,33 @@ export default function ReturnsList() {
                               disabled={!isSelectable}
                               onChange={() => {}}
                               title={isSelectable ? undefined : `Cannot select: return is ${r.status}`}
-                              style={S.checkbox(!isSelectable)}
+                              style={{ width: 16, height: 16, cursor: !isSelectable ? "default" : "pointer", accentColor: "#4f46e5", opacity: !isSelectable ? 0.25 : 1, margin: 0, display: "block" }}
                             />
                           </td>
 
                           {/* Return ID */}
-                          <td style={S.td}>
+                          <td>
                             <Link
                               to={`/app/returns/${r.id}`}
                               onClick={(e) => e.stopPropagation()}
-                              style={S.returnIdLink}
+                              className="return-id-link"
                             >
                               {r.returnRequestNo ?? formatReturnRequestId(r.id)}
                             </Link>
                           </td>
 
                           {/* Order */}
-                          <td style={S.td}>
-                            <div style={S.orderName}>{r.shopifyOrderName || "—"}</div>
+                          <td>
+                            <div className="order-name">{r.shopifyOrderName || "—"}</div>
                             {fyndOrdId && (
-                              <div style={S.fyndSub}>
+                              <div className="fynd-sub">
                                 Fynd: {String(fyndOrdId).slice(0, 18)}{String(fyndOrdId).length > 18 ? "…" : ""}
                               </div>
                             )}
                           </td>
 
                           {/* Status */}
-                          <td style={S.td}>
+                          <td>
                             <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
                               <span style={{
                                 display: "inline-flex",
@@ -760,7 +563,7 @@ export default function ReturnsList() {
                           </td>
 
                           {/* Fynd Return ID */}
-                          <td style={S.td} className="app-hide-mobile">
+                          <td className="app-hide-mobile">
                             {hasFynd ? (
                               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                                 <span style={{ fontSize: 12, color: "#111827", fontFamily: "var(--rpm-font-mono, monospace)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%", display: "block" }}>
@@ -779,14 +582,14 @@ export default function ReturnsList() {
                           </td>
 
                           {/* Customer */}
-                          <td style={S.td} className="app-hide-mobile">
+                          <td className="app-hide-mobile">
                             <span style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%", display: "block" }}>
                               {r.customerEmailNorm || "—"}
                             </span>
                           </td>
 
                           {/* Created */}
-                          <td style={{ ...S.td, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                          <td className="text-tabular nowrap">
                             {(() => { const p = fmtDateParts(r.createdAt); return (
                               <div style={{ lineHeight: 1.4 }}>
                                 <div style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>{p.date}</div>
@@ -804,7 +607,7 @@ export default function ReturnsList() {
 
             {/* ── Pagination ── */}
             {totalPages > 1 && (
-              <div style={S.paginationBar}>
+              <div className="returns-pagination">
                 <button className="app-pagination-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
                 </button>
@@ -828,27 +631,15 @@ export default function ReturnsList() {
       </div>
 
       {/* ── Floating Bulk Action Bar ── */}
-      <div style={S.bulkBar(someSelected)}>
+      <div className={`returns-bulk-bar ${someSelected ? "returns-bulk-bar--visible" : "returns-bulk-bar--hidden"}`}>
         <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.95 }}>
           {selectedIds.size} selected
         </span>
         <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.2)" }} />
-        <button
-          onClick={handleBulkApprove}
-          disabled={bulkLoading}
-          style={{ ...S.bulkBtn("#059669", "#047857"), opacity: bulkLoading ? 0.6 : 1, cursor: bulkLoading ? "wait" : "pointer" }}
-          onMouseEnter={(e) => { if (!bulkLoading) (e.target as HTMLButtonElement).style.background = "#047857"; }}
-          onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "#059669"; }}
-        >
+        <button onClick={handleBulkApprove} disabled={bulkLoading} className="bulk-btn bulk-btn--approve">
           {bulkLoading ? "Processing..." : "Approve"}
         </button>
-        <button
-          onClick={() => setShowRejectModal(true)}
-          disabled={bulkLoading}
-          style={{ ...S.bulkBtn("#dc2626", "#b91c1c"), opacity: bulkLoading ? 0.6 : 1, cursor: bulkLoading ? "wait" : "pointer" }}
-          onMouseEnter={(e) => { if (!bulkLoading) (e.target as HTMLButtonElement).style.background = "#b91c1c"; }}
-          onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "#dc2626"; }}
-        >
+        <button onClick={() => setShowRejectModal(true)} disabled={bulkLoading} className="bulk-btn bulk-btn--reject">
           Reject
         </button>
         <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.15)" }} />
@@ -856,11 +647,7 @@ export default function ReturnsList() {
           disabled={bulkLoading}
           defaultValue=""
           onChange={(e) => { if (e.target.value) { handleBulkResolutionChange(e.target.value); e.target.value = ""; } }}
-          style={{
-            padding: "7px 10px", borderRadius: 7, border: "1px solid rgba(255,255,255,0.25)",
-            background: "rgba(255,255,255,0.1)", color: "#fff",
-            fontSize: 12, fontWeight: 600, cursor: "pointer",
-          }}
+          className="bulk-select"
         >
           <option value="" disabled>Change resolution...</option>
           <option value="refund">Refund</option>
@@ -868,41 +655,15 @@ export default function ReturnsList() {
           <option value="store_credit">Store Credit</option>
           <option value="replacement">Replacement</option>
         </select>
-        <button
-          onClick={() => setSelectedIds(new Set())}
-          disabled={bulkLoading}
-          style={{
-            padding: "7px 14px", borderRadius: 7,
-            border: "1px solid rgba(255,255,255,0.25)", background: "transparent",
-            color: "rgba(255,255,255,0.85)",
-            fontSize: 12, fontWeight: 600, cursor: "pointer",
-          }}
-          onMouseEnter={(e) => { (e.target as HTMLButtonElement).style.background = "rgba(255,255,255,0.1)"; }}
-          onMouseLeave={(e) => { (e.target as HTMLButtonElement).style.background = "transparent"; }}
-        >
+        <button onClick={() => setSelectedIds(new Set())} disabled={bulkLoading} className="bulk-btn--clear">
           Clear
         </button>
       </div>
 
       {/* ── Rejection Modal ── */}
       {showRejectModal && (
-        <div
-          style={{
-            position: "fixed", inset: 0, zIndex: 1100,
-            background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)",
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}
-          onClick={() => { setShowRejectModal(false); setRejectionReason(""); }}
-        >
-          <div
-            style={{
-              background: "#fff", borderRadius: 14, padding: "28px",
-              width: "100%", maxWidth: 440,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.2)",
-              animation: "rpmModalIn 0.2s ease-out",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="returns-modal-overlay" onClick={() => { setShowRejectModal(false); setRejectionReason(""); }}>
+          <div className="returns-modal" onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 700, color: "#1e293b" }}>
               Reject {selectedIds.size} Return{selectedIds.size === 1 ? "" : "s"}
             </h3>
@@ -957,10 +718,6 @@ export default function ReturnsList() {
       )}
 
       <style>{`
-        @keyframes rpmModalIn {
-          from { opacity: 0; transform: scale(0.95) translateY(8px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
         @media (max-width: 640px) {
           .app-hide-mobile { display: none !important; }
         }

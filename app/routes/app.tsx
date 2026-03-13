@@ -108,84 +108,122 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
 }
 
 /**
- * Force <s-page> to use full available width via multiple strategies:
- * 1. Set fullWidth attribute (official Shopify API)
- * 2. Inject CSS into shadow DOM to override internal constraints
- * 3. Set CSS custom properties that Shopify components may respect
+ * Force <s-page> to use full available width.
  *
- * Belt-and-suspenders approach because the shadow DOM may be open or closed
- * depending on Shopify's App Bridge version.
+ * Strategy overview:
+ * 1. Set CSS custom properties on s-page (these inherit through shadow DOM
+ *    even when closed — the most reliable approach)
+ * 2. Set fullWidth attribute (official Shopify API)
+ * 3. Force inline styles on s-page and all its parents up to body
+ * 4. Inject CSS into shadow DOM if it's open
+ * 5. Retry at intervals because polaris.js loads async from CDN
  */
 function useSPageFullWidth() {
   useLayoutEffect(() => {
     const STYLE_ID = "rpm-fullwidth";
-    const css = `
-      :host { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+    const shadowCSS = `
+      :host { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; }
+      *, *::before, *::after { max-width: 100% !important; box-sizing: border-box !important; }
       .Polaris-Page { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
       .Polaris-Page--fullWidth { max-width: 100% !important; }
       [class*="Page"] { max-width: 100% !important; width: 100% !important; }
       [class*="page_"] { max-width: 100% !important; width: 100% !important; }
       [class*="PageLayout"] { max-width: 100% !important; width: 100% !important; }
+      [class*="page-content"] { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
     `;
 
     function inject(page: Element) {
-      // Strategy 1: Ensure fullWidth attribute is set
-      if (!page.hasAttribute("fullWidth") && !page.hasAttribute("fullwidth")) {
-        page.setAttribute("fullWidth", "");
-        page.setAttribute("fullwidth", "");
-      }
+      const el = page as HTMLElement;
 
-      // Strategy 2: Force inline styles on the element itself
-      (page as HTMLElement).style.setProperty("max-width", "100%", "important");
-      (page as HTMLElement).style.setProperty("width", "100%", "important");
+      // Set fullWidth attribute (both casings)
+      el.setAttribute("fullWidth", "");
+      el.setAttribute("fullwidth", "");
 
-      // Strategy 3: Inject CSS into shadow DOM if accessible
+      // Set CSS custom properties (inherit through closed shadow DOM)
+      el.style.setProperty("--s-page-max-width", "100%");
+      el.style.setProperty("--page-max-width", "100%");
+      el.style.setProperty("--p-page-max-width", "100%");
+      el.style.setProperty("--s-page-padding-inline", "0");
+      el.style.setProperty("--page-padding", "0");
+
+      // Force inline styles
+      el.style.setProperty("max-width", "100%", "important");
+      el.style.setProperty("width", "100%", "important");
+      el.style.setProperty("padding", "0", "important");
+
+      // Inject CSS into open shadow DOM
       if (page.shadowRoot) {
         if (!page.shadowRoot.getElementById(STYLE_ID)) {
           const style = document.createElement("style");
           style.id = STYLE_ID;
-          style.textContent = css;
-          page.shadowRoot.appendChild(style);
+          style.textContent = shadowCSS;
+          page.shadowRoot.prepend(style);
         }
-        // Also force all children in shadow DOM
-        page.shadowRoot.querySelectorAll("[class*='Page'], [class*='page']").forEach((el) => {
-          (el as HTMLElement).style.setProperty("max-width", "100%", "important");
-          (el as HTMLElement).style.setProperty("width", "100%", "important");
+        // Force all shadow children with constrained width
+        page.shadowRoot.querySelectorAll("*").forEach((child) => {
+          const cs = getComputedStyle(child);
+          if (cs.maxWidth !== "none" && parseInt(cs.maxWidth) < window.innerWidth) {
+            (child as HTMLElement).style.setProperty("max-width", "100%", "important");
+            (child as HTMLElement).style.setProperty("width", "100%", "important");
+          }
+          if (parseInt(cs.paddingLeft) > 0 || parseInt(cs.paddingRight) > 0) {
+            (child as HTMLElement).style.setProperty("padding-left", "0", "important");
+            (child as HTMLElement).style.setProperty("padding-right", "0", "important");
+          }
         });
       }
     }
 
-    // Inject into existing <s-page> elements
-    document.querySelectorAll("s-page").forEach(inject);
-
-    // Also target any s-section elements
-    document.querySelectorAll("s-section").forEach((el) => {
+    function forceSection(el: Element) {
       (el as HTMLElement).style.setProperty("max-width", "100%", "important");
       (el as HTMLElement).style.setProperty("width", "100%", "important");
-    });
+    }
 
-    // Watch for dynamically added elements
+    // Force all containers between body and s-page to 100% width
+    function forceParentChain() {
+      document.querySelectorAll("s-page").forEach((spage) => {
+        let parent = spage.parentElement;
+        while (parent && parent !== document.body) {
+          (parent as HTMLElement).style.setProperty("max-width", "100%", "important");
+          (parent as HTMLElement).style.setProperty("width", "100%", "important");
+          (parent as HTMLElement).style.setProperty("padding-left", "0", "important");
+          (parent as HTMLElement).style.setProperty("padding-right", "0", "important");
+          parent = parent.parentElement;
+        }
+      });
+    }
+
+    function run() {
+      document.querySelectorAll("s-page").forEach(inject);
+      document.querySelectorAll("s-section").forEach(forceSection);
+      forceParentChain();
+    }
+
+    // Run immediately
+    run();
+
+    // Retry at intervals (polaris.js loads async from CDN)
+    const timers = [100, 500, 1000, 2000, 5000].map((ms) => setTimeout(run, ms));
+
+    // MutationObserver for dynamic elements
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         for (const node of m.addedNodes) {
           if (node instanceof Element) {
             if (node.tagName === "S-PAGE") inject(node);
             node.querySelectorAll?.("s-page").forEach(inject);
-            // Also handle s-section
-            if (node.tagName === "S-SECTION") {
-              (node as HTMLElement).style.setProperty("max-width", "100%", "important");
-              (node as HTMLElement).style.setProperty("width", "100%", "important");
-            }
-            node.querySelectorAll?.("s-section").forEach((el) => {
-              (el as HTMLElement).style.setProperty("max-width", "100%", "important");
-              (el as HTMLElement).style.setProperty("width", "100%", "important");
-            });
+            if (node.tagName === "S-SECTION") forceSection(node);
+            node.querySelectorAll?.("s-section").forEach(forceSection);
           }
         }
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+
+    return () => {
+      observer.disconnect();
+      timers.forEach(clearTimeout);
+    };
   }, []);
 }
 
@@ -237,7 +275,7 @@ export default function App() {
       {!isDashboard && breadcrumb && (
         <div
           style={{
-            padding: "12px 28px 6px",
+            padding: "12px 20px 6px",
             display: "flex",
             alignItems: "center",
             gap: 8,

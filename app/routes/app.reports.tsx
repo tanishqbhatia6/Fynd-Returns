@@ -286,10 +286,7 @@ export default function Reports() {
 
   const maxReasonCount = topReasons.length > 0 ? Math.max(...topReasons.map((r) => r.count)) : 1;
 
-  const cardStyle: React.CSSProperties = {
-    background: "var(--rpm-surface, white)", borderRadius: 14, padding: 22,
-    border: "var(--rpm-border, 1px solid #e5e7eb)",
-  };
+  const CS = "dashboard-chart-panel"; // reuse dashboard card class
 
   return (
     <s-page fullWidth heading="Reports & Analytics">
@@ -304,34 +301,20 @@ export default function Reports() {
         )}
 
         {/* ── Date range + Export ── */}
-        <div style={{
-          display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10,
-          marginBottom: 20, padding: "12px 18px",
-          background: "var(--rpm-surface, white)", borderRadius: 12,
-          border: "var(--rpm-border, 1px solid #e5e7eb)",
-        }}>
-          <select
-            value={range}
-            onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
-            style={{
-              padding: "7px 12px", borderRadius: 8, border: "1px solid #E2E8F0",
-              fontSize: 13, fontWeight: 500, background: "#F8FAFC", color: "var(--rpm-text, #0f172a)",
-            }}
-          >
+        <div className="dashboard-date-bar">
+          <select value={range} onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}>
             {DATE_RANGE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
             ))}
           </select>
           {range === "custom" && (
             <>
-              <input type="date" value={from ?? ""} onChange={(e) => handleCustomRange(e.target.value, to ?? "")}
-                style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13 }} />
-              <span style={{ color: "var(--rpm-text-muted)", fontSize: 12 }}>to</span>
-              <input type="date" value={to ?? ""} onChange={(e) => handleCustomRange(from ?? "", e.target.value)}
-                style={{ padding: "7px 10px", borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 13 }} />
+              <input type="date" value={from ?? ""} onChange={(e) => handleCustomRange(e.target.value, to ?? "")} />
+              <span className="text-muted" style={{ fontSize: 12 }}>to</span>
+              <input type="date" value={to ?? ""} onChange={(e) => handleCustomRange(from ?? "", e.target.value)} />
             </>
           )}
-          <span style={{ fontSize: 12, color: "var(--rpm-text-muted, #64748b)" }}>{rangeLabel}</span>
+          <span className="text-muted" style={{ fontSize: 12 }}>{rangeLabel}</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
             <a href={exportUrl} download style={{ textDecoration: "none" }}>
               <s-button variant="secondary">Export CSV</s-button>
@@ -343,56 +326,52 @@ export default function Reports() {
         </div>
 
         {/* ── KPI Cards — 4 columns ── */}
-        <div className="dashboard-kpi-grid" style={{ marginBottom: 20 }}>
-          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#3B82F6", opacity: 0.7 }} />
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Total Returns</div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-              <span style={{ fontSize: 28, fontWeight: 800, color: "var(--rpm-text, #0f172a)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{totalReturns}</span>
+        <div className="dashboard-kpi-grid mb-md">
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
+            <div className="kpi-label">Total Returns</div>
+            <div className="kpi-row">
+              <span className="kpi-value">{totalReturns}</span>
               {periodChange !== 0 && (
-                <span style={{
-                  fontSize: 11, fontWeight: 700,
-                  color: periodChange > 0 ? "#DC2626" : "#059669",
-                  background: periodChange > 0 ? "#FEF2F2" : "#ECFDF5",
-                  padding: "2px 7px", borderRadius: 5,
-                  border: `1px solid ${periodChange > 0 ? "#FECACA" : "#A7F3D0"}`,
-                }}>
+                <span className={`kpi-change ${periodChange > 0 ? "kpi-change--up" : "kpi-change--down"}`}>
                   {periodChange > 0 ? "↑" : "↓"} {Math.abs(periodChange)}%
                 </span>
               )}
             </div>
-            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>{rangeLabel}</div>
+            <div className="kpi-meta">{rangeLabel}</div>
           </div>
 
-          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#10B981", opacity: 0.7 }} />
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Approval Rate</div>
-            <span style={{ fontSize: 28, fontWeight: 800, color: "#10B981", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{approvalRate}%</span>
-            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>{approvedCount} of {totalReturns}</div>
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#10B981" } as React.CSSProperties}>
+            <div className="kpi-label">Approval Rate</div>
+            <div className="kpi-row">
+              <span className="kpi-value" style={{ color: "#10B981" }}>{approvalRate}%</span>
+            </div>
+            <div className="kpi-meta">{approvedCount} of {totalReturns}</div>
           </div>
 
-          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#F59E0B", opacity: 0.7 }} />
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Avg Processing</div>
-            <span style={{ fontSize: 28, fontWeight: 800, color: "#F59E0B", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-              {avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)}d` : "—"}
-            </span>
-            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>Request → Approval</div>
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
+            <div className="kpi-label">Avg Processing</div>
+            <div className="kpi-row">
+              <span className="kpi-value" style={{ color: "#F59E0B" }}>
+                {avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)}d` : "—"}
+              </span>
+            </div>
+            <div className="kpi-meta">Request → Approval</div>
           </div>
 
-          <div className="dashboard-metric-card" style={{ position: "relative", overflow: "hidden" }}>
-            <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "#8B5CF6", opacity: 0.7 }} />
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Refund Rate</div>
-            <span style={{ fontSize: 28, fontWeight: 800, color: "#8B5CF6", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{refundRate}%</span>
-            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginTop: 6 }}>{refundedCount} refunded</div>
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
+            <div className="kpi-label">Refund Rate</div>
+            <div className="kpi-row">
+              <span className="kpi-value" style={{ color: "#8B5CF6" }}>{refundRate}%</span>
+            </div>
+            <div className="kpi-meta">{refundedCount} refunded</div>
           </div>
         </div>
 
         {/* ── Charts: Trend + Distribution ── */}
-        <div className="dashboard-chart-row" style={{ marginBottom: 20 }}>
-          <div style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Return volume trend</h3>
+        <div className="dashboard-chart-row mb-md">
+          <div className={CS}>
+            <div className="panel-header">
+              <h3 className="panel-title">Return volume trend</h3>
             </div>
             <div style={{ height: 240 }}>
               {returnsOverTime.length > 0 ? (
@@ -417,15 +396,13 @@ export default function Reports() {
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
-                <div style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--rpm-text-muted)", fontSize: 13 }}>
-                  No returns during this period.
-                </div>
+                <div className="chart-empty">No returns during this period.</div>
               )}
             </div>
           </div>
 
-          <div style={cardStyle}>
-            <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Status distribution</h3>
+          <div className={CS}>
+            <h3 className="panel-title" style={{ marginBottom: 14 }}>Status distribution</h3>
             <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {statusChartData.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "100%" }}>
@@ -460,14 +437,14 @@ export default function Reports() {
                   </div>
                 </div>
               ) : (
-                <div style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>No data for this period.</div>
+                <div className="chart-empty">No data for this period.</div>
               )}
             </div>
           </div>
         </div>
 
         {/* ── Performance Gauges — fixed 4-column (or 3 if no Fynd) ── */}
-        <div className="dashboard-gauge-grid" style={{
+        <div style={{
           display: "grid",
           gridTemplateColumns: hasFyndConfig ? "repeat(4, 1fr)" : "repeat(3, 1fr)",
           gap: 14, marginBottom: 20,
@@ -478,9 +455,7 @@ export default function Reports() {
             { label: "Refund", value: refundRate, color: "#8B5CF6", desc: `${refundedCount} of ${approvedCount} approved` },
             ...(hasFyndConfig ? [{ label: "Fynd Sync", value: fyndSyncRate, color: "#06B6D4", desc: `${fyndSyncedCount} of ${approvedCount}` }] : []),
           ].map((g, i) => (
-            <div key={i} style={{
-              ...cardStyle, display: "flex", alignItems: "center", gap: 16, padding: "18px 20px",
-            }}>
+            <div key={i} className={CS} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 20px" }}>
               <div style={{ position: "relative", flexShrink: 0 }}>
                 <ProgressRing value={g.value} size={64} strokeWidth={6} color={g.color} />
                 <div style={{
@@ -490,16 +465,16 @@ export default function Reports() {
               </div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-text, #0f172a)", marginBottom: 2 }}>{g.label} rate</div>
-                <div style={{ fontSize: 11, color: "var(--rpm-text-muted, #64748b)" }}>{g.desc}</div>
+                <div className="text-muted" style={{ fontSize: 11 }}>{g.desc}</div>
               </div>
             </div>
           ))}
         </div>
 
         {/* ── Resolution Breakdown ── */}
-        <div className="dashboard-chart-row" style={{ marginBottom: 20 }}>
-          <div style={cardStyle}>
-            <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Resolution breakdown</h3>
+        <div className="dashboard-chart-row mb-md">
+          <div className={CS}>
+            <h3 className="panel-title" style={{ marginBottom: 14 }}>Resolution breakdown</h3>
             <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {resolutionChartData.length > 0 ? (
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "100%" }}>
@@ -534,35 +509,35 @@ export default function Reports() {
                   </div>
                 </div>
               ) : (
-                <div style={{ color: "var(--rpm-text-muted)", fontSize: 13 }}>No resolution data for this period.</div>
+                <div className="chart-empty">No resolution data for this period.</div>
               )}
             </div>
           </div>
 
-          <div style={cardStyle}>
-            <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Revenue impact</h3>
+          <div className={CS}>
+            <h3 className="panel-title" style={{ marginBottom: 14 }}>Revenue impact</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: "12px 0" }}>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Revenue retained</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 32, fontWeight: 800, color: "#059669", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+                <div className="kpi-label">Revenue retained</div>
+                <div className="kpi-row">
+                  <span className="kpi-value" style={{ fontSize: 32, color: "#059669" }}>
                     {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 4 }}>
+                <div className="kpi-meta" style={{ marginTop: 4 }}>
                   From exchanges and store credit resolutions instead of refunds
                 </div>
               </div>
 
               <div style={{ borderTop: "1px solid #E2E8F0", paddingTop: 16 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>Green returns</div>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ fontSize: 28, fontWeight: 800, color: "#06B6D4", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{greenReturnCount}</span>
-                  <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>
+                <div className="kpi-label">Green returns</div>
+                <div className="kpi-row">
+                  <span className="kpi-value" style={{ color: "#06B6D4" }}>{greenReturnCount}</span>
+                  <span className="kpi-meta">
                     {totalReturns > 0 ? `${Math.round((greenReturnCount / totalReturns) * 100)}% of total` : ""}
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 4 }}>
+                <div className="kpi-meta" style={{ marginTop: 4 }}>
                   Returns where customer kept the item
                 </div>
               </div>
@@ -571,13 +546,11 @@ export default function Reports() {
         </div>
 
         {/* ── Top Reasons + Status Table — side by side ── */}
-        <div className="dashboard-chart-row" style={{ marginBottom: 20 }}>
-          <div style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Top return reasons</h3>
-              <Link to="/app/settings/rules" style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-accent, #005bd3)", textDecoration: "none" }}>
-                Manage →
-              </Link>
+        <div className="dashboard-chart-row mb-md">
+          <div className={CS}>
+            <div className="panel-header">
+              <h3 className="panel-title">Top return reasons</h3>
+              <Link to="/app/settings/rules" className="panel-link">Manage →</Link>
             </div>
             {topReasons.length > 0 ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -601,23 +574,19 @@ export default function Reports() {
                 })}
               </div>
             ) : (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 13 }}>
+              <div className="chart-empty">
                 No return reasons recorded. Add reasons in Settings → Policy Rules.
               </div>
             )}
           </div>
 
-          <div style={cardStyle}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Status breakdown</h3>
-              <Link to="/app/returns" style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-accent, #005bd3)", textDecoration: "none" }}>
-                View all →
-              </Link>
+          <div className={CS}>
+            <div className="panel-header">
+              <h3 className="panel-title">Status breakdown</h3>
+              <Link to="/app/returns" className="panel-link">View all →</Link>
             </div>
             {Object.keys(statusMap).length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 13 }}>
-                No returns in this period.
-              </div>
+              <div className="chart-empty">No returns in this period.</div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
@@ -667,46 +636,46 @@ export default function Reports() {
 
         {/* ── Key Insights ── */}
         {totalReturns > 0 && (
-          <div style={cardStyle}>
-            <h3 style={{ margin: "0 0 14px", fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)" }}>Key insights</h3>
+          <div className={CS}>
+            <h3 className="panel-title" style={{ marginBottom: 14 }}>Key insights</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {approvalRate >= 80 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#ECFDF5", border: "1px solid #A7F3D0", fontSize: 13, color: "#047857" }}>
+                <div className="dashboard-suggestion dashboard-suggestion--success">
                   <strong>High approval rate ({approvalRate}%)</strong> — Return policy is well-calibrated.
                 </div>
               )}
               {approvalRate > 0 && approvalRate < 50 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", fontSize: 13, color: "#B91C1C" }}>
+                <div className="dashboard-suggestion dashboard-suggestion--warning">
                   <strong>Low approval rate ({approvalRate}%)</strong> — Review return policy to improve customer satisfaction.
                 </div>
               )}
               {avgProcessingDays !== null && avgProcessingDays > 3 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FFFBEB", border: "1px solid #FDE68A", fontSize: 13, color: "#92400E" }}>
+                <div className="dashboard-suggestion dashboard-suggestion--warning">
                   <strong>Avg processing: {avgProcessingDays.toFixed(1)} days</strong> — Consider faster approvals for better retention.
                 </div>
               )}
               {avgProcessingDays !== null && avgProcessingDays <= 1 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#ECFDF5", border: "1px solid #A7F3D0", fontSize: 13, color: "#047857" }}>
+                <div className="dashboard-suggestion dashboard-suggestion--success">
                   <strong>Fast processing ({avgProcessingDays.toFixed(1)}d)</strong> — Returns are being resolved quickly.
                 </div>
               )}
               {approvedNotRefundedCount > 0 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#EFF6FF", border: "1px solid #BFDBFE", fontSize: 13, color: "#1E40AF" }}>
+                <div className="dashboard-suggestion dashboard-suggestion--info">
                   <strong>{approvedNotRefundedCount} approved return{approvedNotRefundedCount > 1 ? "s" : ""} awaiting refund</strong> — Process refunds to complete the cycle.
                 </div>
               )}
               {topReasons.length > 0 && topReasons[0].count >= 2 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#EFF6FF", border: "1px solid #BFDBFE", fontSize: 13, color: "#1E40AF" }}>
-                  <strong>Top reason: "{topReasons[0].reason}"</strong> ({topReasons[0].count}x) — Investigate potential product or description issue.
+                <div className="dashboard-suggestion dashboard-suggestion--info">
+                  <strong>Top reason: &ldquo;{topReasons[0].reason}&rdquo;</strong> ({topReasons[0].count}x) — Investigate potential product or description issue.
                 </div>
               )}
               {periodChange > 50 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FEF2F2", border: "1px solid #FECACA", fontSize: 13, color: "#B91C1C" }}>
+                <div className="dashboard-suggestion dashboard-suggestion--warning">
                   <strong>Returns up {periodChange}%</strong> vs previous period — Monitor for product or fulfillment issues.
                 </div>
               )}
               {periodChange < -20 && (
-                <div style={{ padding: "10px 14px", borderRadius: 8, background: "#ECFDF5", border: "1px solid #A7F3D0", fontSize: 13, color: "#047857" }}>
+                <div className="dashboard-suggestion dashboard-suggestion--success">
                   <strong>Returns down {Math.abs(periodChange)}%</strong> — Return rate is decreasing.
                 </div>
               )}
@@ -716,18 +685,18 @@ export default function Reports() {
 
         {/* ── Revenue Impact ── */}
         {(totalRefundAmount > 0 || refundMethodBreakdown.length > 0) && (
-          <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-            <div style={{ ...cardStyle }}>
-              <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "var(--rpm-text)" }}>Revenue Impact</div>
+          <div className="dashboard-chart-row" style={{ marginTop: 20 }}>
+            <div className={CS}>
+              <h3 className="panel-title" style={{ marginBottom: 14 }}>Revenue Impact</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>Total refunds issued</span>
+                <div className="flex-between">
+                  <span className="kpi-meta">Total refunds issued</span>
                   <span style={{ fontSize: 15, fontWeight: 700, color: "#DC2626" }}>
                     {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(totalRefundAmount)}
                   </span>
                 </div>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontSize: 13, color: "var(--rpm-text-muted)" }}>Revenue retained (credit/exchange)</span>
+                <div className="flex-between">
+                  <span className="kpi-meta">Revenue retained (credit/exchange)</span>
                   <span style={{ fontSize: 15, fontWeight: 700, color: "#059669" }}>
                     {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
                   </span>
@@ -735,12 +704,12 @@ export default function Reports() {
               </div>
             </div>
             {refundMethodBreakdown.length > 0 && (
-              <div style={{ ...cardStyle }}>
-                <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "var(--rpm-text)" }}>Refund Method Breakdown</div>
+              <div className={CS}>
+                <h3 className="panel-title" style={{ marginBottom: 14 }}>Refund Method Breakdown</h3>
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {refundMethodBreakdown.map((item) => (
-                    <div key={item.method} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 13, color: "var(--rpm-text-muted)", textTransform: "capitalize" }}>{item.method.replace(/_/g, " ")}</span>
+                    <div key={item.method} className="flex-between">
+                      <span className="kpi-meta" style={{ textTransform: "capitalize" }}>{item.method.replace(/_/g, " ")}</span>
                       <span style={{ fontSize: 13, fontWeight: 600 }}>{item.count}</span>
                     </div>
                   ))}
@@ -752,19 +721,19 @@ export default function Reports() {
 
         {/* ── Top Products by Returns ── */}
         {topProductsData.length > 0 && (
-          <div style={{ ...cardStyle, marginTop: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 14, color: "var(--rpm-text)" }}>Top 10 Products by Return Count</div>
+          <div className={CS} style={{ marginTop: 20 }}>
+            <h3 className="panel-title" style={{ marginBottom: 14 }}>Top 10 Products by Return Count</h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {topProductsData.map((item, idx) => {
                 const maxCount = topProductsData[0]?.count || 1;
                 const pct = Math.round((item.count / maxCount) * 100);
                 return (
                   <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: "var(--rpm-text-muted)", width: 18, textAlign: "right" }}>{idx + 1}</span>
+                    <span className="text-muted text-tabular" style={{ fontSize: 11, fontWeight: 700, width: 18, textAlign: "right" }}>{idx + 1}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 2 }}>
-                        <span style={{ fontSize: 12, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{item.title}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700 }}>{item.count}</span>
+                      <div className="flex-between" style={{ marginBottom: 2 }}>
+                        <span className="text-truncate" style={{ fontSize: 12, fontWeight: 500, maxWidth: "70%" }}>{item.title}</span>
+                        <span className="text-tabular" style={{ fontSize: 12, fontWeight: 700 }}>{item.count}</span>
                       </div>
                       <div style={{ height: 5, borderRadius: 3, background: "#E5E7EB" }}>
                         <div style={{ height: "100%", borderRadius: 3, background: "#3B82F6", width: `${pct}%` }} />
@@ -779,14 +748,14 @@ export default function Reports() {
 
         {/* ── Customer Return Frequency ── */}
         {customerFrequencyData.length > 0 && customerFrequencyData[0].count >= 2 && (
-          <div style={{ ...cardStyle, marginTop: 20 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 4, color: "var(--rpm-text)" }}>Top Customers by Return Frequency</div>
-            <div style={{ fontSize: 11, color: "var(--rpm-text-muted)", marginBottom: 12 }}>Customers with the highest return counts in this period</div>
+          <div className={CS} style={{ marginTop: 20 }}>
+            <h3 className="panel-title" style={{ marginBottom: 4 }}>Top Customers by Return Frequency</h3>
+            <div className="kpi-meta" style={{ marginBottom: 12 }}>Customers with the highest return counts in this period</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {customerFrequencyData.filter(c => c.count >= 2).map((item, idx) => (
-                <div key={idx} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 10px", borderRadius: 8, background: item.count >= 3 ? "#FEF2F2" : "#F9FAFB" }}>
+                <div key={idx} className="flex-between" style={{ padding: "6px 10px", borderRadius: 8, background: item.count >= 3 ? "#FEF2F2" : "#F9FAFB" }}>
                   <span style={{ fontSize: 12, color: item.count >= 3 ? "#DC2626" : "var(--rpm-text-muted)" }}>{item.email}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: item.count >= 3 ? "#DC2626" : "#374151", padding: "1px 8px", borderRadius: 20, background: item.count >= 3 ? "#FEE2E2" : "#E5E7EB" }}>{item.count} returns</span>
+                  <span className="status-badge" style={{ color: item.count >= 3 ? "#DC2626" : "#374151", background: item.count >= 3 ? "#FEE2E2" : "#E5E7EB" }}>{item.count} returns</span>
                 </div>
               ))}
             </div>
@@ -794,12 +763,7 @@ export default function Reports() {
         )}
 
         {/* ── Summary footer ── */}
-        <div style={{
-          marginTop: 20, padding: "14px 18px", borderRadius: 12,
-          background: "#F8FAFC", border: "1px solid #E2E8F0",
-          display: "flex", flexWrap: "wrap", gap: "6px 20px", justifyContent: "center",
-          fontSize: 12, color: "var(--rpm-text-muted, #64748b)",
-        }}>
+        <div className="settings-summary-bar" style={{ marginTop: 20, justifyContent: "center" }}>
           <span><strong>{allTimeReturns}</strong> total returns (all time)</span>
           <span>·</span>
           <span><strong>{itemsCount}</strong> items returned ({rangeLabel})</span>

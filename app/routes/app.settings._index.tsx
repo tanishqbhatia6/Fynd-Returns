@@ -391,12 +391,7 @@ export default function SettingsDashboard() {
       <div className="app-content">
 
         {/* ── Summary Bar ── */}
-        <div style={{
-          marginBottom: 24, padding: "18px 22px",
-          background: "var(--rpm-surface, white)", borderRadius: 14,
-          border: "var(--rpm-border, 1px solid #e5e7eb)",
-          display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
-        }}>
+        <div className="settings-summary-bar">
           <div style={{ flex: 1, minWidth: 200 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--rpm-text, #0f172a)", marginBottom: 4 }}>
               Configuration
@@ -442,18 +437,10 @@ export default function SettingsDashboard() {
         {/* ── Grouped Cards ── */}
         {groups.map((group) => (
           <div key={group.title} style={{ marginBottom: 24 }}>
-            <div style={{
-              fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted, #64748b)",
-              textTransform: "uppercase" as const, letterSpacing: "0.06em",
-              marginBottom: 10, paddingLeft: 2,
-            }}>
+            <div className="app-overline" style={{ marginBottom: 10, paddingLeft: 2, fontSize: 12, fontWeight: 600 }}>
               {group.title}
             </div>
-            <div style={{
-              display: "grid",
-              gridTemplateColumns: group.cards.length === 1 ? "1fr" : "repeat(2, 1fr)",
-              gap: 14,
-            }}>
+            <div className="settings-card-grid" style={group.cards.length === 1 ? { gridTemplateColumns: "1fr" } : undefined}>
               {group.cards.map((c, ci) => (
                 <Link key={`${c.to}-${ci}`} to={c.to} className="app-settings-card" style={{ gap: 10 }}>
                   <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
@@ -483,19 +470,11 @@ export default function SettingsDashboard() {
 
         {/* ── Fynd Setup Guide (secondary) ── */}
         {!d.hasFynd && (
-          <div style={{
-            padding: "16px 20px",
-            background: "#FFFBEB", borderRadius: 12,
-            border: "1px solid #FDE68A",
-            display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap",
-          }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: 8, background: "#FEF3C7",
-              display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-            }}>
+          <div className="dashboard-fynd-banner">
+            <div className="banner-icon">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="1.5"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 00-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 012-3.95A12.88 12.88 0 0122 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 01-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
             </div>
-            <div style={{ flex: 1, minWidth: 200 }}>
+            <div className="banner-text">
               <div style={{ fontSize: 14, fontWeight: 600, color: "#92400E", marginBottom: 2 }}>
                 Fynd Setup Guide
               </div>

@@ -110,84 +110,106 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
 /**
  * Force <s-page> to use full available width.
  *
- * Strategy overview:
- * 1. Set CSS custom properties on s-page (these inherit through shadow DOM
- *    even when closed — the most reliable approach)
- * 2. Set fullWidth attribute (official Shopify API)
- * 3. Force inline styles on s-page and all its parents up to body
- * 4. Inject CSS into shadow DOM if it's open
- * 5. Retry at intervals because polaris.js loads async from CDN
+ * Root cause: Shopify's <s-page> web component creates a shadow DOM with an
+ * internal container that has a hardcoded max-width (~998px). CSS from outside
+ * the shadow DOM cannot override this.
+ *
+ * Strategy (3-layer):
+ * 1. root.tsx <head> script intercepts attachShadow → forces mode:"open"
+ *    so we CAN access the shadow root from JS.
+ * 2. This hook injects a <style> into the now-open shadow root that nukes
+ *    all max-width / padding constraints on every internal element.
+ * 3. CSS custom properties + inline styles on <s-page> itself as belt-and-suspenders.
+ *
+ * Timing: polaris.js loads async → element upgrades → shadow DOM created.
+ * We use customElements.whenDefined + MutationObserver + retry timers to
+ * catch the exact moment the shadow root appears.
  */
 function useSPageFullWidth() {
   useLayoutEffect(() => {
     const STYLE_ID = "rpm-fullwidth";
     const shadowCSS = `
-      :host { max-width: 100% !important; width: 100% !important; padding: 0 !important; margin: 0 !important; }
-      *, *::before, *::after { max-width: 100% !important; box-sizing: border-box !important; }
-      .Polaris-Page { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
-      .Polaris-Page--fullWidth { max-width: 100% !important; }
-      [class*="Page"] { max-width: 100% !important; width: 100% !important; }
-      [class*="page_"] { max-width: 100% !important; width: 100% !important; }
-      [class*="PageLayout"] { max-width: 100% !important; width: 100% !important; }
-      [class*="page-content"] { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+      :host {
+        display: block !important;
+        max-width: 100% !important;
+        width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+      }
+      * {
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+      }
+      [class*="Page"], [class*="page"], [class*="Layout"],
+      [class*="content"], [class*="Content"], [class*="inner"],
+      [class*="Inner"], [class*="wrapper"], [class*="Wrapper"],
+      [class*="container"], [class*="Container"], div, section, main {
+        max-width: 100% !important;
+        width: 100% !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin-left: 0 !important;
+        margin-right: 0 !important;
+      }
     `;
+
+    function injectShadow(page: Element) {
+      const sr = page.shadowRoot;
+      if (!sr) return;
+      // Inject stylesheet once
+      if (!sr.getElementById(STYLE_ID)) {
+        const style = document.createElement("style");
+        style.id = STYLE_ID;
+        style.textContent = shadowCSS;
+        sr.prepend(style);
+      }
+      // Force all shadow children (catches elements CSS selectors might miss)
+      sr.querySelectorAll("*").forEach((child) => {
+        const h = child as HTMLElement;
+        h.style.setProperty("max-width", "100%", "important");
+        h.style.setProperty("width", "100%", "important");
+        h.style.setProperty("padding-left", "0", "important");
+        h.style.setProperty("padding-right", "0", "important");
+      });
+    }
 
     function inject(page: Element) {
       const el = page as HTMLElement;
-
-      // Set fullWidth attribute (both casings)
+      // Attributes
       el.setAttribute("fullWidth", "");
       el.setAttribute("fullwidth", "");
-
-      // Set CSS custom properties (inherit through closed shadow DOM)
-      el.style.setProperty("--s-page-max-width", "100%");
-      el.style.setProperty("--page-max-width", "100%");
-      el.style.setProperty("--p-page-max-width", "100%");
-      el.style.setProperty("--s-page-padding-inline", "0");
-      el.style.setProperty("--page-padding", "0");
-
-      // Force inline styles
+      // CSS custom properties (belt-and-suspenders — some inherit through shadow DOM)
+      const vars: [string, string][] = [
+        ["--s-page-max-width", "100%"], ["--page-max-width", "100%"],
+        ["--p-page-max-width", "100%"], ["--pc-page-max-width", "100%"],
+        ["--s-page-padding-inline", "0"], ["--page-padding", "0"],
+        ["--p-space-400", "0"], ["--p-space-500", "0"], ["--p-space-600", "0"],
+      ];
+      for (const [k, v] of vars) el.style.setProperty(k, v);
+      // Inline styles
       el.style.setProperty("max-width", "100%", "important");
       el.style.setProperty("width", "100%", "important");
       el.style.setProperty("padding", "0", "important");
-
-      // Inject CSS into open shadow DOM
-      if (page.shadowRoot) {
-        if (!page.shadowRoot.getElementById(STYLE_ID)) {
-          const style = document.createElement("style");
-          style.id = STYLE_ID;
-          style.textContent = shadowCSS;
-          page.shadowRoot.prepend(style);
-        }
-        // Force all shadow children with constrained width
-        page.shadowRoot.querySelectorAll("*").forEach((child) => {
-          const cs = getComputedStyle(child);
-          if (cs.maxWidth !== "none" && parseInt(cs.maxWidth) < window.innerWidth) {
-            (child as HTMLElement).style.setProperty("max-width", "100%", "important");
-            (child as HTMLElement).style.setProperty("width", "100%", "important");
-          }
-          if (parseInt(cs.paddingLeft) > 0 || parseInt(cs.paddingRight) > 0) {
-            (child as HTMLElement).style.setProperty("padding-left", "0", "important");
-            (child as HTMLElement).style.setProperty("padding-right", "0", "important");
-          }
-        });
-      }
+      // Shadow DOM injection (open because of root.tsx interception)
+      injectShadow(page);
     }
 
     function forceSection(el: Element) {
-      (el as HTMLElement).style.setProperty("max-width", "100%", "important");
-      (el as HTMLElement).style.setProperty("width", "100%", "important");
+      const h = el as HTMLElement;
+      h.style.setProperty("max-width", "100%", "important");
+      h.style.setProperty("width", "100%", "important");
+      if (el.shadowRoot) injectShadow(el);
     }
 
-    // Force all containers between body and s-page to 100% width
     function forceParentChain() {
       document.querySelectorAll("s-page").forEach((spage) => {
         let parent = spage.parentElement;
         while (parent && parent !== document.body) {
-          (parent as HTMLElement).style.setProperty("max-width", "100%", "important");
-          (parent as HTMLElement).style.setProperty("width", "100%", "important");
-          (parent as HTMLElement).style.setProperty("padding-left", "0", "important");
-          (parent as HTMLElement).style.setProperty("padding-right", "0", "important");
+          const h = parent as HTMLElement;
+          h.style.setProperty("max-width", "100%", "important");
+          h.style.setProperty("width", "100%", "important");
+          h.style.setProperty("padding-left", "0", "important");
+          h.style.setProperty("padding-right", "0", "important");
           parent = parent.parentElement;
         }
       });
@@ -202,10 +224,20 @@ function useSPageFullWidth() {
     // Run immediately
     run();
 
-    // Retry at intervals (polaris.js loads async from CDN)
-    const timers = [100, 500, 1000, 2000, 5000].map((ms) => setTimeout(run, ms));
+    // Retry at intervals (polaris.js loads async — shadow roots appear later)
+    const timers = [50, 150, 400, 800, 1500, 3000, 6000].map((ms) => setTimeout(run, ms));
 
-    // MutationObserver for dynamic elements
+    // Also trigger when <s-page> custom element is defined (exact timing)
+    if (typeof customElements !== "undefined") {
+      customElements.whenDefined("s-page").then(() => {
+        // Small delay for element upgrade + shadow DOM creation
+        setTimeout(run, 0);
+        setTimeout(run, 50);
+        setTimeout(run, 200);
+      });
+    }
+
+    // MutationObserver for dynamic elements AND shadow root changes
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         for (const node of m.addedNodes) {

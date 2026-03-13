@@ -380,7 +380,7 @@ export default function WebhookLogsPage() {
   const hasFilters = !!(actionFilter || statusFilter || searchQuery || dateFrom || dateTo);
 
   return (
-    <s-page heading="Fynd Webhook Logs">
+    <s-page fullWidth heading="Fynd Webhook Logs">
       <div className="app-content layout-wide">
 
         {loaderError && (

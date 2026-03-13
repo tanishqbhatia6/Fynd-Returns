@@ -406,7 +406,7 @@ export default function Notifications() {
   };
 
   return (
-    <s-page heading="Notifications">
+    <s-page fullWidth heading="Notifications">
       <div className="app-content layout-medium">
         {saved && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 20 }}>

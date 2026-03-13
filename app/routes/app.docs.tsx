@@ -501,7 +501,7 @@ export default function Documentation() {
   const next = chapterIdx < CHAPTERS.length - 1 ? CHAPTERS[chapterIdx + 1] : null;
 
   return (
-    <s-page heading="Product Guide">
+    <s-page fullWidth heading="Product Guide">
       <div className="app-content" style={{ paddingBottom: 48 }}>
 
         {/* ── Chapter sidebar + content layout ── */}
@@ -602,7 +602,7 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page heading="Product Guide">
+    <s-page fullWidth heading="Product Guide">
       <div className="app-content">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>

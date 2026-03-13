@@ -387,7 +387,7 @@ export default function SettingsDashboard() {
   ).length;
 
   return (
-    <s-page heading="Settings">
+    <s-page fullWidth heading="Settings">
       <div className="app-content">
 
         {/* ── Summary Bar ── */}

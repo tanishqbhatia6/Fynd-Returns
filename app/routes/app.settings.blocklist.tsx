@@ -134,7 +134,7 @@ export default function BlocklistSettings() {
   }, [fetcher.data, fetcher.formData]);
 
   return (
-    <s-page heading="Customer Blocklist">
+    <s-page fullWidth heading="Customer Blocklist">
       <div className="app-content">
         {fetcher.data?.success && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>

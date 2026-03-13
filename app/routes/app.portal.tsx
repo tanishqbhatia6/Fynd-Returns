@@ -79,7 +79,7 @@ export default function PortalInfo() {
   const setupDone = setupChecks.filter((c) => c.done).length;
 
   return (
-    <s-page heading="Customer Portal">
+    <s-page fullWidth heading="Customer Portal">
       <div className="app-content">
 
         {/* ── Portal URL + Status Bar ── */}
@@ -511,7 +511,7 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page heading="Customer Portal">
+    <s-page fullWidth heading="Customer Portal">
       <div className="app-content">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>

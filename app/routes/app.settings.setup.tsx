@@ -261,7 +261,7 @@ export default function FyndSetup() {
   const goToStep = (step: StepId) => setSearchParams({ step });
 
   return (
-    <s-page heading="Fynd Setup">
+    <s-page fullWidth heading="Fynd Setup">
       <div className="app-content">
         <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
           Follow these steps to connect Fynd and enable automatic refund updates when Fynd processes returns.

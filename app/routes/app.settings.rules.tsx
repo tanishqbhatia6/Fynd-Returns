@@ -252,7 +252,7 @@ export default function ReturnRules() {
   };
 
   return (
-    <s-page heading="Return Rules">
+    <s-page fullWidth heading="Return Rules">
       <div className="app-content">
       {fetcher.data?.success === true && (
         <div className="app-alert app-alert-success">Settings saved successfully.</div>

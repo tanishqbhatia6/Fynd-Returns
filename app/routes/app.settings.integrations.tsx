@@ -279,7 +279,7 @@ export default function Integrations() {
   const showTestError = fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
 
   return (
-    <s-page heading="Partner Integrations">
+    <s-page fullWidth heading="Partner Integrations">
       <div className="app-content">
         {fetcher.data?.error && !showTestError && (
           <div className="app-alert app-alert-error">{fetcher.data.error}</div>

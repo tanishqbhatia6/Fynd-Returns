@@ -309,7 +309,7 @@ export default function Dashboard() {
   const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
 
   return (
-    <s-page heading="Dashboard">
+    <s-page fullWidth heading="Dashboard">
       <div className="app-content" style={{ paddingBottom: 48 }}>
         {/* Fynd Returns Header */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -739,7 +739,7 @@ export function ErrorBoundary() {
     : error instanceof Error ? error.message : "An unexpected error occurred.";
 
   return (
-    <s-page heading="Dashboard">
+    <s-page fullWidth heading="Dashboard">
       <div className="app-content" style={{ paddingBottom: 48 }}>
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>

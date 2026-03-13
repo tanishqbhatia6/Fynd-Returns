@@ -113,52 +113,70 @@
   box-sizing: border-box;
 }
 
-s-page {
-  display: block;
+/* Force all Shopify web components to full width */
+s-page,
+s-page[fullWidth],
+s-page[fullwidth] {
+  display: block !important;
   max-width: 100% !important;
   width: 100% !important;
-  box-sizing: border-box;
-  --s-page-max-width: 100%;
-  --page-max-width: 100%;
+  box-sizing: border-box !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  --s-page-max-width: 100% !important;
+  --page-max-width: 100% !important;
+  --p-page-max-width: 100% !important;
 }
 
-/* ────── Page Layout Classes ────── */
-/* Full-width: dashboards, complex pages (default — no class needed) */
-.layout-full {
-  max-width: 100%;
-  width: 100%;
-}
-
-/* Wide: data tables, list views */
-.layout-wide {
-  max-width: var(--rpm-layout-wide);
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Medium: moderate complexity pages, docs, rule editors */
-.layout-medium {
-  max-width: var(--rpm-layout-medium);
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Form: settings forms, single-column workflows */
-.layout-form {
-  max-width: var(--rpm-layout-form);
-}
-
-/* Small form: simple permission toggles, compact forms */
-.layout-form-sm {
-  max-width: var(--rpm-layout-form-sm);
+s-section {
+  display: block !important;
+  max-width: 100% !important;
+  width: 100% !important;
 }
 
 s-page s-section + s-section {
   margin-top: var(--rpm-space-xl) !important;
 }
 
-s-page s-section {
-  display: block;
+/* Override any Polaris Page constraints that leak through */
+[class*="Polaris-Page"],
+[class*="Page--"] {
+  max-width: 100% !important;
+  width: 100% !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* ────── Page Layout Classes ────── */
+/* All pages use full width by default. Layout classes provide
+   inner content max-width for readability on forms/settings. */
+.layout-full {
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Wide: data tables, list views — uses full width now */
+.layout-wide {
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Medium: moderate complexity pages, docs, rule editors — full width */
+.layout-medium {
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Form: settings forms — full width container, form fields self-constrain */
+.layout-form {
+  max-width: 100%;
+  width: 100%;
+}
+
+/* Small form: simple permission toggles — full width */
+.layout-form-sm {
+  max-width: 100%;
+  width: 100%;
 }
 
 /* ────── Typography ────── */
@@ -1126,12 +1144,7 @@ s-section[heading]::before {
 
 /* ────── Responsive ────── */
 
-/* Tablet: layout classes collapse to full width */
-@media (max-width: 1279px) {
-  .layout-wide {
-    max-width: 100%;
-  }
-}
+/* All layout classes already use 100% width */
 
 @media (max-width: 768px) {
   .app-content {

@@ -29,7 +29,7 @@ export default function ApiDocs() {
   }
 
   return (
-    <s-page heading="API Documentation" backAction={{ content: "Settings", url: "/app/settings" }}>
+    <s-page fullWidth heading="API Documentation" backAction={{ content: "Settings", url: "/app/settings" }}>
       <div className="app-content layout-medium">
 
         {/* Header */}

@@ -43,7 +43,7 @@ export default function Permissions() {
   const saved = fetcher.data?.success === true;
 
   return (
-    <s-page heading="Permissions">
+    <s-page fullWidth heading="Permissions">
       <div className="app-content">
         {saved && (
           <div className="app-alert app-alert-success">

@@ -108,34 +108,78 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
 }
 
 /**
- * Force <s-page> shadow DOM to use full available width.
- * Shopify's embedded admin web components internally constrain content
- * via shadow DOM styles that cannot be overridden with external CSS.
+ * Force <s-page> to use full available width via multiple strategies:
+ * 1. Set fullWidth attribute (official Shopify API)
+ * 2. Inject CSS into shadow DOM to override internal constraints
+ * 3. Set CSS custom properties that Shopify components may respect
+ *
+ * Belt-and-suspenders approach because the shadow DOM may be open or closed
+ * depending on Shopify's App Bridge version.
  */
 function useSPageFullWidth() {
   useLayoutEffect(() => {
     const STYLE_ID = "rpm-fullwidth";
-    const css = `:host { max-width: 100% !important; width: 100% !important; } .Polaris-Page { max-width: 100% !important; } [class*="Page"] { max-width: 100% !important; }`;
+    const css = `
+      :host { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+      .Polaris-Page { max-width: 100% !important; width: 100% !important; padding: 0 !important; }
+      .Polaris-Page--fullWidth { max-width: 100% !important; }
+      [class*="Page"] { max-width: 100% !important; width: 100% !important; }
+      [class*="page_"] { max-width: 100% !important; width: 100% !important; }
+      [class*="PageLayout"] { max-width: 100% !important; width: 100% !important; }
+    `;
 
     function inject(page: Element) {
-      if (!page.shadowRoot) return;
-      if (page.shadowRoot.getElementById(STYLE_ID)) return;
-      const style = document.createElement("style");
-      style.id = STYLE_ID;
-      style.textContent = css;
-      page.shadowRoot.appendChild(style);
+      // Strategy 1: Ensure fullWidth attribute is set
+      if (!page.hasAttribute("fullWidth") && !page.hasAttribute("fullwidth")) {
+        page.setAttribute("fullWidth", "");
+        page.setAttribute("fullwidth", "");
+      }
+
+      // Strategy 2: Force inline styles on the element itself
+      (page as HTMLElement).style.setProperty("max-width", "100%", "important");
+      (page as HTMLElement).style.setProperty("width", "100%", "important");
+
+      // Strategy 3: Inject CSS into shadow DOM if accessible
+      if (page.shadowRoot) {
+        if (!page.shadowRoot.getElementById(STYLE_ID)) {
+          const style = document.createElement("style");
+          style.id = STYLE_ID;
+          style.textContent = css;
+          page.shadowRoot.appendChild(style);
+        }
+        // Also force all children in shadow DOM
+        page.shadowRoot.querySelectorAll("[class*='Page'], [class*='page']").forEach((el) => {
+          (el as HTMLElement).style.setProperty("max-width", "100%", "important");
+          (el as HTMLElement).style.setProperty("width", "100%", "important");
+        });
+      }
     }
 
     // Inject into existing <s-page> elements
     document.querySelectorAll("s-page").forEach(inject);
 
-    // Watch for dynamically added <s-page> elements
+    // Also target any s-section elements
+    document.querySelectorAll("s-section").forEach((el) => {
+      (el as HTMLElement).style.setProperty("max-width", "100%", "important");
+      (el as HTMLElement).style.setProperty("width", "100%", "important");
+    });
+
+    // Watch for dynamically added elements
     const observer = new MutationObserver((mutations) => {
       for (const m of mutations) {
         for (const node of m.addedNodes) {
           if (node instanceof Element) {
             if (node.tagName === "S-PAGE") inject(node);
             node.querySelectorAll?.("s-page").forEach(inject);
+            // Also handle s-section
+            if (node.tagName === "S-SECTION") {
+              (node as HTMLElement).style.setProperty("max-width", "100%", "important");
+              (node as HTMLElement).style.setProperty("width", "100%", "important");
+            }
+            node.querySelectorAll?.("s-section").forEach((el) => {
+              (el as HTMLElement).style.setProperty("max-width", "100%", "important");
+              (el as HTMLElement).style.setProperty("width", "100%", "important");
+            });
           }
         }
       }

@@ -966,7 +966,7 @@ export default function ReturnDetail() {
   const trackingUrl = firstShipment ? (firstShipment as { trackingUrl?: string | null }).trackingUrl : null;
 
   return (
-    <s-page heading={`Return ${returnRequestId}`}>
+    <s-page fullWidth heading={`Return ${returnRequestId}`}>
       <div className="app-content">
         {/* ── Alerts ── */}
         {fetcher.data?.success && !fetcher.data?.error && (
@@ -2900,7 +2900,7 @@ export function ErrorBoundary() {
         : "An unexpected error occurred.";
 
   return (
-    <s-page heading={heading}>
+    <s-page fullWidth heading={heading}>
       <s-section>
         <p style={{ marginBottom: 16, color: "#6d7175" }}>{description}</p>
         {!is404 && !is400 && !is500 && (

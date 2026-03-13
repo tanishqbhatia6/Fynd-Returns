@@ -167,7 +167,7 @@ export default function AutoApproveRulesSettings() {
   };
 
   return (
-    <s-page heading="Auto-Approve Rules">
+    <s-page fullWidth heading="Auto-Approve Rules">
       <div className="app-content">
         {fetcher.data?.success && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>Rules saved successfully.</div>

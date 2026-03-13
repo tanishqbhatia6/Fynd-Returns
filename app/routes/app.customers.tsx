@@ -400,7 +400,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <s-page heading="Customers">
+    <s-page fullWidth heading="Customers">
       <div className="app-content layout-wide">
         {/* ── Summary Stats ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
@@ -761,7 +761,7 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page heading="Customers">
+    <s-page fullWidth heading="Customers">
       <div className="app-content">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>

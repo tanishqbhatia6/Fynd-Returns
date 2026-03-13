@@ -329,7 +329,7 @@ export default function ReturnSettings() {
   };
 
   return (
-    <s-page heading="Return Settings">
+    <s-page fullWidth heading="Return Settings">
       <div className="app-content">
       {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Settings saved successfully.</div>

@@ -122,7 +122,7 @@ export default function ProductPoliciesSettings() {
   };
 
   return (
-    <s-page heading="Product-Level Return Policies">
+    <s-page fullWidth heading="Product-Level Return Policies">
       <div className="app-content">
         {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Product policies saved successfully.</div>

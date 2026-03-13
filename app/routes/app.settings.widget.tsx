@@ -181,7 +181,7 @@ export default function Widget() {
   }
 
   return (
-    <s-page heading="Assure Return Widget">
+    <s-page fullWidth heading="Assure Return Widget">
       <div className="app-content">
         {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Settings saved successfully.</div>

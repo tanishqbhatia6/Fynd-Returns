@@ -410,7 +410,7 @@ export default function ReturnsList() {
   ];
 
   return (
-    <s-page heading="Returns">
+    <s-page fullWidth heading="Returns">
       <div className="app-content layout-wide">
         {/* ── Error Banner ── */}
         {error && (
@@ -975,7 +975,7 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page heading="Returns">
+    <s-page fullWidth heading="Returns">
       <div className="app-content">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>

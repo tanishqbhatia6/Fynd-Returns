@@ -19,21 +19,42 @@
 import os from "node:os";
 import { performance, PerformanceObserver, monitorEventLoopDelay } from "node:perf_hooks";
 
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { Resource } from "@opentelemetry/resources";
-// Use string literals — @opentelemetry/semantic-conventions v1.x is CJS,
-// which breaks named ESM imports in .mjs files on Node 22+.
+// All @opentelemetry/* packages ship as CJS — named ESM imports break on
+// Node 22+.  Use default-import + destructure for full compatibility.
+import _sdkNode from "@opentelemetry/sdk-node";
+const { NodeSDK } = _sdkNode;
+
+import _resources from "@opentelemetry/resources";
+const { Resource } = _resources;
+
+import _instrHttp from "@opentelemetry/instrumentation-http";
+const { HttpInstrumentation } = _instrHttp;
+
+import _instrExpress from "@opentelemetry/instrumentation-express";
+const { ExpressInstrumentation } = _instrExpress;
+
+import _instrPrisma from "@prisma/instrumentation";
+const { PrismaInstrumentation } = _instrPrisma;
+
+import _exporterTrace from "@opentelemetry/exporter-trace-otlp-proto";
+const { OTLPTraceExporter } = _exporterTrace;
+
+import _exporterMetrics from "@opentelemetry/exporter-metrics-otlp-proto";
+const { OTLPMetricExporter } = _exporterMetrics;
+
+import _sdkTraceNode from "@opentelemetry/sdk-trace-node";
+const { ConsoleSpanExporter } = _sdkTraceNode;
+
+import _sdkMetrics from "@opentelemetry/sdk-metrics";
+const { PeriodicExportingMetricReader } = _sdkMetrics;
+
+import _api from "@opentelemetry/api";
+const { metrics } = _api;
+
+// Semantic convention attribute keys (string literals avoid CJS interop issues)
 const ATTR_SERVICE_NAME = "service.name";
 const ATTR_SERVICE_VERSION = "service.version";
 const ATTR_DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
-import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
-import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
-import { PrismaInstrumentation } from "@prisma/instrumentation";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
-import { OTLPMetricExporter } from "@opentelemetry/exporter-metrics-otlp-proto";
-import { ConsoleSpanExporter } from "@opentelemetry/sdk-trace-node";
-import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
-import { metrics } from "@opentelemetry/api";
 
 // ---------------------------------------------------------------------------
 // Determine exporters based on environment

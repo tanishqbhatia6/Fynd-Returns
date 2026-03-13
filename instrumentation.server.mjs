@@ -21,11 +21,11 @@ import { performance, PerformanceObserver, monitorEventLoopDelay } from "node:pe
 
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { Resource } from "@opentelemetry/resources";
-import {
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-  ATTR_DEPLOYMENT_ENVIRONMENT_NAME,
-} from "@opentelemetry/semantic-conventions";
+// Use string literals — @opentelemetry/semantic-conventions v1.x is CJS,
+// which breaks named ESM imports in .mjs files on Node 22+.
+const ATTR_SERVICE_NAME = "service.name";
+const ATTR_SERVICE_VERSION = "service.version";
+const ATTR_DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
 import { HttpInstrumentation } from "@opentelemetry/instrumentation-http";
 import { ExpressInstrumentation } from "@opentelemetry/instrumentation-express";
 import { PrismaInstrumentation } from "@prisma/instrumentation";

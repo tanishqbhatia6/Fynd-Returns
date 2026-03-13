@@ -157,7 +157,7 @@ async function main() {
   // Find all return cases with a non-Shopify shopifyOrderId
   const candidates = await prisma.returnCase.findMany({
     where: {
-      shopifyOrderId: { not: { equals: null } },
+      shopifyOrderId: { not: "" },
     },
     select: {
       id: true,

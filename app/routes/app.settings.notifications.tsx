@@ -407,7 +407,7 @@ export default function Notifications() {
 
   return (
     <s-page heading="Notifications">
-      <div className="app-content" style={{ maxWidth: 780 }}>
+      <div className="app-content layout-medium">
         {saved && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 20 }}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>

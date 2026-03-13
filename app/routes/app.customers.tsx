@@ -401,7 +401,7 @@ export default function CustomersPage() {
 
   return (
     <s-page heading="Customers">
-      <div className="app-content" style={{ maxWidth: 1200, margin: "0 auto" }}>
+      <div className="app-content layout-wide">
         {/* ── Summary Stats ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
           {[

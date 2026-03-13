@@ -118,7 +118,7 @@ export default function ApiKeysSettings() {
 
   return (
     <s-page heading="API Keys" backAction={{ content: "Settings", url: "/app/settings" }}>
-      <div className="app-content" style={{ maxWidth: 800 }}>
+      <div className="app-content layout-medium">
 
         {/* Generated Key Banner */}
         {generatedKey && (

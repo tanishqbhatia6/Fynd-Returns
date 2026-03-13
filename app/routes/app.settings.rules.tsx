@@ -262,7 +262,7 @@ export default function ReturnRules() {
       )}
 
       <fetcher.Form method="post" onSubmit={handleSubmit}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32, maxWidth: 900 }}>
+        <div className="layout-medium" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Offers</h3>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>

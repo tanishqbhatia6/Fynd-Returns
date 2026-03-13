@@ -147,7 +147,7 @@ export default function BlocklistSettings() {
           <div className="app-alert app-alert-error" style={{ marginBottom: 16 }}>{fetcher.data.error}</div>
         )}
 
-        <div style={{ maxWidth: 800, display: "flex", flexDirection: "column", gap: 24 }}>
+        <div className="layout-medium" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* Enable/Disable Toggle */}
           <s-section>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>

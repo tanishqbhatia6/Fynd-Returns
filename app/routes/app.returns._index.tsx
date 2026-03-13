@@ -88,7 +88,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 /* ── Styles (scoped) ── */
 const S = {
-  page: { maxWidth: 1200, margin: "0 auto" } as React.CSSProperties,
+  page: {} as React.CSSProperties,
 
   statsRow: {
     display: "grid",
@@ -411,7 +411,7 @@ export default function ReturnsList() {
 
   return (
     <s-page heading="Returns">
-      <div className="app-content" style={S.page}>
+      <div className="app-content layout-wide">
         {/* ── Error Banner ── */}
         {error && (
           <div style={{ padding: "12px 16px", marginBottom: 16, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>

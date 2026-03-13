@@ -131,7 +131,7 @@ export default function ProductPoliciesSettings() {
           <div className="app-alert app-alert-error">{(fetcher.data as { error?: string }).error || "Failed to save product policies."}</div>
         )}
 
-        <div style={{ maxWidth: 720, marginBottom: 16 }}>
+        <div className="layout-form" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16, lineHeight: 1.6 }}>
             Define per-product return policies based on product tags, product type, or collection.
             Rules are evaluated in priority order (first match wins). If no rule matches, the global return window is used.
@@ -139,7 +139,7 @@ export default function ProductPoliciesSettings() {
         </div>
 
         <fetcher.Form method="post" onSubmit={handleSubmit}>
-          <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 16 }}>
+          <div className="layout-form" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {rules.length === 0 && (
               <div style={{ padding: 32, background: "#F9FAFB", borderRadius: 12, border: "1px dashed #D1D5DB", textAlign: "center" }}>
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" style={{ marginBottom: 8 }}><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>

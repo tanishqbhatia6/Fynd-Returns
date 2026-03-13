@@ -139,7 +139,7 @@ const STEP_LABELS = [
 /* ─── Styles ─── */
 
 const S = {
-  page: { maxWidth: 760, margin: "0 auto", padding: "0 0 40px", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', lineHeight: 1.5 } as React.CSSProperties,
+  page: { margin: "0 auto", padding: "0 0 40px", fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif', lineHeight: 1.5 } as React.CSSProperties,
 
   section: {
     background: "#fff",
@@ -689,7 +689,7 @@ export default function CreateReturn() {
   }, 0);
 
   return (
-    <div style={S.page}>
+    <div className="layout-form" style={S.page}>
       {/* Spinner animation keyframes */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 

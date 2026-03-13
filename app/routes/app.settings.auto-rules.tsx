@@ -190,7 +190,7 @@ export default function AutoApproveRulesSettings() {
           </div>
         )}
 
-        <div style={{ maxWidth: 800, display: "flex", flexDirection: "column", gap: 24 }}>
+        <div className="layout-medium" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           <s-section>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>How it works</div>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 0, lineHeight: 1.6 }}>

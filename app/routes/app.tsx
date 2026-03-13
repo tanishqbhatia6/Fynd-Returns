@@ -2,7 +2,7 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Link, Outlet, useLoaderData, useLocation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getAppMode } from "../lib/fynd-config.server";
@@ -107,12 +107,51 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
   }, [currentCount, enabled, playSound]);
 }
 
+/**
+ * Force <s-page> shadow DOM to use full available width.
+ * Shopify's embedded admin web components internally constrain content
+ * via shadow DOM styles that cannot be overridden with external CSS.
+ */
+function useSPageFullWidth() {
+  useLayoutEffect(() => {
+    const STYLE_ID = "rpm-fullwidth";
+    const css = `:host { max-width: 100% !important; width: 100% !important; } .Polaris-Page { max-width: 100% !important; } [class*="Page"] { max-width: 100% !important; }`;
+
+    function inject(page: Element) {
+      if (!page.shadowRoot) return;
+      if (page.shadowRoot.getElementById(STYLE_ID)) return;
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = css;
+      page.shadowRoot.appendChild(style);
+    }
+
+    // Inject into existing <s-page> elements
+    document.querySelectorAll("s-page").forEach(inject);
+
+    // Watch for dynamically added <s-page> elements
+    const observer = new MutationObserver((mutations) => {
+      for (const m of mutations) {
+        for (const node of m.addedNodes) {
+          if (node instanceof Element) {
+            if (node.tagName === "S-PAGE") inject(node);
+            node.querySelectorAll?.("s-page").forEach(inject);
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, []);
+}
+
 export default function App() {
   const { apiKey, appMode, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
   const location = useLocation();
   const isDashboard = location.pathname === "/app" || location.pathname === "/app/";
   const breadcrumb = getBreadcrumb(location.pathname);
   useNotificationSound(adminSoundEnabled, pendingCount);
+  useSPageFullWidth();
 
   return (
     <AppProvider embedded apiKey={apiKey}>

@@ -368,7 +368,7 @@ export default function FyndSetup() {
 
         {/* Step content */}
         {currentStep === "credentials" && (
-          <div style={{ maxWidth: 720 }}>
+          <div className="layout-form">
             <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 1: Fynd credentials</h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
@@ -415,7 +415,7 @@ export default function FyndSetup() {
         )}
 
         {currentStep === "test-platform" && (
-          <div style={{ maxWidth: 720 }}>
+          <div className="layout-form">
             <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 2: Test Platform connection</h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
@@ -449,7 +449,7 @@ export default function FyndSetup() {
         )}
 
         {currentStep === "webhook" && (
-          <div style={{ maxWidth: 720 }}>
+          <div className="layout-form">
             <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 3: Webhook setup</h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
@@ -598,7 +598,7 @@ export default function FyndSetup() {
         )}
 
         {currentStep === "test-webhook" && (
-          <div style={{ maxWidth: 720 }}>
+          <div className="layout-form">
             <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 4: Test webhook</h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
@@ -628,7 +628,7 @@ export default function FyndSetup() {
         )}
 
         {currentStep === "done" && (
-          <div style={{ maxWidth: 720 }}>
+          <div className="layout-form">
             <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Setup complete</h2>
             <div
               style={{

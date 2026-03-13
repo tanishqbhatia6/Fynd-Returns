@@ -339,7 +339,7 @@ export default function ReturnSettings() {
       )}
 
       <fetcher.Form method="post" onSubmit={handleSubmit}>
-        <div style={{ maxWidth: 640, display: "flex", flexDirection: "column", gap: 24 }}>
+        <div className="layout-form" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
           {/* No Return Period */}
           <s-section>
             <div style={{ marginBottom: 12 }}>

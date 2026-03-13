@@ -69,7 +69,7 @@ export default function Permissions() {
               borderRadius: "var(--rpm-radius-lg)",
               border: "var(--rpm-border)",
               boxShadow: "var(--rpm-shadow-xs)",
-              maxWidth: 560,
+              maxWidth: "var(--rpm-layout-form-sm)",
             }}
           >
             <div style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 20 }}>

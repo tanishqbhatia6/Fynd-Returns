@@ -381,7 +381,7 @@ export default function WebhookLogsPage() {
 
   return (
     <s-page heading="Fynd Webhook Logs">
-      <div className="app-content" style={{ maxWidth: 1100 }}>
+      <div className="app-content layout-wide">
 
         {loaderError && (
           <div style={{ padding: "12px 16px", marginBottom: 14, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, color: "#991B1B", fontSize: 13 }}>

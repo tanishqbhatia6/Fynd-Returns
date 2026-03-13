@@ -311,17 +311,6 @@ export default function Dashboard() {
   return (
     <s-page fullWidth heading="Dashboard">
       <div className="app-content" style={{ paddingBottom: 48 }}>
-        {/* Fynd Returns Header */}
-        <div className="dashboard-header">
-          <div className="dashboard-header-title">
-            <img src="/fynd-logo.png" alt="Fynd" style={{ height: 22 }} />
-            <h1>Returns</h1>
-            <span className="dashboard-header-subtitle">Dashboard</span>
-          </div>
-          <a href="https://www.fynd.com/" target="_blank" rel="noopener noreferrer">
-            fynd.com
-          </a>
-        </div>
         {error && (
           <div className="app-alert app-alert-error mb-md">
             <p style={{ fontWeight: 600, fontSize: 14 }}>
@@ -331,8 +320,12 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Date Range Bar ── */}
+        {/* ── Dashboard Toolbar ── */}
         <div className="dashboard-date-bar">
+          <div className="dashboard-toolbar-context">
+            <span className="dashboard-toolbar-label">Overview</span>
+            <span className="dashboard-toolbar-separator" />
+          </div>
           <select value={range} onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}>
             {DATE_RANGE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>

@@ -1459,7 +1459,6 @@ export default function ReturnSettings() {
               </span>
             </div>
           </s-section>
-        </div>
 
         {/* ── Gift Returns ── */}
         <div className="settings-card">
@@ -1573,6 +1572,7 @@ export default function ReturnSettings() {
               </div>
             )}
           </s-section>
+        </div>
         </div>
 
         <div className="app-actions">

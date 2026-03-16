@@ -502,7 +502,7 @@ export default function Documentation() {
 
   return (
     <s-page fullWidth heading="Product Guide">
-      <div className="app-content" style={{ paddingBottom: 48 }}>
+      <div className="app-content layout-medium" style={{ paddingBottom: 48 }}>
 
         {/* ── Chapter sidebar + content layout ── */}
         <div className="docs-layout" style={{ display: "grid", gridTemplateColumns: "220px 1fr", gap: 20, alignItems: "start" }}>
@@ -603,7 +603,7 @@ export function ErrorBoundary() {
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
     <s-page fullWidth heading="Product Guide">
-      <div className="app-content">
+      <div className="app-content layout-medium">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
           <a href="/app/docs" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>

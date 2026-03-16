@@ -288,7 +288,7 @@ export default function Integrations() {
 
   return (
     <s-page fullWidth heading="Partner Integrations">
-      <div className="app-content">
+      <div className="app-content layout-form">
         {fetcher.data?.error && !showTestError && (
           <div className="app-alert app-alert-error">{fetcher.data.error}</div>
         )}

@@ -967,7 +967,7 @@ export default function ReturnDetail() {
 
   return (
     <s-page fullWidth heading={`Return ${returnRequestId}`}>
-      <div className="app-content">
+      <div className="app-content layout-wide">
         {/* ── Alerts ── */}
         {fetcher.data?.success && !fetcher.data?.error && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>Action completed successfully{fetcher.data.status ? ` — ${fetcher.data.status}` : ""}</div>

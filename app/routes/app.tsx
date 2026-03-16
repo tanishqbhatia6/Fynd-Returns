@@ -128,49 +128,33 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
 function useSPageFullWidth() {
   useLayoutEffect(() => {
     const STYLE_ID = "rpm-fullwidth";
+    // Surgical shadow CSS — only target the outermost wrapper layers that enforce
+    // Shopify's narrow max-width. Do NOT touch internal padding/margins/gutters.
     const shadowCSS = `
       :host {
         display: block !important;
         max-width: 100% !important;
         width: 100% !important;
-        padding: 0 !important;
-        margin: 0 !important;
       }
-      * {
-        max-width: 100% !important;
-        box-sizing: border-box !important;
-      }
-      [class*="Page"], [class*="page"], [class*="Layout"],
-      [class*="content"], [class*="Content"], [class*="inner"],
-      [class*="Inner"], [class*="wrapper"], [class*="Wrapper"],
-      [class*="container"], [class*="Container"], div, section, main {
+      :host > div,
+      :host > div > div,
+      :host > div > div > div {
         max-width: 100% !important;
         width: 100% !important;
-        padding-left: 0 !important;
-        padding-right: 0 !important;
-        margin-left: 0 !important;
-        margin-right: 0 !important;
+        box-sizing: border-box !important;
       }
     `;
 
     function injectShadow(page: Element) {
       const sr = page.shadowRoot;
       if (!sr) return;
-      // Inject stylesheet once
+      // Inject stylesheet once — no per-element inline style loop
       if (!sr.getElementById(STYLE_ID)) {
         const style = document.createElement("style");
         style.id = STYLE_ID;
         style.textContent = shadowCSS;
         sr.prepend(style);
       }
-      // Force all shadow children (catches elements CSS selectors might miss)
-      sr.querySelectorAll("*").forEach((child) => {
-        const h = child as HTMLElement;
-        h.style.setProperty("max-width", "100%", "important");
-        h.style.setProperty("width", "100%", "important");
-        h.style.setProperty("padding-left", "0", "important");
-        h.style.setProperty("padding-right", "0", "important");
-      });
     }
 
     function inject(page: Element) {
@@ -178,18 +162,15 @@ function useSPageFullWidth() {
       // Attributes
       el.setAttribute("fullWidth", "");
       el.setAttribute("fullwidth", "");
-      // CSS custom properties (belt-and-suspenders — some inherit through shadow DOM)
+      // CSS custom properties for max-width only — preserve padding/spacing tokens
       const vars: [string, string][] = [
         ["--s-page-max-width", "100%"], ["--page-max-width", "100%"],
         ["--p-page-max-width", "100%"], ["--pc-page-max-width", "100%"],
-        ["--s-page-padding-inline", "0"], ["--page-padding", "0"],
-        ["--p-space-400", "0"], ["--p-space-500", "0"], ["--p-space-600", "0"],
       ];
       for (const [k, v] of vars) el.style.setProperty(k, v);
-      // Inline styles
+      // Inline max-width only — do NOT zero padding
       el.style.setProperty("max-width", "100%", "important");
       el.style.setProperty("width", "100%", "important");
-      el.style.setProperty("padding", "0", "important");
       // Shadow DOM injection (open because of root.tsx interception)
       injectShadow(page);
     }
@@ -197,8 +178,6 @@ function useSPageFullWidth() {
     function forceSection(el: Element) {
       const h = el as HTMLElement;
       h.style.setProperty("max-width", "100%", "important");
-      h.style.setProperty("width", "100%", "important");
-      if (el.shadowRoot) injectShadow(el);
     }
 
     function forceParentChain() {
@@ -207,9 +186,6 @@ function useSPageFullWidth() {
         while (parent && parent !== document.body) {
           const h = parent as HTMLElement;
           h.style.setProperty("max-width", "100%", "important");
-          h.style.setProperty("width", "100%", "important");
-          h.style.setProperty("padding-left", "0", "important");
-          h.style.setProperty("padding-right", "0", "important");
           parent = parent.parentElement;
         }
       });

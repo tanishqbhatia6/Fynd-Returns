@@ -333,7 +333,7 @@ export default function Dashboard() {
 
   return (
     <s-page fullWidth heading="Dashboard">
-      <div className="app-content" style={{ paddingBottom: 48 }}>
+      <div className="app-content layout-wide" style={{ paddingBottom: 48 }}>
         {error && (
           <div className="app-alert app-alert-error mb-md">
             <p style={{ fontWeight: 600, fontSize: 14 }}>
@@ -716,7 +716,7 @@ export function ErrorBoundary() {
 
   return (
     <s-page fullWidth heading="Dashboard">
-      <div className="app-content" style={{ paddingBottom: 48 }}>
+      <div className="app-content layout-wide" style={{ paddingBottom: 48 }}>
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ verticalAlign: "middle", marginRight: 4 }}>

@@ -744,7 +744,7 @@ export function ErrorBoundary() {
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
     <s-page fullWidth heading="Returns">
-      <div className="app-content">
+      <div className="app-content layout-wide">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
           <a href="/app/returns" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>

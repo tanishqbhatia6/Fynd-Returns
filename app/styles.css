@@ -112,6 +112,7 @@
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 /* ────── FULL-WIDTH OVERRIDES ────── */
@@ -125,16 +126,9 @@ s-page[fullwidth] {
   max-width: 100% !important;
   width: 100% !important;
   box-sizing: border-box !important;
-  padding: 0 !important;
-  margin: 0 !important;
   --s-page-max-width: 100% !important;
   --page-max-width: 100% !important;
   --p-page-max-width: 100% !important;
-  --s-page-padding-inline: 0 !important;
-  --page-padding: 0 !important;
-  --p-space-400: 0 !important;
-  --p-space-500: 0 !important;
-  --p-space-600: 0 !important;
 }
 
 s-section {
@@ -147,7 +141,7 @@ s-page s-section + s-section {
   margin-top: var(--rpm-space-xl) !important;
 }
 
-/* Override any Polaris / Shopify wrapper constraints */
+/* Override Polaris / Shopify wrapper max-width constraints (preserve padding) */
 [class*="Polaris-Page"],
 [class*="Page--"],
 [class*="Frame__Content"],
@@ -156,9 +150,6 @@ s-page s-section + s-section {
 [class*="PageLayout"],
 [class*="page-inner"] {
   max-width: 100% !important;
-  width: 100% !important;
-  padding-left: 0 !important;
-  padding-right: 0 !important;
 }
 
 /* Force parent containers that AppProvider/App Bridge may inject */
@@ -167,11 +158,8 @@ body > div,
 #app,
 [data-polaris-layer],
 [class*="AppFrame"],
-[class*="app-frame"],
-[class*="Frame"],
-[class*="Main"] {
+[class*="app-frame"] {
   max-width: 100% !important;
-  width: 100% !important;
 }
 
 /* ────── Page Layout Classes ────── */
@@ -186,24 +174,28 @@ body > div,
 .layout-wide {
   max-width: var(--rpm-layout-wide);
   width: 100%;
+  margin: 0 auto;
 }
 
 /* Medium: moderate complexity pages, docs, rule editors */
 .layout-medium {
   max-width: var(--rpm-layout-medium);
   width: 100%;
+  margin: 0 auto;
 }
 
 /* Form: settings forms — constrains content to readable width */
 .layout-form {
   max-width: var(--rpm-layout-form);
   width: 100%;
+  margin: 0 auto;
 }
 
 /* Small form: simple permission toggles */
 .layout-form-sm {
   max-width: var(--rpm-layout-form-sm);
   width: 100%;
+  margin: 0 auto;
 }
 
 /* ────── Typography ────── */
@@ -2487,8 +2479,13 @@ s-section[heading]::before {
   }
 }
 
+/* ────── Settings Card (used by return-settings feature sections) ────── */
+.settings-card {
+  width: 100%;
+}
+
 /* ────── Overflow Safety ────── */
 s-section {
-  overflow: hidden;
+  overflow: hidden !important;
   word-break: break-word;
 }

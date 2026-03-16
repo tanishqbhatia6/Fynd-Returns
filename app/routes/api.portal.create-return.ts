@@ -12,6 +12,7 @@ import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
 import { parseJsonArray } from "../lib/parse-json";
+import { normalizeSourceChannel } from "../lib/source-channel.server";
 
 type ReturnOffer = {
   reasonCode?: string;
@@ -441,6 +442,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Also stores resolved SKU for future SKU matching in refund flow.
     const resolvedLineItemSkus = new Map<string, string>(); // newLineItemId → sku
     const lineItemIdMapping = new Map<string, string>(); // newLineItemId → originalPortalId
+    let capturedSourceChannel: string | null = null; // set when Shopify order is fetched
     if (!manualMode) {
       const hasNonGidLineItems = itemsToCreate.some(
         (it) => it.lineItemId !== "manual" && !it.lineItemId.startsWith("gid://shopify/LineItem/")
@@ -465,6 +467,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 effectiveOrderId = resolved.id;
               }
             }
+          }
+          if (shopifyOrder?.sourceName) {
+            capturedSourceChannel = normalizeSourceChannel(shopifyOrder.sourceName);
           }
           if (shopifyOrder?.lineItems && shopifyOrder.lineItems.length > 0) {
             const shopifyLineItems = shopifyOrder.lineItems;
@@ -689,6 +694,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           productTags: tags.length ? tags : undefined,
           customerCountry: body.shippingCountry,
           customerProvince: body.shippingProvince,
+          sourceChannel: capturedSourceChannel,
         });
         if (!eligibility.eligible) {
           return withCors(
@@ -898,6 +904,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             resolutionType,
             exchangePreference: exchangePreference || null,
             createdByChannel: (body.createdByChannel as string) ?? "portal",
+            sourceChannel: capturedSourceChannel,
             createdByStaff: (body.createdByStaff as string) ?? null,
             crmTicketId: (body.crmTicketId as string) ?? null,
             crmNotes: (body.crmNotes as string) ?? null,

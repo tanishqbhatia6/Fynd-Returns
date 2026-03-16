@@ -105,6 +105,7 @@ const ORDER_FIELDS_FRAGMENT = `
   discountCodes
   paymentGatewayNames
   note
+  sourceName
   shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
   billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
   customAttributes { key value }
@@ -316,6 +317,7 @@ export type OrderForPortal = {
   displayFinancialStatus?: string;
   displayFulfillmentStatus?: string;
   paymentGatewayNames?: string[];
+  sourceName?: string | null;
   fulfillments?: ShopifyFulfillment[];
 };
 
@@ -703,6 +705,7 @@ type RawOrderNode = {
   discountCodes?: string[];
   paymentGatewayNames?: string[];
   note?: string | null;
+  sourceName?: string | null;
   customAttributes?: Array<{ key: string; value: string }>;
   shippingAddress?: MailingAddressDisplay;
   billingAddress?: MailingAddressDisplay;
@@ -780,6 +783,7 @@ function parseOrderNode(node: unknown): OrderForPortal {
     processedAt: o.processedAt ?? null,
     closedAt: o.closedAt ?? null,
     cancelledAt: o.cancelledAt ?? null,
+    sourceName: o.sourceName ?? null,
     fulfillments: (o.fulfillments ?? []).map((f) => ({
       id: f.id,
       status: f.status,

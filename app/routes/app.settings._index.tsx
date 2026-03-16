@@ -220,6 +220,14 @@ export default function SettingsDashboard() {
               : []),
           ],
         },
+        {
+          to: "/app/settings/channel-policies",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>,
+          iconBg: "#FFF7ED", iconStroke: "#C2410C",
+          title: "Channel Policies",
+          desc: "Configure return rules per Shopify sales channel: Online Store, POS, Draft Orders, and B2B.",
+          status: [{ label: "POS · Draft · B2B", variant: "info" as const }],
+        },
       ],
     },
     {

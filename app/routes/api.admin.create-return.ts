@@ -4,6 +4,7 @@ import prisma from "../db.server";
 import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from "../lib/return-request-id";
 import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkReturnEligibility } from "../lib/return-rules.server";
+import { normalizeSourceChannel } from "../lib/source-channel.server";
 
 /**
  * Admin API: Create a return on behalf of a customer.
@@ -156,6 +157,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           resolutionType,
           exchangePreference,
           createdByChannel: "admin",
+          sourceChannel: normalizeSourceChannel((body.sourceChannel as string | undefined) ?? null),
           createdByStaff,
           crmTicketId,
           crmNotes,

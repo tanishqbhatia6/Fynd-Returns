@@ -1176,6 +1176,33 @@ export default function ReturnDetail() {
                   </span>
                 );
               })()}
+              {(() => {
+                const ch = (returnCase as { sourceChannel?: string | null }).sourceChannel;
+                if (!ch || ch === "web") return null;
+                const CHANNEL_CFG: Record<string, { label: string; bg: string; color: string; border: string; icon: string }> = {
+                  pos: { label: "POS Order", bg: "#FFF7ED", color: "#C2410C", border: "#FED7AA",
+                    icon: `<path d="M20 7H4a2 2 0 00-2 2v6a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2z"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>` },
+                  draft_order: { label: "Draft Order", bg: "#EDE9FE", color: "#6D28D9", border: "#C4B5FD",
+                    icon: `<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/>` },
+                  b2b: { label: "B2B / Wholesale", bg: "#ECFDF5", color: "#065F46", border: "#A7F3D0",
+                    icon: `<rect x="2" y="7" width="20" height="14" rx="2" ry="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>` },
+                };
+                const cfg = CHANNEL_CFG[ch] ?? { label: ch.toUpperCase(), bg: "#F3F4F6", color: "#374151", border: "#E5E7EB", icon: "" };
+                return (
+                  <span style={{
+                    padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700,
+                    textTransform: "uppercase", letterSpacing: "0.04em",
+                    background: cfg.bg, color: cfg.color, border: `1px solid ${cfg.border}`,
+                    display: "inline-flex", alignItems: "center", gap: 4,
+                  }}>
+                    {cfg.icon && (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                        dangerouslySetInnerHTML={{ __html: cfg.icon }} />
+                    )}
+                    {cfg.label}
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <s-button variant="secondary" onClick={() => navigate("/app/returns")}>All Returns</s-button>
@@ -1381,6 +1408,27 @@ export default function ReturnDetail() {
                   {shopifyOrder.phone && <div><div style={C.label}>Phone</div><div style={C.val}>{shopifyOrder.phone}</div></div>}
                   {shopifyOrder.displayFulfillmentStatus && <div><div style={C.label}>Fulfillment</div><div style={C.val}>{shopifyOrder.displayFulfillmentStatus.replace(/_/g, " ")}</div></div>}
                   {shopifyOrder.displayFinancialStatus && <div><div style={C.label}>Payment</div><div style={C.val}>{shopifyOrder.displayFinancialStatus.replace(/_/g, " ")}</div></div>}
+                  {(() => {
+                    const ch = (returnCase as { sourceChannel?: string | null }).sourceChannel;
+                    if (!ch || ch === "web") return null;
+                    const labels: Record<string, string> = { pos: "Point of Sale", draft_order: "Draft Order", b2b: "B2B / Wholesale" };
+                    const colors: Record<string, { bg: string; color: string }> = {
+                      pos: { bg: "#FFF7ED", color: "#C2410C" },
+                      draft_order: { bg: "#EDE9FE", color: "#6D28D9" },
+                      b2b: { bg: "#ECFDF5", color: "#065F46" },
+                    };
+                    const clr = colors[ch] ?? { bg: "#F3F4F6", color: "#374151" };
+                    return (
+                      <div>
+                        <div style={C.label}>Channel</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: "2px 8px", background: clr.bg, color: clr.color, borderRadius: 4, textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                            {labels[ch] ?? ch}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
                   {shopifyOrder.paymentGatewayNames && shopifyOrder.paymentGatewayNames.length > 0 && (
                     <div>
                       <div style={C.label}>Payment method</div>

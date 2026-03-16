@@ -1,5 +1,6 @@
 import type { ShopSettings } from "@prisma/client";
 import { parseJsonArray } from "./parse-json";
+import { parseChannelPolicies, getChannelPolicy } from "./source-channel.server";
 
 export interface ReturnEligibilityResult {
   eligible: boolean;
@@ -108,9 +109,32 @@ export function checkReturnEligibility(
     productType?: string | null;
     customerCountry?: string;
     customerProvince?: string;
+    sourceChannel?: string | null; // "pos" | "draft_order" | "b2b" | "web" | null
   }
 ): ReturnEligibilityResult {
   if (!settings) return { eligible: true };
+
+  // Per-channel policy check (runs before all other rules)
+  if (context.sourceChannel && context.sourceChannel !== "web") {
+    const channelPolicies = parseChannelPolicies(
+      (settings as unknown as Record<string, unknown>).channelPoliciesJson as string | null
+    );
+    const channelPolicy = getChannelPolicy(channelPolicies, context.sourceChannel);
+    if (channelPolicy) {
+      if (channelPolicy.returnEnabled === false) {
+        const channelLabels: Record<string, string> = {
+          pos: "Point of Sale",
+          draft_order: "Draft Orders",
+          b2b: "B2B / Wholesale",
+        };
+        const label = channelLabels[context.sourceChannel] ?? context.sourceChannel;
+        return {
+          eligible: false,
+          reason: `Returns are not available for orders placed via ${label}.`,
+        };
+      }
+    }
+  }
 
   // Product-level policy check (first match wins, before global window)
   const productPolicy = findMatchingProductPolicy(settings, context.productTags, context.productType);

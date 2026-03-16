@@ -28,6 +28,14 @@ topics = ["app/scopes_update"]
 uri = "/webhooks/orders/create"
 topics = ["orders/create"]
 
+[[webhooks.subscriptions]]
+uri = "/webhooks/draft-orders/create"
+topics = ["draft_orders/create"]
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/draft-orders/update"
+topics = ["draft_orders/update"]
+
 [app_proxy]
 url = "https://YOUR_APP_URL/apps/returns"
 subpath = "returns"

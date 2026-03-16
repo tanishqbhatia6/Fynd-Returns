@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
+import { normalizeSourceChannel } from "../lib/source-channel.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, payload } = await authenticate.webhook(request);
@@ -12,6 +13,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const orderName = orderNameRaw.replace(/^#/, "").trim();
   const financialStatus = String(p.financial_status ?? "").toLowerCase();
   const cancelledAt = p.cancelled_at;
+  // Capture source_name for lazy backfill of sourceChannel on existing ReturnCase records
+  const sourceChannel = normalizeSourceChannel(p.source_name ? String(p.source_name) : null);
 
   if (!orderName) return new Response();
 
@@ -63,7 +66,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         await prisma.returnCase.update({
           where: { id: rc.id },
-          data: { status: "cancelled", adminNotes: `Auto-cancelled: order ${cancelledAt ? "cancelled" : financialStatus} on Shopify` },
+          data: {
+            status: "cancelled",
+            adminNotes: `Auto-cancelled: order ${cancelledAt ? "cancelled" : financialStatus} on Shopify`,
+            // Lazy backfill: set sourceChannel if not already captured at return-creation time
+            ...(sourceChannel && !rc.sourceChannel ? { sourceChannel } : {}),
+          },
         });
         await prisma.returnEvent.create({
           data: {
@@ -78,6 +86,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           },
         });
       }
+    } else if (sourceChannel) {
+      // Non-cancellation update: opportunistically backfill sourceChannel for any
+      // existing return cases on this order that still have it unset.
+      try {
+        await prisma.returnCase.updateMany({
+          where: {
+            shopId: shopRecord.id,
+            shopifyOrderName: { contains: orderName },
+            sourceChannel: null,
+          },
+          data: { sourceChannel },
+        });
+      } catch { /* non-critical backfill */ }
     }
   } catch (err) {
     console.error("[webhook:orders/updated]", err instanceof Error ? err.message : err);

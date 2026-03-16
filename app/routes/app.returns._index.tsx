@@ -26,6 +26,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const status = url.searchParams.get("status") || "";
   const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10));
   const resolutionType = url.searchParams.get("resolutionType") || "";
+  const sourceChannel = url.searchParams.get("sourceChannel") || "";
   const dateFrom = url.searchParams.get("from") || "";
   const dateTo = url.searchParams.get("to") || "";
 
@@ -43,6 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const where: Record<string, unknown> = { shopId: shop.id };
   if (status) where.status = status;
   if (resolutionType) where.resolutionType = resolutionType;
+  if (sourceChannel) where.sourceChannel = sourceChannel === "web" ? null : sourceChannel;
   if (dateFrom || dateTo) {
     const createdAt: Record<string, Date> = {};
     if (dateFrom) createdAt.gte = new Date(dateFrom + "T00:00:00");
@@ -79,10 +81,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: { shopId: shop.id } }),
     ]);
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-    return { returns, query, status, page, totalCount, totalPages, pendingCount, approvedCount, rejectedCount, allCount, error: null, shopLocale: shop?.settings?.shopLocale ?? "en", shopTimezone: shop?.settings?.shopTimezone ?? "UTC" };
+    return { returns, query, status, resolutionType, sourceChannel, page, totalCount, totalPages, pendingCount, approvedCount, rejectedCount, allCount, error: null, shopLocale: shop?.settings?.shopLocale ?? "en", shopTimezone: shop?.settings?.shopTimezone ?? "UTC" };
   } catch (err) {
     console.error("Returns loader error:", err);
-    return { returns: [], query, status, page: 1, totalCount: 0, totalPages: 1, pendingCount: 0, approvedCount: 0, rejectedCount: 0, allCount: 0, error: "Failed to load returns. Please try again.", shopLocale: "en", shopTimezone: "UTC" };
+    return { returns: [], query, status, resolutionType: "", sourceChannel: "", page: 1, totalCount: 0, totalPages: 1, pendingCount: 0, approvedCount: 0, rejectedCount: 0, allCount: 0, error: "Failed to load returns. Please try again.", shopLocale: "en", shopTimezone: "UTC" };
   }
 };
 
@@ -283,6 +285,16 @@ export default function ReturnsList() {
               <option value="replacement">Replacement</option>
             </select>
           </div>
+          <div style={{ flex: "0 0 140px" }}>
+            <label className="field-label">Channel</label>
+            <select name="sourceChannel" defaultValue={searchParams.get("sourceChannel") || ""} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
+              <option value="">All channels</option>
+              <option value="web">Online Store</option>
+              <option value="pos">POS</option>
+              <option value="draft_order">Draft Order</option>
+              <option value="b2b">B2B</option>
+            </select>
+          </div>
           <div style={{ flex: "0 0 130px" }}>
             <label className="field-label">From</label>
             <input type="date" name="from" defaultValue={searchParams.get("from") || ""} className="app-input" style={{ width: "100%", padding: "7px 10px", fontSize: 13 }} />
@@ -293,7 +305,7 @@ export default function ReturnsList() {
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 1 }}>
             <button type="submit" className="app-btn-primary" style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "#4f46e5", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Search</button>
-            {(query || status || searchParams.get("resolutionType") || searchParams.get("from") || searchParams.get("to")) && (
+            {(query || status || searchParams.get("resolutionType") || searchParams.get("sourceChannel") || searchParams.get("from") || searchParams.get("to")) && (
               <Link to="/app/returns" style={{ textDecoration: "none" }}>
                 <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Clear</button>
               </Link>
@@ -543,6 +555,30 @@ export default function ReturnsList() {
                                   {String((r as Record<string, unknown>).createdByChannel)}
                                 </span>
                               )}
+                              {(() => {
+                                const ch = (r as Record<string, unknown>).sourceChannel as string | null | undefined;
+                                if (!ch || ch === "web") return null;
+                                const CHANNEL_CFG: Record<string, { label: string; bg: string; color: string }> = {
+                                  pos: { label: "POS", bg: "#FFF7ED", color: "#C2410C" },
+                                  draft_order: { label: "Draft", bg: "#EDE9FE", color: "#6D28D9" },
+                                  b2b: { label: "B2B", bg: "#ECFDF5", color: "#065F46" },
+                                };
+                                const cfg = CHANNEL_CFG[ch] ?? { label: ch.toUpperCase(), bg: "#F3F4F6", color: "#374151" };
+                                return (
+                                  <span style={{
+                                    padding: "1px 5px",
+                                    borderRadius: 4,
+                                    fontSize: 9,
+                                    fontWeight: 700,
+                                    textTransform: "uppercase",
+                                    letterSpacing: "0.02em",
+                                    background: cfg.bg,
+                                    color: cfg.color,
+                                  }}>
+                                    {cfg.label}
+                                  </span>
+                                );
+                              })()}
                               {!!(r as Record<string, unknown>).cancellationRequestedAt && r.status.toLowerCase() === "approved" && (
                                 <span style={{
                                   display: "inline-flex",

@@ -68,6 +68,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let greenReturnsEnabled = false;
   let greenReturnsDonateEnabled = false;
   let greenReturnsDonateMessage = "";
+  let channelPoliciesJson = "{}";
   try {
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -96,6 +97,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       greenReturnsEnabled = shop.settings.greenReturnsEnabled ?? false;
       greenReturnsDonateEnabled = shop.settings.greenReturnsDonateEnabled ?? false;
       greenReturnsDonateMessage = shop.settings.greenReturnsDonateMessage ?? "";
+      channelPoliciesJson = (shop.settings as { channelPoliciesJson?: string | null }).channelPoliciesJson ?? "{}";
     }
   } catch (err) {
     console.error("Portal theme load error:", err);
@@ -122,6 +124,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     greenReturnsEnabled,
     greenReturnsDonateEnabled,
     greenReturnsDonateMessage,
+    channelPoliciesJson,
   };
   const i18nScript = `<script>
 window.__RPM_LABELS__=${escapeJsonInHtml(JSON.stringify(mergedLabels))};

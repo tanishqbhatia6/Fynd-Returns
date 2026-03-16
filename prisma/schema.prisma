@@ -131,6 +131,9 @@ model ShopSettings {
   // Product-level return policies
   productPoliciesJson        String?  @db.Text // JSON array: [{ match: {tags?, collections?, productTypes?}, windowDays, policyText? }]
 
+  // Per sales-channel return policies (POS, B2B, Draft Orders)
+  channelPoliciesJson        String?  @db.Text // JSON: { "pos": { returnEnabled, returnWindowDays, autoApproveEnabled }, "draft_order": {...}, "b2b": {...} }
+
   // Discount code refund
   discountCodeRefundEnabled  Boolean  @default(false)
   discountCodePrefix         String?  @default("RETURN")
@@ -262,6 +265,7 @@ model ReturnCase {
   exchangeVariantId  String?   // Shopify variant ID selected for exchange
   exchangePriceDiff  Decimal?  @db.Decimal(12, 2) // positive = customer owes, negative = store owes
   createdByChannel  String?   // "portal" | "admin" | "api" — how the return was created
+  sourceChannel     String?   // "web" | "pos" | "draft_order" | "b2b" — Shopify order channel (source_name)
   createdByStaff    String?   // Staff email or name (for admin-created returns)
   crmTicketId       String?   // CRM/helpdesk ticket ID
   crmNotes          String?   @db.Text // CRM agent notes
@@ -296,6 +300,7 @@ model ReturnCase {
   @@index([shopId, createdAt])
   @@index([shopId, resolutionType])
   @@index([shopId, status, createdAt])
+  @@index([shopId, sourceChannel])
 }
 
 model ReturnItem {

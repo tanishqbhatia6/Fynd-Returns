@@ -196,12 +196,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const repeatCustomerCount = repeatCustomerCases.length;
     const repeatReturnerRate = uniqueCustomerCount > 0 ? Math.round((repeatCustomerCount / uniqueCustomerCount) * 100) : 0;
 
-    // Fraud risk summary
-    const [highRiskCount, criticalRiskCount] = await Promise.all([
-      prisma.returnCase.count({ where: { ...where, fraudRiskLevel: "high" } }),
-      prisma.returnCase.count({ where: { ...where, fraudRiskLevel: "critical" } }),
-    ]);
-    const fraudAlertCount = highRiskCount + criticalRiskCount;
+    // Fraud risk summary (isolated try/catch — columns may not exist yet)
+    let fraudAlertCount = 0;
+    try {
+      const [highRiskCount, criticalRiskCount] = await Promise.all([
+        prisma.returnCase.count({ where: { ...where, fraudRiskLevel: "high" } }),
+        prisma.returnCase.count({ where: { ...where, fraudRiskLevel: "critical" } }),
+      ]);
+      fraudAlertCount = highRiskCount + criticalRiskCount;
+    } catch (err) {
+      console.warn("[reports] Fraud risk query failed (columns may not exist yet):", err);
+    }
 
     const prevPeriodStart = new Date(rangeStart);
     prevPeriodStart.setTime(prevPeriodStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime()));
@@ -523,7 +528,7 @@ export default function Reports() {
         {/* ── Performance Gauges — fixed 4-column (or 3 if no Fynd) ── */}
         <div style={{
           display: "grid",
-          gridTemplateColumns: hasFyndConfig ? "repeat(4, 1fr)" : "repeat(3, 1fr)",
+          gridTemplateColumns: `repeat(auto-fill, minmax(200px, 1fr))`,
           gap: 14, marginBottom: 20,
         }}>
           {[

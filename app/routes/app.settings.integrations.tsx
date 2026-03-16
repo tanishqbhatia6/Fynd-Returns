@@ -588,8 +588,8 @@ export default function Integrations() {
               </div>
               <div className="app-field">
                 <label>Widget URL (paste into Gorgias HTTP integration)</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <input type="text" readOnly value={data.gorgiasWidgetUrl} className="app-input" style={{ flex: 1, background: "#F9FAFB", fontSize: 12, fontFamily: "monospace" }} />
+                <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
+                  <input type="text" readOnly value={data.gorgiasWidgetUrl} className="app-input" style={{ flex: 1, background: "#F9FAFB", fontSize: 12, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }} />
                 </div>
                 <div className="app-field-helper">Append <code>&amp;email=customer_email</code> for customer context.</div>
               </div>

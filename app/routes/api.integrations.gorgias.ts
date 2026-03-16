@@ -54,24 +54,39 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  const returns = await prisma.returnCase.findMany({
-    where: where as never,
-    orderBy: { createdAt: "desc" },
-    take: 10,
-    select: {
-      id: true,
-      returnRequestNo: true,
-      shopifyOrderName: true,
-      status: true,
-      resolutionType: true,
-      createdAt: true,
-      customerName: true,
-      isGiftReturn: true,
-      fraudRiskLevel: true,
-      fraudRiskScore: true,
-      items: { select: { title: true, qty: true } },
-    },
-  });
+  // Defensive: try with new fields first, fall back without them if columns don't exist yet
+  let returns: Array<{
+    id: string; returnRequestNo: string | null; shopifyOrderName: string | null;
+    status: string; resolutionType: string | null; createdAt: Date; customerName: string | null;
+    isGiftReturn: boolean; fraudRiskLevel: string | null; fraudRiskScore: number | null;
+    items: Array<{ title: string | null; qty: number }>;
+  }>;
+  try {
+    returns = await prisma.returnCase.findMany({
+      where: where as never,
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true, returnRequestNo: true, shopifyOrderName: true,
+        status: true, resolutionType: true, createdAt: true, customerName: true,
+        isGiftReturn: true, fraudRiskLevel: true, fraudRiskScore: true,
+        items: { select: { title: true, qty: true } },
+      },
+    });
+  } catch {
+    // Fallback without new fields
+    const fallback = await prisma.returnCase.findMany({
+      where: where as never,
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: {
+        id: true, returnRequestNo: true, shopifyOrderName: true,
+        status: true, resolutionType: true, createdAt: true, customerName: true,
+        items: { select: { title: true, qty: true } },
+      },
+    });
+    returns = fallback.map(r => ({ ...r, isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null }));
+  }
 
   if (returns.length === 0) {
     return new Response(renderCard("No Returns", `No return requests found for ${customerEmail || orderName}.`, []), {

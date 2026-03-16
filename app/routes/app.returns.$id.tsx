@@ -1287,7 +1287,7 @@ export default function ReturnDetail() {
         </div>
 
         {/* ── Two-column layout ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20, alignItems: "start" }}>
+        <div className="rpm-detail-layout">
           {/* ── LEFT COLUMN ── */}
           <div>
             {/* ── Return Items ── */}

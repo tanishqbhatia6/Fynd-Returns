@@ -297,7 +297,7 @@ export default function ReturnRules() {
       )}
 
       <fetcher.Form method="post" onSubmit={handleSubmit}>
-        <div className="layout-medium" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+        <div className="layout-medium rpm-grid-2">
           <div>
             <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Offers</h3>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
@@ -341,7 +341,7 @@ export default function ReturnRules() {
                 {showOfferForm ? (
                   <div style={{ padding: 16, background: "#f9fafb", borderRadius: 10, border: "1px solid #e1e3e5", marginBottom: 10 }}>
                     <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>New Offer</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <div className="rpm-grid-2-narrow" style={{ marginBottom: 10 }}>
                       <div>
                         <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Return reason (optional)</label>
                         <select value={newOfferReason} onChange={(e) => setNewOfferReason(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}>
@@ -354,7 +354,7 @@ export default function ReturnRules() {
                         <input type="text" placeholder="e.g. clearance" value={newOfferTag} onChange={(e) => setNewOfferTag(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, boxSizing: "border-box" }} />
                       </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+                    <div className="rpm-grid-2-narrow" style={{ marginBottom: 10 }}>
                       <div>
                         <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Offer type</label>
                         <select value={newOfferType} onChange={(e) => setNewOfferType(e.target.value as "discount_pct" | "discount_flat")} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}>
@@ -563,7 +563,7 @@ export default function ReturnRules() {
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
                 {feesByReason.map((f, idx) => (
                   <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5" }}>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{f.reason}</span>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{f.reason}</span>
                     <input
                       type="number"
                       value={f.feeAmount}
@@ -623,7 +623,7 @@ export default function ReturnRules() {
             {windowsByCountry.length > 0 && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
                 {windowsByCountry.map((w, idx) => (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5" }}>
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5", flexWrap: "wrap" }}>
                     <input
                       type="text"
                       value={w.country}

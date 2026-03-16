@@ -182,27 +182,27 @@ body > div,
   width: 100%;
 }
 
-/* Wide: data tables, list views — uses full width now */
+/* Wide: data tables, list views */
 .layout-wide {
-  max-width: 100%;
+  max-width: var(--rpm-layout-wide);
   width: 100%;
 }
 
-/* Medium: moderate complexity pages, docs, rule editors — full width */
+/* Medium: moderate complexity pages, docs, rule editors */
 .layout-medium {
-  max-width: 100%;
+  max-width: var(--rpm-layout-medium);
   width: 100%;
 }
 
-/* Form: settings forms — full width container, form fields self-constrain */
+/* Form: settings forms — constrains content to readable width */
 .layout-form {
-  max-width: 100%;
+  max-width: var(--rpm-layout-form);
   width: 100%;
 }
 
-/* Small form: simple permission toggles — full width */
+/* Small form: simple permission toggles */
 .layout-form-sm {
-  max-width: 100%;
+  max-width: var(--rpm-layout-form-sm);
   width: 100%;
 }
 
@@ -244,6 +244,8 @@ body > div,
 }
 
 /* ────── Form Field Constraints ────── */
+/* NOTE: !important removed from max-width/width so inline styles on
+   grid/flex inputs (per-reason fees, country windows, etc.) can override. */
 .app-content input[type="text"],
 .app-content input[type="number"],
 .app-content input[type="email"],
@@ -253,8 +255,8 @@ body > div,
 .app-content select,
 .app-content textarea {
   box-sizing: border-box !important;
-  max-width: var(--rpm-input-max) !important;
-  width: 100% !important;
+  max-width: var(--rpm-input-max);
+  width: 100%;
   font-family: var(--rpm-font);
 }
 
@@ -2449,4 +2451,44 @@ s-section[heading]::before {
     align-items: flex-start;
     gap: 8px;
   }
+}
+
+/* ────── Responsive Grid Utilities ────── */
+.rpm-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 32px;
+}
+
+.rpm-grid-2-narrow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Return detail: main content + sidebar */
+.rpm-detail-layout {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 768px) {
+  .rpm-grid-2,
+  .rpm-grid-2-narrow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .rpm-detail-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ────── Overflow Safety ────── */
+s-section {
+  overflow: hidden;
+  word-break: break-word;
 }

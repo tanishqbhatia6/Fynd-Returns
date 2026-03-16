@@ -242,15 +242,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
 
     // Fraud alerts: returns from high/critical risk customers in the period
-    const fraudAlertReturns = await prisma.returnCase.findMany({
-      where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
-      select: { id: true, customerName: true, customerEmail: true, fraudRiskLevel: true, fraudRiskScore: true, shopifyOrderName: true },
-      orderBy: { fraudRiskScore: "desc" },
-      take: 5,
-    });
-    const fraudAlertCount = await prisma.returnCase.count({
-      where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
-    });
+    // Wrapped in try/catch so a missing column doesn't crash the entire dashboard
+    let fraudAlertReturns: { id: string; customerName: string | null; customerEmail: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[] = [];
+    let fraudAlertCount = 0;
+    try {
+      fraudAlertReturns = await prisma.returnCase.findMany({
+        where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
+        select: { id: true, customerName: true, customerEmail: true, fraudRiskLevel: true, fraudRiskScore: true, shopifyOrderName: true },
+        orderBy: { fraudRiskScore: "desc" },
+        take: 5,
+      });
+      fraudAlertCount = await prisma.returnCase.count({
+        where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
+      });
+    } catch (err) {
+      console.warn("[dashboard] Fraud alert query failed (columns may not exist yet):", err);
+    }
 
     const suggestions = buildSuggestions({
       totalReturns, pendingCount, rejectedCount, approvedCount,

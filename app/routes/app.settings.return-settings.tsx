@@ -514,7 +514,7 @@ export default function ReturnSettings() {
                 {/* ID Format */}
                 <div>
                   <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 6 }}>ID Format</label>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div className="rpm-grid-2-narrow" style={{ gap: 8 }}>
                     {([
                       { value: "hash" as const, label: "Hash from ID", desc: "Random alphanumeric (e.g. A1B2C3D4)" },
                       { value: "sequential" as const, label: "Sequential", desc: "Auto-incrementing counter (e.g. 000042)" },

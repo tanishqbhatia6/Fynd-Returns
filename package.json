@@ -16,7 +16,12 @@
     "test:fynd-api": "node scripts/test-fynd-apis.mjs",
     "test:fynd-api:bash": "./scripts/test-fynd-apis.sh",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "render:login": "render login",
+    "render:deploy": "render deploys create $RENDER_SERVICE_ID --confirm",
+    "render:logs": "render logs $RENDER_SERVICE_ID --tail",
+    "render:status": "render services",
+    "render:deploys": "render deploys list $RENDER_SERVICE_ID"
   },
   "type": "module",
   "engines": {

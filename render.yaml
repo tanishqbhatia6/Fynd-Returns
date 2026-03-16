@@ -8,7 +8,7 @@ services:
     region: oregon
 
     buildCommand: npm install && npx prisma generate && npm run build
-    startCommand: npx prisma db push && npm run start
+    startCommand: npx prisma migrate deploy && npm run start
 
     envVars:
       - key: NODE_ENV
@@ -29,6 +29,8 @@ services:
         generateValue: true
       - key: ENCRYPTION_KEY
         sync: false
+      - key: CRON_SECRET
+        generateValue: true
 
 databases:
   - name: returnpromax-db

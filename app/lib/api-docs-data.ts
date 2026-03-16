@@ -29,6 +29,8 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
       { key: "page", description: "Page number (default: 1)", example: "1" },
       { key: "pageSize", description: "Items per page (default: 25, max: 100)", example: "25" },
       { key: "status", description: "Filter by status: pending, approved, rejected, completed, cancelled, processing", example: "pending" },
+      { key: "resolutionType", description: "Filter by resolution: refund, exchange, store_credit, replacement", example: "exchange" },
+      { key: "query", description: "Search across order name, return ID, AWB, customer email/phone (case-insensitive)", example: "#1001" },
       { key: "createdAfter", description: "ISO 8601 date — returns created after this date", example: "2026-01-01T00:00:00Z" },
       { key: "createdBefore", description: "ISO 8601 date — returns created before this date", example: "2026-12-31T23:59:59Z" },
       { key: "orderName", description: "Filter by Shopify order name (partial match, case-insensitive)", example: "#1001" },

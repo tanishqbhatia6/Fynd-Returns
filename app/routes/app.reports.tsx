@@ -60,13 +60,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
       prisma.returnItem.count({ where: { returnCase: where } }),
       prisma.returnCase.count({ where: whereAll }),
-      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true } }),
-      prisma.returnCase.findMany({ where, select: { createdAt: true, status: true } }),
+      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, take: 500, orderBy: { createdAt: "desc" } }),
+      prisma.returnCase.findMany({ where, select: { createdAt: true, status: true }, take: 5000, orderBy: { createdAt: "desc" } }),
       prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
       prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
       prisma.returnCase.findMany({
         where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
         select: { refundJson: true },
+        take: 2000,
+        orderBy: { createdAt: "desc" },
       }),
       prisma.returnCase.count({ where: { ...where, isGreenReturn: true } }),
     ]);

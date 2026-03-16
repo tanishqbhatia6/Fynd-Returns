@@ -141,14 +141,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: { ...where, status: "pending" } }),
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
       prisma.returnCase.count({ where: whereAll }),
-      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true } }),
-      prisma.returnCase.findMany({ where, select: { createdAt: true } }),
+      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, take: 500, orderBy: { createdAt: "desc" } }),
+      prisma.returnCase.findMany({ where, select: { createdAt: true }, take: 5000, orderBy: { createdAt: "desc" } }),
       prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
       prisma.returnCase.count({ where: { ...where, isGreenReturn: true } }),
       prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
       prisma.returnCase.findMany({
         where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
         select: { refundJson: true },
+        take: 2000,
+        orderBy: { createdAt: "desc" },
       }),
       shop.settings ? prisma.blocklistEntry.count({ where: { settingsId: shop.settings.id } }) : Promise.resolve(0),
     ]);
@@ -164,6 +166,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         },
       },
       select: { price: true, qty: true },
+      take: 3000,
     });
     let revenueAtRisk = 0;
     for (const item of atRiskItems) {
@@ -243,12 +246,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     // Fraud alerts: returns from high/critical risk customers in the period
     // Wrapped in try/catch so a missing column doesn't crash the entire dashboard
-    let fraudAlertReturns: { id: string; customerName: string | null; customerEmail: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[] = [];
+    let fraudAlertReturns: { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[] = [];
     let fraudAlertCount = 0;
     try {
       fraudAlertReturns = await prisma.returnCase.findMany({
         where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
-        select: { id: true, customerName: true, customerEmail: true, fraudRiskLevel: true, fraudRiskScore: true, shopifyOrderName: true },
+        select: { id: true, customerName: true, customerEmailNorm: true, fraudRiskLevel: true, fraudRiskScore: true, shopifyOrderName: true },
         orderBy: { fraudRiskScore: "desc" },
         take: 5,
       });
@@ -278,7 +281,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopCurrency: shop?.settings?.shopCurrency ?? "USD",
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
       fraudAlertCount,
-      fraudAlertReturns: fraudAlertReturns as { id: string; customerName: string | null; customerEmail: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
+      fraudAlertReturns: fraudAlertReturns as { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
     };
   } catch (err) {
     console.error("Dashboard loader error:", err);
@@ -297,7 +300,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       resolutionMap: {} as Record<string, number>, revenueAtRisk: 0, overdueCount: 0,
       shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
       fraudAlertCount: 0,
-      fraudAlertReturns: [] as { id: string; customerName: string | null; customerEmail: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
+      fraudAlertReturns: [] as { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
     };
   }
 };
@@ -675,7 +678,7 @@ export default function Dashboard() {
                     {(fr.fraudRiskLevel || "high").toUpperCase()}
                   </span>
                   <span style={{ flex: 1, fontWeight: 500, color: "var(--rpm-text)" }}>
-                    {fr.customerName || fr.customerEmail || "Unknown"}
+                    {fr.customerName || fr.customerEmailNorm || "Unknown"}
                   </span>
                   <span style={{ fontSize: 11, color: "#6B7280" }}>{fr.shopifyOrderName}</span>
                   <span style={{ fontSize: 11, fontWeight: 600, color: "#DC2626" }}>

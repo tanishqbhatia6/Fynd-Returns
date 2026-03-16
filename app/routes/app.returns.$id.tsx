@@ -423,17 +423,23 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             if (affId) candidates.add(affId.replace(/^#/, "").trim());
           }
           console.log(`[return-detail-loader] Slow path candidates: [${[...candidates].join(", ")}]`);
-          // Try each unique candidate with fetchOrderByFyndAffiliateId (stops on first hit)
-          for (const candidate of candidates) {
-            if (!candidate) continue;
-            shopifyOrder = await fetchOrderByFyndAffiliateId(adminWithRest, candidate);
-            if (shopifyOrder) {
-              console.log(`[return-detail-loader] Resolved via candidate="${candidate}" → ${shopifyOrder.id}`);
-              break;
+          // Try all candidates in parallel — take the first successful result (preserves order priority)
+          const candidateArray = [...candidates].filter(Boolean);
+          if (candidateArray.length > 0) {
+            const results = await Promise.allSettled(
+              candidateArray.map((c) => fetchOrderByFyndAffiliateId(adminWithRest, c))
+            );
+            for (let i = 0; i < results.length; i++) {
+              const r = results[i];
+              if (r.status === "fulfilled" && r.value) {
+                shopifyOrder = r.value;
+                console.log(`[return-detail-loader] Resolved via candidate="${candidateArray[i]}" → ${shopifyOrder.id}`);
+                break;
+              }
             }
-          }
-          if (!shopifyOrder) {
-            console.warn(`[return-detail-loader] Failed to resolve order from any candidate: [${[...candidates].join(", ")}]`);
+            if (!shopifyOrder) {
+              console.warn(`[return-detail-loader] Failed to resolve order from any candidate: [${candidateArray.join(", ")}]`);
+            }
           }
         }
 

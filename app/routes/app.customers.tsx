@@ -42,6 +42,8 @@ type CustomerSummary = {
   returns: ReturnRow[];
 };
 
+const CUSTOMERS_PAGE_SIZE = 50;
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shop = await findOrCreateShop(session.shop);
@@ -49,10 +51,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const query = url.searchParams.get("q")?.trim().toLowerCase() ?? "";
   const sortBy = url.searchParams.get("sort") ?? "count";
+  const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
 
-  const where: Record<string, unknown> = { shopId: shop.id };
+  // ── Step 1: Global summary stats via fast aggregates (all customers, not just page) ──
+  const [allGroupStats, globalTotalReturns] = await Promise.all([
+    prisma.returnCase.groupBy({
+      by: ["customerEmailNorm"],
+      where: { shopId: shop.id, customerEmailNorm: { not: null } },
+      _count: { id: true },
+    }),
+    prisma.returnCase.count({ where: { shopId: shop.id } }),
+  ]);
+  const totalCustomers = allGroupStats.length;
+  const serialReturners = allGroupStats.filter((g) => g._count.id >= 3).length;
+
+  // Global totalRefunded from DB refundJson (approximate — per-row shows Shopify-enriched amounts)
+  const refundedForTotal = await prisma.returnCase.findMany({
+    where: { shopId: shop.id, refundStatus: "refunded", refundJson: { not: null } },
+    select: { refundJson: true },
+    take: 5000,
+  });
+  let totalRefunded = 0;
+  for (const rc of refundedForTotal) {
+    try { totalRefunded += parseFloat(JSON.parse(rc.refundJson ?? "{}").amount ?? "0") || 0; } catch { /* skip */ }
+  }
+
+  // ── Step 2: Search where (supports query filter) ──
+  const searchWhere: Record<string, unknown> = { shopId: shop.id, customerEmailNorm: { not: null } };
   if (query) {
-    where.OR = [
+    searchWhere.OR = [
       { customerEmailNorm: { contains: query, mode: "insensitive" } },
       { customerPhoneNorm: { contains: query, mode: "insensitive" } },
       { customerName: { contains: query, mode: "insensitive" } },
@@ -60,32 +87,62 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ];
   }
 
-  const allReturns = await prisma.returnCase.findMany({
-    where,
-    select: {
-      id: true,
-      returnRequestNo: true,
-      shopifyOrderName: true,
-      shopifyOrderId: true,
-      customerEmailNorm: true,
-      customerPhoneNorm: true,
-      customerName: true,
-      customerCity: true,
-      customerCountry: true,
-      status: true,
-      refundJson: true,
-      refundStatus: true,
-      resolutionType: true,
-      isGreenReturn: true,
-      bonusCreditAmount: true,
-      discountCodeValue: true,
-      createdAt: true,
-      items: {
-        select: { title: true, qty: true, price: true },
-      },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+  // ── Step 3: Paginated customer groups — sorted server-side ──
+  // "amount" sort falls back to count sort (cross-page amount sort requires full data; within-page re-sort happens post-enrichment)
+  const groupOrderBy = sortBy === "recent"
+    ? { _max: { createdAt: "desc" as const } }
+    : { _count: { id: "desc" as const } };
+
+  const [customerGroups, filteredGroupStats] = await Promise.all([
+    prisma.returnCase.groupBy({
+      by: ["customerEmailNorm"],
+      where: searchWhere,
+      _count: { id: true },
+      _max: { createdAt: true },
+      orderBy: groupOrderBy,
+      skip: (page - 1) * CUSTOMERS_PAGE_SIZE,
+      take: CUSTOMERS_PAGE_SIZE,
+    }),
+    prisma.returnCase.groupBy({
+      by: ["customerEmailNorm"],
+      where: searchWhere,
+      _count: true,
+    }),
+  ]);
+
+  const totalFilteredCustomers = filteredGroupStats.length;
+  const totalPages = Math.max(1, Math.ceil(totalFilteredCustomers / CUSTOMERS_PAGE_SIZE));
+  const emailsForPage = customerGroups.map((g) => g.customerEmailNorm).filter(Boolean) as string[];
+
+  // ── Step 4: Fetch full return data ONLY for this page's customers ──
+  const allReturns = emailsForPage.length > 0
+    ? await prisma.returnCase.findMany({
+        where: { shopId: shop.id, customerEmailNorm: { in: emailsForPage } },
+        select: {
+          id: true,
+          returnRequestNo: true,
+          shopifyOrderName: true,
+          shopifyOrderId: true,
+          customerEmailNorm: true,
+          customerPhoneNorm: true,
+          customerName: true,
+          customerCity: true,
+          customerCountry: true,
+          status: true,
+          refundJson: true,
+          refundStatus: true,
+          resolutionType: true,
+          isGreenReturn: true,
+          bonusCreditAmount: true,
+          discountCodeValue: true,
+          createdAt: true,
+          items: {
+            select: { title: true, qty: true, price: true },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
 
   // Group by email
   const grouped = new Map<string, {
@@ -305,19 +362,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     customers.sort((a, b) => b.returnCount - a.returnCount);
   }
 
-  const totalCustomers = customers.length;
-  const totalReturns = customers.reduce((s, c) => s + c.returnCount, 0);
-  const totalRefunded = customers.reduce((s, c) => s + c.totalRefundAmount, 0);
-  const serialReturners = customers.filter((c) => c.returnCount >= 3).length;
-
   return {
     customers,
     query,
     sortBy,
     totalCustomers,
-    totalReturns,
+    totalReturns: globalTotalReturns,
     totalRefunded,
     serialReturners,
+    page,
+    totalPages,
+    totalFilteredCustomers,
     shopLocale: shop.settings?.shopLocale ?? "en",
     shopCurrency: shop.settings?.shopCurrency ?? "USD",
     shopTimezone: shop.settings?.shopTimezone ?? "UTC",
@@ -377,16 +432,26 @@ export default function CustomersPage() {
   const {
     customers, query, sortBy,
     totalCustomers, totalReturns, totalRefunded, serialReturners,
+    page, totalPages, totalFilteredCustomers,
     shopLocale, shopCurrency, shopTimezone,
   } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
+
+  const goToPage = (p: number) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("page", String(p));
+      return next;
+    });
+  };
 
   const handleSearch = (val: string) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (val.trim()) next.set("q", val.trim());
       else next.delete("q");
+      next.delete("page"); // reset to page 1 on new search
       return next;
     });
   };
@@ -395,6 +460,7 @@ export default function CustomersPage() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set("sort", s);
+      next.delete("page"); // reset to page 1 on sort change
       return next;
     });
   };
@@ -488,7 +554,9 @@ export default function CustomersPage() {
         ) : (
           <>
             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8, padding: "0 4px" }}>
-              {customers.length} customer{customers.length !== 1 ? "s" : ""}{query ? ` matching "${query}"` : ""}
+              {query
+                ? `${totalFilteredCustomers} customer${totalFilteredCustomers !== 1 ? "s" : ""} matching "${query}" — page ${page} of ${totalPages}`
+                : `Showing ${((page - 1) * CUSTOMERS_PAGE_SIZE) + 1}–${Math.min(page * CUSTOMERS_PAGE_SIZE, totalCustomers)} of ${totalCustomers} customers`}
             </div>
 
             <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
@@ -739,6 +807,42 @@ export default function CustomersPage() {
                 );
               })}
             </div>
+
+            {/* ── Pagination ── */}
+            {totalPages > 1 && (
+              <div className="returns-pagination" style={{ marginTop: 16 }}>
+                <button
+                  className="app-pagination-btn"
+                  disabled={page <= 1}
+                  onClick={() => goToPage(page - 1)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                </button>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  let p: number;
+                  if (totalPages <= 7) p = i + 1;
+                  else if (page <= 4) p = i + 1;
+                  else if (page >= totalPages - 3) p = totalPages - 6 + i;
+                  else p = page - 3 + i;
+                  return (
+                    <button
+                      key={p}
+                      className={`app-pagination-btn ${p === page ? "active" : ""}`}
+                      onClick={() => goToPage(p)}
+                    >
+                      {p}
+                    </button>
+                  );
+                })}
+                <button
+                  className="app-pagination-btn"
+                  disabled={page >= totalPages}
+                  onClick={() => goToPage(page + 1)}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

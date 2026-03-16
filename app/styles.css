@@ -2489,3 +2489,9 @@ s-section {
   overflow: hidden !important;
   word-break: break-word;
 }
+
+/* ────── Navigation Loading Bar ────── */
+@keyframes rpm-load-bar {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}

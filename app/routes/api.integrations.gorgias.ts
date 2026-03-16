@@ -113,7 +113,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;background:${statusColor.bg};color:${statusColor.text}">${r.status.toUpperCase()}</span>
         </div>
         <div style="font-size:12px;color:#64748b;margin-bottom:4px">
-          Order: ${r.shopifyOrderName} · ${r.resolutionType.replace(/_/g, " ")}${riskBadge}${giftBadge}
+          Order: ${r.shopifyOrderName} · ${(r.resolutionType ?? "").replace(/_/g, " ")}${riskBadge}${giftBadge}
         </div>
         <div style="font-size:11px;color:#94a3b8;margin-bottom:4px">${items || "No items"}</div>
         <div style="font-size:11px;color:#94a3b8">${new Date(r.createdAt).toLocaleDateString()}</div>

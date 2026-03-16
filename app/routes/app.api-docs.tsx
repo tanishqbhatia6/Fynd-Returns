@@ -107,6 +107,44 @@ export default function ApiDocs() {
           <code style={{ fontSize: 12, color: "#2563EB", fontFamily: "monospace" }}>{baseUrl}</code>
         </div>
 
+        {/* Pagination Guide */}
+        <div style={{
+          padding: "16px 20px", marginBottom: 20,
+          background: "var(--rpm-surface, white)", borderRadius: 10,
+          border: "var(--rpm-border, 1px solid #e5e7eb)",
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", marginBottom: 8 }}>Pagination</div>
+          <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.6, marginBottom: 10 }}>
+            All list endpoints use offset-based pagination. Control the page and page size via query params.
+            The response always includes a <code style={{ background: "#f3f4f6", padding: "1px 5px", borderRadius: 3 }}>meta</code> envelope with totals.
+          </div>
+          <div style={{
+            padding: "10px 14px", background: "#f8fafc", borderRadius: 6,
+            fontFamily: "monospace", fontSize: 12, color: "#374151", marginBottom: 10,
+          }}>
+            {`GET /api/v1/external/returns?page=2&pageSize=25&status=pending`}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Request params</div>
+              <div style={{ fontSize: 12, fontFamily: "monospace", color: "#374151", lineHeight: 1.7 }}>
+                page=1 <span style={{ color: "#9ca3af" }}>// default: 1</span><br/>
+                pageSize=25 <span style={{ color: "#9ca3af" }}>// default: 25, max: 100</span>
+              </div>
+            </div>
+            <div style={{ padding: "10px 14px", background: "#f8fafc", borderRadius: 6 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", marginBottom: 6 }}>Response meta</div>
+              <div style={{ fontSize: 12, fontFamily: "monospace", color: "#374151", lineHeight: 1.7 }}>
+                {"meta: {"}<br/>
+                {"  page, pageSize,"}<br/>
+                {"  totalCount, totalPages,"}<br/>
+                {"  hasNextPage"}<br/>
+                {"}"}
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Endpoint Groups */}
         {Array.from(folders.entries()).map(([folderName, eps]) => (
           <div key={folderName} style={{ marginBottom: 24 }}>

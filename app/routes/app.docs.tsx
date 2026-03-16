@@ -414,7 +414,46 @@ const CHAPTERS: Chapter[] = [
     ),
   },
 
-  /* ────────────────── 9. TROUBLESHOOTING ────────────────── */
+  /* ────────────────── 9. PAGINATION & PERFORMANCE ────────────────── */
+  {
+    id: "pagination",
+    title: "Pagination & Performance",
+    subtitle: "How list pages work and tips for large stores",
+    icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>,
+    content: (
+      <>
+        <div style={h3}>How list pages paginate</div>
+        <p style={p}>ReturnProMax uses server-side pagination on all list pages to stay fast regardless of how many returns your store has.</p>
+        <FieldRow label="Returns list" description="Shows 25 returns per page. Use the page buttons at the bottom to navigate. Search, status filter, date range, and resolution type filters are preserved across pages." />
+        <FieldRow label="Customers page" description="Shows 50 customers per page, sorted by most returns by default. Sort by 'Most Recent' or 'Highest Refund'. Search by name, email, phone, or order number resets to page 1." />
+        <FieldRow label="Webhook Logs" description="Shows 50 log entries per page with full filter support (action, status, search, date range)." />
+
+        <div style={h3}>URL query parameters</div>
+        <p style={p}>Page navigation uses the <code style={code}>page</code> query param. All other filters are preserved alongside it, so you can bookmark or share filtered + paginated views.</p>
+        <FieldRow label="Returns list" description="?page=2&status=pending&from=2026-01-01&to=2026-03-31" />
+        <FieldRow label="Customers" description="?page=3&sort=amount&q=john" />
+        <FieldRow label="Webhook Logs" description="?page=2&action=refund_completed&dateFrom=2026-03-01" />
+
+        <div style={h3}>Dashboard & Analytics chart limits</div>
+        <p style={p}>To ensure fast load times, charts and KPI cards use the most recent data up to these limits:</p>
+        <FieldRow label="Return trend chart" description="Up to 5,000 most recent returns in the selected date range." />
+        <FieldRow label="Avg. processing time" description="Computed from the most recent 500 approved returns." />
+        <FieldRow label="Revenue retained" description="Computed from the most recent 2,000 exchange/store-credit returns." />
+        <FieldRow label="Revenue at risk" description="Computed from the most recent 3,000 open return items in the last 30 days." />
+        <Tip>If your store has very high return volumes (10,000+ per month), use the <NavLink to="/app/reports">Analytics</NavLink> page's CSV export for full-fidelity data exports.</Tip>
+
+        <div style={h3}>Tips for large stores</div>
+        <ul style={ul}>
+          <li>Use <strong>date range filters</strong> to narrow dashboards to recent periods (e.g., Last 30 days) for the fastest loads.</li>
+          <li>On the Returns list, use <strong>status filters</strong> to narrow results before searching — this hits indexed fields and is much faster than open text search.</li>
+          <li>The <strong>Customers page</strong> pagination loads only 50 customers at a time, so even stores with thousands of customers load instantly.</li>
+          <li>Use the <strong>API</strong> (<NavLink to="/app/api-docs">API Docs</NavLink>) with <code style={code}>pageSize</code> and filter params for bulk data access from external systems.</li>
+        </ul>
+      </>
+    ),
+  },
+
+  /* ────────────────── 10. TROUBLESHOOTING ────────────────── */
   {
     id: "troubleshooting",
     title: "Troubleshooting",

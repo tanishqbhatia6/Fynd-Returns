@@ -52,7 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   try {
-    const [totalCount, logs, allLogs, distinctActions, distinctStatuses] = await Promise.all([
+    const [totalCount, logs, actionGroupBy, distinctStatuses] = await Promise.all([
       prisma.fyndWebhookLog.count({ where }),
       prisma.fyndWebhookLog.findMany({
         where,
@@ -60,11 +60,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         skip: (page - 1) * PAGE_SIZE,
         take: PAGE_SIZE,
       }),
-      prisma.fyndWebhookLog.findMany({ select: { action: true } }),
-      prisma.fyndWebhookLog.findMany({
-        select: { action: true },
-        distinct: ["action"],
-        where: { action: { not: null } },
+      // Replace unbounded findMany with groupBy — counts per action without fetching all rows
+      prisma.fyndWebhookLog.groupBy({
+        by: ["action"],
+        _count: { id: true },
       }),
       prisma.fyndWebhookLog.findMany({
         select: { fyndStatus: true },
@@ -77,10 +76,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const actionCounts: Record<string, number> = {};
     let totalAll = 0;
-    for (const row of allLogs) {
+    for (const row of actionGroupBy) {
       const key = row.action ?? "unknown";
-      actionCounts[key] = (actionCounts[key] ?? 0) + 1;
-      totalAll++;
+      actionCounts[key] = (actionCounts[key] ?? 0) + row._count.id;
+      totalAll += row._count.id;
     }
 
     const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0) + (actionCounts["status_updated"] ?? 0) + (actionCounts["status_noted"] ?? 0);
@@ -88,6 +87,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const ignoredCount = actionCounts["ignored"] ?? 0;
     const duplicateCount = actionCounts["duplicate_ignored"] ?? 0;
     const successRate = totalAll > 0 ? Math.round(((totalAll - errorCount) / totalAll) * 100) : 100;
+
+    // Distinct actions for filter dropdown — derived from groupBy result (no extra query needed)
+    const distinctActions = actionGroupBy
+      .filter((g) => g.action != null)
+      .map((g) => ({ action: g.action }));
 
     const mkOpts = (items: string[], allLabel: string) => [
       { value: "", label: allLabel },

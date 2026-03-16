@@ -292,6 +292,10 @@ model ReturnCase {
   @@index([shopId, customerEmailNorm])
   @@index([shopId, customerPhoneNorm])
   @@index([fyndSyncStatus, fyndSyncNextRetry])
+  @@index([shopId, status])
+  @@index([shopId, createdAt])
+  @@index([shopId, resolutionType])
+  @@index([shopId, status, createdAt])
 }
 
 model ReturnItem {
@@ -321,6 +325,7 @@ model ReturnItem {
   createdAt        DateTime  @default(now())
 
   @@index([returnCaseId])
+  @@index([returnCaseId, reasonCode])
 }
 
 model ReturnEvent {

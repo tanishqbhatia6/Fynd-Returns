@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, Outlet, useLoaderData, useLocation, useRouteError } from "react-router";
+import { Link, Outlet, useLoaderData, useLocation, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import React, { useEffect, useLayoutEffect, useRef, useCallback } from "react";
@@ -238,6 +238,8 @@ function useSPageFullWidth() {
 export default function App() {
   const { apiKey, appMode, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
   const location = useLocation();
+  const navigation = useNavigation();
+  const isNavigating = navigation.state === "loading";
   const isDashboard = location.pathname === "/app" || location.pathname === "/app/";
   const breadcrumb = getBreadcrumb(location.pathname);
   useNotificationSound(adminSoundEnabled, pendingCount);
@@ -245,6 +247,16 @@ export default function App() {
 
   return (
     <AppProvider embedded apiKey={apiKey}>
+      {/* Navigation loading bar — shows immediately when any page transition starts */}
+      {isNavigating && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, height: 3,
+          background: "linear-gradient(90deg, #4f46e5, #818cf8, #4f46e5)",
+          backgroundSize: "200% 100%",
+          zIndex: 9999,
+          animation: "rpm-load-bar 1.2s ease-in-out infinite",
+        }} />
+      )}
       {appMode === "dev" && (
         <div
           style={{

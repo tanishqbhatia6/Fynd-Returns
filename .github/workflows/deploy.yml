@@ -44,7 +44,7 @@ jobs:
             -H "Authorization: Bearer ${RENDER_API_KEY}" \
             -H "Content-Type: application/json" \
             -d '{"clearCache": "do_not_clear"}')
-          if [ "$RESPONSE" -eq 201 ]; then
+          if [ "$RESPONSE" -eq 201 ] || [ "$RESPONSE" -eq 202 ]; then
             echo "Deploy triggered successfully (HTTP $RESPONSE)"
           else
             echo "Deploy trigger failed (HTTP $RESPONSE)"

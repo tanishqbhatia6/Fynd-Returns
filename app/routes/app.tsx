@@ -52,7 +52,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; label: string }> = {
   "/app/returns": { parent: "/app", parentLabel: "Dashboard", label: "Returns" },
   "/app/customers": { parent: "/app", parentLabel: "Dashboard", label: "Customers" },
-  "/app/reports": { parent: "/app", parentLabel: "Dashboard", label: "Reports" },
+  "/app/reports": { parent: "/app", parentLabel: "Dashboard", label: "Analytics" },
   "/app/settings": { parent: "/app", parentLabel: "Dashboard", label: "Settings" },
   "/app/portal": { parent: "/app", parentLabel: "Dashboard", label: "Customer Portal" },
   "/app/settings/integrations": { parent: "/app/settings", parentLabel: "Settings", label: "Integrations" },
@@ -65,7 +65,7 @@ const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; labe
   "/app/settings/blocklist": { parent: "/app/settings", parentLabel: "Settings", label: "Customer Blocklist" },
   "/app/settings/auto-rules": { parent: "/app/settings", parentLabel: "Settings", label: "Auto-Approve Rules" },
   "/app/settings/webhook-logs": { parent: "/app/settings", parentLabel: "Settings", label: "Fynd Webhook Logs" },
-  "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Product Guide" },
+  "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Documentation" },
 };
 
 function getBreadcrumb(pathname: string) {
@@ -275,10 +275,10 @@ export default function App() {
           Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}
         </s-link>
         <s-link href="/app/customers">Customers</s-link>
-        <s-link href="/app/reports">Reports</s-link>
+        <s-link href="/app/reports">Analytics</s-link>
         <s-link href="/app/settings">Settings</s-link>
-        <s-link href="/app/portal">Portal</s-link>
-        <s-link href="/app/docs">Docs</s-link>
+        <s-link href="/app/portal">Customer Portal</s-link>
+        <s-link href="/app/docs">Documentation</s-link>
       </s-app-nav>
       {!isDashboard && breadcrumb && (
         <div

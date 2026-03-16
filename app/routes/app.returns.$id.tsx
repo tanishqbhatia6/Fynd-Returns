@@ -140,6 +140,7 @@ type ShipmentForRow = {
   forwardShipmentId: string | null;
   cpName: string | null;
   forwardAwb: string | null;
+  returnAwb: string | null;
   trackingUrl: string | null;
   invoiceNumber: string | null;
   invoiceId: string | null;
@@ -184,7 +185,8 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
             <span style={{ color: "#6d7175" }}>Return:</span> <code style={{ fontFamily: "monospace", background: "var(--rpm-surface)", padding: "2px 6px", borderRadius: 4 }}>{s.shipmentId}</code>
           </span>
           {safeStr(s.cpName) && <span style={{ fontSize: 13 }}>{safeStr(s.cpName)}</span>}
-          {safeStr(s.forwardAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>AWB: {safeStr(s.forwardAwb)}</span>}
+          {safeStr(s.returnAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>Return AWB: {safeStr(s.returnAwb)}</span>}
+          {safeStr(s.forwardAwb) && !safeStr(s.returnAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>AWB: {safeStr(s.forwardAwb)}</span>}
           {safeStr(s.shipmentStatus) && (
             <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: "var(--rpm-surface-hover)", color: "var(--rpm-text)", fontWeight: 500 }}>{safeStr(s.shipmentStatus)}</span>
           )}
@@ -202,6 +204,7 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Return Shipment ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.shipmentId}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Logistics Partner</div><div style={{ fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.forwardAwb) || "—"}</div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Return AWB</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.returnAwb) || "—"}</div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Tracking</div><div style={{ fontSize: 13 }}>
               {s.trackingUrl ? <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 600 }}>Track shipment →</a> : "—"}
             </div></div>
@@ -961,7 +964,10 @@ export default function ReturnDetail() {
 
   const hasShipments = (fyndOrderDetailsTab?.shipments?.length ?? 0) > 0;
   const firstShipment = fyndOrderDetailsTab?.shipments?.[0];
-  const awb = displayForwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb;
+  const returnAwbVal = displayReturnAwb || (firstShipment as { returnAwb?: string | null })?.returnAwb;
+  const forwardAwbVal = displayForwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb;
+  const awb = returnAwbVal || forwardAwbVal;
+  const awbLabel = returnAwbVal ? "Return AWB" : "Forward AWB";
   const courier = firstShipment ? safeStr((firstShipment as { cpName?: string }).cpName) : "";
   const trackingUrl = firstShipment ? (firstShipment as { trackingUrl?: string | null }).trackingUrl : null;
 
@@ -1527,7 +1533,7 @@ export default function ReturnDetail() {
                 {(awb || courier || trackingUrl) && (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 16, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
                     {courier && <div><div style={C.label}>Courier</div><div style={C.val}>{courier}</div></div>}
-                    {awb && <div><div style={C.label}>AWB / Tracking No.</div><div style={C.mono}>{awb}</div></div>}
+                    {awb && <div><div style={C.label}>{awbLabel}</div><div style={C.mono}>{awb}</div></div>}
                     {trackingUrl && (
                       <div><div style={C.label}>Track</div><a href={trackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Track shipment &rarr;</a></div>
                     )}

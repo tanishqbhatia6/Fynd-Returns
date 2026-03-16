@@ -41,6 +41,7 @@ type FyndShipmentForReturn = {
     fyndQuantityAvailable: number | null;
     fyndPriceEffective: string | null;
     fyndSize: string | null;
+    fyndLineNumber: number | null;
   }>;
 };
 
@@ -344,6 +345,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   fyndQuantityAvailable: number | null;
                   fyndPriceEffective: string | null;
                   fyndSize: string | null;
+                  fyndLineNumber: number | null;
                 };
                 const lineItems: FyndLineItem[] = [];
                 const collectedShipments: FyndShipmentForReturn[] = [];
@@ -390,6 +392,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         return pe != null ? String(pe) : null;
                       })();
                       const fyndSize = safeStr(article.size, "") || safeStr(bag.size, "") || safeStr(itemObj.size, "") || null;
+                      const fyndLineNumber = typeof bag.line_number === "number" ? bag.line_number
+                        : typeof article.line_number === "number" ? article.line_number : null;
 
                       const item: FyndLineItem = {
                         id: itemId,
@@ -408,6 +412,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         fyndQuantityAvailable,
                         fyndPriceEffective,
                         fyndSize,
+                        fyndLineNumber,
                       };
                       lineItems.push(item);
                       shipmentItems.push(item);
@@ -455,6 +460,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                           return pe != null ? String(pe) : null;
                         })(),
                         fyndSize: safeStr(bagItem.size, "") || safeStr(bag.size, "") || null,
+                        fyndLineNumber: typeof bag.line_number === "number" ? bag.line_number : null,
                       };
                       lineItems.push(item);
                       shipmentItems.push(item);
@@ -686,6 +692,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         return pe != null ? String(pe) : null;
                       })(),
                       fyndSize: safeStr(article.size, "") || safeStr(bag.size, "") || safeStr(itemObj.size, "") || null,
+                      fyndLineNumber: typeof bag.line_number === "number" ? bag.line_number
+                        : typeof article.line_number === "number" ? article.line_number : null,
                     });
                   }
                   // Fallback: bag-level item
@@ -725,6 +733,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         return pe != null ? String(pe) : null;
                       })(),
                       fyndSize: safeStr(bagItem.size, "") || safeStr(bag.size, "") || null,
+                      fyndLineNumber: typeof bag.line_number === "number" ? bag.line_number : null,
                     });
                   }
                 }

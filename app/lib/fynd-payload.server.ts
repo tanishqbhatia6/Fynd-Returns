@@ -376,6 +376,7 @@ export type FyndOrderDetailsTab = {
     forwardShipmentId: string | null;
     cpName: string | null;
     forwardAwb: string | null;
+    returnAwb: string | null;
     trackingUrl: string | null;
     invoiceNumber: string | null;
     invoiceId: string | null;
@@ -662,7 +663,8 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         shipmentId: String(returnShipmentId ?? "—"),
         forwardShipmentId: forwardShipmentIdStr || null,
         cpName: cpName ?? null,
-        forwardAwb: awbStr ?? null,
+        forwardAwb: journeyType === "return" ? null : (awbStr ?? null),
+        returnAwb: journeyType === "return" ? (awbStr ?? null) : null,
         trackingUrl: trackingUrlStr,
         invoiceNumber: invNum ?? null,
         invoiceId: invId ?? null,

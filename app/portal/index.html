@@ -4974,6 +4974,7 @@
             '<input type="checkbox" id="item-' + li.id + '-' + (shipmentId || 'flat') + '" data-id="' + li.id + '"' +
               (shipmentId ? ' data-shipment-id="' + escapeHtml(shipmentId) + '"' : '') +
               (bagId ? ' data-bag-id="' + escapeHtml(bagId) + '"' : '') +
+              (li.fyndLineNumber != null ? ' data-line-number="' + li.fyndLineNumber + '"' : '') +
               (fullyReturned ? ' disabled' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:' + (fullyReturned ? 'not-allowed' : 'pointer') + ';">' +
             (li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || 'Item') + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : '') +
             '<div style="flex:1;min-width:0;">' +
@@ -5353,6 +5354,8 @@
         let qty = parseInt(qtyInput?.value || '1', 10);
         if (isNaN(qty) || qty < 1) qty = 1;
         if (qty > availableQty) qty = availableQty;
+        // Look up the original item to get all Fynd metadata
+        var origItem = li;
         items.push({
           lineItemId: cb.dataset.id,
           qty,
@@ -5360,6 +5363,14 @@
           condition: conditionVal || undefined,
           fyndShipmentId: cb.dataset.shipmentId || undefined,
           fyndBagId: cb.dataset.bagId || undefined,
+          fyndLineNumber: cb.dataset.lineNumber ? parseInt(cb.dataset.lineNumber, 10) : undefined,
+          fyndArticleId: origItem && origItem.fyndArticleId || undefined,
+          fyndAffiliateLineId: origItem && origItem.fyndAffiliateLineId || undefined,
+          fyndSellerIdentifier: origItem && origItem.fyndSellerIdentifier || undefined,
+          fyndItemId: origItem && origItem.fyndItemId || undefined,
+          fyndQuantityAvailable: origItem && origItem.fyndQuantityAvailable != null ? origItem.fyndQuantityAvailable : undefined,
+          fyndPriceEffective: origItem && origItem.fyndPriceEffective || undefined,
+          fyndSize: origItem && origItem.fyndSize || undefined,
         });
       });
       const lineItemsWithPrice = createOrderData.lineItems.map(li => ({

@@ -134,6 +134,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndShipmentId?: string; fyndBagId?: string;
       fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
       fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
+      fyndLineNumber?: number;
     }> | undefined;
     const manualMode = body.manual === true;
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
@@ -321,6 +322,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndShipmentId?: string; fyndBagId?: string;
       fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
       fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
+      fyndLineNumber?: number;
     }>;
     let lineItemsWithPrice: Array<{
       id: string;
@@ -428,6 +430,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndQuantityAvailable: typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
         fyndPriceEffective: it.fyndPriceEffective ? String(it.fyndPriceEffective).slice(0, 64) : undefined,
         fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
+        fyndLineNumber: typeof it.fyndLineNumber === "number" ? it.fyndLineNumber : undefined,
       }));
     }
 
@@ -944,6 +947,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   fyndQuantityAvailable: it.fyndQuantityAvailable ?? null,
                   fyndPriceEffective: it.fyndPriceEffective || null,
                   fyndSize: it.fyndSize || null,
+                  fyndLineNumber: it.fyndLineNumber ?? null,
                 };
               }),
             },

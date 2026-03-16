@@ -52,10 +52,12 @@ function buildProductsPayload(
     ? allItems.filter(it => !it.fyndShipmentId || it.fyndShipmentId === targetShipId)
     : allItems;
 
-  filtered.forEach((item, idx) => {
+  filtered.forEach((item) => {
     const sku = item.fyndSellerIdentifier || item.sku || item.shopifyLineItemId;
     if (sku && item.shopifyLineItemId !== "manual") {
-      const lineNum = idx + 1;
+      // Use actual Fynd line_number if available; fallback to sequential numbering
+      const lineNum = (item as { fyndLineNumber?: number | null }).fyndLineNumber
+        ?? (products.length + 1);
       products.push({ line_number: lineNum, quantity: item.qty, identifier: sku });
       reasonProducts.push({
         filters: [{ identifier: sku, line_number: lineNum, quantity: item.qty }],

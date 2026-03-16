@@ -317,6 +317,7 @@ model ReturnItem {
   fyndQuantityAvailable Int?
   fyndPriceEffective   String?
   fyndSize             String?
+  fyndLineNumber       Int?
   createdAt        DateTime  @default(now())
 
   @@index([returnCaseId])

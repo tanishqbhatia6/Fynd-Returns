@@ -4986,11 +4986,13 @@
                 ? '<span style="font-size:0.7rem;color:#DC2626;font-weight:600;background:#FEE2E2;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">Already returned</span>'
                 : (returnedQty > 0
                   ? '<span style="font-size:0.7rem;color:#D97706;background:#FEF3C7;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">' + availableQty + ' of ' + li.quantity + ' available</span>'
-                  : '')) +
+                  : (li.quantity > 1
+                    ? '<span style="font-size:0.7rem;color:#6B7280;background:#F3F4F6;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">Qty: ' + li.quantity + '</span>'
+                    : ''))) +
             '</div>' +
             (!fullyReturned ? '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
               '<span style="font-size:0.75rem;color:var(--portal-text-muted);">' + (t('portal.order.qty') || 'Qty') + '</span>' +
-              '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="1" data-id="' + li.id + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
+              '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="' + availableQty + '" data-id="' + li.id + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
             '</div>' : '') +
             '</div>';
         }

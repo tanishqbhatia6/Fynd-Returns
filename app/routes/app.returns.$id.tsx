@@ -85,9 +85,9 @@ function computeAdminReturnState(
   if (latestJs.includes("bag_picked") || latestJs.includes("return_bag_picked") || journeyHas("bag_picked") || f.includes("bag_picked") || f.includes("return_bag_picked"))
     return transit("Picked Up", 3, "Return package picked up by courier");
   if (latestJs.includes("out_for_pickup") || latestJs.includes("dp_out_for_pickup") || journeyHas("out_for_pickup") || f.includes("out_for_pickup"))
-    return pending("Courier En Route", 3, "Courier on the way for pickup");
+    return pending("Courier En Route", 2, "Courier on the way for pickup");
   if (latestJs.includes("dp_assigned") || latestJs.includes("return_dp_assigned") || journeyHas("dp_assigned") || f.includes("dp_assigned"))
-    return pending("Pickup Scheduled", 3, "Courier assigned for pickup");
+    return pending("Pickup Scheduled", 2, "Courier assigned for pickup");
   if (latestJs.includes("return_initiated") || latestJs.includes("bag_confirmed") || journeyHas("return_initiated") || journeyHas("bag_confirmed") || f.includes("return_initiated") || f.includes("bag_confirmed"))
     return ok("Return Confirmed", 2, "Confirmed on Fynd logistics");
   if (s === "rejected") return error("Rejected", "Return request has been declined");
@@ -1179,7 +1179,7 @@ export default function ReturnDetail() {
               return_initiated: 1, bag_confirmed: 1,
               return_dp_assigned: 2, dp_assigned: 2,
               dp_out_for_pickup: 2, out_for_pickup: 2,
-              return_bag_picked: 2, bag_picked: 2,
+              return_bag_picked: 3, bag_picked: 3,
               return_bag_in_transit: 3, in_transit: 3,
               out_for_delivery_to_store: 3, out_for_delivery: 3, return_bag_out_for_delivery: 3,
               return_delivered: 4, delivery_done: 4, return_bag_delivered: 4,

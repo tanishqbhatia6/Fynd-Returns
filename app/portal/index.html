@@ -2804,12 +2804,12 @@
 
       if (latestJourneyStatus.includes('out_for_pickup') || latestJourneyStatus.includes('dp_out_for_pickup') ||
           f.includes('out_for_pickup') || journeyHas('out_for_pickup') || journeyHas('dp_out_for_pickup')) {
-        return { label: t('portal.status.courierEnRoute'), cls: 'pending', step: 3, description: t('portal.statusDesc.courierEnRoute') };
+        return { label: t('portal.status.courierEnRoute'), cls: 'pending', step: 2, description: t('portal.statusDesc.courierEnRoute') };
       }
 
       if (latestJourneyStatus.includes('dp_assigned') || latestJourneyStatus.includes('return_dp_assigned') ||
           f.includes('dp_assigned') || journeyHas('dp_assigned') || journeyHas('return_dp_assigned')) {
-        return { label: t('portal.status.pickupScheduled'), cls: 'pending', step: 3, description: t('portal.statusDesc.pickupScheduled') };
+        return { label: t('portal.status.pickupScheduled'), cls: 'pending', step: 2, description: t('portal.statusDesc.pickupScheduled') };
       }
 
       if (latestJourneyStatus.includes('return_initiated') || latestJourneyStatus.includes('bag_confirmed') ||
@@ -2880,7 +2880,7 @@
         return_initiated: 1, bag_confirmed: 1,
         return_dp_assigned: 2, dp_assigned: 2,
         dp_out_for_pickup: 2, out_for_pickup: 2,
-        return_bag_picked: 2, bag_picked: 2,
+        return_bag_picked: 3, bag_picked: 3,
         return_bag_in_transit: 3, in_transit: 3,
         out_for_delivery_to_store: 3, out_for_delivery: 3, return_bag_out_for_delivery: 3,
         return_delivered: 4, delivery_done: 4, return_bag_delivered: 4,

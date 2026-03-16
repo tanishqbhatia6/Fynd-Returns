@@ -40,6 +40,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const reasonsByCategoryRaw = parseJsonObject<Record<string, string[]>>(s?.returnReasonsByCategoryJson ?? null, {});
   const reasonsByCategory = Object.entries(reasonsByCategoryRaw).filter(([k]) => k && typeof k === "string").map(([category, r]) => ({ category, reasons: Array.isArray(r) ? r : [] }));
 
+  const feesByReason = parseJsonArray<{ reason: string; feeAmount: number }>(s?.returnFeesByReasonJson ?? null, []);
+  const windowsByCountry = parseJsonArray<{ country: string; days: number }>(s?.returnWindowByCountryJson ?? null, []);
+
   return {
     returnWindowDays: s?.returnWindowDays ?? 30,
     minimumReturnPrice: s?.minimumReturnPrice != null ? String(s.minimumReturnPrice) : "0",
@@ -48,6 +51,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     restrictedRegions: regions,
     returnOffers: offers,
     returnOffersEnabled: s?.returnOffersEnabled ?? false,
+    feesByReason,
+    windowsByCountry,
   };
 };
 
@@ -62,6 +67,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const restrictedRegionsJson = formData.get("restrictedRegionsJson") as string | null;
   const returnOffersJson = formData.get("returnOffersJson") as string | null;
   const returnOffersEnabled = formData.get("returnOffersEnabled") === "on";
+  const feesByReasonJson = formData.get("feesByReasonJson") as string | null;
+  const windowsByCountryJson = formData.get("windowsByCountryJson") as string | null;
 
   const shop = await findOrCreateShop(session.shop);
 
@@ -69,6 +76,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let returnReasonsByCategoryStr: string | undefined;
   let restrictedRegionsStr: string | undefined;
   let returnOffersStr: string | undefined;
+  let feesByReasonStr: string | undefined;
+  let windowsByCountryStr: string | undefined;
   try {
     if (returnReasonsJson != null) {
       const arr = JSON.parse(returnReasonsJson) as unknown;
@@ -103,6 +112,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch {
     /* keep existing */
   }
+  try {
+    if (feesByReasonJson != null) {
+      const arr = JSON.parse(feesByReasonJson) as unknown;
+      feesByReasonStr = Array.isArray(arr) ? JSON.stringify(arr) : undefined;
+    }
+  } catch {
+    /* keep existing */
+  }
+  try {
+    if (windowsByCountryJson != null) {
+      const arr = JSON.parse(windowsByCountryJson) as unknown;
+      windowsByCountryStr = Array.isArray(arr) ? JSON.stringify(arr) : undefined;
+    }
+  } catch {
+    /* keep existing */
+  }
 
   try {
     await prisma.shopSettings.upsert({
@@ -116,6 +141,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         restrictedRegionsJson: restrictedRegionsStr,
         returnOffersJson: returnOffersStr,
         returnOffersEnabled,
+        returnFeesByReasonJson: feesByReasonStr,
+        returnWindowByCountryJson: windowsByCountryStr,
       },
       update: {
         returnWindowDays,
@@ -125,6 +152,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         ...(returnReasonsByCategoryStr !== undefined && { returnReasonsByCategoryJson: returnReasonsByCategoryStr }),
         ...(restrictedRegionsStr !== undefined && { restrictedRegionsJson: restrictedRegionsStr }),
         ...(returnOffersStr !== undefined && { returnOffersJson: returnOffersStr }),
+        ...(feesByReasonStr !== undefined && { returnFeesByReasonJson: feesByReasonStr }),
+        ...(windowsByCountryStr !== undefined && { returnWindowByCountryJson: windowsByCountryStr }),
       },
     });
     return { success: true };
@@ -148,6 +177,8 @@ export default function ReturnRules() {
   const [offers, setOffers] = React.useState<ReturnOffer[]>(data.returnOffers);
   const [offersEnabled, setOffersEnabled] = React.useState(data.returnOffersEnabled);
   const [showOfferForm, setShowOfferForm] = React.useState(false);
+  const [feesByReason, setFeesByReason] = React.useState<{ reason: string; feeAmount: number }[]>(data.feesByReason);
+  const [windowsByCountry, setWindowsByCountry] = React.useState<{ country: string; days: number }[]>(data.windowsByCountry);
   const [newOfferReason, setNewOfferReason] = React.useState("");
   const [newOfferTag, setNewOfferTag] = React.useState("");
   const [newOfferType, setNewOfferType] = React.useState<"discount_pct" | "discount_flat">("discount_pct");
@@ -160,7 +191,9 @@ export default function ReturnRules() {
     setRegions(data.restrictedRegions);
     setOffers(data.returnOffers);
     setOffersEnabled(data.returnOffersEnabled);
-  }, [data.returnReasons, data.returnReasonsByCategory, data.restrictedRegions, data.returnOffers, data.returnOffersEnabled]);
+    setFeesByReason(data.feesByReason);
+    setWindowsByCountry(data.windowsByCountry);
+  }, [data.returnReasons, data.returnReasonsByCategory, data.restrictedRegions, data.returnOffers, data.returnOffersEnabled, data.feesByReason, data.windowsByCountry]);
 
   const addOffer = () => {
     const val = parseFloat(newOfferValue);
@@ -248,6 +281,8 @@ export default function ReturnRules() {
     fd.set("restrictedRegionsJson", JSON.stringify(regions));
     fd.set("returnOffersJson", JSON.stringify(offers));
     if (offersEnabled) fd.set("returnOffersEnabled", "on");
+    fd.set("feesByReasonJson", JSON.stringify(feesByReason.filter((f) => f.reason && f.feeAmount >= 0)));
+    fd.set("windowsByCountryJson", JSON.stringify(windowsByCountry.filter((w) => w.country && w.days > 0)));
     fetcher.submit(fd, { method: "post" });
   };
 
@@ -514,6 +549,120 @@ export default function ReturnRules() {
               style={{ width: 120, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)", boxSizing: "border-box" }}
             />
             <span style={{ marginLeft: 8, fontSize: 14, color: "#6d7175" }}>days</span>
+          </s-section>
+
+          {/* ── Per-Reason Restocking Fees ── */}
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Per-Reason Restocking Fees</h3>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+              Charge different restocking fees based on the return reason. Per-reason fees override the global fee.
+            </p>
+          </div>
+          <s-section heading="Reason-specific fees">
+            {feesByReason.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                {feesByReason.map((f, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5" }}>
+                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{f.reason}</span>
+                    <input
+                      type="number"
+                      value={f.feeAmount}
+                      min={0}
+                      step="0.01"
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        setFeesByReason(feesByReason.map((x, i) => i === idx ? { ...x, feeAmount: val } : x));
+                      }}
+                      style={{ width: 90, padding: "6px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, textAlign: "right", background: "#fff" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFeesByReason(feesByReason.filter((_, i) => i !== idx))}
+                      style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #FECACA", background: "#fff", color: "#DC2626", fontSize: 12, cursor: "pointer" }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8 }}>
+              <select
+                id="feeReasonSelect"
+                style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}
+              >
+                <option value="">Select reason...</option>
+                {reasons.filter((r) => !feesByReason.some((f) => f.reason === r)).map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              <s-button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  const sel = document.getElementById("feeReasonSelect") as HTMLSelectElement;
+                  if (sel?.value) {
+                    setFeesByReason([...feesByReason, { reason: sel.value, feeAmount: 0 }]);
+                    sel.value = "";
+                  }
+                }}
+              >
+                Add
+              </s-button>
+            </div>
+          </s-section>
+
+          {/* ── Country-Specific Return Windows ── */}
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Country-Specific Return Windows</h3>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+              Set different return window durations per country. Country-specific windows override the global setting.
+            </p>
+          </div>
+          <s-section heading="Country return windows">
+            {windowsByCountry.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                {windowsByCountry.map((w, idx) => (
+                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5" }}>
+                    <input
+                      type="text"
+                      value={w.country}
+                      placeholder="Country code (e.g. US, UK, DE)"
+                      onChange={(e) => {
+                        setWindowsByCountry(windowsByCountry.map((x, i) => i === idx ? { ...x, country: e.target.value } : x));
+                      }}
+                      style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}
+                    />
+                    <input
+                      type="number"
+                      value={w.days}
+                      min={1}
+                      max={365}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10) || 30;
+                        setWindowsByCountry(windowsByCountry.map((x, i) => i === idx ? { ...x, days: val } : x));
+                      }}
+                      style={{ width: 80, padding: "6px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, textAlign: "right", background: "#fff" }}
+                    />
+                    <span style={{ fontSize: 12, color: "#6d7175" }}>days</span>
+                    <button
+                      type="button"
+                      onClick={() => setWindowsByCountry(windowsByCountry.filter((_, i) => i !== idx))}
+                      style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #FECACA", background: "#fff", color: "#DC2626", fontSize: 12, cursor: "pointer" }}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={() => setWindowsByCountry([...windowsByCountry, { country: "", days: 30 }])}
+              style={{ padding: "10px 16px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px dashed var(--rpm-border-color, #e1e3e5)", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text-muted, #6d7175)", fontSize: 14, cursor: "pointer", width: "100%", transition: "var(--rpm-transition, all 0.15s)" }}
+            >
+              + Add country
+            </button>
           </s-section>
         </div>
 

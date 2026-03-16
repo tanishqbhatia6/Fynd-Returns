@@ -74,6 +74,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       catch { return []; }
     })(),
     returnIdConfig: parseReturnIdConfig(s?.returnIdConfigJson as string | null),
+    // Phase 1: Scheduled reports
+    scheduledReportEnabled: s?.scheduledReportEnabled ?? false,
+    scheduledReportFrequency: s?.scheduledReportFrequency ?? "weekly",
+    scheduledReportDay: s?.scheduledReportDay ?? 1,
+    scheduledReportEmails: s?.scheduledReportEmails ?? "",
+    // Phase 2: Gift returns
+    giftReturnsEnabled: s?.giftReturnsEnabled ?? false,
+    // Phase 6: Green returns donate
+    greenReturnsDonateEnabled: s?.greenReturnsDonateEnabled ?? false,
+    greenReturnsDonateMessage: s?.greenReturnsDonateMessage ?? "",
   };
 };
 
@@ -129,6 +139,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Return ID config
   const returnIdConfigJson = (formData.get("returnIdConfigJson") as string | null) || null;
 
+  // Scheduled reports
+  const scheduledReportEnabled = formData.get("scheduledReportEnabled") === "on";
+  const scheduledReportFrequency = (formData.get("scheduledReportFrequency") as string) ?? "weekly";
+  const scheduledReportDay = Math.max(1, Math.min(28, parseInt(String(formData.get("scheduledReportDay") ?? "1"), 10) || 1));
+  const scheduledReportEmails = (formData.get("scheduledReportEmails") as string ?? "").trim();
+
+  // Gift returns
+  const giftReturnsEnabled = formData.get("giftReturnsEnabled") === "on";
+
+  // Green returns donate
+  const greenReturnsDonateEnabled = formData.get("greenReturnsDonateEnabled") === "on";
+  const greenReturnsDonateMessage = (formData.get("greenReturnsDonateMessage") as string ?? "").trim() || null;
+
   const shop = await findOrCreateShop(session.shop);
 
   let tagsStr: string | undefined;
@@ -177,6 +200,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         refundGatePreset,
         allowedFyndStatusesForReturn,
         returnIdConfigJson,
+        scheduledReportEnabled,
+        scheduledReportFrequency,
+        scheduledReportDay,
+        scheduledReportEmails,
+        giftReturnsEnabled,
+        greenReturnsDonateEnabled,
+        greenReturnsDonateMessage,
       },
       update: {
         noReturnPeriodEnabled,
@@ -203,6 +233,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         refundGatePreset,
         allowedFyndStatusesForReturn,
         returnIdConfigJson,
+        scheduledReportEnabled,
+        scheduledReportFrequency,
+        scheduledReportDay,
+        scheduledReportEmails,
+        giftReturnsEnabled,
+        greenReturnsDonateEnabled,
+        greenReturnsDonateMessage,
       },
     });
     return { success: true };
@@ -238,6 +275,17 @@ export default function ReturnSettings() {
   const [refundGatePreset, setRefundGatePreset] = React.useState<RefundGatePreset>((data.refundGatePreset ?? "none") as RefundGatePreset);
   const [allowedFyndReturnStatuses, setAllowedFyndReturnStatuses] = React.useState<string[]>(data.allowedFyndStatusesForReturn);
   const [fyndReturnGateEnabled, setFyndReturnGateEnabled] = React.useState(data.allowedFyndStatusesForReturn.length > 0);
+
+  // Scheduled reports
+  const [scheduledReportEnabled, setScheduledReportEnabled] = React.useState(data.scheduledReportEnabled);
+  const [scheduledReportFrequency, setScheduledReportFrequency] = React.useState(data.scheduledReportFrequency);
+  const [scheduledReportDay, setScheduledReportDay] = React.useState(data.scheduledReportDay);
+  const [scheduledReportEmails, setScheduledReportEmails] = React.useState(data.scheduledReportEmails);
+  // Gift returns
+  const [giftReturnsEnabled, setGiftReturnsEnabled] = React.useState(data.giftReturnsEnabled);
+  // Green returns donate
+  const [greenReturnsDonateEnabled, setGreenReturnsDonateEnabled] = React.useState(data.greenReturnsDonateEnabled);
+  const [greenReturnsDonateMessage, setGreenReturnsDonateMessage] = React.useState(data.greenReturnsDonateMessage);
 
   // Return ID config
   const [ridPrefix, setRidPrefix] = React.useState(data.returnIdConfig.prefix);
@@ -1410,6 +1458,120 @@ export default function ReturnSettings() {
                 {fyndConsolidateReturns ? `Enabled — ${fyndConsolidateWindowHours}h batch window` : "Disabled — each return syncs to Fynd immediately"}
               </span>
             </div>
+          </s-section>
+        </div>
+
+        {/* ── Gift Returns ── */}
+        <div className="settings-card">
+          <s-section heading="Gift Returns">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Enable gift returns</div>
+                <p style={{ fontSize: 13, color: "#6d7175", margin: "4px 0 0" }}>
+                  Allow gift recipients to initiate returns without the buyer's email. Resolution is restricted to store credit or exchange.
+                </p>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" name="giftReturnsEnabled" checked={giftReturnsEnabled} onChange={(e) => setGiftReturnsEnabled(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: giftReturnsEnabled ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: giftReturnsEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
+              </label>
+            </div>
+          </s-section>
+        </div>
+
+        {/* ── Green Returns — Donate Option ── */}
+        <div className="settings-card">
+          <s-section heading="Green Returns — Donate Option">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Enable donate option</div>
+                <p style={{ fontSize: 13, color: "#6d7175", margin: "4px 0 0" }}>
+                  When green returns are enabled, offer customers the choice to donate the item instead of keeping it.
+                </p>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" name="greenReturnsDonateEnabled" checked={greenReturnsDonateEnabled} onChange={(e) => setGreenReturnsDonateEnabled(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: greenReturnsDonateEnabled ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: greenReturnsDonateEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
+              </label>
+            </div>
+            {greenReturnsDonateEnabled && (
+              <div style={{ marginTop: 10 }}>
+                <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Donate message (shown to customer)</label>
+                <input type="text" name="greenReturnsDonateMessage" value={greenReturnsDonateMessage}
+                  onChange={(e) => setGreenReturnsDonateMessage(e.target.value)}
+                  placeholder="e.g. Your item will be donated to a local charity"
+                  style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }} />
+              </div>
+            )}
+          </s-section>
+        </div>
+
+        {/* ── Scheduled Report Emails ── */}
+        <div className="settings-card">
+          <s-section heading="Scheduled Report Emails">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Enable scheduled reports</div>
+                <p style={{ fontSize: 13, color: "#6d7175", margin: "4px 0 0" }}>
+                  Receive periodic return analytics summaries via email.
+                </p>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" name="scheduledReportEnabled" checked={scheduledReportEnabled} onChange={(e) => setScheduledReportEnabled(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: scheduledReportEnabled ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: scheduledReportEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
+              </label>
+            </div>
+            {scheduledReportEnabled && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+                <div>
+                  <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Frequency</label>
+                  <select name="scheduledReportFrequency" value={scheduledReportFrequency}
+                    onChange={(e) => setScheduledReportFrequency(e.target.value)}
+                    style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
+                {scheduledReportFrequency === "weekly" && (
+                  <div>
+                    <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Day of week</label>
+                    <select name="scheduledReportDay" value={scheduledReportDay}
+                      onChange={(e) => setScheduledReportDay(parseInt(e.target.value, 10))}
+                      style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}>
+                      {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((d, i) => (
+                        <option key={i+1} value={i+1}>{d}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {scheduledReportFrequency === "monthly" && (
+                  <div>
+                    <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Day of month</label>
+                    <input type="number" name="scheduledReportDay" value={scheduledReportDay}
+                      onChange={(e) => setScheduledReportDay(parseInt(e.target.value, 10) || 1)}
+                      min={1} max={28}
+                      style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, width: 80 }} />
+                  </div>
+                )}
+                <div>
+                  <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Recipients (comma-separated emails)</label>
+                  <input type="text" name="scheduledReportEmails" value={scheduledReportEmails}
+                    onChange={(e) => setScheduledReportEmails(e.target.value)}
+                    placeholder="e.g. admin@store.com, manager@store.com"
+                    style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }} />
+                </div>
+              </div>
+            )}
           </s-section>
         </div>
 

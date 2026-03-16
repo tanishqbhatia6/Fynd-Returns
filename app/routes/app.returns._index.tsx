@@ -583,9 +583,20 @@ export default function ReturnsList() {
 
                           {/* Customer */}
                           <td className="app-hide-mobile">
-                            <span style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%", display: "block" }}>
-                              {r.customerEmailNorm || "—"}
-                            </span>
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, maxWidth: "100%" }}>
+                              <span style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
+                                {r.customerEmailNorm || "—"}
+                              </span>
+                              {(r as { fraudRiskLevel?: string | null }).fraudRiskLevel && (r as { fraudRiskLevel?: string }).fraudRiskLevel !== "low" && (() => {
+                                const fl = (r as { fraudRiskLevel?: string }).fraudRiskLevel!;
+                                const c = fl === "critical" ? "#DC2626" : fl === "high" ? "#EA580C" : "#D97706";
+                                const bg = fl === "critical" ? "#FEE2E2" : fl === "high" ? "#FFEDD5" : "#FEF3C7";
+                                return <span title={`${fl} fraud risk`} style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 4, background: c, boxShadow: `0 0 0 2px ${bg}` }} />;
+                              })()}
+                              {(r as { isGiftReturn?: boolean }).isGiftReturn && (
+                                <span title="Gift return" style={{ flexShrink: 0, fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#EDE9FE", color: "#7C3AED", fontWeight: 700 }}>GIFT</span>
+                              )}
+                            </div>
                           </td>
 
                           {/* Created */}

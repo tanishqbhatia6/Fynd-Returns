@@ -107,6 +107,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     hasStorefrontCreds: !!normalized?.storefront,
     policyJson: s?.policyJson ?? "{}",
     fyndEnvironments: FYND_ENVIRONMENTS,
+    // Gorgias integration
+    gorgiasEnabled: s?.gorgiasEnabled ?? false,
+    gorgiasApiKey: s?.gorgiasApiKey ?? "",
+    gorgiasWidgetUrl: `${process.env.SHOPIFY_APP_URL || ""}/api/integrations/gorgias?shop=${session.shop}`,
   };
 };
 
@@ -236,6 +240,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndApplicationId: v.fyndApplicationId || null,
         fyndCredentials: credsToPersist,
         policyJson: (v.policyJson ?? policyJson) || null,
+        gorgiasEnabled: formData.get("gorgiasEnabled") === "on",
+        gorgiasApiKey: (formData.get("gorgiasApiKey") as string || null)?.trim() || null,
       },
       update: {
         fyndApiType: fyndApiType ?? undefined,
@@ -246,6 +252,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndApplicationId: v.fyndApplicationId || undefined,
         fyndCredentials: credsToPersist ?? undefined,
         policyJson: (v.policyJson ?? policyJson) || undefined,
+        gorgiasEnabled: formData.get("gorgiasEnabled") === "on",
+        gorgiasApiKey: (formData.get("gorgiasApiKey") as string || null)?.trim() || null,
       },
     });
 
@@ -549,6 +557,42 @@ export default function Integrations() {
                   </button>
                 </div>
               )}
+            </div>
+          </details>
+
+          {/* ── Gorgias Helpdesk Integration ── */}
+          <details style={{ marginTop: 24 }}>
+            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 16, padding: "12px 0", borderTop: "1px solid #E5E7EB" }}>
+              Gorgias Helpdesk Integration
+            </summary>
+            <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>Enable Gorgias integration</div>
+                  <p style={{ fontSize: 13, color: "#6d7175", margin: "4px 0 0" }}>
+                    Display return data in Gorgias sidebar when viewing customer tickets.
+                  </p>
+                </div>
+                <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                  <input type="checkbox" name="gorgiasEnabled" defaultChecked={data.gorgiasEnabled}
+                    style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                  <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: data.gorgiasEnabled ? "#3B82F6" : "#cbd5e1" }}>
+                    <span style={{ position: "absolute", left: data.gorgiasEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                  </span>
+                </label>
+              </div>
+              <div className="app-field">
+                <label>Gorgias API Key (for authentication)</label>
+                <input type="text" name="gorgiasApiKey" defaultValue={data.gorgiasApiKey} placeholder="Optional — leave blank to disable auth" className="app-input" />
+                <div className="app-field-helper">If set, Gorgias must include this key as <code>api_key</code> query parameter.</div>
+              </div>
+              <div className="app-field">
+                <label>Widget URL (paste into Gorgias HTTP integration)</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input type="text" readOnly value={data.gorgiasWidgetUrl} className="app-input" style={{ flex: 1, background: "#F9FAFB", fontSize: 12, fontFamily: "monospace" }} />
+                </div>
+                <div className="app-field-helper">Append <code>&amp;email=customer_email</code> for customer context.</div>
+              </div>
             </div>
           </details>
 

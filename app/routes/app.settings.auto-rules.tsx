@@ -12,6 +12,7 @@ const FIELD_OPTIONS = [
   { value: "returnReason", label: "Return Reason" },
   { value: "productTag", label: "Product Tag" },
   { value: "customerReturnCount", label: "Customer Return Count" },
+  { value: "fraudRiskScore", label: "Fraud Risk Score (0-100)" },
 ] as const;
 
 const OPERATOR_OPTIONS: Record<string, { value: string; label: string }[]> = {
@@ -39,6 +40,12 @@ const OPERATOR_OPTIONS: Record<string, { value: string; label: string }[]> = {
     { value: "lt", label: "< (less than)" },
     { value: "gte", label: ">= (at least)" },
     { value: "gt", label: "> (greater than)" },
+    { value: "eq", label: "= (equals)" },
+  ],
+  fraudRiskScore: [
+    { value: "gte", label: ">= (at least)" },
+    { value: "gt", label: "> (greater than)" },
+    { value: "lte", label: "<= (at most)" },
     { value: "eq", label: "= (equals)" },
   ],
 };

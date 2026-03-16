@@ -63,6 +63,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let portalLabelOverrides: Record<string, string> = {};
   let brandLogoUrl: string | null = null;
   let brandFaviconUrl: string | null = null;
+  let giftReturnsEnabled = false;
+  let portalExchangeEnabled = false;
+  let greenReturnsEnabled = false;
+  let greenReturnsDonateEnabled = false;
+  let greenReturnsDonateMessage = "";
   try {
     const shop = await prisma.shop.findUnique({
       where: { shopDomain },
@@ -86,6 +91,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
       brandLogoUrl = (shop.settings as { brandLogoUrl?: string | null }).brandLogoUrl ?? null;
       brandFaviconUrl = (shop.settings as { brandFaviconUrl?: string | null }).brandFaviconUrl ?? null;
+      giftReturnsEnabled = shop.settings.giftReturnsEnabled ?? false;
+      portalExchangeEnabled = shop.settings.portalExchangeEnabled ?? false;
+      greenReturnsEnabled = shop.settings.greenReturnsEnabled ?? false;
+      greenReturnsDonateEnabled = shop.settings.greenReturnsDonateEnabled ?? false;
+      greenReturnsDonateMessage = shop.settings.greenReturnsDonateMessage ?? "";
     }
   } catch (err) {
     console.error("Portal theme load error:", err);
@@ -106,11 +116,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   portalHtml = applyPortalThemeToHtml(portalHtml, theme);
   const effectiveLocale = portalLanguage || shopLocale || "en";
   const mergedLabels = getPortalLabels(effectiveLocale, portalLabelOverrides);
+  const portalFeatureFlags = {
+    giftReturnsEnabled,
+    portalExchangeEnabled,
+    greenReturnsEnabled,
+    greenReturnsDonateEnabled,
+    greenReturnsDonateMessage,
+  };
   const i18nScript = `<script>
 window.__RPM_LABELS__=${escapeJsonInHtml(JSON.stringify(mergedLabels))};
 window.__RPM_LOCALE__=${JSON.stringify(effectiveLocale)};
 window.__RPM_CURRENCY__=${JSON.stringify(shopCurrency)};
 window.__RPM_TIMEZONE__=${JSON.stringify(shopTimezone)};
+window.__RPM_FEATURES__=${escapeJsonInHtml(JSON.stringify(portalFeatureFlags))};
 </script>`;
   const isRtl = ["ar", "he", "fa", "ur"].includes(effectiveLocale.split("-")[0].toLowerCase());
 

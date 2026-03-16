@@ -6,6 +6,46 @@ export interface ReturnEligibilityResult {
   reason?: string;
 }
 
+export type ReasonFee = {
+  reason: string;
+  feeAmount: number;
+};
+
+export type CountryWindow = {
+  country: string;
+  days: number;
+};
+
+function parseReasonFees(settings: ShopSettings): ReasonFee[] {
+  const json = (settings as { returnFeesByReasonJson?: string | null }).returnFeesByReasonJson;
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (f): f is ReasonFee =>
+          f && typeof f === "object" && typeof f.reason === "string" && typeof f.feeAmount === "number",
+      );
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
+function parseCountryWindows(settings: ShopSettings): CountryWindow[] {
+  const json = (settings as { returnWindowByCountryJson?: string | null }).returnWindowByCountryJson;
+  if (!json) return [];
+  try {
+    const parsed = JSON.parse(json);
+    if (Array.isArray(parsed)) {
+      return parsed.filter(
+        (w): w is CountryWindow =>
+          w && typeof w === "object" && typeof w.country === "string" && typeof w.days === "number",
+      );
+    }
+  } catch { /* ignore */ }
+  return [];
+}
+
 export type ProductPolicyRule = {
   id: string;
   matchType: "tags" | "product_type" | "collection";
@@ -93,13 +133,24 @@ export function checkReturnEligibility(
     }
     // Product matched a policy that says returnable and within window -- skip global window check
   } else {
-    // No product policy matched -- use global return window
-    const returnWindowDays = settings.returnWindowDays ?? 30;
+    // Check country-specific return window first
+    let effectiveWindowDays = settings.returnWindowDays ?? 30;
+    if (context.customerCountry) {
+      const countryWindows = parseCountryWindows(settings);
+      const countryMatch = countryWindows.find(
+        (w) => w.country.toLowerCase() === context.customerCountry!.toLowerCase(),
+      );
+      if (countryMatch) {
+        effectiveWindowDays = countryMatch.days;
+      }
+    }
+
+    // No product policy matched -- use global (or country-specific) return window
     if (context.orderDate) {
       const windowEnd = new Date(context.orderDate);
-      windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
+      windowEnd.setDate(windowEnd.getDate() + effectiveWindowDays);
       if (new Date() > windowEnd) {
-        return { eligible: false, reason: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.` };
+        return { eligible: false, reason: `Return window has expired. Returns are accepted within ${effectiveWindowDays} days of order date.` };
       }
     }
   }
@@ -146,8 +197,19 @@ export function checkReturnEligibility(
   return { eligible: true };
 }
 
-export function getReturnFee(settings: ShopSettings | null): { amount: number; currency: string } {
+export function getReturnFee(settings: ShopSettings | null, returnReason?: string): { amount: number; currency: string } {
   if (!settings || settings.returnFeeAmount == null) return { amount: 0, currency: "USD" };
+
+  // Check per-reason fee first (overrides global fee)
+  if (returnReason) {
+    const reasonFees = parseReasonFees(settings);
+    const match = reasonFees.find((f) => f.reason.toLowerCase() === returnReason.toLowerCase());
+    if (match) {
+      return { amount: match.feeAmount, currency: settings.returnFeeCurrency ?? "USD" };
+    }
+  }
+
+  // Fall back to global fee
   return {
     amount: Number(settings.returnFeeAmount),
     currency: settings.returnFeeCurrency ?? "USD",

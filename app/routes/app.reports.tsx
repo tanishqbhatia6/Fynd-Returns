@@ -178,6 +178,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .map(([method, count]) => ({ method, count }))
       .sort((a, b) => b.count - a.count);
 
+    // ── NEW: Retention & fraud KPIs ──
+    const resolvedCount = (resolutionMap.refund ?? 0) + (resolutionMap.exchange ?? 0) + (resolutionMap.store_credit ?? 0) + (resolutionMap.replacement ?? 0);
+    const exchangeConversionRate = resolvedCount > 0 ? Math.round(((resolutionMap.exchange ?? 0) / resolvedCount) * 100) : 0;
+    const revenueRetainedRate = (revenueRetained + totalRefundAmount) > 0
+      ? Math.round((revenueRetained / (revenueRetained + totalRefundAmount)) * 100) : 0;
+
+    const [uniqueCustomerCount, repeatCustomerCases] = await Promise.all([
+      prisma.returnCase.groupBy({ by: ["customerEmailNorm"], where: { ...where, customerEmailNorm: { not: null } }, _count: true }).then(r => r.length),
+      prisma.returnCase.groupBy({
+        by: ["customerEmailNorm"],
+        where: { ...where, customerEmailNorm: { not: null } },
+        _count: true,
+        having: { customerEmailNorm: { _count: { gt: 1 } } },
+      }),
+    ]);
+    const repeatCustomerCount = repeatCustomerCases.length;
+    const repeatReturnerRate = uniqueCustomerCount > 0 ? Math.round((repeatCustomerCount / uniqueCustomerCount) * 100) : 0;
+
+    // Fraud risk summary
+    const [highRiskCount, criticalRiskCount] = await Promise.all([
+      prisma.returnCase.count({ where: { ...where, fraudRiskLevel: "high" } }),
+      prisma.returnCase.count({ where: { ...where, fraudRiskLevel: "critical" } }),
+    ]);
+    const fraudAlertCount = highRiskCount + criticalRiskCount;
+
     const prevPeriodStart = new Date(rangeStart);
     prevPeriodStart.setTime(prevPeriodStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime()));
     const prevPeriodCount = await prisma.returnCase.count({
@@ -203,6 +228,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       topProductsData,
       customerFrequencyData,
       refundMethodBreakdown,
+      // Phase 1 new KPIs
+      exchangeConversionRate,
+      revenueRetainedRate,
+      repeatReturnerRate,
+      uniqueCustomerCount,
+      repeatCustomerCount,
+      resolvedCount,
+      fraudAlertCount,
     };
   } catch (err) {
     console.error("Reports loader error:", err);
@@ -225,6 +258,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       topProductsData: [] as { title: string; count: number }[],
       customerFrequencyData: [] as { email: string; count: number }[],
       refundMethodBreakdown: [] as { method: string; count: number }[],
+      exchangeConversionRate: 0,
+      revenueRetainedRate: 0,
+      repeatReturnerRate: 0,
+      uniqueCustomerCount: 0,
+      repeatCustomerCount: 0,
+      resolvedCount: 0,
+      fraudAlertCount: 0,
     };
   }
 };
@@ -258,6 +298,8 @@ export default function Reports() {
     resolutionChartData, revenueRetained, greenReturnCount,
     shopLocale, shopCurrency, shopTimezone,
     totalRefundAmount, topProductsData, customerFrequencyData, refundMethodBreakdown,
+    exchangeConversionRate, revenueRetainedRate, repeatReturnerRate,
+    uniqueCustomerCount, repeatCustomerCount, resolvedCount, fraudAlertCount,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -364,6 +406,41 @@ export default function Reports() {
               <span className="kpi-value" style={{ color: "#8B5CF6" }}>{refundRate}%</span>
             </div>
             <div className="kpi-meta">{refundedCount} refunded</div>
+          </div>
+        </div>
+
+        {/* ── Retention Performance KPIs ── */}
+        <div className="dashboard-kpi-grid mb-md">
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#14b8a6" } as React.CSSProperties}>
+            <div className="kpi-label">Exchange Conversion</div>
+            <div className="kpi-row">
+              <span className="kpi-value" style={{ color: "#14b8a6" }}>{exchangeConversionRate}%</span>
+            </div>
+            <div className="kpi-meta">{resolutionChartData.find(d => d.name === "Exchange")?.value ?? 0} of {resolvedCount} resolved</div>
+          </div>
+
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
+            <div className="kpi-label">Revenue Retained</div>
+            <div className="kpi-row">
+              <span className="kpi-value" style={{ color: "#059669" }}>{revenueRetainedRate}%</span>
+            </div>
+            <div className="kpi-meta">Exchanges + store credit vs refunds</div>
+          </div>
+
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#f97316" } as React.CSSProperties}>
+            <div className="kpi-label">Repeat Returners</div>
+            <div className="kpi-row">
+              <span className="kpi-value" style={{ color: "#f97316" }}>{repeatReturnerRate}%</span>
+            </div>
+            <div className="kpi-meta">{repeatCustomerCount} of {uniqueCustomerCount} customers</div>
+          </div>
+
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" } as React.CSSProperties}>
+            <div className="kpi-label">Fraud Alerts</div>
+            <div className="kpi-row">
+              <span className="kpi-value" style={{ color: fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" }}>{fraudAlertCount}</span>
+            </div>
+            <div className="kpi-meta">High + Critical risk returns</div>
           </div>
         </div>
 

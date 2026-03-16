@@ -241,6 +241,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       where: { shopId: shop.id, status: { in: ["initiated", "pending"] }, createdAt: { lt: threeDaysAgo } },
     });
 
+    // Fraud alerts: returns from high/critical risk customers in the period
+    const fraudAlertReturns = await prisma.returnCase.findMany({
+      where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
+      select: { id: true, customerName: true, customerEmail: true, fraudRiskLevel: true, fraudRiskScore: true, shopifyOrderName: true },
+      orderBy: { fraudRiskScore: "desc" },
+      take: 5,
+    });
+    const fraudAlertCount = await prisma.returnCase.count({
+      where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
+    });
+
     const suggestions = buildSuggestions({
       totalReturns, pendingCount, rejectedCount, approvedCount,
       approvedNotRefundedCount,
@@ -259,6 +270,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopLocale: shop?.settings?.shopLocale ?? "en",
       shopCurrency: shop?.settings?.shopCurrency ?? "USD",
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
+      fraudAlertCount,
+      fraudAlertReturns: fraudAlertReturns as { id: string; customerName: string | null; customerEmail: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
     };
   } catch (err) {
     console.error("Dashboard loader error:", err);
@@ -276,6 +289,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       revenueRetained: 0, exchangeRate: 0, greenReturnCount: 0, blocklistCount: 0,
       resolutionMap: {} as Record<string, number>, revenueAtRisk: 0, overdueCount: 0,
       shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
+      fraudAlertCount: 0,
+      fraudAlertReturns: [] as { id: string; customerName: string | null; customerEmail: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
     };
   }
 };
@@ -289,6 +304,7 @@ export default function Dashboard() {
     allTimeReturns, suggestions, error,
     revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
     resolutionMap, revenueAtRisk, overdueCount, shopLocale, shopCurrency, shopTimezone,
+    fraudAlertCount, fraudAlertReturns,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -616,6 +632,53 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {/* ── Fraud Alerts Widget ── */}
+        {fraudAlertCount > 0 && (
+          <div className="dashboard-chart-panel mb-md" style={{ borderLeft: "3px solid #DC2626" }}>
+            <div className="panel-header">
+              <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                Fraud Alerts ({fraudAlertCount})
+              </h3>
+              <Link to="/app/returns" className="panel-link">View all →</Link>
+            </div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
+              Returns from high/critical risk customers in this period
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {fraudAlertReturns.map((fr) => (
+                <Link
+                  key={fr.id}
+                  to={`/app/returns/${fr.id}`}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "8px 12px", borderRadius: 8,
+                    background: fr.fraudRiskLevel === "critical" ? "#FEF2F2" : "#FFFBEB",
+                    border: `1px solid ${fr.fraudRiskLevel === "critical" ? "#FECACA" : "#FDE68A"}`,
+                    textDecoration: "none", fontSize: 13,
+                  }}
+                >
+                  <span style={{
+                    display: "inline-block", padding: "2px 6px", borderRadius: 4,
+                    fontSize: 10, fontWeight: 700,
+                    background: fr.fraudRiskLevel === "critical" ? "#FEE2E2" : "#FFEDD5",
+                    color: fr.fraudRiskLevel === "critical" ? "#DC2626" : "#EA580C",
+                  }}>
+                    {(fr.fraudRiskLevel || "high").toUpperCase()}
+                  </span>
+                  <span style={{ flex: 1, fontWeight: 500, color: "var(--rpm-text)" }}>
+                    {fr.customerName || fr.customerEmail || "Unknown"}
+                  </span>
+                  <span style={{ fontSize: 11, color: "#6B7280" }}>{fr.shopifyOrderName}</span>
+                  <span style={{ fontSize: 11, fontWeight: 600, color: "#DC2626" }}>
+                    Score: {fr.fraudRiskScore ?? "—"}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Fynd banner (only when not configured) ── */}
         {!hasFyndConfig && (

@@ -1133,6 +1133,37 @@ export default function ReturnDetail() {
                   Green Return
                 </span>
               )}
+              {(returnCase as { isGiftReturn?: boolean }).isGiftReturn && (
+                <span
+                  title="Gift return — resolution limited to store credit or exchange"
+                  style={{
+                    padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                    background: "#EDE9FE", color: "#7C3AED", border: "1px solid #C4B5FD",
+                    display: "inline-flex", alignItems: "center", gap: 4, cursor: "help",
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
+                  Gift Return
+                </span>
+              )}
+              {(() => {
+                const fl = (returnCase as { fraudRiskLevel?: string | null }).fraudRiskLevel;
+                const fs = (returnCase as { fraudRiskScore?: number | null }).fraudRiskScore;
+                if (!fl || fl === "low") return null;
+                const colors = fl === "critical" ? { bg: "#FEE2E2", text: "#DC2626", border: "#FECACA" }
+                  : fl === "high" ? { bg: "#FFEDD5", text: "#EA580C", border: "#FED7AA" }
+                  : { bg: "#FEF3C7", text: "#D97706", border: "#FDE68A" };
+                return (
+                  <span title={`Fraud risk score: ${fs ?? "??"}/100`} style={{
+                    padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                    background: colors.bg, color: colors.text, border: `1px solid ${colors.border}`,
+                    display: "inline-flex", alignItems: "center", gap: 4, cursor: "help",
+                  }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    {fl} Risk ({fs})
+                  </span>
+                );
+              })()}
             </div>
             <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
               <s-button variant="secondary" onClick={() => navigate("/app/returns")}>All Returns</s-button>
@@ -2740,6 +2771,58 @@ export default function ReturnDetail() {
                         <s-button type="submit" variant="secondary" size="slim" disabled={fetcher.state !== "idle"}>Save address</s-button>
                       </fetcher.Form>
                     )}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Gift Return Details ── */}
+            {(returnCase as { isGiftReturn?: boolean }).isGiftReturn && (() => {
+              const gr = returnCase as { giftRecipientName?: string | null; giftRecipientEmail?: string | null; giftMessageToSender?: string | null };
+              return (
+                <div style={{ ...C.card, borderColor: "#C4B5FD" }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2"><path d="M20 12v6a2 2 0 01-2 2H6a2 2 0 01-2-2v-6"/><path d="M2 7h20v5H2z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
+                    Gift Recipient
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {gr.giftRecipientName && <div style={{ fontSize: 13 }}><strong>Name:</strong> {gr.giftRecipientName}</div>}
+                    {gr.giftRecipientEmail && <div style={{ fontSize: 13 }}><strong>Email:</strong> {gr.giftRecipientEmail}</div>}
+                    {gr.giftMessageToSender && (
+                      <div style={{ marginTop: 4, padding: "8px 10px", background: "#F5F3FF", borderRadius: 8, fontSize: 12, color: "#6D28D9", fontStyle: "italic" }}>
+                        &ldquo;{gr.giftMessageToSender}&rdquo;
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#8B5CF6", marginTop: 10 }}>
+                    Resolution limited to store credit or exchange
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Fraud Risk Assessment ── */}
+            {(() => {
+              const fl = (returnCase as { fraudRiskLevel?: string | null }).fraudRiskLevel;
+              const fs = (returnCase as { fraudRiskScore?: number | null }).fraudRiskScore;
+              if (!fl || fl === "low" || fs == null) return null;
+              const colors = fl === "critical" ? { bg: "#FEF2F2", border: "#FECACA", text: "#DC2626", bar: "#EF4444" }
+                : fl === "high" ? { bg: "#FFF7ED", border: "#FED7AA", text: "#EA580C", bar: "#F97316" }
+                : { bg: "#FFFBEB", border: "#FDE68A", text: "#D97706", bar: "#F59E0B" };
+              return (
+                <div style={{ ...C.card, borderColor: colors.border, background: colors.bg }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: colors.text, display: "flex", alignItems: "center", gap: 6 }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                      Fraud Risk
+                    </div>
+                    <span style={{ fontSize: 20, fontWeight: 800, color: colors.text }}>{fs}/100</span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: "rgba(0,0,0,0.1)", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${fs}%`, borderRadius: 3, background: colors.bar, transition: "width 0.4s" }} />
+                  </div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: colors.text, marginTop: 6, textTransform: "uppercase" }}>
+                    {fl} risk — review carefully before processing
                   </div>
                 </div>
               );

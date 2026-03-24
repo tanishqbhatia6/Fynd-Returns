@@ -548,13 +548,16 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       );
     }
 
-    // Fetch return shipment details from Fynd if URLs are missing (trackingUrl, labelUrl, invoiceUrl)
-    // Even if webhook stored carrier + AWB, the URLs may not have been in the webhook payload
+    // Fetch full shipment details from Fynd API if data is incomplete.
+    // Triggers when: return label URLs are missing OR forward shipment has no courier/status.
     const returnShipmentIdVal = (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId;
     const hasCompleteReturnLabel = returnCase.returnLabelJson && (() => {
       try { const l = JSON.parse(returnCase.returnLabelJson!) as Record<string, unknown>; return !!(l.trackingUrl && l.labelUrl); } catch { return false; }
     })();
-    if (returnShipmentIdVal && !hasCompleteReturnLabel) {
+    const fwdShipmentPreCheck = fyndOrderDetailsTab?.shipments?.find(s => s.journeyType !== "return");
+    const hasCompleteForwardData = fwdShipmentPreCheck && fwdShipmentPreCheck.cpName && fwdShipmentPreCheck.shipmentStatus;
+    const needsFyndFetch = !hasCompleteReturnLabel || !hasCompleteForwardData;
+    if (returnShipmentIdVal && needsFyndFetch) {
       try {
         const shopSettingsForFetch = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
         if (shopSettingsForFetch) {
@@ -575,7 +578,15 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
                 (returnSearchRes as { data?: { items?: unknown[] } })?.data?.items ?? []
               ) as Record<string, unknown>[];
 
-              // Find the return journey shipment
+              // Always store the full API response — enriches BOTH forward and return data
+              const updateData: Record<string, unknown> = {};
+              if (allShipments.length > 0) {
+                const fullPayload = JSON.stringify(allShipments);
+                updateData.fyndPayloadJson = fullPayload;
+                fyndPayloadJson = fullPayload;
+              }
+
+              // Find the return journey shipment and extract return logistics
               const returnShipment = allShipments.find((s) => {
                 const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
                 return jt === "return";
@@ -598,14 +609,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
                 const rInvoiceUrl = (invoice ? String(invoice.invoice_url ?? invoiceLinks.invoice_a4 ?? "").trim() : "") || null;
                 const rStatus = String(returnShipment.status ?? returnShipment.shipment_status ?? "").toLowerCase().trim() || null;
 
-                // Build tracking URL from courier + AWB if not provided by API
                 const effCarrier = rCarrier || (() => { try { const l = JSON.parse(returnCase.returnLabelJson || "{}"); return l.carrier || null; } catch { return null; } })();
                 const effAwb = rAwb || (() => { try { const l = JSON.parse(returnCase.returnLabelJson || "{}"); return l.trackingNumber || null; } catch { return null; } })();
                 if (!rTrackingUrl && effCarrier && effAwb) {
                   rTrackingUrl = buildTrackingUrlFromCourierAndAwb(effCarrier, effAwb);
                 }
 
-                // Merge with existing returnLabelJson (preserve webhook data, add API data)
                 let existingLabel: Record<string, unknown> = {};
                 try { if (returnCase.returnLabelJson) existingLabel = JSON.parse(returnCase.returnLabelJson); } catch { /* ignore */ }
 
@@ -620,32 +629,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
                   source: existingLabel.source === "fynd_webhook" ? "fynd_webhook" : "fynd_api_refresh",
                 };
 
-                const labelData = JSON.stringify(mergedLabel);
-                const updateData: Record<string, unknown> = { returnLabelJson: labelData };
+                updateData.returnLabelJson = JSON.stringify(mergedLabel);
                 if (rAwb && !isLikelyFyndId(rAwb)) updateData.returnAwb = rAwb;
-                // Store the return shipment payload for journey timeline
-                if (returnShipment) {
-                  // Append return shipment to fyndPayloadJson if not already there
-                  try {
-                    const existingPayload = fyndPayloadJson ? JSON.parse(fyndPayloadJson) : null;
-                    const existingList = Array.isArray(existingPayload) ? existingPayload
-                      : (existingPayload as Record<string, unknown>)?.items ?? (existingPayload as Record<string, unknown>)?.shipments ?? [];
-                    const hasReturnJourney = Array.isArray(existingList) && existingList.some((s: Record<string, unknown>) => {
-                      const jt = String(s?.journey_type ?? "").toLowerCase();
-                      const st = String(s?.status ?? s?.shipment_status ?? "").toLowerCase();
-                      return jt === "return" || st.startsWith("return_");
-                    });
-                    if (!hasReturnJourney && Array.isArray(existingList)) {
-                      const merged = [...existingList, returnShipment];
-                      updateData.fyndPayloadJson = JSON.stringify(merged);
-                      fyndPayloadJson = updateData.fyndPayloadJson as string;
-                    }
-                  } catch { /* non-fatal */ }
-                }
-
-                await prisma.returnCase.update({ where: { id: returnCase.id }, data: updateData });
-                returnCase = { ...returnCase, returnLabelJson: labelData } as typeof returnCase;
+                returnCase = { ...returnCase, returnLabelJson: updateData.returnLabelJson as string } as typeof returnCase;
                 if (rAwb) (returnCase as Record<string, unknown>).returnAwb = rAwb;
+              }
+
+              if (Object.keys(updateData).length > 0) {
+                await prisma.returnCase.update({ where: { id: returnCase.id }, data: updateData });
               }
             }
           }

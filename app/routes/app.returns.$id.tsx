@@ -973,12 +973,26 @@ export default function ReturnDetail() {
 
   const hasShipments = (fyndOrderDetailsTab?.shipments?.length ?? 0) > 0;
   const firstShipment = fyndOrderDetailsTab?.shipments?.[0];
-  const returnAwbVal = displayReturnAwb || (firstShipment as { returnAwb?: string | null })?.returnAwb;
-  const forwardAwbVal = displayForwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb;
+
+  // Forward shipment logistics
+  const forwardAwbVal = displayForwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb || null;
+  const forwardCourier = firstShipment ? safeStr((firstShipment as { cpName?: string }).cpName) : "";
+  const forwardTrackingUrl = firstShipment ? (firstShipment as { trackingUrl?: string | null }).trackingUrl : null;
+  const forwardShipmentStatus = firstShipment ? safeStr((firstShipment as { shipmentStatus?: string }).shipmentStatus) : "";
+  const forwardInvoiceNumber = firstShipment ? safeStr((firstShipment as { invoiceNumber?: string }).invoiceNumber || (firstShipment as { invoiceId?: string }).invoiceId) : "";
+  const forwardInvoiceUrl = firstShipment ? ((firstShipment as { invoiceUrl?: string | null }).invoiceUrl ?? null) : null;
+  const forwardLabelUrl = firstShipment ? ((firstShipment as { labelUrl?: string | null }).labelUrl ?? null) : null;
+
+  // Return shipment logistics
+  const returnAwbVal = displayReturnAwb || (firstShipment as { returnAwb?: string | null })?.returnAwb || null;
+  const returnCourier = returnLabelInfo?.carrier || "";
+  const returnTrackingNumber = returnLabelInfo?.trackingNumber || returnAwbVal || "";
+  const returnTrackingUrl = (returnLabelInfo as { trackingUrl?: string })?.trackingUrl || null;
+  const returnLabelUrl = returnLabelInfo?.signedLabelUrl || returnLabelInfo?.labelUrl || null;
+
+  // Legacy combined values (for backward compat in sections that haven't been updated)
   const awb = returnAwbVal || forwardAwbVal;
-  const awbLabel = returnAwbVal ? "Return AWB" : "Forward AWB";
-  const courier = firstShipment ? safeStr((firstShipment as { cpName?: string }).cpName) : "";
-  const trackingUrl = firstShipment ? (firstShipment as { trackingUrl?: string | null }).trackingUrl : null;
+  const courier = forwardCourier;
 
   return (
     <s-page fullWidth heading={`Return ${returnRequestId}`}>
@@ -1586,14 +1600,41 @@ export default function ReturnDetail() {
                     )}
                   </div>
                 )}
-                {/* Quick tracking info */}
-                {(awb || courier || trackingUrl) && (
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12, marginBottom: 16, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
-                    {courier && <div><div style={C.label}>Courier</div><div style={C.val}>{courier}</div></div>}
-                    {awb && <div><div style={C.label}>{awbLabel}</div><div style={C.mono}>{awb}</div></div>}
-                    {trackingUrl && (
-                      <div><div style={C.label}>Track</div><a href={trackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB" }}>Track shipment &rarr;</a></div>
-                    )}
+                {/* ── Forward Shipment ── */}
+                {(forwardAwbVal || forwardCourier || forwardTrackingUrl || forwardInvoiceNumber || forwardLabelUrl) && (
+                  <div style={{ marginBottom: 16, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Forward Shipment</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+                      {forwardCourier && <div><div style={C.label}>Courier</div><div style={C.val}>{forwardCourier}</div></div>}
+                      {forwardAwbVal && <div><div style={C.label}>Forward AWB</div><div style={C.mono}>{forwardAwbVal}</div></div>}
+                      {forwardShipmentStatus && <div><div style={C.label}>Status</div><div style={{ fontSize: 13, fontWeight: 600, color: forwardShipmentStatus.includes("deliver") ? "#059669" : "#D97706", textTransform: "capitalize" }}>{forwardShipmentStatus.replace(/_/g, " ")}</div></div>}
+                      {forwardTrackingUrl && (
+                        <div><div style={C.label}>Track</div><a href={forwardTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Track shipment &rarr;</a></div>
+                      )}
+                      {forwardInvoiceNumber && (
+                        <div><div style={C.label}>Invoice</div>{forwardInvoiceUrl ? <a href={forwardInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>{forwardInvoiceNumber} &darr;</a> : <div style={C.mono}>{forwardInvoiceNumber}</div>}</div>
+                      )}
+                      {forwardLabelUrl && (
+                        <div><div style={C.label}>Label</div><a href={forwardLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Download &darr;</a></div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Return Shipment ── */}
+                {(returnAwbVal || returnCourier || returnTrackingUrl || returnLabelUrl) && (
+                  <div style={{ marginBottom: 16, padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#065F46", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Return Shipment</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+                      {returnCourier && <div><div style={C.label}>Courier</div><div style={C.val}>{returnCourier}</div></div>}
+                      {(returnTrackingNumber || returnAwbVal) && <div><div style={C.label}>Return AWB</div><div style={C.mono}>{returnTrackingNumber || returnAwbVal}</div></div>}
+                      {returnTrackingUrl && (
+                        <div><div style={C.label}>Track</div><a href={returnTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Track return &rarr;</a></div>
+                      )}
+                      {returnLabelUrl && (
+                        <div><div style={C.label}>Return Label</div><a href={returnLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>
+                      )}
+                    </div>
                   </div>
                 )}
                 {/* Fynd IDs */}
@@ -1730,6 +1771,20 @@ export default function ReturnDetail() {
                         )}
                       </div>
                     </div>
+                    {/* Invoice URL — from Fynd payload */}
+                    {(forwardInvoiceUrl || forwardInvoiceNumber) && (
+                      <div className="app-field" style={{ marginBottom: 12 }}>
+                        <label style={{ fontSize: 12, fontWeight: 600 }}>Invoice</label>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <span style={{ fontSize: 13, color: "#374151" }}>{forwardInvoiceNumber || "Invoice"}</span>
+                          {forwardInvoiceUrl && (
+                            <a href={forwardInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", whiteSpace: "nowrap", textDecoration: "none" }}>
+                              Download &darr;
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    )}
                     {returnLabelInfo?.qrCodeUrl && (
                       <div style={{ marginBottom: 12 }}>
                         <a href={returnLabelInfo.qrCodeUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>

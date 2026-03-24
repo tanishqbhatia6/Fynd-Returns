@@ -391,6 +391,62 @@ export function unwrapFyndWebhookPayload(rawBodyText: string): {
       if (mapper?.name && !inner.status) inner.status = mapper.name;
     }
   }
+  // Fallback: if `shipment` key still exists as an object in inner (unwrap may have
+  // been overridden by body spread), promote identifiers directly from it
+  if (inner.shipment && typeof inner.shipment === "object" && !Array.isArray(inner.shipment)) {
+    const s = inner.shipment as Record<string, unknown>;
+    if (s.shipment_id && !inner.shipment_id) inner.shipment_id = s.shipment_id;
+    if (s.id && !inner.shipment_id && !inner.id) inner.id = s.id;
+    if (s.order_id && !inner.order_id) inner.order_id = s.order_id;
+    if (s.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = s.affiliate_order_id;
+    if (s.external_order_id && !inner.external_order_id) inner.external_order_id = s.external_order_id;
+    if (s.channel_order_id && !inner.channel_order_id) inner.channel_order_id = s.channel_order_id;
+    // Promote nested order object
+    const sOrder = s.order as Record<string, unknown> | undefined;
+    if (sOrder && typeof sOrder === "object") {
+      if (sOrder.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = sOrder.affiliate_order_id;
+      if (sOrder.fynd_order_id && !inner.order_id) inner.order_id = sOrder.fynd_order_id;
+      if (sOrder.order_id && !inner.order_id) inner.order_id = sOrder.order_id;
+    }
+    // Promote affiliate_details
+    const sAffDetails = s.affiliate_details as Record<string, unknown> | undefined;
+    if (sAffDetails && typeof sAffDetails === "object") {
+      if (sAffDetails.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = sAffDetails.affiliate_order_id;
+    }
+    // Promote meta
+    const sMeta = s.meta as Record<string, unknown> | undefined;
+    if (sMeta && typeof sMeta === "object") {
+      if (sMeta.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = sMeta.affiliate_order_id;
+      if (sMeta.order_id && !inner.order_id) inner.order_id = sMeta.order_id;
+      if (sMeta.shipment_id && !inner.shipment_id) inner.shipment_id = sMeta.shipment_id;
+    }
+    // Promote bags[0].affiliate_bag_details
+    const sBags = Array.isArray(s.bags) ? s.bags[0] as Record<string, unknown> : null;
+    if (sBags && typeof sBags === "object") {
+      const sAbd = sBags.affiliate_bag_details as Record<string, unknown> | undefined;
+      if (sAbd && typeof sAbd === "object") {
+        if (sAbd.affiliate_order_id && !inner.affiliate_order_id) inner.affiliate_order_id = sAbd.affiliate_order_id;
+        const sAffMeta = sAbd.affiliate_meta as Record<string, unknown> | undefined;
+        if (sAffMeta?.shop_domain && !inner._shop_domain) inner._shop_domain = sAffMeta.shop_domain;
+      }
+    }
+    // Promote delivery_partner_details, delivery_address, dp_details
+    if (s.delivery_partner_details && !inner.delivery_partner_details) inner.delivery_partner_details = s.delivery_partner_details;
+    if (s.dp_details && !inner.dp_details) inner.dp_details = s.dp_details;
+    if (s.delivery_address && !inner.delivery_address) inner.delivery_address = s.delivery_address;
+    if (s.billing_address && !inner.billing_address) inner.billing_address = s.billing_address;
+    if (s.bags && !inner.bags) inner.bags = s.bags;
+    if (s.meta && !inner.meta) inner.meta = s.meta;
+    if (s.status && !inner.status) inner.status = s.status;
+    if (s.affiliate_details && !inner.affiliate_details) inner.affiliate_details = s.affiliate_details;
+    // Promote tracking/AWB fields
+    const sDp = (s.delivery_partner_details ?? s.dp_details) as Record<string, unknown> | undefined;
+    if (sDp && typeof sDp === "object") {
+      if (sDp.awb_no && !inner.awb_no) inner.awb_no = sDp.awb_no;
+      if (sDp.tracking_url && !inner.tracking_url) inner.tracking_url = sDp.tracking_url;
+    }
+  }
+
   // Handle nested status object (Fynd sends status as {status: "..."} sometimes)
   if (inner.status && typeof inner.status === "object") {
     const statusObj = inner.status as Record<string, unknown>;
@@ -700,7 +756,8 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         backfillData.forwardAwb = shipping.awb;
       }
     }
-    if (shipping.carrier || shipping.awb) {
+    // Only update returnLabelJson for return journey shipments — forward AWB should NOT go here
+    if (journeyType === "return" && (shipping.carrier || shipping.awb)) {
       let existingLabel: Record<string, unknown> = {};
       try {
         if (returnCase.returnLabelJson) existingLabel = JSON.parse(returnCase.returnLabelJson);
@@ -759,6 +816,62 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     } catch {
       // Non-fatal — mapping is an optimization, not required
     }
+  }
+
+  // Backfill missed statuses from bag_status_history in the payload.
+  // When a webhook is missed and the next one arrives, the payload includes
+  // the full history — we record any statuses we haven't seen yet.
+  try {
+    const bags = (payload.bags ?? (payload as Record<string, unknown>).bags) as Array<Record<string, unknown>> | undefined;
+    const firstBag = Array.isArray(bags) ? bags[0] : null;
+    const bagStatusHistory = firstBag?.bag_status_history as Array<Record<string, unknown>> | undefined;
+    if (Array.isArray(bagStatusHistory) && bagStatusHistory.length > 0) {
+      // Get existing events to avoid duplicates
+      const existingEvents = await prisma.returnEvent.findMany({
+        where: { returnCaseId: returnCase.id, source: "fynd_webhook" },
+        select: { payloadJson: true },
+      });
+      const seenStatuses = new Set<string>();
+      for (const ev of existingEvents) {
+        try {
+          const p = JSON.parse(ev.payloadJson ?? "{}");
+          if (p.fynd_status) seenStatuses.add(p.fynd_status.toLowerCase());
+          if (p.fynd_refund_status) seenStatuses.add(p.fynd_refund_status.toLowerCase());
+        } catch { /* ignore */ }
+      }
+
+      // Sort history by updated_at ascending to record in order
+      const sorted = [...bagStatusHistory].sort((a, b) => {
+        const ta = Date.parse(String(a.updated_at ?? a.created_at ?? "")) || 0;
+        const tb = Date.parse(String(b.updated_at ?? b.created_at ?? "")) || 0;
+        return ta - tb;
+      });
+
+      for (const entry of sorted) {
+        const mapper = entry.bag_state_mapper as Record<string, unknown> | undefined;
+        const statusName = String(mapper?.name ?? entry.status ?? entry.state ?? "").toLowerCase().replace(/\s+/g, "_");
+        if (!statusName || seenStatuses.has(statusName)) continue;
+        seenStatuses.add(statusName);
+
+        const entryTime = String(entry.updated_at ?? entry.created_at ?? "");
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: returnCase.id,
+            source: "fynd_webhook",
+            eventType: "status_backfill",
+            payloadJson: JSON.stringify({
+              fynd_status: statusName,
+              journey_type: String(mapper?.journey_type ?? ""),
+              backfilled: true,
+              original_time: entryTime,
+            }),
+            ...(entryTime ? { happenedAt: new Date(entryTime) } : {}),
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.warn("[Fynd webhook] Status backfill from bag_status_history failed:", err);
   }
 
   const shopDomain = returnCase.shop.shopDomain;

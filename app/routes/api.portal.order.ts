@@ -832,15 +832,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // override block below (anyShipmentEligible) handles the aggregation.
     const hasMultiShipmentData = fyndShipmentsForReturn && fyndShipmentsForReturn.length > 1;
 
-    if (returnEligibility.eligible && isFyndSyntheticOrder && fyndShipmentStatus && !hasMultiShipmentData) {
+    if (returnEligibility.eligible && isFyndSyntheticOrder && !hasMultiShipmentData) {
       const allowedFyndReturnStatuses = parseAllowedFyndStatuses(settings as { allowedFyndStatusesForReturn?: string | null } | null);
       if (allowedFyndReturnStatuses.length > 0) {
-        const isAllowed = isShipmentEligibleForReturn(fyndShipmentStatus, allowedFyndReturnStatuses);
-        if (!isAllowed) {
-          const friendlyStatus = fyndShipmentStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+        if (fyndShipmentStatus) {
+          const isAllowed = isShipmentEligibleForReturn(fyndShipmentStatus, allowedFyndReturnStatuses);
+          if (!isAllowed) {
+            const friendlyStatus = fyndShipmentStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+            returnEligibility = {
+              eligible: false,
+              reason: `This order's current status is "${friendlyStatus}". Returns can be initiated when the shipment status is: ${allowedFyndReturnStatuses.map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}.`,
+            };
+          }
+        } else {
+          // Fail-closed: gate is enabled but status is unknown — block until status is known
           returnEligibility = {
             eligible: false,
-            reason: `This order's current status is "${friendlyStatus}". Returns can be initiated when the shipment status is: ${allowedFyndReturnStatuses.map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}.`,
+            reason: "Unable to determine the current shipment status. Returns can be initiated after the shipment has been delivered.",
           };
         }
       }

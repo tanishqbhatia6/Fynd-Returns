@@ -622,7 +622,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           } catch { /* ignore */ }
 
           if (allowedReturnStatuses.length > 0) {
-            // Try to get current Fynd status from existing return cases or webhook logs
+            // Try multiple sources for current Fynd status
+            let currentFyndStatus: string | null = null;
+
+            // Source 1: Latest webhook log
             const latestLog = await prisma.fyndWebhookLog.findFirst({
               where: {
                 affiliateOrderId: { equals: fyndMapping.fyndOrderId, mode: "insensitive" },
@@ -632,13 +635,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               select: { fyndStatus: true },
             });
             if (latestLog?.fyndStatus) {
-              const currentStatus = latestLog.fyndStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+              currentFyndStatus = latestLog.fyndStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+            }
+
+            // Source 2: fyndCurrentStatus from existing return cases for this order
+            if (!currentFyndStatus) {
+              const existingCase = await prisma.returnCase.findFirst({
+                where: {
+                  shopId: shopRecord.id,
+                  fyndOrderId: { equals: fyndMapping.fyndOrderId, mode: "insensitive" },
+                  fyndCurrentStatus: { not: null },
+                },
+                orderBy: { updatedAt: "desc" },
+                select: { fyndCurrentStatus: true },
+              });
+              if (existingCase?.fyndCurrentStatus) {
+                currentFyndStatus = existingCase.fyndCurrentStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+              }
+            }
+
+            // Source 3: Try webhook logs by shipment ID
+            if (!currentFyndStatus && fyndMapping.fyndShipmentId) {
+              const shipmentLog = await prisma.fyndWebhookLog.findFirst({
+                where: {
+                  shipmentId: fyndMapping.fyndShipmentId,
+                  fyndStatus: { not: null },
+                },
+                orderBy: { createdAt: "desc" },
+                select: { fyndStatus: true },
+              });
+              if (shipmentLog?.fyndStatus) {
+                currentFyndStatus = shipmentLog.fyndStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+              }
+            }
+
+            if (currentFyndStatus) {
               const isAllowed = allowedReturnStatuses.some((s) => {
                 const norm = s.replace(/[\s_]+/g, "_").trim();
-                return currentStatus === norm || currentStatus.includes(norm);
+                return currentFyndStatus === norm || currentFyndStatus!.includes(norm);
               });
               if (!isAllowed) {
-                const friendly = latestLog.fyndStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                const friendly = currentFyndStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
                 return withCors(
                   Response.json({
                     error: `Return cannot be initiated. Current shipment status is "${friendly}". Returns are allowed when status is: ${allowedReturnStatuses.map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}.`,
@@ -646,6 +683,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   request,
                 );
               }
+            } else {
+              // Fail-closed: gate is enabled but no status available — block the return
+              return withCors(
+                Response.json({
+                  error: `Return cannot be initiated. Unable to determine the current shipment status from Fynd. The return status gate requires a known delivery status. Please wait for the shipment to be delivered.`,
+                }, { status: 400 }),
+                request,
+              );
             }
           }
         }

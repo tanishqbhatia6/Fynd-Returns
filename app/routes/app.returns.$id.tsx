@@ -210,9 +210,14 @@ function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMo
             </div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice</div><div style={{ fontSize: 13 }}>
               {(safeStr(s.invoiceNumber) || safeStr(s.invoiceId))
-                ? (s.invoiceUrl
-                  ? <a href={s.invoiceUrl} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 500 }}>{safeStr(s.invoiceNumber) || safeStr(s.invoiceId)}</a>
+                ? (((s as Record<string, unknown>).signedInvoiceUrl as string | undefined) || s.invoiceUrl
+                  ? <a href={((s as Record<string, unknown>).signedInvoiceUrl as string | undefined) || s.invoiceUrl!} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 500 }}>{safeStr(s.invoiceNumber) || safeStr(s.invoiceId)} ↓</a>
                   : (safeStr(s.invoiceNumber) || safeStr(s.invoiceId)))
+                : "—"}
+            </div></div>
+            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Label</div><div style={{ fontSize: 13 }}>
+              {((s as Record<string, unknown>).signedLabelUrl as string | undefined) || (s as Record<string, unknown>).labelUrl
+                ? <a href={((s as Record<string, unknown>).signedLabelUrl as string | undefined) || (s as Record<string, unknown>).labelUrl as string} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 500 }}>Download ↓</a>
                 : "—"}
             </div></div>
             <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentStore) || "—"}</div></div>
@@ -748,6 +753,38 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       }
     }
 
+    // Sign Fynd private URLs in forward shipment data (invoiceUrl, labelUrl from fyndOrderDetailsTab)
+    if (fyndOrderDetailsTab?.shipments && shopSettings) {
+      const fyndSignSettings = {
+        fyndEnvironment: (shopSettings as Record<string, unknown>).fyndEnvironment as string | null,
+        fyndCustomBaseUrl: (shopSettings as Record<string, unknown>).fyndCustomBaseUrl as string | null,
+        fyndCompanyId: shopSettings.fyndCompanyId ?? null,
+        fyndApplicationId: shopSettings.fyndApplicationId ?? null,
+        fyndCredentials: shopSettings.fyndCredentials ?? null,
+      };
+      const signPromises: Array<Promise<void>> = [];
+      for (const s of fyndOrderDetailsTab.shipments) {
+        const sAny = s as Record<string, unknown>;
+        if (isFyndPrivateUrl(sAny.invoiceUrl as string | null)) {
+          signPromises.push(
+            signFyndUrl(fyndSignSettings, sAny.invoiceUrl as string).then((r) => {
+              if (r) sAny.signedInvoiceUrl = r.signedUrl;
+            }).catch(() => {})
+          );
+        }
+        if (isFyndPrivateUrl(sAny.labelUrl as string | null)) {
+          signPromises.push(
+            signFyndUrl(fyndSignSettings, sAny.labelUrl as string).then((r) => {
+              if (r) sAny.signedLabelUrl = r.signedUrl;
+            }).catch(() => {})
+          );
+        }
+      }
+      if (signPromises.length > 0) {
+        await Promise.all(signPromises);
+      }
+    }
+
     // Default return instructions from settings
     const defaultReturnInstructions: string | null = (shopSettings as { defaultReturnInstructions?: string | null } | null)?.defaultReturnInstructions ?? null;
 
@@ -1042,14 +1079,14 @@ export default function ReturnDetail() {
   const hasShipments = (fyndOrderDetailsTab?.shipments?.length ?? 0) > 0;
   const firstShipment = fyndOrderDetailsTab?.shipments?.[0];
 
-  // Forward shipment logistics
+  // Forward shipment logistics (using signed URLs when available)
   const forwardAwbVal = displayForwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb || null;
   const forwardCourier = firstShipment ? safeStr((firstShipment as { cpName?: string }).cpName) : "";
   const forwardTrackingUrl = firstShipment ? (firstShipment as { trackingUrl?: string | null }).trackingUrl : null;
   const forwardShipmentStatus = firstShipment ? safeStr((firstShipment as { shipmentStatus?: string }).shipmentStatus) : "";
   const forwardInvoiceNumber = firstShipment ? safeStr((firstShipment as { invoiceNumber?: string }).invoiceNumber || (firstShipment as { invoiceId?: string }).invoiceId) : "";
-  const forwardInvoiceUrl = firstShipment ? ((firstShipment as { invoiceUrl?: string | null }).invoiceUrl ?? null) : null;
-  const forwardLabelUrl = firstShipment ? ((firstShipment as { labelUrl?: string | null }).labelUrl ?? null) : null;
+  const forwardInvoiceUrl = firstShipment ? ((firstShipment as { signedInvoiceUrl?: string | null }).signedInvoiceUrl ?? (firstShipment as { invoiceUrl?: string | null }).invoiceUrl ?? null) : null;
+  const forwardLabelUrl = firstShipment ? ((firstShipment as { signedLabelUrl?: string | null }).signedLabelUrl ?? (firstShipment as { labelUrl?: string | null }).labelUrl ?? null) : null;
 
   // Return shipment logistics — from returnLabelJson (populated by webhook or API refresh)
   const returnAwbVal = displayReturnAwb || returnLabelInfo?.trackingNumber || (firstShipment as { returnAwb?: string | null })?.returnAwb || null;
@@ -3085,6 +3122,24 @@ export default function ReturnDetail() {
                 let media: Array<{ name?: string; mimeType?: string; dataUrl?: string }> = [];
                 try { media = JSON.parse(mediaJson); } catch { return null; }
                 if (!Array.isArray(media) || media.length === 0) return null;
+                /** Open a data URL in a new tab by converting it to a Blob URL (works reliably across browsers) */
+                const openDataUrl = (dataUrl: string, mimeType?: string) => {
+                  try {
+                    if (dataUrl.startsWith("data:")) {
+                      const [header, b64] = dataUrl.split(",");
+                      const mime = mimeType || header.match(/data:([^;]+)/)?.[1] || "application/octet-stream";
+                      const bytes = atob(b64);
+                      const arr = new Uint8Array(bytes.length);
+                      for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+                      const blob = new Blob([arr], { type: mime });
+                      window.open(URL.createObjectURL(blob), "_blank");
+                    } else {
+                      window.open(dataUrl, "_blank", "noopener,noreferrer");
+                    }
+                  } catch {
+                    window.open(dataUrl, "_blank", "noopener,noreferrer");
+                  }
+                };
                 return (
                   <div style={{ marginBottom: 14 }}>
                     <div style={{ ...C.label, marginBottom: 8 }}>Customer uploads</div>
@@ -3092,18 +3147,17 @@ export default function ReturnDetail() {
                       {media.map((m, idx) => {
                         const isVideo = m.mimeType?.startsWith("video/");
                         return (
-                          <a
+                          <button
                             key={idx}
-                            href={m.dataUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title={m.name || `Upload ${idx + 1}`}
-                            style={{ display: "block", borderRadius: 8, overflow: "hidden", border: "1px solid #E5E7EB", background: "#F9FAFB" }}
+                            type="button"
+                            onClick={() => m.dataUrl && openDataUrl(m.dataUrl, m.mimeType)}
+                            title={`${m.name || `Upload ${idx + 1}`} — Click to open in new tab`}
+                            style={{ display: "block", borderRadius: 8, overflow: "hidden", border: "1px solid #E5E7EB", background: "#F9FAFB", padding: 0, cursor: "pointer", textAlign: "center" }}
                           >
                             {isVideo ? (
                               <video
                                 src={m.dataUrl}
-                                style={{ width: 120, height: 120, objectFit: "cover", display: "block" }}
+                                style={{ width: 140, height: 140, objectFit: "cover", display: "block" }}
                                 muted
                                 playsInline
                               />
@@ -3111,13 +3165,13 @@ export default function ReturnDetail() {
                               <img
                                 src={m.dataUrl}
                                 alt={m.name || `Upload ${idx + 1}`}
-                                style={{ width: 120, height: 120, objectFit: "cover", display: "block" }}
+                                style={{ width: 140, height: 140, objectFit: "cover", display: "block" }}
                               />
                             )}
-                            <div style={{ padding: "4px 8px", fontSize: 11, color: "#6B7280", textAlign: "center", maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div style={{ padding: "5px 8px", fontSize: 11, color: "#2563EB", fontWeight: 600, maxWidth: 140, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                               {m.name || `Upload ${idx + 1}`}
                             </div>
-                          </a>
+                          </button>
                         );
                       })}
                     </div>

@@ -218,14 +218,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       merged.platform = existingNormalized.platform;
     }
     /* Platform only; Storefront API is not used */
-    /* When we have existing credentials but can't parse them (e.g. decrypt fails), don't overwrite to avoid losing Platform creds */
-    const hasExistingRaw = !!String(shop.settings?.fyndCredentials ?? "").trim();
+    /* If new credentials are provided, always encrypt and save them — even if old ones can't be decrypted (e.g. ENCRYPTION_KEY changed after migration) */
     const credsToPersist =
-      hasExistingRaw && existingNormalized === null
-        ? (shop.settings?.fyndCredentials ?? null)
-        : Object.keys(merged).length > 0
-          ? encrypt(JSON.stringify(merged))
-          : (shop.settings?.fyndCredentials ?? null);
+      Object.keys(merged).length > 0
+        ? encrypt(JSON.stringify(merged))
+        : (shop.settings?.fyndCredentials ?? null);
     const fyndApiType = merged.platform ? "platform" : null;
 
     await prisma.shopSettings.upsert({

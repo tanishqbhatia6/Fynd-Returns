@@ -384,15 +384,15 @@ export default function ReturnsList() {
           <>
             <div className="returns-table-wrap">
               <div style={{ overflowX: "auto" }}>
-                <table className="returns-table" style={{ minWidth: 1200, tableLayout: "auto" }}>
+                <table className="returns-table" style={{ width: "100%", tableLayout: "fixed" }}>
                   <colgroup>
-                    <col style={{ width: 44 }} />
-                    <col style={{ minWidth: 130 }} />
-                    <col style={{ minWidth: 180 }} />
-                    <col style={{ minWidth: 120 }} />
-                    <col className="app-hide-mobile" style={{ minWidth: 260 }} />
-                    <col className="app-hide-mobile" style={{ minWidth: 200 }} />
-                    <col style={{ minWidth: 110 }} />
+                    <col style={{ width: 40 }} />
+                    <col style={{ width: "11%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col className="app-hide-mobile" style={{ width: "28%" }} />
+                    <col className="app-hide-mobile" style={{ width: "18%" }} />
+                    <col style={{ width: "10%" }} />
                   </colgroup>
                   <thead>
                     <tr>

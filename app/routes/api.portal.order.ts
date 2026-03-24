@@ -93,21 +93,24 @@ function safeImageUrl(val: unknown): string | null {
 }
 
 /** Check if a Fynd shipment status is eligible for return.
- * When merchant has configured allowed statuses (gate ON), only those + post-delivery statuses are allowed.
- * When gate is OFF (empty list), all statuses are allowed (no restriction). */
+ * Safe default: only post-delivery statuses are allowed unless merchant explicitly adds more.
+ * When merchant has configured additional allowed statuses, those are added on top of delivered. */
 function isShipmentEligibleForReturn(
   status: string,
   allowedFyndStatusesForReturn: string[],
 ): boolean {
-  if (allowedFyndStatusesForReturn.length === 0) return true; // Gate OFF = allow all
-  // Post-delivery and return-journey statuses always allowed
-  if (FYND_DELIVERED_STATUSES.has(status)) return true;
-  // Check merchant's explicitly allowed statuses
   const normalized = status.toLowerCase().replace(/[\s_]+/g, "_").trim();
-  return allowedFyndStatusesForReturn.some((s) => {
-    const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();
-    return normalized === normalizedAllowed || normalized.includes(normalizedAllowed);
-  });
+  // Post-delivery and return-journey statuses are ALWAYS allowed
+  if (FYND_DELIVERED_STATUSES.has(normalized)) return true;
+  // If merchant has configured additional allowed pre-delivery statuses, check those
+  if (allowedFyndStatusesForReturn.length > 0) {
+    return allowedFyndStatusesForReturn.some((s) => {
+      const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();
+      return normalized === normalizedAllowed || normalized.includes(normalizedAllowed);
+    });
+  }
+  // Default: only delivered statuses are allowed — block pre-delivery returns
+  return false;
 }
 
 /** Parse the allowedFyndStatusesForReturn JSON setting into a string array */
@@ -647,8 +650,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               return jt !== "return";
             });
             const fyndShipments = forwardOnly.length > 0 ? forwardOnly : rawShipments;
-            if (fyndShipments.length > 1) {
-              // Multiple shipments exist — build per-shipment item grouping
+            if (fyndShipments.length >= 1) {
+              // Build per-shipment item grouping (single or multi-shipment)
               // Map Fynd bags to Shopify line items by SKU matching
               const shopifyLineItems = order.lineItems ?? [];
               const enrichedShipments: FyndShipmentForReturn[] = [];
@@ -835,34 +838,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
-    // Fynd Status Gate for Return Initiation: when enabled, check if the Fynd shipment status
-    // allows return initiation (only applies to Fynd synthetic orders)
+    // Fynd Delivery Gate: block returns for orders that haven't been delivered yet.
+    // Applies to ALL orders with Fynd shipment data (synthetic or Shopify-resolved).
+    // For multi-shipment orders, per-shipment eligibility is handled below.
     const orderAny = order as Record<string, unknown>;
     const fyndShipmentStatus = (orderAny._fyndShipmentStatus as string | null) ?? null;
-    const isFyndSyntheticOrder = orderAny._isFyndSyntheticOrder === true;
-
-    // For multi-shipment orders, skip the order-level Fynd gate entirely — per-shipment
-    // eligibility is more accurate (each shipment has its own status). The multi-shipment
-    // override block below (anyShipmentEligible) handles the aggregation.
+    const hasFyndShipmentData = fyndShipmentsForReturn && fyndShipmentsForReturn.length > 0;
     const hasMultiShipmentData = fyndShipmentsForReturn && fyndShipmentsForReturn.length > 1;
 
-    if (returnEligibility.eligible && isFyndSyntheticOrder && !hasMultiShipmentData) {
-      const allowedFyndReturnStatuses = parseAllowedFyndStatuses(settings as { allowedFyndStatusesForReturn?: string | null } | null);
-      if (allowedFyndReturnStatuses.length > 0) {
-        if (fyndShipmentStatus) {
-          const isAllowed = isShipmentEligibleForReturn(fyndShipmentStatus, allowedFyndReturnStatuses);
-          if (!isAllowed) {
-            const friendlyStatus = fyndShipmentStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-            returnEligibility = {
-              eligible: false,
-              reason: `This order's current status is "${friendlyStatus}". Returns can be initiated when the shipment status is: ${allowedFyndReturnStatuses.map((s) => s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())).join(", ")}.`,
-            };
-          }
-        } else {
-          // Fail-closed: gate is enabled but status is unknown — block until status is known
+    // Single-shipment: check order-level Fynd status OR the single shipment's status
+    if (returnEligibility.eligible && !hasMultiShipmentData) {
+      // Determine the effective Fynd status: from synthetic order or from enriched single shipment
+      const effectiveFyndStatus = fyndShipmentStatus
+        ?? (hasFyndShipmentData ? fyndShipmentsForReturn![0].shipmentStatus : null);
+
+      if (effectiveFyndStatus) {
+        const allowedFyndReturnStatuses = parseAllowedFyndStatuses(settings as { allowedFyndStatusesForReturn?: string | null } | null);
+        const isAllowed = isShipmentEligibleForReturn(effectiveFyndStatus, allowedFyndReturnStatuses);
+        if (!isAllowed) {
+          const friendlyStatus = effectiveFyndStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
           returnEligibility = {
             eligible: false,
-            reason: "Unable to determine the current shipment status. Returns can be initiated after the shipment has been delivered.",
+            reason: `This order's current status is "${friendlyStatus}". Returns can only be initiated after the order has been delivered.`,
           };
         }
       }

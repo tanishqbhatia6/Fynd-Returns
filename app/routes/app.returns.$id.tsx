@@ -1663,11 +1663,19 @@ export default function ReturnDetail() {
               </div>
             )}
 
-            {/* ── Fynd Shipments ── */}
-            {!isManualReturn && (
+            {/* ── Shipment & Logistics (unified) ── */}
+            {!isManualReturn && (() => {
+              const rl = returnLabelInfo;
+              const retShipment = (fyndOrderDetailsTab?.shipments ?? []).find(s => s.journeyType === "return") ?? firstShipment;
+              const retStatus = retShipment ? safeStr((retShipment as { shipmentStatus?: string }).shipmentStatus) : (rl as Record<string, unknown>)?.returnStatus as string || "";
+              const retJourney = (returnJourney ?? []) as FyndJourneyStep[];
+              const effLabelUrl = rl?.signedLabelUrl || rl?.labelUrl || null;
+              const effInvoiceUrl = rl?.signedInvoiceUrl || rl?.invoiceUrl || null;
+              const effTrackingUrl = rl?.trackingUrl || null;
+              return (
               <div style={{ ...C.card }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700 }}>Logistics (Fynd)</div>
+                  <div style={{ fontSize: 15, fontWeight: 700 }}>Shipment & Logistics</div>
                   <div style={{ display: "flex", gap: 8 }}>
                     {canRetryFynd && (
                       <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
@@ -1777,80 +1785,119 @@ export default function ReturnDetail() {
                   </div>
                 )}
                 {/* ── Forward Shipment ── */}
-                {(forwardAwbVal || forwardCourier || forwardTrackingUrl || forwardInvoiceNumber || forwardLabelUrl) && (
-                  <div style={{ marginBottom: 16, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Forward Shipment</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
+                {(forwardAwbVal || forwardCourier || forwardTrackingUrl || forwardInvoiceNumber) && (
+                  <div style={{ marginBottom: 14, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Forward Shipment</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
                       {forwardCourier && <div><div style={C.label}>Courier</div><div style={C.val}>{forwardCourier}</div></div>}
-                      {forwardAwbVal && <div><div style={C.label}>Forward AWB</div><div style={C.mono}>{forwardAwbVal}</div></div>}
+                      {forwardAwbVal && <div><div style={C.label}>AWB</div><div style={C.mono}>{forwardAwbVal}</div></div>}
                       {forwardShipmentStatus && <div><div style={C.label}>Status</div><div style={{ fontSize: 13, fontWeight: 600, color: forwardShipmentStatus.includes("deliver") ? "#059669" : "#D97706", textTransform: "capitalize" }}>{forwardShipmentStatus.replace(/_/g, " ")}</div></div>}
-                      {forwardTrackingUrl && (
-                        <div><div style={C.label}>Track</div><a href={forwardTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Track shipment &rarr;</a></div>
-                      )}
-                      {forwardInvoiceNumber && (
-                        <div><div style={C.label}>Invoice</div>{forwardInvoiceUrl ? <a href={forwardInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>{forwardInvoiceNumber} &darr;</a> : <div style={C.mono}>{forwardInvoiceNumber}</div>}</div>
-                      )}
-                      {forwardLabelUrl && (
-                        <div><div style={C.label}>Label</div><a href={forwardLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Download &darr;</a></div>
-                      )}
+                      {forwardTrackingUrl && <div><div style={C.label}>Track</div><a href={forwardTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Track &rarr;</a></div>}
+                      {forwardInvoiceNumber && <div><div style={C.label}>Invoice</div>{forwardInvoiceUrl ? <a href={forwardInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>{forwardInvoiceNumber} &darr;</a> : <div style={C.mono}>{forwardInvoiceNumber}</div>}</div>}
+                      {forwardLabelUrl && <div><div style={C.label}>Label</div><a href={forwardLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Download &darr;</a></div>}
                     </div>
                   </div>
                 )}
 
                 {/* ── Return Shipment ── */}
-                {(returnAwbVal || returnCourier || returnTrackingUrl || returnLabelUrl || returnInvoiceUrl) && (
-                  <div style={{ marginBottom: 16, padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: "#065F46", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Return Shipment</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
-                      {returnCourier && <div><div style={C.label}>Courier</div><div style={C.val}>{returnCourier}</div></div>}
-                      {(returnTrackingNumber || returnAwbVal) && <div><div style={C.label}>Return AWB</div><div style={C.mono}>{returnTrackingNumber || returnAwbVal}</div></div>}
-                      {returnTrackingUrl && (
-                        <div><div style={C.label}>Track</div><a href={returnTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Track return &rarr;</a></div>
-                      )}
-                      {returnLabelUrl && (
-                        <div><div style={C.label}>Return Label</div><a href={returnLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>
-                      )}
-                      {returnInvoiceUrl && (
-                        <div><div style={C.label}>Return Invoice</div><a href={returnInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>
-                      )}
+                {(returnAwbVal || returnCourier || effTrackingUrl || effLabelUrl || effInvoiceUrl) ? (
+                  <div style={{ marginBottom: 14, padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#065F46", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Return Shipment</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+                      {(rl?.carrier || returnCourier) && <div><div style={C.label}>Courier</div><div style={C.val}>{rl?.carrier || returnCourier}</div></div>}
+                      {(returnTrackingNumber || returnAwbVal) && <div><div style={C.label}>AWB</div><div style={C.mono}>{returnTrackingNumber || returnAwbVal}</div></div>}
+                      {retStatus && <div><div style={C.label}>Status</div><div style={{ fontSize: 13, fontWeight: 600, color: retStatus.includes("deliver") ? "#059669" : "#D97706", textTransform: "capitalize" }}>{retStatus.replace(/_/g, " ")}</div></div>}
+                      {effTrackingUrl && <div><div style={C.label}>Track</div><a href={effTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Track Return &rarr;</a></div>}
+                      {effLabelUrl && <div><div style={C.label}>Label</div><a href={effLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>}
+                      {effInvoiceUrl && <div><div style={C.label}>Invoice</div><a href={effInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>}
+                      {rl?.qrCodeUrl && <div><div style={C.label}>QR Code</div><a href={rl.qrCodeUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>View &rarr;</a></div>}
+                    </div>
+                  </div>
+                ) : (isApproved || isCompleted) ? (
+                  <div style={{ marginBottom: 14, padding: 14, background: "#FFFBEB", borderRadius: 10, border: "1px solid #FDE68A", fontSize: 13, color: "#92400E" }}>
+                    No return shipment data yet. Click <strong>Refresh</strong> to fetch from Fynd, or edit details below.
+                  </div>
+                ) : null}
+
+                {/* ── Return Journey Timeline ── */}
+                {retJourney.length > 0 && (
+                  <div style={{ marginBottom: 14 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>Return Journey</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 0, paddingLeft: 6 }}>
+                      {retJourney.map((step, idx) => (
+                        <div key={idx} style={{ display: "flex", gap: 10, paddingBottom: idx < retJourney.length - 1 ? 10 : 0 }}>
+                          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 14, flexShrink: 0 }}>
+                            <div style={{ width: 8, height: 8, borderRadius: "50%", background: idx === 0 ? "#059669" : "#D1D5DB", border: idx === 0 ? "2px solid #A7F3D0" : "2px solid #E5E7EB", flexShrink: 0 }} />
+                            {idx < retJourney.length - 1 && <div style={{ width: 2, flex: 1, background: "#E5E7EB", marginTop: 2 }} />}
+                          </div>
+                          <div style={{ paddingBottom: 2 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: idx === 0 ? "#059669" : "#374151", textTransform: "capitalize" }}>{step.displayName || step.status.replace(/_/g, " ")}</div>
+                            {step.time && <div style={{ fontSize: 11, color: "#9CA3AF" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(step.time)); } catch { return step.time; } })()}</div>}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
-                {/* Fynd IDs */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12, marginBottom: hasShipments ? 16 : 0 }}>
+
+                {/* ── Pickup Address ── */}
+                {pickupAddress && (
+                  <div style={{ marginBottom: 14, padding: 12, background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6" }}>
+                    <div style={{ ...C.label, marginBottom: 4 }}>Pickup / Return address</div>
+                    <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
+                      {pickupAddress.formatted || [pickupAddress.name, pickupAddress.address1, pickupAddress.address2, pickupAddress.city, pickupAddress.state, pickupAddress.pincode, pickupAddress.phone].filter(Boolean).join(", ")}
+                    </div>
+                  </div>
+                )}
+
+                {/* ── Return Instructions ── */}
+                {defaultReturnInstructions && (
+                  <div style={{ marginBottom: 14, padding: 12, background: "#EFF6FF", borderRadius: 8, border: "1px solid #BFDBFE" }}>
+                    <div style={C.label}>Return Instructions</div>
+                    <div style={{ fontSize: 13, color: "#1E40AF", whiteSpace: "pre-wrap", marginTop: 4 }}>{defaultReturnInstructions}</div>
+                  </div>
+                )}
+
+                {/* ── Fynd IDs (compact) ── */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8, marginBottom: 14, padding: 12, background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6" }}>
                   <div><div style={C.label}>Fynd Order ID</div><div style={C.mono}>{fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "") || "\u2014"}</div></div>
                   {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && <div><div style={C.label}>Shipment ID</div><div style={C.mono}>{(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId}</div></div>}
                   {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && <div><div style={C.label}>Fynd Return #</div><div style={C.mono}>{(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}</div></div>}
-                  {fyndSyncStatus && (
-                    <div>
-                      <div style={C.label}>Sync Status</div>
-                      <div style={{
-                        fontSize: 13, fontWeight: 600,
-                        color: fyndSyncStatus === "synced" ? "#059669"
-                          : fyndSyncStatus === "failed" ? "#DC2626"
-                          : fyndSyncStatus === "processing" ? "#2563EB"
-                          : fyndSyncStatus === "retry_scheduled" ? "#D97706"
-                          : "#92400E",
-                      }}>
-                        {fyndSyncStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}
-                      </div>
-                    </div>
-                  )}
+                  {fyndSyncStatus && <div><div style={C.label}>Sync</div><div style={{ fontSize: 12, fontWeight: 600, color: fyndSyncStatus === "synced" ? "#059669" : fyndSyncStatus === "failed" ? "#DC2626" : "#D97706" }}>{fyndSyncStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</div></div>}
                 </div>
-                {/* Shipment details (expandable) */}
-                {hasShipments ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {(fyndOrderDetailsTab?.shipments ?? []).map((s, idx) => (
-                      <ShipmentRow key={idx} shipment={s} index={idx} expanded={expandedShipment === idx} onToggle={() => setExpandedShipment(expandedShipment === idx ? null : idx)} safeStr={safeStr} formatMoney={(v) => formatMoney(v, shopCurrency, shopLocale)} shopifyLineItems={shopifyOrder?.lineItems} />
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ padding: 20, textAlign: "center", color: "#9CA3AF", fontSize: 14, background: "#F9FAFB", borderRadius: 10 }}>
-                    No shipment data yet. Click Refresh to fetch from Fynd.
-                  </div>
+
+                {/* ── Edit shipping details (collapsible) ── */}
+                {(isApproved || isCompleted) && (
+                  <details style={{ marginBottom: 14 }}>
+                    <summary style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", cursor: "pointer", padding: "6px 0", userSelect: "none" }}>Edit return shipping details</summary>
+                    <div style={{ paddingTop: 12 }}>
+                      <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                        <input type="hidden" name="json" value={JSON.stringify({ action: "update_label", carrier: rl?.carrier ?? "", trackingNumber: rl?.trackingNumber ?? "", labelUrl: rl?.labelUrl ?? "", qrCodeUrl: rl?.qrCodeUrl ?? "" })} />
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                          <div className="app-field"><label style={{ fontSize: 12, fontWeight: 600 }}>Carrier</label><input type="text" name="carrier" defaultValue={rl?.carrier ?? ""} placeholder="e.g. FedEx" className="app-input" style={{ fontSize: 13 }} onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.carrier = e.target.value; h.value = JSON.stringify(v); } }} /></div>
+                          <div className="app-field"><label style={{ fontSize: 12, fontWeight: 600 }}>Tracking #</label><input type="text" name="trackingNumber" defaultValue={rl?.trackingNumber ?? ""} placeholder="AWB" className="app-input" style={{ fontSize: 13 }} onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.trackingNumber = e.target.value; h.value = JSON.stringify(v); } }} /></div>
+                        </div>
+                        <div className="app-field" style={{ marginBottom: 12 }}>
+                          <label style={{ fontSize: 12, fontWeight: 600 }}>Label URL</label>
+                          <input type="url" name="labelUrl" defaultValue={rl?.labelUrl ?? ""} placeholder="https://..." className="app-input" style={{ fontSize: 13 }} onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.labelUrl = e.target.value; h.value = JSON.stringify(v); } }} />
+                        </div>
+                        <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save</s-button>
+                      </fetcher.Form>
+                      <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #F3F4F6" }}>
+                        <input type="hidden" name="json" value={JSON.stringify({ action: "update_instructions", returnInstructions: defaultReturnInstructions ?? "" })} />
+                        <div className="app-field" style={{ marginBottom: 8 }}>
+                          <label style={{ fontSize: 12, fontWeight: 600 }}>Return instructions</label>
+                          <textarea name="returnInstructions" defaultValue={defaultReturnInstructions ?? ""} rows={2} placeholder="e.g. Pack items securely and drop off at..." style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #E5E7EB", boxSizing: "border-box", fontSize: 13 }} onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.returnInstructions = e.target.value; h.value = JSON.stringify(v); } }} />
+                        </div>
+                        <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save Instructions</s-button>
+                      </fetcher.Form>
+                    </div>
+                  </details>
                 )}
+
+                {/* ── Raw payload (expandable) ── */}
                 {(fyndPayloadInfo?.shipments?.length ?? 0) > 0 && (
-                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid #F3F4F6" }}>
+                  <div style={{ paddingTop: 8, borderTop: "1px solid #F3F4F6" }}>
                     <button type="button" onClick={() => setShowRawFynd((v) => !v)} className="app-btn-text" style={{ fontSize: 12 }}>
                       {showRawFynd ? "Hide raw payload" : "View raw payload"}
                     </button>
@@ -1862,150 +1909,6 @@ export default function ReturnDetail() {
                   </div>
                 )}
               </div>
-            )}
-
-            {/* ── Return Shipping ── */}
-            {(isApproved || isCompleted) && (() => {
-              const rl = returnLabelInfo;
-              const hasReturnData = !!(rl?.carrier || rl?.trackingNumber || rl?.trackingUrl || rl?.labelUrl || rl?.invoiceUrl || returnAwbVal);
-              const retShipment = (fyndOrderDetailsTab?.shipments ?? []).find(s => s.journeyType === "return") ?? firstShipment;
-              const retStatus = retShipment ? safeStr((retShipment as { shipmentStatus?: string }).shipmentStatus) : "";
-              const retJourney = (returnJourney ?? []) as FyndJourneyStep[];
-              const effLabelUrl = rl?.signedLabelUrl || rl?.labelUrl || null;
-              const effInvoiceUrl = rl?.signedInvoiceUrl || rl?.invoiceUrl || null;
-              const effTrackingUrl = rl?.trackingUrl || null;
-
-              return (
-                <div style={{ ...C.card }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 16 }}>Return Shipping</div>
-
-                  {/* ── Read-only summary of all return logistics ── */}
-                  {hasReturnData && (
-                    <div style={{ marginBottom: 16, padding: 16, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 12 }}>
-                        {rl?.carrier && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>Return Courier</div><div style={{ fontSize: 13, fontWeight: 600, color: "#111827" }}>{rl.carrier}</div></div>
-                        )}
-                        {(rl?.trackingNumber || returnAwbVal) && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>Return AWB</div><div style={{ fontSize: 13, fontFamily: "var(--rpm-font-mono)", color: "#111827" }}>{rl?.trackingNumber || returnAwbVal}</div></div>
-                        )}
-                        {retStatus && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>Return Status</div><div style={{ fontSize: 13, fontWeight: 600, color: retStatus.includes("deliver") ? "#059669" : "#D97706", textTransform: "capitalize" }}>{retStatus.replace(/_/g, " ")}</div></div>
-                        )}
-                        {effTrackingUrl && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>Tracking</div><a href={effTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Track Return &rarr;</a></div>
-                        )}
-                        {effLabelUrl && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>Return Label</div><a href={effLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download Label &darr;</a></div>
-                        )}
-                        {effInvoiceUrl && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>Return Invoice</div><a href={effInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download Invoice &darr;</a></div>
-                        )}
-                        {rl?.qrCodeUrl && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>QR Code</div><a href={rl.qrCodeUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>View QR &rarr;</a></div>
-                        )}
-                        {rl?.source && (
-                          <div><div style={{ ...C.label, color: "#065F46" }}>Source</div><div style={{ fontSize: 11, color: "#6B7280", textTransform: "capitalize" }}>{rl.source.replace(/_/g, " ")}</div></div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Return Journey Tracking Timeline ── */}
-                  {retJourney.length > 0 && (
-                    <div style={{ marginBottom: 16 }}>
-                      <div style={{ ...C.label, marginBottom: 8 }}>Return journey</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 0, paddingLeft: 8 }}>
-                        {retJourney.map((step, idx) => (
-                          <div key={idx} style={{ display: "flex", gap: 10, position: "relative", paddingBottom: idx < retJourney.length - 1 ? 12 : 0 }}>
-                            {/* Timeline dot + line */}
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 16, flexShrink: 0 }}>
-                              <div style={{ width: 10, height: 10, borderRadius: "50%", background: idx === 0 ? "#059669" : "#D1D5DB", border: idx === 0 ? "2px solid #A7F3D0" : "2px solid #E5E7EB", flexShrink: 0 }} />
-                              {idx < retJourney.length - 1 && <div style={{ width: 2, flex: 1, background: "#E5E7EB", marginTop: 2 }} />}
-                            </div>
-                            <div style={{ paddingBottom: 4 }}>
-                              <div style={{ fontSize: 12, fontWeight: 600, color: idx === 0 ? "#059669" : "#374151", textTransform: "capitalize" }}>{step.displayName || step.status.replace(/_/g, " ")}</div>
-                              {step.time && <div style={{ fontSize: 11, color: "#9CA3AF" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(step.time)); } catch { return step.time; } })()}</div>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Pickup Address ── */}
-                  {pickupAddress && (
-                    <div style={{ marginBottom: 16, padding: 12, background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6" }}>
-                      <div style={{ ...C.label, marginBottom: 4 }}>Pickup / Return address</div>
-                      <div style={{ fontSize: 13, color: "#374151", lineHeight: 1.5 }}>
-                        {pickupAddress.formatted || [pickupAddress.name, pickupAddress.address1, pickupAddress.address2, pickupAddress.city, pickupAddress.state, pickupAddress.pincode, pickupAddress.phone].filter(Boolean).join(", ")}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Return Instructions ── */}
-                  {defaultReturnInstructions && (
-                    <div style={{ marginBottom: 16, padding: 14, background: "#EFF6FF", borderRadius: 10, border: "1px solid #BFDBFE" }}>
-                      <div style={C.label}>Return Instructions</div>
-                      <div style={{ fontSize: 13, color: "#1E40AF", whiteSpace: "pre-wrap", marginTop: 4 }}>{defaultReturnInstructions}</div>
-                    </div>
-                  )}
-
-                  {/* ── Edit form (collapsible) ── */}
-                  <details style={{ marginTop: 4 }}>
-                    <summary style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", cursor: "pointer", padding: "8px 0", userSelect: "none" }}>Edit return shipping details</summary>
-                    <div style={{ paddingTop: 12 }}>
-                      <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                        <input type="hidden" name="json" value={JSON.stringify({
-                          action: "update_label",
-                          carrier: rl?.carrier ?? "",
-                          trackingNumber: rl?.trackingNumber ?? "",
-                          labelUrl: rl?.labelUrl ?? "",
-                          qrCodeUrl: rl?.qrCodeUrl ?? "",
-                        })} />
-                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-                          <div className="app-field">
-                            <label style={{ fontSize: 12, fontWeight: 600 }}>Carrier name</label>
-                            <input type="text" name="carrier" defaultValue={rl?.carrier ?? ""} placeholder="e.g. FedEx, UPS" className="app-input" style={{ fontSize: 13 }}
-                              onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.carrier = e.target.value; h.value = JSON.stringify(v); } }}
-                            />
-                          </div>
-                          <div className="app-field">
-                            <label style={{ fontSize: 12, fontWeight: 600 }}>Tracking number</label>
-                            <input type="text" name="trackingNumber" defaultValue={rl?.trackingNumber ?? ""} placeholder="Tracking number" className="app-input" style={{ fontSize: 13 }}
-                              onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.trackingNumber = e.target.value; h.value = JSON.stringify(v); } }}
-                            />
-                          </div>
-                        </div>
-                        <div className="app-field" style={{ marginBottom: 12 }}>
-                          <label style={{ fontSize: 12, fontWeight: 600 }}>Label URL</label>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                            <input type="url" name="labelUrl" defaultValue={rl?.labelUrl ?? ""} placeholder="https://..." className="app-input" style={{ fontSize: 13, flex: 1 }}
-                              onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.labelUrl = e.target.value; h.value = JSON.stringify(v); } }}
-                            />
-                            {rl?.labelUrl && (
-                              <a href={effLabelUrl || rl.labelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", whiteSpace: "nowrap", textDecoration: "none" }}>View &rarr;</a>
-                            )}
-                          </div>
-                        </div>
-                        <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save Label Info</s-button>
-                      </fetcher.Form>
-                      <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>
-                        <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
-                          <input type="hidden" name="json" value={JSON.stringify({ action: "update_instructions", returnInstructions: defaultReturnInstructions ?? "" })} />
-                          <div className="app-field" style={{ marginBottom: 8 }}>
-                            <label style={{ fontSize: 12, fontWeight: 600 }}>Return instructions</label>
-                            <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 4 }}>Shown to customer after return is approved</div>
-                            <textarea name="returnInstructions" defaultValue={defaultReturnInstructions ?? ""} rows={3} placeholder="e.g. Pack items securely and drop off at..." style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #E5E7EB", boxSizing: "border-box", fontSize: 13 }}
-                              onChange={(e) => { const h = e.target.closest("form")?.querySelector('input[name="json"]') as HTMLInputElement; if (h) { const v = JSON.parse(h.value); v.returnInstructions = e.target.value; h.value = JSON.stringify(v); } }}
-                            />
-                          </div>
-                          <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save Instructions</s-button>
-                        </fetcher.Form>
-                      </div>
-                    </div>
-                  </details>
-                </div>
               );
             })()}
 

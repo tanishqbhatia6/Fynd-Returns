@@ -1158,17 +1158,17 @@ export default function ReturnSettings() {
 
                 {/* Forward Journey */}
                 <div style={{ fontWeight: 600, fontSize: 12, color: "#64748B", marginBottom: 6, marginTop: 8, textTransform: "uppercase", letterSpacing: 0.5 }}>Forward Journey</div>
-                {(["bag_confirmed", "bag_invoiced", "ready_for_dp_assignment", "dp_assigned", "bag_packed", "handed_over_to_dg", "bag_picked", "out_for_delivery"] as const).map((status) => {
-                  const FYND_STATUS_LABELS: Record<string, string> = {
-                    bag_confirmed: "Bag Confirmed",
-                    bag_invoiced: "Bag Invoiced",
-                    ready_for_dp_assignment: "Ready for Courier Assignment",
-                    dp_assigned: "Courier Assigned",
-                    bag_packed: "Bag Packed",
-                    handed_over_to_dg: "Handed Over to Delivery Partner",
-                    bag_picked: "Bag Picked Up",
-                    out_for_delivery: "Out for Delivery",
-                  };
+                {([
+                  ["placed", "Order Placed"],
+                  ["bag_confirmed", "Bag Confirmed"],
+                  ["bag_invoiced", "Bag Invoiced"],
+                  ["ready_for_dp_assignment", "Ready for Courier Assignment"],
+                  ["dp_assigned", "Courier Assigned"],
+                  ["bag_packed", "Bag Packed"],
+                  ["handed_over_to_dg", "Handed Over to Delivery Partner"],
+                  ["bag_picked", "Bag Picked Up / In Transit"],
+                  ["out_for_delivery", "Out for Delivery"],
+                ] as const).map(([status, label]) => {
                   const checked = allowedFyndReturnStatuses.includes(status);
                   return (
                     <label key={status} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", marginBottom: 4, background: checked ? "#EFF6FF" : "#F8FAFC", borderRadius: 8, border: checked ? "1.5px solid #93C5FD" : "1px solid #E2E8F0", transition: "all 0.15s" }}>
@@ -1181,20 +1181,20 @@ export default function ReturnSettings() {
                       />
                       <div style={{ flex: 1 }}>
                         <span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{status}</span>
-                        <span style={{ marginLeft: 8, fontSize: 12, color: "#64748B" }}>{FYND_STATUS_LABELS[status] ?? ""}</span>
+                        <span style={{ marginLeft: 8, fontSize: 12, color: "#64748B" }}>{label}</span>
                       </div>
                     </label>
                   );
                 })}
 
-                {/* Delivery & Handover */}
+                {/* Delivery & Handover — these are always allowed when gate is ON, shown for reference */}
                 <div style={{ fontWeight: 600, fontSize: 12, color: "#64748B", marginBottom: 6, marginTop: 14, textTransform: "uppercase", letterSpacing: 0.5 }}>Delivery &amp; Handover</div>
-                {(["delivery_done", "handed_over_to_customer", "bag_delivered"] as const).map((status) => {
-                  const DELIVERY_LABELS: Record<string, string> = {
-                    delivery_done: "Delivered",
-                    handed_over_to_customer: "Handed Over to Customer",
-                    bag_delivered: "Bag Delivered",
-                  };
+                <p style={{ fontSize: 11, color: "#64748B", marginBottom: 8 }}>Post-delivery statuses are always allowed when the gate is enabled — customers should always be able to return delivered items.</p>
+                {([
+                  ["delivery_done", "Delivered"],
+                  ["handed_over_to_customer", "Handed Over to Customer"],
+                  ["bag_delivered", "Bag Delivered"],
+                ] as const).map(([status, label]) => {
                   const checked = allowedFyndReturnStatuses.includes(status);
                   return (
                     <label key={status} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", padding: "8px 12px", marginBottom: 4, background: checked ? "#EFF6FF" : "#F8FAFC", borderRadius: 8, border: checked ? "1.5px solid #93C5FD" : "1px solid #E2E8F0", transition: "all 0.15s" }}>
@@ -1207,7 +1207,7 @@ export default function ReturnSettings() {
                       />
                       <div style={{ flex: 1 }}>
                         <span style={{ fontWeight: 600, fontSize: 13, fontFamily: "monospace" }}>{status}</span>
-                        <span style={{ marginLeft: 8, fontSize: 12, color: "#64748B" }}>{DELIVERY_LABELS[status] ?? ""}</span>
+                        <span style={{ marginLeft: 8, fontSize: 12, color: "#64748B" }}>{label}</span>
                         <span style={{ marginLeft: 8, fontSize: 11, background: "#DCFCE7", color: "#15803D", padding: "1px 6px", borderRadius: 4, fontWeight: 600 }}>Recommended</span>
                       </div>
                     </label>

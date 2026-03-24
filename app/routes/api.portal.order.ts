@@ -9,13 +9,23 @@ import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { createFyndClientOrError } from "../lib/fynd.server";
 
-/** Fynd statuses that indicate the shipment has been delivered to the customer */
+/**
+ * Fynd statuses that always allow return initiation (regardless of merchant gate settings).
+ * These are ONLY post-delivery and return-journey statuses — if the item has already been
+ * delivered or a return is already in progress, creating a return should never be blocked.
+ *
+ * Pre-delivery statuses (out_for_delivery, bag_picked, dp_assigned, etc.) are NOT here —
+ * they are only allowed if the merchant explicitly checks them in the status gate settings.
+ */
 const FYND_DELIVERED_STATUSES = new Set([
-  "delivery_done", "delivered", "bag_delivered", "handed_over_to_customer", "handed_over_to_dg",
-  "return_initiated", "return_bag_picked", "return_bag_in_transit",
+  // Post-delivery
+  "delivery_done", "delivered", "bag_delivered", "handed_over_to_customer",
+  // Return journey (return already in progress — always allow additional returns)
+  "return_initiated", "return_dp_assigned", "return_bag_picked", "return_bag_in_transit",
   "return_bag_out_for_delivery", "return_bag_delivered", "return_bag_not_received",
-  "return_completed", "credit_note_generated", "refund_initiated", "refund_done",
-  "out_for_delivery_to_store",
+  "return_pre_qc", "return_accepted", "return_completed",
+  // Refund statuses (return/refund already happened — allow)
+  "credit_note_generated", "refund_initiated", "refund_done", "refund_completed",
 ]);
 
 /** Type for per-shipment data returned to the portal */
@@ -82,13 +92,17 @@ function safeImageUrl(val: unknown): string | null {
   return null;
 }
 
-/** Check if a Fynd shipment status is eligible for return (delivered OR merchant-allowed) */
+/** Check if a Fynd shipment status is eligible for return.
+ * When merchant has configured allowed statuses (gate ON), only those + post-delivery statuses are allowed.
+ * When gate is OFF (empty list), all statuses are allowed (no restriction). */
 function isShipmentEligibleForReturn(
   status: string,
   allowedFyndStatusesForReturn: string[],
 ): boolean {
+  if (allowedFyndStatusesForReturn.length === 0) return true; // Gate OFF = allow all
+  // Post-delivery and return-journey statuses always allowed
   if (FYND_DELIVERED_STATUSES.has(status)) return true;
-  if (allowedFyndStatusesForReturn.length === 0) return true; // Gate OFF (null) = allow all statuses
+  // Check merchant's explicitly allowed statuses
   const normalized = status.toLowerCase().replace(/[\s_]+/g, "_").trim();
   return allowedFyndStatusesForReturn.some((s) => {
     const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();

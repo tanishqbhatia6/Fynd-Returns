@@ -1147,28 +1147,34 @@ export default function ReturnDetail() {
   };
 
   const hasShipments = (fyndOrderDetailsTab?.shipments?.length ?? 0) > 0;
-  const firstShipment = fyndOrderDetailsTab?.shipments?.[0];
+  const allShipments = fyndOrderDetailsTab?.shipments ?? [];
 
-  // Forward shipment logistics (using signed URLs when available)
-  const forwardAwbVal = displayForwardAwb || (firstShipment as { forwardAwb?: string | null })?.forwardAwb || null;
-  const forwardCourier = firstShipment ? safeStr((firstShipment as { cpName?: string }).cpName) : "";
-  const forwardTrackingUrl = firstShipment ? (firstShipment as { trackingUrl?: string | null }).trackingUrl : null;
-  const forwardShipmentStatus = firstShipment ? safeStr((firstShipment as { shipmentStatus?: string }).shipmentStatus) : "";
-  const forwardInvoiceNumber = firstShipment ? safeStr((firstShipment as { invoiceNumber?: string }).invoiceNumber || (firstShipment as { invoiceId?: string }).invoiceId) : "";
-  const forwardInvoiceUrl = firstShipment ? ((firstShipment as { signedInvoiceUrl?: string | null }).signedInvoiceUrl ?? (firstShipment as { invoiceUrl?: string | null }).invoiceUrl ?? null) : null;
-  const forwardLabelUrl = firstShipment ? ((firstShipment as { signedLabelUrl?: string | null }).signedLabelUrl ?? (firstShipment as { labelUrl?: string | null }).labelUrl ?? null) : null;
+  // Explicitly find forward and return shipments — never assume ordering
+  const fwdShipment = allShipments.find(s => s.journeyType !== "return") ?? null;
+  const retShipmentFromPayload = allShipments.find(s => s.journeyType === "return") ?? null;
 
-  // Return shipment logistics — from returnLabelJson (populated by webhook or API refresh)
-  const returnAwbVal = displayReturnAwb || returnLabelInfo?.trackingNumber || (firstShipment as { returnAwb?: string | null })?.returnAwb || null;
-  const returnCourier = returnLabelInfo?.carrier || "";
+  // Forward shipment logistics (from forward journey shipment only)
+  const forwardAwbVal = displayForwardAwb || (fwdShipment as { forwardAwb?: string | null })?.forwardAwb || null;
+  const forwardCourier = fwdShipment ? safeStr((fwdShipment as { cpName?: string }).cpName) : "";
+  const forwardTrackingUrl = fwdShipment ? (fwdShipment as { trackingUrl?: string | null }).trackingUrl : null;
+  const forwardShipmentStatus = fwdShipment ? safeStr((fwdShipment as { shipmentStatus?: string }).shipmentStatus) : "";
+  const forwardInvoiceNumber = fwdShipment ? safeStr((fwdShipment as { invoiceNumber?: string }).invoiceNumber || (fwdShipment as { invoiceId?: string }).invoiceId) : "";
+  const forwardInvoiceUrl = fwdShipment ? ((fwdShipment as { signedInvoiceUrl?: string | null }).signedInvoiceUrl ?? (fwdShipment as { invoiceUrl?: string | null }).invoiceUrl ?? null) : null;
+  const forwardLabelUrl = fwdShipment ? ((fwdShipment as { signedLabelUrl?: string | null }).signedLabelUrl ?? (fwdShipment as { labelUrl?: string | null }).labelUrl ?? null) : null;
+
+  // Return shipment logistics — prefer returnLabelJson (webhook/API), fallback to payload return shipment
+  const returnAwbVal = displayReturnAwb || returnLabelInfo?.trackingNumber || (retShipmentFromPayload as { returnAwb?: string | null })?.returnAwb || null;
+  const returnCourier = returnLabelInfo?.carrier || (retShipmentFromPayload ? safeStr((retShipmentFromPayload as { cpName?: string }).cpName) : "");
   const returnTrackingNumber = returnLabelInfo?.trackingNumber || returnAwbVal || "";
-  const returnTrackingUrl = returnLabelInfo?.trackingUrl || null;
+  const returnTrackingUrl = returnLabelInfo?.trackingUrl || (retShipmentFromPayload ? (retShipmentFromPayload as { trackingUrl?: string | null }).trackingUrl : null);
+  const returnShipmentStatus = (returnLabelInfo as Record<string, unknown>)?.returnStatus as string || (retShipmentFromPayload ? safeStr((retShipmentFromPayload as { shipmentStatus?: string }).shipmentStatus) : "");
   const returnLabelUrl = returnLabelInfo?.signedLabelUrl || returnLabelInfo?.labelUrl || null;
   const returnInvoiceUrl = returnLabelInfo?.signedInvoiceUrl || returnLabelInfo?.invoiceUrl || null;
 
-  // Legacy combined values (for backward compat in sections that haven't been updated)
+  // Legacy combined values
   const awb = returnAwbVal || forwardAwbVal;
   const courier = forwardCourier;
+  const firstShipment = fwdShipment ?? retShipmentFromPayload;
 
   return (
     <s-page fullWidth heading={`Return ${returnRequestId}`}>
@@ -1666,8 +1672,7 @@ export default function ReturnDetail() {
             {/* ── Shipment & Logistics (unified) ── */}
             {!isManualReturn && (() => {
               const rl = returnLabelInfo;
-              const retShipment = (fyndOrderDetailsTab?.shipments ?? []).find(s => s.journeyType === "return") ?? firstShipment;
-              const retStatus = retShipment ? safeStr((retShipment as { shipmentStatus?: string }).shipmentStatus) : (rl as Record<string, unknown>)?.returnStatus as string || "";
+              const retStatus = returnShipmentStatus;
               const retJourney = (returnJourney ?? []) as FyndJourneyStep[];
               const effLabelUrl = rl?.signedLabelUrl || rl?.labelUrl || null;
               const effInvoiceUrl = rl?.signedInvoiceUrl || rl?.invoiceUrl || null;
@@ -1858,12 +1863,21 @@ export default function ReturnDetail() {
                   </div>
                 )}
 
-                {/* ── Fynd IDs (compact) ── */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8, marginBottom: 14, padding: 12, background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6" }}>
-                  <div><div style={C.label}>Fynd Order ID</div><div style={C.mono}>{fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "") || "\u2014"}</div></div>
-                  {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && <div><div style={C.label}>Shipment ID</div><div style={C.mono}>{(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId}</div></div>}
-                  {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && <div><div style={C.label}>Fynd Return #</div><div style={C.mono}>{(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}</div></div>}
-                  {fyndSyncStatus && <div><div style={C.label}>Sync</div><div style={{ fontSize: 12, fontWeight: 600, color: fyndSyncStatus === "synced" ? "#059669" : fyndSyncStatus === "failed" ? "#DC2626" : "#D97706" }}>{fyndSyncStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</div></div>}
+                {/* ── Fynd Reference IDs ── */}
+                <div style={{ marginBottom: 14, padding: 14, background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6" }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Fynd Reference</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <div><div style={C.label}>Order ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "") || "\u2014"}</div></div>
+                    {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && (
+                      <div><div style={C.label}>Shipment ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId}</div></div>
+                    )}
+                    {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && (
+                      <div><div style={C.label}>Return #</div><div style={{ ...C.mono, fontSize: 11 }}>{(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}</div></div>
+                    )}
+                    {fyndSyncStatus && (
+                      <div><div style={C.label}>Sync Status</div><div style={{ fontSize: 13, fontWeight: 600, color: fyndSyncStatus === "synced" ? "#059669" : fyndSyncStatus === "failed" ? "#DC2626" : "#D97706" }}>{fyndSyncStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</div></div>
+                    )}
+                  </div>
                 </div>
 
                 {/* ── Edit shipping details (collapsible) ── */}

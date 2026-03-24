@@ -124,213 +124,6 @@ type ShipmentItem = {
   shippingCharges?: string;
 };
 
-type ShipmentPricing = {
-  subtotal?: string;
-  total?: string;
-  currency?: string;
-  discount?: string;
-  deliveryCharges?: string;
-  codAmount?: string;
-  promotions?: string;
-  coupon?: string;
-};
-
-type ShipmentForRow = {
-  shipmentId: string;
-  forwardShipmentId: string | null;
-  cpName: string | null;
-  forwardAwb: string | null;
-  returnAwb: string | null;
-  trackingUrl: string | null;
-  invoiceNumber: string | null;
-  invoiceId: string | null;
-  invoiceUrl: string | null;
-  fulfillmentStore: string | null;
-  fulfillmentOptions: string | null;
-  shipmentStatus: string | null;
-  creditNoteId: string | null;
-  journeyType: string | null;
-  pricing?: ShipmentPricing;
-  items: ShipmentItem[];
-};
-
-function ShipmentRow({ shipment: s, index, expanded, onToggle, safeStr, formatMoney, shopifyLineItems }: {
-  shipment: ShipmentForRow;
-  index: number;
-  expanded: boolean;
-  onToggle: () => void;
-  safeStr: (v: unknown) => string;
-  formatMoney: (v: string | null | undefined) => string;
-  shopifyLineItems?: Array<{ sku?: string | null; title?: string; price?: string | null; discountedPrice?: string | null; quantity: number; id?: string }>;
-}) {
-  const cardStyle = {
-    padding: expanded ? 20 : "14px 20px",
-    background: "var(--rpm-surface-elevated)",
-    borderRadius: "var(--rpm-radius-lg)",
-    border: "var(--rpm-border)",
-    boxShadow: "var(--rpm-shadow-sm)",
-    transition: "all 0.25s ease",
-  };
-  return (
-    <div style={{ ...cardStyle }}>
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16, flex: 1, minWidth: 0 }}>
-          <span style={{ fontWeight: 600, fontSize: 13 }}>Shipment {index + 1}</span>
-          {s.forwardShipmentId && (
-            <span style={{ fontSize: 12 }} title="Original delivery shipment">
-              <span style={{ color: "#6d7175" }}>Forward:</span> <code style={{ fontFamily: "monospace", background: "var(--rpm-surface)", padding: "2px 6px", borderRadius: 4 }}>{s.forwardShipmentId}</code>
-            </span>
-          )}
-          <span style={{ fontSize: 12 }} title="Return shipment">
-            <span style={{ color: "#6d7175" }}>Return:</span> <code style={{ fontFamily: "monospace", background: "var(--rpm-surface)", padding: "2px 6px", borderRadius: 4 }}>{s.shipmentId}</code>
-          </span>
-          {safeStr(s.cpName) && <span style={{ fontSize: 13 }}>{safeStr(s.cpName)}</span>}
-          {safeStr(s.returnAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>Return AWB: {safeStr(s.returnAwb)}</span>}
-          {safeStr(s.forwardAwb) && !safeStr(s.returnAwb) && <span style={{ fontFamily: "monospace", fontSize: 12 }}>AWB: {safeStr(s.forwardAwb)}</span>}
-          {safeStr(s.shipmentStatus) && (
-            <span style={{ fontSize: 12, padding: "4px 10px", borderRadius: 20, background: "var(--rpm-surface-hover)", color: "var(--rpm-text)", fontWeight: 500 }}>{safeStr(s.shipmentStatus)}</span>
-          )}
-        </div>
-        <button type="button" onClick={onToggle} className="app-btn-text">
-          {expanded ? "Hide details" : "View details"}
-        </button>
-      </div>
-      {expanded && (
-        <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid #e1e3e5" }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 12, marginBottom: 12 }}>
-            {s.forwardShipmentId && (
-              <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward Shipment ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.forwardShipmentId}</div></div>
-            )}
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Return Shipment ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.shipmentId}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Logistics Partner</div><div style={{ fontSize: 13 }}>{safeStr(s.cpName) || "—"}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Forward AWB</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.forwardAwb) || "—"}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Return AWB</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{safeStr(s.returnAwb) || "—"}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Tracking</div><div style={{ fontSize: 13 }}>
-              {s.trackingUrl ? <a href={s.trackingUrl} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 600 }}>Track shipment →</a> : "—"}
-            </div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Invoice</div><div style={{ fontSize: 13 }}>
-              {(safeStr(s.invoiceNumber) || safeStr(s.invoiceId))
-                ? (((s as Record<string, unknown>).signedInvoiceUrl as string | undefined) || s.invoiceUrl
-                  ? <a href={((s as Record<string, unknown>).signedInvoiceUrl as string | undefined) || s.invoiceUrl!} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 500 }}>{safeStr(s.invoiceNumber) || safeStr(s.invoiceId)} ↓</a>
-                  : (safeStr(s.invoiceNumber) || safeStr(s.invoiceId)))
-                : "—"}
-            </div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Label</div><div style={{ fontSize: 13 }}>
-              {((s as Record<string, unknown>).signedLabelUrl as string | undefined) || (s as Record<string, unknown>).labelUrl
-                ? <a href={((s as Record<string, unknown>).signedLabelUrl as string | undefined) || (s as Record<string, unknown>).labelUrl as string} target="_blank" rel="noopener noreferrer" className="app-link" style={{ fontWeight: 500 }}>Download ↓</a>
-                : "—"}
-            </div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfilling store</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentStore) || "—"}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Fulfillment options</div><div style={{ fontSize: 13 }}>{safeStr(s.fulfillmentOptions) || "—"}</div></div>
-            <div><div style={{ fontSize: 11, color: "#6d7175" }}>Status</div><div style={{ fontSize: 13 }}>{safeStr(s.shipmentStatus) || "—"}</div></div>
-            {s.creditNoteId && s.journeyType === "return" && (
-              <div><div style={{ fontSize: 11, color: "#6d7175" }}>Credit Note ID</div><div style={{ fontFamily: "monospace", fontSize: 13 }}>{s.creditNoteId}</div></div>
-            )}
-          </div>
-          {s.pricing && (s.pricing.subtotal || s.pricing.total || s.pricing.discount || s.pricing.deliveryCharges || s.pricing.codAmount || s.pricing.promotions || s.pricing.coupon) && (
-            <div style={{ marginBottom: 16, padding: 16, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius)", border: "var(--rpm-border)" }}>
-              <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Shipment pricing</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxWidth: 320 }}>
-                {s.pricing.subtotal && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                    <span style={{ color: "#6d7175" }}>Subtotal</span>
-                    <span>{formatMoney(s.pricing.subtotal)}{s.pricing.currency ? ` ${s.pricing.currency}` : ""}</span>
-                  </div>
-                )}
-                {s.pricing.discount && parseFloat(s.pricing.discount) !== 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--rpm-success)" }}>
-                    <span>Discount</span>
-                    <span>−{formatMoney(s.pricing.discount)}</span>
-                  </div>
-                )}
-                {s.pricing.promotions && parseFloat(s.pricing.promotions) !== 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
-                    <span>Promotions</span>
-                    <span>−{formatMoney(s.pricing.promotions)}</span>
-                  </div>
-                )}
-                {s.pricing.coupon && parseFloat(s.pricing.coupon) !== 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
-                    <span>Coupon</span>
-                    <span>−{formatMoney(s.pricing.coupon)}</span>
-                  </div>
-                )}
-                {s.pricing.deliveryCharges && parseFloat(s.pricing.deliveryCharges) !== 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
-                    <span>Delivery charges</span>
-                    <span>{formatMoney(s.pricing.deliveryCharges)}</span>
-                  </div>
-                )}
-                {s.pricing.codAmount && parseFloat(s.pricing.codAmount) !== 0 && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6d7175" }}>
-                    <span>COD amount</span>
-                    <span>{formatMoney(s.pricing.codAmount)}</span>
-                  </div>
-                )}
-                {s.pricing.total && (
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 600, marginTop: 4, paddingTop: 8, borderTop: "1px solid #e1e3e5" }}>
-                    <span>Total</span>
-                    <span>{formatMoney(s.pricing.total)}{s.pricing.currency ? ` ${s.pricing.currency}` : ""}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-          {(s.items ?? []).length > 0 && (
-            <div>
-              <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>Items</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {(s.items ?? []).map((it, i) => {
-                  const matched = shopifyLineItems?.find((li) =>
-                    (it.sku && li.sku && String(li.sku).toLowerCase() === String(it.sku).toLowerCase()) ||
-                    (it.identifier && li.sku && String(li.sku).toLowerCase() === String(it.identifier).toLowerCase())
-                  );
-                  const title = safeStr(it.title) || matched?.title || safeStr(it.sku) || safeStr(it.identifier) || "Item";
-                  const qty = it.quantity ?? 1;
-                  const unitPrice = it.discountedPrice ?? it.price ?? it.markedPrice ?? matched?.discountedPrice ?? matched?.price;
-                  const originalPrice = it.price ?? it.originalPrice ?? it.markedPrice ?? matched?.price;
-                  const total = it.total ?? (unitPrice ? String(parseFloat(unitPrice) * qty) : null);
-                  return (
-                    <div key={i} style={{ padding: 16, background: "var(--rpm-surface)", borderRadius: "var(--rpm-radius-lg)", border: "var(--rpm-border)", transition: "box-shadow 0.2s ease", boxShadow: "var(--rpm-shadow-sm)" }}>
-                      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
-                        <div style={{ flex: 1, minWidth: 200 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 8 }}>{title}</div>
-                          <div style={{ display: "flex", flexWrap: "wrap", gap: 16, fontSize: 12, color: "var(--rpm-text-muted)" }}>
-                            {it.sku && <span><strong>SKU:</strong> <code style={{ background: "var(--rpm-surface-elevated)", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }}>{safeStr(it.sku)}</code></span>}
-                            {it.itemId && <span><strong>Item ID:</strong> <code style={{ background: "var(--rpm-surface-elevated)", padding: "2px 6px", borderRadius: 4, fontFamily: "monospace" }}>{safeStr(it.itemId)}</code></span>}
-                            {it.affiliateLineNo && <span><strong>Affiliate line no:</strong> {safeStr(it.affiliateLineNo)}</span>}
-                            <span><strong>Qty:</strong> {qty}</span>
-                            {it.transferPrice && parseFloat(it.transferPrice) !== 0 && <span><strong>Transfer price:</strong> {formatMoney(it.transferPrice)}</span>}
-                            {it.shippingCharges && parseFloat(it.shippingCharges) !== 0 && <span><strong>Shipping:</strong> {formatMoney(it.shippingCharges)}</span>}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                          {unitPrice && (
-                            <div style={{ fontSize: 13 }}>
-                              {formatMoney(unitPrice)} × {qty}
-                              {originalPrice && parseFloat(originalPrice) !== parseFloat(unitPrice) && (
-                                <span style={{ marginLeft: 8, color: "var(--rpm-text-muted)", textDecoration: "line-through", fontWeight: 400 }}>{formatMoney(originalPrice)} each</span>
-                              )}
-                            </div>
-                          )}
-                          {it.discount && parseFloat(it.discount) !== 0 && (
-                            <div style={{ fontSize: 12, color: "var(--rpm-success)" }}>Discount: −{formatMoney(it.discount)}</div>
-                          )}
-                          {total && <div style={{ fontWeight: 700, fontSize: 14, color: "var(--rpm-text)" }}>Total: {formatMoney(total)}</div>}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 function formatAddress(addr: MailingAddressDisplay | null | undefined): string {
   if (!addr) return "";
   const parts = [
@@ -1168,8 +961,14 @@ export default function ReturnDetail() {
   const fwdFulfillmentOptions = fwdShipment?.fulfillmentOptions ?? null;
   const fwdEstimatedDelivery = fwdShipment?.estimatedDelivery ?? null;
   const fwdWeightInfo = fwdShipment?.weightInfo ?? null;
+  const fwdDimensions = fwdShipment?.dimensions ?? null;
   const fwdPricing = fwdShipment?.pricing ?? null;
   const fwdDeliveryAddress = fwdShipment?.deliveryAddress ?? null;
+  const fwdStorePhone = fwdShipment?.storePhone ?? null;
+  const fwdStoreEmail = fwdShipment?.storeEmail ?? null;
+  const fwdDpPhone = fwdShipment?.dpPhone ?? null;
+  const fwdTrackingDetails = fwdShipment?.trackingDetails ?? [];
+  const fwdEwaybillUrl = fwdShipment?.ewaybillUrl ?? null;
 
   // Return shipment extended fields (from payload)
   const retShipmentId = retShipmentFromPayload?.shipmentId ?? null;
@@ -1177,8 +976,12 @@ export default function ReturnDetail() {
   const retFulfillmentStore = retShipmentFromPayload?.fulfillmentStore ?? null;
   const retCreditNoteId = retShipmentFromPayload?.creditNoteId ?? null;
   const retWeightInfo = retShipmentFromPayload?.weightInfo ?? null;
+  const retDimensions = retShipmentFromPayload?.dimensions ?? null;
   const retPricing = retShipmentFromPayload?.pricing ?? null;
   const retEstimatedDelivery = retShipmentFromPayload?.estimatedDelivery ?? null;
+  const retStorePhone = retShipmentFromPayload?.storePhone ?? null;
+  const retDpPhone = retShipmentFromPayload?.dpPhone ?? null;
+  const retTrackingDetails = retShipmentFromPayload?.trackingDetails ?? [];
   const retReturnInvoiceUrl = retShipmentFromPayload ? ((retShipmentFromPayload as { signedInvoiceUrl?: string | null }).signedInvoiceUrl ?? retShipmentFromPayload.invoiceUrl ?? null) : null;
   const retReturnLabelUrl = retShipmentFromPayload ? ((retShipmentFromPayload as { signedLabelUrl?: string | null }).signedLabelUrl ?? (retShipmentFromPayload as { labelUrl?: string | null }).labelUrl ?? null) : null;
 
@@ -1838,6 +1641,11 @@ export default function ReturnDetail() {
                       {fwdEstimatedDelivery && <div><div style={C.label}>Est. Delivery</div><div style={{ fontSize: 12, color: "#374151" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium" }).format(new Date(fwdEstimatedDelivery)); } catch { return fwdEstimatedDelivery; } })()}</div></div>}
                       {fwdFulfillmentOptions && <div><div style={C.label}>Fulfillment</div><div style={{ fontSize: 12, color: "#6B7280" }}>{fwdFulfillmentOptions}</div></div>}
                       {fwdWeightInfo && <div><div style={C.label}>Weight</div><div style={{ fontSize: 12, color: "#374151" }}>{fwdWeightInfo}</div></div>}
+                      {fwdDimensions && <div><div style={C.label}>Dimensions</div><div style={{ fontSize: 12, color: "#374151" }}>{fwdDimensions}</div></div>}
+                      {fwdStorePhone && <div><div style={C.label}>Store Phone</div><div style={{ fontSize: 12, color: "#374151" }}>{fwdStorePhone}</div></div>}
+                      {fwdStoreEmail && <div><div style={C.label}>Store Email</div><div style={{ fontSize: 12, color: "#374151" }}>{fwdStoreEmail}</div></div>}
+                      {fwdDpPhone && <div><div style={C.label}>DP Phone</div><div style={{ fontSize: 12, color: "#374151" }}>{fwdDpPhone}</div></div>}
+                      {fwdEwaybillUrl && <div><div style={C.label}>E-Waybill</div><a href={fwdEwaybillUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Download &darr;</a></div>}
                     </div>
                     {fwdDeliveryAddress && (
                       <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E5E7EB" }}>
@@ -1854,6 +1662,26 @@ export default function ReturnDetail() {
                           {fwdPricing.deliveryCharges && <><span style={{ color: "#6B7280" }}>Delivery</span><span>{formatMoney(fwdPricing.deliveryCharges, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
                           {fwdPricing.codAmount && parseFloat(fwdPricing.codAmount) > 0 && <><span style={{ color: "#6B7280" }}>COD</span><span>{formatMoney(fwdPricing.codAmount, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
                           {fwdPricing.total && <><span style={{ fontWeight: 600, color: "#111827" }}>Total</span><span style={{ fontWeight: 600 }}>{formatMoney(fwdPricing.total, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
+                        </div>
+                      </details>
+                    )}
+                    {fwdTrackingDetails.length > 0 && (
+                      <details style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E5E7EB" }}>
+                        <summary style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", cursor: "pointer" }}>Tracking History ({fwdTrackingDetails.length} events)</summary>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 0, paddingLeft: 6, marginTop: 8 }}>
+                          {fwdTrackingDetails.map((t, idx) => (
+                            <div key={idx} style={{ display: "flex", gap: 8, paddingBottom: idx < fwdTrackingDetails.length - 1 ? 8 : 0 }}>
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 12, flexShrink: 0 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: idx === 0 ? "#3B82F6" : "#D1D5DB", flexShrink: 0, marginTop: 3 }} />
+                                {idx < fwdTrackingDetails.length - 1 && <div style={{ width: 1, flex: 1, background: "#E5E7EB", marginTop: 2 }} />}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", textTransform: "capitalize" }}>{t.status.replace(/_/g, " ")}</div>
+                                {t.time && <div style={{ fontSize: 10, color: "#9CA3AF" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(t.time)); } catch { return t.time; } })()}</div>}
+                                {t.message && <div style={{ fontSize: 10, color: "#6B7280", marginTop: 1 }}>{t.message}</div>}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </details>
                     )}
@@ -1877,6 +1705,9 @@ export default function ReturnDetail() {
                       {retFulfillmentStore && <div><div style={C.label}>Return Store</div><div style={{ fontSize: 12, color: "#374151" }}>{retFulfillmentStore}</div></div>}
                       {retEstimatedDelivery && <div><div style={C.label}>Est. Return Delivery</div><div style={{ fontSize: 12, color: "#374151" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium" }).format(new Date(retEstimatedDelivery)); } catch { return retEstimatedDelivery; } })()}</div></div>}
                       {retWeightInfo && <div><div style={C.label}>Weight</div><div style={{ fontSize: 12, color: "#374151" }}>{retWeightInfo}</div></div>}
+                      {retDimensions && <div><div style={C.label}>Dimensions</div><div style={{ fontSize: 12, color: "#374151" }}>{retDimensions}</div></div>}
+                      {retStorePhone && <div><div style={C.label}>Store Phone</div><div style={{ fontSize: 12, color: "#374151" }}>{retStorePhone}</div></div>}
+                      {retDpPhone && <div><div style={C.label}>DP Phone</div><div style={{ fontSize: 12, color: "#374151" }}>{retDpPhone}</div></div>}
                     </div>
                     {retPricing && (retPricing.total || retPricing.subtotal || retPricing.discount) && (
                       <details style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #BBF7D0" }}>
@@ -1885,6 +1716,26 @@ export default function ReturnDetail() {
                           {retPricing.subtotal && <><span style={{ color: "#6B7280" }}>Subtotal</span><span>{formatMoney(retPricing.subtotal, retPricing.currency || shopCurrency, shopLocale)}</span></>}
                           {retPricing.discount && parseFloat(retPricing.discount) > 0 && <><span style={{ color: "#059669" }}>Discount</span><span style={{ color: "#059669" }}>-{formatMoney(retPricing.discount, retPricing.currency || shopCurrency, shopLocale)}</span></>}
                           {retPricing.total && <><span style={{ fontWeight: 600, color: "#111827" }}>Total</span><span style={{ fontWeight: 600 }}>{formatMoney(retPricing.total, retPricing.currency || shopCurrency, shopLocale)}</span></>}
+                        </div>
+                      </details>
+                    )}
+                    {retTrackingDetails.length > 0 && (
+                      <details style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #BBF7D0" }}>
+                        <summary style={{ fontSize: 11, fontWeight: 600, color: "#065F46", cursor: "pointer" }}>Return Tracking History ({retTrackingDetails.length} events)</summary>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 0, paddingLeft: 6, marginTop: 8 }}>
+                          {retTrackingDetails.map((t, idx) => (
+                            <div key={idx} style={{ display: "flex", gap: 8, paddingBottom: idx < retTrackingDetails.length - 1 ? 8 : 0 }}>
+                              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: 12, flexShrink: 0 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: idx === 0 ? "#059669" : "#D1D5DB", flexShrink: 0, marginTop: 3 }} />
+                                {idx < retTrackingDetails.length - 1 && <div style={{ width: 1, flex: 1, background: "#E5E7EB", marginTop: 2 }} />}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 11, fontWeight: 600, color: "#374151", textTransform: "capitalize" }}>{t.status.replace(/_/g, " ")}</div>
+                                {t.time && <div style={{ fontSize: 10, color: "#9CA3AF" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(t.time)); } catch { return t.time; } })()}</div>}
+                                {t.message && <div style={{ fontSize: 10, color: "#6B7280", marginTop: 1 }}>{t.message}</div>}
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       </details>
                     )}

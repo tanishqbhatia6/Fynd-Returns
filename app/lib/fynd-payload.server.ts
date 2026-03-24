@@ -391,6 +391,13 @@ export type FyndOrderDetailsTab = {
     deliveryAddress?: FyndAddress | null;
     returnPickupAddress?: FyndAddress | null;
     weightInfo?: string | null;
+    dimensions?: string | null;
+    storePhone?: string | null;
+    storeEmail?: string | null;
+    dpPhone?: string | null;
+    dpGstin?: string | null;
+    invoiceA3Url?: string | null;
+    ewaybillUrl?: string | null;
     pricing?: FyndShipmentPricing;
     trackingDetails?: Array<{
       status: string;
@@ -662,6 +669,28 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const weightRaw = raw.weight ?? (raw.size_info as Record<string, unknown>)?.weight;
       const weightInfo = weightRaw != null ? String(typeof weightRaw === "number" ? `${weightRaw} kg` : weightRaw) : null;
 
+      // Package dimensions
+      const sizeInfoObj = (raw.size_info != null && typeof raw.size_info === "object") ? raw.size_info as Record<string, unknown> : null;
+      const dimLength = sizeInfoObj?.length ?? sizeInfoObj?.l;
+      const dimWidth = sizeInfoObj?.width ?? sizeInfoObj?.w ?? sizeInfoObj?.breadth;
+      const dimHeight = sizeInfoObj?.height ?? sizeInfoObj?.h;
+      const dimUnit = toDisplayString(sizeInfoObj?.unit_of_measurement ?? sizeInfoObj?.unit) ?? "cm";
+      const dimensions = (dimLength && dimWidth && dimHeight) ? `${dimLength} × ${dimWidth} × ${dimHeight} ${dimUnit}` : null;
+
+      // Store contact info
+      const storePhone = fulfillStoreObj ? toDisplayString(fulfillStoreObj.phone ?? fulfillStoreObj.contact_phone ?? fulfillStoreObj.store_phone ?? (fulfillStoreObj.meta as Record<string, unknown> | undefined)?.phone) : null;
+      const storeEmail = fulfillStoreObj ? toDisplayString(fulfillStoreObj.email ?? fulfillStoreObj.store_email ?? (fulfillStoreObj.meta as Record<string, unknown> | undefined)?.email) : null;
+
+      // DP contact info
+      const dpPhone = toDisplayString(dpDetails.phone ?? dpDetails.contact ?? dpDetails.mobile ?? meta.dp_phone);
+      const dpGstin = toDisplayString(dpDetails.gst_in ?? dpDetails.gstin ?? meta.dp_gstin);
+
+      // Additional invoice formats
+      const invoiceLinksObj = (invoiceObj?.links ?? {}) as Record<string, unknown>;
+      const invoiceA3Url = typeof invoiceLinksObj.invoice_a3 === "string" ? invoiceLinksObj.invoice_a3 : null;
+      const ewaybillUrl = typeof invoiceLinksObj.invoice_ewaybill === "string" ? invoiceLinksObj.invoice_ewaybill
+        : (typeof invoiceObj?.ewaybill_url === "string" ? invoiceObj.ewaybill_url : null);
+
       return {
         shipmentId: String(returnShipmentId ?? "—"),
         forwardShipmentId: forwardShipmentIdStr || null,
@@ -682,6 +711,13 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         deliveryAddress,
         returnPickupAddress,
         weightInfo,
+        dimensions,
+        storePhone: storePhone ?? null,
+        storeEmail: storeEmail ?? null,
+        dpPhone: dpPhone ?? null,
+        dpGstin: dpGstin ?? null,
+        invoiceA3Url,
+        ewaybillUrl,
         pricing: shipmentPricing,
         trackingDetails,
         items,

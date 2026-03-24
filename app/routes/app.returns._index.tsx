@@ -384,15 +384,15 @@ export default function ReturnsList() {
           <>
             <div className="returns-table-wrap">
               <div style={{ overflowX: "auto" }}>
-                <table className="returns-table">
+                <table className="returns-table" style={{ minWidth: 1080 }}>
                   <colgroup>
                     <col style={{ width: 44 }} />
-                    <col style={{ width: "14%" }} />
-                    <col style={{ width: "18%" }} />
-                    <col style={{ width: "16%" }} />
-                    <col className="app-hide-mobile" style={{ width: "18%" }} />
-                    <col className="app-hide-mobile" style={{ width: "20%" }} />
-                    <col style={{ width: "14%" }} />
+                    <col style={{ width: 140 }} />
+                    <col style={{ width: 200 }} />
+                    <col style={{ width: 160 }} />
+                    <col className="app-hide-mobile" style={{ width: 200 }} />
+                    <col className="app-hide-mobile" style={{ width: 220 }} />
+                    <col style={{ width: 120 }} />
                   </colgroup>
                   <thead>
                     <tr>
@@ -474,8 +474,8 @@ export default function ReturnsList() {
                           <td>
                             <div className="order-name">{r.shopifyOrderName || "—"}</div>
                             {fyndOrdId && (
-                              <div className="fynd-sub">
-                                Fynd: {String(fyndOrdId).slice(0, 18)}{String(fyndOrdId).length > 18 ? "…" : ""}
+                              <div className="fynd-sub" title={String(fyndOrdId)}>
+                                Fynd: {String(fyndOrdId)}
                               </div>
                             )}
                           </td>
@@ -602,7 +602,7 @@ export default function ReturnsList() {
                           <td className="app-hide-mobile">
                             {hasFynd ? (
                               <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                                <span style={{ fontSize: 12, color: "#111827", fontFamily: "var(--rpm-font-mono, monospace)", fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%", display: "block" }}>
+                                <span title={fyndRetId || fyndRetNo || fyndShipId || ""} style={{ fontSize: 12, color: "#111827", fontFamily: "var(--rpm-font-mono, monospace)", fontWeight: 600, wordBreak: "break-all", lineHeight: 1.4 }}>
                                   {fyndRetId || fyndRetNo || fyndShipId}
                                 </span>
                                 {fyndRetNo && fyndRetId && (
@@ -619,18 +619,28 @@ export default function ReturnsList() {
 
                           {/* Customer */}
                           <td className="app-hide-mobile">
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, maxWidth: "100%" }}>
-                              <span style={{ fontSize: 12, color: "#6b7280", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1, minWidth: 0 }}>
-                                {r.customerEmailNorm || "—"}
-                              </span>
-                              {(r as { fraudRiskLevel?: string | null }).fraudRiskLevel && (r as { fraudRiskLevel?: string }).fraudRiskLevel !== "low" && (() => {
-                                const fl = (r as { fraudRiskLevel?: string }).fraudRiskLevel!;
-                                const c = fl === "critical" ? "#DC2626" : fl === "high" ? "#EA580C" : "#D97706";
-                                const bg = fl === "critical" ? "#FEE2E2" : fl === "high" ? "#FFEDD5" : "#FEF3C7";
-                                return <span title={`${fl} fraud risk`} style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 4, background: c, boxShadow: `0 0 0 2px ${bg}` }} />;
-                              })()}
-                              {(r as { isGiftReturn?: boolean }).isGiftReturn && (
-                                <span title="Gift return" style={{ flexShrink: 0, fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#EDE9FE", color: "#7C3AED", fontWeight: 700 }}>GIFT</span>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                {r.customerName ? (
+                                  <span style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{r.customerName}</span>
+                                ) : (
+                                  <span style={{ fontSize: 12, color: "#d1d5db" }}>—</span>
+                                )}
+                                {(r as { fraudRiskLevel?: string | null }).fraudRiskLevel && (r as { fraudRiskLevel?: string }).fraudRiskLevel !== "low" && (() => {
+                                  const fl = (r as { fraudRiskLevel?: string }).fraudRiskLevel!;
+                                  const c = fl === "critical" ? "#DC2626" : fl === "high" ? "#EA580C" : "#D97706";
+                                  const bg = fl === "critical" ? "#FEE2E2" : fl === "high" ? "#FFEDD5" : "#FEF3C7";
+                                  return <span title={`${fl} fraud risk`} style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 4, background: c, boxShadow: `0 0 0 2px ${bg}` }} />;
+                                })()}
+                                {(r as { isGiftReturn?: boolean }).isGiftReturn && (
+                                  <span title="Gift return" style={{ flexShrink: 0, fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#EDE9FE", color: "#7C3AED", fontWeight: 700 }}>GIFT</span>
+                                )}
+                              </div>
+                              {r.customerEmailNorm && (
+                                <span style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.3 }}>{r.customerEmailNorm}</span>
+                              )}
+                              {(r as { customerPhoneNorm?: string | null }).customerPhoneNorm && (
+                                <span style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.3 }}>{(r as { customerPhoneNorm?: string }).customerPhoneNorm}</span>
                               )}
                             </div>
                           </td>

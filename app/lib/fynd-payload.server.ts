@@ -131,7 +131,7 @@ function collectFields(obj: Record<string, unknown>, prefix = ""): FyndDisplayFi
 }
 
 /** Build tracking URL from courier name + AWB when Fynd doesn't provide tracking_url */
-function buildTrackingUrlFromCourierAndAwb(courierName: string, awb: string): string | null {
+export function buildTrackingUrlFromCourierAndAwb(courierName: string, awb: string): string | null {
   const c = (courierName ?? "").toLowerCase().replace(/\s+/g, "");
   const a = String(awb ?? "").trim();
   if (!a) return null;

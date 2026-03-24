@@ -9,7 +9,7 @@ import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from
 import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { PayloadViewer } from "../components/json-viewer";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
-import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
+import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload, isLikelyFyndId, buildTrackingUrlFromCourierAndAwb } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
 import { isFyndPrivateUrl, signFyndUrl, createFyndClientOrError } from "../lib/fynd.server";
 import { PRESET_LABELS } from "../lib/refund-gate-presets";
@@ -404,7 +404,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
     const isManualReturn = returnCase.shopifyOrderId?.startsWith("manual:");
     let shopifyOrder: Awaited<ReturnType<typeof fetchOrder>> | Awaited<ReturnType<typeof fetchOrderByOrderNumber>> | null = null;
-    const fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
+    let fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
     // Attach REST credentials so order lookup can fall back to REST API (exact name match)
     const sessionAccessToken = session.accessToken ?? "";
     console.log(`[return-detail-loader] shopifyOrderId="${returnCase.shopifyOrderId}" shopifyOrderName="${returnCase.shopifyOrderName ?? ""}" hasAccessToken=${!!sessionAccessToken} shop="${session.shop}"`);
@@ -548,32 +548,34 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       );
     }
 
-    // Fetch return shipment details from Fynd if we have a shipment ID but missing return logistics
+    // Fetch return shipment details from Fynd if URLs are missing (trackingUrl, labelUrl, invoiceUrl)
+    // Even if webhook stored carrier + AWB, the URLs may not have been in the webhook payload
     const returnShipmentIdVal = (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId;
-    const hasReturnLabel = returnCase.returnLabelJson && (() => {
-      try { const l = JSON.parse(returnCase.returnLabelJson!) as Record<string, unknown>; return !!(l.trackingNumber || l.labelUrl || l.trackingUrl); } catch { return false; }
+    const hasCompleteReturnLabel = returnCase.returnLabelJson && (() => {
+      try { const l = JSON.parse(returnCase.returnLabelJson!) as Record<string, unknown>; return !!(l.trackingUrl && l.labelUrl); } catch { return false; }
     })();
-    if (returnShipmentIdVal && !hasReturnLabel) {
+    if (returnShipmentIdVal && !hasCompleteReturnLabel) {
       try {
-        const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
-        if (shopSettings) {
+        const shopSettingsForFetch = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+        if (shopSettingsForFetch) {
           const fyndResult = await createFyndClientOrError(
-            shopSettings as Parameters<typeof createFyndClientOrError>[0],
+            shopSettingsForFetch as Parameters<typeof createFyndClientOrError>[0],
             { requirePlatform: true }
           );
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
             const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
             if (externalOrderId) {
-              // Search for return journey shipments
+              // Fetch ALL shipments (forward + return) for this order
               const returnSearchRes = await fyndResult.client.searchShipmentsByExternalOrderId(externalOrderId, {
                 searchType: "external_order_id",
-                pageSize: 10,
+                pageSize: 20,
               });
               const allShipments = (
                 returnSearchRes?.items ?? returnSearchRes?.shipments ??
                 (returnSearchRes as { data?: { items?: unknown[] } })?.data?.items ?? []
               ) as Record<string, unknown>[];
-              // Find the return journey shipment matching our shipment ID
+
+              // Find the return journey shipment
               const returnShipment = allShipments.find((s) => {
                 const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
                 return jt === "return";
@@ -581,38 +583,106 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
                 const st = String(s.status ?? s.shipment_status ?? "").toLowerCase();
                 return st.startsWith("return_");
               });
+
               if (returnShipment) {
                 const dpDetails = (returnShipment.delivery_partner_details ?? returnShipment.dp_details ?? {}) as Record<string, unknown>;
                 const meta = (returnShipment.meta ?? {}) as Record<string, unknown>;
                 const invoice = returnShipment.invoice as Record<string, unknown> | undefined;
                 const invoiceLinks = (invoice?.links ?? {}) as Record<string, unknown>;
+
                 const rCarrier = String(dpDetails.display_name ?? dpDetails.name ?? returnShipment.dp_name ?? meta.cp_name ?? "").trim() || null;
                 const rAwbRaw = dpDetails.awb_no ?? returnShipment.awb_no ?? meta.awb_no ?? meta.awb;
                 const rAwb = (typeof rAwbRaw === "string" && rAwbRaw.trim() && !isLikelyFyndId(rAwbRaw.trim())) ? rAwbRaw.trim() : null;
-                const rTrackingUrl = String(returnShipment.tracking_url ?? returnShipment.track_url ?? dpDetails.track_url ?? dpDetails.tracking_url ?? meta.tracking_url ?? "").trim() || null;
+                let rTrackingUrl = String(returnShipment.tracking_url ?? returnShipment.track_url ?? dpDetails.track_url ?? dpDetails.tracking_url ?? meta.tracking_url ?? "").trim() || null;
                 const rLabelUrl = (invoice ? String(invoice.label_url ?? invoiceLinks.label ?? "").trim() : "") || null;
                 const rInvoiceUrl = (invoice ? String(invoice.invoice_url ?? invoiceLinks.invoice_a4 ?? "").trim() : "") || null;
-                if (rCarrier || rAwb || rTrackingUrl || rLabelUrl) {
-                  const labelData = JSON.stringify({
-                    carrier: rCarrier, trackingNumber: rAwb, trackingUrl: rTrackingUrl,
-                    labelUrl: rLabelUrl, invoiceUrl: rInvoiceUrl, source: "fynd_api_refresh",
-                  });
-                  await prisma.returnCase.update({
-                    where: { id: returnCase.id },
-                    data: {
-                      returnLabelJson: labelData,
-                      ...(rAwb && !isLikelyFyndId(rAwb) ? { returnAwb: rAwb } : {}),
-                    },
-                  });
-                  returnCase = { ...returnCase, returnLabelJson: labelData } as typeof returnCase;
-                  if (rAwb) (returnCase as Record<string, unknown>).returnAwb = rAwb;
+                const rStatus = String(returnShipment.status ?? returnShipment.shipment_status ?? "").toLowerCase().trim() || null;
+
+                // Build tracking URL from courier + AWB if not provided by API
+                const effCarrier = rCarrier || (() => { try { const l = JSON.parse(returnCase.returnLabelJson || "{}"); return l.carrier || null; } catch { return null; } })();
+                const effAwb = rAwb || (() => { try { const l = JSON.parse(returnCase.returnLabelJson || "{}"); return l.trackingNumber || null; } catch { return null; } })();
+                if (!rTrackingUrl && effCarrier && effAwb) {
+                  rTrackingUrl = buildTrackingUrlFromCourierAndAwb(effCarrier, effAwb);
                 }
+
+                // Merge with existing returnLabelJson (preserve webhook data, add API data)
+                let existingLabel: Record<string, unknown> = {};
+                try { if (returnCase.returnLabelJson) existingLabel = JSON.parse(returnCase.returnLabelJson); } catch { /* ignore */ }
+
+                const mergedLabel = {
+                  ...existingLabel,
+                  ...(rCarrier ? { carrier: rCarrier } : {}),
+                  ...(rAwb ? { trackingNumber: rAwb } : {}),
+                  ...(rTrackingUrl ? { trackingUrl: rTrackingUrl } : {}),
+                  ...(rLabelUrl ? { labelUrl: rLabelUrl } : {}),
+                  ...(rInvoiceUrl ? { invoiceUrl: rInvoiceUrl } : {}),
+                  ...(rStatus ? { returnStatus: rStatus } : {}),
+                  source: existingLabel.source === "fynd_webhook" ? "fynd_webhook" : "fynd_api_refresh",
+                };
+
+                const labelData = JSON.stringify(mergedLabel);
+                const updateData: Record<string, unknown> = { returnLabelJson: labelData };
+                if (rAwb && !isLikelyFyndId(rAwb)) updateData.returnAwb = rAwb;
+                // Store the return shipment payload for journey timeline
+                if (returnShipment) {
+                  // Append return shipment to fyndPayloadJson if not already there
+                  try {
+                    const existingPayload = fyndPayloadJson ? JSON.parse(fyndPayloadJson) : null;
+                    const existingList = Array.isArray(existingPayload) ? existingPayload
+                      : (existingPayload as Record<string, unknown>)?.items ?? (existingPayload as Record<string, unknown>)?.shipments ?? [];
+                    const hasReturnJourney = Array.isArray(existingList) && existingList.some((s: Record<string, unknown>) => {
+                      const jt = String(s?.journey_type ?? "").toLowerCase();
+                      const st = String(s?.status ?? s?.shipment_status ?? "").toLowerCase();
+                      return jt === "return" || st.startsWith("return_");
+                    });
+                    if (!hasReturnJourney && Array.isArray(existingList)) {
+                      const merged = [...existingList, returnShipment];
+                      updateData.fyndPayloadJson = JSON.stringify(merged);
+                      fyndPayloadJson = updateData.fyndPayloadJson as string;
+                    }
+                  } catch { /* non-fatal */ }
+                }
+
+                await prisma.returnCase.update({ where: { id: returnCase.id }, data: updateData });
+                returnCase = { ...returnCase, returnLabelJson: labelData } as typeof returnCase;
+                if (rAwb) (returnCase as Record<string, unknown>).returnAwb = rAwb;
               }
             }
           }
         }
       } catch {
         // Non-fatal — return shipment fetch is best-effort
+      }
+    }
+    // Also build tracking URL from existing carrier + AWB if returnLabelJson has no trackingUrl
+    if (returnCase.returnLabelJson) {
+      try {
+        const rl = JSON.parse(returnCase.returnLabelJson) as Record<string, unknown>;
+        if (!rl.trackingUrl && rl.carrier && rl.trackingNumber) {
+          const builtUrl = buildTrackingUrlFromCourierAndAwb(String(rl.carrier), String(rl.trackingNumber));
+          if (builtUrl) {
+            rl.trackingUrl = builtUrl;
+            const updated = JSON.stringify(rl);
+            await prisma.returnCase.update({ where: { id: returnCase.id }, data: { returnLabelJson: updated } });
+            returnCase = { ...returnCase, returnLabelJson: updated } as typeof returnCase;
+          }
+        }
+      } catch { /* non-fatal */ }
+    }
+
+    // Re-parse fyndOrderDetailsTab if fyndPayloadJson was updated by the return shipment fetch
+    const fyndOrderDetailsTabFinal = parseFyndOrderDetailsForTab(fyndPayloadJson);
+    if (fyndOrderDetailsTabFinal) {
+      // Replace the original with updated data
+      if (fyndOrderDetailsTab) {
+        fyndOrderDetailsTab.shipments = fyndOrderDetailsTabFinal.shipments;
+        // Re-apply shipment filter
+        if (returnShipmentId) {
+          // Keep matching shipment AND any return journey shipments
+          fyndOrderDetailsTab.shipments = fyndOrderDetailsTabFinal.shipments.filter(
+            (s) => s.shipmentId === returnShipmentId || s.journeyType === "return"
+          );
+        }
       }
     }
 

@@ -501,29 +501,32 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       }
     }
 
-    // Part C: Auto-populate shipping info from Fynd payload if not already set
-    if (!returnCase.returnLabelJson && fyndPayloadJson) {
+    // Part C: Auto-populate forward AWB from Fynd payload (NOT into returnLabelJson)
+    // returnLabelJson is for RETURN shipping only — it should not contain forward shipment data.
+    if (fyndPayloadJson) {
       const shippingInfo = extractShippingDetailsFromFyndPayload(fyndPayloadJson);
-      if (shippingInfo && (shippingInfo.carrier || shippingInfo.trackingNumber || shippingInfo.invoiceUrl)) {
-        const shippingUpdate: Record<string, string> = {};
-        shippingUpdate.returnLabelJson = JSON.stringify({
-          carrier: shippingInfo.carrier,
-          trackingNumber: shippingInfo.trackingNumber,
-          trackingUrl: shippingInfo.trackingUrl,
-          labelUrl: shippingInfo.labelUrl,
-          invoiceUrl: shippingInfo.invoiceUrl,
-          invoiceNumber: shippingInfo.invoiceNumber,
-          source: "fynd",
-        });
-        if (shippingInfo.trackingNumber && !isLikelyFyndId(shippingInfo.trackingNumber) && !(returnCase as { forwardAwb?: string }).forwardAwb) {
-          shippingUpdate.forwardAwb = shippingInfo.trackingNumber;
-        }
+      if (shippingInfo?.trackingNumber && !isLikelyFyndId(shippingInfo.trackingNumber) && !(returnCase as { forwardAwb?: string }).forwardAwb) {
         try {
-          await prisma.returnCase.update({ where: { id: returnCase.id }, data: shippingUpdate });
-          returnCase = { ...returnCase, ...shippingUpdate } as typeof returnCase;
+          await prisma.returnCase.update({ where: { id: returnCase.id }, data: { forwardAwb: shippingInfo.trackingNumber } });
+          (returnCase as Record<string, unknown>).forwardAwb = shippingInfo.trackingNumber;
         } catch {
           // Non-fatal
         }
+      }
+    }
+
+    // Part C2: Clear returnLabelJson if it was incorrectly populated with forward shipment data
+    if (returnCase.returnLabelJson) {
+      try {
+        const label = JSON.parse(returnCase.returnLabelJson) as { source?: string; trackingNumber?: string };
+        const forwardAwbVal = (returnCase as { forwardAwb?: string | null }).forwardAwb;
+        if (label.source === "fynd" && label.trackingNumber && label.trackingNumber === forwardAwbVal) {
+          // This was forward data incorrectly stored as return label — clear it
+          await prisma.returnCase.update({ where: { id: returnCase.id }, data: { returnLabelJson: null } });
+          returnCase = { ...returnCase, returnLabelJson: null } as typeof returnCase;
+        }
+      } catch {
+        // Non-fatal
       }
     }
 

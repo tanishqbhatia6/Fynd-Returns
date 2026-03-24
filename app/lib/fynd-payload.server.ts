@@ -381,6 +381,7 @@ export type FyndOrderDetailsTab = {
     invoiceNumber: string | null;
     invoiceId: string | null;
     invoiceUrl: string | null;
+    labelUrl: string | null;
     fulfillmentStore: string | null;
     fulfillmentOptions: string | null;
     shipmentStatus: string | null;
@@ -468,6 +469,8 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
       const invId = toDisplayString(raw.invoice_id ?? raw.invoiceId ?? meta.invoice_id ?? raw.invoice_number ?? meta.invoice_number);
       const invoiceUrlRaw = invoiceObj?.invoice_url ?? (invoiceObj?.links as Record<string, unknown> | undefined)?.invoice_a4;
       const invoiceUrl = typeof invoiceUrlRaw === "string" && invoiceUrlRaw ? invoiceUrlRaw : null;
+      const labelUrlRaw = invoiceObj?.label_url ?? (invoiceObj?.links as Record<string, unknown> | undefined)?.label;
+      const labelUrl = typeof labelUrlRaw === "string" && labelUrlRaw ? labelUrlRaw : null;
 
       const fulfillStoreObj = (raw.fulfilling_store != null && typeof raw.fulfilling_store === "object") ? raw.fulfilling_store as Record<string, unknown> : null;
       const fulfillStoreName = fulfillStoreObj
@@ -669,6 +672,7 @@ export function parseFyndOrderDetailsForTab(fyndPayloadJson: string | null | und
         invoiceNumber: invNum ?? null,
         invoiceId: invId ?? null,
         invoiceUrl,
+        labelUrl,
         fulfillmentStore: fulfillStore ?? null,
         fulfillmentOptions: fulfillOpts ?? null,
         shipmentStatus: shipmentStatusStr ?? null,

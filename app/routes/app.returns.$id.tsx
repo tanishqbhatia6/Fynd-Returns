@@ -1162,6 +1162,32 @@ export default function ReturnDetail() {
   const returnLabelUrl = returnLabelInfo?.signedLabelUrl || returnLabelInfo?.labelUrl || null;
   const returnInvoiceUrl = returnLabelInfo?.signedInvoiceUrl || returnLabelInfo?.invoiceUrl || null;
 
+  // Forward shipment extended fields
+  const fwdShipmentId = fwdShipment?.shipmentId ?? null;
+  const fwdFulfillmentStore = fwdShipment?.fulfillmentStore ?? null;
+  const fwdFulfillmentOptions = fwdShipment?.fulfillmentOptions ?? null;
+  const fwdEstimatedDelivery = fwdShipment?.estimatedDelivery ?? null;
+  const fwdWeightInfo = fwdShipment?.weightInfo ?? null;
+  const fwdPricing = fwdShipment?.pricing ?? null;
+  const fwdDeliveryAddress = fwdShipment?.deliveryAddress ?? null;
+
+  // Return shipment extended fields (from payload)
+  const retShipmentId = retShipmentFromPayload?.shipmentId ?? null;
+  const retFwdShipmentIdRef = retShipmentFromPayload?.forwardShipmentId ?? null;
+  const retFulfillmentStore = retShipmentFromPayload?.fulfillmentStore ?? null;
+  const retCreditNoteId = retShipmentFromPayload?.creditNoteId ?? null;
+  const retWeightInfo = retShipmentFromPayload?.weightInfo ?? null;
+  const retPricing = retShipmentFromPayload?.pricing ?? null;
+  const retEstimatedDelivery = retShipmentFromPayload?.estimatedDelivery ?? null;
+  const retReturnInvoiceUrl = retShipmentFromPayload ? ((retShipmentFromPayload as { signedInvoiceUrl?: string | null }).signedInvoiceUrl ?? retShipmentFromPayload.invoiceUrl ?? null) : null;
+  const retReturnLabelUrl = retShipmentFromPayload ? ((retShipmentFromPayload as { signedLabelUrl?: string | null }).signedLabelUrl ?? (retShipmentFromPayload as { labelUrl?: string | null }).labelUrl ?? null) : null;
+
+  // Fynd reference extended fields
+  const fyndReturnId = (returnCase as { fyndReturnId?: string | null }).fyndReturnId ?? null;
+  const fyndCurrentStatusVal = (returnCase as { fyndCurrentStatus?: string | null }).fyndCurrentStatus ?? null;
+  const fyndPaymentMethod = fyndOrderDetailsTab?.paymentMethod ?? null;
+  const fyndSupportUrl = (fyndOrderDetailsTab as { supportUrl?: string | null })?.supportUrl ?? null;
+
   // Legacy combined values
   const awb = returnAwbVal || forwardAwbVal;
   const courier = forwardCourier;
@@ -1578,7 +1604,23 @@ export default function ReturnDetail() {
                               return <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: style.bg, color: style.color, fontWeight: 600 }}>{condLabels[cond] ?? cond}</span>;
                             })()}
                             {price && <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#DBEAFE", color: "#1E40AF" }}>{formatMoney(price, shopifyOrder?.currencyCode || shopCurrency, shopLocale)} each</span>}
+                            {(item as { fyndSize?: string | null }).fyndSize && <span style={{ fontSize: 12, padding: "2px 8px", borderRadius: 6, background: "#F3F4F6", color: "#374151" }}>Size: {(item as { fyndSize?: string }).fyndSize}</span>}
                           </div>
+                          {/* Fynd item IDs — collapsible for support/troubleshooting */}
+                          {((item as { fyndBagId?: string | null }).fyndBagId || (item as { fyndArticleId?: string | null }).fyndArticleId || (item as { fyndSellerIdentifier?: string | null }).fyndSellerIdentifier) && (
+                            <details style={{ marginTop: 6 }} onClick={(e) => e.stopPropagation()}>
+                              <summary style={{ fontSize: 10, color: "#9CA3AF", cursor: "pointer", userSelect: "none" }}>Fynd IDs</summary>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                                {(item as { fyndBagId?: string | null }).fyndBagId && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", background: "#F3F4F6", padding: "1px 6px", borderRadius: 4 }}>Bag: {(item as { fyndBagId?: string }).fyndBagId}</span>}
+                                {(item as { fyndArticleId?: string | null }).fyndArticleId && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", background: "#F3F4F6", padding: "1px 6px", borderRadius: 4 }}>Article: {(item as { fyndArticleId?: string }).fyndArticleId}</span>}
+                                {(item as { fyndSellerIdentifier?: string | null }).fyndSellerIdentifier && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", background: "#F3F4F6", padding: "1px 6px", borderRadius: 4 }}>SKU: {(item as { fyndSellerIdentifier?: string }).fyndSellerIdentifier}</span>}
+                                {(item as { fyndItemId?: string | null }).fyndItemId && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", background: "#F3F4F6", padding: "1px 6px", borderRadius: 4 }}>Item: {(item as { fyndItemId?: string }).fyndItemId}</span>}
+                                {(item as { fyndLineNumber?: number | null }).fyndLineNumber != null && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", background: "#F3F4F6", padding: "1px 6px", borderRadius: 4 }}>Line: {(item as { fyndLineNumber?: number }).fyndLineNumber}</span>}
+                                {(item as { fyndPriceEffective?: string | null }).fyndPriceEffective && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", background: "#F3F4F6", padding: "1px 6px", borderRadius: 4 }}>Eff. Price: {(item as { fyndPriceEffective?: string }).fyndPriceEffective}</span>}
+                                {(item as { fyndShipmentId?: string | null }).fyndShipmentId && <span style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", background: "#F3F4F6", padding: "1px 6px", borderRadius: 4 }}>Shipment: {(item as { fyndShipmentId?: string }).fyndShipmentId}</span>}
+                              </div>
+                            </details>
+                          )}
                         </div>
                       </div>
                     );
@@ -1781,33 +1823,71 @@ export default function ReturnDetail() {
                   </div>
                 )}
                 {/* ── Forward Shipment ── */}
-                {(forwardAwbVal || forwardCourier || forwardTrackingUrl || forwardInvoiceNumber) && (
+                {(forwardAwbVal || forwardCourier || forwardTrackingUrl || forwardInvoiceNumber || fwdShipmentId) && (
                   <div style={{ marginBottom: 14, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Forward Shipment</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                       {forwardCourier && <div><div style={C.label}>Courier</div><div style={C.val}>{forwardCourier}</div></div>}
                       {forwardAwbVal && <div><div style={C.label}>AWB</div><div style={C.mono}>{forwardAwbVal}</div></div>}
                       {forwardShipmentStatus && <div><div style={C.label}>Status</div><div style={{ fontSize: 13, fontWeight: 600, color: forwardShipmentStatus.includes("deliver") ? "#059669" : "#D97706", textTransform: "capitalize" }}>{forwardShipmentStatus.replace(/_/g, " ")}</div></div>}
-                      {forwardTrackingUrl && <div><div style={C.label}>Track</div><a href={forwardTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Track &rarr;</a></div>}
+                      {forwardTrackingUrl && <div><div style={C.label}>Track</div><a href={forwardTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Track Shipment &rarr;</a></div>}
                       {forwardInvoiceNumber && <div><div style={C.label}>Invoice</div>{forwardInvoiceUrl ? <a href={forwardInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>{forwardInvoiceNumber} &darr;</a> : <div style={C.mono}>{forwardInvoiceNumber}</div>}</div>}
                       {forwardLabelUrl && <div><div style={C.label}>Label</div><a href={forwardLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Download &darr;</a></div>}
+                      {fwdShipmentId && <div><div style={C.label}>Shipment ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{fwdShipmentId}</div></div>}
+                      {fwdFulfillmentStore && <div><div style={C.label}>Fulfillment Store</div><div style={{ fontSize: 12, color: "#374151" }}>{fwdFulfillmentStore}</div></div>}
+                      {fwdEstimatedDelivery && <div><div style={C.label}>Est. Delivery</div><div style={{ fontSize: 12, color: "#374151" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium" }).format(new Date(fwdEstimatedDelivery)); } catch { return fwdEstimatedDelivery; } })()}</div></div>}
+                      {fwdFulfillmentOptions && <div><div style={C.label}>Fulfillment</div><div style={{ fontSize: 12, color: "#6B7280" }}>{fwdFulfillmentOptions}</div></div>}
+                      {fwdWeightInfo && <div><div style={C.label}>Weight</div><div style={{ fontSize: 12, color: "#374151" }}>{fwdWeightInfo}</div></div>}
                     </div>
+                    {fwdDeliveryAddress && (
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E5E7EB" }}>
+                        <div style={C.label}>Delivery Address</div>
+                        <div style={{ fontSize: 12, color: "#374151", lineHeight: 1.5 }}>{fwdDeliveryAddress.formatted || [fwdDeliveryAddress.name, fwdDeliveryAddress.address, fwdDeliveryAddress.city, fwdDeliveryAddress.state, fwdDeliveryAddress.pincode, fwdDeliveryAddress.country, fwdDeliveryAddress.phone].filter(Boolean).join(", ")}</div>
+                      </div>
+                    )}
+                    {fwdPricing && (fwdPricing.total || fwdPricing.subtotal) && (
+                      <details style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #E5E7EB" }}>
+                        <summary style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", cursor: "pointer" }}>Shipment Pricing</summary>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 16px", marginTop: 8, fontSize: 12 }}>
+                          {fwdPricing.subtotal && <><span style={{ color: "#6B7280" }}>Subtotal</span><span>{formatMoney(fwdPricing.subtotal, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
+                          {fwdPricing.discount && parseFloat(fwdPricing.discount) > 0 && <><span style={{ color: "#059669" }}>Discount</span><span style={{ color: "#059669" }}>-{formatMoney(fwdPricing.discount, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
+                          {fwdPricing.deliveryCharges && <><span style={{ color: "#6B7280" }}>Delivery</span><span>{formatMoney(fwdPricing.deliveryCharges, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
+                          {fwdPricing.codAmount && parseFloat(fwdPricing.codAmount) > 0 && <><span style={{ color: "#6B7280" }}>COD</span><span>{formatMoney(fwdPricing.codAmount, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
+                          {fwdPricing.total && <><span style={{ fontWeight: 600, color: "#111827" }}>Total</span><span style={{ fontWeight: 600 }}>{formatMoney(fwdPricing.total, fwdPricing.currency || shopCurrency, shopLocale)}</span></>}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 )}
 
                 {/* ── Return Shipment ── */}
-                {(returnAwbVal || returnCourier || effTrackingUrl || effLabelUrl || effInvoiceUrl) ? (
+                {(returnAwbVal || returnCourier || effTrackingUrl || effLabelUrl || effInvoiceUrl || retShipmentId) ? (
                   <div style={{ marginBottom: 14, padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
                     <div style={{ fontSize: 11, fontWeight: 700, color: "#065F46", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Return Shipment</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: 8 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                       {(rl?.carrier || returnCourier) && <div><div style={C.label}>Courier</div><div style={C.val}>{rl?.carrier || returnCourier}</div></div>}
-                      {(returnTrackingNumber || returnAwbVal) && <div><div style={C.label}>AWB</div><div style={C.mono}>{returnTrackingNumber || returnAwbVal}</div></div>}
+                      {(returnTrackingNumber || returnAwbVal) && <div><div style={C.label}>Return AWB</div><div style={C.mono}>{returnTrackingNumber || returnAwbVal}</div></div>}
                       {retStatus && <div><div style={C.label}>Status</div><div style={{ fontSize: 13, fontWeight: 600, color: retStatus.includes("deliver") ? "#059669" : "#D97706", textTransform: "capitalize" }}>{retStatus.replace(/_/g, " ")}</div></div>}
                       {effTrackingUrl && <div><div style={C.label}>Track</div><a href={effTrackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Track Return &rarr;</a></div>}
-                      {effLabelUrl && <div><div style={C.label}>Label</div><a href={effLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>}
-                      {effInvoiceUrl && <div><div style={C.label}>Invoice</div><a href={effInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>}
+                      {(effLabelUrl || retReturnLabelUrl) && <div><div style={C.label}>Return Label</div><a href={effLabelUrl || retReturnLabelUrl!} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>}
+                      {(effInvoiceUrl || retReturnInvoiceUrl) && <div><div style={C.label}>Return Invoice</div><a href={effInvoiceUrl || retReturnInvoiceUrl!} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>}
                       {rl?.qrCodeUrl && <div><div style={C.label}>QR Code</div><a href={rl.qrCodeUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>View &rarr;</a></div>}
+                      {retShipmentId && <div><div style={C.label}>Return Shipment ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{retShipmentId}</div></div>}
+                      {retCreditNoteId && <div><div style={C.label}>Credit Note ID</div><div style={C.mono}>{retCreditNoteId}</div></div>}
+                      {retFulfillmentStore && <div><div style={C.label}>Return Store</div><div style={{ fontSize: 12, color: "#374151" }}>{retFulfillmentStore}</div></div>}
+                      {retEstimatedDelivery && <div><div style={C.label}>Est. Return Delivery</div><div style={{ fontSize: 12, color: "#374151" }}>{(() => { try { return new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium" }).format(new Date(retEstimatedDelivery)); } catch { return retEstimatedDelivery; } })()}</div></div>}
+                      {retWeightInfo && <div><div style={C.label}>Weight</div><div style={{ fontSize: 12, color: "#374151" }}>{retWeightInfo}</div></div>}
                     </div>
+                    {retPricing && (retPricing.total || retPricing.subtotal || retPricing.discount) && (
+                      <details style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #BBF7D0" }}>
+                        <summary style={{ fontSize: 11, fontWeight: 600, color: "#065F46", cursor: "pointer" }}>Return Pricing</summary>
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "4px 16px", marginTop: 8, fontSize: 12 }}>
+                          {retPricing.subtotal && <><span style={{ color: "#6B7280" }}>Subtotal</span><span>{formatMoney(retPricing.subtotal, retPricing.currency || shopCurrency, shopLocale)}</span></>}
+                          {retPricing.discount && parseFloat(retPricing.discount) > 0 && <><span style={{ color: "#059669" }}>Discount</span><span style={{ color: "#059669" }}>-{formatMoney(retPricing.discount, retPricing.currency || shopCurrency, shopLocale)}</span></>}
+                          {retPricing.total && <><span style={{ fontWeight: 600, color: "#111827" }}>Total</span><span style={{ fontWeight: 600 }}>{formatMoney(retPricing.total, retPricing.currency || shopCurrency, shopLocale)}</span></>}
+                        </div>
+                      </details>
+                    )}
                   </div>
                 ) : (isApproved || isCompleted) ? (
                   <div style={{ marginBottom: 14, padding: 14, background: "#FFFBEB", borderRadius: 10, border: "1px solid #FDE68A", fontSize: 13, color: "#92400E" }}>
@@ -1854,20 +1934,22 @@ export default function ReturnDetail() {
                   </div>
                 )}
 
-                {/* ── Fynd Reference IDs ── */}
+                {/* ── Fynd Reference ── */}
                 <div style={{ marginBottom: 14, padding: 14, background: "#F9FAFB", borderRadius: 8, border: "1px solid #F3F4F6" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#374151", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>Fynd Reference</div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
                     <div><div style={C.label}>Order ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{fyndOrderDetailsTab?.fyndOrderId || (returnCase as { fyndOrderId?: string | null }).fyndOrderId || (returnCase.shopifyOrderName ?? "").replace(/^#/, "") || "\u2014"}</div></div>
-                    {(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && (
+                    {fwdShipmentId && <div><div style={C.label}>Fwd Shipment ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{fwdShipmentId}</div></div>}
+                    {retShipmentId && <div><div style={C.label}>Ret Shipment ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{retShipmentId}</div></div>}
+                    {!retShipmentId && (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId && (
                       <div><div style={C.label}>Shipment ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{(returnCase as { fyndShipmentId?: string | null }).fyndShipmentId}</div></div>
                     )}
-                    {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && (
-                      <div><div style={C.label}>Return #</div><div style={{ ...C.mono, fontSize: 11 }}>{(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}</div></div>
-                    )}
-                    {fyndSyncStatus && (
-                      <div><div style={C.label}>Sync Status</div><div style={{ fontSize: 13, fontWeight: 600, color: fyndSyncStatus === "synced" ? "#059669" : fyndSyncStatus === "failed" ? "#DC2626" : "#D97706" }}>{fyndSyncStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</div></div>
-                    )}
+                    {fyndReturnId && <div><div style={C.label}>Fynd Return ID</div><div style={{ ...C.mono, fontSize: 11, wordBreak: "break-all" as const }}>{fyndReturnId}</div></div>}
+                    {(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo && <div><div style={C.label}>Fynd Return #</div><div style={C.mono}>{(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo}</div></div>}
+                    {fyndCurrentStatusVal && <div><div style={C.label}>Current Status</div><div style={{ fontSize: 12, fontWeight: 600, color: "#374151", textTransform: "capitalize" }}>{fyndCurrentStatusVal.replace(/_/g, " ")}</div></div>}
+                    {fyndSyncStatus && <div><div style={C.label}>Sync</div><div style={{ fontSize: 12, fontWeight: 600, color: fyndSyncStatus === "synced" ? "#059669" : fyndSyncStatus === "failed" ? "#DC2626" : "#D97706" }}>{fyndSyncStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())}</div></div>}
+                    {fyndPaymentMethod && <div><div style={C.label}>Payment</div><div style={{ fontSize: 12, color: "#374151", textTransform: "capitalize" }}>{fyndPaymentMethod.replace(/_/g, " ")}</div></div>}
+                    {fyndSupportUrl && <div><div style={C.label}>Support</div><a href={fyndSupportUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 600, color: "#2563EB", textDecoration: "none" }}>Get Help &rarr;</a></div>}
                   </div>
                 </div>
 

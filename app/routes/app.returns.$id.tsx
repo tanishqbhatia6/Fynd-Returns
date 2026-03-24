@@ -11,7 +11,7 @@ import { PayloadViewer } from "../components/json-viewer";
 import type { MailingAddressDisplay, ShopLocation } from "../lib/shopify-admin.server";
 import { parseFyndPayloadForDisplay, parseFyndOrderDetailsForTab, getPickupAddressFromFyndPayload, extractFyndJourney, extractCustomerFromFyndPayload, extractShippingDetailsFromFyndPayload, extractAffiliateOrderIdFromFyndPayload, isLikelyFyndId } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
-import { isFyndPrivateUrl, signFyndUrl } from "../lib/fynd.server";
+import { isFyndPrivateUrl, signFyndUrl, createFyndClientOrError } from "../lib/fynd.server";
 import { PRESET_LABELS } from "../lib/refund-gate-presets";
 import type { RefundGatePreset } from "../lib/refund-gate-presets";
 
@@ -543,6 +543,74 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       );
     }
 
+    // Fetch return shipment details from Fynd if we have a shipment ID but missing return logistics
+    const returnShipmentIdVal = (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId;
+    const hasReturnLabel = returnCase.returnLabelJson && (() => {
+      try { const l = JSON.parse(returnCase.returnLabelJson!) as Record<string, unknown>; return !!(l.trackingNumber || l.labelUrl || l.trackingUrl); } catch { return false; }
+    })();
+    if (returnShipmentIdVal && !hasReturnLabel) {
+      try {
+        const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shop.id } });
+        if (shopSettings) {
+          const fyndResult = await createFyndClientOrError(
+            shopSettings as Parameters<typeof createFyndClientOrError>[0],
+            { requirePlatform: true }
+          );
+          if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
+            const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
+            if (externalOrderId) {
+              // Search for return journey shipments
+              const returnSearchRes = await fyndResult.client.searchShipmentsByExternalOrderId(externalOrderId, {
+                searchType: "external_order_id",
+                pageSize: 10,
+              });
+              const allShipments = (
+                returnSearchRes?.items ?? returnSearchRes?.shipments ??
+                (returnSearchRes as { data?: { items?: unknown[] } })?.data?.items ?? []
+              ) as Record<string, unknown>[];
+              // Find the return journey shipment matching our shipment ID
+              const returnShipment = allShipments.find((s) => {
+                const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
+                return jt === "return";
+              }) ?? allShipments.find((s) => {
+                const st = String(s.status ?? s.shipment_status ?? "").toLowerCase();
+                return st.startsWith("return_");
+              });
+              if (returnShipment) {
+                const dpDetails = (returnShipment.delivery_partner_details ?? returnShipment.dp_details ?? {}) as Record<string, unknown>;
+                const meta = (returnShipment.meta ?? {}) as Record<string, unknown>;
+                const invoice = returnShipment.invoice as Record<string, unknown> | undefined;
+                const invoiceLinks = (invoice?.links ?? {}) as Record<string, unknown>;
+                const rCarrier = String(dpDetails.display_name ?? dpDetails.name ?? returnShipment.dp_name ?? meta.cp_name ?? "").trim() || null;
+                const rAwbRaw = dpDetails.awb_no ?? returnShipment.awb_no ?? meta.awb_no ?? meta.awb;
+                const rAwb = (typeof rAwbRaw === "string" && rAwbRaw.trim() && !isLikelyFyndId(rAwbRaw.trim())) ? rAwbRaw.trim() : null;
+                const rTrackingUrl = String(returnShipment.tracking_url ?? returnShipment.track_url ?? dpDetails.track_url ?? dpDetails.tracking_url ?? meta.tracking_url ?? "").trim() || null;
+                const rLabelUrl = (invoice ? String(invoice.label_url ?? invoiceLinks.label ?? "").trim() : "") || null;
+                const rInvoiceUrl = (invoice ? String(invoice.invoice_url ?? invoiceLinks.invoice_a4 ?? "").trim() : "") || null;
+                if (rCarrier || rAwb || rTrackingUrl || rLabelUrl) {
+                  const labelData = JSON.stringify({
+                    carrier: rCarrier, trackingNumber: rAwb, trackingUrl: rTrackingUrl,
+                    labelUrl: rLabelUrl, invoiceUrl: rInvoiceUrl, source: "fynd_api_refresh",
+                  });
+                  await prisma.returnCase.update({
+                    where: { id: returnCase.id },
+                    data: {
+                      returnLabelJson: labelData,
+                      ...(rAwb && !isLikelyFyndId(rAwb) ? { returnAwb: rAwb } : {}),
+                    },
+                  });
+                  returnCase = { ...returnCase, returnLabelJson: labelData } as typeof returnCase;
+                  if (rAwb) (returnCase as Record<string, unknown>).returnAwb = rAwb;
+                }
+              }
+            }
+          }
+        }
+      } catch {
+        // Non-fatal — return shipment fetch is best-effort
+      }
+    }
+
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
     const returnJourney = extractFyndJourney(fyndPayloadJson, "return");
 
@@ -625,7 +693,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       || shopifyOrder?.displayFinancialStatus === "PENDING";
 
     // Return label info — with Fynd signed URL refresh for private storage URLs
-    let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null; signedLabelUrl?: string | null; signedAt?: number | null; signedInvoiceUrl?: string | null } | null = null;
+    let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; trackingUrl?: string | null; labelUrl?: string | null; invoiceUrl?: string | null; qrCodeUrl?: string | null; signedLabelUrl?: string | null; signedAt?: number | null; signedInvoiceUrl?: string | null; source?: string | null } | null = null;
     try {
       if (returnCase.returnLabelJson) returnLabelInfo = JSON.parse(returnCase.returnLabelJson);
     } catch { /* ignore */ }
@@ -983,12 +1051,13 @@ export default function ReturnDetail() {
   const forwardInvoiceUrl = firstShipment ? ((firstShipment as { invoiceUrl?: string | null }).invoiceUrl ?? null) : null;
   const forwardLabelUrl = firstShipment ? ((firstShipment as { labelUrl?: string | null }).labelUrl ?? null) : null;
 
-  // Return shipment logistics
-  const returnAwbVal = displayReturnAwb || (firstShipment as { returnAwb?: string | null })?.returnAwb || null;
+  // Return shipment logistics — from returnLabelJson (populated by webhook or API refresh)
+  const returnAwbVal = displayReturnAwb || returnLabelInfo?.trackingNumber || (firstShipment as { returnAwb?: string | null })?.returnAwb || null;
   const returnCourier = returnLabelInfo?.carrier || "";
   const returnTrackingNumber = returnLabelInfo?.trackingNumber || returnAwbVal || "";
-  const returnTrackingUrl = (returnLabelInfo as { trackingUrl?: string })?.trackingUrl || null;
+  const returnTrackingUrl = returnLabelInfo?.trackingUrl || null;
   const returnLabelUrl = returnLabelInfo?.signedLabelUrl || returnLabelInfo?.labelUrl || null;
+  const returnInvoiceUrl = returnLabelInfo?.signedInvoiceUrl || returnLabelInfo?.invoiceUrl || null;
 
   // Legacy combined values (for backward compat in sections that haven't been updated)
   const awb = returnAwbVal || forwardAwbVal;
@@ -1622,7 +1691,7 @@ export default function ReturnDetail() {
                 )}
 
                 {/* ── Return Shipment ── */}
-                {(returnAwbVal || returnCourier || returnTrackingUrl || returnLabelUrl) && (
+                {(returnAwbVal || returnCourier || returnTrackingUrl || returnLabelUrl || returnInvoiceUrl) && (
                   <div style={{ marginBottom: 16, padding: 14, background: "#F0FDF4", borderRadius: 10, border: "1px solid #BBF7D0" }}>
                     <div style={{ fontSize: 12, fontWeight: 700, color: "#065F46", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>Return Shipment</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 10 }}>
@@ -1633,6 +1702,9 @@ export default function ReturnDetail() {
                       )}
                       {returnLabelUrl && (
                         <div><div style={C.label}>Return Label</div><a href={returnLabelUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>
+                      )}
+                      {returnInvoiceUrl && (
+                        <div><div style={C.label}>Return Invoice</div><a href={returnInvoiceUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: "#059669", textDecoration: "none" }}>Download &darr;</a></div>
                       )}
                     </div>
                   </div>

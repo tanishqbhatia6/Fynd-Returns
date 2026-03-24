@@ -939,8 +939,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             searchType: "external_order_id",
             groupEntity: "shipments",
             pageNo: 1,
-            pageSize: 10,
-            fulfillmentType: "FULFILLMENT",
+            pageSize: 20,
+            // No fulfillmentType filter — fetch ALL shipments (forward + return)
             parentViewSlug: "all",
             childViewSlug: "all",
             sortType: "sla_asc",
@@ -968,9 +968,38 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             }
           }
           const payloadJson = payload != null ? JSON.stringify(payload) : null;
+
+          // Extract return shipment logistics and backfill returnLabelJson + returnAwb
+          const returnLogisticsData: Record<string, unknown> = {};
+          const allItems = Array.isArray(items) ? items as Record<string, unknown>[] : [];
+          const returnShipment = allItems.find((s) => {
+            const jt = String(s.journey_type ?? "").toLowerCase();
+            const st = String(s.status ?? s.shipment_status ?? "").toLowerCase();
+            return jt === "return" || st.startsWith("return_");
+          });
+          if (returnShipment) {
+            const dp = (returnShipment.delivery_partner_details ?? returnShipment.dp_details ?? {}) as Record<string, unknown>;
+            const meta = (returnShipment.meta ?? {}) as Record<string, unknown>;
+            const inv = returnShipment.invoice as Record<string, unknown> | undefined;
+            const invLinks = (inv?.links ?? {}) as Record<string, unknown>;
+            const rCarrier = String(dp.display_name ?? dp.name ?? returnShipment.dp_name ?? meta.cp_name ?? "").trim() || null;
+            const rAwbRaw = dp.awb_no ?? returnShipment.awb_no ?? meta.awb_no ?? meta.awb;
+            const rAwb = typeof rAwbRaw === "string" && rAwbRaw.trim() ? rAwbRaw.trim() : null;
+            const rTrackUrl = String(returnShipment.tracking_url ?? returnShipment.track_url ?? dp.track_url ?? dp.tracking_url ?? meta.tracking_url ?? "").trim() || null;
+            const rLabelUrl = inv ? (String(inv.label_url ?? invLinks.label ?? "").trim() || null) : null;
+            const rInvoiceUrl = inv ? (String(inv.invoice_url ?? invLinks.invoice_a4 ?? "").trim() || null) : null;
+            if (rCarrier || rAwb || rTrackUrl || rLabelUrl) {
+              returnLogisticsData.returnLabelJson = JSON.stringify({
+                carrier: rCarrier, trackingNumber: rAwb, trackingUrl: rTrackUrl,
+                labelUrl: rLabelUrl, invoiceUrl: rInvoiceUrl, source: "fynd_api_refresh",
+              });
+              if (rAwb) returnLogisticsData.returnAwb = rAwb;
+            }
+          }
+
           await prisma.returnCase.update({
             where: { id },
-            data: { fyndPayloadJson: payloadJson ?? undefined, ...(fyndOrderId && { fyndOrderId }) },
+            data: { fyndPayloadJson: payloadJson ?? undefined, ...(fyndOrderId && { fyndOrderId }), ...returnLogisticsData },
           });
 
           returnActionCounter.add(1, { action: "refresh_fynd_details", outcome: "success" });

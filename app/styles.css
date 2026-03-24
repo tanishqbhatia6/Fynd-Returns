@@ -2032,11 +2032,11 @@ s-section[heading]::before {
 .returns-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  /* auto layout — columns size to content naturally */
 }
 
 .returns-table th {
-  padding: 10px 16px;
+  padding: 10px 14px;
   text-align: left;
   font-size: 11px;
   font-weight: 700;
@@ -2049,32 +2049,36 @@ s-section[heading]::before {
 }
 
 .returns-table td {
-  padding: 12px 16px;
+  padding: 10px 14px;
   font-size: 13px;
   border-bottom: 1px solid var(--rpm-surface-elevated);
-  vertical-align: middle;
+  vertical-align: top;
   line-height: 1.4;
 }
 
 .returns-table tbody tr {
   cursor: pointer;
-  transition: background var(--rpm-transition-fast);
+  transition: background 0.1s ease;
 }
 
 .returns-table tbody tr:hover {
-  background: var(--rpm-surface-subtle);
+  background: #f8fafc;
+}
+
+.returns-table tbody tr.row-selected {
+  background: rgba(79, 70, 229, 0.04);
 }
 
 .returns-table .checkbox-cell {
-  padding: 12px 12px 12px 16px;
-  width: 44px;
+  padding: 10px 8px 10px 14px;
+  width: 40px;
   text-align: center;
   vertical-align: middle;
 }
 
 .returns-table .checkbox-th {
-  padding: 10px 12px 10px 16px;
-  width: 44px;
+  padding: 10px 8px 10px 14px;
+  width: 40px;
   text-align: center;
   vertical-align: middle;
 }
@@ -2088,6 +2092,7 @@ s-section[heading]::before {
   letter-spacing: 0.01em;
   line-height: 1.3;
   display: inline-block;
+  white-space: nowrap;
 }
 
 .returns-table .order-name {
@@ -2095,24 +2100,33 @@ s-section[heading]::before {
   color: var(--rpm-text);
   font-size: 13px;
   line-height: 1.3;
+  white-space: nowrap;
 }
 
-/* Fynd Order ID — full display, no truncation */
+/* Fynd Order ID in Order column — full, no truncation */
 .returns-table .fynd-order-id {
-  font-size: 11px;
+  font-size: 10px;
   color: #9ca3af;
-  margin-top: 3px;
+  margin-top: 2px;
   font-family: var(--rpm-font-mono);
-  line-height: 1.35;
+  line-height: 1.3;
   word-break: break-all;
 }
 
-/* Status badge — single prominent badge */
+/* ── Status Cell ── */
+.returns-status-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+/* Primary status badge */
 .returns-status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 5px;
+  padding: 3px 9px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 700;
@@ -2122,34 +2136,105 @@ s-section[heading]::before {
 }
 
 .returns-status-dot {
-  width: 7px;
-  height: 7px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-/* Secondary status meta line: resolution · sync */
-.returns-status-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 3px;
-  margin-top: 4px;
-  font-size: 11px;
-  font-weight: 500;
-  text-transform: capitalize;
-  line-height: 1.3;
+/* Resolution pill — outlined style, visually distinct from status */
+.returns-res-pill {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1.5;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #4b5563;
 }
 
-.returns-meta-sep {
-  color: #d1d5db;
+.returns-res-pill--refund { border-color: #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.returns-res-pill--exchange { border-color: #a7f3d0; background: #ecfdf5; color: #065f46; }
+.returns-res-pill--store_credit { border-color: #ddd6fe; background: #f5f3ff; color: #5b21b6; }
+.returns-res-pill--replacement { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+
+/* Refund status tag */
+.returns-refund-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
   font-size: 10px;
-  margin: 0 1px;
+  font-weight: 600;
+  text-transform: capitalize;
+  background: #ede9fe;
+  color: #6d28d9;
+  line-height: 1.5;
+}
+
+/* Sync indicator — icon + text, not a badge */
+.returns-sync {
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.returns-sync.sync--ok { color: #059669; }
+.returns-sync.sync--fail { color: #dc2626; }
+.returns-sync.sync--busy { color: #2563eb; }
+.returns-sync.sync--wait { color: #9ca3af; }
+
+/* Cancel request tag */
+.returns-cancel-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+  line-height: 1.5;
+}
+
+/* ── Fynd Details Cell ── */
+.fynd-details-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fynd-row {
+  display: flex;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.fynd-label {
+  color: #9ca3af;
+  font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+  min-width: 52px;
+}
+
+.fynd-value {
+  font-family: var(--rpm-font-mono);
+  color: #374151;
+  font-size: 11px;
+  word-break: break-all;
 }
 
 /* Channel tag (POS / B2B / DRAFT) — sits below return ID */
 .returns-channel-tag {
-  display: inline-block;
+  display: block;
   margin-top: 4px;
   padding: 1px 6px;
   border-radius: 3px;
@@ -2160,6 +2245,7 @@ s-section[heading]::before {
   background: #f1f5f9;
   color: #475569;
   border: 1px solid #e2e8f0;
+  width: fit-content;
 }
 
 /* Status legend bar */

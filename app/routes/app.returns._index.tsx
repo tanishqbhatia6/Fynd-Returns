@@ -403,15 +403,7 @@ export default function ReturnsList() {
           <>
             <div className="returns-table-wrap">
               <div style={{ overflowX: "auto" }}>
-                <table className="returns-table" style={{ width: "100%", tableLayout: "fixed" }}>
-                  <colgroup>
-                    <col style={{ width: 40 }} />
-                    <col style={{ width: "14%" }} />
-                    <col style={{ width: "22%" }} />
-                    <col style={{ width: "20%" }} />
-                    <col className="app-hide-mobile" style={{ width: "22%" }} />
-                    <col style={{ width: "12%" }} />
-                  </colgroup>
+                <table className="returns-table">
                   <thead>
                     <tr>
                       <th className="checkbox-th">
@@ -427,6 +419,7 @@ export default function ReturnsList() {
                       <th>Return</th>
                       <th>Order</th>
                       <th>Status</th>
+                      <th className="app-hide-mobile">Fynd Details</th>
                       <th className="app-hide-mobile">Customer</th>
                       <th>Created</th>
                     </tr>
@@ -434,47 +427,21 @@ export default function ReturnsList() {
                   <tbody>
                     {returns.map((r) => {
                       const fyndOrdId = r.fyndOrderId;
+                      const fyndRetId = r.fyndReturnId;
+                      const fyndRetNo = r.fyndReturnNo;
+                      const fyndShipId = r.fyndShipmentId;
                       const isSelectable = selectableIds.has(r.id);
                       const isSelected = selectedIds.has(r.id);
                       const resType = r.resolutionType;
                       const syncStatus = (r as Record<string, unknown>).fyndSyncStatus as string | null;
                       const channel = (r as Record<string, unknown>).sourceChannel as string | null | undefined;
-
-                      // Build secondary status line: resolution · sync
-                      const secondaryParts: Array<{ text: string; color: string }> = [];
-                      if (resType) {
-                        secondaryParts.push({ text: resType.replace(/_/g, " "), color: "#6b7280" });
-                      }
-                      if (r.refundStatus && r.refundStatus !== "none") {
-                        secondaryParts.push({ text: r.refundStatus, color: "#7c3aed" });
-                      }
-                      if (syncStatus) {
-                        const syncLabels: Record<string, { text: string; color: string }> = {
-                          synced: { text: "Synced", color: "#059669" },
-                          processing: { text: "Syncing", color: "#2563EB" },
-                          failed: { text: "Sync failed", color: "#DC2626" },
-                          retry_scheduled: { text: "Retrying", color: "#D97706" },
-                          pending_consolidation: { text: "Queued", color: "#B45309" },
-                          pending: { text: "Pending sync", color: "#6B7280" },
-                        };
-                        const sl = syncLabels[syncStatus];
-                        if (sl) secondaryParts.push(sl);
-                      }
-                      if (!!(r as Record<string, unknown>).cancellationRequestedAt && r.status.toLowerCase() === "approved") {
-                        secondaryParts.push({ text: "Cancel requested", color: "#92400E" });
-                      }
+                      const hasFynd = !!(fyndOrdId || fyndRetId || fyndRetNo || fyndShipId || r.forwardAwb || r.returnAwb);
 
                       return (
                         <tr
                           key={r.id}
                           onClick={() => navigate(`/app/returns/${r.id}`)}
-                          style={{
-                            cursor: "pointer",
-                            background: isSelected ? "rgba(79, 70, 229, 0.04)" : undefined,
-                            transition: "background 0.1s",
-                          }}
-                          onMouseEnter={(e) => { if (!isSelected) (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"; }}
-                          onMouseLeave={(e) => { (e.currentTarget as HTMLTableRowElement).style.background = isSelected ? "rgba(79, 70, 229, 0.04)" : ""; }}
+                          className={isSelected ? "row-selected" : ""}
                         >
                           {/* Checkbox */}
                           <td
@@ -509,7 +476,7 @@ export default function ReturnsList() {
                             })()}
                           </td>
 
-                          {/* Order + Fynd Order ID (full, no truncation) */}
+                          {/* Order */}
                           <td>
                             <div className="order-name">{r.shopifyOrderName || "—"}</div>
                             {fyndOrdId && (
@@ -517,24 +484,69 @@ export default function ReturnsList() {
                             )}
                           </td>
 
-                          {/* Status — clean: one badge + muted secondary line */}
+                          {/* Status — primary badge + resolution pill + sync indicator */}
                           <td>
-                            <span className="returns-status-badge" style={{
-                              background: getStatusBg(r.status),
-                              color: getStatusColor(r.status),
-                            }}>
-                              <span className="returns-status-dot" style={{ background: getStatusColor(r.status) }} />
-                              {r.status}
-                            </span>
-                            {secondaryParts.length > 0 && (
-                              <div className="returns-status-meta">
-                                {secondaryParts.map((part, i) => (
-                                  <React.Fragment key={i}>
-                                    {i > 0 && <span className="returns-meta-sep">&middot;</span>}
-                                    <span style={{ color: part.color }}>{part.text}</span>
-                                  </React.Fragment>
-                                ))}
+                            <div className="returns-status-cell">
+                              <span className="returns-status-badge" style={{
+                                background: getStatusBg(r.status),
+                                color: getStatusColor(r.status),
+                              }}>
+                                <span className="returns-status-dot" style={{ background: getStatusColor(r.status) }} />
+                                {r.status}
+                              </span>
+                              {/* Resolution type — outlined pill, distinct from status */}
+                              {resType && (
+                                <span className={`returns-res-pill returns-res-pill--${resType}`}>
+                                  {resType.replace(/_/g, " ")}
+                                </span>
+                              )}
+                              {/* Refund status — only if meaningful */}
+                              {r.refundStatus && r.refundStatus !== "none" && (
+                                <span className="returns-refund-tag">{r.refundStatus}</span>
+                              )}
+                              {/* Sync indicator — icon + label */}
+                              {syncStatus && (() => {
+                                const syncCfg: Record<string, { icon: string; label: string; cls: string }> = {
+                                  synced: { icon: "\u2713", label: "Synced", cls: "sync--ok" },
+                                  processing: { icon: "\u21BB", label: "Syncing", cls: "sync--busy" },
+                                  failed: { icon: "\u2717", label: "Sync failed", cls: "sync--fail" },
+                                  retry_scheduled: { icon: "\u21BB", label: "Retrying", cls: "sync--busy" },
+                                  pending_consolidation: { icon: "\u2022", label: "Queued", cls: "sync--wait" },
+                                  pending: { icon: "\u2022", label: "Pending", cls: "sync--wait" },
+                                };
+                                const c = syncCfg[syncStatus];
+                                if (!c) return null;
+                                return <span className={`returns-sync ${c.cls}`}>{c.icon} {c.label}</span>;
+                              })()}
+                              {/* Cancel request warning */}
+                              {!!(r as Record<string, unknown>).cancellationRequestedAt && r.status.toLowerCase() === "approved" && (
+                                <span className="returns-cancel-tag">Cancel req.</span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Fynd Details — full IDs, no truncation */}
+                          <td className="app-hide-mobile">
+                            {hasFynd ? (
+                              <div className="fynd-details-cell">
+                                {fyndOrdId && (
+                                  <div className="fynd-row"><span className="fynd-label">Order</span><span className="fynd-value">{fyndOrdId}</span></div>
+                                )}
+                                {(fyndRetId || fyndRetNo) && (
+                                  <div className="fynd-row"><span className="fynd-label">Return</span><span className="fynd-value">{fyndRetId || fyndRetNo}</span></div>
+                                )}
+                                {fyndShipId && (
+                                  <div className="fynd-row"><span className="fynd-label">Shipment</span><span className="fynd-value">{fyndShipId}</span></div>
+                                )}
+                                {r.forwardAwb && (
+                                  <div className="fynd-row"><span className="fynd-label">Fwd AWB</span><span className="fynd-value">{r.forwardAwb}</span></div>
+                                )}
+                                {r.returnAwb && (
+                                  <div className="fynd-row"><span className="fynd-label">Ret AWB</span><span className="fynd-value">{r.returnAwb}</span></div>
+                                )}
                               </div>
+                            ) : (
+                              <span style={{ fontSize: 12, color: "#d1d5db" }}>—</span>
                             )}
                           </td>
 

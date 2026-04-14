@@ -505,7 +505,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 });
 
                 const orderName = String(first.affiliate_order_id ?? first.external_order_id ?? `#${orderNumber}`);
-                const createdAt = safeStr(first.orderDate, "") || safeStr(first.shipment_created_at, "") || safeStr(first.created_at, "") || new Date().toISOString();
+                const createdAt = safeStr(first.order_date, "") || safeStr(first.orderDate, "") || safeStr(first.shipment_created_at, "") || safeStr(first.created_at, "") || new Date().toISOString();
 
                 // Extract customer data from Fynd shipment fields
                 const firstBag = Array.isArray(first.bags) ? (first.bags as Record<string, unknown>[])[0] : null;
@@ -866,6 +866,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // Product-level eligibility: check tags, return window, region restrictions
+    // Track separately so the multi-shipment override doesn't wipe out rule-based blocks.
+    let blockedByReturnRules = false;
     if (returnEligibility.eligible) {
       const allProductTags = (order.lineItems ?? []).flatMap((li) => li.productTags ?? []);
       const ruleCheck = checkReturnEligibility(settings, {
@@ -876,6 +878,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
       if (!ruleCheck.eligible) {
         returnEligibility = ruleCheck;
+        blockedByReturnRules = true;
       }
     }
 
@@ -987,11 +990,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Per-shipment returned quantity map (shipmentId → { lineItemId → qty })
     let shipmentReturnedQtyMap: Record<string, Record<string, number>> | null = null;
     if (fyndShipmentsForReturn && fyndShipmentsForReturn.length > 0) {
-      // When multi-shipment, also override returnEligibility: eligible if ANY shipment is eligible
+      // When multi-shipment, override STATUS-based ineligibility if ANY shipment is eligible.
+      // Do NOT override return-window or product-rule ineligibility — those apply order-wide.
       const anyShipmentEligible = fyndShipmentsForReturn.some(s => s.eligible);
-      if (anyShipmentEligible && !returnEligibility.eligible) {
-        // Order-level check said ineligible (e.g. because we set displayFulfillmentStatus based on first),
-        // but at least one shipment is delivered. Override to eligible (per-shipment gates handle the rest).
+      if (anyShipmentEligible && !returnEligibility.eligible && !blockedByReturnRules) {
+        // Only override fulfillment/status-based blocks — per-shipment gates handle the rest.
         returnEligibility = { eligible: true };
       }
 

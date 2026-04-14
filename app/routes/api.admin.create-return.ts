@@ -5,6 +5,9 @@ import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from
 import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkReturnEligibility } from "../lib/return-rules.server";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
+import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
+import { fetchOrderByFyndAffiliateId, fetchOrderByOrderNumber, withRestCredentials } from "../lib/shopify-admin.server";
+import shopify from "../shopify.server";
 
 /**
  * Admin API: Create a return on behalf of a customer.
@@ -66,6 +69,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ? (body.exchangePreference as string | undefined)?.trim().slice(0, 500) || null
       : null;
 
+  const orderId = (body.orderId as string | undefined)?.trim() || null;
   const crmTicketId = (body.crmTicketId as string | undefined)?.trim() || null;
   const crmNotes = (body.crmNotes as string | undefined)?.trim() || null;
   const createdByStaff = (body.createdByStaff as string | undefined)?.trim() || null;
@@ -134,13 +138,56 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // --- Resolve Shopify order ID ---
+  let shopifyOrderId = orderId || "";
+  // If orderId is not a Shopify GID, try to resolve it
+  if (shopifyOrderId && !shopifyOrderId.startsWith("gid://")) {
+    try {
+      const shopSession = await prisma.session.findFirst({ where: { shop: shopDomain } });
+      const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
+      const admin = withRestCredentials(rawAdmin, shopDomain, shopSession?.accessToken ?? "");
+      const orderNameClean = shopifyOrderName.replace(/^#/, "").trim();
+      const resolved = await fetchOrderByFyndAffiliateId(admin, orderNameClean).catch(() => null)
+        ?? await fetchOrderByOrderNumber(admin, orderNameClean).catch(() => null);
+      if (resolved?.id?.startsWith("gid://")) {
+        shopifyOrderId = resolved.id;
+      }
+    } catch { /* non-fatal — proceed with what we have */ }
+  }
+
+  // --- Determine status (auto-approve check) ---
+  let initialStatus = "pending";
+  if (settings?.autoApproveEnabled) {
+    const autoRules = parseAutoApproveRules(settings.autoApproveRulesJson);
+    if (autoRules.length > 0) {
+      const firstReasonCode = items[0]?.reasonCode;
+      const allTags = lineItemsWithPrice.flatMap((li) => {
+        const liAny = li as Record<string, unknown>;
+        return Array.isArray(liAny.productTags) ? liAny.productTags as string[] : [];
+      });
+      let customerReturnCount: number | undefined;
+      if (customerEmail) {
+        customerReturnCount = await prisma.returnCase.count({ where: { shopId: shopRecord.id, customerEmailNorm: customerEmail } });
+      }
+      const ruleResult = evaluateAutoApproveRules(autoRules, {
+        returnReason: firstReasonCode,
+        productTags: allTags.length > 0 ? allTags : undefined,
+        customerEmail: customerEmail ?? undefined,
+        customerReturnCount,
+      });
+      initialStatus = ruleResult === "manual_review" ? "initiated" : "approved";
+    } else {
+      initialStatus = "approved";
+    }
+  }
+
   // --- Create ReturnCase + ReturnItems + ReturnEvent in a transaction ---
   try {
     const returnCase = await prisma.$transaction(async (tx) => {
       const rc = await tx.returnCase.create({
         data: {
           shopId: shopRecord.id,
-          shopifyOrderId: "",
+          shopifyOrderId,
           shopifyOrderName,
           customerEmailNorm: customerEmail,
           customerPhoneNorm: customerPhone,
@@ -153,7 +200,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           customerZip,
           customerLandmark,
           currency: currencyCode,
-          status: "pending",
+          status: initialStatus,
           resolutionType,
           exchangePreference,
           createdByChannel: "admin",

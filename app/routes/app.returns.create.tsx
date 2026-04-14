@@ -638,6 +638,7 @@ export default function CreateReturn() {
 
     const body = {
       shopifyOrderName: orderData.name,
+      orderId: orderData.id || undefined,
       items,
       customerEmail: customerEmail.trim() || undefined,
       customerPhone: customerPhone.trim() || undefined,

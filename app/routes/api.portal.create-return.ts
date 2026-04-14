@@ -731,13 +731,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const validLineIds = new Set(lineItemsWithPrice.map((l) => l.id));
       for (const sel of itemsToCreate) {
         if (sel.lineItemId === "manual") continue;
-        if (!validLineIds.has(sel.lineItemId)) {
+        // After line-item ID resolution, sel.lineItemId may be a Shopify GID while
+        // lineItemsWithPrice still has the original Fynd bag ID.  Accept either.
+        const originalPortalId = lineItemIdMapping.get(sel.lineItemId);
+        if (!validLineIds.has(sel.lineItemId) && (!originalPortalId || !validLineIds.has(originalPortalId))) {
           return withCors(
             Response.json({ error: "Invalid line item selected. Please refresh and try again." }, { status: 400 }),
             request
           );
         }
-        const li = lineItemsWithPrice.find((l) => l.id === sel.lineItemId);
+        const li = lineItemsWithPrice.find((l) => l.id === sel.lineItemId || l.id === originalPortalId);
         const price = li?.price ? parseFloat(li.price) : undefined;
         const tags = li?.productTags ?? [];
         const eligibility = checkReturnEligibility(settings, {

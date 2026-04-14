@@ -1463,6 +1463,39 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           // Close the Shopify return after discount code refund
           await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
 
+          // Sync refund status to Fynd (push credit_note_generated) if enabled
+          if (shop.settings?.syncRefundToFynd && returnCase.fyndShipmentId) {
+            try {
+              const fyndClientResult = await createFyndClientOrError(
+                shop.settings as Parameters<typeof createFyndClientOrError>[0],
+                { requirePlatform: true },
+              );
+              if (fyndClientResult.ok && "updateShipmentStatus" in fyndClientResult.client) {
+                const fyndClient = fyndClientResult.client as import("../lib/fynd.server").FyndPlatformClient;
+                const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
+                await fyndClient.updateShipmentStatus(callId, {
+                  statuses: [{
+                    shipments: [{ identifier: returnCase.fyndShipmentId }],
+                    status: "credit_note_generated",
+                  }],
+                  task: false,
+                  force_transition: false,
+                  lock_after_transition: false,
+                  unlock_before_transition: false,
+                });
+                refundLogger.info({ shipmentId: returnCase.fyndShipmentId }, "[process_refund] Fynd credit_note_generated synced (discount code)");
+                await prisma.returnEvent.create({
+                  data: { returnCaseId: id, source: "admin", eventType: "fynd_refund_synced", payloadJson: JSON.stringify({ status: "credit_note_generated", shipmentId: returnCase.fyndShipmentId, method: "discount_code" }) },
+                }).catch(() => {});
+              }
+            } catch (fyndErr) {
+              refundLogger.warn({ err: fyndErr }, "[process_refund] Fynd refund sync best-effort failed (discount code)");
+              await prisma.returnEvent.create({
+                data: { returnCaseId: id, source: "admin", eventType: "fynd_refund_sync_failed", payloadJson: JSON.stringify({ error: fyndErr instanceof Error ? fyndErr.message : String(fyndErr), shipmentId: returnCase.fyndShipmentId }) },
+              }).catch(() => {});
+            }
+          }
+
           if (returnCase.customerEmailNorm) {
             try {
               await sendRefundNotification({
@@ -1609,6 +1642,39 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         });
         // Close the Shopify return after standard refund
         await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
+
+        // Sync refund status to Fynd (push credit_note_generated) if enabled
+        if (shop.settings?.syncRefundToFynd && returnCase.fyndShipmentId) {
+          try {
+            const fyndClientResult = await createFyndClientOrError(
+              shop.settings as Parameters<typeof createFyndClientOrError>[0],
+              { requirePlatform: true },
+            );
+            if (fyndClientResult.ok && "updateShipmentStatus" in fyndClientResult.client) {
+              const fyndClient = fyndClientResult.client as import("../lib/fynd.server").FyndPlatformClient;
+              const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
+              await fyndClient.updateShipmentStatus(callId, {
+                statuses: [{
+                  shipments: [{ identifier: returnCase.fyndShipmentId }],
+                  status: "credit_note_generated",
+                }],
+                task: false,
+                force_transition: false,
+                lock_after_transition: false,
+                unlock_before_transition: false,
+              });
+              refundLogger.info({ shipmentId: returnCase.fyndShipmentId }, "[process_refund] Fynd credit_note_generated synced");
+              await prisma.returnEvent.create({
+                data: { returnCaseId: id, source: "admin", eventType: "fynd_refund_synced", payloadJson: JSON.stringify({ status: "credit_note_generated", shipmentId: returnCase.fyndShipmentId }) },
+              }).catch(() => {});
+            }
+          } catch (fyndErr) {
+            refundLogger.warn({ err: fyndErr }, "[process_refund] Fynd refund sync best-effort failed");
+            await prisma.returnEvent.create({
+              data: { returnCaseId: id, source: "admin", eventType: "fynd_refund_sync_failed", payloadJson: JSON.stringify({ error: fyndErr instanceof Error ? fyndErr.message : String(fyndErr), shipmentId: returnCase.fyndShipmentId }) },
+            }).catch(() => {});
+          }
+        }
 
         if (returnCase.customerEmailNorm) {
           try {

@@ -1044,10 +1044,34 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       return { ok: false, error: errMsg };
     }
 
-    if (lineItemsForRefund.length === 0) {
+    // If lineItemsForRefund has non-GID IDs (e.g. Fynd bag IDs stored from synthetic orders),
+    // resolve them to real Shopify line item GIDs so the refund targets the correct items.
+    const hasNonGidLineItems = lineItemsForRefund.length > 0 &&
+      lineItemsForRefund.some((li) => !li.id.startsWith("gid://"));
+    if (lineItemsForRefund.length === 0 || hasNonGidLineItems) {
       const order = await fetchOrder(admin, orderIdForRefund);
       if (order?.lineItems?.length) {
-        lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+        if (hasNonGidLineItems) {
+          // Try to match stored items to Shopify line items by SKU or title
+          const returnItems = returnCase.items ?? [];
+          const shopifyByTitle = new Map(order.lineItems.map((li) => [li.title?.toLowerCase(), li]));
+          const shopifyBySku = new Map(order.lineItems.filter((li) => li.sku).map((li) => [li.sku!.toLowerCase(), li]));
+          const resolved: Array<{ id: string; quantity: number }> = [];
+          for (const li of lineItemsForRefund) {
+            if (li.id.startsWith("gid://")) { resolved.push(li); continue; }
+            const ri = returnItems.find((r) => r.shopifyLineItemId === li.id);
+            const matchBySku = ri?.sku ? shopifyBySku.get(ri.sku.toLowerCase()) : undefined;
+            const matchByTitle = ri?.title ? shopifyByTitle.get(ri.title.toLowerCase()) : undefined;
+            const match = matchBySku ?? matchByTitle;
+            if (match) {
+              console.log(`[fynd-webhook] Resolved lineItem "${li.id}" → "${match.id}" (sku: ${match.sku})`);
+              resolved.push({ id: match.id, quantity: li.quantity });
+            }
+          }
+          lineItemsForRefund = resolved.length > 0 ? resolved : order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+        } else {
+          lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+        }
       }
     }
 
@@ -1248,10 +1272,32 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
             }
           }
         }
-        if (orderIdForRefund && lineItemsForRefund.length === 0) {
+        // Resolve non-GID line item IDs (Fynd bag IDs) to real Shopify GIDs
+        const hasNonGidAutoItems = lineItemsForRefund.length > 0 &&
+          lineItemsForRefund.some((li) => !li.id.startsWith("gid://"));
+        if (orderIdForRefund && (lineItemsForRefund.length === 0 || hasNonGidAutoItems)) {
           const order = await fetchOrder(admin, orderIdForRefund);
           if (order?.lineItems?.length) {
-            lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            if (hasNonGidAutoItems) {
+              const returnItems = returnCase.items ?? [];
+              const shopifyBySku = new Map(order.lineItems.filter((li) => li.sku).map((li) => [li.sku!.toLowerCase(), li]));
+              const shopifyByTitle = new Map(order.lineItems.map((li) => [li.title?.toLowerCase(), li]));
+              const resolved: Array<{ id: string; quantity: number }> = [];
+              for (const li of lineItemsForRefund) {
+                if (li.id.startsWith("gid://")) { resolved.push(li); continue; }
+                const ri = returnItems.find((r) => r.shopifyLineItemId === li.id);
+                const matchBySku = ri?.sku ? shopifyBySku.get(ri.sku.toLowerCase()) : undefined;
+                const matchByTitle = ri?.title ? shopifyByTitle.get(ri.title.toLowerCase()) : undefined;
+                const match = matchBySku ?? matchByTitle;
+                if (match) {
+                  console.log(`[fynd-webhook] Auto-refund resolved lineItem "${li.id}" → "${match.id}" (sku: ${match.sku})`);
+                  resolved.push({ id: match.id, quantity: li.quantity });
+                }
+              }
+              lineItemsForRefund = resolved.length > 0 ? resolved : order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            } else {
+              lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            }
           }
         }
 

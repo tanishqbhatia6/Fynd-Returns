@@ -56,6 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     })(),
     fyndConsolidateReturns: s?.fyndConsolidateReturns ?? false,
     fyndConsolidateWindowHours: s?.fyndConsolidateWindowHours ?? 4,
+    syncRefundToFynd: s?.syncRefundToFynd ?? false,
     allowedFyndStatusesForRefund: (() => {
       try { return s?.allowedFyndStatusesForRefund ? JSON.parse(s.allowedFyndStatusesForRefund) as string[] : []; }
       catch { return []; }
@@ -112,6 +113,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ? JSON.stringify(portalAllowedFulfillmentStatusesRaw)
     : JSON.stringify(["FULFILLED", "PARTIALLY_FULFILLED"]);
   const fyndConsolidateReturns = formData.get("fyndConsolidateReturns") === "on";
+  const syncRefundToFynd = formData.get("syncRefundToFynd") === "on";
   const fyndConsolidateWindowHours = [1, 4, 8, 24].includes(parseInt(String(formData.get("fyndConsolidateWindowHours") ?? "4"), 10))
     ? parseInt(String(formData.get("fyndConsolidateWindowHours")), 10)
     : 4;
@@ -196,6 +198,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         portalAllowedFulfillmentStatuses,
         fyndConsolidateReturns,
         fyndConsolidateWindowHours,
+        syncRefundToFynd,
         allowedFyndStatusesForRefund,
         refundGatePreset,
         allowedFyndStatusesForReturn,
@@ -229,6 +232,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         portalAllowedFulfillmentStatuses,
         fyndConsolidateReturns,
         fyndConsolidateWindowHours,
+        syncRefundToFynd,
         allowedFyndStatusesForRefund,
         refundGatePreset,
         allowedFyndStatusesForReturn,
@@ -269,6 +273,7 @@ export default function ReturnSettings() {
   const [portalExchangeEnabled, setPortalExchangeEnabled] = React.useState(data.portalExchangeEnabled);
   const [allowedFulfillStatuses, setAllowedFulfillStatuses] = React.useState<string[]>(data.portalAllowedFulfillmentStatuses);
   const [fyndConsolidateReturns, setFyndConsolidateReturns] = React.useState(data.fyndConsolidateReturns);
+  const [syncRefundToFynd, setSyncRefundToFynd] = React.useState(data.syncRefundToFynd);
   const [fyndConsolidateWindowHours, setFyndConsolidateWindowHours] = React.useState(data.fyndConsolidateWindowHours);
   const [allowedFyndStatuses, setAllowedFyndStatuses] = React.useState<string[]>(data.allowedFyndStatusesForRefund);
   const [fyndStatusGateEnabled, setFyndStatusGateEnabled] = React.useState(data.refundGatePreset !== "none" && data.refundGatePreset !== null);
@@ -316,6 +321,7 @@ export default function ReturnSettings() {
     setPortalExchangeEnabled(data.portalExchangeEnabled);
     setAllowedFulfillStatuses(data.portalAllowedFulfillmentStatuses);
     setFyndConsolidateReturns(data.fyndConsolidateReturns);
+    setSyncRefundToFynd(data.syncRefundToFynd);
     setFyndConsolidateWindowHours(data.fyndConsolidateWindowHours);
     setAllowedFyndStatuses(data.allowedFyndStatusesForRefund);
     setRefundGatePreset((data.refundGatePreset ?? "none") as RefundGatePreset);
@@ -359,6 +365,7 @@ export default function ReturnSettings() {
     fd.delete("portalAllowedFulfillmentStatuses");
     allowedFulfillStatuses.forEach((s) => fd.append("portalAllowedFulfillmentStatuses", s));
     fd.set("fyndConsolidateReturns", fyndConsolidateReturns ? "on" : "off");
+    fd.set("syncRefundToFynd", syncRefundToFynd ? "on" : "off");
     fd.set("fyndConsolidateWindowHours", String(fyndConsolidateWindowHours));
     fd.set("refundGatePreset", fyndStatusGateEnabled ? refundGatePreset : "none");
     fd.delete("allowedFyndStatusesForRefund");
@@ -838,6 +845,36 @@ export default function ReturnSettings() {
               </span>
             </div>
             <input type="hidden" name="autoRefundEnabled" value={autoRefundEnabled ? "on" : "off"} />
+          </s-section>
+
+          {/* Sync Refund to Fynd */}
+          <s-section>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 10, background: syncRefundToFynd ? "#EDE9FE" : "#F3F4F6", display: "flex", alignItems: "center", justifyContent: "center", transition: "background 0.15s" }}>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={syncRefundToFynd ? "#7C3AED" : "#9CA3AF"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ transition: "stroke 0.15s" }}><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                </div>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>Sync Refund Status to Fynd</div>
+              </div>
+              <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
+                <input type="checkbox" checked={syncRefundToFynd} onChange={(e) => setSyncRefundToFynd(e.target.checked)}
+                  style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: syncRefundToFynd ? "#3B82F6" : "#cbd5e1" }}>
+                  <span style={{ position: "absolute", left: syncRefundToFynd ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                </span>
+              </label>
+            </div>
+            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 10 }}>
+              After a refund is processed on Shopify (via admin or auto-refund), push <strong>credit_note_generated</strong> status back to Fynd.
+              This keeps both platforms in sync when refunds are initiated from the Shopify side.
+            </p>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: syncRefundToFynd ? "#22C55E" : "#D1D5DB", transition: "background 0.15s" }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: syncRefundToFynd ? "#15803D" : "#6B7280", transition: "color 0.15s" }}>
+                {syncRefundToFynd ? "Enabled" : "Disabled"}
+              </span>
+            </div>
+            <input type="hidden" name="syncRefundToFynd" value={syncRefundToFynd ? "on" : "off"} />
           </s-section>
 
           {/* Refund Payment Method */}

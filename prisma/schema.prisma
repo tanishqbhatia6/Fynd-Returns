@@ -168,6 +168,9 @@ model ShopSettings {
   fyndConsolidateReturns     Boolean  @default(false) // Batch multiple return cases into one Fynd return
   fyndConsolidateWindowHours Int      @default(4)     // Hours to wait before sending batch (1, 4, 8, 24)
 
+  // Sync refund status back to Fynd (push credit_note_generated after Shopify refund)
+  syncRefundToFynd           Boolean  @default(false)
+
   // WhatsApp / SMS notifications
   whatsappEnabled        Boolean  @default(false)
   whatsappProvider       String?  // "meta_cloud" | "twilio" | "wati" | "interakt"

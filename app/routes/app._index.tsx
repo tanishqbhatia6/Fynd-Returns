@@ -155,6 +155,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop.settings ? prisma.blocklistEntry.count({ where: { settingsId: shop.settings.id } }) : Promise.resolve(0),
     ]);
 
+    // Determine the dominant currency from actual return data (not shop settings which may be wrong)
+    const currencyAgg = await prisma.returnCase.groupBy({
+      by: ["currency"],
+      where: { shopId: shop.id, currency: { not: null } },
+      _count: true,
+      orderBy: { _count: { currency: "desc" } },
+      take: 1,
+    });
+    const dominantCurrency = currencyAgg[0]?.currency || shop?.settings?.shopCurrency || "USD";
+
     // Revenue at Risk: sum price*qty for items in initiated/pending/approved cases last 30 days
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
     const atRiskItems = await prisma.returnItem.findMany({
@@ -278,7 +288,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
       resolutionMap, revenueAtRisk, overdueCount,
       shopLocale: shop?.settings?.shopLocale ?? "en",
-      shopCurrency: shop?.settings?.shopCurrency ?? "USD",
+      shopCurrency: dominantCurrency,
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
       fraudAlertCount,
       fraudAlertReturns: fraudAlertReturns as { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],

@@ -374,7 +374,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     totalPages,
     totalFilteredCustomers,
     shopLocale: shop.settings?.shopLocale ?? "en",
-    shopCurrency: shop.settings?.shopCurrency ?? "USD",
+    shopCurrency: customers[0]?.currency || shop.settings?.shopCurrency || "USD",
     shopTimezone: shop.settings?.shopTimezone ?? "UTC",
   };
 };

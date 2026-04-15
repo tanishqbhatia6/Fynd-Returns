@@ -220,6 +220,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
+    // Determine the dominant currency from actual return data
+    const currencyAgg = await prisma.returnCase.groupBy({
+      by: ["currency"],
+      where: { shopId: shop.id, currency: { not: null } },
+      _count: true,
+      orderBy: { _count: { currency: "desc" } },
+      take: 1,
+    });
+    const dominantCurrency = currencyAgg[0]?.currency || shop?.settings?.shopCurrency || "USD";
+
     return {
       totalReturns, statusMap, topReasons, refundedCount, fyndSyncedCount,
       pendingCount, rejectedCount, approvedCount, approvedNotRefundedCount,
@@ -228,7 +238,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       from: from ?? undefined, to: to ?? undefined, hasFyndConfig, error: null,
       resolutionChartData, revenueRetained, greenReturnCount,
       shopLocale: shop?.settings?.shopLocale ?? "en",
-      shopCurrency: shop?.settings?.shopCurrency ?? "USD",
+      shopCurrency: dominantCurrency,
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
       // Revenue analytics
       totalRefundAmount,

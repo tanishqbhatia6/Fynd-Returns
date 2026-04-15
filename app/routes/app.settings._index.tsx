@@ -76,6 +76,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const discountCodeRefundEnabled = s?.discountCodeRefundEnabled ?? false;
 
+    const shopCurrency = s?.shopCurrency ?? "USD";
+
     return {
       hasFynd, hasReasons, hasPortalTheme, readAllOrders,
       notifCount, smtpConfigured, returnWindowDays, autoApprove, autoRefund,
@@ -84,7 +86,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       blocklistEnabled, blocklistCount, autoRulesCount,
       bonusCreditEnabled, bonusCreditPct, greenReturnsEnabled,
       greenReturnsThreshold, hasDefaultReturnInstructions, portalLanguage,
-      productPolicyCount, discountCodeRefundEnabled,
+      productPolicyCount, discountCodeRefundEnabled, shopCurrency,
     };
   } catch (err) {
     console.error("[app.settings._index] Loader error:", err);
@@ -117,6 +119,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       portalLanguage: "en",
       productPolicyCount: 0,
       discountCodeRefundEnabled: false,
+      shopCurrency: "USD",
     };
   }
 };
@@ -330,7 +333,7 @@ export default function SettingsDashboard() {
               ? { label: "Enabled", variant: "ok" }
               : { label: "Disabled", variant: "off" },
             ...(d.greenReturnsEnabled && d.greenReturnsThreshold > 0
-              ? [{ label: `< $${d.greenReturnsThreshold} threshold`, variant: "info" as const }]
+              ? [{ label: `< ${new Intl.NumberFormat("en", { style: "currency", currency: d.shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(d.greenReturnsThreshold)} threshold`, variant: "info" as const }]
               : []),
           ],
         },

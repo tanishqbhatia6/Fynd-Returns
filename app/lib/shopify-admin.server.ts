@@ -1516,7 +1516,7 @@ export async function createRefund(
         if (method === "store_credit" || method === "both") {
           return {
             success: false,
-            error: "Shopify reports $0 refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the \"Discount code\" refund method instead, or process manually in Shopify Admin.",
+            error: "Shopify reports zero refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the \"Discount code\" refund method instead, or process manually in Shopify Admin.",
           };
         }
         if (suggested?.suggestedTransactions?.length) {

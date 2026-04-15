@@ -6,6 +6,7 @@ import React, { useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getAppMode } from "../lib/fynd-config.server";
+import { syncShopLocaleAndCurrency } from "../lib/shop.server";
 
 declare module "react" {
   namespace JSX {
@@ -19,13 +20,15 @@ declare module "react" {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   const shopDomain = session.shop;
   const portalUrl = `https://${shopDomain}/apps/returns`;
   let appMode: "dev" | "prod" = "prod";
   let pendingCount = 0;
   let adminSoundEnabled = true;
   try {
+    // Sync shop locale/currency/timezone from Shopify (only writes if changed)
+    syncShopLocaleAndCurrency(admin, shopDomain).catch(() => {});
     const shop = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
     if (shop?.settings) {
       appMode = getAppMode(shop.settings);

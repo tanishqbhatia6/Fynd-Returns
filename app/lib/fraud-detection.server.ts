@@ -157,7 +157,7 @@ export async function calculateFraudScore(
   const valueScore = Math.round(valueRaw * VALUE_WEIGHT / 100);
   factors.push({
     name: "High-Value Returns",
-    description: `${highValueItems.length} items over $100 (${Math.round(highValuePct * 100)}% of returned items)`,
+    description: `${highValueItems.length} high-value items (${Math.round(highValuePct * 100)}% of returned items)`,
     score: valueScore,
     weight: VALUE_WEIGHT,
   });

@@ -53,6 +53,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     returnOffersEnabled: s?.returnOffersEnabled ?? false,
     feesByReason,
     windowsByCountry,
+    shopCurrency: s?.shopCurrency ?? "USD",
   };
 };
 
@@ -320,7 +321,7 @@ export default function ReturnRules() {
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                           <div style={{ flex: 1 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                              {o.offerType === "discount_pct" ? `${o.offerValue}% off` : `$${o.offerValue} off`}
+                              {o.offerType === "discount_pct" ? `${o.offerValue}% off` : `${new Intl.NumberFormat("en", { style: "currency", currency: data.shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(o.offerValue)} off`}
                             </div>
                             <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>
                               {o.reasonCode && <span>Reason: <strong>{o.reasonCode}</strong></span>}

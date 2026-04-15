@@ -28,7 +28,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   let adminSoundEnabled = true;
   try {
     // Sync shop locale/currency/timezone from Shopify (only writes if changed)
-    syncShopLocaleAndCurrency(admin, shopDomain).catch(() => {});
+    await syncShopLocaleAndCurrency(admin, shopDomain).catch(() => {});
     const shop = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
     if (shop?.settings) {
       appMode = getAppMode(shop.settings);

@@ -60,15 +60,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
       prisma.returnItem.count({ where: { returnCase: where } }),
       prisma.returnCase.count({ where: whereAll }),
-      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, take: 500, orderBy: { createdAt: "desc" } }),
-      prisma.returnCase.findMany({ where, select: { createdAt: true, status: true }, take: 5000, orderBy: { createdAt: "desc" } }),
+      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.returnCase.findMany({ where, select: { createdAt: true, status: true }, orderBy: { createdAt: "desc" } }),
       prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
       prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
       prisma.returnCase.findMany({
         where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
         select: { refundJson: true },
-        take: 2000,
-        orderBy: { createdAt: "desc" },
       }),
       prisma.returnCase.count({ where: { ...where, isGreenReturn: true } }),
     ]);
@@ -125,12 +123,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } catch { /* skip */ }
     }
 
+    // Avg processing time: use ReturnEvent approval timestamp for accuracy
     let avgProcessingDays: number | null = null;
     if (approvedWithEvents.length >= 1) {
-      const times = approvedWithEvents
-        .map((rc) => (new Date(rc.updatedAt).getTime() - new Date(rc.createdAt).getTime()) / (24 * 60 * 60 * 1000))
-        .filter((t) => t >= 0);
-      if (times.length > 0) avgProcessingDays = times.reduce((a, b) => a + b, 0) / times.length;
+      try {
+        const processingResult = await prisma.$queryRaw<[{ avg_days: number | null }]>`
+          SELECT AVG(EXTRACT(EPOCH FROM (COALESCE(re."happenedAt", rc."updatedAt") - rc."createdAt")) / 86400.0) AS avg_days
+          FROM "ReturnCase" rc
+          LEFT JOIN LATERAL (
+            SELECT "happenedAt" FROM "ReturnEvent"
+            WHERE "returnCaseId" = rc.id AND "eventType" IN ('approved', 'auto_approved', 'status_changed')
+            ORDER BY "happenedAt" ASC LIMIT 1
+          ) re ON true
+          WHERE rc."shopId" = ${shop.id}
+            AND rc."createdAt" >= ${rangeStart}
+            AND rc."createdAt" <= ${rangeEnd}
+            AND rc.status IN ('approved', 'completed')
+        `;
+        if (processingResult[0]?.avg_days != null) {
+          avgProcessingDays = Math.round(processingResult[0].avg_days * 10) / 10;
+        }
+      } catch {
+        const times = approvedWithEvents
+          .map((rc) => (new Date(rc.updatedAt).getTime() - new Date(rc.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+          .filter((t) => t >= 0);
+        if (times.length > 0) avgProcessingDays = Math.round((times.reduce((a, b) => a + b, 0) / times.length) * 10) / 10;
+      }
     }
 
     // Revenue analytics queries
@@ -220,6 +238,90 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
+    // New metric: Avg refund amount
+    const avgRefundAmount = refundedCount > 0 ? totalRefundAmount / refundedCount : 0;
+
+    // New metric: Revenue at Risk (initiated + pending, last 30d)
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const atRiskResult = await prisma.$queryRaw<[{ total: string | null }]>`
+      SELECT COALESCE(SUM(CAST(ri.price AS DECIMAL(12,2)) * ri.qty), 0)::text AS total
+      FROM "ReturnItem" ri
+      JOIN "ReturnCase" rc ON ri."returnCaseId" = rc.id
+      WHERE rc."shopId" = ${shop.id}
+        AND rc."createdAt" >= ${thirtyDaysAgo}
+        AND rc.status IN ('initiated', 'pending')
+        AND ri.price IS NOT NULL
+    `;
+    const revenueAtRisk = parseFloat(atRiskResult[0]?.total ?? "0") || 0;
+
+    // New metric: Geographic breakdown
+    const geoBreakdown = await prisma.returnCase.groupBy({
+      by: ["customerCountry"],
+      where: { ...where, customerCountry: { not: null } },
+      _count: true,
+      orderBy: { _count: { customerCountry: "desc" } },
+      take: 15,
+    });
+    const geoData = geoBreakdown
+      .filter(r => r.customerCountry != null && String(r.customerCountry).trim() !== "")
+      .map(r => ({ country: String(r.customerCountry), count: r._count }));
+
+    // New metric: Channel attribution
+    const [channelCreatedBy, channelSource] = await Promise.all([
+      prisma.returnCase.groupBy({
+        by: ["createdByChannel"],
+        where: { ...where, createdByChannel: { not: null } },
+        _count: true,
+        orderBy: { _count: { createdByChannel: "desc" } },
+      }),
+      prisma.returnCase.groupBy({
+        by: ["sourceChannel"],
+        where: { ...where, sourceChannel: { not: null } },
+        _count: true,
+        orderBy: { _count: { sourceChannel: "desc" } },
+      }),
+    ]);
+    const createdByChannelData = channelCreatedBy.map(r => ({ channel: String(r.createdByChannel), count: r._count }));
+    const sourceChannelData = channelSource.map(r => ({ channel: String(r.sourceChannel), count: r._count }));
+
+    // New metric: Return condition breakdown
+    const conditionBreakdown = await prisma.returnItem.groupBy({
+      by: ["condition"],
+      where: { returnCase: where, condition: { not: null } },
+      _count: true,
+      orderBy: { _count: { condition: "desc" } },
+    });
+    const conditionData = conditionBreakdown
+      .filter(r => r.condition != null && String(r.condition).trim() !== "")
+      .map(r => ({ condition: String(r.condition).replace(/_/g, " "), count: r._count }));
+
+    // New metric: Time to refund (approval → refund avg days)
+    let avgTimeToRefundDays: number | null = null;
+    try {
+      const ttrResult = await prisma.$queryRaw<[{ avg_days: number | null }]>`
+        SELECT AVG(EXTRACT(EPOCH FROM (refund_evt."happenedAt" - approve_evt."happenedAt")) / 86400.0) AS avg_days
+        FROM "ReturnCase" rc
+        JOIN LATERAL (
+          SELECT "happenedAt" FROM "ReturnEvent"
+          WHERE "returnCaseId" = rc.id AND "eventType" IN ('approved', 'auto_approved')
+          ORDER BY "happenedAt" ASC LIMIT 1
+        ) approve_evt ON true
+        JOIN LATERAL (
+          SELECT "happenedAt" FROM "ReturnEvent"
+          WHERE "returnCaseId" = rc.id AND "eventType" IN ('refund_processed', 'refunded')
+          ORDER BY "happenedAt" ASC LIMIT 1
+        ) refund_evt ON true
+        WHERE rc."shopId" = ${shop.id}
+          AND rc."createdAt" >= ${rangeStart}
+          AND rc."createdAt" <= ${rangeEnd}
+          AND rc.status IN ('approved', 'completed')
+          AND rc."refundStatus" = 'refunded'
+      `;
+      if (ttrResult[0]?.avg_days != null) {
+        avgTimeToRefundDays = Math.round(ttrResult[0].avg_days * 10) / 10;
+      }
+    } catch { /* LATERAL not supported or no data — skip */ }
+
     // Determine the dominant currency from actual return data
     const currencyAgg = await prisma.returnCase.groupBy({
       by: ["currency"],
@@ -253,6 +355,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       repeatCustomerCount,
       resolvedCount,
       fraudAlertCount,
+      // New metrics
+      avgRefundAmount,
+      revenueAtRisk,
+      geoData,
+      createdByChannelData,
+      sourceChannelData,
+      conditionData,
+      avgTimeToRefundDays,
     };
   } catch (err) {
     console.error("Reports loader error:", err);
@@ -282,6 +392,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       repeatCustomerCount: 0,
       resolvedCount: 0,
       fraudAlertCount: 0,
+      avgRefundAmount: 0,
+      revenueAtRisk: 0,
+      geoData: [] as { country: string; count: number }[],
+      createdByChannelData: [] as { channel: string; count: number }[],
+      sourceChannelData: [] as { channel: string; count: number }[],
+      conditionData: [] as { condition: string; count: number }[],
+      avgTimeToRefundDays: null as number | null,
     };
   }
 };
@@ -317,6 +434,8 @@ export default function Reports() {
     totalRefundAmount, topProductsData, customerFrequencyData, refundMethodBreakdown,
     exchangeConversionRate, revenueRetainedRate, repeatReturnerRate,
     uniqueCustomerCount, repeatCustomerCount, resolvedCount, fraudAlertCount,
+    avgRefundAmount, revenueAtRisk, geoData, createdByChannelData, sourceChannelData,
+    conditionData, avgTimeToRefundDays,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -790,11 +909,29 @@ export default function Reports() {
                   </span>
                 </div>
                 <div className="flex-between">
+                  <span className="kpi-meta">Avg refund amount</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#8B5CF6" }}>
+                    {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(avgRefundAmount)}
+                  </span>
+                </div>
+                <div className="flex-between">
                   <span className="kpi-meta">Revenue retained (credit/exchange)</span>
                   <span style={{ fontSize: 15, fontWeight: 700, color: "#059669" }}>
                     {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
                   </span>
                 </div>
+                <div className="flex-between">
+                  <span className="kpi-meta">Revenue at risk (30d)</span>
+                  <span style={{ fontSize: 15, fontWeight: 700, color: "#D97706" }}>
+                    {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueAtRisk)}
+                  </span>
+                </div>
+                {avgTimeToRefundDays != null && (
+                  <div className="flex-between">
+                    <span className="kpi-meta">Avg time to refund</span>
+                    <span style={{ fontSize: 15, fontWeight: 700, color: "#6366F1" }}>{avgTimeToRefundDays}d</span>
+                  </div>
+                )}
               </div>
             </div>
             {refundMethodBreakdown.length > 0 && (
@@ -852,6 +989,94 @@ export default function Reports() {
                   <span className="status-badge" style={{ color: item.count >= 3 ? "#DC2626" : "#374151", background: item.count >= 3 ? "#FEE2E2" : "#E5E7EB" }}>{item.count} returns</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Geographic Breakdown ── */}
+        {geoData.length > 0 && (
+          <div className={CS} style={{ marginTop: 20 }}>
+            <h3 className="panel-title" style={{ marginBottom: 14 }}>Returns by Country</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {geoData.map((item, idx) => {
+                const maxCount = geoData[0]?.count || 1;
+                const pct = Math.round((item.count / maxCount) * 100);
+                return (
+                  <div key={idx}>
+                    <div className="flex-between" style={{ marginBottom: 2, fontSize: 13 }}>
+                      <span style={{ fontWeight: 500 }}>{item.country}</span>
+                      <span className="text-tabular" style={{ fontWeight: 700 }}>{item.count}</span>
+                    </div>
+                    <div style={{ height: 5, borderRadius: 3, background: "#E5E7EB" }}>
+                      <div style={{ height: "100%", borderRadius: 3, background: CHART_PALETTE[idx % CHART_PALETTE.length], width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ── Channel Attribution ── */}
+        {(createdByChannelData.length > 0 || sourceChannelData.length > 0) && (
+          <div className="dashboard-chart-row" style={{ marginTop: 20 }}>
+            {createdByChannelData.length > 0 && (
+              <div className={CS}>
+                <h3 className="panel-title" style={{ marginBottom: 14 }}>Created Via</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {createdByChannelData.map((item, idx) => {
+                    const total = createdByChannelData.reduce((a, c) => a + c.count, 0);
+                    const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                    return (
+                      <div key={idx} className="flex-between" style={{ padding: "6px 10px", borderRadius: 8, background: "#F9FAFB" }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, textTransform: "capitalize" }}>{item.channel}</span>
+                        <span className="text-tabular" style={{ fontSize: 12, fontWeight: 700 }}>{item.count} ({pct}%)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {sourceChannelData.length > 0 && (
+              <div className={CS}>
+                <h3 className="panel-title" style={{ marginBottom: 14 }}>Order Channel</h3>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {sourceChannelData.map((item, idx) => {
+                    const total = sourceChannelData.reduce((a, c) => a + c.count, 0);
+                    const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                    return (
+                      <div key={idx} className="flex-between" style={{ padding: "6px 10px", borderRadius: 8, background: "#F9FAFB" }}>
+                        <span style={{ fontSize: 12, fontWeight: 500, textTransform: "capitalize" }}>{item.channel}</span>
+                        <span className="text-tabular" style={{ fontSize: 12, fontWeight: 700 }}>{item.count} ({pct}%)</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Item Condition Breakdown ── */}
+        {conditionData.length > 0 && (
+          <div className={CS} style={{ marginTop: 20 }}>
+            <h3 className="panel-title" style={{ marginBottom: 14 }}>Item Condition Breakdown</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {conditionData.map((item, idx) => {
+                const total = conditionData.reduce((a, c) => a + c.count, 0);
+                const pct = total > 0 ? Math.round((item.count / total) * 100) : 0;
+                return (
+                  <div key={idx}>
+                    <div className="flex-between" style={{ marginBottom: 2, fontSize: 13 }}>
+                      <span style={{ fontWeight: 500, textTransform: "capitalize" }}>{item.condition}</span>
+                      <span className="text-tabular" style={{ fontWeight: 700 }}>{item.count} ({pct}%)</span>
+                    </div>
+                    <div style={{ height: 5, borderRadius: 3, background: "#E5E7EB" }}>
+                      <div style={{ height: "100%", borderRadius: 3, background: CHART_PALETTE[idx % CHART_PALETTE.length], width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

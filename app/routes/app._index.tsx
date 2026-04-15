@@ -141,16 +141,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: { ...where, status: "pending" } }),
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
       prisma.returnCase.count({ where: whereAll }),
-      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, take: 500, orderBy: { createdAt: "desc" } }),
-      prisma.returnCase.findMany({ where, select: { createdAt: true }, take: 5000, orderBy: { createdAt: "desc" } }),
+      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.returnCase.findMany({ where, select: { createdAt: true }, orderBy: { createdAt: "desc" } }),
       prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
       prisma.returnCase.count({ where: { ...where, isGreenReturn: true } }),
       prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
       prisma.returnCase.findMany({
         where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
         select: { refundJson: true },
-        take: 2000,
-        orderBy: { createdAt: "desc" },
       }),
       shop.settings ? prisma.blocklistEntry.count({ where: { settingsId: shop.settings.id } }) : Promise.resolve(0),
     ]);
@@ -165,24 +163,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
     const dominantCurrency = currencyAgg[0]?.currency || shop?.settings?.shopCurrency || "USD";
 
-    // Revenue at Risk: sum price*qty for items in initiated/pending/approved cases last 30 days
+    // Revenue at Risk: sum price*qty for items in initiated/pending cases (last 30d)
+    // Uses raw SQL to avoid row limits and push computation to the database
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const atRiskItems = await prisma.returnItem.findMany({
-      where: {
-        returnCase: {
-          shopId: shop.id,
-          createdAt: { gte: thirtyDaysAgo },
-          status: { in: ["initiated", "pending", "approved"] },
-        },
-      },
-      select: { price: true, qty: true },
-      take: 3000,
-    });
-    let revenueAtRisk = 0;
-    for (const item of atRiskItems) {
-      const p = item.price ? parseFloat(item.price) : 0;
-      if (Number.isFinite(p) && p > 0) revenueAtRisk += p * item.qty;
-    }
+    const atRiskResult = await prisma.$queryRaw<[{ total: string | null }]>`
+      SELECT COALESCE(SUM(CAST(ri.price AS DECIMAL(12,2)) * ri.qty), 0)::text AS total
+      FROM "ReturnItem" ri
+      JOIN "ReturnCase" rc ON ri."returnCaseId" = rc.id
+      WHERE rc."shopId" = ${shop.id}
+        AND rc."createdAt" >= ${thirtyDaysAgo}
+        AND rc.status IN ('initiated', 'pending')
+        AND ri.price IS NOT NULL
+    `;
+    const revenueAtRisk = parseFloat(atRiskResult[0]?.total ?? "0") || 0;
 
     const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
     const approvedCount = (statusMap.approved ?? 0) + (statusMap.completed ?? 0);
@@ -210,6 +203,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
 
+    // Build daily return trend from fetched data
     const dailyData: Record<string, number> = {};
     const daysDiff = Math.ceil((rangeEnd.getTime() - rangeStart.getTime()) / (24 * 60 * 60 * 1000));
     const numDays = Math.min(Math.max(daysDiff, 1), 90);
@@ -230,13 +224,50 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         fullDate: date,
       }));
 
+    // Avg processing time: use ReturnEvent approval timestamp for accuracy
+    // Falls back to updatedAt if no approval event exists
     let avgProcessingDays: number | null = null;
     if (approvedWithEvents.length >= 1) {
-      const times = approvedWithEvents
-        .map((rc) => (new Date(rc.updatedAt).getTime() - new Date(rc.createdAt).getTime()) / (24 * 60 * 60 * 1000))
-        .filter((t) => t >= 0);
-      if (times.length > 0) avgProcessingDays = times.reduce((a, b) => a + b, 0) / times.length;
+      try {
+        const processingResult = await prisma.$queryRaw<[{ avg_days: number | null }]>`
+          SELECT AVG(EXTRACT(EPOCH FROM (COALESCE(re."happenedAt", rc."updatedAt") - rc."createdAt")) / 86400.0) AS avg_days
+          FROM "ReturnCase" rc
+          LEFT JOIN LATERAL (
+            SELECT "happenedAt" FROM "ReturnEvent"
+            WHERE "returnCaseId" = rc.id AND "eventType" IN ('approved', 'auto_approved', 'status_changed')
+            ORDER BY "happenedAt" ASC LIMIT 1
+          ) re ON true
+          WHERE rc."shopId" = ${shop.id}
+            AND rc."createdAt" >= ${rangeStart}
+            AND rc."createdAt" <= ${rangeEnd}
+            AND rc.status IN ('approved', 'completed')
+        `;
+        if (processingResult[0]?.avg_days != null) {
+          avgProcessingDays = Math.round(processingResult[0].avg_days * 10) / 10;
+        }
+      } catch {
+        // Fallback to updatedAt-based calculation
+        const times = approvedWithEvents
+          .map((rc) => (new Date(rc.updatedAt).getTime() - new Date(rc.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+          .filter((t) => t >= 0);
+        if (times.length > 0) avgProcessingDays = Math.round((times.reduce((a, b) => a + b, 0) / times.length) * 10) / 10;
+      }
     }
+
+    // New metric: Avg refund amount
+    let totalRefundAmount = 0;
+    const refundedForAmount = await prisma.returnCase.findMany({
+      where: { ...where, status: { in: ["approved", "completed"] }, refundStatus: "refunded", refundJson: { not: null } },
+      select: { refundJson: true },
+    });
+    for (const rc of refundedForAmount) {
+      try {
+        const parsed = JSON.parse(rc.refundJson ?? "{}");
+        const amt = parseFloat(parsed.amount ?? "0");
+        if (Number.isFinite(amt) && amt > 0) totalRefundAmount += amt;
+      } catch { /* skip */ }
+    }
+    const avgRefundAmount = refundedCount > 0 ? totalRefundAmount / refundedCount : 0;
 
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
@@ -292,6 +323,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
       fraudAlertCount,
       fraudAlertReturns: fraudAlertReturns as { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
+      avgRefundAmount, totalRefundAmount,
     };
   } catch (err) {
     console.error("Dashboard loader error:", err);
@@ -311,6 +343,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
       fraudAlertCount: 0,
       fraudAlertReturns: [] as { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
+      avgRefundAmount: 0, totalRefundAmount: 0,
     };
   }
 };
@@ -318,13 +351,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
-    totalReturns, statusMap, approvedCount, recentReturns,
+    totalReturns, statusMap, approvedCount, topReasons, recentReturns,
     hasFyndConfig, refundedCount, pendingCount, rejectedCount,
     returnsOverTime, periodChange, rangeLabel, range, from, to,
     allTimeReturns, suggestions, error,
     revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
     resolutionMap, revenueAtRisk, overdueCount, shopLocale, shopCurrency, shopTimezone,
     fraudAlertCount, fraudAlertReturns,
+    avgRefundAmount, totalRefundAmount,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
@@ -343,6 +377,7 @@ export default function Dashboard() {
   };
 
   const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
+  const refundRate = approvedCount > 0 ? Math.round((refundedCount / approvedCount) * 100) : 0;
 
   return (
     <s-page fullWidth heading="Dashboard">
@@ -477,7 +512,7 @@ export default function Dashboard() {
             <span className="kpi-value" style={{ color: revenueAtRisk > 0 ? "#D97706" : undefined }}>
               {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueAtRisk)}
             </span>
-            <div className="kpi-meta">Pending/active returns (30d)</div>
+            <div className="kpi-meta">Initiated & pending (30d)</div>
           </div>
 
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": overdueCount > 0 ? "#DC2626" : "#10B981" } as React.CSSProperties}>
@@ -486,6 +521,28 @@ export default function Dashboard() {
               {overdueCount}
             </span>
             <div className="kpi-meta">Pending &gt; 3 days</div>
+          </div>
+
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
+            <div className="kpi-label">Avg refund amount</div>
+            <span className="kpi-value" style={{ color: "#8B5CF6" }}>
+              {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(avgRefundAmount)}
+            </span>
+            <div className="kpi-meta">{refundedCount} refunds issued</div>
+          </div>
+
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#6366F1" } as React.CSSProperties}>
+            <div className="kpi-label">Refund rate</div>
+            <span className="kpi-value" style={{ color: "#6366F1" }}>{refundRate}%</span>
+            <div className="kpi-meta">{refundedCount} of {approvedCount} approved</div>
+          </div>
+
+          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#F43F5E" } as React.CSSProperties}>
+            <div className="kpi-label">Top return reason</div>
+            <span className="kpi-value" style={{ fontSize: 16, color: "#F43F5E" }}>
+              {topReasons.length > 0 ? topReasons[0].reason : "—"}
+            </span>
+            <div className="kpi-meta">{topReasons.length > 0 ? `${topReasons[0].count} occurrences` : "No data"}</div>
           </div>
         </div>
 

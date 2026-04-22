@@ -259,11 +259,16 @@ When enabled, approved returns are set to `fyndSyncStatus = "pending_consolidati
 
 ## Webhook Receiver
 
-ReturnProMax receives Fynd shipment status webhooks at:
+ReturnProMax exposes two Fynd webhook endpoints:
 
 ```
-POST /api/webhooks/fynd
+POST /api/webhooks/fynd/<SHOP_ID>   ← preferred (per-shop secret)
+POST /api/webhooks/fynd              ← legacy (global FYND_WEBHOOK_SECRET)
 ```
+
+Per-shop secrets are generated from **Settings → Integrations → Fynd Webhook
+(per-shop secret)** and configured per merchant in Fynd Partner Dashboard.
+See `docs/FYND_WEBHOOK.md` for the full setup walkthrough.
 
 ### Webhook Payload Extraction
 

@@ -44,13 +44,28 @@ Shopify webhooks are verified automatically by the `@shopify/shopify-app-react-r
 
 ## Fynd Inbound Webhook
 
-### Endpoint
+ReturnProMax supports two webhook modes:
+
+### Per-shop endpoint (recommended)
+
+```
+POST /api/webhooks/fynd/<SHOP_ID>
+```
+
+Each Shopify store gets a unique URL **and** its own HMAC signing secret.
+Generate both from **Settings → Integrations → Fynd Webhook (per-shop secret)**.
+Configure them in the Fynd Partner Dashboard webhook for that shop. A leak of
+one shop's secret never affects any other shop.
+
+### Global endpoint (legacy)
 
 ```
 POST /api/webhooks/fynd
 ```
 
-Configure this URL in **Fynd Platform > Partners > Webhooks** for shipment status events.
+Single URL + a single shared `FYND_WEBHOOK_SECRET` env var. Retained for
+backwards compatibility. Returns `503` in production if the env var is unset
+(fail-closed).
 
 ### Payload Structure
 

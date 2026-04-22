@@ -63,7 +63,24 @@ Verifies that Fynd Returns can connect to Fynd Platform API using your credentia
 
 The webhook lets Fynd notify Fynd Returns when refund status changes. Without it, you must manually process refunds in Shopify when Fynd completes them.
 
-### Webhook URL
+### Webhook URL — pick one
+
+**Per-shop (recommended):** unique URL + unique signing secret per Shopify store.
+A leak of one shop's secret never affects any other shop, and merchants can
+rotate their own secret without operator coordination.
+
+```
+POST https://YOUR_APP_URL/api/webhooks/fynd/<SHOP_ID>
+```
+
+To get the URL + secret:
+1. In Fynd Returns, open **Settings → Integrations**
+2. Expand **Fynd Webhook (per-shop secret)**
+3. Click **Generate webhook secret**
+4. Copy both the URL and the displayed secret (shown ONCE)
+
+**Legacy global URL:** one URL + one shared `FYND_WEBHOOK_SECRET` env var
+across every store. Kept for backwards compatibility.
 
 ```
 POST https://YOUR_APP_URL/api/webhooks/fynd
@@ -76,8 +93,11 @@ Replace `YOUR_APP_URL` with your deployed app URL (e.g. `https://returnpromax.on
 1. Go to **Fynd Partners** dashboard
 2. Navigate to **Webhooks** (or your extension’s webhook configuration)
 3. Add a new webhook for **shipment status** events
-4. Set the callback URL to the webhook URL above
-5. Save
+4. Set the callback URL to one of the URLs above
+5. Paste the matching **signing secret** into Fynd's "Secret" field
+   - For per-shop URLs: the secret you copied from Settings → Integrations
+   - For the legacy URL: the value of `FYND_WEBHOOK_SECRET` env var
+6. Save
 
 ### Status mapping
 

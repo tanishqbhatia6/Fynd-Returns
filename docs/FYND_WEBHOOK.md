@@ -9,13 +9,41 @@ Fynd Returns listens for Fynd shipment/refund status updates to automatically:
 
 ---
 
-## Webhook URL
+## Webhook URL — two modes
+
+ReturnProMax supports two webhook modes. **Per-shop is preferred** for new
+deployments; the global mode is retained for backwards compatibility.
+
+### A. Per-shop webhook (recommended) — one secret per Shopify store
+
+Each store has its own URL **and** its own signing secret. A leak of one
+store's secret never affects any other store, and merchants can rotate their
+own secret without operator coordination.
+
+```
+POST https://YOUR_APP_URL/api/webhooks/fynd/<SHOP_ID>
+```
+
+Generate the URL + secret from the app:
+
+1. Open **Settings → Integrations → Fynd Webhook (per-shop secret)**
+2. Click **Generate webhook secret**
+3. Copy the displayed secret (shown ONCE — store it immediately) and the URL
+4. Paste both into the Fynd Partner Dashboard webhook config for this shop
+
+To rotate, click the same panel's **Rotate webhook secret** button. The old
+secret stops working immediately, so update Fynd's side at the same time.
+
+### B. Global webhook (legacy)
+
+A single URL + a single env-var secret shared across every store. Kept for
+backwards compatibility — switch to per-shop when convenient.
 
 ```
 POST https://YOUR_APP_URL/api/webhooks/fynd
 ```
 
-Replace `YOUR_APP_URL` with your deployed app URL (e.g. `https://returnpromax.onrender.com`).
+The signing secret comes from the `FYND_WEBHOOK_SECRET` env var.
 
 ---
 
@@ -36,9 +64,20 @@ Replace `YOUR_APP_URL` with your deployed app URL (e.g. `https://returnpromax.on
 
 Your Fynd OAuth app needs `company/orders/read`, `company/orders/write`, and `company/settings` (for API registration). If registration fails with 403, add `company/settings` in Fynd Partners.
 
-### Environment variable (optional)
+### Signature verification
 
-Set `FYND_WEBHOOK_SECRET` to enable signature verification when Fynd documents their webhook signing format.
+The receiver verifies HMAC-SHA256 against the raw request body. The signature
+is read from `X-Fynd-Signature` (preferred) or `X-Webhook-Signature`. Both
+`<hex>` and `sha256=<hex>` formats are accepted.
+
+| Mode      | Secret source                              | Failure mode                  |
+| --------- | ------------------------------------------ | ----------------------------- |
+| Per-shop  | `ShopSettings.fyndWebhookSecret` (encrypted) | Generic `401`                 |
+| Global    | `FYND_WEBHOOK_SECRET` env var              | `503` if env var is unset in production; `401` on bad signature |
+
+In production the global endpoint **fails closed** when the env var is not
+set — the legacy endpoint will return `503` until either the env var is
+configured OR the merchant migrates to a per-shop URL.
 
 ---
 

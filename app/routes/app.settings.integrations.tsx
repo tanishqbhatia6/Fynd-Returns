@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useFetcher } from "react-router";
+import { Link, useLoaderData, useFetcher, useActionData, Form } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
@@ -113,6 +113,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     gorgiasEnabled: s?.gorgiasEnabled ?? false,
     gorgiasApiKey: s?.gorgiasApiKey ? "__UNCHANGED__" : "",
     gorgiasWidgetUrl: `${process.env.SHOPIFY_APP_URL || ""}/api/integrations/gorgias?shop=${session.shop}`,
+    // Per-shop Fynd webhook config. The secret itself is never sent to the
+    // client after generation — we only signal whether one exists. The URL
+    // (with shopId) is what the merchant pastes into Fynd Partner Dashboard.
+    fyndWebhookSecretConfigured: !!shop.settings?.fyndWebhookSecret,
+    fyndWebhookUrl: `${process.env.SHOPIFY_APP_URL || ""}/api/webhooks/fynd/${shop.id}`,
+    // Set when the action just generated/rotated a secret — displayed once.
+    // Pulled from the action's response, not the loader; kept in the type for
+    // useActionData typing consistency.
+    fyndWebhookSecretJustGenerated: undefined as string | undefined,
   };
 };
 
@@ -122,6 +131,30 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const { session } = await authenticate.admin(request);
     const formData = await request.formData();
     const intent = formData.get("intent") as string | null;
+
+    // Generate or rotate the per-shop Fynd webhook secret. The value is
+    // returned ONCE in the action result so the merchant can copy it into the
+    // Fynd Partner Dashboard. After that it lives encrypted in the DB and we
+    // never expose it again.
+    if (intent === "generate_fynd_webhook_secret" || intent === "rotate_fynd_webhook_secret") {
+      const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
+      if (!shop) return { success: false, error: "Shop not found", debugLogs: logs };
+      const { generateWebhookSecret } = await import("../lib/fynd-webhook-verify.server");
+      const { encryptIfNeeded } = await import("../lib/encryption.server");
+      const plaintext = generateWebhookSecret();
+      const encrypted = encryptIfNeeded(plaintext);
+      await prisma.shopSettings.upsert({
+        where: { shopId: shop.id },
+        create: { shopId: shop.id, fyndWebhookSecret: encrypted },
+        update: { fyndWebhookSecret: encrypted },
+      });
+      return {
+        success: true,
+        fyndWebhookSecretJustGenerated: plaintext,
+        fyndWebhookUrl: `${process.env.SHOPIFY_APP_URL || ""}/api/webhooks/fynd/${shop.id}`,
+        debugLogs: logs,
+      };
+    }
 
     if (intent === "test_platform" || intent === "test_storefront" || intent === "test") {
       const fyndEnvironment = (formData.get("fyndEnvironment") as string) || "uat";
@@ -288,6 +321,10 @@ type ActionData = {
 export default function Integrations() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
+  // useActionData captures the response from the per-shop webhook secret
+  // generation Form below — fetcher would lose the result on subsequent
+  // navigations.
+  const actionData = useActionData<{ fyndWebhookSecretJustGenerated?: string }>();
   const [fyndEnvironment, setFyndEnvironment] = React.useState(data.fyndEnvironment);
   const [appMode, setAppMode] = React.useState(data.appMode);
 
@@ -567,6 +604,96 @@ export default function Integrations() {
                   </button>
                 </div>
               )}
+            </div>
+          </details>
+
+          {/* ── Per-Shop Fynd Webhook Secret ── */}
+          <details style={{ marginTop: 24 }} open={!!actionData?.fyndWebhookSecretJustGenerated}>
+            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 16, padding: "12px 0", borderTop: "1px solid #E5E7EB" }}>
+              Fynd Webhook (per-shop secret)
+            </summary>
+            <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 14 }}>
+              <p style={{ fontSize: 13, color: "#475569", margin: 0, lineHeight: 1.5 }}>
+                Each store gets its own webhook URL + signing secret. Configure both in
+                the Fynd Partner Dashboard so Fynd can sign outgoing webhooks and we can
+                verify them. A unique secret per shop means a leak never affects more
+                than one store.
+              </p>
+
+              <div className="app-field">
+                <label>Webhook URL (paste into Fynd Partner Dashboard)</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={data.fyndWebhookUrl}
+                  className="app-input"
+                  onFocus={(e) => e.currentTarget.select()}
+                  style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace", fontSize: 12 }}
+                />
+                <div className="app-field-helper">
+                  This URL is unique to this shop. The path includes your internal shop
+                  ID — opaque, not enumerable.
+                </div>
+              </div>
+
+              {actionData?.fyndWebhookSecretJustGenerated ? (
+                <div style={{
+                  padding: 14, borderRadius: 8,
+                  background: "#FEF3C7", border: "1.5px solid #F59E0B",
+                  fontSize: 13, color: "#78350F",
+                }}>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                    ⚠ Copy this secret now — it won't be shown again
+                  </div>
+                  <input
+                    type="text"
+                    readOnly
+                    value={actionData.fyndWebhookSecretJustGenerated}
+                    onFocus={(e) => e.currentTarget.select()}
+                    style={{
+                      width: "100%", padding: "8px 10px", borderRadius: 6,
+                      border: "1px solid #92400e",
+                      fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                      fontSize: 12, background: "#fff",
+                    }}
+                  />
+                  <div style={{ marginTop: 8, fontSize: 12 }}>
+                    Paste this into Fynd Partner Dashboard → Webhook → Signing Secret
+                    field for the URL above. After you navigate away, only the encrypted
+                    value remains in our database — we cannot recover the plaintext.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 13, color: data.fyndWebhookSecretConfigured ? "#065F46" : "#475569" }}>
+                  {data.fyndWebhookSecretConfigured
+                    ? "✓ A webhook secret is configured for this shop. Generate a new one to rotate."
+                    : "No webhook secret yet — generate one to start receiving signed Fynd webhooks at the per-shop URL."}
+                </div>
+              )}
+
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Form method="post">
+                  <input
+                    type="hidden"
+                    name="intent"
+                    value={data.fyndWebhookSecretConfigured ? "rotate_fynd_webhook_secret" : "generate_fynd_webhook_secret"}
+                  />
+                  <button
+                    type="submit"
+                    className="app-button"
+                    onClick={(e) => {
+                      // Confirm rotation — old secret becomes immediately invalid.
+                      if (data.fyndWebhookSecretConfigured) {
+                        if (!confirm("Rotate the webhook secret? Fynd will be unable to deliver webhooks until you paste the new secret into the Fynd Partner Dashboard.")) {
+                          e.preventDefault();
+                        }
+                      }
+                    }}
+                  >
+                    {data.fyndWebhookSecretConfigured ? "Rotate webhook secret" : "Generate webhook secret"}
+                  </button>
+                </Form>
+              </div>
             </div>
           </details>
 

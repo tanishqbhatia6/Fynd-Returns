@@ -53,6 +53,13 @@ model ShopSettings {
   fyndCompanyId              String?
   fyndApplicationId          String?
   fyndCredentials            String?
+  /**
+   * Per-shop webhook signing secret for the Fynd webhook receiver. Stored
+   * encrypted (AES-256-GCM via encryption.server.ts) and never echoed to the
+   * client after generation. Used by the per-shop webhook route
+   * /api/webhooks/fynd/:shopId to verify the X-Fynd-Signature header.
+   */
+  fyndWebhookSecret          String?
   policyJson                 String?
   statusMappingJson          String?
   notificationToggles          String?

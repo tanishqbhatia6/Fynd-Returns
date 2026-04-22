@@ -38,6 +38,10 @@ const DEFAULT_LIMITS: Record<string, RateLimitConfig> = {
   // Catalog enumeration limit — was unlimited (P0). Used by the exchange variant
   // picker; legitimate flows hit this 1-2 times per item, so 60/min is generous.
   "portal.products": { maxRequests: 60 },
+  // Admin customer search — guards against a compromised admin session being used
+  // to bulk-enumerate the customer list. 60/min easily covers normal pagination
+  // (typing "joh" then "john" then "john s" etc.) but throttles automated dumps.
+  "admin.customers.search": { maxRequests: 60 },
   // External API endpoints
   "external.returns.list": { maxRequests: 120 },
   "external.returns.detail": { maxRequests: 120 },

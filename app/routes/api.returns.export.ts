@@ -174,7 +174,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
-    const csv = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+    // CRLF line terminator is RFC 4180 compliant and Excel-friendly. UTF-8 BOM
+    // (﻿) prefix lets Excel auto-detect encoding for non-ASCII customer data
+    // (Japanese, Indian addresses, etc.) — without it Excel mangles them.
+    const csv = "﻿" + [headers.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
     const filename = `returns-export-${new Date().toISOString().slice(0, 10)}.csv`;
 
     return new Response(csv, {

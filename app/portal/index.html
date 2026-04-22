@@ -4630,6 +4630,36 @@
       }
     }
 
+    // Esc key — returns the user to step 1 from any subsequent step. The portal's
+    // multi-step flow doesn't use true <dialog> modals (each step is just a div
+    // with .active), but customers expect Esc to back out, especially after they
+    // hit "Back" or want to abandon a partially-filled form (P2 a11y finding).
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Escape') return;
+      // Don't hijack Esc when the user is in a textarea / select dropdown picking
+      // a value — let the native UI handle it first.
+      var target = e.target;
+      if (target && (target.tagName === 'TEXTAREA' || target.tagName === 'SELECT')) return;
+      var stepIds = ['create-step2', 'create-step2-manual', 'create-step3', 'create-step-existing', 'create-step-ineligible', 'step-otp', 'step2'];
+      var any = false;
+      stepIds.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el && el.classList.contains('active')) {
+          el.classList.remove('active');
+          any = true;
+        }
+      });
+      if (any) {
+        // Restore the appropriate step 1 depending on which tab is visible.
+        var createS1 = document.getElementById('create-step1');
+        var trackS1 = document.getElementById('step1');
+        var createTab = document.querySelector('.portal-tab[data-tab="create"]');
+        var isCreateActive = createTab && createTab.classList.contains('active');
+        if (isCreateActive && createS1) createS1.classList.add('active');
+        else if (trackS1) trackS1.classList.add('active');
+      }
+    });
+
     document.addEventListener('click', function (e) {
       var subTab = e.target.closest('.portal-sub-tab');
       if (subTab) {

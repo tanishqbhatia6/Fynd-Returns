@@ -27,11 +27,15 @@ export function apiError(
 // ── Pagination ──
 
 export type PaginationMeta = {
-  page: number;
+  page?: number;
   pageSize: number;
-  totalCount: number;
-  totalPages: number;
-  hasNextPage: boolean;
+  totalCount?: number;
+  totalPages?: number;
+  hasNextPage?: boolean;
+  /** Cursor pagination: pass back as `?cursor=` to fetch the next page. Null when
+   *  there are no more rows. Surfaced even on offset responses so clients can
+   *  migrate to cursor pagination without changing their request shape. */
+  nextCursor?: string | null;
 };
 
 export function parsePagination(url: URL): { page: number; pageSize: number; skip: number } {

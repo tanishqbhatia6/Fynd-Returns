@@ -120,7 +120,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
 
-    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to);
+    // Anchor day boundaries on the merchant's local timezone — without this, "today"
+    // / "last 7 days" / etc. were computed in UTC, which is wrong for any merchant
+    // outside UTC (P1 finding from QA audit).
+    const merchantTz = shop.settings?.shopTimezone || undefined;
+    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to, merchantTz);
     const where = { shopId: shop.id, createdAt: { gte: rangeStart, lte: rangeEnd } };
     const whereAll = { shopId: shop.id };
     const approvedStatuses = ["approved", "completed"];
@@ -143,8 +147,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       prisma.returnCase.count({ where: whereAll }),
       prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" } }),
       prisma.returnCase.findMany({ where, select: { createdAt: true }, orderBy: { createdAt: "desc" } }),
-      prisma.returnCase.count({ where: { ...where, status: "approved", OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
-      prisma.returnCase.count({ where: { ...where, isGreenReturn: true } }),
+      // "Awaiting refund": every approved-or-completed return whose refund hasn't
+      // landed yet. Previously this only counted status='approved' and missed
+      // status='completed' rows, hiding refunds the merchant still owed (P0
+      // finding from QA audit).
+      prisma.returnCase.count({ where: { ...where, status: { in: ["approved", "completed"] }, OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
+      // Green returns: only count APPROVED or COMPLETED — a rejected return that
+      // happened to be flagged green should not inflate the metric.
+      prisma.returnCase.count({ where: { ...where, isGreenReturn: true, status: { in: ["approved", "completed"] } } }),
       prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
       prisma.returnCase.findMany({
         where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
@@ -225,12 +235,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }));
 
     // Avg processing time: use ReturnEvent approval timestamp for accuracy
-    // Falls back to updatedAt if no approval event exists
+    // Falls back to updatedAt if no approval event exists.
+    //
+    // GREATEST(..., 0) clamps clock-skew negatives in the SQL path — without
+    // this, a row whose updatedAt < createdAt (data drift, clock-jitter, daylight
+    // savings) drags the AVG below zero and the dashboard shows nonsense (P1
+    // finding from QA audit).
     let avgProcessingDays: number | null = null;
     if (approvedWithEvents.length >= 1) {
       try {
         const processingResult = await prisma.$queryRaw<[{ avg_days: number | null }]>`
-          SELECT AVG(EXTRACT(EPOCH FROM (COALESCE(re."happenedAt", rc."updatedAt") - rc."createdAt")) / 86400.0) AS avg_days
+          SELECT AVG(GREATEST(0, EXTRACT(EPOCH FROM (COALESCE(re."happenedAt", rc."updatedAt") - rc."createdAt")) / 86400.0)) AS avg_days
           FROM "ReturnCase" rc
           LEFT JOIN LATERAL (
             SELECT "happenedAt" FROM "ReturnEvent"
@@ -238,6 +253,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             ORDER BY "happenedAt" ASC LIMIT 1
           ) re ON true
           WHERE rc."shopId" = ${shop.id}
+            AND rc."createdAt" IS NOT NULL
             AND rc."createdAt" >= ${rangeStart}
             AND rc."createdAt" <= ${rangeEnd}
             AND rc.status IN ('approved', 'completed')
@@ -254,8 +270,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }
     }
 
-    // New metric: Avg refund amount
+    // Avg refund amount.
+    //
+    // Bug fix: the denominator was `refundedCount` (all rows marked refunded,
+    // including those with NULL/zero refundJson.amount). When some refunded rows
+    // have no recorded amount, dividing by the larger count under-states the
+    // average. We now count only rows that contributed a positive amount —
+    // matching the numerator's filter (P1 finding from QA audit).
     let totalRefundAmount = 0;
+    let refundContributorCount = 0;
     const refundedForAmount = await prisma.returnCase.findMany({
       where: { ...where, status: { in: ["approved", "completed"] }, refundStatus: "refunded", refundJson: { not: null } },
       select: { refundJson: true },
@@ -264,10 +287,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       try {
         const parsed = JSON.parse(rc.refundJson ?? "{}");
         const amt = parseFloat(parsed.amount ?? "0");
-        if (Number.isFinite(amt) && amt > 0) totalRefundAmount += amt;
+        if (Number.isFinite(amt) && amt > 0) {
+          totalRefundAmount += amt;
+          refundContributorCount++;
+        }
       } catch { /* skip */ }
     }
-    const avgRefundAmount = refundedCount > 0 ? totalRefundAmount / refundedCount : 0;
+    const avgRefundAmount = refundContributorCount > 0 ? totalRefundAmount / refundContributorCount : 0;
 
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 

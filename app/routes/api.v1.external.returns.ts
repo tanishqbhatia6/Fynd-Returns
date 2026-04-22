@@ -48,12 +48,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const customerEmail = url.searchParams.get("customerEmail");
   if (customerEmail) where.customerEmailNorm = { contains: customerEmail.toLowerCase() };
 
+  // Optional cursor pagination — pass `?cursor=<id>` to anchor the next page on a
+  // specific row. This avoids the offset-pagination drift (P1 finding) where new
+  // returns inserted between page 1 and page 2 cause page 2 to skip or duplicate
+  // rows. Backwards compatible: existing `?page=N` callers keep working.
+  const cursor = url.searchParams.get("cursor");
+
   try {
+    if (cursor) {
+      const rows = await prisma.returnCase.findMany({
+        where: where as any,
+        include: { items: true },
+        // Stable secondary sort by id so ties on createdAt don't shuffle pages.
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        cursor: { id: cursor },
+        skip: 1, // skip the cursor row itself
+        take: pageSize,
+      });
+      const nextCursor = rows.length === pageSize ? rows[rows.length - 1].id : null;
+      const data = rows.map((r) => sanitizeReturnSummary(r as unknown as Record<string, unknown>));
+      return apiSuccess(data, { pageSize, nextCursor });
+    }
+
     const [returns, totalCount] = await Promise.all([
       prisma.returnCase.findMany({
         where: where as any,
         include: { items: true },
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip,
         take: pageSize,
       }),
@@ -62,8 +83,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const data = returns.map((r) => sanitizeReturnSummary(r as unknown as Record<string, unknown>));
     const meta = buildMeta(page, pageSize, totalCount);
+    // Surface the next-cursor even on offset responses so clients can migrate
+    // gradually without changing their request shape.
+    const nextCursor = returns.length === pageSize ? returns[returns.length - 1].id : null;
 
-    return apiSuccess(data, meta);
+    return apiSuccess(data, { ...meta, nextCursor });
   } catch (err) {
     console.error("[external.returns.list]", err);
     return apiError(500, "INTERNAL_ERROR", "Failed to fetch returns");

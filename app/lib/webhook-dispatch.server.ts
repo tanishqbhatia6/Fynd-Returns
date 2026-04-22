@@ -50,6 +50,14 @@ async function deliverWebhook(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        // Standard header — `sha256=<hex>` format mirrors Shopify's
+        // X-Shopify-Hmac-SHA256, so merchants can re-use Shopify webhook
+        // verification code without modifications.
+        "X-Webhook-Signature": signature.startsWith("sha256=") ? signature : `sha256=${signature}`,
+        "X-Webhook-Event": eventType,
+        // Legacy alias kept for one release so existing merchant integrations
+        // that were verifying X-RPM-Signature don't break overnight. Remove in
+        // the next major version; document the cutover in the migration guide.
         "X-RPM-Signature": signature,
         "X-RPM-Event": eventType,
       },

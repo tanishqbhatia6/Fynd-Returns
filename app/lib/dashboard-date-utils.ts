@@ -24,13 +24,70 @@ export type DateRangeResult = {
   preset: DateRangePreset;
 };
 
-function startOfDay(d: Date): Date {
+/**
+ * Compute "now" as wall-clock components in the given IANA timezone. Returns
+ * { y, m, d, hh, mm, ss } where m is 1-12 and d is 1-31.
+ *
+ * Used by the *InTz helpers below to anchor day/week/month boundaries on the
+ * merchant's local calendar instead of the server's UTC clock. Without this,
+ * "today" for a merchant in Asia/Kolkata (UTC+5:30) is computed as the UTC day,
+ * which is off by up to 5.5 hours and shows the wrong returns at the day/night
+ * boundary (P1 finding from QA audit).
+ */
+function tzParts(tz: string, when: Date): { y: number; m: number; d: number } {
+  // formatToParts gives us numeric components in the requested timezone.
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const parts = fmt.formatToParts(when);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return { y: Number(get("year")), m: Number(get("month")), d: Number(get("day")) };
+}
+
+/**
+ * Build a UTC Date that represents the given wall-clock instant in `tz`.
+ *
+ * Approach: take the candidate UTC instant, ask Intl what wall-clock time it
+ * shows in `tz`, then offset by the difference. Two passes handle DST
+ * transitions correctly.
+ */
+function zonedTimeToUtc(tz: string, y: number, m: number, d: number, hh: number, mm: number, ss: number, ms: number): Date {
+  // Naive guess: pretend the wall clock is UTC. Compute the offset at SECONDS
+  // precision (timezones are always whole-minute offsets, ms can be safely
+  // dropped from the offset computation and re-added at the end — otherwise the
+  // formatToParts round-trip silently loses sub-second precision and the result
+  // drifts by up to 999ms).
+  const naiveSec = Date.UTC(y, m - 1, d, hh, mm, ss); // no ms
+  const naiveDateSec = new Date(naiveSec);
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+  });
+  const parts = fmt.formatToParts(naiveDateSec);
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  const tzHour = get("hour") === 24 ? 0 : get("hour");
+  const offsetMs =
+    Date.UTC(get("year"), get("month") - 1, get("day"), tzHour, get("minute"), get("second")) - naiveSec;
+  return new Date(naiveSec - offsetMs + ms);
+}
+
+function startOfDay(d: Date, tz?: string): Date {
+  if (tz) {
+    const p = tzParts(tz, d);
+    return zonedTimeToUtc(tz, p.y, p.m, p.d, 0, 0, 0, 0);
+  }
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
   return x;
 }
 
-function endOfDay(d: Date): Date {
+function endOfDay(d: Date, tz?: string): Date {
+  if (tz) {
+    const p = tzParts(tz, d);
+    return zonedTimeToUtc(tz, p.y, p.m, p.d, 23, 59, 59, 999);
+  }
   const x = new Date(d);
   x.setHours(23, 59, 59, 999);
   return x;
@@ -87,11 +144,15 @@ function endOfQuarter(d: Date): Date {
 export function parseDateRange(
   range: string | null,
   from: string | null,
-  to: string | null
+  to: string | null,
+  /** IANA timezone (e.g. "Asia/Kolkata") — anchors day/week/month boundaries.
+   *  When omitted, falls back to UTC (server-local on Railway). */
+  timeZone?: string,
 ): DateRangeResult {
+  const tz = timeZone && /^[A-Za-z_/+-]+$/.test(timeZone) ? timeZone : undefined;
   const now = new Date();
-  const todayStart = startOfDay(now);
-  const todayEnd = endOfDay(now);
+  const todayStart = startOfDay(now, tz);
+  const todayEnd = endOfDay(now, tz);
 
   if (range === "custom" && from && to) {
     const start = new Date(from);
@@ -119,8 +180,8 @@ export function parseDateRange(
       const y = new Date(now);
       y.setDate(y.getDate() - 1);
       return {
-        start: startOfDay(y),
-        end: endOfDay(y),
+        start: startOfDay(y, tz),
+        end: endOfDay(y, tz),
         label: "Yesterday",
         preset: "yesterday",
       };
@@ -129,7 +190,7 @@ export function parseDateRange(
       const d7 = new Date(now);
       d7.setDate(d7.getDate() - 6);
       return {
-        start: startOfDay(d7),
+        start: startOfDay(d7, tz),
         end: todayEnd,
         label: "Last 7 days",
         preset: "last_7_days",
@@ -190,7 +251,7 @@ export function parseDateRange(
       const d30 = new Date(now);
       d30.setDate(d30.getDate() - 29);
       return {
-        start: startOfDay(d30),
+        start: startOfDay(d30, tz),
         end: todayEnd,
         label: "Last 30 days",
         preset: "last_30_days",
@@ -200,7 +261,7 @@ export function parseDateRange(
       const d90 = new Date(now);
       d90.setDate(d90.getDate() - 89);
       return {
-        start: startOfDay(d90),
+        start: startOfDay(d90, tz),
         end: todayEnd,
         label: "Last 90 days",
         preset: "last_90_days",
@@ -215,7 +276,7 @@ export function parseDateRange(
       };
     default:
       return {
-        start: startOfDay(new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000)),
+        start: startOfDay(new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000), tz),
         end: todayEnd,
         label: "Last 30 days",
         preset: "last_30_days",

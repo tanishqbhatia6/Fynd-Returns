@@ -102,6 +102,8 @@ describe("GET /api/v1/external/returns", () => {
       totalCount: 1,
       totalPages: 1,
       hasNextPage: false,
+      // Cursor pagination support — null when there are no more rows.
+      nextCursor: null,
     });
     expect(body.errors).toEqual([]);
   });

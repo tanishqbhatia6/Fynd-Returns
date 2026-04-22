@@ -39,7 +39,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
 
-    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to);
+    const merchantTz = shop.settings?.shopTimezone || undefined;
+    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to, merchantTz);
     const where = { shopId: shop.id, createdAt: { gte: rangeStart, lte: rangeEnd } };
     const whereAll = { shopId: shop.id };
     const approvedStatuses = ["approved", "completed"];

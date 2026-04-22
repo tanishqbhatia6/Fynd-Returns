@@ -53,6 +53,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const sortBy = url.searchParams.get("sort") ?? "count";
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10));
 
+  // Rate limit search to deter customer-list enumeration via a compromised admin
+  // session (P2 finding from QA audit). Pagination doesn't count if it doesn't
+  // change the query — but we throttle the route as a whole for simplicity.
+  if (query.length > 0) {
+    // Lazy-import so the route loader doesn't unconditionally pull rate-limit deps
+    // (kept consistent with portal endpoints).
+    const { checkRateLimit } = await import("../lib/rate-limit.server");
+    const rl = checkRateLimit(request, "admin.customers.search");
+    if (!rl.allowed) {
+      throw new Response("Search rate limit exceeded — try again in a minute.", { status: 429 });
+    }
+  }
+
   // ── Step 1: Global summary stats via fast aggregates (all customers, not just page) ──
   const [allGroupStats, globalTotalReturns] = await Promise.all([
     prisma.returnCase.groupBy({

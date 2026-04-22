@@ -26,12 +26,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const sWa = s as typeof s & { whatsappEnabled?: boolean; whatsappProvider?: string | null; whatsappApiKey?: string | null; whatsappPhoneNumberId?: string | null; whatsappFromNumber?: string | null; portalOtpEmailEnabled?: boolean; portalOtpSmsEnabled?: boolean } | null;
 
-  // Notification log: recent 50 entries
+  // Notification log: recent entries with optional filters from the URL.
+  //   ?logChannel=email|whatsapp|sms
+  //   ?logStatus=sent|failed
+  //   ?logQ=<substring of recipient OR subject>
+  // Capped at 200 rows so the page stays responsive even on busy shops.
+  const url = new URL(request.url);
+  const logChannel = url.searchParams.get("logChannel")?.trim().toLowerCase() || null;
+  const logStatus = url.searchParams.get("logStatus")?.trim().toLowerCase() || null;
+  const logQ = url.searchParams.get("logQ")?.trim() || null;
+  const validChannels = new Set(["email", "whatsapp", "sms"]);
+  const validStatuses = new Set(["sent", "failed"]);
+  const logWhere: Record<string, unknown> = { shopId: shop.id };
+  if (logChannel && validChannels.has(logChannel)) logWhere.channel = logChannel;
+  if (logStatus && validStatuses.has(logStatus)) logWhere.status = logStatus;
+  if (logQ) {
+    logWhere.OR = [
+      { recipient: { contains: logQ, mode: "insensitive" } },
+      { subject: { contains: logQ, mode: "insensitive" } },
+    ];
+  }
   const notificationLogs = await prisma.notificationLog.findMany({
-    where: { shopId: shop.id },
+    where: logWhere,
     orderBy: { createdAt: "desc" },
-    take: 50,
+    take: 200,
   });
+  const notificationLogFilters = { logChannel, logStatus, logQ };
 
   return {
     notificationNewReturn: s?.notificationNewReturn ?? true,
@@ -61,6 +81,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     portalOtpEmailEnabled: sWa?.portalOtpEmailEnabled ?? false,
     portalOtpSmsEnabled: sWa?.portalOtpSmsEnabled ?? false,
     notificationLogs,
+    notificationLogFilters,
   };
 };
 
@@ -957,7 +978,42 @@ export default function Notifications() {
         {/* ────── Notification Log ────── */}
         <div style={{ background: "var(--rpm-surface)", border: "var(--rpm-border)", borderRadius: "var(--rpm-radius)", padding: "20px 24px", marginTop: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Notification Log</div>
-          <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 14 }}>Recent email and WhatsApp notifications sent from this shop</div>
+          <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginBottom: 14 }}>
+            Recent email and WhatsApp notifications sent from this shop (max 200)
+          </div>
+          {/* Filter form — submits via GET to the same route, picked up by the
+              loader's URL-param parsing. Browser keeps history so back-button works. */}
+          <form method="get" style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14, alignItems: "center" }}>
+            <select name="logChannel" defaultValue={data.notificationLogFilters?.logChannel ?? ""}
+              style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--rpm-border-color, #e5e7eb)" }}
+              aria-label="Filter by channel"
+            >
+              <option value="">All channels</option>
+              <option value="email">Email</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="sms">SMS</option>
+            </select>
+            <select name="logStatus" defaultValue={data.notificationLogFilters?.logStatus ?? ""}
+              style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--rpm-border-color, #e5e7eb)" }}
+              aria-label="Filter by status"
+            >
+              <option value="">All statuses</option>
+              <option value="sent">Sent</option>
+              <option value="failed">Failed</option>
+            </select>
+            <input
+              type="search" name="logQ" placeholder="Search recipient or subject…"
+              defaultValue={data.notificationLogFilters?.logQ ?? ""}
+              style={{ fontSize: 12, padding: "5px 8px", borderRadius: 6, border: "1px solid var(--rpm-border-color, #e5e7eb)", minWidth: 200, flex: "1 1 auto" }}
+              aria-label="Search notifications"
+            />
+            <button type="submit" style={{ fontSize: 12, padding: "5px 12px", borderRadius: 6, border: "1px solid var(--rpm-border-color, #e5e7eb)", background: "var(--rpm-surface)", cursor: "pointer" }}>
+              Filter
+            </button>
+            {(data.notificationLogFilters?.logChannel || data.notificationLogFilters?.logStatus || data.notificationLogFilters?.logQ) && (
+              <a href="?" style={{ fontSize: 12, color: "var(--rpm-text-muted)", textDecoration: "underline" }}>Clear</a>
+            )}
+          </form>
           {data.notificationLogs.length === 0 ? (
             <div style={{ padding: "24px 0", textAlign: "center", color: "var(--rpm-text-muted)", fontSize: 13 }}>
               No notifications sent yet.

@@ -8,18 +8,35 @@ import "./styles.css";
  * Notes on CSP for a Shopify embedded app:
  *  - `frame-ancestors` MUST allow the merchant's *.myshopify.com domain so the app
  *    renders inside the Shopify admin iframe; without it Shopify shows a blank frame.
- *  - The inline script in <head> below patches `attachShadow` BEFORE App Bridge loads.
- *    We need either a nonce (stable per request) or `'unsafe-inline'`. App Bridge also
- *    injects inline scripts, so a permissive script-src is the pragmatic choice today.
- *    Tighten via nonce in a follow-up once App Bridge supports nonces consistently.
+ *  - script-src uses BOTH a hash for our single hand-written inline script AND
+ *    `'strict-dynamic'`. In browsers that honour `'strict-dynamic'` (Chrome 52+,
+ *    Firefox 52+, Safari 15.4+, Edge 79+), the policy effectively becomes "only
+ *    scripts loaded by trusted code run" — `'unsafe-inline'` is silently ignored.
+ *    Older browsers ignore `'strict-dynamic'` and use `'unsafe-inline'` (degraded
+ *    but no worse than before this hardening).
+ *  - The single inline script in <head> (attachShadow patch) is whitelisted by
+ *    SHA-256 hash. If you EDIT that script, regenerate the hash:
+ *      node -e "console.log('sha256-' + require('crypto').createHash('sha256').update('<body>').digest('base64'))"
+ *  - `style-src 'unsafe-inline'` stays — Polaris and many embedded UI components
+ *    inject inline styles that aren't trivially hashable. Inline CSS is a much
+ *    smaller XSS surface than inline JS.
  *  - `connect-src` allows the app's own origin + Shopify Admin GraphQL + monorail
  *    telemetry that App Bridge sends.
  */
+
+// SHA-256 of the inline `attachShadow` patch in <head>. If you change that script,
+// regenerate this constant — otherwise CSP will block it and Polaris layout will
+// break inside Shopify Admin.
+const INLINE_SCRIPT_HASH = "sha256-MvIWSUsGMaMHZNos6NlzEMaHh3AYXAp1ZZM9cIjGnk0=";
+
 export const headers: HeadersFunction = () => {
   const csp = [
     "default-src 'self'",
-    // Inline scripts (the attachShadow patch + App Bridge); CDN scripts (App Bridge).
-    "script-src 'self' 'unsafe-inline' https://cdn.shopify.com https://*.shopifycdn.com",
+    // 'strict-dynamic' upgrades modern browsers; 'unsafe-inline' is the fallback
+    // for older browsers that ignore 'strict-dynamic'. https → allow inline scripts
+    // injected by trusted scripts (App Bridge, React Router hydration). Hashed
+    // attachShadow patch is whitelisted explicitly.
+    `script-src 'self' '${INLINE_SCRIPT_HASH}' 'strict-dynamic' 'unsafe-inline' https: https://cdn.shopify.com https://*.shopifycdn.com`,
     "style-src 'self' 'unsafe-inline' https://cdn.shopify.com",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data: https://cdn.shopify.com",

@@ -4660,6 +4660,35 @@
       }
     });
 
+    // Focus trap for the active portal step — when focus tabs out of the active
+    // step's last focusable element, loop it back to the first. Keeps keyboard
+    // users inside the relevant card instead of escaping to the page chrome
+    // (P2 a11y finding from QA audit).
+    document.addEventListener('keydown', function (e) {
+      if (e.key !== 'Tab') return;
+      var activeStep = document.querySelector('.portal-step.active');
+      if (!activeStep) return;
+      // Collect focusable elements within the active step. Excludes hidden inputs,
+      // disabled controls, and elements with negative tabindex.
+      var focusables = activeStep.querySelectorAll(
+        'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      );
+      var visible = Array.prototype.filter.call(focusables, function (el) {
+        // Skip elements with display:none or hidden parents.
+        return el.offsetParent !== null;
+      });
+      if (visible.length === 0) return;
+      var first = visible[0];
+      var last = visible[visible.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    });
+
     document.addEventListener('click', function (e) {
       var subTab = e.target.closest('.portal-sub-tab');
       if (subTab) {

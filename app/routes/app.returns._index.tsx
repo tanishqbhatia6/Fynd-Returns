@@ -153,8 +153,23 @@ export default function ReturnsList() {
         if (!res.ok) { setBulkError(data.error || "Bulk action failed"); return; }
         const label = action === "bulk_approve" ? "approved" : action === "bulk_reject" ? "rejected" : "updated";
         if (data.errorCount && data.errorCount > 0) {
-          const firstError = (data.results ?? []).find((r) => !r.success)?.error ?? "Unknown error";
-          setBulkSuccess(`${data.successCount} ${label}, ${data.errorCount} failed: ${firstError}`);
+          // Surface the per-row failures so the merchant knows EXACTLY which IDs
+          // failed and why — was previously just "5 failed: <first error>" which
+          // hid the real picture (P2 finding from QA audit).
+          const failed = (data.results ?? []).filter((r) => !r.success);
+          // Group identical error messages so a common-cause failure (e.g. "fynd
+          // not configured") collapses into one line listing the affected IDs.
+          const grouped = new Map<string, string[]>();
+          for (const f of failed) {
+            const reason = f.error ?? "Unknown error";
+            const list = grouped.get(reason) ?? [];
+            list.push(f.id);
+            grouped.set(reason, list);
+          }
+          const detail = Array.from(grouped.entries())
+            .map(([reason, ids]) => `${ids.length} (${ids.slice(0, 3).join(", ")}${ids.length > 3 ? `, +${ids.length - 3} more` : ""}): ${reason}`)
+            .join(" • ");
+          setBulkError(`${data.successCount ?? 0} ${label}, ${data.errorCount} failed — ${detail}`);
         } else {
           setBulkSuccess(`${data.successCount} return${data.successCount === 1 ? "" : "s"} ${label} successfully`);
         }

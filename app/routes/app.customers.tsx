@@ -64,6 +64,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!rl.allowed) {
       throw new Response("Search rate limit exceeded — try again in a minute.", { status: 429 });
     }
+
+    // Audit trail — every customer search emits a structured log entry captured
+    // by the OTel collector. Enables incident response: if credentials are
+    // compromised and an attacker runs an enumeration loop, the audit trail
+    // shows what they queried and when. Not written to DB to avoid a migration
+    // just for audit (OTel pipeline + log retention policy is the right place).
+    try {
+      const { securityLogger } = await import("../lib/observability/logger.server");
+      securityLogger.info({
+        event: "admin.customer_search",
+        shopId: shop.id,
+        shopDomain: session.shop,
+        adminEmail: (session.onlineAccessInfo?.associated_user?.email as string | undefined) ?? null,
+        // Never log the full query if it could be an email/phone — hash for traceability.
+        queryHash: query.length > 0
+          ? (await import("node:crypto")).createHash("sha256").update(query).digest("hex").slice(0, 16)
+          : null,
+        queryLength: query.length,
+        page,
+        sortBy,
+      }, "Admin customer search");
+    } catch { /* audit logging must never fail the request */ }
   }
 
   // ── Step 1: Global summary stats via fast aggregates (all customers, not just page) ──

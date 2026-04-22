@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
-import { apiSuccess, apiError } from "../lib/external-api-helpers.server";
+import { apiSuccess, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
 import prisma from "../db.server";
@@ -17,6 +17,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const auth = await authenticateApiKey(request, "write_returns");
   if (!auth.ok) return auth.response;
+
+  // Per-API-key fairness — see api.v1.external.returns.ts for the pattern.
+  const perKey = await checkPerKeyRateLimit(request, "external.returns.approve", auth.keyId ?? "anon");
+  if (perKey) return perKey;
 
   const id = params.id;
   if (!id) return apiError(400, "BAD_REQUEST", "Return ID is required");

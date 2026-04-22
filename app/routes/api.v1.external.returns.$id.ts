@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
-import { apiSuccess, apiError, sanitizeReturnDetail } from "../lib/external-api-helpers.server";
+import { apiSuccess, apiError, sanitizeReturnDetail, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import prisma from "../db.server";
 
@@ -10,6 +10,9 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const auth = await authenticateApiKey(request, "read_returns");
   if (!auth.ok) return auth.response;
+
+  const perKey = await checkPerKeyRateLimit(request, "external.returns.detail", auth.keyId ?? "anon");
+  if (perKey) return perKey;
 
   const id = params.id;
   if (!id) return apiError(400, "BAD_REQUEST", "Return ID is required");

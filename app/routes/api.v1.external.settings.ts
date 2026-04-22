@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
-import { apiSuccess, apiError, sanitizeSettings } from "../lib/external-api-helpers.server";
+import { apiSuccess, apiError, sanitizeSettings, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import prisma from "../db.server";
 
@@ -10,6 +10,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const auth = await authenticateApiKey(request, "read_settings");
   if (!auth.ok) return auth.response;
+
+  const perKey = await checkPerKeyRateLimit(request, "external.settings", auth.keyId ?? "anon");
+  if (perKey) return perKey;
 
   try {
     const settings = await prisma.shopSettings.findUnique({

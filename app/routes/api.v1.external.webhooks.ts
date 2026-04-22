@@ -1,7 +1,7 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import crypto from "crypto";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
-import { apiSuccess, apiCreated, apiError } from "../lib/external-api-helpers.server";
+import { apiSuccess, apiCreated, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { WEBHOOK_EVENTS } from "../lib/api-docs-data";
 import { isSafeOutboundUrl } from "../lib/url-safety.server";
@@ -14,6 +14,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const auth = await authenticateApiKey(request, "manage_webhooks");
   if (!auth.ok) return auth.response;
+
+  const perKey = await checkPerKeyRateLimit(request, "external.webhooks", auth.keyId ?? "anon");
+  if (perKey) return perKey;
 
   try {
     const subs = await prisma.webhookSubscription.findMany({
@@ -47,6 +50,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const auth = await authenticateApiKey(request, "manage_webhooks");
   if (!auth.ok) return auth.response;
+
+  const perKey = await checkPerKeyRateLimit(request, "external.webhooks", auth.keyId ?? "anon");
+  if (perKey) return perKey;
 
   let body: { url?: string; events?: string[] } = {};
   try { body = await request.json(); } catch {

@@ -132,10 +132,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <td style="width:8px"></td>
       <td style="padding:16px;background:#f8fafc;border-radius:8px;text-align:center;width:25%">
         <div style="font-size:28px;font-weight:700;color:#059669">${fmt(revenueRetained)}</div>
-        <div style="font-size:12px;color:#64748b;margin-top:4px">Revenue Retained</div>
+        <div style="font-size:12px;color:#64748b;margin-top:4px">Retained via Exchange/Credit</div>
       </td>
     </tr>
   </table>
+  <p style="font-size:11px;color:#94a3b8;margin:0 0 16px">
+    Refunds issued and exchange/credit retention are mutually exclusive — they
+    sum to your gross return cost. Net loss = refunds issued.
+  </p>
   <h3 style="font-size:14px;margin:0 0 8px">Status Breakdown</h3>
   <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px">
     <tr style="border-bottom:2px solid #e2e8f0">

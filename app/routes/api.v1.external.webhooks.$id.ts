@@ -1,6 +1,6 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
-import { apiSuccess, apiError } from "../lib/external-api-helpers.server";
+import { apiSuccess, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import prisma from "../db.server";
 
@@ -14,6 +14,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   const auth = await authenticateApiKey(request, "manage_webhooks");
   if (!auth.ok) return auth.response;
+
+  const perKey = await checkPerKeyRateLimit(request, "external.webhooks", auth.keyId ?? "anon");
+  if (perKey) return perKey;
 
   const id = params.id;
   if (!id) return apiError(400, "BAD_REQUEST", "Webhook ID is required");

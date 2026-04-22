@@ -4,6 +4,7 @@ import { authenticateApiKey } from "../lib/api-key-auth.server";
 import { apiSuccess, apiCreated, apiError } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { WEBHOOK_EVENTS } from "../lib/api-docs-data";
+import { isSafeOutboundUrl } from "../lib/url-safety.server";
 import prisma from "../db.server";
 
 // GET — List webhook subscriptions
@@ -52,17 +53,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return apiError(400, "BAD_REQUEST", "Invalid JSON body");
   }
 
-  // Validate URL
+  // Validate URL — rejects HTTPS URLs that resolve to private/loopback/cloud-metadata
+  // addresses (SSRF protection). Previously only the scheme was checked, allowing a
+  // merchant to register `https://169.254.169.254/...` (AWS IMDS) or internal IPs.
   if (!body.url || typeof body.url !== "string") {
     return apiError(400, "BAD_REQUEST", "url is required");
   }
-  try {
-    const u = new URL(body.url);
-    if (u.protocol !== "https:") {
-      return apiError(400, "BAD_REQUEST", "Webhook URL must use HTTPS");
-    }
-  } catch {
-    return apiError(400, "BAD_REQUEST", "Invalid webhook URL");
+  const safety = await isSafeOutboundUrl(body.url);
+  if (!safety.ok) {
+    // Don't echo the rejection reason back — could be used to enumerate internal
+    // network topology via DNS rebinding probes. Return a generic message.
+    return apiError(400, "BAD_REQUEST", "Webhook URL must be a public HTTPS endpoint");
   }
 
   // Validate events

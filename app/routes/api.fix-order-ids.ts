@@ -1,16 +1,18 @@
 /**
  * Diagnostic + Fix endpoint for shopifyOrderId issues.
  *
- * GET  /api/fix-order-ids         → Show all return cases and their shopifyOrderId status
+ * GET  /api/fix-order-ids         → Show return cases and their shopifyOrderId status
  * POST /api/fix-order-ids         → Fix all invalid shopifyOrderIds by resolving to Shopify GID
  * POST /api/fix-order-ids?id=xxx  → Fix a specific return case
  *
- * Uses the offline Shopify session from DB — no admin auth needed.
- * Protected by a simple token check.
+ * AUTH: requires authenticated Shopify admin session. Results are scoped to the
+ * authenticated shop only — historically this endpoint had no auth and dumped
+ * cross-tenant PII (P0 finding from QA audit, fixed).
  */
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { extractAffiliateOrderIdFromFyndPayload, extractCustomerFromFyndPayload } from "../lib/fynd-payload.server";
+import { authenticate } from "../shopify.server";
 
 const API_VERSION = "2026-01";
 
@@ -20,13 +22,6 @@ function isValidShopifyId(id: string | null | undefined): boolean {
   if (/^\d+$/.test(id)) return true;
   if (id.startsWith("manual:")) return true;
   return false;
-}
-
-async function getOfflineSession() {
-  return prisma.session.findFirst({
-    where: { isOnline: false, accessToken: { not: "" } },
-    select: { shop: true, accessToken: true },
-  });
 }
 
 async function resolveOrderByName(
@@ -78,8 +73,16 @@ function getOrderNameVariants(affiliateOrderId: string): string[] {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  // List all return cases and their status
+  // Auth gate — see file header for rationale.
+  const { session } = await authenticate.admin(request);
+  const shopRecord = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
+  if (!shopRecord) {
+    return Response.json({ error: "Shop not found" }, { status: 404 });
+  }
+
+  // List return cases for THIS shop only.
   const cases = await prisma.returnCase.findMany({
+    where: { shopId: shopRecord.id },
     select: {
       id: true,
       returnRequestNo: true,
@@ -107,7 +110,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     take: 50,
   });
 
-  const session = await getOfflineSession();
+  // Reuse the authenticated shop's offline session for the diagnostic header
+  // (purely informational — the loader doesn't make Shopify API calls).
+  const offlineSession = await prisma.session.findFirst({
+    where: { shop: session.shop, isOnline: false, accessToken: { not: "" } },
+    select: { shop: true, accessToken: true },
+  });
 
   const summary = cases.map((rc) => {
     const valid = isValidShopifyId(rc.shopifyOrderId);
@@ -147,9 +155,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const needsLineItemFix = summary.filter((s) => !s.lineItemsValid);
 
   return Response.json({
-    sessionFound: !!session,
-    shopDomain: session?.shop ?? null,
-    hasAccessToken: !!(session?.accessToken),
+    sessionFound: !!offlineSession,
+    shopDomain: offlineSession?.shop ?? session.shop,
+    hasAccessToken: !!offlineSession?.accessToken,
     totalCases: cases.length,
     needsOrderIdFix: needsFix.length,
     needsLineItemFix: needsLineItemFix.length,
@@ -282,7 +290,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "POST only" }, { status: 405 });
   }
 
-  const session = await getOfflineSession();
+  // Auth gate — must be an authenticated Shopify admin and operate only on
+  // their own shop's data. Previously the action used getOfflineSession() which
+  // returned ANY shop's session — a cross-tenant write hazard.
+  const { session: adminSession } = await authenticate.admin(request);
+  const shopRecord = await prisma.shop.findUnique({ where: { shopDomain: adminSession.shop } });
+  if (!shopRecord) {
+    return Response.json({ error: "Shop not found" }, { status: 404 });
+  }
+  const session = await prisma.session.findFirst({
+    where: { shop: adminSession.shop, isOnline: false, accessToken: { not: "" } },
+    select: { shop: true, accessToken: true },
+  });
   if (!session?.accessToken) {
     return Response.json({ error: "No offline session with access token found" }, { status: 500 });
   }
@@ -293,7 +312,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // ── ACTION: enrich — backfill customer data from Shopify order + Fynd payload ──
   if (actionType === "enrich") {
-    const where: Record<string, unknown> = {};
+    // Always scope by shop, regardless of whether a specific id was passed.
+    const where: Record<string, unknown> = { shopId: shopRecord.id };
     if (specificId) where.id = specificId;
 
     const cases = await prisma.returnCase.findMany({
@@ -367,7 +387,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   // ── ACTION: fix — resolve shopifyOrderId AND shopifyLineItemId to Shopify GIDs ──
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { shopId: shopRecord.id };
   if (specificId) where.id = specificId;
 
   const cases = await prisma.returnCase.findMany({

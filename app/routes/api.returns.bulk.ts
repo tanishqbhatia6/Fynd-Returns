@@ -111,6 +111,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const results: BulkResultItem[] = [];
 
   if (actionType === "bulk_approve") {
+    // Optional resolutionType for bulk approve (default refund). Previously bulk
+    // approve silently defaulted resolutionType to whatever the row already had,
+    // so a merchant who wanted to bulk-approve as "exchange" had no way to
+    // express that (P1 finding).
+    const bulkResolutionType: string = body.resolutionType && VALID_RESOLUTION_TYPES.includes(body.resolutionType)
+      ? body.resolutionType
+      : "refund";
+
     for (const rc of returnCases) {
       if (TERMINAL_STATUSES.includes(rc.status.toLowerCase())) {
         results.push({
@@ -122,10 +130,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
 
       try {
-        await prisma.returnCase.update({
-          where: { id: rc.id },
-          data: { status: "approved" },
+        // Idempotent transition — same pattern as the single-row approve.
+        const upd = await prisma.returnCase.updateMany({
+          where: {
+            id: rc.id,
+            status: { in: ["pending", "initiated", "processing", "in progress"] },
+          },
+          data: { status: "approved", resolutionType: bulkResolutionType },
         });
+        if (upd.count === 0) {
+          results.push({ id: rc.id, success: true, error: "Already approved" });
+          continue;
+        }
         await prisma.returnEvent.create({
           data: {
             returnCaseId: rc.id,

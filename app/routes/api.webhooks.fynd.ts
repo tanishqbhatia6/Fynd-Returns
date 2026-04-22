@@ -5,13 +5,22 @@
  * Updates refundStatus (in_progress) and triggers Shopify refund when Fynd reports refund_done.
  *
  * Configure in Fynd Platform: Webhooks → add URL: https://YOUR_APP_URL/api/webhooks/fynd
- * Optional: set FYND_WEBHOOK_SECRET env to verify X-Fynd-Signature (if Fynd supports it).
+ *
+ * SECURITY: FYND_WEBHOOK_SECRET is REQUIRED in production. Without it the endpoint
+ * rejects all webhooks (previously they were silently accepted, which let anyone on
+ * the internet trigger refunds — P0 finding from QA audit, fixed).
  *
  * Loader has no heavy imports so GET requests work without loading Prisma/Shopify.
  */
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import type { FyndWebhookPayload } from "../lib/fynd-webhook.server";
+
+// Hard cap on Fynd webhook body size. Fynd webhooks are typically <20KB; legitimate
+// multi-shipment payloads stay under 200KB. We cap at 1MB so a malicious or runaway
+// payload cannot OOM the receiver, and we REJECT (413) rather than silently truncating
+// (which used to corrupt the stored rawPayload — P1 finding from QA audit).
+const MAX_WEBHOOK_BYTES = 1_048_576;
 
 export const loader = async (_args: LoaderFunctionArgs) => {
   return Response.json({ ok: true, method: "POST" });
@@ -24,11 +33,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const { processFyndWebhook, unwrapFyndWebhookPayload } = await import("../lib/fynd-webhook.server");
 
+  // Cheap pre-check via Content-Length, then enforce again after reading the body
+  // (Content-Length can lie; the post-read check is the real guard).
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader) {
+    const declared = Number(contentLengthHeader);
+    if (Number.isFinite(declared) && declared > MAX_WEBHOOK_BYTES) {
+      return Response.json({ error: "Webhook payload too large" }, { status: 413 });
+    }
+  }
+
   const rawBodyText = await request.text();
+  if (Buffer.byteLength(rawBodyText, "utf8") > MAX_WEBHOOK_BYTES) {
+    return Response.json({ error: "Webhook payload too large" }, { status: 413 });
+  }
 
   // Signature verification BEFORE parsing — uses raw body for correct HMAC
   const secret = process.env.FYND_WEBHOOK_SECRET;
   const isProd = process.env.NODE_ENV === "production";
+  if (isProd && !secret) {
+    // Fail closed in production. An unsigned webhook in prod is unsafe — anyone could
+    // forge refund-done events to trigger real Shopify refunds.
+    console.error("[Fynd webhook] FYND_WEBHOOK_SECRET not configured in production — rejecting webhook");
+    return Response.json({
+      error: "Webhook signature verification is not configured on this server. Contact the merchant's developer to set FYND_WEBHOOK_SECRET.",
+    }, { status: 503 });
+  }
   if (secret) {
     const signature = request.headers.get("x-fynd-signature") ?? request.headers.get("x-webhook-signature");
     if (!signature) {
@@ -49,9 +79,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.warn("[Fynd webhook] Signature verification error — rejecting");
       return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
     }
-  } else if (isProd) {
-    console.warn("[Fynd webhook] FYND_WEBHOOK_SECRET not set in production — webhook accepted without verification. Set FYND_WEBHOOK_SECRET for security.");
   }
+  // In development with no secret, processing continues — convenient for local testing
+  // against Fynd's test webhooks. Production fail-closed is enforced above.
 
   let payload: FyndWebhookPayload;
   let eventType: string | undefined;
@@ -63,10 +93,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Store the failed webhook for later inspection
     try {
       const { default: prismaClient } = await import("../db.server");
+      // Body size already capped at MAX_WEBHOOK_BYTES above, so storing in full is safe.
+      // No silent truncation here — if debugging needs the full payload, store it.
       await prismaClient.fyndWebhookLog.create({
         data: {
           action: "error",
-          rawPayload: rawBodyText.slice(0, 50000),
+          rawPayload: rawBodyText,
           error: `JSON parse error: ${errMsg}`,
         },
       });

@@ -31,6 +31,18 @@ async function deliverWebhook(
   signature: string,
   eventType: string,
 ): Promise<boolean> {
+  // SSRF re-check at delivery time. Even though the URL is validated at registration,
+  // DNS rebinding can flip a public hostname to a private IP between registration
+  // and delivery. We re-resolve and reject if it now points internally.
+  try {
+    const { isSafeOutboundUrl } = await import("./url-safety.server");
+    const safety = await isSafeOutboundUrl(url);
+    if (!safety.ok) {
+      webhookLogger.warn({ url, eventType, reason: safety.reason }, "Webhook target failed SSRF re-check; not dispatching");
+      return false;
+    }
+  } catch { /* if the safety check itself errors, fail closed */ return false; }
+
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -56,8 +68,11 @@ async function deliverWithRetry(
   body: string,
   signature: string,
   eventType: string,
+  /** Optional dead-letter context — when supplied we persist failures to the DLQ. */
+  dlqContext?: { subscriptionId: string; shopId: string; idempotencyKey?: string },
 ): Promise<void> {
   webhookInflight.add(1, { "webhook.event_type": eventType });
+  let lastError: string | undefined;
   try {
     // Initial attempt
     const ok = await deliverWebhook(url, body, signature, eventType);
@@ -102,6 +117,28 @@ async function deliverWithRetry(
       { eventType, url, attempts: MAX_RETRIES + 1 },
       "Webhook delivery failed after all retry attempts",
     );
+
+    // Persist to dead-letter queue so the merchant can see and replay it. The
+    // previous behaviour of silently dropping after retries left merchants in the
+    // dark when their endpoint had a multi-minute outage (P1 finding).
+    if (dlqContext) {
+      try {
+        await prisma.webhookDeliveryFailure.create({
+          data: {
+            subscriptionId: dlqContext.subscriptionId,
+            shopId: dlqContext.shopId,
+            eventType,
+            payloadJson: body,
+            url,
+            attemptCount: MAX_RETRIES + 1,
+            lastError: lastError ?? "delivery_failed",
+            idempotencyKey: dlqContext.idempotencyKey,
+          },
+        });
+      } catch (dlqErr) {
+        webhookLogger.error({ err: dlqErr, eventType }, "Failed to persist webhook to DLQ");
+      }
+    }
   } finally {
     webhookInflight.add(-1, { "webhook.event_type": eventType });
   }
@@ -142,10 +179,16 @@ export function dispatchWebhookEvent(
 
           if (matchingSubs.length === 0) return;
 
+          // Idempotency key — merchants should dedupe on this if they receive a
+          // delivery twice (initial + DLQ replay, or network double-fire).
+          const { randomUUID } = await import("node:crypto");
+          const idempotencyKey = randomUUID();
+
           const body = JSON.stringify({
             event: eventType,
             data: payload,
             timestamp: new Date().toISOString(),
+            idempotencyKey,
           });
 
           addBusinessEvent("webhook.dispatch.started", {
@@ -155,8 +198,13 @@ export function dispatchWebhookEvent(
 
           for (const sub of matchingSubs) {
             const signature = signPayload(body, sub.secret);
-            // Each delivery runs independently
-            deliverWithRetry(sub.url, body, signature, eventType).catch(() => {});
+            // Each delivery runs independently. DLQ context lets the retry loop
+            // persist failures so the merchant can replay later.
+            deliverWithRetry(sub.url, body, signature, eventType, {
+              subscriptionId: sub.id,
+              shopId,
+              idempotencyKey,
+            }).catch(() => {});
           }
         },
       );

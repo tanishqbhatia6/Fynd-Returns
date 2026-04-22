@@ -1,5 +1,6 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, parseFyndOrderDetailsForTab, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
@@ -13,9 +14,13 @@ import { sendOtpEmail } from "../lib/notification.server";
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 min
 const OTP_COOLDOWN_MS = 60_000; // 60s resend cooldown
 const MAX_OTP_ATTEMPTS = 5;
+// Cost factor — 10 is industry standard, ~50ms per hash. Verifying becomes
+// significantly slower than the previous unsalted SHA-256, defeating rainbow tables
+// and slowing brute force enough to make the account-level lockout meaningful.
+const BCRYPT_COST = 10;
 
-function hashOtp(otp: string): string {
-  return crypto.createHash("sha256").update(otp).digest("hex");
+async function hashOtp(otp: string): Promise<string> {
+  return bcrypt.hash(otp, BCRYPT_COST);
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -92,9 +97,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
           // Resend: generate new OTP
           const otp = String(Math.floor(100000 + Math.random() * 900000));
+          const otpHash = await hashOtp(otp);
           await prisma.lookupSession.update({
             where: { id: existing.id },
-            data: { otpTarget: hashOtp(otp), otpSentAt: new Date(), attemptsCount: existing.attemptsCount + 1 },
+            data: { otpTarget: otpHash, otpSentAt: new Date(), attemptsCount: existing.attemptsCount + 1 },
           });
           try {
             await sendOtpEmail({ shopDomain, to: contactNorm, otp });
@@ -102,15 +108,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           return withCors(Response.json({ requiresOtp: true, sessionId: existing.id }), request);
         }
 
+        // Account-level lockout — same gate as the verify endpoint, applied at OTP-send
+        // time so attackers can't bypass by spinning up fresh sessions.
+        const lockoutSince = new Date(Date.now() - 60 * 60 * 1000);
+        const recentForValue = await prisma.lookupSession.findMany({
+          where: {
+            shopId: shopRecord.id,
+            lookupValueHash,
+            createdAt: { gte: lockoutSince },
+          },
+          select: { attemptsCount: true, verifiedAt: true },
+        });
+        const totalRecentFailures = recentForValue
+          .filter((s) => !s.verifiedAt)
+          .reduce((sum, s) => sum + (s.attemptsCount ?? 0), 0);
+        if (totalRecentFailures >= 15) {
+          return withCors(Response.json({
+            error: "Too many failed verification attempts on this contact. Please try again in an hour.",
+            accountLocked: true,
+          }, { status: 429 }), request);
+        }
+
         // Create new session
         const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const otpHash = await hashOtp(otp);
         const session = await prisma.lookupSession.create({
           data: {
             shopId: shopRecord.id,
             lookupType: normalizedLookupType,
             lookupValueHash,
             lookupValueNorm: contactNorm,
-            otpTarget: hashOtp(otp),
+            otpTarget: otpHash,
             otpSentAt: new Date(),
             attemptsCount: 1,
             expiresAt: new Date(Date.now() + OTP_TTL_MS),

@@ -7,7 +7,9 @@
  * Body: { shop, api_key, action, returnId, note?, rejectionReason? }
  */
 import type { ActionFunctionArgs } from "react-router";
+import crypto from "node:crypto";
 import prisma from "../db.server";
+import { decryptIfEncrypted } from "../lib/encryption.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
@@ -40,11 +42,26 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "Gorgias integration not enabled" }, { status: 403 });
   }
 
-  if (shop.settings.gorgiasApiKey && apiKey !== shop.settings.gorgiasApiKey) {
+  // Require an API key — previously the absence of a configured key allowed open
+  // access. With the multi-tenant fix, key auth is mandatory.
+  if (!shop.settings.gorgiasApiKey) {
+    return Response.json({ error: "Gorgias API key not configured for this shop" }, { status: 403 });
+  }
+  // Timing-safe compare against the decrypted stored key.
+  const storedPlain = decryptIfEncrypted(shop.settings.gorgiasApiKey) ?? "";
+  let keyOk = false;
+  try {
+    const a = Buffer.from(apiKey, "utf8");
+    const b = Buffer.from(storedPlain, "utf8");
+    keyOk = a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch { keyOk = false; }
+  if (!keyOk) {
     return Response.json({ error: "Invalid API key" }, { status: 401 });
   }
 
-  // Find the return case
+  // Find the return case — scoped by shop.id (the API key proves ownership of THIS
+  // shop, so requesting a returnId from a different shop returns 404). Previously the
+  // shop param was user-controlled and the key check was lenient — now they're tied.
   const returnCase = await prisma.returnCase.findFirst({
     where: { id: returnId, shopId: shop.id },
   });

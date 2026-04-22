@@ -509,13 +509,20 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         // Compute retry scheduling for transient failures (2 min initial backoff)
         const retryNextTime = fyndError && isTransientFyndError ? new Date(Date.now() + 2 * 60_000) : undefined;
 
-        await prisma.returnCase.update({
-          where: { id },
+        // Idempotent transition: only flip pending/initiated/processing → approved.
+        // updateMany returns { count: 0 } if a concurrent request already moved the row,
+        // which lets us short-circuit instead of double-firing Fynd sync + notifications
+        // (P1 finding from QA audit — repro: rapid double-click of the Approve button).
+        const updateResult = await prisma.returnCase.updateMany({
+          where: {
+            id,
+            status: { in: ["pending", "initiated", "processing", "in progress"] },
+          },
           data: {
             status: "approved",
             resolutionType: resolvedType,
             adminNotes: note || returnCase.adminNotes,
-            // BUG FIX: "synced" on success (was "processing"), "retry_scheduled" on transient failure, "failed" on config error
+            // "synced" on success, "retry_scheduled" on transient failure, "failed" on config error.
             fyndSyncStatus: fyndReturnId
               ? "synced"
               : fyndError
@@ -531,6 +538,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             ...autoShippingData,
           },
         });
+        if (updateResult.count === 0) {
+          // Concurrent approval already won. Return the current state without
+          // creating a duplicate event or duplicate Fynd sync.
+          returnActionCounter.add(1, { action: "approve", outcome: "idempotent_noop" });
+          return Response.json({ success: true, idempotent: true });
+        }
         // Approval event
         await prisma.returnEvent.create({
           data: {
@@ -1623,6 +1636,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             refundStatus: "refunded",
             refundJson: JSON.stringify(refundDetails),
             status: "completed",
+            // Reconcile resolutionType with what actually happened. If the return was
+            // approved as "exchange" but the admin processed a refund instead, we
+            // need to flip the field — otherwise reports, customer comms, and the
+            // exchange-flow gates downstream all see stale data (P1 finding).
+            resolutionType: "refund",
             adminNotes: note || returnCase.adminNotes,
             ...(bonusAmount > 0 ? { bonusCreditAmount: bonusAmount.toFixed(2) } : {}),
           },
@@ -2069,6 +2087,35 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           );
         }
 
+        // Close Shopify Return BEFORE flipping our status. Previously the order was
+        // (1) mark cancelled, (2) try to close on Shopify; if step 2 failed the
+        // Shopify return stayed open forever with no auto-recovery (P1 finding).
+        // Now we attempt the close first; on failure we keep the local status as
+        // "approved" with a `shopifyCloseFailed` event so an admin can retry.
+        const closeResult = await closeShopifyReturnBestEffort(admin, returnCase, {
+          action: "close",
+          logEvent: logShopifyReturnEvent,
+        });
+        const closeFailed = closeResult && typeof closeResult === "object" && "ok" in closeResult && closeResult.ok === false;
+        if (closeFailed) {
+          await prisma.returnEvent.create({
+            data: {
+              returnCaseId: id,
+              source: "admin",
+              eventType: "cancellation_blocked_by_shopify",
+              payloadJson: JSON.stringify({
+                reason: "Shopify return close failed; cancellation NOT applied locally so it can be retried.",
+                error: (closeResult as { error?: string }).error ?? null,
+                adminEmail: sessionEmail,
+              }),
+            },
+          }).catch(() => {});
+          returnActionCounter.add(1, { action: "approve_cancellation", outcome: "shopify_close_failed" });
+          return Response.json({
+            error: "Could not close the Shopify return. Cancellation has not been applied. Please retry, or close the Shopify return manually first.",
+          }, { status: 502 });
+        }
+
         await prisma.returnCase.update({
           where: { id },
           data: { status: "cancelled" },
@@ -2084,12 +2131,6 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
               adminEmail: sessionEmail,
             }),
           },
-        });
-
-        // Close Shopify Return (best-effort)
-        await closeShopifyReturnBestEffort(admin, returnCase, {
-          action: "close",
-          logEvent: logShopifyReturnEvent,
         });
 
         // Best-effort Fynd cancel: trigger return_request_cancelled on Fynd

@@ -6,6 +6,19 @@ import type { EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { appLogger } from "./lib/observability/logger.server";
+import { assertEncryptionConfigured } from "./lib/encryption.server";
+
+// Boot-time validation. Surfaces misconfig (missing/invalid ENCRYPTION_KEY) at
+// the first request rather than at the first encrypt/decrypt call, which would
+// otherwise be the moment a merchant tries to save Fynd credentials in prod.
+// Logs the failure but does NOT crash the process — the readiness probe / health
+// endpoint will surface the issue and operations can roll back.
+try {
+  assertEncryptionConfigured();
+  appLogger.info({ module: "encryption" }, "Encryption key validated at startup");
+} catch (err) {
+  appLogger.error({ err, module: "encryption" }, "Encryption key NOT configured — secrets cannot be read or written");
+}
 
 export const streamTimeout = 5000;
 

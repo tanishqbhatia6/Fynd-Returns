@@ -10,6 +10,7 @@ import { sendNewReturnNotification } from "../lib/notification.server";
 import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from "../lib/return-request-id";
 import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
+import { verifyPortalCsrfToken } from "../lib/portal-auth.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
@@ -113,6 +114,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const body = await request.json();
     const shop = body.shop as string | undefined;
+
+    // CSRF gate — token is issued by /api/portal/order and bound to the requesting
+    // shop. Defends against cross-origin POSTs that the wildcard *.myshopify.com CORS
+    // regex used to allow. The token is OPTIONAL during a soft rollout window so
+    // existing portal sessions don't all break the moment this ships — once the
+    // portal HTML always sends it, switch to require=true (one-line change).
+    const REQUIRE_CSRF = String(process.env.PORTAL_CSRF_REQUIRED ?? "false").toLowerCase() === "true";
+    if (REQUIRE_CSRF || body.portalCsrfToken) {
+      const expectedShop = shop?.includes(".") ? shop : `${shop}.myshopify.com`;
+      const ok = verifyPortalCsrfToken(body.portalCsrfToken as string | undefined, expectedShop);
+      if (!ok) {
+        return withCors(
+          Response.json({ error: "Session expired. Refresh the page and try again." }, { status: 403 }),
+          request,
+        );
+      }
+    }
+
     const orderId = body.orderId as string | undefined;
     const shopifyOrderNameRaw = (body.shopifyOrderName as string | undefined)?.trim();
     const shopifyOrderName = shopifyOrderNameRaw?.startsWith("#")
@@ -149,6 +168,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Structured variant selections from the portal exchange picker. We accept it as a
     // sidecar payload (sanitised into the existing exchangePreference text) so we don't
     // need a schema migration. Each entry: { lineItemId, productId, variantId, variantTitle }
+    //
+    // Server-side variant validation runs further down (see "Validate exchange variants
+    // against Shopify catalog" block). The client-supplied variantTitle is treated as
+    // display-only — never trusted as the source of truth.
     const rawExchangeVariants = body.exchangeVariants as
       | Array<{ lineItemId?: string; productId?: string; variantId?: string; variantTitle?: string }>
       | undefined;
@@ -877,6 +900,60 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const tagsMatch = greenTagsArr.length > 0 && greenTagsArr.some((gt) => allItemTags.includes(gt.toLowerCase()));
 
       qualifiesForGreenReturn = belowThreshold || tagsMatch;
+    }
+
+    // ── Server-side validation of exchange variant selections ──
+    // The portal sends variantId + productId from the customer's picker. We MUST
+    // verify each variant actually exists in this shop's catalog and belongs to
+    // the claimed product — otherwise a tampered request could substitute arbitrary
+    // variants (including from unrelated products) and the warehouse would ship
+    // them. P1 finding from QA audit.
+    if (exchangeVariantSelections.length > 0) {
+      const session = await prisma.session.findFirst({
+        where: { shop: shopRecord.shopDomain, isOnline: false, accessToken: { not: "" } },
+        select: { accessToken: true },
+      });
+      if (session?.accessToken) {
+        const uniquePairs = new Map<string, { productId: string; variantId: string }>();
+        for (const sel of exchangeVariantSelections) {
+          if (!sel.productId || !sel.variantId) continue;
+          uniquePairs.set(`${sel.productId}::${sel.variantId}`, { productId: sel.productId, variantId: sel.variantId });
+        }
+        const invalid: Array<{ productId: string; variantId: string; reason: string }> = [];
+        // Validate via REST: cheap one-product-at-a-time fetch (max 20 from upstream cap).
+        for (const pair of uniquePairs.values()) {
+          try {
+            const productLegacyId = pair.productId.replace(/^gid:\/\/shopify\/Product\//, "");
+            const variantLegacyId = pair.variantId.replace(/^gid:\/\/shopify\/ProductVariant\//, "");
+            const res = await fetch(
+              `https://${shopRecord.shopDomain}/admin/api/2024-10/products/${productLegacyId}.json?fields=id,variants`,
+              { headers: { "X-Shopify-Access-Token": session.accessToken } },
+            );
+            if (!res.ok) {
+              invalid.push({ ...pair, reason: `product fetch ${res.status}` });
+              continue;
+            }
+            const data = (await res.json()) as { product?: { variants?: Array<{ id: number | string }> } };
+            const variants = data.product?.variants ?? [];
+            const found = variants.some((v) => String(v.id) === variantLegacyId);
+            if (!found) invalid.push({ ...pair, reason: "variant not in product" });
+          } catch (err) {
+            invalid.push({ ...pair, reason: err instanceof Error ? err.message : "fetch error" });
+          }
+        }
+        if (invalid.length > 0) {
+          return withCors(
+            Response.json({
+              error: "One or more selected exchange variants are no longer available. Please reload the page and pick again.",
+              details: invalid,
+            }, { status: 400 }),
+            request,
+          );
+        }
+      }
+      // If we have NO offline session at all, fall back to trusting the picker —
+      // this only happens when Shopify isn't connected, in which case the exchange
+      // can't actually be fulfilled anyway. The admin sees the request and can reject.
     }
 
     // Atomic transaction: per-line-item quantity validation + create return + event in one go

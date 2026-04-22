@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import crypto from "crypto";
+import bcrypt from "bcryptjs";
 import prisma from "../db.server";
 import { createPortalToken } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
@@ -7,9 +7,20 @@ import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const MAX_VERIFY_ATTEMPTS = 5;
+// Account-level lockout: across ALL sessions for the same lookup value (email/phone)
+// in the last hour, if total failed verification attempts hit this threshold, refuse
+// to accept any more OTP submissions until the window passes. Defends against the
+// "spin up N parallel sessions × 5 attempts each" brute force that the per-session
+// limit alone allowed (P0 finding from QA audit).
+const ACCOUNT_LOCK_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const ACCOUNT_LOCK_MAX_FAILURES = 15; // ≈ 3 sessions worth before locking
+// bcrypt cost factor — 10 is industry standard. Verifying takes ~50ms which makes
+// brute-force significantly more expensive while remaining responsive for users.
+const BCRYPT_COST = 10;
 
-function hashOtp(otp: string): string {
-  return crypto.createHash("sha256").update(otp).digest("hex");
+/** Legacy SHA-256 detection — pre-bcrypt rollout sessions had hex-only hashes. */
+function isLegacySha256(hash: string): boolean {
+  return /^[0-9a-f]{64}$/i.test(hash);
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -42,6 +53,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return withCors(Response.json({ error: "Too many attempts. Please request a new code." }, { status: 429 }), request);
     }
 
+    // Account-level lockout — sum failed verification attempts across ALL sessions for
+    // the same email/phone in the last hour. If ≥ ACCOUNT_LOCK_MAX_FAILURES, refuse to
+    // accept any more verification attempts. Defends against the "spin up N parallel
+    // sessions" brute force the per-session 5-attempt cap previously allowed.
+    const lockoutSince = new Date(Date.now() - ACCOUNT_LOCK_WINDOW_MS);
+    const recentSessionsForValue = await prisma.lookupSession.findMany({
+      where: {
+        shopId: session.shopId,
+        lookupValueHash: session.lookupValueHash,
+        createdAt: { gte: lockoutSince },
+      },
+      select: { attemptsCount: true, verifiedAt: true },
+    });
+    const totalRecentFailures = recentSessionsForValue
+      .filter((s) => !s.verifiedAt) // exclude successfully-verified sessions
+      .reduce((sum, s) => sum + (s.attemptsCount ?? 0), 0);
+    if (totalRecentFailures >= ACCOUNT_LOCK_MAX_FAILURES) {
+      return withCors(Response.json({
+        error: "Too many failed verification attempts on this contact. Please try again in an hour.",
+        accountLocked: true,
+      }, { status: 429 }), request);
+    }
+
     if (!session.otpSentAt || Date.now() - session.otpSentAt.getTime() > OTP_TTL_MS) {
       return withCors(Response.json({ error: "Code has expired. Please request a new one." }, { status: 400 }), request);
     }
@@ -50,15 +84,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return withCors(Response.json({ error: "No verification code found. Please request one first." }, { status: 400 }), request);
     }
 
-    const submittedHash = hashOtp(String(otp));
+    const submittedOtp = String(otp);
     const storedHash = session.otpTarget;
     let isValid = false;
-    try {
-      const a = Buffer.from(submittedHash, "hex");
-      const b = Buffer.from(storedHash, "hex");
-      isValid = a.length === b.length && crypto.timingSafeEqual(a, b);
-    } catch {
-      isValid = false;
+    if (isLegacySha256(storedHash)) {
+      // Legacy session created before bcrypt rollout. Compare with the old SHA-256
+      // method, then on success transparently re-hash to bcrypt for the next time.
+      // (Stored hash gets cleared by the verify-success branch anyway.)
+      const crypto = await import("node:crypto");
+      const submittedSha = crypto.createHash("sha256").update(submittedOtp).digest("hex");
+      try {
+        const a = Buffer.from(submittedSha, "hex");
+        const b = Buffer.from(storedHash, "hex");
+        isValid = a.length === b.length && crypto.timingSafeEqual(a, b);
+      } catch { isValid = false; }
+    } else {
+      // bcrypt comparison — constant-time by design, slow enough to deter brute force.
+      try {
+        isValid = await bcrypt.compare(submittedOtp, storedHash);
+      } catch { isValid = false; }
     }
 
     if (!isValid) {

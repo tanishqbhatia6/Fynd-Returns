@@ -57,6 +57,56 @@ export function classifyFyndRefundStatus(refundStatus: string | null | undefined
 /** Fynd statuses that trigger auto-refund when autoRefundEnabled is on */
 const AUTO_REFUND_TRIGGERS = ["credit_note_generated", "credit_note"];
 
+/**
+ * Forward-only precedence for `fyndCurrentStatus`. Higher number = later in the
+ * journey. Out-of-order webhook delivery would otherwise revert the visible status
+ * (e.g. `bag_picked` arriving after `return_completed`).
+ *
+ * Statuses not in this map are treated as "neutral" and always allowed through —
+ * we don't want to silently drop an unknown status, just to refuse downgrades
+ * within the known sequence.
+ */
+const FYND_STATUS_PRECEDENCE: Record<string, number> = {
+  // Forward (pre-delivery)
+  bag_confirmed: 10, bag_invoiced: 11, dp_assigned: 12, bag_packed: 13,
+  bag_picked: 14, out_for_delivery: 15,
+  delivery_done: 16, handed_over_to_customer: 16,
+  // Return journey
+  return_initiated: 20, return_dp_assigned: 21,
+  out_for_pickup: 22, dp_out_for_pickup: 22,
+  return_bag_picked: 23,
+  return_bag_in_transit: 24,
+  out_for_delivery_to_store: 25, return_bag_out_for_delivery: 25,
+  return_bag_delivered: 26, return_delivered: 26,
+  return_accepted: 27,
+  // Refund stages
+  credit_note_generated: 30, credit_note: 30,
+  refund_pending: 31, refund_initiated: 32, refund_processing: 32, refund_in_progress: 32,
+  refund_under_process: 32, in_progress: 32, processing: 32,
+  refund_done: 40, refund_completed: 40, refunded: 40, completed: 40,
+  return_completed: 41,
+  // RTO branch (treated as terminal-ish)
+  rto_initiated: 35, rto_dp_assigned: 36, rto_bag_in_transit: 37,
+  rto_bag_delivered: 38, rto_bag_accepted: 39,
+};
+
+export function shouldAdvanceFyndStatus(
+  current: string | null | undefined,
+  incoming: string | null | undefined,
+): boolean {
+  if (!incoming) return false;
+  if (!current) return true;
+  const cur = current.toLowerCase().replace(/\s+/g, "_");
+  const inc = incoming.toLowerCase().replace(/\s+/g, "_");
+  if (cur === inc) return true; // idempotent re-write is fine
+  const curRank = FYND_STATUS_PRECEDENCE[cur];
+  const incRank = FYND_STATUS_PRECEDENCE[inc];
+  // If either side is unknown, don't block — we'd rather record an unknown
+  // status than silently drop it.
+  if (curRank === undefined || incRank === undefined) return true;
+  return incRank >= curRank;
+}
+
 /** Known Fynd shipment/return journey statuses that should be tracked (not "ignored") */
 const FYND_JOURNEY_STATUSES = new Set([
   // Forward journey
@@ -1442,7 +1492,10 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
   // fall back to refundStatus for refund-specific webhooks
   const journeyUpdate: Record<string, string> = {};
   const effectiveStatus = isKnownJourneyStatus ? statusLower : (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
-  if (effectiveStatus) {
+  if (effectiveStatus && shouldAdvanceFyndStatus(returnCase.fyndCurrentStatus, effectiveStatus)) {
+    // Forward-only: don't downgrade. Out-of-order webhooks (e.g. an old
+    // bag_picked arriving after return_completed) used to revert the visible
+    // status — P1 finding from QA audit.
     journeyUpdate.fyndCurrentStatus = effectiveStatus;
   }
 
@@ -1471,18 +1524,28 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       await prisma.returnCase.update({ where: { id: returnCase.id }, data: journeyUpdate });
     } catch { /* non-fatal */ }
 
-    // Multi-shipment: propagate fyndCurrentStatus to sibling ReturnCases with the same fyndShipmentId
-    // This ensures all return cases for the same shipment stay in sync
+    // Multi-shipment: propagate fyndCurrentStatus to sibling ReturnCases with the same
+    // fyndShipmentId. Use the same precedence rule so siblings already further along
+    // (e.g. they observed `return_completed` earlier) are NOT downgraded.
     if (returnCase.fyndShipmentId && journeyUpdate.fyndCurrentStatus) {
       try {
-        await prisma.returnCase.updateMany({
+        const siblings = await prisma.returnCase.findMany({
           where: {
             fyndShipmentId: returnCase.fyndShipmentId,
             id: { not: returnCase.id },
             status: { notIn: ["rejected", "cancelled"] },
           },
-          data: { fyndCurrentStatus: journeyUpdate.fyndCurrentStatus },
+          select: { id: true, fyndCurrentStatus: true },
         });
+        const advanceIds = siblings
+          .filter((s) => shouldAdvanceFyndStatus(s.fyndCurrentStatus, journeyUpdate.fyndCurrentStatus))
+          .map((s) => s.id);
+        if (advanceIds.length > 0) {
+          await prisma.returnCase.updateMany({
+            where: { id: { in: advanceIds } },
+            data: { fyndCurrentStatus: journeyUpdate.fyndCurrentStatus },
+          });
+        }
       } catch { /* non-fatal */ }
     }
   }

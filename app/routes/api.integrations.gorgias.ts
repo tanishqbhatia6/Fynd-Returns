@@ -7,7 +7,9 @@
  * GET /api/integrations/gorgias?shop=<domain>&email=<customer_email>&order=<order_name>
  */
 import type { LoaderFunctionArgs } from "react-router";
+import crypto from "node:crypto";
 import prisma from "../db.server";
+import { decryptIfEncrypted } from "../lib/encryption.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -34,12 +36,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  // Validate API key if configured
-  if (shop.settings.gorgiasApiKey && apiKey !== shop.settings.gorgiasApiKey) {
-    return new Response(renderCard("Unauthorized", "Invalid API key.", []), {
-      status: 401,
-      headers: { "Content-Type": "text/html" },
-    });
+  // Validate API key if configured. Stored value is encrypted (post P0 rollout); the
+  // tolerant decrypt returns plaintext as-is for any pre-rollout rows. Comparison is
+  // timing-safe to avoid leaking the prefix via string-equality timing.
+  if (shop.settings.gorgiasApiKey) {
+    const storedPlain = decryptIfEncrypted(shop.settings.gorgiasApiKey) ?? "";
+    let ok = false;
+    try {
+      const a = Buffer.from(apiKey, "utf8");
+      const b = Buffer.from(storedPlain, "utf8");
+      ok = a.length === b.length && crypto.timingSafeEqual(a, b);
+    } catch { ok = false; }
+    if (!ok) {
+      return new Response(renderCard("Unauthorized", "Invalid API key.", []), {
+        status: 401,
+        headers: { "Content-Type": "text/html" },
+      });
+    }
   }
 
   // Find returns by email or order

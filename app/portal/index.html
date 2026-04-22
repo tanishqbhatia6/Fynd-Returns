@@ -4926,6 +4926,10 @@
         createOrderData._shipmentReturnedQtyMap = data.shipmentReturnedQtyMap || {};
         createOrderData._portalExchangeEnabled = data.portalExchangeEnabled || false;
         createOrderData._photoRequired = data.photoRequired || false;
+        // Shop-bound CSRF token — required by /api/portal/create-return when CSRF
+        // enforcement is enabled server-side. Always send it if present so the soft
+        // rollout window can flip to mandatory without a portal redeploy.
+        createOrderData._portalCsrfToken = data.portalCsrfToken || null;
 
         // Update upload label based on photoRequired flag
         var uploadBadge = document.getElementById('uploadRequiredBadge');
@@ -5609,6 +5613,9 @@
             resolutionType: selectedResolutionType,
             exchangePreference: exchangePreferenceCombined,
             exchangeVariants: exchangeVariantSelections.length > 0 ? exchangeVariantSelections : undefined,
+            // CSRF token (issued by /api/portal/order, bound to this shop). Always
+            // send when present; server checks it when PORTAL_CSRF_REQUIRED=true.
+            portalCsrfToken: createOrderData._portalCsrfToken || undefined,
           })
         }, 30000);
         document.getElementById('create-step2').classList.remove('active');

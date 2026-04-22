@@ -5,6 +5,14 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
 import { testSmtpConnection } from "../lib/notification.server";
+import { encryptIfNeeded, decryptIfEncrypted, looksEncrypted } from "../lib/encryption.server";
+
+// Sentinel returned to the client in place of the actual SMTP password. The form
+// preserves this value when saving "as-is" (no change). Any other non-empty value is
+// treated as a new password and re-encrypted on write. The actual password value is
+// NEVER sent to the browser — previously it was, which exposed it in DevTools and
+// over-the-wire (P0 finding).
+const SMTP_PASS_PLACEHOLDER = "__UNCHANGED__";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -33,7 +41,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     smtpHost: s?.smtpHost ?? "",
     smtpPort: s?.smtpPort ?? 587,
     smtpUser: s?.smtpUser ?? "",
-    smtpPass: s?.smtpPass ?? "",
+    // Never send the real password to the client. If a password is configured we
+    // return a sentinel so the form can render "•••••••" and preserve the existing
+    // value on save. The user can overwrite by typing a new value.
+    smtpPass: s?.smtpPass ? SMTP_PASS_PLACEHOLDER : "",
     smtpFromEmail: s?.smtpFromEmail ?? "",
     smtpFromName: s?.smtpFromName ?? "",
     smtpSecure: s?.smtpSecure ?? false,
@@ -43,7 +54,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     emailTemplatesJson,
     whatsappEnabled: sWa?.whatsappEnabled ?? false,
     whatsappProvider: sWa?.whatsappProvider ?? "meta_cloud",
-    whatsappApiKey: sWa?.whatsappApiKey ?? "",
+    // Mask: never echo the real API key back to the browser. Same pattern as smtpPass.
+    whatsappApiKey: sWa?.whatsappApiKey ? SMTP_PASS_PLACEHOLDER : "",
     whatsappPhoneNumberId: sWa?.whatsappPhoneNumberId ?? "",
     whatsappFromNumber: sWa?.whatsappFromNumber ?? "",
     portalOtpEmailEnabled: sWa?.portalOtpEmailEnabled ?? false,
@@ -63,8 +75,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const host = String(fd.get("smtpHost") || "").trim();
     const port = parseInt(String(fd.get("smtpPort") || "587"), 10);
     const user = String(fd.get("smtpUser") || "").trim();
-    const pass = String(fd.get("smtpPass") || "").trim();
+    let pass = String(fd.get("smtpPass") || "").trim();
     const secure = fd.get("smtpSecure") === "on";
+
+    // If the form submitted the placeholder, use the stored (decrypted) password
+    // so the test runs against the real configured value. The plaintext only lives
+    // in memory for the duration of this request.
+    if (pass === SMTP_PASS_PLACEHOLDER) {
+      const stored = shop.settings?.smtpPass ?? null;
+      pass = decryptIfEncrypted(stored) ?? "";
+    }
 
     if (!host || !user || !pass) {
       return { testResult: { success: false, error: "Host, username, and password are required" } };
@@ -89,6 +109,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
+  // Resolve smtpPass: if the form submitted the placeholder, KEEP the existing
+  // (already-encrypted) value. Otherwise encrypt the new plaintext on the way in.
+  const submittedPass = String(fd.get("smtpPass") || "").trim();
+  const resolvedPass: string | null = submittedPass === ""
+    ? null
+    : submittedPass === SMTP_PASS_PLACEHOLDER
+      ? (shop.settings?.smtpPass ?? null) // keep existing (already encrypted)
+      : encryptIfNeeded(submittedPass);
+
   const data = {
     notificationNewReturn: fd.get("notificationNewReturn") === "on",
     notificationApproved: fd.get("notificationApproved") === "on",
@@ -97,7 +126,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     smtpHost: String(fd.get("smtpHost") || "").trim() || null,
     smtpPort: parseInt(String(fd.get("smtpPort") || "587"), 10),
     smtpUser: String(fd.get("smtpUser") || "").trim() || null,
-    smtpPass: String(fd.get("smtpPass") || "").trim() || null,
+    smtpPass: resolvedPass,
     smtpFromEmail: String(fd.get("smtpFromEmail") || "").trim() || null,
     smtpFromName: String(fd.get("smtpFromName") || "").trim() || null,
     smtpSecure: fd.get("smtpSecure") === "on",
@@ -105,7 +134,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     adminSoundEnabled: fd.get("adminSoundEnabled") === "on",
     whatsappEnabled: fd.get("whatsappEnabled") === "on",
     whatsappProvider: String(fd.get("whatsappProvider") || "meta_cloud").trim() || null,
-    whatsappApiKey: String(fd.get("whatsappApiKey") || "").trim() || null,
+    // Same write-only-then-encrypt strategy as smtpPass — see resolvedPass above.
+    whatsappApiKey: (() => {
+      const submitted = String(fd.get("whatsappApiKey") || "").trim();
+      if (submitted === "") return null;
+      if (submitted === SMTP_PASS_PLACEHOLDER) {
+        const sw = shop.settings as { whatsappApiKey?: string | null } | null;
+        return sw?.whatsappApiKey ?? null;
+      }
+      return encryptIfNeeded(submitted);
+    })(),
     whatsappPhoneNumberId: String(fd.get("whatsappPhoneNumberId") || "").trim() || null,
     whatsappFromNumber: String(fd.get("whatsappFromNumber") || "").trim() || null,
     portalOtpEmailEnabled: fd.get("portalOtpEmailEnabled") === "on",

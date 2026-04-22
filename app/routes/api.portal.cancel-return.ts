@@ -101,6 +101,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
     }
 
+    // Cross-shop replay defence: the JWT carries the shop it was issued for. Reject
+    // if a token from shop A is being used to act on shop B (P0 finding from QA audit).
+    if (payload.shopId && payload.shopId !== shopRecord.id) {
+      return withCors(Response.json({ error: "Token does not belong to this shop" }, { status: 403 }), request);
+    }
+
     // Check portal config: allowReturnCancellation
     const portalConfig = parsePortalConfig(shopRecord.settings?.portalConfigJson ?? null);
     if (!portalConfig.allowReturnCancellation) {
@@ -184,6 +190,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // ── Flow B: Cancellation request for approved returns ──
     if (statusLower === "approved") {
+      // Block cancellation if a refund has already been issued or is in flight.
+      // Previously this check was missing, so a customer could request cancellation
+      // after the refund had been processed — leaving the merchant to chase down
+      // an already-paid-out refund (P1 finding from QA audit).
+      const refundStatusLower = (returnCase.refundStatus ?? "").toLowerCase();
+      if (refundStatusLower === "refunded" || refundStatusLower === "in_progress") {
+        return withCors(
+          Response.json({
+            error: refundStatusLower === "refunded"
+              ? "This return has already been refunded and cannot be cancelled. Contact support if you need to reverse the refund."
+              : "A refund is currently being processed. Cancellation is not available — please contact support.",
+          }, { status: 409 }),
+          request,
+        );
+      }
       // Check no duplicate request
       if (returnCase.cancellationRequestedAt) {
         return withCors(

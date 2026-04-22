@@ -107,9 +107,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     hasStorefrontCreds: !!normalized?.storefront,
     policyJson: s?.policyJson ?? "{}",
     fyndEnvironments: FYND_ENVIRONMENTS,
-    // Gorgias integration
+    // Gorgias integration. Mask the API key: never echo the real value to the client
+    // (P0 — DB dump or admin XSS used to leak the key). The form uses a sentinel so
+    // the user can preserve the existing value without seeing it.
     gorgiasEnabled: s?.gorgiasEnabled ?? false,
-    gorgiasApiKey: s?.gorgiasApiKey ?? "",
+    gorgiasApiKey: s?.gorgiasApiKey ? "__UNCHANGED__" : "",
     gorgiasWidgetUrl: `${process.env.SHOPIFY_APP_URL || ""}/api/integrations/gorgias?shop=${session.shop}`,
   };
 };
@@ -225,6 +227,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         : (shop.settings?.fyndCredentials ?? null);
     const fyndApiType = merged.platform ? "platform" : null;
 
+    // Resolve Gorgias API key with the same write-only-then-encrypt pattern as SMTP.
+    // The form submits "__UNCHANGED__" when the user didn't touch the field; in that
+    // case we keep the existing (encrypted) value. New plaintext is encrypted on the
+    // way in via encryptIfNeeded (idempotent, safe if already encrypted).
+    const submittedGorgiasKey = (formData.get("gorgiasApiKey") as string | null)?.trim() ?? "";
+    const resolvedGorgiasApiKey: string | null = submittedGorgiasKey === ""
+      ? null
+      : submittedGorgiasKey === "__UNCHANGED__"
+        ? (shop.settings?.gorgiasApiKey ?? null)
+        : (await import("../lib/encryption.server")).encryptIfNeeded(submittedGorgiasKey);
+
     await prisma.shopSettings.upsert({
       where: { shopId: shop.id },
       create: {
@@ -238,7 +251,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndCredentials: credsToPersist,
         policyJson: (v.policyJson ?? policyJson) || null,
         gorgiasEnabled: formData.get("gorgiasEnabled") === "on",
-        gorgiasApiKey: (formData.get("gorgiasApiKey") as string || null)?.trim() || null,
+        gorgiasApiKey: resolvedGorgiasApiKey,
       },
       update: {
         fyndApiType: fyndApiType ?? undefined,
@@ -250,7 +263,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndCredentials: credsToPersist ?? undefined,
         policyJson: (v.policyJson ?? policyJson) || undefined,
         gorgiasEnabled: formData.get("gorgiasEnabled") === "on",
-        gorgiasApiKey: (formData.get("gorgiasApiKey") as string || null)?.trim() || null,
+        gorgiasApiKey: resolvedGorgiasApiKey,
       },
     });
 

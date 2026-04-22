@@ -304,6 +304,11 @@ model ReturnCase {
   @@index([shopId, resolutionType])
   @@index([shopId, status, createdAt])
   @@index([shopId, sourceChannel])
+  // Per-shop uniqueness on the customer-visible return number. Two concurrent
+  // creates can otherwise mint the same returnRequestNo (P1 finding from QA audit).
+  // Note: returnRequestNo is nullable; null values are not constrained by @@unique
+  // in PostgreSQL by default, which is the desired behaviour during creation.
+  @@unique([shopId, returnRequestNo])
 }
 
 model ReturnItem {
@@ -411,6 +416,12 @@ model LookupSession {
   createdAt        DateTime @default(now())
 
   @@index([shopId, lookupValueHash])
+  // For the periodic cleanup query (`WHERE expiresAt < NOW()`). Without it, a busy
+  // store with many OTP sessions causes a full table scan every cleanup pass.
+  @@index([expiresAt])
+  // For the account-level rate-limit query that aggregates failed attempts across
+  // all sessions for a given lookup value within the last hour.
+  @@index([shopId, lookupValueHash, createdAt])
 }
 
 model BlocklistEntry {
@@ -471,6 +482,33 @@ model WebhookSubscription {
   isActive   Boolean  @default(true)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+  failures   WebhookDeliveryFailure[]
 
   @@index([shopId])
+}
+
+/**
+ * Dead-letter table for outbound webhooks that exhausted all retries. Lets the
+ * merchant see *which* events failed (and why) and replay them, instead of
+ * silently dropping the delivery in logs (P1 finding from QA audit).
+ */
+model WebhookDeliveryFailure {
+  id              String              @id @default(cuid())
+  subscriptionId  String
+  subscription    WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  shopId          String
+  eventType       String
+  payloadJson     String              @db.Text
+  url             String
+  attemptCount    Int
+  lastError       String?             @db.Text
+  /** Idempotency key from the original payload (so a replay matches the same event). */
+  idempotencyKey  String?
+  createdAt       DateTime            @default(now())
+  /** Filled in when an admin/cron manually replays — null while still failed. */
+  replayedAt      DateTime?
+
+  @@index([shopId, createdAt])
+  @@index([subscriptionId])
+  @@index([replayedAt])
 }

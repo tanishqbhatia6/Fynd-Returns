@@ -2017,6 +2017,20 @@ export async function declineShopifyReturn(
  * Skips gracefully if no shopifyReturnId exists or if the order is manual.
  * Never throws — all errors are logged and optionally recorded as events.
  */
+/**
+ * Result shape for `closeShopifyReturnBestEffort`. The function name still says
+ * "best effort" — callers may ignore the result entirely. The cancellation
+ * handler uses it to refuse to mark the local return cancelled if Shopify's side
+ * couldn't be closed (P1 finding — previously this left orphan open returns).
+ */
+export type CloseShopifyReturnBestEffortResult = {
+  ok: boolean;
+  /** True when there was nothing to do (no shopifyReturnId, manual return). */
+  skipped?: boolean;
+  alreadyClosed?: boolean;
+  error?: string;
+};
+
 export async function closeShopifyReturnBestEffort(
   admin: AdminGraphQL,
   returnCase: { id: string; shopifyReturnId?: string | null; shopifyOrderId?: string | null },
@@ -2025,7 +2039,7 @@ export async function closeShopifyReturnBestEffort(
     declineReason?: string;
     logEvent?: (event: { eventType: string; payloadJson: string }) => Promise<void>;
   },
-): Promise<void> {
+): Promise<CloseShopifyReturnBestEffortResult> {
   try {
     const { shopifyReturnId, shopifyOrderId } = returnCase;
 
@@ -2035,7 +2049,7 @@ export async function closeShopifyReturnBestEffort(
         eventType: "shopify_return_close_skipped",
         payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
       }).catch(() => {});
-      return;
+      return { ok: true, skipped: true };
     }
 
     if (shopifyOrderId?.startsWith("manual:")) {
@@ -2044,7 +2058,7 @@ export async function closeShopifyReturnBestEffort(
         eventType: "shopify_return_close_skipped",
         payloadJson: JSON.stringify({ reason: "manual_return", returnCaseId: returnCase.id }),
       }).catch(() => {});
-      return;
+      return { ok: true, skipped: true };
     }
 
     let result: CloseShopifyReturnResult;
@@ -2068,8 +2082,16 @@ export async function closeShopifyReturnBestEffort(
         error: result.error,
       }),
     }).catch(() => {});
+
+    return {
+      ok: result.success === true,
+      alreadyClosed: result.alreadyClosed ?? false,
+      error: result.error,
+    };
   } catch (err) {
-    refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "closeShopifyReturnBestEffort: unexpected error (non-fatal)");
+    const errMsg = err instanceof Error ? err.message : String(err);
+    refundLogger.warn({ error: errMsg }, "closeShopifyReturnBestEffort: unexpected error (non-fatal)");
+    return { ok: false, error: errMsg };
   }
 }
 

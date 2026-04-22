@@ -8,7 +8,7 @@
  */
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { authenticate } from "../shopify.server";
+import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 interface PortalProduct {
   id: string;
@@ -32,6 +32,12 @@ interface PortalVariant {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  // Rate limit FIRST — was previously absent, allowing catalog enumeration. The
+  // exchange variant picker on the customer portal calls this 1-2 times per item;
+  // 60/min is plenty for legitimate flows.
+  const rl = checkRateLimit(request, "portal.products");
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
+
   const url = new URL(request.url);
   const shopDomain = url.searchParams.get("shop") || "";
   const productId = url.searchParams.get("productId") || "";

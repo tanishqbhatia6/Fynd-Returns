@@ -19,8 +19,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Build filters
   const where: Record<string, unknown> = { shopId: auth.shopId };
 
+  // Whitelist enum to prevent operator-style injection (`?status[gt]=foo`) and to
+  // reject invalid values up-front rather than silently returning empty results.
+  const VALID_STATUSES = new Set(["initiated", "pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled"]);
   const status = url.searchParams.get("status");
-  if (status) where.status = status;
+  if (status) {
+    if (!VALID_STATUSES.has(status)) {
+      return apiError(400, "BAD_REQUEST", `Invalid status. Must be one of: ${[...VALID_STATUSES].join(", ")}`);
+    }
+    where.status = status;
+  }
 
   const createdAfter = url.searchParams.get("createdAfter");
   if (createdAfter) {

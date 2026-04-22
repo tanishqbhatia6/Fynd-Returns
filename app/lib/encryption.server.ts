@@ -4,6 +4,22 @@ const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const KEY_LENGTH_HEX = 64; // 32 bytes = 64 hex chars
 
+// Encrypted values use this format: `<ivHex>:<tagHex>:<dataHex>`. We treat any string
+// matching this pattern (3 hex segments separated by colons) as already-encrypted so
+// idempotent re-encrypts don't double-encrypt and re-decrypts of plaintext don't crash.
+const ENCRYPTED_FORMAT_RE = /^[0-9a-fA-F]+:[0-9a-fA-F]+:[0-9a-fA-F]+$/;
+
+export function looksEncrypted(value: string | null | undefined): boolean {
+  if (!value) return false;
+  return ENCRYPTED_FORMAT_RE.test(value);
+}
+
+/** Boot-time validation. Call from instrumentation/root so misconfig fails fast. */
+export function assertEncryptionConfigured(): void {
+  // Throws if misconfigured. Uses getKey() which raises the descriptive error.
+  getKey();
+}
+
 /**
  * Validates ENCRYPTION_KEY: must be exactly 64 hex characters (32 bytes).
  * In production, key is required. In development, a dev key is used only when
@@ -57,4 +73,29 @@ export function decrypt(encrypted: string): string {
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(tag);
   return decipher.update(data, "hex", "utf8") + decipher.final("utf8");
+}
+
+/**
+ * Tolerant variant: decrypts if the value looks encrypted, otherwise returns the
+ * value as-is. Used during the SMTP-creds rollout while pre-existing plaintext rows
+ * are migrated lazily on next save. Once the backfill completes, callers can switch
+ * back to plain `decrypt()`.
+ */
+export function decryptIfEncrypted(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (!looksEncrypted(value)) return value;
+  try {
+    return decrypt(value);
+  } catch {
+    // Decryption failed (likely a value that incidentally matches the format but
+    // isn't actually encrypted, or a key-rotation scenario). Treat as opaque.
+    return null;
+  }
+}
+
+/** Encrypt only if not already encrypted — safe to call repeatedly. */
+export function encryptIfNeeded(value: string | null | undefined): string | null {
+  if (!value) return null;
+  if (looksEncrypted(value)) return value;
+  return encrypt(value);
 }

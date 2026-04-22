@@ -83,13 +83,17 @@ async function getSmtpConfig(shopDomain: string): Promise<{
       i18n,
     };
   }
+  // Decrypt at runtime — DB stores ciphertext (AES-256-GCM). decryptIfEncrypted is
+  // tolerant of pre-encryption-rollout plaintext rows (returns them as-is) so the
+  // cutover doesn't require a backfill before this code is safe to ship.
+  const { decryptIfEncrypted } = await import("./encryption.server");
   return {
     smtp: {
       host: s.smtpHost,
       port: s.smtpPort ?? 587,
       secure: s.smtpSecure ?? false,
       user: s.smtpUser,
-      pass: s.smtpPass,
+      pass: decryptIfEncrypted(s.smtpPass) ?? "",
       fromEmail: s.smtpFromEmail || s.smtpUser,
       fromName: s.smtpFromName || "Fynd Returns",
     },
@@ -606,9 +610,13 @@ export async function getWhatsAppConfig(shopDomain: string): Promise<WhatsAppCon
     whatsappFromNumber?: string | null;
   }) | null;
   if (!s?.whatsappEnabled || !s?.whatsappApiKey || !s?.whatsappProvider) return null;
+  // Decrypt at runtime — same rationale as smtpPass above.
+  const { decryptIfEncrypted } = await import("./encryption.server");
+  const apiKey = decryptIfEncrypted(s.whatsappApiKey);
+  if (!apiKey) return null;
   return {
     provider: s.whatsappProvider,
-    apiKey: s.whatsappApiKey,
+    apiKey,
     phoneNumberId: s.whatsappPhoneNumberId ?? null,
     fromNumber: s.whatsappFromNumber ?? null,
   };

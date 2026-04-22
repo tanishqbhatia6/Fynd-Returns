@@ -35,6 +35,9 @@ const DEFAULT_LIMITS: Record<string, RateLimitConfig> = {
   "portal.otp.send": { maxRequests: 5, windowMs: 5 * 60_000 },
   "portal.otp.verify": { maxRequests: 10 },
   "portal.returns": { maxRequests: 30 },
+  // Catalog enumeration limit — was unlimited (P0). Used by the exchange variant
+  // picker; legitimate flows hit this 1-2 times per item, so 60/min is generous.
+  "portal.products": { maxRequests: 60 },
   // External API endpoints
   "external.returns.list": { maxRequests: 120 },
   "external.returns.detail": { maxRequests: 120 },

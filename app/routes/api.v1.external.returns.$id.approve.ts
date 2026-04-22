@@ -34,8 +34,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       return apiError(400, "INVALID_STATE", `Return is already ${returnCase.status}`);
     }
 
+    const VALID_RESOLUTION_TYPES = new Set(["refund", "exchange", "store_credit", "replacement"]);
     const updateData: Record<string, unknown> = { status: "approved" };
-    if (body.resolutionType) updateData.resolutionType = body.resolutionType;
+    if (body.resolutionType) {
+      if (!VALID_RESOLUTION_TYPES.has(body.resolutionType)) {
+        return apiError(400, "BAD_REQUEST", `Invalid resolutionType. Must be one of: ${[...VALID_RESOLUTION_TYPES].join(", ")}`);
+      }
+      updateData.resolutionType = body.resolutionType;
+    }
     if (body.note) updateData.adminNotes = [returnCase.adminNotes, body.note].filter(Boolean).join("\n");
 
     const updated = await prisma.returnCase.update({

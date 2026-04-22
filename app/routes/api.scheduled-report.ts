@@ -179,11 +179,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         continue;
       }
 
+      // SMTP password is stored encrypted (AES-256-GCM). decryptIfEncrypted is tolerant
+      // of pre-rollout plaintext rows.
+      const { decryptIfEncrypted } = await import("../lib/encryption.server");
+      const smtpPassPlain = decryptIfEncrypted(s.smtpPass) ?? "";
       const transporter = nodemailer.createTransport({
         host: s.smtpHost,
         port: s.smtpPort ?? 587,
         secure: s.smtpSecure ?? false,
-        auth: { user: s.smtpUser, pass: s.smtpPass ?? "" },
+        auth: { user: s.smtpUser, pass: smtpPassPlain },
       });
 
       await transporter.sendMail({

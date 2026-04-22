@@ -8,6 +8,7 @@ import { checkReturnEligibility } from "../lib/return-rules.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { createFyndClientOrError } from "../lib/fynd.server";
+import { createPortalCsrfToken } from "../lib/portal-auth.server";
 
 /**
  * Fynd statuses that always allow return initiation (regardless of merchant gate settings).
@@ -1077,6 +1078,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shipments: fyndShipmentsForReturn,
       shipmentReturnedQtyMap,
       fyndShipmentStatus,
+      // CSRF token bound to this shop. Required by /api/portal/create-return and
+      // /api/portal/cancel-return. Defends against cross-shop POST forgery via the
+      // *.myshopify.com CORS regex (P0 finding from QA audit).
+      portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
     }), request);
   } catch (err) {
     console.error("Portal order fetch:", err);

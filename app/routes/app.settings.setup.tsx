@@ -100,8 +100,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { logs, log } = createFyndLogger();
+  // Authenticate FIRST, outside the try/catch — see equivalent comment in
+  // app.settings.integrations.tsx for the full story. Short version: auth
+  // failures throw a Response, and a try/catch around it would convert the
+  // redirect into "{error: '[object Response]'}", causing React Router to
+  // revalidate and the loader to redirect to the install page anyway.
+  const { session } = await authenticate.admin(request);
   try {
-    const { session } = await authenticate.admin(request);
     const formData = await request.formData();
     const intent = formData.get("intent") as string | null;
 
@@ -239,6 +244,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return { success: false, error: "Unknown action", debugLogs: logs };
   } catch (err) {
+    // Defence in depth: any nested Response throw must propagate so the
+    // boundary can render the App Bridge top-level redirect instead of us
+    // serializing it to JSON.
+    if (err instanceof Response) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     log("action", "Error", msg);
     return { success: false, error: msg, testResult: false, webhookTestResult: false, debugLogs: logs };

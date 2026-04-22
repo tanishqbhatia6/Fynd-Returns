@@ -127,8 +127,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { logs, log } = createFyndLogger();
+  // Authenticate FIRST, outside the try/catch.
+  //
+  // CRITICAL: authenticate.admin(request) signals an auth failure by THROWING
+  // a Response (e.g. a 302 to /auth/login). React Router's boundary
+  // recognises that thrown Response and lets App Bridge perform a top-level
+  // redirect. If we wrap it in try/catch, the catch interprets the Response
+  // as a regular error, returns it as JSON ({error: "[object Response]"}),
+  // and React Router then revalidates the page — the loader hits the same
+  // expired session, throws another Response, and the iframe ends up on the
+  // install page. That was the "Generate Webhook Secret takes me to install"
+  // bug. Letting the Response propagate from here keeps the boundary in
+  // control of the redirect (App Bridge top-level → silent token refresh).
+  const { session } = await authenticate.admin(request);
   try {
-    const { session } = await authenticate.admin(request);
     const formData = await request.formData();
     const intent = formData.get("intent") as string | null;
 
@@ -364,6 +376,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     return { success: true, tokenUpdated: Object.keys(merged).length > 0, debugLogs: logs };
   } catch (err) {
+    // Defence in depth: if any nested code throws a Response (e.g. a Shopify
+    // Admin API call that triggered a re-auth, or another `authenticate.*`
+    // helper), let it propagate so React Router / the App Bridge boundary
+    // can handle the redirect. Otherwise we'd swallow it and end up on the
+    // install page via revalidation.
+    if (err instanceof Response) throw err;
     const msg = err instanceof Error ? err.message : String(err);
     log("action", "Error", msg);
     return { success: false, error: msg, testResult: false, debugLogs: logs };

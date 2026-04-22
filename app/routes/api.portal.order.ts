@@ -28,6 +28,30 @@ const FYND_DELIVERED_STATUSES = new Set([
   "credit_note_generated", "refund_initiated", "refund_done", "refund_completed",
 ]);
 
+/**
+ * Decide whether the portal should hard-block the customer with the "Return already
+ * submitted" screen, vs. let them through to step 2 with already-returned items disabled.
+ *
+ * EXPORTED FOR TESTING. Returns true only when EVERY line item on the order has been
+ * fully returned (returned qty ≥ ordered qty). When some items still have remaining
+ * quantity, the customer should be allowed to create a return for those.
+ *
+ * Regression: previously the portal blocked any new return as long as any non-terminal
+ * return existed for the order, preventing customers from returning a 2nd article on
+ * a multi-item order.
+ */
+export function shouldBlockOrderForExistingReturn(
+  lineItems: Array<{ id: string; quantity?: number }>,
+  returnedQtyMap: Record<string, number>,
+): boolean {
+  if (!Array.isArray(lineItems) || lineItems.length === 0) return false;
+  return lineItems.every((li) => {
+    const returned = returnedQtyMap[li.id] ?? 0;
+    const ordered = li.quantity ?? 1;
+    return returned >= ordered;
+  });
+}
+
 /** Type for per-shipment data returned to the portal */
 type FyndShipmentForReturn = {
   shipmentId: string;
@@ -1022,10 +1046,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } catch { /* non-fatal */ }
     }
 
+    // ── Block-redirect gate: only show the "Return already submitted" screen when
+    // EVERY line item on this order is already covered by an existing non-terminal return.
+    // See shouldBlockOrderForExistingReturn() above for full rationale.
+    const allItemsFullyReturned = shouldBlockOrderForExistingReturn(
+      order.lineItems ?? [],
+      returnedQtyMap,
+    );
+    const activeReturnsForBlock = allItemsFullyReturned ? activeReturns : [];
+
     return withCors(Response.json({
       order,
       existingReturns: formattedReturns,
-      activeReturns,
+      activeReturns: activeReturnsForBlock,
+      // Always expose previousReturns so the create flow can render an informational panel
+      // above the item picker (separate from the hard-block "activeReturns" path).
+      previousReturns: activeReturns,
       returnEligibility,
       itemEligibility,
       returnDeadline,

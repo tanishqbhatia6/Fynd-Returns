@@ -28,6 +28,32 @@ const REFUND_IN_PROGRESS = [
 /** Fynd refund statuses that indicate refund is complete */
 const REFUND_COMPLETE = ["refund_done", "refunded", "REFUNDED", "completed", "COMPLETED"];
 
+/**
+ * Classify a Fynd webhook status string into refund lifecycle buckets.
+ *
+ * EXPORTED FOR TESTING. Logistics events (`return_initiated`, `return_dp_assigned`,
+ * `rto_initiated`, ...) must NOT be classified as refund events — the previous loose
+ * regex matched any string containing "initiated" / "pending" / "processing", which
+ * caused the timeline to flip to "Refund Processing" the moment Fynd assigned a DP.
+ */
+export function classifyFyndRefundStatus(refundStatus: string | null | undefined): {
+  isInProgress: boolean;
+  isComplete: boolean;
+} {
+  const raw = refundStatus ?? "";
+  const statusLower = raw.toLowerCase().replace(/\s+/g, "_");
+  const REFUND_IN_PROGRESS_RE = /^refund[_ ]?(initiated|pending|processing|in[_ ]?progress|under[_ ]?process)$/i;
+  const isInProgress =
+    REFUND_IN_PROGRESS.some((s) => statusLower === s.toLowerCase()) ||
+    REFUND_IN_PROGRESS_RE.test(raw) ||
+    REFUND_IN_PROGRESS_RE.test(statusLower);
+  const isComplete =
+    REFUND_COMPLETE.some((s) => statusLower === s.toLowerCase()) ||
+    /^refund[_ ]?(done|completed)$/i.test(raw) ||
+    /^refunded$/i.test(raw);
+  return { isInProgress, isComplete };
+}
+
 /** Fynd statuses that trigger auto-refund when autoRefundEnabled is on */
 const AUTO_REFUND_TRIGGERS = ["credit_note_generated", "credit_note"];
 
@@ -920,12 +946,10 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     }
   }
 
-  // Map Fynd status to our action
+  // Map Fynd status to our action — see classifyFyndRefundStatus() above for the full
+  // rationale. Only true refund-lifecycle tokens may flip refundStatus to "in_progress".
   const statusLower = (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
-  const isInProgress =
-    REFUND_IN_PROGRESS.some((s) => statusLower === s.toLowerCase()) ||
-    /under.?process|in.?progress|pending|initiated|processing/i.test(refundStatus ?? "");
-  const isComplete = REFUND_COMPLETE.some((s) => statusLower === s.toLowerCase()) || /refund.?done|refunded/i.test(refundStatus ?? "");
+  const { isInProgress, isComplete } = classifyFyndRefundStatus(refundStatus);
 
   if (isInProgress) {
     const alreadyInProgress = returnCase.refundStatus === "in_progress" || returnCase.refundStatus === "refunded";

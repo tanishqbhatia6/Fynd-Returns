@@ -146,6 +146,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const exchangePreference = resolutionType === "exchange"
       ? (body.exchangePreference as string | undefined)?.trim().slice(0, 500) || null
       : null;
+    // Structured variant selections from the portal exchange picker. We accept it as a
+    // sidecar payload (sanitised into the existing exchangePreference text) so we don't
+    // need a schema migration. Each entry: { lineItemId, productId, variantId, variantTitle }
+    const rawExchangeVariants = body.exchangeVariants as
+      | Array<{ lineItemId?: string; productId?: string; variantId?: string; variantTitle?: string }>
+      | undefined;
+    const exchangeVariantSelections = resolutionType === "exchange" && Array.isArray(rawExchangeVariants)
+      ? rawExchangeVariants
+          .slice(0, 20)
+          .filter((v) => typeof v?.variantId === "string" && v.variantId.trim().length > 0)
+          .map((v) => ({
+            lineItemId: String(v.lineItemId ?? "").slice(0, 200),
+            productId: String(v.productId ?? "").slice(0, 200),
+            variantId: String(v.variantId).slice(0, 200),
+            variantTitle: typeof v.variantTitle === "string" ? v.variantTitle.slice(0, 200) : "",
+          }))
+      : [];
 
     if (!shop || !shopifyOrderName) {
       return withCors(
@@ -957,7 +974,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             currency: currencyCode,
             status,
             resolutionType,
-            exchangePreference: exchangePreference || null,
+            // Combine the structured variant picker selections (if any) with the free-text
+            // exchange preference into a single human-readable string. The structured payload
+            // is also persisted via a return event below for downstream consumers.
+            exchangePreference: (() => {
+              const structured = exchangeVariantSelections
+                .map((v) => v.variantTitle || v.variantId)
+                .filter(Boolean)
+                .join(", ");
+              const parts = [structured, exchangePreference].filter((s) => s && String(s).trim().length > 0);
+              const joined = parts.join(" — ").trim();
+              return joined ? joined.slice(0, 1000) : null;
+            })(),
             createdByChannel: (body.createdByChannel as string) ?? "portal",
             sourceChannel: capturedSourceChannel,
             createdByStaff: (body.createdByStaff as string) ?? null,
@@ -1039,6 +1067,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               customerName: customerName || null,
               itemCount: itemsToCreate.length,
               manual: manualMode,
+              resolutionType,
+              ...(exchangeVariantSelections.length > 0 ? { exchangeVariants: exchangeVariantSelections } : {}),
               ...(qualifiesForGreenReturn ? { greenReturn: true } : {}),
             }),
           },

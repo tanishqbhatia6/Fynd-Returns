@@ -2033,6 +2033,9 @@
             <p id="createOrderName" style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;"></p>
           </div>
         </div>
+        <!-- Non-blocking notice listing previously-submitted returns for this order, when
+             remaining items are still returnable. Hidden when there are no prior returns. -->
+        <div id="previousReturnsBanner" style="display:none;margin-bottom:14px;padding:12px 14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;font-size:0.8125rem;color:#1E40AF;line-height:1.5;"></div>
         <div class="form-group">
           <label class="form-label">Select the items you'd like to return</label>
           <div id="createItemsList"></div>
@@ -2177,8 +2180,15 @@
             </div>
           </label>
           <div id="exchangePreferenceSection" style="display:none;margin-top:10px;">
-            <label for="exchangePreferenceInput" style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:4px;">Describe what you'd like (size, colour, variant)</label>
-            <textarea id="exchangePreferenceInput" class="form-input" rows="2" maxlength="500" placeholder="e.g. Size M in Red, or same item in Blue" style="width:100%;resize:vertical;font-size:0.875rem;"></textarea>
+            <!-- Per-item variant picker (preferred). Populated from /api/portal/products
+                 once variants are loaded for the selected item's product. -->
+            <div id="exchangeVariantPicker" style="display:none;"></div>
+            <!-- Free-text fallback: shown when variants can't be loaded (e.g. Fynd-synthetic
+                 line items without a Shopify productId, or when the API call fails). -->
+            <div id="exchangePreferenceFallback">
+              <label for="exchangePreferenceInput" style="font-size:0.75rem;font-weight:600;color:var(--portal-text-muted);display:block;margin-bottom:4px;">Describe what you'd like (size, colour, variant)</label>
+              <textarea id="exchangePreferenceInput" class="form-input" rows="2" maxlength="500" placeholder="e.g. Size M in Red, or same item in Blue" style="width:100%;resize:vertical;font-size:0.875rem;"></textarea>
+            </div>
           </div>
         </div>
         <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
@@ -2743,12 +2753,20 @@
      * Enterprise return status correlation engine.
      * Priority: Refund > Fynd Journey Latest > Shopify App Status
      * Returns { label, cls, step (1-6), description }
+     *
+     * `resolutionType` ("refund" | "exchange") flips the final-step labels and prevents
+     * the timeline from prematurely lighting up the last tick (step 6) for in-progress
+     * states — the previous code returned step:6 for "Refund Processing" which then
+     * marked every step (including the unfinished final one) as done.
      */
-    function computeUnifiedReturnState(appStatus, refundStatus, fyndStatus, returnJourney) {
+    function computeUnifiedReturnState(appStatus, refundStatus, fyndStatus, returnJourney, resolutionType) {
       var s = (appStatus || '').toLowerCase();
       var r = (refundStatus || '').toLowerCase();
       var f = (fyndStatus || '').toLowerCase();
       var journey = returnJourney || [];
+      var isExchange = (resolutionType || '').toLowerCase() === 'exchange';
+      var finalDoneLabel = isExchange ? 'Exchange Completed' : t('portal.status.refundCompleted');
+      var finalProcessingLabel = isExchange ? 'Exchange Processing' : t('portal.status.refundProcessing');
 
       var journeyHas = function (keyword) {
         for (var i = 0; i < journey.length; i++) {
@@ -2765,18 +2783,23 @@
 
       // 1. Refund state is the final arbiter
       if (r === 'refunded' || s === 'completed' && r === 'refunded') {
-        return { label: t('portal.status.refundCompleted'), cls: 'ok', step: 6, description: t('portal.status.refundCompletedDesc') };
+        return { label: finalDoneLabel, cls: 'ok', step: 6, description: isExchange ? 'Your exchange has been processed.' : t('portal.status.refundCompletedDesc') };
       }
 
       if (journeyHas('credit_note') || f.includes('credit_note')) {
         if (r === 'in_progress') {
-          return { label: t('portal.status.refundProcessing'), cls: 'processing', step: 6, description: t('portal.statusDesc.refundProcessingCreditNote') };
+          return { label: finalProcessingLabel, cls: 'processing', step: 5, description: t('portal.statusDesc.refundProcessingCreditNote') };
         }
-        return { label: t('portal.status.refundProcessing'), cls: 'processing', step: 6, description: t('portal.statusDesc.refundProcessingAwaiting') };
+        return { label: finalProcessingLabel, cls: 'processing', step: 5, description: t('portal.statusDesc.refundProcessingAwaiting') };
       }
 
-      if (f.includes('refund') || r === 'in_progress') {
-        return { label: t('portal.status.refundProcessing'), cls: 'processing', step: 6, description: t('portal.statusDesc.refundProcessing') };
+      // Use precise refund-token detection — `f.includes('refund')` matched any string
+      // containing "refund" (including future logistics tokens that aren't true refund
+      // states). The webhook also no longer auto-flips refundStatus to "in_progress"
+      // for non-refund events.
+      var isRefundFyndStatus = /(^|_)refund(_|$)/.test(f);
+      if (isRefundFyndStatus || r === 'in_progress') {
+        return { label: finalProcessingLabel, cls: 'processing', step: 5, description: isExchange ? 'Your exchange is being processed.' : t('portal.statusDesc.refundProcessing') };
       }
 
       if (latestJourneyStatus.includes('return_accepted') || journeyHas('return_accepted') || f.includes('return_accepted')) {
@@ -2889,13 +2912,16 @@
         refund_done: 5, refunded: 5
       };
 
+      // Switch the final-step label to "Exchanged" for exchange resolutions, so the
+      // tracker matches what the customer actually requested (refund vs. exchange).
+      var isExchangeFlow = !!(returnData && (returnData.resolutionType || '').toLowerCase() === 'exchange');
       var steps = [
         { num: 1, label: t('portal.progress.submitted'), time: null },
         { num: 2, label: t('portal.progress.approved'), time: null },
         { num: 3, label: t('portal.progress.pickedUp'), time: null },
         { num: 4, label: t('portal.progress.inTransit'), time: null },
         { num: 5, label: t('portal.progress.received'), time: null },
-        { num: 6, label: t('portal.progress.refunded'), time: null }
+        { num: 6, label: isExchangeFlow ? 'Exchanged' : t('portal.progress.refunded'), time: null }
       ];
 
       if (returnData && returnData.createdAt) {
@@ -3352,7 +3378,7 @@
           var fyndSt = (ti.fyndStatus || '').toLowerCase();
           var retRefundSt = (ret.refundStatus || '').toLowerCase();
           var retJourney = ret.returnJourney || [];
-          var unified = computeUnifiedReturnState(retStatus, retRefundSt, fyndSt, retJourney);
+          var unified = computeUnifiedReturnState(retStatus, retRefundSt, fyndSt, retJourney, ret.resolutionType);
           if (!bestReturn || (unified && unified.step > bestReturn.step)) {
             bestReturn = unified;
           }
@@ -3637,7 +3663,7 @@
           var fyndSt = (ti.fyndStatus || '').toLowerCase();
           var retRefundSt = (ret.refundStatus || '').toLowerCase();
           var retJourney = ret.returnJourney || [];
-          var unified = computeUnifiedReturnState(retStatus, retRefundSt, fyndSt, retJourney);
+          var unified = computeUnifiedReturnState(retStatus, retRefundSt, fyndSt, retJourney, ret.resolutionType);
           var retDisplayId = ret.returnRequestNo || ret.fyndReturnNo || ret.id || '';
 
           html += '<div class="oc-return-block">';
@@ -3740,7 +3766,7 @@
       var returnJourney = Array.isArray(x.returnJourney) ? x.returnJourney : [];
       var refundSt = (x.refundStatus || '').toLowerCase();
 
-      var unified = computeUnifiedReturnState(status, refundSt, fyndSt, returnJourney);
+      var unified = computeUnifiedReturnState(status, refundSt, fyndSt, returnJourney, x.resolutionType);
       var displayId = x.returnRequestNo || x.fyndReturnNo || orderName;
 
       var html = '<div class="order-card-v2">';
@@ -4654,8 +4680,11 @@
       }
     });
 
-    let filesStandard = [];
-    let filesManual = [];
+    // `const` (not `let`) so any future reassignment is a syntax error rather than silently
+    // orphaning the closures captured by setupDragDrop / the remove-button click handler.
+    // Always mutate in place via `.length = 0` or `.splice(...)`.
+    const filesStandard = [];
+    const filesManual = [];
 
     function processFiles(files, targetArr, previewId, fileInputId, errorElId) {
       const MAX_IMG = 5 * 1024 * 1024; // 5MB
@@ -4819,6 +4848,9 @@
 
     /** Shared: given API response from /order, show existing returns / ineligible / or step2 with item selector. Returns true if step2 was shown. */
     function applyOrderDataAndShowStep2(data) {
+      // The server now sets `activeReturns` only when EVERY line item is fully returned.
+      // `previousReturns` always contains the full list of in-progress returns and is used
+      // for the non-blocking banner above the item picker.
       if (data.activeReturns && data.activeReturns.length > 0) {
         var container = document.getElementById('existingReturnsContainer');
         renderExistingReturns(data.activeReturns, container);
@@ -4827,6 +4859,23 @@
         document.getElementById('create-step2-manual').classList.remove('active');
         document.getElementById('create-step-existing').classList.add('active');
         return false;
+      }
+      var prevBanner = document.getElementById('previousReturnsBanner');
+      if (prevBanner) {
+        var prev = (data.previousReturns && data.previousReturns.length > 0) ? data.previousReturns : [];
+        if (prev.length > 0) {
+          var ids = prev.map(function (r) {
+            var id = escapeHtml(r.returnRequestId || r.id || '');
+            return id ? '<strong>' + id + '</strong>' : '';
+          }).filter(Boolean).join(', ');
+          prevBanner.innerHTML = 'You have ' + prev.length + ' return' + (prev.length > 1 ? 's' : '') +
+            ' in progress for this order' + (ids ? ' (' + ids + ')' : '') +
+            '. You can still create a return for the remaining items below.';
+          prevBanner.style.display = 'block';
+        } else {
+          prevBanner.style.display = 'none';
+          prevBanner.innerHTML = '';
+        }
       }
       if (!data.order) return false;
       if (data.returnEligibility && !data.returnEligibility.eligible) {
@@ -4954,9 +5003,19 @@
               document.getElementById('resolutionRefundLabel').style.background = isExchange ? '' : 'color-mix(in srgb, var(--portal-primary) 8%, transparent)';
               document.getElementById('resolutionExchangeLabel').style.borderColor = isExchange ? 'var(--portal-primary)' : 'transparent';
               document.getElementById('resolutionExchangeLabel').style.background = isExchange ? 'color-mix(in srgb, var(--portal-primary) 8%, transparent)' : '';
+              if (isExchange) {
+                loadExchangeVariantsForSelectedItems();
+              }
             };
           });
         }
+        // Reset any previously-loaded variant picker state
+        try {
+          var picker = document.getElementById('exchangeVariantPicker');
+          if (picker) { picker.innerHTML = ''; picker.style.display = 'none'; }
+          var fallback = document.getElementById('exchangePreferenceFallback');
+          if (fallback) fallback.style.display = 'block';
+        } catch (e) { /* ignore */ }
 
         if (!createOrderData.lineItems || createOrderData.lineItems.length === 0) {
           throw new Error(t('portal.error.noItemsToReturn'));
@@ -5079,6 +5138,11 @@
           if (e.target && (e.target.type === 'checkbox' || e.target.classList.contains('item-qty'))) {
             updateEstimatedRefund();
             checkAndShowOffer();
+            // Refresh variant picker when item selection changes during exchange flow
+            var ex = document.querySelector('input[name="resolutionType"]:checked');
+            if (ex && ex.value === 'exchange') {
+              loadExchangeVariantsForSelectedItems();
+            }
           }
         });
         list.addEventListener('input', function(e) {
@@ -5317,6 +5381,101 @@
       currentMatchedOffer = null;
     };
 
+    // ── Exchange variant picker ──
+    // For each selected line item that has a Shopify productId, fetch sibling variants from
+    // /api/portal/products and render a per-item <select>. Falls back to the free-text input
+    // when no productId is available (Fynd-synthetic items) or the API returns nothing.
+    var __variantCache = {};
+    async function loadExchangeVariantsForSelectedItems() {
+      var picker = document.getElementById('exchangeVariantPicker');
+      var fallback = document.getElementById('exchangePreferenceFallback');
+      if (!picker || !createOrderData) return;
+      picker.innerHTML = '';
+      var checked = document.querySelectorAll('#createItemsList input[type="checkbox"]:checked');
+      var selectedItems = [];
+      checked.forEach(function (cb) {
+        var li = (createOrderData.lineItems || []).find(function (l) { return l.id === cb.dataset.id; });
+        if (li) selectedItems.push(li);
+      });
+      var withProductId = selectedItems.filter(function (li) { return li.productId; });
+      if (selectedItems.length === 0 || withProductId.length === 0) {
+        // No usable Shopify productId — keep the free-text fallback visible
+        picker.style.display = 'none';
+        if (fallback) fallback.style.display = 'block';
+        return;
+      }
+      picker.style.display = 'block';
+      var shop = document.getElementById('shop').value.trim();
+      // Render a placeholder skeleton per item while fetching
+      picker.innerHTML = withProductId.map(function (li) {
+        return '<div class="exchange-variant-row" data-line-item-id="' + escapeHtml(li.id) + '" data-product-id="' + escapeHtml(li.productId) + '" style="margin-bottom:8px;padding:10px 12px;background:#fff;border:1px solid var(--portal-border);border-radius:8px;">' +
+          '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text);margin-bottom:6px;">' + escapeHtml(li.title || 'Item') + '</div>' +
+          '<div class="exchange-variant-status" style="font-size:0.75rem;color:var(--portal-text-muted);">Loading available variants...</div>' +
+          '</div>';
+      }).join('');
+      // Fetch variants for each unique productId in parallel
+      var uniqueProductIds = [];
+      withProductId.forEach(function (li) {
+        var pid = String(li.productId);
+        if (uniqueProductIds.indexOf(pid) === -1) uniqueProductIds.push(pid);
+      });
+      var anyVariantsLoaded = false;
+      await Promise.all(uniqueProductIds.map(async function (pid) {
+        if (__variantCache[pid]) return; // already cached
+        try {
+          var res = await fetch(API + '/products?shop=' + encodeURIComponent(shop) + '&productId=' + encodeURIComponent(pid));
+          if (!res.ok) { __variantCache[pid] = null; return; }
+          var data = await res.json();
+          var prod = (data.products && data.products[0]) || null;
+          __variantCache[pid] = prod && prod.variants && prod.variants.length > 0 ? prod : null;
+        } catch (e) { __variantCache[pid] = null; }
+      }));
+      // Now render the actual <select>s
+      withProductId.forEach(function (li) {
+        var row = picker.querySelector('.exchange-variant-row[data-line-item-id="' + li.id + '"]');
+        if (!row) return;
+        var prod = __variantCache[String(li.productId)];
+        var statusEl = row.querySelector('.exchange-variant-status');
+        if (!prod) {
+          if (statusEl) statusEl.textContent = 'No alternative variants available — describe your preference below.';
+          return;
+        }
+        anyVariantsLoaded = true;
+        var optsHtml = '<option value="">Choose a variant...</option>' + prod.variants.map(function (v) {
+          var label = v.title && v.title !== 'Default Title' ? v.title : (v.options || []).map(function (o) { return o.value; }).join(' / ');
+          if (!label) label = v.sku || 'Variant';
+          return '<option value="' + escapeHtml(v.id) + '" data-variant-title="' + escapeHtml(label) + '">' + escapeHtml(label) + '</option>';
+        }).join('');
+        row.innerHTML = '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text);margin-bottom:6px;">' + escapeHtml(li.title || 'Item') + '</div>' +
+          '<select class="form-select exchange-variant-select" data-line-item-id="' + escapeHtml(li.id) + '" data-product-id="' + escapeHtml(li.productId) + '" style="width:100%;font-size:0.875rem;">' + optsHtml + '</select>';
+      });
+      if (anyVariantsLoaded && fallback) {
+        // Hide the free-text fallback when a real picker is available
+        fallback.style.display = 'none';
+      } else if (fallback) {
+        fallback.style.display = 'block';
+      }
+    }
+    // Helper: serialise variant picker selections for submission
+    function collectExchangeVariantSelections() {
+      var result = [];
+      var picker = document.getElementById('exchangeVariantPicker');
+      if (!picker || picker.style.display === 'none') return result;
+      var selects = picker.querySelectorAll('.exchange-variant-select');
+      selects.forEach(function (sel) {
+        if (sel.value) {
+          var opt = sel.options[sel.selectedIndex];
+          result.push({
+            lineItemId: sel.dataset.lineItemId,
+            productId: sel.dataset.productId,
+            variantId: sel.value,
+            variantTitle: opt && opt.dataset ? (opt.dataset.variantTitle || opt.text) : opt && opt.text,
+          });
+        }
+      });
+      return result;
+    }
+
     // Copy offer discount code
     document.getElementById('btnCopyOfferCode').onclick = function() {
       var code = document.getElementById('offerDiscountCode').textContent;
@@ -5406,6 +5565,22 @@
           ? (document.querySelector('input[name="resolutionType"]:checked')?.value || 'refund')
           : 'refund');
         const exchangePrefRaw = document.getElementById('exchangePreferenceInput')?.value?.trim() || '';
+        // Variant picker selections take precedence over the free-text preference. When the
+        // picker has any selection the structured payload is sent; the free-text input is
+        // sent as a complementary "additional notes" string.
+        const exchangeVariantSelections = selectedResolutionType === 'exchange'
+          ? collectExchangeVariantSelections()
+          : [];
+        const exchangePreferenceCombined = (function () {
+          if (selectedResolutionType !== 'exchange') return undefined;
+          if (exchangeVariantSelections.length > 0) {
+            var summary = exchangeVariantSelections.map(function (s) {
+              return s.variantTitle || s.variantId;
+            }).join(', ');
+            return exchangePrefRaw ? summary + ' — ' + exchangePrefRaw : summary;
+          }
+          return exchangePrefRaw || undefined;
+        })();
         const data = await fetchJson(API + '/create-return', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5432,7 +5607,8 @@
             lineItemsWithPrice,
             customerMedia: customerMedia.length > 0 ? customerMedia : undefined,
             resolutionType: selectedResolutionType,
-            exchangePreference: selectedResolutionType === 'exchange' && exchangePrefRaw ? exchangePrefRaw : undefined,
+            exchangePreference: exchangePreferenceCombined,
+            exchangeVariants: exchangeVariantSelections.length > 0 ? exchangeVariantSelections : undefined,
           })
         }, 30000);
         document.getElementById('create-step2').classList.remove('active');
@@ -5525,10 +5701,23 @@
       currentMatchedOffer = null;
       lastCreatedReturnId = null;
       lastCreatedReturnRequestId = null;
-      filesStandard = [];
-      filesManual = [];
+      // CRITICAL: mutate in place — `setupDragDrop` captured these arrays by reference and
+      // any reassignment here would orphan the closures. The drop handler would keep pushing
+      // to the old (orphaned) array while the photo-required check reads the new (empty)
+      // one — producing the "two images visible but 'please upload at least one photo'"
+      // loop reported in QA.
+      filesStandard.length = 0;
+      filesManual.length = 0;
       document.getElementById('uploadPreviewStandard').innerHTML = '';
       document.getElementById('uploadPreviewManual').innerHTML = '';
+      // Also reset the underlying file inputs so the browser doesn't re-surface stale files
+      // (e.g. when the user clicks the same area without picking a new file).
+      try {
+        var stdInput = document.getElementById('mediaStandard');
+        if (stdInput) stdInput.value = '';
+        var manInput = document.getElementById('mediaManual');
+        if (manInput) manInput.value = '';
+      } catch (e) { /* ignore */ }
       document.getElementById('createOrderNumber').value = '';
       document.getElementById('createManualOrderNumber').value = '';
       document.getElementById('createManualEmail').value = '';

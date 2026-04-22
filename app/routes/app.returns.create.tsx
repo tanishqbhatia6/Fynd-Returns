@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher, Link } from "react-router";
+import { useLoaderData, useFetcher, useNavigate, Link } from "react-router";
 import { authenticate } from "../shopify.server";
 
 /* ─── Safe Extraction Helpers ─── */
@@ -405,6 +405,7 @@ export default function CreateReturn() {
   const { shopDomain } = useLoaderData<typeof loader>();
   const orderFetcher = useFetcher();
   const submitFetcher = useFetcher();
+  const navigate = useNavigate();
 
   // Step management
   const [step, setStep] = useState(1);
@@ -455,12 +456,17 @@ export default function CreateReturn() {
   const submitSuccess = submitFetcher.data?.success === true;
   const createdReturnCase = submitFetcher.data?.returnCase ?? null;
 
-  // Handle redirect on success
+  // Handle redirect on success.
+  //
+  // Use Remix's `navigate` (NOT `window.location.href`). A hard navigation drops the
+  // embedded App Bridge session token, which causes Shopify to bounce the user through
+  // the install flow — which is what was producing the "Install Fynd Returns" screen
+  // reported in QA after submitting a manual return.
   React.useEffect(() => {
     if (submitSuccess && createdReturnCase?.id) {
-      window.location.href = `/app/returns/${createdReturnCase.id}`;
+      navigate(`/app/returns/${createdReturnCase.id}`);
     }
-  }, [submitSuccess, createdReturnCase]);
+  }, [submitSuccess, createdReturnCase, navigate]);
 
   /* ── Step 1: search order ── */
   const handleOrderSearch = useCallback(() => {

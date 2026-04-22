@@ -1845,13 +1845,35 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
               userErrors?: Array<{ field?: string[]; message: string }>;
             };
           };
+          errors?: Array<{ message: string }>;
         };
+
+        // Top-level GraphQL errors (e.g. "Access denied for draftOrderCreate field. Required
+        // access: 'write_draft_orders' access scope or 'write_quick_sale' access scope.")
+        // are NOT surfaced via userErrors — handle them explicitly so merchants get a clear
+        // remediation hint instead of a generic 500.
+        if (Array.isArray(draftJson.errors) && draftJson.errors.length > 0) {
+          const topErr = draftJson.errors.map((e) => e.message).join("; ");
+          const scopeError = /access scope|write_draft_orders|write_quick_sale|access denied/i.test(topErr);
+          returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
+          return Response.json({
+            error: scopeError
+              ? "This app needs the \"write_draft_orders\" permission to create an exchange order. Please reinstall the app or accept the updated permissions when prompted, then try again."
+              : `Failed to create exchange draft order: ${topErr}`,
+          }, { status: scopeError ? 403 : 400 });
+        }
 
         const userErrors = draftJson.data?.draftOrderCreate?.userErrors ?? [];
         if (userErrors.length > 0) {
           const errMsg = userErrors.map((e) => e.message).join("; ");
           returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
-          return Response.json({ error: `Failed to create exchange draft order: ${errMsg}` }, { status: 400 });
+          // Detect the missing-scope error specifically and give the merchant an actionable
+          // message rather than a raw GraphQL field-error string.
+          const scopeError = /access scope|write_draft_orders|write_quick_sale|access denied/i.test(errMsg);
+          const friendly = scopeError
+            ? "This app needs the \"write_draft_orders\" permission to create an exchange order. Please reinstall the app or accept the updated permissions when prompted, then try again."
+            : `Failed to create exchange draft order: ${errMsg}`;
+          return Response.json({ error: friendly }, { status: 400 });
         }
 
         const draftOrder = draftJson.data?.draftOrderCreate?.draftOrder;

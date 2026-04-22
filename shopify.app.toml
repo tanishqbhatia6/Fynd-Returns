@@ -5,7 +5,11 @@ application_url = "https://returnpromax-web-production.up.railway.app"
 embedded = true
 
 [access_scopes]
-scopes = "read_orders,write_orders,read_products,read_customers,read_fulfillments,write_fulfillments,write_returns,read_locations,read_draft_orders"
+# write_draft_orders is required for the Exchange flow which calls the draftOrderCreate
+# mutation when an admin processes an exchange (see api.returns.$id.actions.ts process_exchange).
+# Without it Shopify returns: "Access denied for draftOrderCreate field. Required access:
+# 'write_draft_orders' access scope or 'write_quick_sale' access scope."
+scopes = "read_orders,write_orders,read_products,read_customers,read_fulfillments,write_fulfillments,write_returns,read_locations,read_draft_orders,write_draft_orders"
 
 [auth]
 redirect_urls = [

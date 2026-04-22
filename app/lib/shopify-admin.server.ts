@@ -137,7 +137,7 @@ const ORDER_FIELDS_FRAGMENT = `
       originalTotalSet { shopMoney { amount } }
       discountedTotalSet { shopMoney { amount } }
       image { url }
-      variant { product { tags, productType } }
+      variant { product { id, tags, productType } }
     }
   }
 `;
@@ -273,6 +273,10 @@ export type OrderLineItemForDisplay = {
   imageUrl?: string | null;
   productTags?: string[];
   productType?: string | null;
+  // Used by the customer portal exchange flow to load sibling variants of the same product
+  // for the variant picker. Optional because Fynd-synthetic line items have no Shopify
+  // product GID.
+  productId?: string | null;
 };
 
 export type ShopifyFulfillment = {
@@ -737,7 +741,7 @@ type RawOrderNode = {
       originalTotalSet?: { shopMoney?: { amount?: string } };
       discountedTotalSet?: { shopMoney?: { amount?: string } };
       image?: { url?: string } | null;
-      variant?: { product?: { tags?: string[]; productType?: string } };
+      variant?: { product?: { id?: string; tags?: string[]; productType?: string } };
     }>;
   };
 };
@@ -758,6 +762,7 @@ function parseOrderNode(node: unknown): OrderForPortal {
     imageUrl: li.image?.url ?? null,
     productTags: li.variant?.product?.tags ?? [],
     productType: li.variant?.product?.productType ?? null,
+    productId: li.variant?.product?.id ?? null,
   }));
   return {
     id: o.id,

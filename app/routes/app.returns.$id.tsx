@@ -43,12 +43,18 @@ function computeAdminReturnState(
   appStatus: string,
   refundStatus: string | null | undefined,
   returnJourney: FyndJourneyStep[],
-  fyndStatus: string | null | undefined
+  fyndStatus: string | null | undefined,
+  resolutionType?: string | null,
 ): UnifiedReturnState {
   const s = (appStatus || "").toLowerCase();
   const r = (refundStatus || "").toLowerCase();
   const f = (fyndStatus || "").toLowerCase();
   const journey = returnJourney || [];
+  const isExchange = (resolutionType || "").toLowerCase() === "exchange";
+  // Final-step label depends on resolution type — for exchange flows the last tick is
+  // "Exchanged", not "Refunded".
+  const finalLabelDone = isExchange ? "Exchange Completed" : "Refund Completed";
+  const finalLabelInProgress = isExchange ? "Exchange Processing" : "Refund Processing";
 
   const journeyHas = (keyword: string) =>
     journey.some((j) => (j.status || "").toLowerCase().replace(/\s+/g, "_").includes(keyword));
@@ -70,12 +76,22 @@ function computeAdminReturnState(
   const done = (label: string, step: number, desc: string): UnifiedReturnState =>
     ({ label, cls: "ok", step, description: desc, bg: "#EFF6FF", border: "#BFDBFE", color: "#1D4ED8", icon: "done" });
 
-  if (r === "refunded" || (s === "completed" && r === "refunded")) return done("Refund Completed", 6, "Refund has been processed successfully");
+  if (r === "refunded" || (s === "completed" && r === "refunded")) return done(finalLabelDone, 6, isExchange ? "Exchange has been completed" : "Refund has been processed successfully");
+  // Step 5 (not 6) for "Processing" so the final "Refunded"/"Exchanged" tick stays unfilled
+  // until the refund/exchange actually completes. The progress bar marks every step ≤ active
+  // as done, so step 6 here would falsely light up the final tick.
   if (journeyHas("credit_note") || f.includes("credit_note")) {
-    if (r === "in_progress") return processing("Refund Processing", 6, "Credit note generated, refund in progress");
-    return processing("Refund Processing", 6, "Credit note generated, awaiting refund");
+    if (r === "in_progress") return processing(finalLabelInProgress, 5, "Credit note generated, refund in progress");
+    return processing(finalLabelInProgress, 5, "Credit note generated, awaiting refund");
   }
-  if (f.includes("refund") || r === "in_progress") return processing("Refund Processing", 6, "Refund is being processed");
+  // Only truly refund-flagged Fynd statuses should map to "Refund Processing". The previous
+  // `f.includes("refund")` was too loose and matched logistics events like "return_initiated"
+  // (which contains "return", not "refund") was not the issue — but the in-progress regex in
+  // the webhook used to flip `refundStatus = "in_progress"` for logistics events, and this
+  // branch then fired regardless. Webhook is fixed; here we still narrow to actual refund
+  // tokens for defence in depth.
+  const isRefundFyndStatus = /(^|_)refund(_|$)/.test(f);
+  if (isRefundFyndStatus || r === "in_progress") return processing(finalLabelInProgress, 5, isExchange ? "Exchange is being processed" : "Refund is being processed");
   if (latestJs.includes("return_accepted") || journeyHas("return_accepted") || f.includes("return_accepted")) return ok("Return Accepted", 5, "Return received and accepted at warehouse");
   if (latestJs.includes("return_delivered") || latestJs.includes("delivery_done") || latestJs.includes("return_bag_delivered") || journeyHas("return_delivered") || journeyHas("delivery_done") || journeyHas("return_bag_delivered") || f.includes("return_delivered") || f.includes("delivery_done") || f.includes("return_bag_delivered"))
     return ok("Return Received", 5, "Return package delivered to warehouse");
@@ -920,7 +936,8 @@ export default function ReturnDetail() {
     returnCase.status,
     returnCase.refundStatus,
     (returnJourney ?? []) as FyndJourneyStep[],
-    effectiveFyndStatus
+    effectiveFyndStatus,
+    returnCase.resolutionType,
   );
   const statusConfig = {
     bg: unifiedState.bg,
@@ -1246,13 +1263,14 @@ export default function ReturnDetail() {
               refund_done: 5, refunded: 5,
             };
 
+            const isExchangeFlow = (returnCase.resolutionType || "").toLowerCase() === "exchange";
             const progressSteps = [
               { num: 1, label: "Submitted", time: null as string | null },
               { num: 2, label: "Approved", time: null as string | null },
               { num: 3, label: "Picked Up", time: null as string | null },
               { num: 4, label: "In Transit", time: null as string | null },
               { num: 5, label: "Received", time: null as string | null },
-              { num: 6, label: "Refunded", time: null as string | null },
+              { num: 6, label: isExchangeFlow ? "Exchanged" : "Refunded", time: null as string | null },
             ];
 
             try { progressSteps[0].time = returnCase.createdAt ? new Date(returnCase.createdAt).toISOString() : null; } catch { progressSteps[0].time = null; }
@@ -2061,13 +2079,22 @@ export default function ReturnDetail() {
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {isPending && (
                   <>
-                    <s-button type="button" variant="primary" disabled={fetcher.state !== "idle"} onClick={() => setShowApproveModal(true)} style={{ width: "100%" }}>
-                      Approve Return
-                    </s-button>
+                    {/* Labels reflect the customer's requested resolution type. When the
+                        customer asked for an exchange, "Approve Return" is misleading — show
+                        "Approve Exchange" / "Reject Exchange" instead. */}
+                    {(() => {
+                      const isExchangeFlow = (returnCase.resolutionType || "").toLowerCase() === "exchange";
+                      const approveLabel = isExchangeFlow ? "Approve Exchange" : "Approve Return";
+                      return (
+                        <s-button type="button" variant="primary" disabled={fetcher.state !== "idle"} onClick={() => setShowApproveModal(true)} style={{ width: "100%" }}>
+                          {approveLabel}
+                        </s-button>
+                      );
+                    })()}
                     {showApproveModal && (
                       <div className="app-modal-overlay" onClick={() => setShowApproveModal(false)}>
                         <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
-                          <div className="app-modal-title">Approve Return</div>
+                          <div className="app-modal-title">{(returnCase.resolutionType || "").toLowerCase() === "exchange" ? "Approve Exchange" : "Approve Return"}</div>
                           <div className="app-modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                             <p style={{ margin: 0 }}>
                               Approve return for order <strong>{returnCase.shopifyOrderName || "--"}</strong>
@@ -2114,7 +2141,7 @@ export default function ReturnDetail() {
                     )}
                     {!showRejectForm ? (
                       <s-button type="button" variant="secondary" disabled={fetcher.state !== "idle"} onClick={() => setShowRejectForm(true)} style={{ width: "100%" }}>
-                        Reject Return
+                        {(returnCase.resolutionType || "").toLowerCase() === "exchange" ? "Reject Exchange" : "Reject Return"}
                       </s-button>
                     ) : (
                       <div style={{ padding: 12, background: "#fff", borderRadius: 8, border: "1px solid #FECACA" }}>

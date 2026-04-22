@@ -1,17 +1,23 @@
 /**
  * Shared status color definitions used across admin UI.
  * Single source of truth — avoids inconsistent color values.
+ *
+ * Foreground / background pairs are picked to meet WCAG AA (≥ 4.5:1 for normal
+ * text). Previous values failed for `pending`, `initiated`, and `approved` —
+ * they used vivid brand colors on near-white backgrounds, hovering around
+ * 3.0–3.5:1. Darkening the text fixes the contrast without changing the visual
+ * language. (P2 a11y finding from QA audit.)
  */
 
 export const STATUS_COLORS: Record<string, string> = {
-  pending: "#d97706",
-  processing: "#3b82f6",
-  "in progress": "#3b82f6",
-  approved: "#059669",
+  pending: "#b45309",      // amber-700 — was amber-600 (failed AA on amber-50 bg)
+  processing: "#1d4ed8",   // blue-700  — was blue-500 (marginal)
+  "in progress": "#1d4ed8",
+  approved: "#047857",     // emerald-700 — was emerald-600 (failed AA)
   completed: "#1d4ed8",
-  rejected: "#dc2626",
-  cancelled: "#64748b",
-  initiated: "#f59e0b",
+  rejected: "#b91c1c",     // red-700 — was red-600 (marginally above 4.5:1; bump for safety)
+  cancelled: "#475569",    // slate-600 — was slate-500
+  initiated: "#b45309",    // same as pending — was amber-500 (failed AA)
 };
 
 export const STATUS_BG: Record<string, string> = {

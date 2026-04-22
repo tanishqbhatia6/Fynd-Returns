@@ -305,8 +305,8 @@ export default function ApiKeysSettings() {
 
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 10 }}>
                     <div style={{ fontSize: 11, color: "var(--rpm-text-muted, #94a3b8)" }}>
-                      Created {new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(key.createdAt))}
-                      {key.lastUsedAt && ` · Last used ${new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(key.lastUsedAt))}`}
+                      Created {new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(key.createdAt))}
+                      {key.lastUsedAt && ` · Last used ${new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(key.lastUsedAt))}`}
                     </div>
                     {!isRevoked && (
                       <div style={{ display: "flex", gap: 6 }}>

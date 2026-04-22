@@ -63,22 +63,24 @@ describe("STATUS_LABELS", () => {
 });
 
 describe("getStatusColor", () => {
+  // Updated for WCAG AA contrast on the corresponding light backgrounds.
+  // See app/lib/status-colors.ts for the rationale.
   it("returns the correct color for a known lowercase status", () => {
-    expect(getStatusColor("pending")).toBe("#d97706");
-    expect(getStatusColor("approved")).toBe("#059669");
-    expect(getStatusColor("rejected")).toBe("#dc2626");
+    expect(getStatusColor("pending")).toBe("#b45309");
+    expect(getStatusColor("approved")).toBe("#047857");
+    expect(getStatusColor("rejected")).toBe("#b91c1c");
   });
 
   it("handles mixed case input", () => {
-    expect(getStatusColor("Pending")).toBe("#d97706");
-    expect(getStatusColor("APPROVED")).toBe("#059669");
-    expect(getStatusColor("Rejected")).toBe("#dc2626");
+    expect(getStatusColor("Pending")).toBe("#b45309");
+    expect(getStatusColor("APPROVED")).toBe("#047857");
+    expect(getStatusColor("Rejected")).toBe("#b91c1c");
   });
 
   it("normalizes extra whitespace to single space for 'in progress'", () => {
-    expect(getStatusColor("in  progress")).toBe("#3b82f6");
-    expect(getStatusColor("In Progress")).toBe("#3b82f6");
-    expect(getStatusColor("IN  PROGRESS")).toBe("#3b82f6");
+    expect(getStatusColor("in  progress")).toBe("#1d4ed8");
+    expect(getStatusColor("In Progress")).toBe("#1d4ed8");
+    expect(getStatusColor("IN  PROGRESS")).toBe("#1d4ed8");
   });
 
   it("returns default grey color for unknown status", () => {

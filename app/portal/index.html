@@ -5258,6 +5258,68 @@
         return true;
     }
 
+    // ── Form auto-save / restore ──
+    // Persist the customer's in-progress create-return form values to
+    // sessionStorage so a tab refresh, app-bridge reload, or accidental Esc
+    // doesn't lose half-entered data. Cleared on successful submit / explicit
+    // "Create another return". sessionStorage (not localStorage) means data is
+    // scoped to the tab and dies with it — appropriate for a checkout-style flow.
+    var FORM_AUTOSAVE_KEY = 'returnpromax.portal.create.draft.v1';
+    var AUTOSAVE_FIELD_IDS = [
+      'createOrderNumber', 'createEmail', 'createReason', 'createItemCondition',
+      'createCustomerNotes', 'pickupAddress1', 'pickupAddress2', 'pickupCity',
+      'pickupProvince', 'pickupZip', 'pickupCountry', 'pickupLandmark',
+      'exchangePreferenceInput',
+      'createManualOrderNumber', 'createManualEmail', 'createManualReason',
+      'createManualItems', 'createManualCustomerNotes',
+    ];
+    function saveDraftForm() {
+      try {
+        var draft = {};
+        AUTOSAVE_FIELD_IDS.forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el && typeof el.value === 'string' && el.value !== '') {
+            draft[id] = el.value;
+          }
+        });
+        if (Object.keys(draft).length > 0) {
+          sessionStorage.setItem(FORM_AUTOSAVE_KEY, JSON.stringify({ ts: Date.now(), draft: draft }));
+        } else {
+          sessionStorage.removeItem(FORM_AUTOSAVE_KEY);
+        }
+      } catch (_) { /* sessionStorage may be disabled in some contexts */ }
+    }
+    function restoreDraftForm() {
+      try {
+        var raw = sessionStorage.getItem(FORM_AUTOSAVE_KEY);
+        if (!raw) return;
+        var parsed = JSON.parse(raw);
+        if (!parsed || !parsed.draft) return;
+        // Drop drafts older than 24 hours so stale data doesn't surprise the user.
+        if (Date.now() - (parsed.ts || 0) > 24 * 60 * 60 * 1000) {
+          sessionStorage.removeItem(FORM_AUTOSAVE_KEY);
+          return;
+        }
+        Object.keys(parsed.draft).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el && typeof parsed.draft[id] === 'string') el.value = parsed.draft[id];
+        });
+      } catch (_) { /* ignore */ }
+    }
+    function clearDraftForm() {
+      try { sessionStorage.removeItem(FORM_AUTOSAVE_KEY); } catch (_) { /* ignore */ }
+    }
+    // Save on input changes (debounced per field — input/change events are cheap).
+    AUTOSAVE_FIELD_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('input', saveDraftForm);
+        el.addEventListener('change', saveDraftForm);
+      }
+    });
+    // Restore on initial load.
+    restoreDraftForm();
+
     document.getElementById('btnFetchOrder').onclick = async () => {
       const shop = document.getElementById('shop').value.trim();
       const lookVal = document.getElementById('createOrderNumber').value.trim();
@@ -5703,6 +5765,9 @@
     let lastCreatedReturnId = null;
     let lastCreatedReturnRequestId = null;
     function showReturnSuccessCard(data) {
+      // Form has been submitted successfully — wipe the autosave draft so the
+      // next person opening the portal in this tab starts fresh.
+      clearDraftForm();
       var card = document.getElementById('createSuccessCard');
       var returnIdEl = document.getElementById('createReturnRequestId');
       var summaryBlock = document.getElementById('createSummaryBlock');
@@ -5773,6 +5838,8 @@
     };
 
     document.getElementById('btnCreateAnother').onclick = () => {
+      // Wipe any persisted draft from the previous submission cycle.
+      clearDraftForm();
       createOrderData = null;
       currentMatchedOffer = null;
       lastCreatedReturnId = null;

@@ -20,6 +20,7 @@ import { AppError } from "./errors.server";
 // PII / Credential redaction paths
 // ---------------------------------------------------------------------------
 const REDACT_PATHS = [
+  // Credentials / secrets
   "password",
   "secret",
   "token",
@@ -30,10 +31,15 @@ const REDACT_PATHS = [
   "apiKey",
   "api_key",
   "smtpPass",
+  "smtpUser",
+  "whatsappApiKey",
+  "gorgiasApiKey",
   "keyHash",
   "otp",
+  "otpTarget",
   "applicationToken",
   "fyndCredentials",
+  "portalToken",
   "*.password",
   "*.secret",
   "*.token",
@@ -45,6 +51,26 @@ const REDACT_PATHS = [
   "*.api_key",
   "*.smtpPass",
   "*.otp",
+  "*.otpTarget",
+  "*.portalToken",
+  "*.whatsappApiKey",
+  "*.gorgiasApiKey",
+  // Customer PII (P3 finding from QA audit) — log lines previously included raw
+  // customer email/phone/name in error contexts. Redacted by default; if the
+  // ops team needs PII for debugging, raise log level on a specific span.
+  "customerEmail",
+  "customerEmailNorm",
+  "customerPhone",
+  "customerPhoneNorm",
+  "customerName",
+  "email",
+  "phone",
+  "*.customerEmail",
+  "*.customerEmailNorm",
+  "*.customerPhone",
+  "*.customerPhoneNorm",
+  "*.customerName",
+  // HTTP headers / cookies
   "req.headers.authorization",
   'req.headers["x-api-key"]',
   "req.headers.cookie",

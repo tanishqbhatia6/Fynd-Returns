@@ -1315,7 +1315,26 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
             }
           }
         }
-      } catch { /* malformed JSON — treat as feature disabled, allow refund */ }
+      } catch (parseErr) {
+        // Fail-closed: if the gate config is malformed, block the auto-refund and
+        // log loudly. Previous behaviour was to silently disable the gate and
+        // refund anyway — that's the wrong default for a financial action (P2
+        // finding from QA audit). Merchant fixes the config → next webhook
+        // unblocks normally.
+        autoRefundBlockedByGate = true;
+        console.error(`[webhook] Auto-refund blocked: allowedFyndStatusesForRefund JSON is malformed for shop ${returnCase.shop.id}:`, parseErr);
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: returnCase.id,
+            source: "fynd_webhook",
+            eventType: "auto_refund_blocked_by_config_error",
+            payloadJson: JSON.stringify({
+              error: parseErr instanceof Error ? parseErr.message : String(parseErr),
+              note: "Auto-refund gate config is malformed JSON. Re-save Settings → Return Settings to fix.",
+            }),
+          },
+        }).catch(() => {});
+      }
 
       if (autoRefundBlockedByGate) {
         // Skip auto-refund but still update the status

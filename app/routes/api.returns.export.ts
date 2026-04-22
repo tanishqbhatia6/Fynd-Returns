@@ -13,6 +13,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const range = url.searchParams.get("range") || "last_30_days";
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
+    // Optional `?anonymize=true` — replaces customer name/email/phone/address with
+    // a stable hash. Useful when the merchant wants to share the export with an
+    // external accountant or analyst without leaking PII (P2 finding from QA audit).
+    const anonymize = url.searchParams.get("anonymize") === "true";
 
     let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop } });
     if (!shop) {
@@ -60,6 +64,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? `"${s.replace(/"/g, '""')}"`
         : s;
     };
+
+    // Anonymization helpers — hash to a short stable token so per-customer
+    // grouping in spreadsheets still works, but the underlying value is opaque.
+    const cryptoLib = await import("node:crypto");
+    const hashToken = (v: string | null | undefined): string => {
+      if (!v) return "";
+      const h = cryptoLib.createHash("sha256").update(v.trim().toLowerCase()).digest("hex");
+      return `anon:${h.slice(0, 12)}`;
+    };
+    const piiSafe = (v: string | null | undefined): string =>
+      anonymize ? escape(hashToken(v)) : escape(v);
+    const addressSafe = (v: string | null | undefined): string =>
+      anonymize ? "" : escape(v);
 
     const formatId = (r: { returnRequestNo?: string | null; id: string }) =>
       r.returnRequestNo || formatReturnRequestId(r.id);
@@ -132,16 +149,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         escape(rc.shopifyOrderName),
         escape(rc.status),
         escape(rc.resolutionType),
-        escape(rc.customerName),
-        escape(rc.customerEmailNorm),
-        escape(rc.customerPhoneNorm),
-        escape(rc.customerCity),
+        // Customer name / contact get hashed to a stable opaque token in
+        // anonymize mode; address parts are blanked entirely.
+        piiSafe(rc.customerName),
+        piiSafe(rc.customerEmailNorm),
+        piiSafe(rc.customerPhoneNorm),
+        anonymize ? "" : escape(rc.customerCity),
+        // Country is generally fine to leak (low specificity); keep it for analytics.
         escape(rc.customerCountry),
-        escape(rcTyped.customerAddress1),
-        escape(rcTyped.customerAddress2),
-        escape(rcTyped.customerProvince),
-        escape(rcTyped.customerZip),
-        escape(rcTyped.customerLandmark),
+        addressSafe(rcTyped.customerAddress1),
+        addressSafe(rcTyped.customerAddress2),
+        addressSafe(rcTyped.customerProvince),
+        addressSafe(rcTyped.customerZip),
+        addressSafe(rcTyped.customerLandmark),
         escape(rc.fyndReturnNo),
         escape(rc.fyndReturnId),
         escape(rcTyped.fyndShipmentId),

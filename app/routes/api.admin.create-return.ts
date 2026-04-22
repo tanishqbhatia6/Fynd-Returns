@@ -117,10 +117,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Return eligibility (window, price, tags, regions)
+    // Per-item validation: eligibility AND quantity sanity check.
+    // Without the qty check, an admin (or a buggy client) could submit qty=10 for a
+    // line item the customer originally bought 3 of — which then drives an
+    // exchange/refund draft order with the wrong quantity (P2 finding from QA audit).
     for (const item of items) {
+      if (!Number.isInteger(item.qty) || item.qty < 1) {
+        return Response.json(
+          { error: `Invalid quantity for line item ${item.lineItemId}: must be a positive integer.` },
+          { status: 400 },
+        );
+      }
       const liInfo = lineItemsWithPrice.find((l) => l.id === item.lineItemId);
       const price = liInfo?.price != null ? Number(liInfo.price) : undefined;
+      const orderedQty = (liInfo as { quantity?: number } | undefined)?.quantity;
+      if (typeof orderedQty === "number" && item.qty > orderedQty) {
+        return Response.json(
+          {
+            error: `Return quantity (${item.qty}) exceeds the ordered quantity (${orderedQty}) for line item ${item.lineItemId}.`,
+            lineItemId: item.lineItemId,
+          },
+          { status: 400 },
+        );
+      }
 
       const eligibility = checkReturnEligibility(settings, {
         orderDate: orderCreatedAt ?? undefined,

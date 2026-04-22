@@ -1619,6 +1619,21 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           returnActionDuration.record(actionTimer(), { action: "process_refund" });
           return Response.json({ error: msg }, { status: 400 });
         }
+        // Record which line items the refund actually covered. For partial refunds
+        // this is the only audit trail showing what was paid out vs the broader
+        // return scope — without it the admin can't answer "which items were
+        // refunded?" without joining to the original refund mutation logs (P2
+        // finding from QA audit).
+        const refundedLineItems = (returnCase.items ?? [])
+          .filter((it) => !!it.shopifyLineItemId && it.shopifyLineItemId !== "manual")
+          .map((it) => ({
+            id: it.shopifyLineItemId,
+            sku: it.sku ?? null,
+            qty: it.qty,
+            // Snapshot of unit price at refund time (best-effort — Shopify computes
+            // the actual refunded amount; this is the requested amount).
+            unitPrice: it.price ?? null,
+          }));
         const refundDetails = {
           refundId: result.refundId ?? null,
           amount: result.refundAmount ?? null,
@@ -1627,6 +1642,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           method: result.refundMethod ?? "original",
           source: "admin",
           locationId: requestedLocationId ?? null,
+          refundedLineItems,
           ...(bonusAmount > 0 ? { bonusCreditAmount: bonusAmount.toFixed(2) } : {}),
           ...(isGreenReturn ? { greenReturn: true } : {}),
         };

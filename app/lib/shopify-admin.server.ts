@@ -1322,7 +1322,20 @@ export async function createDiscountCodeRefund(
 
     const userErrors = json.data?.discountCodeBasicCreate?.userErrors ?? [];
     if (userErrors.length > 0) {
-      return { success: false, error: userErrors.map((e) => e.message).join(", ") };
+      const joined = userErrors.map((e) => e.message).join(", ");
+      // Idempotency: a retry of a previously-successful refund would otherwise
+      // fail with "code already exists". Detect that specifically and treat the
+      // call as a success — return the code that's already in Shopify (P2 from
+      // QA audit). Other userErrors still surface normally.
+      if (/already exists|taken|in use|duplicate/i.test(joined)) {
+        return {
+          success: true,
+          discountCode: code,
+          discountValue: totalAmount.toFixed(2),
+          discountCurrency: currency,
+        };
+      }
+      return { success: false, error: joined };
     }
 
     const createdCode = json.data?.discountCodeBasicCreate?.codeDiscountNode?.codeDiscount?.codes?.nodes?.[0]?.code ?? code;

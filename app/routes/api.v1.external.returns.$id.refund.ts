@@ -23,6 +23,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   let body: { refundMethod?: string; locationId?: string; note?: string } = {};
   try { body = await request.json(); } catch { /* empty */ }
 
+  // Whitelist refundMethod — same defence as status enum on the list endpoint.
+  // Avoids passing arbitrary strings into downstream refund logic and gives the
+  // caller a clear error instead of silent fall-through (P2 finding).
+  if (body.refundMethod !== undefined) {
+    const VALID_REFUND_METHODS = new Set(["original", "store_credit", "both", "discount_code"]);
+    if (!VALID_REFUND_METHODS.has(body.refundMethod)) {
+      return apiError(400, "BAD_REQUEST", `Invalid refundMethod. Must be one of: ${[...VALID_REFUND_METHODS].join(", ")}`);
+    }
+  }
+
   try {
     const returnCase = await prisma.returnCase.findFirst({
       where: { id, shopId: auth.shopId },

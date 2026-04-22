@@ -74,12 +74,30 @@ export function generatePostmanCollection(baseUrl: string): string {
   const collection = {
     info: {
       name: "ReturnProMax External API",
-      description: "Complete API collection for ReturnProMax — Shopify return management. Authenticate using your API key in the X-API-Key header.",
+      // Includes a SECURITY WARNING in the description so anyone opening the file
+      // sees the reminder before pasting their actual key in. Postman renders this
+      // markdown as the collection's intro pane.
+      description:
+        "Complete API collection for ReturnProMax — Shopify return management. " +
+        "Authenticate using your API key in the X-API-Key header.\n\n" +
+        "## ⚠️ SECURITY\n\n" +
+        "**Do not export this collection with your real API key embedded** — " +
+        "Postman saves variable values in the exported JSON, and that file is " +
+        "easy to leak via Slack, email, or git history. Best practice:\n\n" +
+        "1. Set `api_key` in a Postman *environment*, not in the collection.\n" +
+        "2. If you must share the collection, rotate the key first via " +
+        "Settings → API Keys.\n" +
+        "3. The placeholder value below (`rpm_YOUR_API_KEY_HERE`) is intentionally " +
+        "obvious — replace at runtime, not before sharing.",
       schema: POSTMAN_SCHEMA,
     },
     variable: [
       { key: "base_url", value: baseUrl, description: "Base URL of your ReturnProMax app" },
-      { key: "api_key", value: "rpm_YOUR_API_KEY_HERE", description: "Your API key (generate from Settings → API Keys)" },
+      {
+        key: "api_key",
+        value: "rpm_YOUR_API_KEY_HERE",
+        description: "Your API key (generate from Settings → API Keys). DO NOT COMMIT this file with the real value — see SECURITY note in collection description.",
+      },
     ],
     auth: {
       type: "apikey",

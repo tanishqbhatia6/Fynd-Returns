@@ -40,7 +40,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const merchantTz = shop.settings?.shopTimezone || undefined;
-    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to, merchantTz);
+    const merchantLocale = shop.settings?.shopLocale || undefined;
+    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to, merchantTz, merchantLocale);
     const where = { shopId: shop.id, createdAt: { gte: rangeStart, lte: rangeEnd } };
     const whereAll = { shopId: shop.id };
     const approvedStatuses = ["approved", "completed"];
@@ -158,6 +159,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: { ...where, status: { in: ["approved", "completed"] }, refundJson: { not: null } },
         select: { refundJson: true, currency: true },
       }),
+      // Top products: group by title for items that have one, AND group by sku for
+      // items that don't (we display the SKU as the label). Without this, items
+      // with title=null are silently excluded from the top-N — which can hide a
+      // problem product whose data was imported without a title (P2 finding).
       prisma.returnItem.groupBy({
         by: ["title"],
         where: { returnCase: where, title: { not: null } },
@@ -187,9 +192,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } catch { /* skip */ }
     }
 
-    const topProductsData = topProductsByReturns
-      .filter((r) => r.title != null)
-      .map((r) => ({ title: String(r.title), count: r._count.title }));
+    // Augment with NULL-title items grouped by SKU. We do this as a second query
+    // (instead of a raw COALESCE GROUP BY) to keep things type-safe.
+    const skuOnlyItems = await prisma.returnItem.groupBy({
+      by: ["sku"],
+      where: { returnCase: where, title: null, sku: { not: null } },
+      _count: { sku: true },
+      orderBy: { _count: { sku: "desc" } },
+      take: 10,
+    });
+
+    const topProductsCombined: Array<{ title: string; count: number }> = [
+      ...topProductsByReturns
+        .filter((r) => r.title != null)
+        .map((r) => ({ title: String(r.title), count: r._count.title })),
+      ...skuOnlyItems
+        .filter((r) => r.sku != null)
+        .map((r) => ({ title: `SKU ${r.sku}`, count: r._count.sku })),
+    ];
+    // Re-sort merged list and trim to top 10.
+    const topProductsData = topProductsCombined
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10);
 
     const customerFrequencyData = customerReturnFrequency
       .filter((r) => r.customerEmailNorm != null)

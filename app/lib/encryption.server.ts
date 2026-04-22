@@ -27,12 +27,19 @@ export function assertEncryptionConfigured(): void {
  */
 function getKey(): Buffer {
   const key = process.env.ENCRYPTION_KEY?.trim();
-  const isProd = process.env.NODE_ENV === "production";
+  const env = (process.env.NODE_ENV ?? "").toLowerCase();
+  const isProd = env === "production";
+  // Treat anything that isn't *literally* "development" or "test" as production-
+  // grade (staging, preview, qa, etc.). The previous implementation accepted ANY
+  // non-"production" env as eligible for the dev-key fallback, which silently
+  // weakened encryption on staging and made a leaked staging DB trivially
+  // decryptable (P2 finding from QA audit).
+  const isDevOrTest = env === "development" || env === "test";
 
-  if (isProd) {
+  if (isProd || !isDevOrTest) {
     if (!key || key.length !== KEY_LENGTH_HEX || !/^[0-9a-fA-F]+$/.test(key)) {
       throw new Error(
-        "ENCRYPTION_KEY must be set in production: 64 hex chars (32 bytes). Run: openssl rand -hex 32"
+        `ENCRYPTION_KEY must be set in NODE_ENV="${env || "(unset)"}" (treated as production): 64 hex chars (32 bytes). Run: openssl rand -hex 32`,
       );
     }
     return Buffer.from(key, "hex");
@@ -42,14 +49,9 @@ function getKey(): Buffer {
     return Buffer.from(key, "hex");
   }
 
-  if (process.env.NODE_ENV === "development") {
-    console.warn("[encryption] Using dev key. Set ENCRYPTION_KEY for real encryption.");
-    return Buffer.alloc(32, "dev-key-change-in-production");
-  }
-
-  throw new Error(
-    "ENCRYPTION_KEY required. Set 64 hex chars (openssl rand -hex 32) or NODE_ENV=development for dev."
-  );
+  // Dev/test only.
+  console.warn("[encryption] Using insecure dev key. Set ENCRYPTION_KEY for real encryption.");
+  return Buffer.alloc(32, "dev-key-change-in-production");
 }
 
 export function encrypt(text: string): string {

@@ -120,11 +120,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
     }
 
-    // Anchor day boundaries on the merchant's local timezone — without this, "today"
-    // / "last 7 days" / etc. were computed in UTC, which is wrong for any merchant
-    // outside UTC (P1 finding from QA audit).
+    // Anchor day boundaries on the merchant's local timezone and use their
+    // locale for human-readable date labels.
     const merchantTz = shop.settings?.shopTimezone || undefined;
-    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to, merchantTz);
+    const merchantLocale = shop.settings?.shopLocale || undefined;
+    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to, merchantTz, merchantLocale);
     const where = { shopId: shop.id, createdAt: { gte: rangeStart, lte: rangeEnd } };
     const whereAll = { shopId: shop.id };
     const approvedStatuses = ["approved", "completed"];

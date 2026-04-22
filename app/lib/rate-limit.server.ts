@@ -54,7 +54,12 @@ const DEFAULT_LIMITS: Record<string, RateLimitConfig> = {
   default: { maxRequests: 60 },
 };
 
-function getClientKey(request: Request, endpoint: string): string {
+function getClientKey(request: Request, endpoint: string, principal?: string): string {
+  // Prefer the explicit principal (e.g. an authenticated API key id) when supplied —
+  // it gives each tenant its own quota and prevents shop-A from throttling shop-B
+  // sharing the same NAT'd egress IP. Falls back to IP+shop for unauthenticated
+  // endpoints (the customer portal).
+  if (principal) return `principal:${principal}:${endpoint}`;
   const forwarded = request.headers.get("x-forwarded-for");
   const ip = forwarded?.split(",")[0]?.trim() || "unknown";
   let shop = "global";
@@ -64,11 +69,14 @@ function getClientKey(request: Request, endpoint: string): string {
 
 export function checkRateLimit(
   request: Request,
-  endpoint: string
+  endpoint: string,
+  /** Optional principal — pass the authenticated API key ID or shop ID to switch
+   *  from per-IP to per-principal limits. Defaults to per-IP+shop+endpoint. */
+  principal?: string,
 ): { allowed: boolean; remaining: number; retryAfterMs: number } {
   const config = DEFAULT_LIMITS[endpoint] || DEFAULT_LIMITS.default;
   const window = config.windowMs ?? windowMs;
-  const key = getClientKey(request, endpoint);
+  const key = getClientKey(request, endpoint, principal);
   const now = Date.now();
 
   let entry = store.get(key);

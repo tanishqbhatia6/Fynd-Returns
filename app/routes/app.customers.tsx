@@ -259,13 +259,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const shopifyRefund = orderRefundMap.get(orderName);
       let refundAmount = 0;
       let refundCurrency = "";
+      // Track whether the amount came from an authoritative source (Shopify refund
+      // record or stored refundJson) or was estimated from item prices. Estimates
+      // can drift from actual Shopify refunds (discounts, taxes, partial refunds);
+      // we accumulate them separately so the per-customer total can flag
+      // estimated rows in the UI (P1 finding from QA audit).
+      let amountIsEstimate = false;
 
       if (shopifyRefund && shopifyRefund.refunded > 0) {
         refundAmount = shopifyRefund.refunded;
         refundCurrency = shopifyRefund.currency;
         totalOrderValue += shopifyRefund.orderTotal;
       } else {
-        // Fallback to DB refundJson
+        // Fallback to DB refundJson — these values were recorded at refund time.
         if (r.refundJson) {
           try {
             const refund = JSON.parse(r.refundJson) as { amount?: string; currency?: string };
@@ -279,7 +285,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         if (refundAmount === 0 && r.bonusCreditAmount) {
           refundAmount = parseFloat(r.bonusCreditAmount) || 0;
         }
-        // If still no refund data, compute estimated from item prices for completed/refunded returns
+        // Last-resort estimate: sum line-item list prices for refunded rows that
+        // have no recorded amount. This is a best-effort and may differ from the
+        // actual Shopify refund (line-item discounts / taxes / partial refunds
+        // not captured here). Mark as provisional so the UI can label it.
         const isRefunded = ["completed", "refunded"].includes((r.status || "").toLowerCase())
           || (r.refundStatus || "").toLowerCase() === "refunded";
         if (refundAmount === 0 && isRefunded) {
@@ -288,6 +297,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               refundAmount += (parseFloat(item.price) || 0) * item.qty;
             }
           }
+          if (refundAmount > 0) amountIsEstimate = true;
         }
       }
 

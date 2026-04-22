@@ -25,6 +25,36 @@ function signPayload(body: string, secret: string): string {
   return "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
 }
 
+/**
+ * Per-subscription FIFO queue.
+ *
+ * Previously every event for the same subscription dispatched concurrently —
+ * `return.approved` and `return.refunded` for the same return could arrive at
+ * the merchant out-of-order if the first one had to retry. Per-subscription
+ * serial dispatch fixes this for the common case (a single process). Multi-
+ * instance deploys still need a Redis queue for true cross-process ordering;
+ * tracked separately.
+ *
+ * The queue is intentionally NOT bounded — a stuck subscription only stalls
+ * its own queue, not the dispatcher. If a subscription endpoint is permanently
+ * down, items still flow into the DLQ via the existing retry path.
+ */
+const subscriptionQueues = new Map<string, Promise<void>>();
+
+function enqueueForSubscription(subscriptionId: string, task: () => Promise<void>): void {
+  const prev = subscriptionQueues.get(subscriptionId) ?? Promise.resolve();
+  // Chain the new task onto the previous one. Errors don't propagate — each task
+  // already has its own try/catch via deliverWithRetry.
+  const next = prev.then(task, task);
+  subscriptionQueues.set(subscriptionId, next);
+  // Best-effort cleanup so the map doesn't grow unbounded for one-shot subs.
+  next.finally(() => {
+    if (subscriptionQueues.get(subscriptionId) === next) {
+      subscriptionQueues.delete(subscriptionId);
+    }
+  });
+}
+
 async function deliverWebhook(
   url: string,
   body: string,
@@ -100,6 +130,25 @@ async function deliverWithRetry(
     // Retry loop
     for (let i = 0; i < MAX_RETRIES; i++) {
       await new Promise((r) => setTimeout(r, RETRY_DELAYS[i]));
+      // Subscription cancellation check: if the merchant removed the
+      // subscription between attempts, abandon the retry immediately. Without
+      // this, in-flight retries kept hammering URLs the merchant had already
+      // disabled (P2 finding from QA audit).
+      if (dlqContext) {
+        try {
+          const stillActive = await prisma.webhookSubscription.findFirst({
+            where: { id: dlqContext.subscriptionId, isActive: true },
+            select: { id: true },
+          });
+          if (!stillActive) {
+            webhookLogger.info(
+              { eventType, url, subscriptionId: dlqContext.subscriptionId },
+              "Subscription was disabled — abandoning retry",
+            );
+            return;
+          }
+        } catch { /* best-effort — proceed to attempt */ }
+      }
       const retryOk = await deliverWebhook(url, body, signature, eventType);
       webhookDeliveryAttempts.add(1, {
         "webhook.event_type": eventType,
@@ -206,13 +255,16 @@ export function dispatchWebhookEvent(
 
           for (const sub of matchingSubs) {
             const signature = signPayload(body, sub.secret);
-            // Each delivery runs independently. DLQ context lets the retry loop
-            // persist failures so the merchant can replay later.
-            deliverWithRetry(sub.url, body, signature, eventType, {
-              subscriptionId: sub.id,
-              shopId,
-              idempotencyKey,
-            }).catch(() => {});
+            // Per-subscription FIFO — events for the same subscription dispatch
+            // serially so they arrive in causal order at the merchant. Different
+            // subscriptions still dispatch in parallel.
+            enqueueForSubscription(sub.id, () =>
+              deliverWithRetry(sub.url, body, signature, eventType, {
+                subscriptionId: sub.id,
+                shopId,
+                idempotencyKey,
+              }).catch(() => {}),
+            );
           }
         },
       );

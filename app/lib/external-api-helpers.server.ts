@@ -12,6 +12,23 @@ export function apiSuccess<T>(data: T, meta?: PaginationMeta) {
   return Response.json({ data, ...(meta ? { meta } : {}), errors: [] });
 }
 
+/**
+ * Per-API-key rate limit check, called AFTER authenticateApiKey so the principal
+ * is known. Pass the keyId. Returns null when allowed, or a 429 Response when not
+ * — caller just `return rl ?? continue` for ergonomics. Keeps the existing IP-
+ * level pre-auth limit too (cheap DDoS guard); this adds tenant fairness on top.
+ */
+export async function checkPerKeyRateLimit(
+  request: Request,
+  endpoint: string,
+  keyId: string,
+): Promise<Response | null> {
+  const { checkRateLimit, rateLimitResponse } = await import("./rate-limit.server");
+  const rl = checkRateLimit(request, endpoint, keyId);
+  if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
+  return null;
+}
+
 export function apiCreated<T>(data: T) {
   return Response.json({ data, errors: [] }, { status: 201 });
 }

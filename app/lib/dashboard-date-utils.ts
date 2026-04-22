@@ -148,6 +148,9 @@ export function parseDateRange(
   /** IANA timezone (e.g. "Asia/Kolkata") — anchors day/week/month boundaries.
    *  When omitted, falls back to UTC (server-local on Railway). */
   timeZone?: string,
+  /** BCP 47 locale (e.g. "ja-JP") for human-readable date labels. Defaults to
+   *  the runtime default when omitted. */
+  locale?: string,
 ): DateRangeResult {
   const tz = timeZone && /^[A-Za-z_/+-]+$/.test(timeZone) ? timeZone : undefined;
   const now = new Date();
@@ -165,10 +168,21 @@ export function parseDateRange(
         preset: "last_30_days",
       };
     }
+    // Use the shop locale (when known) for the human-readable range label.
+    // Previously hardcoded to "en", which gave Japanese / German / Indian
+    // merchants English-formatted dates (P3 finding from QA audit). Falls back
+    // to the runtime default when no locale is supplied.
+    const labelLocale = (typeof Intl !== "undefined" && Intl.DateTimeFormat?.supportedLocalesOf?.([locale ?? ""])?.length)
+      ? locale
+      : undefined;
+    const fmt = new Intl.DateTimeFormat(labelLocale, {
+      dateStyle: "medium",
+      ...(timeZone ? { timeZone } : {}),
+    });
     return {
       start,
       end,
-      label: `${new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(start)} – ${new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(end)}`,
+      label: `${fmt.format(start)} – ${fmt.format(end)}`,
       preset: "custom",
     };
   }

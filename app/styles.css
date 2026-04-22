@@ -2671,3 +2671,157 @@ s-section {
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   Standard page chrome (header, title, primary action button)
+   These were referenced by app.settings.channel-policies.tsx,
+   app.returns._index.tsx, and app.settings.integrations.tsx but never
+   defined — the pages were rendering with browser-default styling, which
+   collapsed flex layouts on smaller widths and turned the header into a
+   stack of unstyled text. Adding the missing definitions here as the
+   single source of truth.
+   ──────────────────────────────────────────────────────────────────────── */
+.app-page {
+  padding: 24px clamp(16px, 4vw, 32px);
+  max-width: 1280px;
+  margin: 0 auto;
+  font-family: var(--rpm-font);
+  color: var(--rpm-text);
+}
+
+.app-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--rpm-border-color);
+}
+
+.app-page-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--rpm-text);
+  letter-spacing: -0.01em;
+}
+
+.app-page-subtitle {
+  font-size: 13px;
+  color: var(--rpm-text-muted, #6b7280);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+/* Primary action button — used across settings save buttons. Maps to the
+   Shopify Polaris "Primary" visual language without depending on the
+   <s-button> web component (which sometimes lags hydration). */
+.app-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: var(--rpm-accent, #2563eb);
+  border: 1px solid var(--rpm-accent, #2563eb);
+  border-radius: var(--rpm-radius, 10px);
+  cursor: pointer;
+  transition: background var(--rpm-transition-fast), box-shadow var(--rpm-transition-fast);
+  font-family: var(--rpm-font);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+.app-btn-primary:hover { background: #1d4ed8; }
+.app-btn-primary:focus-visible { outline: 2px solid var(--rpm-accent, #2563eb); outline-offset: 2px; }
+.app-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Secondary action button (white, bordered). */
+.app-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--rpm-text);
+  background: var(--rpm-surface, #fff);
+  border: 1px solid var(--rpm-border-color, #e2e8f0);
+  border-radius: var(--rpm-radius, 10px);
+  cursor: pointer;
+  transition: background var(--rpm-transition-fast), border-color var(--rpm-transition-fast);
+  font-family: var(--rpm-font);
+}
+.app-btn:hover { background: #f8fafc; border-color: #cbd5e1; }
+.app-btn:focus-visible { outline: 2px solid var(--rpm-accent, #2563eb); outline-offset: 2px; }
+.app-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Text-only ghost button (used in return detail "Approve / Reject" rows). */
+.app-btn-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rpm-accent, #2563eb);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--rpm-font);
+}
+.app-btn-text:hover { background: rgba(37, 99, 235, 0.08); }
+
+/* Pagination buttons in the returns list. */
+.app-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--rpm-text);
+  background: var(--rpm-surface, #fff);
+  border: 1px solid var(--rpm-border-color, #e2e8f0);
+  border-radius: 6px;
+  cursor: pointer;
+  font-family: var(--rpm-font);
+}
+.app-pagination-btn:hover:not(:disabled) { background: #f8fafc; border-color: #cbd5e1; }
+.app-pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Hide elements on narrow viewports — used for table column trimming. */
+@media (max-width: 768px) {
+  .app-hide-mobile { display: none !important; }
+}
+
+/* ─── Read-only / "code" style for displaying URLs and secrets ───
+   .app-input has max-width: 480px which truncates long URLs in monospace
+   font. This variant keeps the same visual treatment but expands to fill
+   the parent container, with horizontal scroll if needed. */
+.app-code-readonly {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  border: var(--rpm-border);
+  border-radius: var(--rpm-radius);
+  background: #f8fafc;
+  box-sizing: border-box;
+  color: var(--rpm-text);
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.app-code-readonly:focus {
+  outline: 2px solid var(--rpm-accent, #2563eb);
+  outline-offset: 1px;
+}

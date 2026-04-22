@@ -132,6 +132,68 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const formData = await request.formData();
     const intent = formData.get("intent") as string | null;
 
+    // Send a self-signed test request to the per-shop webhook endpoint and
+    // report whether it accepts the signature + reaches processing. This
+    // exercises the full path the same way Fynd will: read the stored secret,
+    // sign a synthetic body, POST to the per-shop URL, parse the response.
+    // Useful after generating/rotating a secret to confirm the merchant's
+    // Fynd Partner Dashboard config matches what we have stored.
+    if (intent === "test_fynd_webhook_secret") {
+      const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
+      if (!shop) return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "Shop not found", debugLogs: logs };
+      const storedSecret = shop.settings?.fyndWebhookSecret;
+      if (!storedSecret) {
+        return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "No webhook secret configured. Generate one first.", debugLogs: logs };
+      }
+      const { decryptIfEncrypted } = await import("../lib/encryption.server");
+      const plaintext = decryptIfEncrypted(storedSecret);
+      if (!plaintext) {
+        return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "Could not decrypt stored secret. Generate a new one.", debugLogs: logs };
+      }
+      const appUrl = (process.env.SHOPIFY_APP_URL ?? "").replace(/\/$/, "");
+      if (!appUrl) {
+        return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "SHOPIFY_APP_URL is not set on the server.", debugLogs: logs };
+      }
+      const url = `${appUrl}/api/webhooks/fynd/${shop.id}`;
+      // The body matches what Fynd sends for a status update. We use a
+      // distinctive shipment_id so the dedup window doesn't suppress repeats.
+      const body = JSON.stringify({
+        shipment_id: `selftest-${Date.now()}`,
+        refund_status: "UNDER PROCESS",
+        _shop_domain: shop.shopDomain,
+      });
+      const cryptoLib = await import("node:crypto");
+      const signature = cryptoLib.createHmac("sha256", plaintext).update(body).digest("hex");
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Fynd-Signature": signature,
+          },
+          body,
+          signal: AbortSignal.timeout(15_000),
+        });
+        if (res.ok) {
+          return { success: true, fyndWebhookTestResult: true, debugLogs: logs };
+        }
+        const text = await res.text().catch(() => "");
+        return {
+          success: false,
+          fyndWebhookTestResult: false,
+          fyndWebhookTestError: `endpoint returned HTTP ${res.status}${text ? ` — ${text.slice(0, 200)}` : ""}`,
+          debugLogs: logs,
+        };
+      } catch (err) {
+        return {
+          success: false,
+          fyndWebhookTestResult: false,
+          fyndWebhookTestError: err instanceof Error ? err.message : String(err),
+          debugLogs: logs,
+        };
+      }
+    }
+
     // Generate or rotate the per-shop Fynd webhook secret. The value is
     // returned ONCE in the action result so the merchant can copy it into the
     // Fynd Partner Dashboard. After that it lives encrypted in the DB and we
@@ -612,66 +674,126 @@ export default function Integrations() {
             <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 16, padding: "12px 0", borderTop: "1px solid #E5E7EB" }}>
               Fynd Webhook (per-shop secret)
             </summary>
-            <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 14 }}>
-              <p style={{ fontSize: 13, color: "#475569", margin: 0, lineHeight: 1.5 }}>
+            <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 16 }}>
+              <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #475569)", margin: 0, lineHeight: 1.5 }}>
                 Each store gets its own webhook URL + signing secret. Configure both in
                 the Fynd Partner Dashboard so Fynd can sign outgoing webhooks and we can
                 verify them. A unique secret per shop means a leak never affects more
                 than one store.
               </p>
 
-              <div className="app-field">
-                <label>Webhook URL (paste into Fynd Partner Dashboard)</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={data.fyndWebhookUrl}
-                  className="app-input"
-                  onFocus={(e) => e.currentTarget.select()}
-                  style={{ fontFamily: "ui-monospace, SFMono-Regular, monospace", fontSize: 12 }}
-                />
-                <div className="app-field-helper">
-                  This URL is unique to this shop. The path includes your internal shop
-                  ID — opaque, not enumerable.
+              {/* Webhook URL — full-width readonly code box. Uses
+                  .app-code-readonly (defined in styles.css) instead of .app-input
+                  because .app-input has max-width: 480px which truncates long
+                  URLs in monospace. The container is flex so the Copy button sits
+                  beside the field on wide screens and wraps under it on narrow. */}
+              <div>
+                <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 6 }}>
+                  Webhook URL (paste into Fynd Partner Dashboard)
+                </label>
+                <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" }}>
+                  <input
+                    type="text"
+                    readOnly
+                    value={data.fyndWebhookUrl}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="app-code-readonly"
+                    style={{ flex: "1 1 320px", minWidth: 0 }}
+                    aria-label="Per-shop Fynd webhook URL"
+                  />
+                  <button
+                    type="button"
+                    className="app-btn"
+                    onClick={(e) => {
+                      navigator.clipboard.writeText(data.fyndWebhookUrl).then(
+                        () => {
+                          const btn = e.currentTarget;
+                          if (!btn) return;
+                          const orig = btn.textContent;
+                          btn.textContent = "Copied ✓";
+                          setTimeout(() => { if (btn) btn.textContent = orig; }, 1800);
+                        },
+                        () => { /* clipboard write rejected — leave label */ },
+                      );
+                    }}
+                  >
+                    Copy URL
+                  </button>
+                </div>
+                <div style={{ marginTop: 6, fontSize: 12, color: "var(--rpm-text-muted, #6b7280)" }}>
+                  This URL is unique to this shop. The path includes your internal
+                  shop ID — opaque, not enumerable.
                 </div>
               </div>
 
               {actionData?.fyndWebhookSecretJustGenerated ? (
-                <div style={{
-                  padding: 14, borderRadius: 8,
-                  background: "#FEF3C7", border: "1.5px solid #F59E0B",
-                  fontSize: 13, color: "#78350F",
-                }}>
-                  <div style={{ fontWeight: 700, marginBottom: 8 }}>
+                <div
+                  style={{
+                    padding: 14, borderRadius: 10,
+                    background: "#FEF3C7", border: "1.5px solid #F59E0B",
+                    fontSize: 13, color: "#78350F",
+                    display: "flex", flexDirection: "column", gap: 10,
+                  }}
+                >
+                  <div style={{ fontWeight: 700 }}>
                     ⚠ Copy this secret now — it won't be shown again
                   </div>
-                  <input
-                    type="text"
-                    readOnly
-                    value={actionData.fyndWebhookSecretJustGenerated}
-                    onFocus={(e) => e.currentTarget.select()}
-                    style={{
-                      width: "100%", padding: "8px 10px", borderRadius: 6,
-                      border: "1px solid #92400e",
-                      fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                      fontSize: 12, background: "#fff",
-                    }}
-                  />
-                  <div style={{ marginTop: 8, fontSize: 12 }}>
-                    Paste this into Fynd Partner Dashboard → Webhook → Signing Secret
-                    field for the URL above. After you navigate away, only the encrypted
-                    value remains in our database — we cannot recover the plaintext.
+                  <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" }}>
+                    <input
+                      type="text"
+                      readOnly
+                      value={actionData.fyndWebhookSecretJustGenerated}
+                      onFocus={(e) => e.currentTarget.select()}
+                      className="app-code-readonly"
+                      style={{ flex: "1 1 320px", minWidth: 0, borderColor: "#92400e", background: "#fff" }}
+                      aria-label="Generated webhook signing secret"
+                    />
+                    <button
+                      type="button"
+                      className="app-btn"
+                      onClick={(e) => {
+                        navigator.clipboard.writeText(actionData.fyndWebhookSecretJustGenerated!).then(
+                          () => {
+                            const btn = e.currentTarget;
+                            if (!btn) return;
+                            const orig = btn.textContent;
+                            btn.textContent = "Copied ✓";
+                            setTimeout(() => { if (btn) btn.textContent = orig; }, 1800);
+                          },
+                          () => { /* clipboard write rejected */ },
+                        );
+                      }}
+                    >
+                      Copy secret
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                    Paste this into Fynd Partner Dashboard → Webhook → Signing
+                    Secret field for the URL above. After you navigate away, only
+                    the encrypted value remains in our database — we cannot
+                    recover the plaintext.
                   </div>
                 </div>
               ) : (
-                <div style={{ fontSize: 13, color: data.fyndWebhookSecretConfigured ? "#065F46" : "#475569" }}>
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: data.fyndWebhookSecretConfigured ? "#ECFDF5" : "#F8FAFC",
+                    border: `1px solid ${data.fyndWebhookSecretConfigured ? "#A7F3D0" : "#E2E8F0"}`,
+                    color: data.fyndWebhookSecretConfigured ? "#065F46" : "#475569",
+                    fontSize: 13,
+                  }}
+                >
                   {data.fyndWebhookSecretConfigured
-                    ? "✓ A webhook secret is configured for this shop. Generate a new one to rotate."
+                    ? "✓ A webhook secret is configured for this shop. Use “Rotate webhook secret” to issue a new one."
                     : "No webhook secret yet — generate one to start receiving signed Fynd webhooks at the per-shop URL."}
                 </div>
               )}
 
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {/* Action buttons — Generate/Rotate + Test. The Generate Form is
+                  separate from the Test fetcher so they don't share state. */}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
                 <Form method="post">
                   <input
                     type="hidden"
@@ -680,9 +802,8 @@ export default function Integrations() {
                   />
                   <button
                     type="submit"
-                    className="app-button"
+                    className="app-btn-primary"
                     onClick={(e) => {
-                      // Confirm rotation — old secret becomes immediately invalid.
                       if (data.fyndWebhookSecretConfigured) {
                         if (!confirm("Rotate the webhook secret? Fynd will be unable to deliver webhooks until you paste the new secret into the Fynd Partner Dashboard.")) {
                           e.preventDefault();
@@ -693,7 +814,43 @@ export default function Integrations() {
                     {data.fyndWebhookSecretConfigured ? "Rotate webhook secret" : "Generate webhook secret"}
                   </button>
                 </Form>
+                {/* Test sends a synthetic webhook signed with the stored secret
+                    via the same code path Fynd uses. Only meaningful AFTER a
+                    secret exists. */}
+                <fetcher.Form method="post" style={{ display: "inline-flex" }}>
+                  <input type="hidden" name="intent" value="test_fynd_webhook_secret" />
+                  <button
+                    type="submit"
+                    className="app-btn"
+                    disabled={!data.fyndWebhookSecretConfigured || fetcher.state !== "idle"}
+                    title={!data.fyndWebhookSecretConfigured ? "Generate a secret first" : undefined}
+                  >
+                    {fetcher.state !== "idle" && fetcher.formData?.get("intent") === "test_fynd_webhook_secret"
+                      ? "Testing…"
+                      : "Test webhook"}
+                  </button>
+                </fetcher.Form>
               </div>
+
+              {/* Test result feedback — surfaces success or the specific HTTP
+                  status the per-shop endpoint returned, so an admin can spot
+                  config issues (wrong secret saved, endpoint unreachable). */}
+              {fetcher.data && "fyndWebhookTestResult" in fetcher.data && (
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    borderRadius: 8,
+                    background: fetcher.data.fyndWebhookTestResult ? "#ECFDF5" : "#FEF2F2",
+                    border: `1px solid ${fetcher.data.fyndWebhookTestResult ? "#A7F3D0" : "#FECACA"}`,
+                    color: fetcher.data.fyndWebhookTestResult ? "#065F46" : "#991B1B",
+                    fontSize: 13,
+                  }}
+                >
+                  {fetcher.data.fyndWebhookTestResult
+                    ? "✓ Webhook reachable and signature verified. The per-shop endpoint is correctly configured."
+                    : `✗ Test failed: ${("fyndWebhookTestError" in fetcher.data ? (fetcher.data as { fyndWebhookTestError?: string }).fyndWebhookTestError : null) ?? "unknown error"}`}
+                </div>
+              )}
             </div>
           </details>
 

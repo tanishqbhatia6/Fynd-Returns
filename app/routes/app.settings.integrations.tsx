@@ -174,14 +174,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         refund_status: "UNDER PROCESS",
         _shop_domain: shop.shopDomain,
       });
-      const cryptoLib = await import("node:crypto");
-      const signature = cryptoLib.createHmac("sha256", plaintext).update(body).digest("hex");
+      // Use the shared-secret header that Fynd Commerce supports. This
+      // exercises the same path real Fynd webhooks will hit, so a green
+      // self-test means Fynd's actual deliveries will pass too.
       try {
         const res = await fetch(url, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Fynd-Signature": signature,
+            "X-Shop-Secret": plaintext,
           },
           body,
           signal: AbortSignal.timeout(15_000),
@@ -705,10 +706,12 @@ export default function Integrations() {
             </summary>
             <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 16 }}>
               <p style={{ fontSize: 13, color: "var(--rpm-text-muted, #475569)", margin: 0, lineHeight: 1.5 }}>
-                Each store gets its own webhook URL + signing secret. Configure both in
-                the Fynd Partner Dashboard so Fynd can sign outgoing webhooks and we can
-                verify them. A unique secret per shop means a leak never affects more
-                than one store.
+                Each store gets its own webhook URL + secret. Paste the URL into
+                Fynd Commerce → Settings → Webhook → <strong>Webhook URL</strong>,
+                and the secret into either the <strong>Authentication → Secret</strong>{" "}
+                field <em>or</em> as a Custom Header named{" "}
+                <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4 }}>X-Shop-Secret</code>.
+                A unique secret per shop means a leak never affects more than one store.
               </p>
 
               {/* Webhook URL — full-width readonly code box. Uses
@@ -889,48 +892,67 @@ export default function Integrations() {
                   }}
                 >
                   {fetcher.data.fyndWebhookTestResult
-                    ? "✓ Webhook reachable and signature verified. The per-shop endpoint is correctly configured."
+                    ? "✓ Webhook reachable and secret accepted. Fynd will be able to deliver to this URL with the configured secret."
                     : `✗ Test failed: ${("fyndWebhookTestError" in fetcher.data ? (fetcher.data as { fyndWebhookTestError?: string }).fyndWebhookTestError : null) ?? "unknown error"}`}
                 </div>
               )}
 
-              {/* ── Inline testing reference (Postman / curl) ──
-                  The merchant frequently asked "how do I test this from
-                  Postman?" — the answer is the same algorithm Fynd uses, so we
-                  surface it right here instead of burying it in /docs. The
-                  example shows the exact header name, signature algorithm, and
-                  a runnable curl one-liner using the merchant's actual
-                  webhook URL. */}
+              {/* ── Configuration walkthrough + inline testing reference ──
+                  Fynd Commerce's webhook UI gives the merchant two ways to
+                  attach the secret: (1) Authentication > Secret field (sent
+                  as the Authorization header), or (2) Custom Headers (any
+                  key/value the merchant types in). We accept either. The
+                  walkthrough shows both options so the merchant can pick
+                  whichever maps cleanly to their Fynd UI. The curl example
+                  is copy-pasteable and pre-filled with the merchant's URL. */}
               <details style={{ marginTop: 8 }}>
                 <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--rpm-text, #334155)", padding: "6px 0" }}>
-                  How to test from Postman or curl
+                  How to configure in Fynd Commerce + test from Postman / curl
                 </summary>
-                <div style={{ padding: "10px 0", display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
+                <div style={{ padding: "10px 0", display: "flex", flexDirection: "column", gap: 14, fontSize: 13 }}>
                   <div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Signature algorithm</div>
+                    <div style={{ fontWeight: 600, marginBottom: 6 }}>Step 1 — In Fynd Commerce → Settings → Webhook</div>
+                    <ol style={{ margin: "0 0 0 18px", padding: 0, color: "var(--rpm-text-muted, #475569)", lineHeight: 1.7 }}>
+                      <li>Paste the URL above into the <strong>Webhook URL</strong> field.</li>
+                      <li>
+                        Attach the secret using <strong>either</strong> of these (you only need one):
+                        <ul style={{ margin: "6px 0 6px 18px" }}>
+                          <li><strong>Option A (recommended)</strong> — <strong>Custom Headers</strong>: add a header with key <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4 }}>X-Shop-Secret</code> and value = your secret.</li>
+                          <li><strong>Option B</strong> — Tick <strong>Authentication</strong> and paste the secret into the <strong>Secret</strong> field. Fynd will send it in the <code>Authorization</code> header.</li>
+                        </ul>
+                      </li>
+                      <li>Subscribe to shipment status events (refund_pending, refund_done) under <strong>Events</strong>.</li>
+                      <li>Save. Outbound webhooks will start arriving with the secret attached.</li>
+                    </ol>
+                  </div>
+
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Auth model</div>
                     <div style={{ color: "var(--rpm-text-muted, #475569)", lineHeight: 1.5 }}>
-                      <code>X-Fynd-Signature</code> = <code>HMAC-SHA256(secret, raw_body).hex</code>
-                      . The signature is computed over the exact bytes of the
-                      JSON body — no whitespace changes, no re-serialisation.
-                      We accept both <code>&lt;hex&gt;</code> and
-                      <code> sha256=&lt;hex&gt;</code> formats.
+                      We accept the secret in any of these headers (timing-safe
+                      compare): <code>X-Shop-Secret</code>,
+                      <code> X-Webhook-Secret</code>, <code>X-Fynd-Secret</code>,
+                      or <code>Authorization</code> (with or without a
+                      <code> Bearer </code> prefix). HMAC signatures
+                      (<code>X-Fynd-Signature: HMAC-SHA256(secret, body).hex</code>)
+                      are also accepted as a fallback for legacy / custom
+                      integrations.
                     </div>
                   </div>
+
                   <div>
-                    <div style={{ fontWeight: 600, marginBottom: 4 }}>curl example</div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>curl example (header auth — what Fynd Commerce sends)</div>
                     <textarea
                       readOnly
                       onFocus={(e) => e.currentTarget.select()}
                       value={[
                         `# Replace SECRET with the secret you copied above.`,
-                        `BODY='{"shipment_id":"selftest-1","refund_status":"UNDER PROCESS"}'`,
-                        `SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "SECRET" | awk '{print $2}')`,
                         `curl -X POST "${data.fyndWebhookUrl}" \\`,
                         `  -H "Content-Type: application/json" \\`,
-                        `  -H "X-Fynd-Signature: $SIG" \\`,
-                        `  -d "$BODY"`,
+                        `  -H "X-Shop-Secret: SECRET" \\`,
+                        `  -d '{"shipment_id":"selftest-1","refund_status":"UNDER PROCESS"}'`,
                       ].join("\n")}
-                      rows={7}
+                      rows={5}
                       style={{
                         width: "100%", padding: "10px 12px", fontSize: 12,
                         fontFamily: "ui-monospace, SFMono-Regular, monospace",
@@ -938,9 +960,40 @@ export default function Integrations() {
                         border: "1px solid #1e293b", borderRadius: 8,
                         resize: "vertical", whiteSpace: "pre", overflowX: "auto",
                       }}
-                      aria-label="curl example for testing the per-shop webhook"
+                      aria-label="curl example using header auth"
+                    />
+                    <div style={{ fontSize: 12, color: "var(--rpm-text-muted, #6b7280)", marginTop: 4 }}>
+                      In Postman: same URL, set the body to <em>raw / JSON</em>,
+                      then under <em>Headers</em> add{" "}
+                      <code>X-Shop-Secret</code> = your secret.
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>curl example (HMAC fallback — for custom signers)</div>
+                    <textarea
+                      readOnly
+                      onFocus={(e) => e.currentTarget.select()}
+                      value={[
+                        `BODY='{"shipment_id":"selftest-1","refund_status":"UNDER PROCESS"}'`,
+                        `SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "SECRET" | awk '{print $2}')`,
+                        `curl -X POST "${data.fyndWebhookUrl}" \\`,
+                        `  -H "Content-Type: application/json" \\`,
+                        `  -H "X-Fynd-Signature: $SIG" \\`,
+                        `  -d "$BODY"`,
+                      ].join("\n")}
+                      rows={6}
+                      style={{
+                        width: "100%", padding: "10px 12px", fontSize: 12,
+                        fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                        background: "#1e293b", color: "#cbd5e1",
+                        border: "1px solid #334155", borderRadius: 8,
+                        resize: "vertical", whiteSpace: "pre", overflowX: "auto",
+                      }}
+                      aria-label="curl example using HMAC fallback"
                     />
                   </div>
+
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: 4 }}>Sample payload Fynd will send</div>
                     <textarea
@@ -964,11 +1017,12 @@ export default function Integrations() {
                       aria-label="Sample Fynd webhook payload"
                     />
                   </div>
+
                   <div style={{ color: "var(--rpm-text-muted, #475569)", lineHeight: 1.5 }}>
                     <strong>Expected responses:</strong>{" "}
                     <code>200 {"{ ok: true }"}</code> on success,{" "}
-                    <code>401</code> if the signature doesn't match the stored
-                    secret or no secret is configured for this shop,{" "}
+                    <code>401</code> if the secret doesn't match the stored value
+                    or no secret was sent at all,{" "}
                     <code>413</code> for payloads over 1 MB.
                   </div>
                 </div>

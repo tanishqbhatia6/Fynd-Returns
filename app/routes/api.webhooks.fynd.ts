@@ -60,24 +60,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }, { status: 503 });
   }
   if (secret) {
-    const signature = request.headers.get("x-fynd-signature") ?? request.headers.get("x-webhook-signature");
-    if (!signature) {
-      console.warn("[Fynd webhook] Missing signature header — rejecting");
-      return Response.json({ error: "Missing webhook signature" }, { status: 401 });
-    }
-    const { createHmac, timingSafeEqual } = await import("crypto");
-    const expected = createHmac("sha256", secret).update(rawBodyText).digest("hex");
-    const sigClean = signature.replace(/^sha256=/, "");
-    try {
-      const sigBuf = Buffer.from(sigClean, "hex");
-      const expBuf = Buffer.from(expected, "hex");
-      if (sigBuf.length !== expBuf.length || !timingSafeEqual(sigBuf, expBuf)) {
-        console.warn("[Fynd webhook] Signature mismatch — rejecting");
-        return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
-      }
-    } catch {
-      console.warn("[Fynd webhook] Signature verification error — rejecting");
-      return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
+    // Dual-mode auth: shared-secret in headers (Fynd Commerce compatible) OR
+    // HMAC signature for legacy / custom integrations. The shared helper
+    // returns a structured failure reason so we can log specifics without
+    // leaking detail to the rejected caller.
+    const { authenticateWebhook } = await import("../lib/fynd-webhook-verify.server");
+    const authResult = authenticateWebhook(request, rawBodyText, secret);
+    if (!authResult.ok) {
+      console.warn(`[Fynd webhook] Auth failed: ${authResult.reason}`);
+      return Response.json({ error: "Webhook authentication failed" }, { status: 401 });
     }
   }
   // In development with no secret, processing continues — convenient for local testing

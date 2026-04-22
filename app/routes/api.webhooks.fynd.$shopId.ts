@@ -3,12 +3,19 @@
  *
  * URL: POST /api/webhooks/fynd/:shopId
  *
- * Each merchant generates a unique HMAC secret in Settings → Integrations.
- * They configure THIS URL (with their shopId) plus the matching secret in
- * the Fynd Partner Dashboard. We look up the secret by shopId from the URL,
- * verify the X-Fynd-Signature, then process exactly like the legacy endpoint.
+ * Each merchant generates a unique secret in Settings → Integrations and
+ * either pastes it into Fynd Commerce's "Authentication > Secret" field or
+ * adds it as a Custom Header (e.g. `X-Shop-Secret: <secret>`). We accept the
+ * secret in any of:
+ *   - X-Shop-Secret      (recommended Custom Header)
+ *   - X-Webhook-Secret   (alias)
+ *   - X-Fynd-Secret      (alias)
+ *   - Authorization      (Bearer or bare — matches Fynd's Authentication
+ *                         field behaviour)
+ * As a fallback we still accept HMAC signatures (X-Fynd-Signature) so any
+ * legacy / custom integration keeps working.
  *
- * Why per-shop secret:
+ * Why per-shop secret + per-shop URL:
  *  - One leaked secret = one shop affected, not the whole platform.
  *  - Merchants can rotate their own secret without operator coordination.
  *  - No global env var to misconfigure.
@@ -19,7 +26,7 @@
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import type { FyndWebhookPayload } from "../lib/fynd-webhook.server";
-import { readBoundedBody, verifyWebhookSignature } from "../lib/fynd-webhook-verify.server";
+import { readBoundedBody, authenticateWebhook } from "../lib/fynd-webhook-verify.server";
 
 export const loader = async (_args: LoaderFunctionArgs) => {
   return Response.json({ ok: true, method: "POST", model: "per-shop" });
@@ -61,13 +68,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return Response.json({ error: "Webhook authentication failed" }, { status: 401 });
   }
 
-  // Verify signature against the raw body.
-  const sigHeader =
-    request.headers.get("x-fynd-signature") ??
-    request.headers.get("x-webhook-signature");
-  if (!verifyWebhookSignature(rawBodyText, sigHeader, decryptedSecret)) {
-    console.warn(`[Fynd webhook /${shopId}] Signature mismatch — rejecting`);
-    return Response.json({ error: "Invalid webhook signature" }, { status: 401 });
+  // Verify the request: tries shared-secret in headers first (Fynd Commerce
+  // compatible), then falls back to HMAC signature for legacy integrations.
+  // Either path is sufficient on its own — no need for both.
+  const authResult = authenticateWebhook(request, rawBodyText, decryptedSecret);
+  if (!authResult.ok) {
+    console.warn(`[Fynd webhook /${shopId}] Auth failed: ${authResult.reason}`);
+    return Response.json({ error: "Webhook authentication failed" }, { status: 401 });
   }
 
   // Optional replay protection — same window as the legacy endpoint.

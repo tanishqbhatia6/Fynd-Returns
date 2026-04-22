@@ -30,6 +30,10 @@ type CustomerSummary = {
   country: string | null;
   returnCount: number;
   totalRefundAmount: number;
+  /** True when at least one refund row in this customer's total was computed from
+   *  line-item list prices rather than from an actual Shopify refund record. The
+   *  UI flags such totals as "≈" so the merchant doesn't treat them as exact. */
+  totalRefundAmountIsEstimate: boolean;
   currency: string;
   totalItemCount: number;
   totalOrderValue: number;
@@ -267,6 +271,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Calculate total order value and refund amounts
     let totalOrderValue = 0;
     let totalRefundAmount = 0;
+    // Aggregate version of the per-row amountIsEstimate flag.
+    let totalRefundAmountIsEstimate = false;
     let currency = firstOrder?.refundCurrency || "";
     const statusBreakdown: Record<string, number> = {};
     const resolutionBreakdown: Record<string, number> = {};
@@ -327,6 +333,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const itemTitles = r.items.map((it) => it.title).filter(Boolean) as string[];
 
       totalRefundAmount += refundAmount;
+      if (amountIsEstimate) totalRefundAmountIsEstimate = true;
       totalItemCount += itemCount;
       if (!currency && refundCurrency) currency = refundCurrency;
 
@@ -377,6 +384,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       country: custCountry,
       returnCount: group.returns.length,
       totalRefundAmount,
+      totalRefundAmountIsEstimate,
       currency,
       totalItemCount,
       totalOrderValue,
@@ -390,13 +398,37 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
   }
 
-  // Fire-and-forget: backfill missing customer data into DB
+  // Fire-and-forget: backfill missing customer data into DB.
+  //
+  // Logs failures (was previously a silent .catch(() => {}) at the outer level
+  // that swallowed every error). Now per-row rejections are summarised to the
+  // app logger so an admin watching telemetry can spot a chronic backfill
+  // failure (e.g. a row that consistently violates a constraint).
   if (backfillUpdates.length > 0) {
     Promise.allSettled(
       backfillUpdates.slice(0, 100).map(({ id, data }) =>
         prisma.returnCase.update({ where: { id }, data })
       )
-    ).catch(() => {});
+    ).then(async (results) => {
+      const failures = results.filter((r) => r.status === "rejected");
+      if (failures.length > 0) {
+        try {
+          const { appLogger } = await import("../lib/observability/logger.server");
+          appLogger.warn(
+            {
+              module: "customers.backfill",
+              shopId: shop.id,
+              attempted: results.length,
+              failed: failures.length,
+              firstError: failures[0]?.status === "rejected"
+                ? String((failures[0] as PromiseRejectedResult).reason).slice(0, 200)
+                : null,
+            },
+            "Customer-data backfill had partial failures",
+          );
+        } catch { /* logging must never throw */ }
+      }
+    }).catch(() => { /* outer catch — defensive only */ });
   }
 
   if (sortBy === "amount") {
@@ -674,9 +706,14 @@ export default function CustomersPage() {
                         {cust.returnCount}
                       </div>
 
-                      {/* Total Refunded */}
-                      <div style={{ fontSize: 13, fontWeight: 600, color: cust.totalRefundAmount > 0 ? "#111827" : "#9ca3af", fontVariantNumeric: "tabular-nums" }}>
-                        {fmtMoney(cust.totalRefundAmount, cust.currency || shopCurrency, shopLocale)}
+                      {/* Total Refunded — `~` prefix when at least one row in the
+                          total was estimated from line-item list prices instead of
+                          a real Shopify refund record (see app.customers.tsx:289). */}
+                      <div
+                        style={{ fontSize: 13, fontWeight: 600, color: cust.totalRefundAmount > 0 ? "#111827" : "#9ca3af", fontVariantNumeric: "tabular-nums" }}
+                        title={cust.totalRefundAmountIsEstimate ? "At least one refund amount is estimated from line-item prices and may differ from the actual Shopify refund." : undefined}
+                      >
+                        {cust.totalRefundAmountIsEstimate ? "~" : ""}{fmtMoney(cust.totalRefundAmount, cust.currency || shopCurrency, shopLocale)}
                       </div>
 
                       {/* First Return */}

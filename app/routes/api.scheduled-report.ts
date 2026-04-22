@@ -104,8 +104,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const locale = s.shopLocale || "en";
       const fmt = (v: number) => new Intl.NumberFormat(locale, { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
 
+      // Period label — could be made fully locale-aware via Intl.RelativeTimeFormat
+      // but the current English strings are intentional (the email subject is also
+      // in English; merchants in non-English locales currently expect this). Date
+      // values inside the email already use `locale` for formatting.
       const periodLabel = s.scheduledReportFrequency === "daily" ? "Yesterday"
         : s.scheduledReportFrequency === "weekly" ? "Last 7 days" : "Last month";
+      // Generated-at timestamp (footer) — formatted in the merchant's locale + tz.
+      const generatedAtFmt = new Intl.DateTimeFormat(locale, {
+        dateStyle: "medium", timeStyle: "short",
+        ...(s.shopTimezone ? { timeZone: s.shopTimezone } : {}),
+      });
+      const generatedAtLabel = generatedAtFmt.format(new Date());
 
       const html = `
 <!DOCTYPE html>
@@ -173,7 +183,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   </table>
   <hr style="border:none;border-top:1px solid #e2e8f0;margin:24px 0">
   <p style="font-size:11px;color:#94a3b8;text-align:center">
-    Sent by ReturnProMax · ${s.scheduledReportFrequency} report · <a href="https://${s.shop.shopDomain}/admin/apps/returns/app/settings" style="color:#3b82f6">Manage settings</a>
+    Sent by ReturnProMax · ${s.scheduledReportFrequency} report · Generated ${generatedAtLabel} · <a href="https://${s.shop.shopDomain}/admin/apps/returns/app/settings" style="color:#3b82f6">Manage settings</a>
   </p>
 </body></html>`;
 

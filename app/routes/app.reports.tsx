@@ -476,11 +476,20 @@ export default function Reports() {
     setSearchParams(next);
   };
 
+  // Numeric rates for charts/progress rings. Formatted display strings (one
+  // decimal under 10%, integer otherwise) so very-small fractions don't visually
+  // round to 0% or look identical when they're actually different (P3 finding —
+  // 1/3 was rounding to 33% when it should show 33.3% so trends are visible).
+  const fmtRate = (n: number) => (n < 10 && n > 0 ? n.toFixed(1) : Math.round(n).toString());
   const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
   const rejectionRate = totalReturns > 0 ? Math.round((rejectedCount / totalReturns) * 100) : 0;
   const refundRate = approvedCount > 0 ? Math.round((refundedCount / approvedCount) * 100) : 0;
-  const avgItemsPerReturn = totalReturns > 0 ? (itemsCount / totalReturns).toFixed(1) : "0";
   const fyndSyncRate = approvedCount > 0 ? Math.round((fyndSyncedCount / approvedCount) * 100) : 0;
+  const approvalRateDisplay = totalReturns > 0 ? fmtRate((approvedCount / totalReturns) * 100) : "0";
+  const rejectionRateDisplay = totalReturns > 0 ? fmtRate((rejectedCount / totalReturns) * 100) : "0";
+  const refundRateDisplay = approvedCount > 0 ? fmtRate((refundedCount / approvedCount) * 100) : "0";
+  const fyndSyncRateDisplay = approvedCount > 0 ? fmtRate((fyndSyncedCount / approvedCount) * 100) : "0";
+  const avgItemsPerReturn = totalReturns > 0 ? (itemsCount / totalReturns).toFixed(1) : "0";
 
   const exportParams = new URLSearchParams({ range: range ?? "last_30_days" });
   if (from) exportParams.set("from", from);
@@ -546,7 +555,7 @@ export default function Reports() {
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#10B981" } as React.CSSProperties}>
             <div className="kpi-label">Approval Rate</div>
             <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#10B981" }}>{approvalRate}%</span>
+              <span className="kpi-value" style={{ color: "#10B981" }}>{approvalRateDisplay}%</span>
             </div>
             <div className="kpi-meta">{approvedCount} of {totalReturns}</div>
           </div>
@@ -564,7 +573,7 @@ export default function Reports() {
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
             <div className="kpi-label">Refund Rate</div>
             <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#8B5CF6" }}>{refundRate}%</span>
+              <span className="kpi-value" style={{ color: "#8B5CF6" }}>{refundRateDisplay}%</span>
             </div>
             <div className="kpi-meta">{refundedCount} refunded</div>
           </div>
@@ -589,11 +598,14 @@ export default function Reports() {
           </div>
 
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#f97316" } as React.CSSProperties}>
-            <div className="kpi-label">Repeat Returners</div>
+            {/* Label clarified: "in this period" makes it explicit that this is a
+                within-range rate, not an all-time repeat-customer metric. Previously
+                ambiguous — looked like all-time retention (P1 from QA audit). */}
+            <div className="kpi-label">Repeat Returners (this period)</div>
             <div className="kpi-row">
               <span className="kpi-value" style={{ color: "#f97316" }}>{repeatReturnerRate}%</span>
             </div>
-            <div className="kpi-meta">{repeatCustomerCount} of {uniqueCustomerCount} customers</div>
+            <div className="kpi-meta">{repeatCustomerCount} of {uniqueCustomerCount} customers returned ≥ 2 times</div>
           </div>
 
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" } as React.CSSProperties}>
@@ -688,10 +700,10 @@ export default function Reports() {
           gap: 14, marginBottom: 20,
         }}>
           {[
-            { label: "Approval", value: approvalRate, color: "#10B981", desc: `${approvedCount} of ${totalReturns}` },
-            { label: "Rejection", value: rejectionRate, color: "#EF4444", desc: `${rejectedCount} of ${totalReturns}` },
-            { label: "Refund", value: refundRate, color: "#8B5CF6", desc: `${refundedCount} of ${approvedCount} approved` },
-            ...(hasFyndConfig ? [{ label: "Fynd Sync", value: fyndSyncRate, color: "#06B6D4", desc: `${fyndSyncedCount} of ${approvedCount}` }] : []),
+            { label: "Approval", value: approvalRate, display: approvalRateDisplay, color: "#10B981", desc: `${approvedCount} of ${totalReturns}` },
+            { label: "Rejection", value: rejectionRate, display: rejectionRateDisplay, color: "#EF4444", desc: `${rejectedCount} of ${totalReturns}` },
+            { label: "Refund", value: refundRate, display: refundRateDisplay, color: "#8B5CF6", desc: `${refundedCount} of ${approvedCount} approved` },
+            ...(hasFyndConfig ? [{ label: "Fynd Sync", value: fyndSyncRate, display: fyndSyncRateDisplay, color: "#06B6D4", desc: `${fyndSyncedCount} of ${approvedCount}` }] : []),
           ].map((g, i) => (
             <div key={i} className={CS} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 20px" }}>
               <div style={{ position: "relative", flexShrink: 0 }}>
@@ -699,7 +711,7 @@ export default function Reports() {
                 <div style={{
                   position: "absolute", inset: 0, display: "flex", alignItems: "center",
                   justifyContent: "center", fontSize: 16, fontWeight: 700, color: g.color,
-                }}>{g.value}%</div>
+                }}>{g.display}%</div>
               </div>
               <div>
                 <div style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-text, #0f172a)", marginBottom: 2 }}>{g.label} rate</div>

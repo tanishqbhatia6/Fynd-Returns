@@ -118,20 +118,56 @@ function replaceTemplateVars(template: string, vars: Record<string, string>): st
   return template.replace(/\{\{(\w+)\}\}/g, (_, key) => escapeHtml(vars[key] ?? ""));
 }
 
-async function sendEmail(smtp: SmtpConfig, to: string, subject: string, html: string): Promise<SendResult> {
-  try {
-    const transport = createTransport(smtp);
-    await transport.sendMail({
-      from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
-      to,
-      subject,
-      html,
-    });
-    return { success: true };
-  } catch (err) {
-    notifLogger.error({ err, recipient: to, subject }, "Email send failed");
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+// Retry timing for transient SMTP failures (auth errors / config errors don't
+// retry — they always will fail on the same input). Two retries is enough to
+// ride through a momentary upstream outage without delaying customer comms long
+// enough to confuse them. P2 finding from QA audit — previously a single
+// flaky send dropped the notification entirely.
+const SEND_RETRY_DELAYS_MS = [1_000, 5_000];
+
+/** Returns true when the error looks transient (retry has a chance of helping). */
+function isTransientSmtpError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Common transient patterns from nodemailer / underlying socket. The asymmetry
+  // here (deny-list of permanent errors) is safer than a strict allow-list —
+  // unknown errors get one retry rather than being silently dropped.
+  if (/EAUTH|535|550|554|invalid recipient|no such user|relay denied|permanent/i.test(msg)) {
+    return false;
   }
+  return true;
+}
+
+async function sendEmail(smtp: SmtpConfig, to: string, subject: string, html: string): Promise<SendResult> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= SEND_RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      const transport = createTransport(smtp);
+      await transport.sendMail({
+        from: `"${smtp.fromName}" <${smtp.fromEmail}>`,
+        to,
+        subject,
+        html,
+      });
+      if (attempt > 0) {
+        notifLogger.info({ recipient: to, subject, attempt: attempt + 1 }, "Email send succeeded after retry");
+      }
+      return { success: true };
+    } catch (err) {
+      lastErr = err;
+      if (!isTransientSmtpError(err)) {
+        // Permanent failure — log and bail immediately.
+        notifLogger.error({ err, recipient: to, subject, attempt: attempt + 1, classification: "permanent" }, "Email send failed (permanent)");
+        return { success: false, error: err instanceof Error ? err.message : String(err) };
+      }
+      if (attempt < SEND_RETRY_DELAYS_MS.length) {
+        notifLogger.warn({ err, recipient: to, subject, attempt: attempt + 1, nextRetryMs: SEND_RETRY_DELAYS_MS[attempt] }, "Email send transient failure — retrying");
+        await new Promise((r) => setTimeout(r, SEND_RETRY_DELAYS_MS[attempt]));
+        continue;
+      }
+    }
+  }
+  notifLogger.error({ err: lastErr, recipient: to, subject, attempts: SEND_RETRY_DELAYS_MS.length + 1 }, "Email send failed after retries");
+  return { success: false, error: lastErr instanceof Error ? lastErr.message : String(lastErr) };
 }
 
 /* ── HTML Template Builder ── */

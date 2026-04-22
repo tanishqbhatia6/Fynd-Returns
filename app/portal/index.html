@@ -5543,11 +5543,15 @@
     document.getElementById('btnCopyOfferCode').onclick = function() {
       var code = document.getElementById('offerDiscountCode').textContent;
       if (!code) return;
+      var btn = document.getElementById('btnCopyOfferCode');
       navigator.clipboard.writeText(code).then(function() {
-        var btn = document.getElementById('btnCopyOfferCode');
         btn.textContent = t('portal.common.copied');
         setTimeout(function() { btn.textContent = t('portal.common.copyCode'); }, 2000);
-      }).catch(function() {});
+      }).catch(function() {
+        // Surface the failure rather than lying with a "Copied!" label.
+        btn.textContent = 'Copy failed';
+        setTimeout(function() { btn.textContent = t('portal.common.copyCode'); }, 2000);
+      });
     };
 
     document.getElementById('btnSubmitReturn').onclick = async () => {
@@ -5739,12 +5743,18 @@
     document.getElementById('btnCopyReturnId').onclick = function () {
       var el = document.getElementById('createReturnRequestId');
       if (!el || !el.textContent) return;
+      var btn = document.getElementById('btnCopyReturnId');
+      var orig = btn.textContent;
+      // Only show "Copied!" feedback if the clipboard write actually succeeded.
+      // The previous code optimistically updated the label and ignored failures,
+      // so a permission-denied (no clipboard access) silently lied to the user.
       navigator.clipboard.writeText(el.textContent).then(function () {
-        var btn = document.getElementById('btnCopyReturnId');
-        var orig = btn.textContent;
         btn.textContent = t('portal.common.copied');
         setTimeout(function () { btn.textContent = orig; }, 2000);
-      }).catch(function () { });
+      }).catch(function () {
+        btn.textContent = 'Copy failed';
+        setTimeout(function () { btn.textContent = orig; }, 2000);
+      });
     };
 
     document.getElementById('btnTrackThisReturn').onclick = function () {

@@ -5,12 +5,42 @@ import { Form, useActionData, useLoaderData } from "react-router";
 import { login } from "../../shopify.server";
 import { loginErrorMessage } from "./error.server";
 
+/**
+ * Whether `login(request)` would actually have a chance to read a shop value.
+ *
+ * For GET requests, login() reads `request.url`'s `shop` query param. For
+ * POST it reads the form body. If neither is present we want to render the
+ * empty form WITHOUT the "Please enter your shop domain" error — that error
+ * is misleading on first load (the user hasn't tried anything yet).
+ */
+function requestHasShopHint(request: Request, formShop?: string | null): boolean {
+  if (formShop && formShop.trim().length > 0) return true;
+  try {
+    return !!new URL(request.url).searchParams.get("shop");
+  } catch {
+    return false;
+  }
+}
+
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const errors = loginErrorMessage(await login(request));
-  return { errors };
+  // Auto-extract shop from the URL so the input pre-fills on first load. Most
+  // merchants land here after Shopify appends `?shop=<their-store>.myshopify.com`
+  // when their session expires — pre-filling saves a step and avoids the
+  // confusing "the URL says my shop but the input is empty" state.
+  const url = new URL(request.url);
+  const prefilledShop = url.searchParams.get("shop") ?? "";
+
+  // Only run login() if there's something to validate against. Calling it
+  // unconditionally on a fresh GET produces a "MissingShop" error that we
+  // then have to suppress in the UI — cleaner to skip the call.
+  const errors = requestHasShopHint(request)
+    ? loginErrorMessage(await login(request))
+    : {};
+  return { errors, prefilledShop };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  // For POST we always want validation feedback, so always call login().
   const errors = loginErrorMessage(await login(request));
   return { errors };
 };
@@ -44,7 +74,9 @@ function FeatureIcon({ name }: { name: string }) {
 export default function Auth() {
   const loaderData = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
-  const [shop, setShop] = useState("");
+  // Pre-fill from the loader. The loader reads ?shop= from the URL — Shopify
+  // typically appends it when redirecting expired sessions to /auth/login.
+  const [shop, setShop] = useState(loaderData.prefilledShop || "");
   const { errors } = actionData || loaderData;
 
   return (
@@ -164,7 +196,47 @@ export default function Auth() {
               boxShadow: "0 1px 3px rgba(0,0,0,0.04), 0 8px 32px rgba(0,0,0,0.06)",
               border: "1px solid #e2e8f0",
             }}>
-              <Form method="post">
+              <Form
+                method="post"
+                onSubmit={(e) => {
+                  // Two reasons to bypass the default Form POST when JS is on:
+                  //
+                  // 1. The OAuth redirect must happen at the TOP-LEVEL browser
+                  //    context. Inside the Shopify admin iframe, a regular
+                  //    302 to accounts.shopify.com is blocked by frame-
+                  //    ancestors / sandbox restrictions — the iframe shows a
+                  //    blank page and the user reports "nothing happens".
+                  //
+                  // 2. Going directly to /auth?shop=<x> is the canonical
+                  //    Shopify entry point. Posting to /auth/login first and
+                  //    then chaining a redirect adds an extra round-trip and
+                  //    a second chance to fail.
+                  //
+                  // We still set `method="post"` and a real action so SSR /
+                  // no-JS users get a working form.
+                  const trimmed = shop.trim().toLowerCase();
+                  if (!trimmed) return; // let Form validate emptiness via the action
+                  e.preventDefault();
+                  // Strip protocol + path the user might have pasted from the
+                  // Shopify Admin URL bar.
+                  const cleaned = trimmed
+                    .replace(/^https?:\/\//, "")
+                    .replace(/\/.*$/, "");
+                  const target = `/auth?shop=${encodeURIComponent(cleaned)}`;
+                  // Break out of the Shopify admin iframe so the OAuth
+                  // redirect lands at the top-level. Falls back gracefully
+                  // for browsers that block top-frame access.
+                  try {
+                    if (window.top && window.top !== window) {
+                      window.top.location.href = target;
+                      return;
+                    }
+                  } catch {
+                    /* cross-origin top access blocked — fall through */
+                  }
+                  window.location.href = target;
+                }}
+              >
                 <div style={{ marginBottom: 20 }}>
                   <label style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#334155", marginBottom: 6 }}>
                     Store domain
@@ -177,6 +249,7 @@ export default function Auth() {
                       value={shop}
                       onChange={(e) => setShop(e.target.value)}
                       autoComplete="on"
+                      autoFocus
                       style={{
                         width: "100%", padding: "12px 16px", fontSize: 15,
                         border: errors.shop ? "2px solid #ef4444" : "1px solid #d1d5db",
@@ -208,22 +281,27 @@ export default function Auth() {
 
                 <button
                   type="submit"
+                  disabled={!shop.trim()}
                   style={{
                     width: "100%", padding: "13px 24px",
-                    background: "linear-gradient(135deg, #4f46e5, #6366f1)",
+                    background: shop.trim()
+                      ? "linear-gradient(135deg, #4f46e5, #6366f1)"
+                      : "#cbd5e1",
                     color: "#fff", fontSize: 15, fontWeight: 700,
-                    border: "none", borderRadius: 10, cursor: "pointer",
+                    border: "none", borderRadius: 10,
+                    cursor: shop.trim() ? "pointer" : "not-allowed",
                     transition: "transform 0.15s, box-shadow 0.15s",
-                    boxShadow: "0 2px 8px #6366f140",
+                    boxShadow: shop.trim() ? "0 2px 8px #6366f140" : "none",
                     letterSpacing: "-0.01em",
                   }}
                   onMouseEnter={(e) => {
+                    if (!shop.trim()) return;
                     e.currentTarget.style.transform = "translateY(-1px)";
                     e.currentTarget.style.boxShadow = "0 4px 16px #6366f150";
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.transform = "translateY(0)";
-                    e.currentTarget.style.boxShadow = "0 2px 8px #6366f140";
+                    e.currentTarget.style.boxShadow = shop.trim() ? "0 2px 8px #6366f140" : "none";
                   }}
                 >
                   Install Fynd Returns

@@ -1,6 +1,6 @@
 import * as React from "react";
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useFetcher, useActionData, Form } from "react-router";
+import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
@@ -383,10 +383,21 @@ type ActionData = {
 export default function Integrations() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<ActionData>();
-  // useActionData captures the response from the per-shop webhook secret
-  // generation Form below — fetcher would lose the result on subsequent
-  // navigations.
-  const actionData = useActionData<{ fyndWebhookSecretJustGenerated?: string }>();
+  // Dedicated fetcher for the per-shop webhook secret generation.
+  //
+  // Why fetcher and not <Form>: a top-level <Form method="post"> navigates the
+  // iframe, which strips the App Bridge session token from the request.
+  // authenticate.admin() then fails and the boundary throws a redirect to
+  // /auth/login — exactly the "redirected to install page" symptom merchants
+  // were reporting. fetcher.Form uses fetch() under the hood, which the
+  // AppProvider patches to attach the Authorization: Bearer <session-token>
+  // header automatically, so auth survives across the request.
+  const webhookFetcher = useFetcher<{
+    success?: boolean;
+    fyndWebhookSecretJustGenerated?: string;
+    error?: string;
+  }>();
+  const justGeneratedSecret = webhookFetcher.data?.fyndWebhookSecretJustGenerated;
   const [fyndEnvironment, setFyndEnvironment] = React.useState(data.fyndEnvironment);
   const [appMode, setAppMode] = React.useState(data.appMode);
 
@@ -670,7 +681,7 @@ export default function Integrations() {
           </details>
 
           {/* ── Per-Shop Fynd Webhook Secret ── */}
-          <details style={{ marginTop: 24 }} open={!!actionData?.fyndWebhookSecretJustGenerated}>
+          <details style={{ marginTop: 24 }} open={!!justGeneratedSecret}>
             <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 16, padding: "12px 0", borderTop: "1px solid #E5E7EB" }}>
               Fynd Webhook (per-shop secret)
             </summary>
@@ -726,7 +737,7 @@ export default function Integrations() {
                 </div>
               </div>
 
-              {actionData?.fyndWebhookSecretJustGenerated ? (
+              {justGeneratedSecret ? (
                 <div
                   style={{
                     padding: 14, borderRadius: 10,
@@ -742,7 +753,7 @@ export default function Integrations() {
                     <input
                       type="text"
                       readOnly
-                      value={actionData.fyndWebhookSecretJustGenerated}
+                      value={justGeneratedSecret}
                       onFocus={(e) => e.currentTarget.select()}
                       className="app-code-readonly"
                       style={{ flex: "1 1 320px", minWidth: 0, borderColor: "#92400e", background: "#fff" }}
@@ -752,7 +763,7 @@ export default function Integrations() {
                       type="button"
                       className="app-btn"
                       onClick={(e) => {
-                        navigator.clipboard.writeText(actionData.fyndWebhookSecretJustGenerated!).then(
+                        navigator.clipboard.writeText(justGeneratedSecret).then(
                           () => {
                             const btn = e.currentTarget;
                             if (!btn) return;
@@ -791,10 +802,13 @@ export default function Integrations() {
                 </div>
               )}
 
-              {/* Action buttons — Generate/Rotate + Test. The Generate Form is
-                  separate from the Test fetcher so they don't share state. */}
+              {/* Action buttons — Generate/Rotate + Test. Generate uses a
+                  dedicated fetcher (not <Form>) so the request goes through
+                  fetch() and App Bridge attaches the session token. A plain
+                  <Form> POST navigates the iframe and loses the token, which
+                  triggered the "redirected to install page" bug. */}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-                <Form method="post">
+                <webhookFetcher.Form method="post" style={{ display: "inline-flex" }}>
                   <input
                     type="hidden"
                     name="intent"
@@ -803,6 +817,7 @@ export default function Integrations() {
                   <button
                     type="submit"
                     className="app-btn-primary"
+                    disabled={webhookFetcher.state !== "idle"}
                     onClick={(e) => {
                       if (data.fyndWebhookSecretConfigured) {
                         if (!confirm("Rotate the webhook secret? Fynd will be unable to deliver webhooks until you paste the new secret into the Fynd Partner Dashboard.")) {
@@ -811,9 +826,18 @@ export default function Integrations() {
                       }
                     }}
                   >
-                    {data.fyndWebhookSecretConfigured ? "Rotate webhook secret" : "Generate webhook secret"}
+                    {webhookFetcher.state !== "idle"
+                      ? "Generating…"
+                      : data.fyndWebhookSecretConfigured
+                        ? "Rotate webhook secret"
+                        : "Generate webhook secret"}
                   </button>
-                </Form>
+                </webhookFetcher.Form>
+                {webhookFetcher.data?.error && (
+                  <span style={{ fontSize: 13, color: "#991b1b" }}>
+                    {webhookFetcher.data.error}
+                  </span>
+                )}
                 {/* Test sends a synthetic webhook signed with the stored secret
                     via the same code path Fynd uses. Only meaningful AFTER a
                     secret exists. */}
@@ -851,6 +875,86 @@ export default function Integrations() {
                     : `✗ Test failed: ${("fyndWebhookTestError" in fetcher.data ? (fetcher.data as { fyndWebhookTestError?: string }).fyndWebhookTestError : null) ?? "unknown error"}`}
                 </div>
               )}
+
+              {/* ── Inline testing reference (Postman / curl) ──
+                  The merchant frequently asked "how do I test this from
+                  Postman?" — the answer is the same algorithm Fynd uses, so we
+                  surface it right here instead of burying it in /docs. The
+                  example shows the exact header name, signature algorithm, and
+                  a runnable curl one-liner using the merchant's actual
+                  webhook URL. */}
+              <details style={{ marginTop: 8 }}>
+                <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--rpm-text, #334155)", padding: "6px 0" }}>
+                  How to test from Postman or curl
+                </summary>
+                <div style={{ padding: "10px 0", display: "flex", flexDirection: "column", gap: 12, fontSize: 13 }}>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Signature algorithm</div>
+                    <div style={{ color: "var(--rpm-text-muted, #475569)", lineHeight: 1.5 }}>
+                      <code>X-Fynd-Signature</code> = <code>HMAC-SHA256(secret, raw_body).hex</code>
+                      . The signature is computed over the exact bytes of the
+                      JSON body — no whitespace changes, no re-serialisation.
+                      We accept both <code>&lt;hex&gt;</code> and
+                      <code> sha256=&lt;hex&gt;</code> formats.
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>curl example</div>
+                    <textarea
+                      readOnly
+                      onFocus={(e) => e.currentTarget.select()}
+                      value={[
+                        `# Replace SECRET with the secret you copied above.`,
+                        `BODY='{"shipment_id":"selftest-1","refund_status":"UNDER PROCESS"}'`,
+                        `SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "SECRET" | awk '{print $2}')`,
+                        `curl -X POST "${data.fyndWebhookUrl}" \\`,
+                        `  -H "Content-Type: application/json" \\`,
+                        `  -H "X-Fynd-Signature: $SIG" \\`,
+                        `  -d "$BODY"`,
+                      ].join("\n")}
+                      rows={7}
+                      style={{
+                        width: "100%", padding: "10px 12px", fontSize: 12,
+                        fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                        background: "#0f172a", color: "#e2e8f0",
+                        border: "1px solid #1e293b", borderRadius: 8,
+                        resize: "vertical", whiteSpace: "pre", overflowX: "auto",
+                      }}
+                      aria-label="curl example for testing the per-shop webhook"
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 600, marginBottom: 4 }}>Sample payload Fynd will send</div>
+                    <textarea
+                      readOnly
+                      onFocus={(e) => e.currentTarget.select()}
+                      value={JSON.stringify({
+                        shipment_id: "16xxxx2345678",
+                        refund_status: "refund_done",
+                        order_id: "FY10000001",
+                        amount: 1299,
+                        currency: "INR",
+                      }, null, 2)}
+                      rows={7}
+                      style={{
+                        width: "100%", padding: "10px 12px", fontSize: 12,
+                        fontFamily: "ui-monospace, SFMono-Regular, monospace",
+                        background: "#f8fafc", color: "#0f172a",
+                        border: "1px solid #e2e8f0", borderRadius: 8,
+                        resize: "vertical",
+                      }}
+                      aria-label="Sample Fynd webhook payload"
+                    />
+                  </div>
+                  <div style={{ color: "var(--rpm-text-muted, #475569)", lineHeight: 1.5 }}>
+                    <strong>Expected responses:</strong>{" "}
+                    <code>200 {"{ ok: true }"}</code> on success,{" "}
+                    <code>401</code> if the signature doesn't match the stored
+                    secret or no secret is configured for this shop,{" "}
+                    <code>413</code> for payloads over 1 MB.
+                  </div>
+                </div>
+              </details>
             </div>
           </details>
 

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
-import { useLoaderData, useActionData, Form, useNavigation, Link } from "react-router";
+import { useLoaderData, useFetcher, Link } from "react-router";
 
 // Client-side constant for permissions (server uses ALL_PERMISSIONS from api-key-auth.server)
 const PERMISSIONS_LIST = ["read_returns", "write_returns", "read_settings", "manage_webhooks"] as const;
@@ -99,9 +99,15 @@ const PERM_LABELS: Record<string, string> = {
 
 export default function ApiKeysSettings() {
   const { keys } = useLoaderData<typeof loader>();
-  const actionData = useActionData<typeof action>();
-  const navigation = useNavigation();
-  const isSubmitting = navigation.state === "submitting";
+  // Single fetcher reused across generate / revoke / delete intents.
+  // Why fetcher (not <Form>): in an embedded Shopify app, plain <Form method=
+  // "post"> navigations strip the App Bridge session token from the request,
+  // causing authenticate.admin() to fail and the boundary to redirect to
+  // /auth/login. fetcher.Form goes through fetch() which the Shopify
+  // AppProvider patches to inject the bearer token automatically.
+  const fetcher = useFetcher<typeof action>();
+  const isSubmitting = fetcher.state !== "idle";
+  const actionData = fetcher.data;
 
   const [showForm, setShowForm] = useState(false);
   const [copiedKey, setCopiedKey] = useState(false);
@@ -200,7 +206,7 @@ export default function ApiKeysSettings() {
 
         {/* Generate Form */}
         {showForm && (
-          <Form method="post" style={{
+          <fetcher.Form method="post" style={{
             padding: "20px", marginBottom: 20,
             background: "var(--rpm-surface, white)", borderRadius: 10,
             border: "var(--rpm-border, 1px solid #e5e7eb)",
@@ -236,7 +242,7 @@ export default function ApiKeysSettings() {
             >
               {isSubmitting ? "Generating..." : "Generate Key"}
             </button>
-          </Form>
+          </fetcher.Form>
         )}
 
         {/* Keys List */}
@@ -310,11 +316,12 @@ export default function ApiKeysSettings() {
                     </div>
                     {!isRevoked && (
                       <div style={{ display: "flex", gap: 6 }}>
-                        <Form method="post" style={{ display: "inline" }}>
+                        <fetcher.Form method="post" style={{ display: "inline" }}>
                           <input type="hidden" name="_action" value="revoke" />
                           <input type="hidden" name="keyId" value={key.id} />
                           <button
                             type="submit"
+                            disabled={isSubmitting}
                             style={{
                               padding: "4px 10px", borderRadius: 5, border: "1px solid #FDE68A",
                               background: "#FFFBEB", color: "#92400E", fontSize: 11, fontWeight: 600,
@@ -323,15 +330,16 @@ export default function ApiKeysSettings() {
                           >
                             Revoke
                           </button>
-                        </Form>
+                        </fetcher.Form>
                       </div>
                     )}
                     {isRevoked && (
-                      <Form method="post" style={{ display: "inline" }}>
+                      <fetcher.Form method="post" style={{ display: "inline" }}>
                         <input type="hidden" name="_action" value="delete" />
                         <input type="hidden" name="keyId" value={key.id} />
                         <button
                           type="submit"
+                          disabled={isSubmitting}
                           style={{
                             padding: "4px 10px", borderRadius: 5, border: "1px solid #FECACA",
                             background: "#FEF2F2", color: "#DC2626", fontSize: 11, fontWeight: 600,
@@ -340,7 +348,7 @@ export default function ApiKeysSettings() {
                         >
                           Delete
                         </button>
-                      </Form>
+                      </fetcher.Form>
                     )}
                   </div>
                 </div>

@@ -43,7 +43,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const s = shop.settings;
   const normalized = getNormalizedCredentialsFromRaw(s?.fyndCredentials ?? null);
   const appUrl = process.env.SHOPIFY_APP_URL || "";
-  const webhookUrl = appUrl ? `${appUrl.replace(/\/$/, "")}/api/webhooks/fynd` : "";
+  // Per-shop webhook URL — preferred. Each shop has a unique URL + its own
+  // signing secret; a leak only affects one store. The legacy global URL is
+  // still surfaced below for reference (and works at runtime via the
+  // FYND_WEBHOOK_SECRET env var) but the wizard now defaults to per-shop.
+  const webhookUrl = appUrl ? `${appUrl.replace(/\/$/, "")}/api/webhooks/fynd/${shop.id}` : "";
+  const legacyWebhookUrl = appUrl ? `${appUrl.replace(/\/$/, "")}/api/webhooks/fynd` : "";
+
+  // Has the merchant generated their per-shop webhook secret yet? If not, the
+  // wizard nudges them into Settings → Integrations to do that first.
+  const hasPerShopWebhookSecret = !!s?.fyndWebhookSecret;
 
   let existingSubscriber: { name: string; webhook_url: string } | null = null;
   let subscribersError: string | null = null;
@@ -59,7 +68,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       undefined
     );
     if (listResult.ok) {
-      const found = findSubscriberWithUrl(listResult.subscribers, webhookUrl);
+      // Match either the per-shop URL or the legacy URL — a merchant who set
+      // up before this feature shipped is not "unsubscribed" just because they
+      // haven't migrated yet.
+      const found =
+        findSubscriberWithUrl(listResult.subscribers, webhookUrl) ||
+        findSubscriberWithUrl(listResult.subscribers, legacyWebhookUrl);
       if (found) {
         existingSubscriber = { name: found.name, webhook_url: found.webhook_url };
       }
@@ -76,6 +90,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     fyndCustomBaseUrl: (s as { fyndCustomBaseUrl?: string })?.fyndCustomBaseUrl ?? "",
     appUrl,
     webhookUrl,
+    legacyWebhookUrl,
+    hasPerShopWebhookSecret,
     appMode: getAppMode(s ?? {}),
     existingSubscriber,
     subscribersError,
@@ -150,9 +166,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return { success: false, registerError: "Save credentials first (Step 1), then register webhook.", registerResult: false, debugLogs: logs };
       }
       const appUrl = process.env.SHOPIFY_APP_URL || "";
-      const webhookUrl = appUrl ? `${appUrl.replace(/\/$/, "")}/api/webhooks/fynd` : "";
+      // Register the per-shop URL (preferred). The legacy global URL is no
+      // longer registered by the wizard — merchants on the legacy URL keep
+      // working, but new registrations use per-shop.
+      const webhookUrl = appUrl ? `${appUrl.replace(/\/$/, "")}/api/webhooks/fynd/${shop.id}` : "";
       if (!webhookUrl) {
         return { success: false, registerError: "SHOPIFY_APP_URL is not set. Set it in your deployment environment.", registerResult: false, debugLogs: logs };
+      }
+      // Sanity-check: the per-shop URL won't authenticate without a per-shop
+      // signing secret. Refuse to register a webhook that's pre-broken.
+      if (!stored?.fyndWebhookSecret) {
+        return {
+          success: false,
+          registerError:
+            "Generate a per-shop webhook secret first: open Settings → Integrations → \"Fynd Webhook (per-shop secret)\" → Generate webhook secret. Copy the displayed secret into the Fynd Partner Dashboard 'Secret' field after this registration.",
+          registerResult: false,
+          debugLogs: logs,
+        };
       }
       const notificationEmail = String(formData.get("notificationEmail") ?? "").trim() || `webhooks@${session.shop?.replace(".myshopify.com", "")}.local`;
       const subscriberName = String(formData.get("subscriberName") ?? "Fynd Returns").trim() || "Fynd Returns";
@@ -172,12 +202,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!result.ok) {
         return { success: false, registerError: result.error, registerResult: false, debugLogs: logs };
       }
-      // Verify endpoint is reachable before showing success
+      // Verify endpoint is reachable before showing success.
+      //
+      // GET probes the loader (which returns 200 {ok:true,method:"POST"} on
+      // both /api/webhooks/fynd and /api/webhooks/fynd/:shopId). A POST probe
+      // would be rejected by the per-shop endpoint as an unsigned webhook,
+      // which is correct security behaviour but useless for reachability.
       try {
         const verifyRes = await fetch(webhookUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ shipment_id: "verify-" + Date.now(), refund_status: "UNDER PROCESS" }),
+          method: "GET",
           signal: AbortSignal.timeout(15000),
         });
         const ok = verifyRes.ok && verifyRes.status >= 200 && verifyRes.status < 300;
@@ -457,6 +490,11 @@ export default function FyndSetup() {
                 The webhook lets Fynd notify Fynd Returns when refund status changes. When Fynd reports <code>refund_done</code>, the app
                 automatically creates the refund in Shopify.
               </p>
+              <p style={{ margin: "8px 0 0", fontSize: 13 }}>
+                This URL is <strong>unique to this Shopify store</strong>. Each store has its
+                own URL <em>and</em> its own HMAC signing secret — a leak only ever
+                affects one store.
+              </p>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
                 <strong>Required Fynd scopes:</strong> <code>company/orders/read</code>, <code>company/orders/write</code>. If webhook registration fails with 403, your OAuth app may also need <code>company/settings</code> or <code>company/webhooks</code> in Fynd Partners.
               </p>
@@ -465,8 +503,36 @@ export default function FyndSetup() {
               </p>
             </div>
 
+            {/* Step 3a: secret precondition. Without a per-shop secret, the
+                webhook URL exists but every Fynd POST will be rejected as
+                unsigned. Surface the gap up front and link to where to fix it. */}
+            {!data.hasPerShopWebhookSecret && (
+              <div
+                style={{
+                  marginTop: 24,
+                  padding: 16,
+                  background: "#fef3c7",
+                  borderRadius: 8,
+                  border: "1.5px solid #f59e0b",
+                  fontSize: 13,
+                  color: "#78350f",
+                  lineHeight: 1.5,
+                }}
+              >
+                <strong>You need to generate a webhook signing secret first.</strong>
+                <p style={{ margin: "6px 0 0" }}>
+                  Open <Link to="/app/settings/integrations" style={{ color: "#92400e", textDecoration: "underline" }}>Settings → Integrations</Link> →
+                  expand <strong>"Fynd Webhook (per-shop secret)"</strong> →
+                  click <strong>Generate webhook secret</strong>. Copy the secret
+                  (shown ONCE) along with this URL into the Fynd Partner Dashboard.
+                </p>
+              </div>
+            )}
+
             <div style={{ marginTop: 24 }}>
-              <label style={{ display: "block", fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Webhook URL</label>
+              <label style={{ display: "block", fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
+                Webhook URL <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 12 }}>(per-shop)</span>
+              </label>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <code
                   style={{
@@ -505,6 +571,32 @@ export default function FyndSetup() {
                   SHOPIFY_APP_URL is not set. Set it in your deployment environment (e.g. Render, Heroku).
                 </p>
               )}
+              {data.hasPerShopWebhookSecret && (
+                <p style={{ marginTop: 8, fontSize: 12, color: "#065f46" }}>
+                  ✓ This shop has a webhook secret configured. Make sure the
+                  same secret value is set in the Fynd Partner Dashboard for
+                  this URL.
+                </p>
+              )}
+              {/* Reference for merchants still on the legacy global URL — not
+                  promoted, but available so they don't think it broke. */}
+              <details style={{ marginTop: 12, fontSize: 12, color: "#6b7280" }}>
+                <summary style={{ cursor: "pointer" }}>Legacy global URL (deprecated)</summary>
+                <p style={{ margin: "8px 0 0" }}>
+                  Older deployments used a single global URL with a shared
+                  <code> FYND_WEBHOOK_SECRET</code> env var. It still works,
+                  but new merchants should use the per-shop URL above.
+                </p>
+                <code
+                  style={{
+                    display: "block", marginTop: 6, padding: "8px 10px",
+                    background: "#f3f4f6", color: "#374151", borderRadius: 6,
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {data.legacyWebhookUrl || "—"}
+                </code>
+              </details>
             </div>
 
             {data.existingSubscriber && (

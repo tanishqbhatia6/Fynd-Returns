@@ -1,0 +1,67 @@
+{%- comment -%}
+  Fynd Returns — inline "Need to return something?" link.
+
+  Designed for the order-status page or any footer slot. Single-line
+  link rather than the full call-to-action block. Merchants who only
+  want a subtle entry point (vs. the prominent returns-entry block)
+  use this instead.
+{%- endcomment -%}
+
+{%- liquid
+  assign prompt = block.settings.prompt | default: 'Need to return something?'
+  assign link_label = block.settings.link_label | default: 'Start a return'
+  assign color = block.settings.color | default: '#0f172a'
+-%}
+
+<p class="fynd-returns-inline" style="color: {{ color }};" {{ block.shopify_attributes }}>
+  {{ prompt }}
+  <a
+    href="{{ shop.url }}/apps/returns"
+    class="fynd-returns-inline__link"
+    style="color: inherit;"
+  >
+    {{ link_label }}
+  </a>
+</p>
+
+<style>
+  .fynd-returns-inline {
+    font-size: 0.9375rem;
+    line-height: 1.55;
+    margin: 12px 0;
+  }
+  .fynd-returns-inline__link {
+    text-decoration: underline;
+    font-weight: 600;
+  }
+  .fynd-returns-inline__link:hover {
+    text-decoration-thickness: 2px;
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Returns link (inline)",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "prompt",
+      "label": "Prompt text",
+      "default": "Need to return something?"
+    },
+    {
+      "type": "text",
+      "id": "link_label",
+      "label": "Link label",
+      "default": "Start a return"
+    },
+    {
+      "type": "color",
+      "id": "color",
+      "label": "Text color",
+      "default": "#0f172a"
+    }
+  ]
+}
+{% endschema %}

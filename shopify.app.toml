@@ -1,4 +1,4 @@
-# Fynd Returns — Enterprise Returns Management for Shopify
+# Fynd Returns — Returns management for Shopify
 name = "Fynd Returns"
 client_id = "2cfa0f8846589d9e5c39500758697b1a"
 application_url = "https://returnpromax-web-production.up.railway.app"
@@ -57,3 +57,9 @@ topics = ["draft_orders/update"]
 url = "https://returnpromax-web-production.up.railway.app/apps/returns"
 subpath = "returns"
 prefix = "apps"
+
+# Theme app extensions live under /extensions. Each subdirectory
+# declares its own shopify.extension.toml. The Shopify CLI picks up
+# everything in this path on `shopify app deploy`.
+[extensions]
+path = "extensions"

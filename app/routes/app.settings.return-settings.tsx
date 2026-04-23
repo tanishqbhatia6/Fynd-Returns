@@ -273,9 +273,9 @@ export default function ReturnSettings() {
   const [photoRequired, setPhotoRequired] = React.useState(data.photoRequired);
   const [autoApproveEnabled, setAutoApproveEnabled] = React.useState(data.autoApproveEnabled);
   const [autoRefundEnabled, setAutoRefundEnabled] = React.useState(data.autoRefundEnabled);
-  const [dcEnabled, setDcEnabled] = React.useState(data.discountCodeRefundEnabled);
-  const [dcPrefix, setDcPrefix] = React.useState(data.discountCodePrefix);
-  const [dcExpiryDays, setDcExpiryDays] = React.useState(data.discountCodeExpiryDays);
+  // Discount-code-as-refund fields (dcEnabled/dcPrefix/dcExpiryDays) were
+  // removed when the refund method was deleted per Shopify App Store
+  // policy. The schema columns remain for historical row display only.
   const [noReturnEnabled, setNoReturnEnabled] = React.useState(data.noReturnPeriodEnabled);
   const [portalExchangeEnabled, setPortalExchangeEnabled] = React.useState(data.portalExchangeEnabled);
   const [allowedFulfillStatuses, setAllowedFulfillStatuses] = React.useState<string[]>(data.portalAllowedFulfillmentStatuses);
@@ -321,9 +321,6 @@ export default function ReturnSettings() {
     setPhotoRequired(data.photoRequired);
     setAutoApproveEnabled(data.autoApproveEnabled);
     setAutoRefundEnabled(data.autoRefundEnabled);
-    setDcEnabled(data.discountCodeRefundEnabled);
-    setDcPrefix(data.discountCodePrefix);
-    setDcExpiryDays(data.discountCodeExpiryDays);
     setNoReturnEnabled(data.noReturnPeriodEnabled);
     setPortalExchangeEnabled(data.portalExchangeEnabled);
     setAllowedFulfillStatuses(data.portalAllowedFulfillmentStatuses);
@@ -365,9 +362,9 @@ export default function ReturnSettings() {
     fd.set("refundLocationId", selectedLocId);
     fd.set("refundPaymentMethod", paymentMethod);
     fd.set("refundStoreCreditPct", String(storeCreditPct));
-    fd.set("discountCodeRefundEnabled", dcEnabled ? "on" : "off");
-    fd.set("discountCodePrefix", dcPrefix);
-    fd.set("discountCodeExpiryDays", String(dcExpiryDays));
+    // Force-disable the legacy discount-code-as-refund flag on every save
+    // so shops migrating from earlier versions have it cleared out.
+    fd.set("discountCodeRefundEnabled", "off");
     fd.set("portalExchangeEnabled", portalExchangeEnabled ? "on" : "off");
     fd.delete("portalAllowedFulfillmentStatuses");
     allowedFulfillStatuses.forEach((s) => fd.append("portalAllowedFulfillmentStatuses", s));
@@ -987,8 +984,6 @@ export default function ReturnSettings() {
                 flag is force-disabled below to neutralise any legacy
                 database rows. */}
             <input type="hidden" name="discountCodeRefundEnabled" value="off" />
-            <input type="hidden" name="discountCodePrefix" value={dcPrefix} />
-            <input type="hidden" name="discountCodeExpiryDays" value={String(dcExpiryDays)} />
           </s-section>
 
           {/* Refund Location */}

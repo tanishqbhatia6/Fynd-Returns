@@ -1,6 +1,6 @@
 # Fynd Returns
 
-**Enterprise-grade Shopify Returns Management with Fynd Logistics Integration**
+**Shopify Returns Management with Fynd Logistics Integration**
 
 [![CI](https://github.com/Farhankhan0128/returnpromax/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Farhankhan0128/returnpromax/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/Farhankhan0128/returnpromax/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Farhankhan0128/returnpromax/actions/workflows/codeql.yml)
@@ -8,7 +8,7 @@
 [![License: MIT](https://img.shields.io/github/license/Farhankhan0128/returnpromax?color=blue)](LICENSE)
 [![Node](https://img.shields.io/node/v/@shopify/shopify-app-react-router?color=43853D&label=node)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Tests](https://img.shields.io/badge/tests-417%20passing-brightgreen?logo=vitest&logoColor=white)](COVERAGE.md)
+[![Tests](https://img.shields.io/badge/tests-720%20passing-brightgreen?logo=vitest&logoColor=white)](COVERAGE.md)
 [![Coverage Plan](https://img.shields.io/badge/coverage-ratchet-blueviolet)](COVERAGE.md)
 [![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](.github/dependabot.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)

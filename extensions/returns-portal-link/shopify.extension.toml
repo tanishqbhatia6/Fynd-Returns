@@ -1,0 +1,22 @@
+api_version = "2026-01"
+
+[[extensions]]
+type = "theme"
+name = "Returns portal link"
+handle = "returns-portal-link"
+
+# Theme app extension for Fynd Returns.
+#
+# Gives merchants a way to embed a "Start a return" entry point directly
+# into their theme via the theme editor's App Blocks section — the
+# Shopify-endorsed alternative to asking them to hand-edit Liquid.
+#
+# Blocks provided:
+#   - returns-entry  — a styled button that deep-links to /apps/returns
+#     (the existing App Proxy). Can be dropped into any section slot.
+#   - order-status-link — an inline link suitable for the order status
+#     page ("Need to return something?").
+#
+# The portal itself is still served by App Proxy at /apps/returns. The
+# theme app extension only provides the merchant-placed CTA that leads
+# customers there — it doesn't duplicate portal logic.

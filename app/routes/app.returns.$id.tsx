@@ -2635,45 +2635,22 @@ export default function ReturnDetail() {
                   </>
                 )}
                 {isRefunded && (() => {
-                  let refundInfo: { refundId?: string; amount?: string; currency?: string; createdAt?: string; method?: string; source?: string; bonusCreditAmount?: string; greenReturn?: boolean; discountCode?: string } | null = null;
+                  let refundInfo: { refundId?: string; amount?: string; currency?: string; createdAt?: string; method?: string; source?: string; bonusCreditAmount?: string; greenReturn?: boolean } | null = null;
                   try {
                     const raw = (returnCase as { refundJson?: string | null }).refundJson;
                     if (raw) refundInfo = JSON.parse(raw);
                   } catch { /* no refund details */ }
                   const storedBonusAmount = (returnCase as { bonusCreditAmount?: string | null }).bonusCreditAmount;
                   const displayBonus = refundInfo?.bonusCreditAmount ?? storedBonusAmount;
-                  const storedDiscountCode = (returnCase as { discountCode?: string | null }).discountCode;
-                  const storedDiscountValue = (returnCase as { discountCodeValue?: string | null }).discountCodeValue;
-                  const isDiscountRefund = refundInfo?.method === "discount_code" || !!storedDiscountCode;
-                  const displayDiscountCode = refundInfo?.discountCode ?? storedDiscountCode;
                   return (
-                    <div style={{ padding: 14, background: isDiscountRefund ? "#EDE9FE" : "#DCFCE7", borderRadius: 10, border: isDiscountRefund ? "1px solid #C4B5FD" : "1px solid #BBF7D0" }}>
+                    <div style={{ padding: 14, background: "#DCFCE7", borderRadius: 10, border: "1px solid #BBF7D0" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: refundInfo ? 10 : 0 }}>
-                        {isDiscountRefund ? (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#5B21B6" strokeWidth="2.5"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                        ) : (
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        )}
-                        <span style={{ fontWeight: 700, fontSize: 14, color: isDiscountRefund ? "#5B21B6" : "#166534" }}>
-                          {isDiscountRefund ? "Discount code issued" : "Refund processed"}
-                        </span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: "#166534" }}>Refund processed</span>
                       </div>
-                      {displayDiscountCode && (
-                        <div style={{ padding: "10px 14px", background: isDiscountRefund ? "#F5F3FF" : "#F0FDF4", borderRadius: 8, marginBottom: 10, border: isDiscountRefund ? "1px dashed #A78BFA" : "1px dashed #86EFAC" }}>
-                          <div style={{ fontSize: 11, color: isDiscountRefund ? "#7C3AED" : "#166534", fontWeight: 500, marginBottom: 4 }}>Discount Code</div>
-                          <div style={{ fontFamily: "monospace", fontSize: 18, fontWeight: 700, color: isDiscountRefund ? "#5B21B6" : "#166534", letterSpacing: "0.05em" }}>
-                            {displayDiscountCode}
-                          </div>
-                          {storedDiscountValue && (
-                            <div style={{ fontSize: 12, color: isDiscountRefund ? "#7C3AED" : "#166534", marginTop: 4 }}>
-                              Value: {formatMoney(storedDiscountValue, refundInfo?.currency || shopCurrency, shopLocale)}
-                            </div>
-                          )}
-                        </div>
-                      )}
                       {refundInfo && (
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                          {refundInfo.amount && !isDiscountRefund && (
+                          {refundInfo.amount && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
                               <span style={{ color: "#166534" }}>Amount</span>
                               <span style={{ fontWeight: 700, color: "#166534" }}>
@@ -2689,14 +2666,14 @@ export default function ReturnDetail() {
                           )}
                           {refundInfo.createdAt && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>Processed</span>
-                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(refundInfo.createdAt))}</span>
+                              <span style={{ color: "#166534" }}>Processed</span>
+                              <span style={{ color: "#166534" }}>{new Intl.DateTimeFormat(shopLocale || "en", { dateStyle: "medium", timeStyle: "short", timeZone: undefined }).format(new Date(refundInfo.createdAt))}</span>
                             </div>
                           )}
                           {refundInfo.source && (
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>Triggered by</span>
-                              <span style={{ color: isDiscountRefund ? "#5B21B6" : "#166534" }}>{refundInfo.source === "admin" ? "Admin" : refundInfo.source === "fynd_webhook" ? "Fynd" : refundInfo.source === "auto_fynd_credit_note" ? "Auto (Credit Note)" : refundInfo.source}</span>
+                              <span style={{ color: "#166534" }}>Triggered by</span>
+                              <span style={{ color: "#166534" }}>{refundInfo.source === "admin" ? "Admin" : refundInfo.source === "fynd_webhook" ? "Fynd" : refundInfo.source === "auto_fynd_credit_note" ? "Auto (Credit Note)" : refundInfo.source}</span>
                             </div>
                           )}
                           {refundInfo.refundId && (

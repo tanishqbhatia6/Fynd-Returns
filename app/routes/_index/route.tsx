@@ -17,32 +17,32 @@ const features = [
   {
     icon: "check",
     title: "Automated Approvals",
-    desc: "Rule-based return policies that auto-approve or flag returns instantly.",
+    desc: "Rule-based return policies that auto-approve or flag returns based on configurable criteria.",
   },
   {
     icon: "globe",
     title: "Branded Portal",
-    desc: "A white-label return portal your customers will love to use.",
+    desc: "A white-label return portal you can customize with your brand colors, fonts, and copy.",
   },
   {
     icon: "chart",
-    title: "Real-time Analytics",
-    desc: "Granular insights on return rates, reasons, and revenue impact.",
+    title: "Analytics Dashboard",
+    desc: "Return rates, reasons, resolution types, and refund amounts with date-range filters.",
   },
   {
     icon: "users",
     title: "Multi-channel Support",
-    desc: "Manage returns from Shopify, marketplaces, and your own channels.",
+    desc: "Process returns on orders from Shopify, Fynd OMS, or manually submitted via OTP.",
   },
   {
     icon: "sync",
     title: "Fynd Integration",
-    desc: "Native sync with Fynd OMS for forward and reverse logistics.",
+    desc: "Sync with Fynd OMS for forward and reverse logistics, credit notes, and webhooks.",
   },
   {
     icon: "shield",
-    title: "Secure & Compliant",
-    desc: "Encrypted credentials, JWT auth, and role-based access controls.",
+    title: "Secure by design",
+    desc: "AES-256-GCM-encrypted credentials, HMAC-verified webhooks, and Shopify OAuth.",
   },
 ];
 
@@ -731,8 +731,8 @@ export default function Index() {
             Ready to transform your<br />returns experience?
           </h2>
           <p className="cta-desc">
-            Join brands that trust ReturnPro to automate returns, reduce costs,
-            and keep customers coming back.
+            Automate returns, reduce manual work, and offer exchanges or
+            store credit to keep revenue inside your store.
           </p>
           <div className="cta-row">
             <a href="https://apps.shopify.com" target="_blank" rel="noopener noreferrer" className="cta-primary">
@@ -765,7 +765,7 @@ export default function Index() {
               <span style={{ fontSize: 16 }}>ReturnPro</span>
             </a>
             <p className="footer-desc">
-              Enterprise-grade returns management for Shopify stores, powered by Fynd.
+              Returns management for Shopify stores, powered by Fynd.
             </p>
           </div>
           <div>

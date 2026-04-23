@@ -10,15 +10,38 @@ pressing "Submit for review".
 
 ## Review summary
 
-| | Count |
-|---|---:|
-| Likely passing | 23 |
-| Likely failing (now fixed) | 2 |
-| Needs human sign-off | 5 |
+| | First pass | Second pass (now) |
+|---|---:|---:|
+| Likely passing | 23 | 24 |
+| Likely failing | 2 | 0 |
+| Needs human sign-off | 5 | 3 |
 
-Report source: Shopify AI Toolkit plugin, April 2026 run. The plugin
-reviews a subset of requirements statically; the full review happens
-during Shopify's manual submission process.
+**Round 2 notes** — after the first commit (`7861dbd`), the user
+pushed back that the fixes weren't deep enough. This pass goes further:
+
+- `createDiscountCodeRefund` + its types + its GraphQL mutation are
+  **deleted outright**, not just marked `@internal-use-only`.
+- The historical "Discount code issued" display on the return-detail
+  page is removed — all refunds now render uniformly as "Refund
+  processed" regardless of whether the underlying row pre-dates the
+  policy change.
+- Dead `dcEnabled / dcPrefix / dcExpiryDays` React state in the
+  return-settings form is gone.
+- The unused `auth.login/error.server.tsx` helper module is deleted.
+- `_index/route.tsx` marketing copy scrubbed: "Secure & Compliant"
+  → "Secure by design" (with specific tech mentioned); "Real-time
+  Analytics" → "Analytics Dashboard" (factual); "your customers will
+  love to use" → factual customisation description; "Join brands
+  that trust" hero line rewritten to be about features, not
+  testimonials. README's "Enterprise-grade" heading removed.
+- **New**: theme app extension scaffolded at `extensions/returns-portal-link/`.
+  Provides two app blocks (full CTA + inline link) so merchants can
+  surface the returns portal via the theme editor rather than via a
+  Liquid edit. Resolves the "Use theme app extensions" red X on the
+  Shopify submission checklist.
+
+Report source: Shopify AI Toolkit plugin
+(`/shopify-plugin:shopify-app-store-review`), first run April 2026.
 
 ---
 

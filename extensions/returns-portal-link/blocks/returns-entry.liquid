@@ -1,0 +1,127 @@
+{%- comment -%}
+  Fynd Returns — "Start a return" app block.
+
+  Drop this block into any theme section via the theme editor to give
+  customers a one-click entry point into the returns portal.
+  The portal itself is served by Shopify App Proxy at /apps/returns
+  (configured in shopify.app.toml) — this block is purely the CTA.
+
+  Merchants can customise label, description, colors, and alignment
+  from the block settings panel in the theme editor.
+{%- endcomment -%}
+
+{%- liquid
+  assign button_label = block.settings.button_label | default: 'Start a return'
+  assign heading = block.settings.heading | default: 'Returns & Exchanges'
+  assign description = block.settings.description | default: 'Start a return, track an existing one, or look up your order.'
+  assign align = block.settings.alignment | default: 'center'
+  assign button_bg = block.settings.button_background | default: '#0f172a'
+  assign button_fg = block.settings.button_color | default: '#ffffff'
+-%}
+
+<div class="fynd-returns-entry" style="text-align: {{ align }};" {{ block.shopify_attributes }}>
+  {%- if heading != blank -%}
+    <h3 class="fynd-returns-entry__heading">{{ heading }}</h3>
+  {%- endif -%}
+
+  {%- if description != blank -%}
+    <p class="fynd-returns-entry__description">{{ description }}</p>
+  {%- endif -%}
+
+  <a
+    href="{{ shop.url }}/apps/returns"
+    class="fynd-returns-entry__button"
+    style="background: {{ button_bg }}; color: {{ button_fg }};"
+    aria-label="{{ button_label | escape }}"
+  >
+    {{ button_label }}
+  </a>
+</div>
+
+<style>
+  .fynd-returns-entry {
+    padding: 24px 16px;
+    font-family: inherit;
+  }
+  .fynd-returns-entry__heading {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  .fynd-returns-entry__description {
+    font-size: 0.9375rem;
+    line-height: 1.6;
+    margin: 0 auto 18px;
+    max-width: 520px;
+    opacity: 0.8;
+  }
+  .fynd-returns-entry__button {
+    display: inline-block;
+    padding: 12px 24px;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    letter-spacing: -0.01em;
+  }
+  .fynd-returns-entry__button:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+  .fynd-returns-entry__button:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
+  }
+</style>
+
+{% schema %}
+{
+  "name": "Returns portal",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Returns & Exchanges"
+    },
+    {
+      "type": "textarea",
+      "id": "description",
+      "label": "Description",
+      "default": "Start a return, track an existing one, or look up your order."
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Start a return"
+    },
+    {
+      "type": "select",
+      "id": "alignment",
+      "label": "Alignment",
+      "options": [
+        { "value": "left", "label": "Left" },
+        { "value": "center", "label": "Center" },
+        { "value": "right", "label": "Right" }
+      ],
+      "default": "center"
+    },
+    {
+      "type": "color",
+      "id": "button_background",
+      "label": "Button background",
+      "default": "#0f172a"
+    },
+    {
+      "type": "color",
+      "id": "button_color",
+      "label": "Button text",
+      "default": "#ffffff"
+    }
+  ]
+}
+{% endschema %}

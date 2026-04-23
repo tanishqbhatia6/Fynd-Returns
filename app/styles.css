@@ -3403,3 +3403,85 @@ s-section {
     0 8px 16px -6px rgba(15, 23, 42, 0.15),
     0 0 0 1px rgba(255, 255, 255, 0.04) inset;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PREMIUM PASS — Settings index
+   ──────────────────────────────────────────────────────────────────────
+   Each settings card is a navigation tile with icon + title + desc +
+   status chips + chevron. Refines the rhythm so they feel like a tile
+   grid (think macOS System Settings) rather than a list of buttons.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Section overline ("RETURN POLICIES", "INTEGRATIONS & AUTOMATION").
+   Was almost invisible at default 12 px / 600. Bumped contrast and
+   tightened the tracking to match the table-header rhythm. */
+.app-overline {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--rpm-text-muted);
+  padding: 4px 0;
+  margin-bottom: 14px !important;
+}
+
+/* Settings card grid — slightly wider gap, predictable two-column layout.
+   The override `style={{gridTemplateColumns: "1fr"}}` for single-card
+   sections still wins (it's inline). */
+.settings-card-grid {
+  gap: 14px;
+}
+
+/* The card itself — refined elevation, tighter border, subtle hover that
+   doesn't bounce the whole tile around. */
+.app-settings-card {
+  padding: 20px 22px;
+  border-radius: 14px;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  gap: 12px !important;
+}
+.app-settings-card:hover {
+  /* Drop the dual shadow + the colored shadow — they stack ugly on a
+     dense grid. Single elevation + accent border is cleaner. */
+  border-color: var(--rpm-accent);
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    0 4px 12px rgba(15, 23, 42, 0.04);
+  transform: translateY(-1px);
+}
+.app-settings-card:hover::before {
+  /* The 3 px gradient bar at the top of cards on hover felt loud. Drop
+     it — the border-color change + elevation is enough signal. */
+  background: transparent;
+}
+
+/* Icon tile — slightly smaller, subtler radius, no bounce on hover so
+   the whole card feels calm. Pages already pass colored backgrounds
+   inline, so we just tune the geometry here. */
+.app-settings-card-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 10px !important;
+  font-size: 18px;
+  transition: none;
+}
+.app-settings-card:hover .app-settings-card-icon {
+  /* No scale bounce. */
+  transform: none;
+  background: var(--rpm-accent-light);
+}
+
+/* Title + description rhythm. */
+.app-settings-card-title {
+  font-size: 14.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  margin-bottom: 4px !important;
+}
+.app-settings-card-desc {
+  font-size: 12.5px !important;
+  line-height: 1.5 !important;
+  color: var(--rpm-text-muted);
+}

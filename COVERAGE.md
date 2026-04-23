@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 4 | Batch 5 (now) |
+| Metric      | Current | Batch 5 | Batch 6 (now) |
 |-------------|--------:|--------:|--------------:|
-| Statements  | 20.85%  | 18%     | **20%**       |
-| Branches    | 14.56%  | 13%     | **14%**       |
-| Functions   | 18.04%  | 16%     | **17%**       |
-| Lines       | 20.84%  | 18%     | **20%**       |
+| Statements  | 21.67%  | 20%     | **21%**       |
+| Branches    | 14.91%  | 14%     | **14%**       |
+| Functions   | 19.01%  | 17%     | **18%**       |
+| Lines       | 21.58%  | 20%     | **21%**       |
 
-**938 tests** in 49 test files — all passing. Thresholds in
+**1,006 tests** in 53 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -58,7 +58,7 @@ floor; they can only ratchet upward.
 | `app/lib/shopify-admin.server.ts` (createRefund + fetchOrderByGid) | ~30% | ~40% (+14 tests) |
 | `app/lib/webhook-dispatch.server.ts` | 0% | ~90% (13 new tests) |
 
-### Batch 5 — this release
+### Batch 5
 
 Five small self-contained files pushed to high coverage in one pass.
 97 new tests across 5 new test files.
@@ -67,9 +67,20 @@ Five small self-contained files pushed to high coverage in one pass.
 |------|-------:|------:|
 | `app/lib/shop.server.ts` | 0% | ~95% (8 tests) |
 | `app/lib/postman-collection.server.ts` | 0% | ~100% (13 tests) |
-| `app/lib/observability/resilience.server.ts` | 20.9% | ~95% (20 tests — CircuitBreaker lifecycle + helpers) |
-| `app/lib/fynd-status-poll.server.ts` | 0% | ~85% (22 tests — throttle + per-return paths) |
-| `app/lib/fynd-webhook-api.server.ts` | 0% | ~90% (34 tests — list + register + URL normaliser) |
+| `app/lib/observability/resilience.server.ts` | 20.9% | ~95% (20 tests) |
+| `app/lib/fynd-status-poll.server.ts` | 0% | ~85% (22 tests) |
+| `app/lib/fynd-webhook-api.server.ts` | 0% | ~90% (34 tests) |
+
+### Batch 6 — this release
+
+Four observability modules, 68 new tests, + test count crossed 1,000.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/lib/observability/slo.server.ts` | 0% | ~95% (22 tests — SLO defs, burn-rate, budget, annotateSLO) |
+| `app/lib/observability/health.server.ts` | 0% | ~90% (10 tests — DB + Fynd checks + composite readiness) |
+| `app/lib/observability/request-context.server.ts` | 8.1% | ~95% (18 tests — requestId, baggage, IP hash, correlation headers) |
+| `app/lib/observability/security.server.ts` | 51.4% | ~95% (18 tests — auth/rate-limit/webhook-sig/suspicious-activity) |
 
 ---
 

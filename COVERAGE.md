@@ -12,16 +12,29 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Phase 0 floor | Ratchet target |
-|-------------|--------:|--------------:|---------------:|
-| Statements  | 8.26%   | 8%            | see phases     |
-| Branches    | 4.70%   | 4%            | see phases     |
-| Functions   | 7.11%   | 7%            | see phases     |
-| Lines       | 8.41%   | 8%            | see phases     |
+| Metric      | Current | Phase 0 floor | Phase 1 floor |
+|-------------|--------:|--------------:|--------------:|
+| Statements  | 14.24%  | 8%            | **14%**       |
+| Branches    | 10.68%  | 4%            | **10%**       |
+| Functions   | 11.87%  | 7%            | **11%**       |
+| Lines       | 14.20%  | 8%            | **14%**       |
 
-**417 tests** in 29 test files — all passing. The thresholds in
+**637 tests** in 36 test files — all passing. The thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
+
+### Phase 1 (batch 1) files now covered
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/lib/fynd-payload.server.ts` | 0.2% | 77.9% |
+| `app/lib/fraud-detection.server.ts` | 0% | 93.2% |
+| `app/lib/source-channel.server.ts` | 0% | 100% |
+| `app/lib/credential-validation.server.ts` | 0% | 98.1% |
+| `app/lib/observability/errors.server.ts` | 0% | 97.7% |
+| `app/lib/return-request-id.ts` | 13.5% | 97.3% |
+| `app/lib/dashboard-date-utils.ts` | 39.4% | ~90% |
+| `app/lib/fynd.server.ts` (pure exports) | 1.5% | 16.0% |
 
 ---
 

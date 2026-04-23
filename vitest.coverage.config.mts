@@ -38,13 +38,14 @@ export default defineConfig({
         "app/root.tsx",
       ],
       // Thresholds are the coverage floor enforced by CI.
-      // These are the Phase 0 baseline — each phase will ratchet upward.
-      // See COVERAGE.md for the full plan.
+      // Phase 1 ratchet: ~8% → ~14% after testing fynd-payload, fraud-detection,
+      // source-channel, credential-validation, return-request-id, errors, and
+      // fynd.server pure exports. See COVERAGE.md for the full plan.
       thresholds: {
-        statements: 8,
-        branches: 4,
-        functions: 7,
-        lines: 8,
+        statements: 14,
+        branches: 10,
+        functions: 11,
+        lines: 14,
       },
     },
   },

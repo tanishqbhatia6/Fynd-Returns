@@ -1,5 +1,5 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import shopifyApp, { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
 
@@ -14,6 +14,11 @@ import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
  * The metafield is indexed by Shopify (adminFilterable: true), so the order
  * becomes searchable via: orders(query: "metafields.$app.fynd_order_id:\"VALUE\"")
  * This is O(1) and works regardless of store volume or order age.
+ *
+ * CONTRACT: This handler MUST return a 2xx response for all authenticated
+ * Shopify webhook deliveries. Any failure in downstream processing is logged
+ * but swallowed — otherwise Shopify retries, inflates the failure rate, and
+ * eventually unsubscribes the topic. See WEBHOOK_RELIABILITY_AUDIT.md.
  */
 
 const SET_FYND_METAFIELD_MUTATION = `#graphql
@@ -26,56 +31,81 @@ const SET_FYND_METAFIELD_MUTATION = `#graphql
 `;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, payload } = await authenticate.webhook(request);
+  // authenticate.webhook may throw a 401 Response on HMAC failure — that's
+  // correct and Shopify expects it. Any other throw is wrapped so we return
+  // 200 to Shopify and log the details, preventing the retry storm that
+  // otherwise counts against the topic's failure rate.
+  let authed;
+  try {
+    authed = await authenticate.webhook(request);
+  } catch (err) {
+    // Re-throw Response objects (HMAC 401 etc.) so Shopify gets the right
+    // status. Wrap every other error so we return 200 and log properly.
+    if (err instanceof Response) throw err;
+    console.error("[webhook:orders/create] authenticate failed", {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    return new Response();
+  }
+
+  const { shop, payload } = authed;
   if (!payload || typeof payload !== "object") return new Response();
 
-  const p = payload as Record<string, unknown>;
-  const orderGid = p.admin_graphql_api_id ? String(p.admin_graphql_api_id) : null;
-  const orderId = p.id ? String(p.id) : null;
-  const orderName = p.name ? String(p.name).trim() : null;
-
-  if (!orderName || (!orderGid && !orderId)) return new Response();
-
-  const attrs = Array.isArray(p.note_attributes)
-    ? (p.note_attributes as Array<{ name?: string; value?: string }>).map((a) => ({
-        key: a.name ?? "",
-        value: a.value ?? "",
-      }))
-    : [];
-
-  const fyndOrderId = extractAffiliateOrderId(attrs);
-  if (!fyndOrderId) return new Response();
-
-  const gid = orderGid ?? `gid://shopify/Order/${orderId}`;
-
-  // Write the metafield on the Shopify order so it becomes searchable
   try {
+    const p = payload as Record<string, unknown>;
+    const orderGid = p.admin_graphql_api_id ? String(p.admin_graphql_api_id) : null;
+    const orderId = p.id ? String(p.id) : null;
+    const orderName = p.name ? String(p.name).trim() : null;
+
+    if (!orderName || (!orderGid && !orderId)) return new Response();
+
+    const attrs = Array.isArray(p.note_attributes)
+      ? (p.note_attributes as Array<{ name?: string; value?: string }>).map((a) => ({
+          key: a.name ?? "",
+          value: a.value ?? "",
+        }))
+      : [];
+
+    const fyndOrderId = extractAffiliateOrderId(attrs);
+    // Fast path: no Fynd order ID, nothing to do. Skips DB + Shopify API
+    // on the majority of orders (non-Fynd traffic).
+    if (!fyndOrderId) return new Response();
+
+    const gid = orderGid ?? `gid://shopify/Order/${orderId}`;
+
     const shopRecord = await prisma.shop.findUnique({ where: { shopDomain: shop } });
     if (!shopRecord) return new Response();
 
-    const session = await prisma.session.findFirst({ where: { shop } });
-    if (!session?.accessToken) return new Response();
-
-    const { default: shopifyApp } = await import("../shopify.server");
-    const { admin } = await shopifyApp.unauthenticated.admin(shop);
-
-    await admin.graphql(SET_FYND_METAFIELD_MUTATION, {
-      variables: {
-        input: {
-          id: gid,
-          metafields: [
-            {
-              namespace: "$app",
-              key: "fynd_order_id",
-              value: fyndOrderId,
-              type: "single_line_text_field",
-            },
-          ],
+    // Write the metafield (best-effort — inner try/catch). If the session
+    // is missing or Shopify returns userErrors, we still want to record the
+    // DB mapping so order lookups can find this order.
+    try {
+      const { admin } = await shopifyApp.unauthenticated.admin(shop);
+      await admin.graphql(SET_FYND_METAFIELD_MUTATION, {
+        variables: {
+          input: {
+            id: gid,
+            metafields: [
+              {
+                namespace: "$app",
+                key: "fynd_order_id",
+                value: fyndOrderId,
+                type: "single_line_text_field",
+              },
+            ],
+          },
         },
-      },
-    });
+      });
+    } catch (err) {
+      console.error("[webhook:orders/create] metafield write failed", {
+        shop, orderName, fyndOrderId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
 
-    // Also cache in DB for fast lookups without hitting Shopify API
+    // Cache the mapping in our DB regardless of whether the metafield
+    // write succeeded — DB lookup is the authoritative search path.
     await prisma.fyndOrderMapping.upsert({
       where: {
         shopId_shopifyOrderName: {
@@ -96,7 +126,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
   } catch (err) {
-    console.error("[webhook:orders/create]", err instanceof Error ? err.message : err);
+    console.error("[webhook:orders/create]", {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
   }
 
   return new Response();

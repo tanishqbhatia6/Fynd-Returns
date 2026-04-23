@@ -2,7 +2,6 @@ import "@shopify/shopify-app-react-router/adapters/node";
 import {
   ApiVersion,
   AppDistribution,
-  DeliveryMethod,
   shopifyApp,
 } from "@shopify/shopify-app-react-router/server";
 import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
@@ -17,36 +16,14 @@ const shopify = shopifyApp({
   authPathPrefix: "/auth",
   sessionStorage: new PrismaSessionStorage(prisma),
   distribution: AppDistribution.AppStore,
-  webhooks: {
-    ORDERS_CREATE: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/orders/create",
-    },
-    ORDERS_FULFILLED: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/orders/fulfilled",
-    },
-    ORDERS_UPDATED: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/orders/updated",
-    },
-    DRAFT_ORDERS_CREATE: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/draft-orders/create",
-    },
-    DRAFT_ORDERS_UPDATE: {
-      deliveryMethod: DeliveryMethod.Http,
-      callbackUrl: "/webhooks/draft-orders/update",
-    },
-  },
+  // Webhook subscriptions are declared in shopify.app.toml (declarative,
+  // managed by the Shopify CLI). The imperative webhooks: {} block that
+  // used to live here was removed in the April 2026 webhook-reliability
+  // audit — the hybrid config left orders/updated and orders/fulfilled
+  // effectively orphaned in the toml, which made monitoring and re-auth
+  // diffs hard to reason about. See WEBHOOK_RELIABILITY_AUDIT.md.
   hooks: {
     afterAuth: async ({ session }) => {
-      try {
-        await shopify.registerWebhooks({ session });
-      } catch (err) {
-        console.error("[afterAuth] Webhook registration failed:", err);
-      }
-
       // Create filterable metafield definition for Fynd order ID on Order.
       // This lets us search orders via: metafields.$app.fynd_order_id:"VALUE"
       // which is indexed by Shopify — instant O(1) lookup, any volume.

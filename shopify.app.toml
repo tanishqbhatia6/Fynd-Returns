@@ -38,6 +38,14 @@ uri = "/webhooks/orders/create"
 topics = ["orders/create"]
 
 [[webhooks.subscriptions]]
+uri = "/webhooks/orders/updated"
+topics = ["orders/updated"]
+
+[[webhooks.subscriptions]]
+uri = "/webhooks/orders/fulfilled"
+topics = ["orders/fulfilled"]
+
+[[webhooks.subscriptions]]
 uri = "/webhooks/draft-orders/create"
 topics = ["draft_orders/create"]
 

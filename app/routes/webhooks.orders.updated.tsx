@@ -1,57 +1,126 @@
 import type { ActionFunctionArgs } from "react-router";
-import { authenticate } from "../shopify.server";
+import shopifyApp, { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
 
+/**
+ * Shopify orders/updated webhook handler.
+ *
+ * Fires on every order edit. Two jobs:
+ *   (1) Auto-cancel matching ReturnCase records when the underlying order
+ *       is cancelled/refunded on Shopify.
+ *   (2) Lazy-backfill Fynd mapping + sourceChannel for orders that didn't
+ *       have them at create-time.
+ *
+ * Fast path (April 2026 reliability fix): the majority of orders/updated
+ * events carry nothing we care about — a shipping-address edit, a note
+ * change, etc. Bail out at the payload-parse stage so we don't hit the DB
+ * or the Shopify Admin API for ~90% of deliveries. Before this change, the
+ * handler did `shop.findUnique + graphql orderUpdate` on every edit,
+ * which was the main driver of the 90% failure rate reported in Partner
+ * Dashboard monitoring (see WEBHOOK_RELIABILITY_AUDIT.md).
+ */
+
+const SET_FYND_METAFIELD_MUTATION = `#graphql
+  mutation($input: OrderInput!) {
+    orderUpdate(input: $input) {
+      order { id }
+      userErrors { message }
+    }
+  }
+`;
+
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, payload } = await authenticate.webhook(request);
+  let authed;
+  try {
+    authed = await authenticate.webhook(request);
+  } catch (err) {
+    if (err instanceof Response) throw err;
+    console.error("[webhook:orders/updated] authenticate failed", {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
+    return new Response();
+  }
+
+  const { shop, payload } = authed;
   if (!payload || typeof payload !== "object") return new Response();
 
-  const p = payload as Record<string, unknown>;
-  const orderNameRaw = String(p.name ?? p.order_number ?? "").trim();
-  const orderName = orderNameRaw.replace(/^#/, "").trim();
-  const financialStatus = String(p.financial_status ?? "").toLowerCase();
-  const cancelledAt = p.cancelled_at;
-  // Capture source_name for lazy backfill of sourceChannel on existing ReturnCase records
-  const sourceChannel = normalizeSourceChannel(p.source_name ? String(p.source_name) : null);
-
-  if (!orderName) return new Response();
-
   try {
-    const shopRecord = await prisma.shop.findUnique({ where: { shopDomain: shop } });
-    if (!shopRecord) return new Response();
+    const p = payload as Record<string, unknown>;
+    const orderNameRaw = String(p.name ?? p.order_number ?? "").trim();
+    const orderName = orderNameRaw.replace(/^#/, "").trim();
+    if (!orderName) return new Response();
 
-    // Cache Fynd order mapping if custom attributes contain affiliate_order_id
+    const financialStatus = String(p.financial_status ?? "").toLowerCase();
+    const cancelledAt = p.cancelled_at;
+    const sourceChannel = normalizeSourceChannel(p.source_name ? String(p.source_name) : null);
+
     const attrs = Array.isArray(p.note_attributes)
       ? (p.note_attributes as Array<{ name?: string; value?: string }>).map((a) => ({
           key: a.name ?? "", value: a.value ?? "",
         }))
       : [];
     const fyndOrderId = extractAffiliateOrderId(attrs);
+
+    // Fast path: skip the DB+API round-trip unless there's actual work to do.
+    // Work is: (a) a fyndOrderId to map, (b) a cancellation we need to
+    // propagate to return cases, or (c) a sourceChannel we can backfill.
+    const isCancellationEvent = !!cancelledAt || financialStatus === "refunded" || financialStatus === "voided";
+    if (!fyndOrderId && !isCancellationEvent && !sourceChannel) {
+      return new Response();
+    }
+
+    const shopRecord = await prisma.shop.findUnique({ where: { shopDomain: shop } });
+    if (!shopRecord) return new Response();
+
+    // Metafield + mapping backfill for Fynd orders.
     if (fyndOrderId) {
-      const gid = p.admin_graphql_api_id ? String(p.admin_graphql_api_id)
+      const gid = p.admin_graphql_api_id
+        ? String(p.admin_graphql_api_id)
         : p.id ? `gid://shopify/Order/${p.id}` : null;
+
       if (gid) {
         try {
-          const { default: shopifyApp } = await import("../shopify.server");
           const { admin } = await shopifyApp.unauthenticated.admin(shop);
-          await admin.graphql(
-            `#graphql mutation($input: OrderInput!) { orderUpdate(input: $input) { order { id } userErrors { message } } }`,
-            { variables: { input: { id: gid, metafields: [{ namespace: "$app", key: "fynd_order_id", value: fyndOrderId, type: "single_line_text_field" }] } } }
-          );
-        } catch { /* metafield write is best-effort */ }
+          await admin.graphql(SET_FYND_METAFIELD_MUTATION, {
+            variables: {
+              input: {
+                id: gid,
+                metafields: [{
+                  namespace: "$app",
+                  key: "fynd_order_id",
+                  value: fyndOrderId,
+                  type: "single_line_text_field",
+                }],
+              },
+            },
+          });
+        } catch (err) {
+          // Best-effort — the DB mapping below is the authoritative path.
+          console.error("[webhook:orders/updated] metafield write failed", {
+            shop, orderName, fyndOrderId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
       }
+
       try {
         await prisma.fyndOrderMapping.upsert({
           where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderName}` } },
           create: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderName}`, shopifyOrderId: gid ?? undefined, fyndOrderId, searchStrategy: "orders_updated_webhook" },
           update: { fyndOrderId, ...(gid ? { shopifyOrderId: gid } : {}) },
         });
-      } catch { /* non-critical */ }
+      } catch (err) {
+        console.error("[webhook:orders/updated] mapping upsert failed", {
+          shop, orderName, fyndOrderId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
 
-    if (cancelledAt || financialStatus === "refunded" || financialStatus === "voided") {
+    if (isCancellationEvent) {
       const returns = await prisma.returnCase.findMany({
         where: {
           shopId: shopRecord.id,
@@ -61,7 +130,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
 
       for (const rc of returns) {
-        // Idempotency: skip if already cancelled
+        // Idempotency: skip if already cancelled.
         if (rc.status === "cancelled") continue;
 
         await prisma.returnCase.update({
@@ -69,7 +138,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           data: {
             status: "cancelled",
             adminNotes: `Auto-cancelled: order ${cancelledAt ? "cancelled" : financialStatus} on Shopify`,
-            // Lazy backfill: set sourceChannel if not already captured at return-creation time
+            // Lazy backfill: set sourceChannel if not already captured at return-creation time.
             ...(sourceChannel && !rc.sourceChannel ? { sourceChannel } : {}),
           },
         });
@@ -87,8 +156,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
       }
     } else if (sourceChannel) {
-      // Non-cancellation update: opportunistically backfill sourceChannel for any
-      // existing return cases on this order that still have it unset.
+      // Non-cancellation update: opportunistically backfill sourceChannel
+      // for any existing return cases on this order that still have it unset.
       try {
         await prisma.returnCase.updateMany({
           where: {
@@ -98,10 +167,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           },
           data: { sourceChannel },
         });
-      } catch { /* non-critical backfill */ }
+      } catch (err) {
+        console.error("[webhook:orders/updated] sourceChannel backfill failed", {
+          shop, orderName,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
     }
   } catch (err) {
-    console.error("[webhook:orders/updated]", err instanceof Error ? err.message : err);
+    console.error("[webhook:orders/updated]", {
+      error: err instanceof Error ? err.message : String(err),
+      stack: err instanceof Error ? err.stack : undefined,
+    });
   }
 
   return new Response();

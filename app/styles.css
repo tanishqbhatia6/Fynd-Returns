@@ -3261,3 +3261,145 @@ s-section {
 }
 .kpi-change--up { color: var(--rpm-success); background: var(--rpm-success-bg); }
 .kpi-change--down { color: var(--rpm-error); background: var(--rpm-error-bg); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PREMIUM PASS — Returns list page
+   ──────────────────────────────────────────────────────────────────────
+   Refines the highest-traffic page in the app. Top stat cards become
+   refined "filter chips" (clear active state, tighter typography), the
+   filter toolbar tightens up, and the data table picks up the same
+   refined chip treatment as the rest of the app.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.returns-stats-row {
+  /* Was 8 px gap → 12 px reads as more deliberate; cards now feel like
+     a row of filter chips, not a bar of buttons cramped together. */
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.returns-stat-card {
+  /* Tighten padding, refine border radius, add a subtle elevation curve
+     so the active card actually looks "selected" instead of just having
+     a thicker border. */
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: var(--rpm-surface);
+  border: 1px solid #eef2f7;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  text-align: left;
+  transition:
+    border-color var(--rpm-transition-fast),
+    box-shadow var(--rpm-transition-fast),
+    transform var(--rpm-transition-fast),
+    background var(--rpm-transition-fast);
+}
+.returns-stat-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--rpm-shadow-sm);
+  border-color: var(--rpm-border-color-strong);
+}
+.returns-stat-card--active {
+  /* Selected state: light tinted background + 2 px accent border, no
+     transform — keeps the card sitting on the page. */
+  background: var(--rpm-accent-subtle);
+  border-color: var(--rpm-accent);
+  border-width: 2px;
+  padding: 15px 17px; /* compensate for the 1 px border increase */
+}
+.returns-stat-card .stat-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--rpm-text-muted);
+  opacity: 1;
+  margin-bottom: 6px;
+}
+.returns-stat-card .stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 0;
+  line-height: 1.1;
+}
+
+.returns-toolbar {
+  /* Refined toolbar — tighter rhythm, lighter border, hairline shadow. */
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.returns-toolbar .field-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--rpm-text-muted);
+  margin-bottom: 6px;
+}
+
+.returns-table-wrap {
+  border-radius: 12px;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.03);
+}
+.returns-table th {
+  padding: 12px 16px;
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  background: var(--rpm-surface-subtle);
+  border-bottom: 1px solid var(--rpm-border-color);
+}
+.returns-table td {
+  padding: 14px 16px;
+  font-size: 13px;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9;
+}
+.returns-table tbody tr:hover {
+  background: var(--rpm-surface-subtle);
+  box-shadow: inset 2px 0 0 var(--rpm-accent);
+}
+.returns-table tbody tr.row-selected {
+  background: var(--rpm-accent-subtle);
+  box-shadow: inset 2px 0 0 var(--rpm-accent);
+}
+.returns-table .return-id-link {
+  font-family: var(--rpm-font); /* drop monospace — premium tables use
+                                   tabular-nums + sans, not mono */
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.returns-table .return-id-link:hover {
+  color: var(--rpm-accent-hover);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.returns-table .order-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.returns-table .fynd-order-id {
+  font-family: var(--rpm-font-mono);
+  font-size: 10.5px;
+  color: var(--rpm-text-subtle);
+  margin-top: 3px;
+  letter-spacing: 0;
+}
+
+/* Bulk action bar — make it feel premium when it slides up. */
+.returns-bulk-bar {
+  background: #0f172a;
+  border-radius: 14px;
+  padding: 12px 22px;
+  font-size: 13px;
+  font-weight: 500;
+  box-shadow:
+    0 24px 48px -12px rgba(15, 23, 42, 0.25),
+    0 8px 16px -6px rgba(15, 23, 42, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+}

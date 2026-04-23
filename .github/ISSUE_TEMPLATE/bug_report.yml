@@ -1,0 +1,84 @@
+name: Bug report
+description: Report a bug in Fynd Returns (admin, portal, Fynd sync, refunds, etc.)
+title: "[Bug] <short description>"
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill in the sections
+        below so we can reproduce and fix it quickly.
+
+        **Security issues**: if this is a security vulnerability, **do not file
+        a public issue** — follow the instructions in [SECURITY.md](../SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do? What did you expect? What went wrong?
+      placeholder: |
+        1. Opened a return detail page for RPM-XXXXXXXX
+        2. Clicked "Process refund"
+        3. Saw error "You need to set a location to restock items"
+        4. Expected the refund to succeed using the default fallback location
+    validations:
+      required: true
+
+  - type: input
+    id: return-id
+    attributes:
+      label: Return ID (if applicable)
+      description: e.g. `clxxx0001` or `RPM-A1B2C3D4`
+      placeholder: clxxx0001
+
+  - type: input
+    id: shop-domain
+    attributes:
+      label: Shop domain
+      description: e.g. `your-store.myshopify.com` (leave blank if not relevant)
+      placeholder: your-store.myshopify.com
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - Customer portal
+        - Admin dashboard
+        - Returns management
+        - Refunds
+        - Fynd integration
+        - Webhooks
+        - Notifications / email
+        - Settings / policy rules
+        - REST API
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / screenshots
+      description: |
+        Paste any error messages from the browser console, server logs, or
+        Fynd webhook logs page. Screenshots help a lot.
+      render: shell
+
+  - type: input
+    id: app-version
+    attributes:
+      label: App version / deployment
+      description: Commit SHA or release tag if known.
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I searched existing issues and this isn't a duplicate.
+          required: true
+        - label: I verified this isn't a Shopify or Fynd outage (status pages).
+          required: true

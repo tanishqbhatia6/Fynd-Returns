@@ -1,0 +1,147 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Continuous Integration — typecheck + tests + coverage
+# ─────────────────────────────────────────────────────────────────────────
+# Runs on every push to main and every pull request targeting main.
+#
+# Design:
+#   · Pinned actions by major version — aligns with GitHub's hardening guide.
+#   · Least-privilege permissions — this workflow only reads the repo and
+#     writes PR comments for the coverage bot. Never --write any content.
+#   · 15-minute timeout caps runaway jobs (GitHub fair-use compliance).
+#   · concurrency: cancel-in-progress — redundant runs on the same ref are
+#     cancelled to save minutes (important on free/team plans).
+#   · Node 22 — matches package.json engines.node.
+# ─────────────────────────────────────────────────────────────────────────
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write # codecov comment action
+  checks: write         # test-reporter check annotations
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typecheck · Test · Coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Prisma's schema requires a valid datasource URL at type-generation
+      # time, even when we don't actually connect to a database in CI.
+      # A throwaway connection string is enough to satisfy the parser.
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      # Silence Shopify CLI analytics in CI.
+      CI: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Fetch enough history for Codecov to compute diffs vs. base branch.
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
+
+      # Upload raw coverage summary as an artifact — useful for offline
+      # inspection even if Codecov upload is skipped on forks.
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            coverage/lcov.info
+            coverage/coverage-summary.json
+            coverage/index.html
+          retention-days: 14
+
+      # Codecov upload — only runs when the optional CODECOV_TOKEN secret
+      # is configured. Without the token, the step is skipped silently so
+      # forks (which can't access secrets) don't fail CI.
+      - name: Upload to Codecov
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/lcov.info
+          flags: unit
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      # Print a compact summary to the GitHub Actions job summary page so
+      # reviewers can read the numbers without downloading the artifact.
+      - name: Publish coverage summary to job log
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "### Coverage Summary" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "| Metric | Coverage | Covered / Total |" >> $GITHUB_STEP_SUMMARY
+            echo "|---|---:|---:|" >> $GITHUB_STEP_SUMMARY
+            node -e "
+              const d = require('./coverage/coverage-summary.json').total;
+              for (const k of ['statements', 'branches', 'functions', 'lines']) {
+                const m = d[k];
+                console.log(\`| \${k[0].toUpperCase()}\${k.slice(1)} | \${m.pct}% | \${m.covered} / \${m.total} |\`);
+              }
+            " >> $GITHUB_STEP_SUMMARY
+          fi
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+
+    env:
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+      SHOPIFY_API_KEY: ci_placeholder
+      SHOPIFY_API_SECRET: ci_placeholder
+      SHOPIFY_APP_URL: https://example.com
+      SCOPES: read_orders,write_orders
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Prisma generate
+        run: npx prisma generate
+
+      - name: Build (react-router build)
+        run: npm run build

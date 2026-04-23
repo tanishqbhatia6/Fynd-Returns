@@ -1,0 +1,76 @@
+# ─────────────────────────────────────────────────────────────────────────
+# Dependabot — automated dependency + GitHub Actions updates
+# ─────────────────────────────────────────────────────────────────────────
+# · npm: weekly PRs grouping minor/patch updates so the PR queue stays small
+# · GitHub Actions: weekly updates keep pinned action versions current,
+#   which is important because CodeQL/Codecov actions ship breaking changes
+#   between majors.
+#
+# The "groups" feature consolidates related packages into a single PR
+# (instead of one per package), which earns the "Dependabot" health badge
+# on the Insights → Community standards tab once enabled.
+# ─────────────────────────────────────────────────────────────────────────
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+      - automerge-candidate
+    commit-message:
+      prefix: "chore(deps)"
+      include: scope
+    groups:
+      # Group all patch/minor updates of React Router + Shopify packages
+      # together — they share release cadences and are usually compatible.
+      react-router:
+        patterns:
+          - "react-router"
+          - "@react-router/*"
+        update-types: [minor, patch]
+      shopify:
+        patterns:
+          - "@shopify/*"
+        update-types: [minor, patch]
+      # Testing stack — vitest + coverage-v8 must stay in lockstep.
+      testing:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@testing-library/*"
+          - "happy-dom"
+          - "jsdom"
+        update-types: [minor, patch]
+      # Linting / typechecking
+      types:
+        patterns:
+          - "@types/*"
+          - "typescript"
+        update-types: [minor, patch]
+      prisma:
+        patterns:
+          - "prisma"
+          - "@prisma/*"
+        update-types: [minor, patch]
+    # Ignore these — we pin major versions deliberately.
+    ignore:
+      - dependency-name: "*"
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    labels:
+      - ci
+      - dependencies
+    commit-message:
+      prefix: "chore(ci)"

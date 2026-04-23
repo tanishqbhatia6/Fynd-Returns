@@ -2,7 +2,24 @@
 
 **Enterprise-grade Shopify Returns Management with Fynd Logistics Integration**
 
+[![CI](https://github.com/Farhankhan0128/returnpromax/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Farhankhan0128/returnpromax/actions/workflows/ci.yml)
+[![CodeQL](https://github.com/Farhankhan0128/returnpromax/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/Farhankhan0128/returnpromax/actions/workflows/codeql.yml)
+[![codecov](https://codecov.io/gh/Farhankhan0128/returnpromax/branch/main/graph/badge.svg)](https://codecov.io/gh/Farhankhan0128/returnpromax)
+[![License: MIT](https://img.shields.io/github/license/Farhankhan0128/returnpromax?color=blue)](LICENSE)
+[![Node](https://img.shields.io/node/v/@shopify/shopify-app-react-router?color=43853D&label=node)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-blue?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Tests](https://img.shields.io/badge/tests-417%20passing-brightgreen?logo=vitest&logoColor=white)](COVERAGE.md)
+[![Coverage Plan](https://img.shields.io/badge/coverage-ratchet-blueviolet)](COVERAGE.md)
+[![Dependabot](https://img.shields.io/badge/dependabot-enabled-025E8C?logo=dependabot&logoColor=white)](.github/dependabot.yml)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![GitHub last commit](https://img.shields.io/github/last-commit/Farhankhan0128/returnpromax)](https://github.com/Farhankhan0128/returnpromax/commits/main)
+[![GitHub issues](https://img.shields.io/github/issues/Farhankhan0128/returnpromax)](https://github.com/Farhankhan0128/returnpromax/issues)
+[![GitHub pull requests](https://img.shields.io/github/issues-pr/Farhankhan0128/returnpromax)](https://github.com/Farhankhan0128/returnpromax/pulls)
+[![GitHub stars](https://img.shields.io/github/stars/Farhankhan0128/returnpromax?style=social)](https://github.com/Farhankhan0128/returnpromax/stargazers)
+
 A full-featured returns management platform built for Shopify merchants. Handles the complete return lifecycle — from customer-initiated requests through admin approval, Fynd logistics sync, refund processing, and analytics — with full internationalization support for global commerce.
+
+> **Quality & health**: Continuous integration runs typecheck, tests, coverage, build, and CodeQL security scanning on every push. See [COVERAGE.md](COVERAGE.md) for the coverage ratchet plan and [SECURITY.md](SECURITY.md) for the disclosure policy.
 
 ---
 

@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────
+# CodeQL — GitHub's native static analysis for JavaScript / TypeScript
+# ─────────────────────────────────────────────────────────────────────────
+# Free for public repositories. Scans for common vulnerability patterns
+# (SQLi, SSRF, XSS, path traversal, unsafe deserialisation, etc.).
+#
+# Findings appear in the Security → Code scanning tab and inline on PRs.
+# ─────────────────────────────────────────────────────────────────────────
+name: "CodeQL"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly re-scan catches vulnerabilities introduced by new CodeQL
+    # query packs without waiting for the next commit.
+    - cron: "17 4 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # `security-extended` adds high-precision rules beyond the default.
+          queries: security-extended
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"

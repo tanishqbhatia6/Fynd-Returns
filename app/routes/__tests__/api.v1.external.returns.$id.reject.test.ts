@@ -10,6 +10,14 @@ vi.mock("../../db.server", () => {
     returnEvent: {
       create: vi.fn(),
     },
+    // `session` is needed because api.v1.external.returns.$id.reject looks up
+    // the offline Shopify session to best-effort decline the return in
+    // Shopify after rejecting it locally. Default to null so the best-effort
+    // Shopify call is skipped — the actual Shopify flow is covered by the
+    // shopify-admin.server integration tests.
+    session: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
   };
   return { default: mockPrisma };
 });
@@ -25,6 +33,22 @@ vi.mock("../../lib/rate-limit.server", () => ({
 
 vi.mock("../../lib/webhook-dispatch.server", () => ({
   dispatchWebhookEvent: vi.fn(),
+}));
+
+vi.mock("../../lib/external-api-helpers.server", async () => {
+  const actual = await vi.importActual<typeof import("../../lib/external-api-helpers.server")>("../../lib/external-api-helpers.server");
+  return {
+    ...actual,
+    // Per-key rate-limit hits the DB in production. In tests we short-circuit
+    // to "always allowed" so we're exercising the action logic, not the
+    // rate-limit infra (which has its own dedicated test file).
+    checkPerKeyRateLimit: vi.fn().mockResolvedValue(null),
+  };
+});
+
+vi.mock("../../lib/shopify-admin.server", () => ({
+  createAdminClient: vi.fn(),
+  closeShopifyReturnBestEffort: vi.fn().mockResolvedValue(undefined),
 }));
 
 import prisma from "../../db.server";

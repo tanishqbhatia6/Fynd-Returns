@@ -1,0 +1,31 @@
+# ─────────────────────────────────────────────────────────────────────────
+# CODEOWNERS — auto-request reviews when paths are touched
+# ─────────────────────────────────────────────────────────────────────────
+# Syntax: <glob>  <owner> [<owner> ...]
+# Owners can be users (@username) or teams (@org/team-name).
+# Later rules override earlier ones.
+#
+# Enables the "Community standards: code owners" checkmark on the repo's
+# Insights → Community Standards page.
+# ─────────────────────────────────────────────────────────────────────────
+
+# Default owner for everything in the repo.
+*                             @Farhankhan0128
+
+# CI / workflows / release infra — owner must review before merging.
+/.github/                     @Farhankhan0128
+/railway.toml                 @Farhankhan0128
+/prisma/                      @Farhankhan0128
+/scripts/                     @Farhankhan0128
+
+# Critical server paths with real blast radius in production.
+/app/lib/fynd*.ts             @Farhankhan0128
+/app/lib/shopify-*.ts         @Farhankhan0128
+/app/lib/encryption.server.ts @Farhankhan0128
+/app/routes/webhooks.*.ts*    @Farhankhan0128
+/app/routes/api.*.ts          @Farhankhan0128
+/app/db.server.ts             @Farhankhan0128
+
+# Security & policy docs
+/SECURITY.md                  @Farhankhan0128
+/COVERAGE.md                  @Farhankhan0128

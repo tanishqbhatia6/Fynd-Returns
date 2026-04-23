@@ -538,9 +538,8 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* ── KPI Cards (single grid — primary + retention metrics flow
-             together so the row never breaks half-empty on wide monitors). */}
-        <div className="dashboard-kpi-grid mb-md">
+        {/* ── Hero KPI row (4 primary metrics). */}
+        <div className="dashboard-hero-grid mb-md">
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
             <div className="kpi-label">Total Returns</div>
             <div className="kpi-row">
@@ -579,8 +578,11 @@ export default function Reports() {
             </div>
             <div className="kpi-meta">{refundedCount} refunded</div>
           </div>
+        </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#14b8a6" } as React.CSSProperties}>
+        {/* ── Secondary retention / risk stats — compact 4-up row. */}
+        <div className="dashboard-stat-grid mb-md">
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#14b8a6" } as React.CSSProperties}>
             <div className="kpi-label">Exchange Conversion</div>
             <div className="kpi-row">
               <span className="kpi-value" style={{ color: "#14b8a6" }}>{exchangeConversionRate}%</span>
@@ -588,31 +590,28 @@ export default function Reports() {
             <div className="kpi-meta">{resolutionChartData.find(d => d.name === "Exchange")?.value ?? 0} of {resolvedCount} resolved</div>
           </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
             <div className="kpi-label">Revenue Retained</div>
             <div className="kpi-row">
               <span className="kpi-value" style={{ color: "#059669" }}>{revenueRetainedRate}%</span>
             </div>
-            <div className="kpi-meta">Exchanges + store credit vs refunds</div>
+            <div className="kpi-meta">Credit vs refunds</div>
           </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#f97316" } as React.CSSProperties}>
-            {/* Label clarified: "in this period" makes it explicit that this is a
-                within-range rate, not an all-time repeat-customer metric. Previously
-                ambiguous — looked like all-time retention (P1 from QA audit). */}
-            <div className="kpi-label">Repeat Returners (this period)</div>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#f97316" } as React.CSSProperties}>
+            <div className="kpi-label">Repeat Returners</div>
             <div className="kpi-row">
               <span className="kpi-value" style={{ color: "#f97316" }}>{repeatReturnerRate}%</span>
             </div>
-            <div className="kpi-meta">{repeatCustomerCount} of {uniqueCustomerCount} customers returned ≥ 2 times</div>
+            <div className="kpi-meta">{repeatCustomerCount} of {uniqueCustomerCount} ≥ 2 returns</div>
           </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" } as React.CSSProperties}>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" } as React.CSSProperties}>
             <div className="kpi-label">Fraud Alerts</div>
             <div className="kpi-row">
               <span className="kpi-value" style={{ color: fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" }}>{fraudAlertCount}</span>
             </div>
-            <div className="kpi-meta">High + Critical risk returns</div>
+            <div className="kpi-meta">High + Critical risk</div>
           </div>
         </div>
 
@@ -692,32 +691,38 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* ── Performance Gauges — fixed 4-column (or 3 if no Fynd) ── */}
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(auto-fill, minmax(200px, 1fr))`,
-          gap: 14, marginBottom: 20,
-        }}>
-          {[
-            { label: "Approval", value: approvalRate, display: approvalRateDisplay, color: "#10B981", desc: `${approvedCount} of ${totalReturns}` },
-            { label: "Rejection", value: rejectionRate, display: rejectionRateDisplay, color: "#EF4444", desc: `${rejectedCount} of ${totalReturns}` },
-            { label: "Refund", value: refundRate, display: refundRateDisplay, color: "#8B5CF6", desc: `${refundedCount} of ${approvedCount} approved` },
-            ...(hasFyndConfig ? [{ label: "Fynd Sync", value: fyndSyncRate, display: fyndSyncRateDisplay, color: "#06B6D4", desc: `${fyndSyncedCount} of ${approvedCount}` }] : []),
-          ].map((g, i) => (
-            <div key={i} className={CS} style={{ display: "flex", alignItems: "center", gap: 16, padding: "18px 20px" }}>
-              <div style={{ position: "relative", flexShrink: 0 }}>
-                <ProgressRing value={g.value} size={64} strokeWidth={6} color={g.color} />
-                <div style={{
-                  position: "absolute", inset: 0, display: "flex", alignItems: "center",
-                  justifyContent: "center", fontSize: 16, fontWeight: 700, color: g.color,
-                }}>{g.display}%</div>
+        {/* ── Performance Gauges — one panel wrapping all rate donuts so
+             the card fills full width instead of leaving a blank tail on
+             wide monitors. Previously each donut was its own card in an
+             auto-fill grid; on 2000px+ displays that left 6+ empty tracks
+             to the right of the last donut. */}
+        <div className={CS} style={{ marginBottom: 20 }}>
+          <div className="panel-header" style={{ marginBottom: 16 }}>
+            <h3 className="panel-title">Performance rates</h3>
+            <span className="text-muted" style={{ fontSize: 12 }}>{rangeLabel}</span>
+          </div>
+          <div className="reports-rates-grid">
+            {[
+              { label: "Approval", value: approvalRate, display: approvalRateDisplay, color: "#10B981", desc: `${approvedCount} of ${totalReturns}` },
+              { label: "Rejection", value: rejectionRate, display: rejectionRateDisplay, color: "#EF4444", desc: `${rejectedCount} of ${totalReturns}` },
+              { label: "Refund", value: refundRate, display: refundRateDisplay, color: "#8B5CF6", desc: `${refundedCount} of ${approvedCount} approved` },
+              ...(hasFyndConfig ? [{ label: "Fynd Sync", value: fyndSyncRate, display: fyndSyncRateDisplay, color: "#06B6D4", desc: `${fyndSyncedCount} of ${approvedCount}` }] : []),
+            ].map((g, i) => (
+              <div key={i} className="reports-rate-cell">
+                <div style={{ position: "relative", flexShrink: 0 }}>
+                  <ProgressRing value={g.value} size={72} strokeWidth={7} color={g.color} />
+                  <div style={{
+                    position: "absolute", inset: 0, display: "flex", alignItems: "center",
+                    justifyContent: "center", fontSize: 16, fontWeight: 800, color: g.color,
+                  }}>{g.display}%</div>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--rpm-text, #0f172a)", marginBottom: 3 }}>{g.label} rate</div>
+                  <div className="text-muted" style={{ fontSize: 11 }}>{g.desc}</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-text, #0f172a)", marginBottom: 2 }}>{g.label} rate</div>
-                <div className="text-muted" style={{ fontSize: 11 }}>{g.desc}</div>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
         {/* ── Resolution Breakdown — chart on the left, legend with metrics
@@ -963,9 +968,10 @@ export default function Reports() {
           </div>
         )}
 
-        {/* ── Revenue Impact ── */}
+        {/* ── Revenue Impact — two-up only when both panels have data, so a
+             lone card doesn't float in a 1fr 340px grid. */}
         {(totalRefundAmount > 0 || refundMethodBreakdown.length > 0) && (
-          <div className="dashboard-chart-row" style={{ marginTop: 20 }}>
+          <div className={refundMethodBreakdown.length > 0 ? "dashboard-chart-row" : ""} style={{ marginTop: 20 }}>
             <div className={CS}>
               <h3 className="panel-title" style={{ marginBottom: 14 }}>Revenue Impact</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1084,9 +1090,10 @@ export default function Reports() {
           </div>
         )}
 
-        {/* ── Channel Attribution ── */}
+        {/* ── Channel Attribution — two-up only when both channels have
+             data so the single-card case doesn't leave a 340px gap. */}
         {(createdByChannelData.length > 0 || sourceChannelData.length > 0) && (
-          <div className="dashboard-chart-row" style={{ marginTop: 20 }}>
+          <div className={(createdByChannelData.length > 0 && sourceChannelData.length > 0) ? "dashboard-chart-row" : ""} style={{ marginTop: 20 }}>
             {createdByChannelData.length > 0 && (
               <div className={CS}>
                 <h3 className="panel-title" style={{ marginBottom: 14 }}>Created Via</h3>

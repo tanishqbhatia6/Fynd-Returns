@@ -465,10 +465,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── KPI Cards (single grid — primary + secondary metrics flow
-             together so the row never breaks half-empty). The four featured
-             metrics come first; the rest follow in priority order. */}
-        <div className="dashboard-kpi-grid mb-md">
+        {/* ── Hero KPI row — four primary metrics with bigger typography.
+             Split into two grids so 12 cards become a clean 4 + 8 instead
+             of 13 in a single track (which produced an orphan tail on
+             wide monitors). */}
+        <div className="dashboard-hero-grid mb-md">
           <Link to="/app/returns" className="dashboard-kpi-card" style={{ "--kpi-accent": "var(--rpm-accent, #3B82F6)" } as React.CSSProperties}>
             <div className="kpi-label">Total returns</div>
             <div className="kpi-row">
@@ -504,73 +505,108 @@ export default function Dashboard() {
               {allTimeReturns > 0 ? `${allTimeReturns} all time` : "No refunds yet"}
             </div>
           </div>
+        </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
+        {/* ── Secondary stats grid — compact 4×2 grid (8 cards, no orphans). */}
+        <div className="dashboard-stat-grid mb-md">
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
             <div className="kpi-label">Revenue retained</div>
             <span className="kpi-value" style={{ color: "#059669" }}>
               {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
             </span>
-            <div className="kpi-meta">Via exchanges & store credit</div>
+            <div className="kpi-meta">Exchanges &amp; store credit</div>
           </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
-            <div className="kpi-label">Exchange rate</div>
-            <span className="kpi-value" style={{ color: "#3B82F6" }}>{exchangeRate}%</span>
-            <div className="kpi-meta">{resolutionMap.exchange ?? 0} of {Object.values(resolutionMap).reduce((a, b) => a + b, 0)} resolved</div>
-          </div>
-
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#06B6D4" } as React.CSSProperties}>
-            <div className="kpi-label">Green returns</div>
-            <span className="kpi-value" style={{ color: "#06B6D4" }}>{greenReturnCount}</span>
-            <div className="kpi-meta">Customer kept item</div>
-          </div>
-
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#DC2626" } as React.CSSProperties}>
-            <div className="kpi-label">Blocked attempts</div>
-            <span className="kpi-value" style={{ color: blocklistCount > 0 ? "#DC2626" : undefined }}>{blocklistCount}</span>
-            <div className="kpi-meta">
-              <Link to="/app/settings/blocklist" className="panel-link" style={{ fontSize: 11 }}>Manage blocklist</Link>
-            </div>
-          </div>
-
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
             <div className="kpi-label">Revenue at risk</div>
             <span className="kpi-value" style={{ color: revenueAtRisk > 0 ? "#D97706" : undefined }}>
               {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueAtRisk)}
             </span>
-            <div className="kpi-meta">Initiated & pending (30d)</div>
+            <div className="kpi-meta">Initiated &amp; pending (30d)</div>
           </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": overdueCount > 0 ? "#DC2626" : "#10B981" } as React.CSSProperties}>
-            <div className="kpi-label">Overdue returns</div>
-            <span className="kpi-value" style={{ color: overdueCount > 0 ? "#DC2626" : undefined }}>
-              {overdueCount}
-            </span>
-            <div className="kpi-meta">Pending &gt; 3 days</div>
-          </div>
-
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
-            <div className="kpi-label">Avg refund amount</div>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
+            <div className="kpi-label">Avg refund</div>
             <span className="kpi-value" style={{ color: "#8B5CF6" }}>
               {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(avgRefundAmount)}
             </span>
             <div className="kpi-meta">{refundedCount} refunds issued</div>
           </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#6366F1" } as React.CSSProperties}>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#6366F1" } as React.CSSProperties}>
             <div className="kpi-label">Refund rate</div>
             <span className="kpi-value" style={{ color: "#6366F1" }}>{refundRate}%</span>
             <div className="kpi-meta">{refundedCount} of {approvedCount} approved</div>
           </div>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#F43F5E" } as React.CSSProperties}>
-            <div className="kpi-label">Top return reason</div>
-            <span className="kpi-value" style={{ fontSize: 16, color: "#F43F5E" }}>
-              {topReasons.length > 0 ? topReasons[0].reason : "—"}
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
+            <div className="kpi-label">Exchange rate</div>
+            <span className="kpi-value" style={{ color: "#3B82F6" }}>{exchangeRate}%</span>
+            <div className="kpi-meta">{resolutionMap.exchange ?? 0} of {Object.values(resolutionMap).reduce((a, b) => a + b, 0)} resolved</div>
+          </div>
+
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#06B6D4" } as React.CSSProperties}>
+            <div className="kpi-label">Green returns</div>
+            <span className="kpi-value" style={{ color: "#06B6D4" }}>{greenReturnCount}</span>
+            <div className="kpi-meta">Customer kept item</div>
+          </div>
+
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#DC2626" } as React.CSSProperties}>
+            <div className="kpi-label">Blocked attempts</div>
+            <span className="kpi-value" style={{ color: blocklistCount > 0 ? "#DC2626" : undefined }}>{blocklistCount}</span>
+            <div className="kpi-meta">
+              <Link to="/app/settings/blocklist" className="panel-link" style={{ fontSize: 10 }}>Manage blocklist</Link>
+            </div>
+          </div>
+
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": overdueCount > 0 ? "#DC2626" : "#10B981" } as React.CSSProperties}>
+            <div className="kpi-label">Overdue returns</div>
+            <span className="kpi-value" style={{ color: overdueCount > 0 ? "#DC2626" : undefined }}>
+              {overdueCount}
             </span>
-            <div className="kpi-meta">{topReasons.length > 0 ? `${topReasons[0].count} occurrences` : "No data"}</div>
+            <div className="kpi-meta">Pending &gt; 3 days</div>
           </div>
         </div>
+
+        {/* ── Highlight strip — top return reason + a couple of other
+             insights, rendered as a single full-width card so there's no
+             empty tail to worry about. */}
+        {(topReasons.length > 0 || approvedCount > 0) && (
+          <div className="dashboard-highlight-strip mb-md">
+            {topReasons.length > 0 && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+                <span className="dashboard-highlight-strip__label">Top return reason</span>
+                <span className="dashboard-highlight-strip__value" style={{ color: "#F43F5E" }}>{topReasons[0].reason}</span>
+                <span className="kpi-meta" style={{ marginTop: 0 }}>{topReasons[0].count} occurrences in {rangeLabel.toLowerCase()}</span>
+              </div>
+            )}
+            {topReasons.length > 1 && (
+              <>
+                <span className="dashboard-highlight-strip__divider" />
+                <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+                  <span className="dashboard-highlight-strip__label">Second most common</span>
+                  <span className="dashboard-highlight-strip__value" style={{ color: "#F97316" }}>{topReasons[1].reason}</span>
+                  <span className="kpi-meta" style={{ marginTop: 0 }}>{topReasons[1].count} occurrences</span>
+                </div>
+              </>
+            )}
+            <span className="dashboard-highlight-strip__divider" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+              <span className="dashboard-highlight-strip__label">Approval rate</span>
+              <span className="dashboard-highlight-strip__value" style={{ color: approvalRate >= 70 ? "#10B981" : approvalRate >= 50 ? "#F59E0B" : "#DC2626" }}>{approvalRate}%</span>
+              <span className="kpi-meta" style={{ marginTop: 0 }}>{approvedCount} of {totalReturns} approved</span>
+            </div>
+            <span className="dashboard-highlight-strip__divider" />
+            <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+              <span className="dashboard-highlight-strip__label">Fraud alerts</span>
+              <span className="dashboard-highlight-strip__value" style={{ color: fraudAlertCount > 0 ? "#DC2626" : "#10B981" }}>{fraudAlertCount}</span>
+              <span className="kpi-meta" style={{ marginTop: 0 }}>High &amp; critical risk</span>
+            </div>
+            <Link to="/app/reports" className="panel-link" style={{ marginLeft: "auto", fontSize: 13, whiteSpace: "nowrap" }}>
+              Full analytics →
+            </Link>
+          </div>
+        )}
 
         {/* ── Chart + Status ── */}
         <div className="dashboard-chart-row mb-md">
@@ -580,7 +616,7 @@ export default function Dashboard() {
               <h3>Return trend</h3>
               <Link to="/app/reports" className="panel-link">Analytics →</Link>
             </div>
-            <div style={{ height: 180 }}>
+            <div style={{ height: 260 }}>
               {returnsOverTime.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={returnsOverTime} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>

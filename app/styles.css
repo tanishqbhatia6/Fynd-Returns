@@ -1328,14 +1328,75 @@ s-section[heading]::before {
 }
 
 /* ────── Dashboard Grid Layouts ──────
-   auto-fit (not auto-fill): when the grid has FEWER cards than slots that
-   would fit, collapse the empty slots and let the cards stretch to fill
-   the row. Without this, the dashboard's first KPI row (4 cards) left
-   half the viewport empty on wide monitors — merchants reported it as
-   "the cards just stop in the middle of the page". */
+   Fixed column counts by breakpoint (not auto-fit with minmax) so the row
+   never breaks into an orphan tail. Previously 13 KPI cards on a wide
+   monitor rendered as 10+3 with a huge blank stripe — merchants reported
+   it as "the cards just stop in the middle of the page". */
+
+/* Hero KPI row — primary metrics, larger typography, 4 cards wide. */
+.dashboard-hero-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+/* Secondary stat grid — compact cards, 4 wide on desktop, 8 items = 2 clean rows. */
+.dashboard-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dashboard-stat-card {
+  background: var(--rpm-surface);
+  border-radius: var(--rpm-radius);
+  padding: 14px 16px;
+  border: var(--rpm-border);
+  box-shadow: var(--rpm-shadow-xs);
+  position: relative;
+  overflow: hidden;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: box-shadow var(--rpm-transition), transform var(--rpm-transition), border-color var(--rpm-transition);
+}
+
+.dashboard-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--kpi-accent, var(--rpm-accent));
+  opacity: 0.75;
+}
+
+.dashboard-stat-card:hover {
+  box-shadow: var(--rpm-shadow-sm);
+  transform: translateY(-1px);
+  border-color: var(--rpm-border-color-strong);
+}
+
+.dashboard-stat-card .kpi-label {
+  font-size: 10px;
+  margin-bottom: 6px;
+}
+
+.dashboard-stat-card .kpi-value {
+  font-size: 22px;
+}
+
+.dashboard-stat-card .kpi-meta {
+  font-size: 10px;
+  margin-top: 4px;
+}
+
+/* Legacy grid (still used in a few places during transition) — keep it
+   explicit instead of auto-fit so rows stay balanced. */
 .dashboard-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
 }
 
@@ -1345,9 +1406,70 @@ s-section[heading]::before {
   gap: 16px;
 }
 
-@media (max-width: 900px) {
+/* Highlight strip — a single inline info card for text-based insights
+   (e.g. "Top reason: Size too big"). Fills the row so it never looks
+   half-empty. */
+.dashboard-highlight-strip {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 20px;
+  background: linear-gradient(135deg, var(--rpm-surface), var(--rpm-surface-subtle));
+  border-radius: var(--rpm-radius-lg);
+  border: var(--rpm-border);
+  box-shadow: var(--rpm-shadow-xs);
+  flex-wrap: wrap;
+}
+
+.dashboard-highlight-strip__label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--rpm-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.dashboard-highlight-strip__value {
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.dashboard-highlight-strip__divider {
+  width: 1px;
+  height: 28px;
+  background: var(--rpm-border-color);
+}
+
+/* Reports rates grid — lives inside a single panel, so the panel fills
+   full width even when only 3–4 gauges are displayed. */
+.reports-rates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 20px 28px;
+  align-items: center;
+}
+
+.reports-rate-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 4px 0;
+}
+
+@media (max-width: 1280px) {
+  .dashboard-hero-grid,
+  .dashboard-stat-grid,
   .dashboard-kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-hero-grid,
+  .dashboard-stat-grid,
+  .dashboard-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .dashboard-chart-row {
     grid-template-columns: 1fr;
@@ -1364,6 +1486,8 @@ s-section[heading]::before {
 }
 
 @media (max-width: 480px) {
+  .dashboard-hero-grid,
+  .dashboard-stat-grid,
   .dashboard-kpi-grid {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
@@ -1880,16 +2004,30 @@ s-section[heading]::before {
 }
 
 /* ────── KPI Grid Stagger Animation ────── */
-.dashboard-kpi-grid > * {
+.dashboard-kpi-grid > *,
+.dashboard-hero-grid > *,
+.dashboard-stat-grid > * {
   animation: app-scaleIn 0.3s ease backwards;
 }
 
-.dashboard-kpi-grid > *:nth-child(1) { animation-delay: 0.03s; }
-.dashboard-kpi-grid > *:nth-child(2) { animation-delay: 0.06s; }
-.dashboard-kpi-grid > *:nth-child(3) { animation-delay: 0.09s; }
-.dashboard-kpi-grid > *:nth-child(4) { animation-delay: 0.12s; }
-.dashboard-kpi-grid > *:nth-child(5) { animation-delay: 0.15s; }
-.dashboard-kpi-grid > *:nth-child(6) { animation-delay: 0.18s; }
+.dashboard-kpi-grid > *:nth-child(1),
+.dashboard-hero-grid > *:nth-child(1),
+.dashboard-stat-grid > *:nth-child(1) { animation-delay: 0.03s; }
+.dashboard-kpi-grid > *:nth-child(2),
+.dashboard-hero-grid > *:nth-child(2),
+.dashboard-stat-grid > *:nth-child(2) { animation-delay: 0.06s; }
+.dashboard-kpi-grid > *:nth-child(3),
+.dashboard-hero-grid > *:nth-child(3),
+.dashboard-stat-grid > *:nth-child(3) { animation-delay: 0.09s; }
+.dashboard-kpi-grid > *:nth-child(4),
+.dashboard-hero-grid > *:nth-child(4),
+.dashboard-stat-grid > *:nth-child(4) { animation-delay: 0.12s; }
+.dashboard-kpi-grid > *:nth-child(5),
+.dashboard-stat-grid > *:nth-child(5) { animation-delay: 0.15s; }
+.dashboard-kpi-grid > *:nth-child(6),
+.dashboard-stat-grid > *:nth-child(6) { animation-delay: 0.18s; }
+.dashboard-stat-grid > *:nth-child(7) { animation-delay: 0.21s; }
+.dashboard-stat-grid > *:nth-child(8) { animation-delay: 0.24s; }
 
 .dashboard-chart-panel {
   animation: app-slideUp 0.4s ease backwards;
@@ -2553,7 +2691,9 @@ s-section[heading]::before {
 
 /* ────── Additional Responsive Rules ────── */
 @media (min-width: 769px) and (max-width: 1024px) {
-  .dashboard-kpi-grid {
+  .dashboard-kpi-grid,
+  .dashboard-hero-grid,
+  .dashboard-stat-grid {
     grid-template-columns: repeat(3, 1fr);
   }
   .dashboard-chart-row {

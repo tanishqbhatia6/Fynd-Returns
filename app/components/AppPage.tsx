@@ -47,45 +47,28 @@ export function AppPage({
   const outerClass = className ? `app-page ${className}` : "app-page";
   return (
     <div className={outerClass}>
-      <div className="app-page-header">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: "1 1 auto" }}>
+      <header className="app-page-header">
+        <div className="app-page-header__left">
           {backHref && (
             <Link
               to={backHref}
               aria-label="Back"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                color: "var(--rpm-muted, #64748b)",
-                textDecoration: "none",
-                flexShrink: 0,
-                transition: "background 0.15s",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "var(--rpm-surface-subtle, #f1f5f9)")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              className="app-page-back"
             >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </Link>
           )}
           <div style={{ minWidth: 0 }}>
-            <h1 className="app-page-title" style={{ margin: 0 }}>
-              {heading}
-            </h1>
+            <h1 className="app-page-title">{heading}</h1>
             {subtitle && <div className="app-page-subtitle">{subtitle}</div>}
           </div>
         </div>
         {actions && (
-          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            {actions}
-          </div>
+          <div className="app-page-header__actions">{actions}</div>
         )}
-      </div>
+      </header>
       {children}
     </div>
   );

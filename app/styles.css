@@ -2799,3 +2799,257 @@ s-section {
   outline: 2px solid var(--rpm-accent, #2563eb);
   outline-offset: 1px;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PREMIUM POLISH LAYER
+   ────────────────────────────────────────────────────────────────────────
+   Global touches that lift the app from "works" to "feels premium" without
+   touching individual route files. Everything below is additive — pages
+   that already use semantic primitives benefit automatically; pages that
+   still use inline styles are unaffected.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Selection — subtle brand-tinted highlight instead of OS default. Small
+   touch but every text selection in the app picks this up. */
+::selection {
+  background: rgba(59, 130, 246, 0.18);
+  color: var(--rpm-text);
+}
+
+/* Custom scrollbar — narrower, neutral, appears only on hover.
+   Webkit (Chrome / Safari / Edge) only; Firefox falls back to native. */
+.app-page ::-webkit-scrollbar,
+.app-content ::-webkit-scrollbar { width: 10px; height: 10px; }
+.app-page ::-webkit-scrollbar-track,
+.app-content ::-webkit-scrollbar-track { background: transparent; }
+.app-page ::-webkit-scrollbar-thumb,
+.app-content ::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.app-page:hover ::-webkit-scrollbar-thumb,
+.app-content:hover ::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.16);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+.app-page ::-webkit-scrollbar-thumb:hover,
+.app-content ::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.32);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* Universal :focus-visible ring — every interactive element gets the same
+   ring without reauthoring every component. Only fires for keyboard users
+   (focus-visible spec), so mouse clicks don't show distracting outlines. */
+.app-page :focus-visible,
+.app-content :focus-visible {
+  outline: 2px solid var(--rpm-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Buttons / inputs that already define their own focus-visible ring keep
+   theirs; the universal rule above is a safety net for ad-hoc <button>s. */
+.app-page .app-btn:focus-visible,
+.app-page .app-btn-primary:focus-visible,
+.app-page .app-input:focus-visible,
+.app-page .app-select:focus-visible,
+.app-content .app-btn:focus-visible,
+.app-content .app-btn-primary:focus-visible,
+.app-content .app-input:focus-visible,
+.app-content .app-select:focus-visible {
+  outline: 2px solid var(--rpm-accent);
+  outline-offset: 2px;
+}
+
+/* ────── Typography utility scale ──────
+   Replaces ad-hoc inline `fontSize: 13` etc. Pages can drop these in
+   instead of guessing a number. Defined in pixels so they don't rescale
+   when the user changes their browser zoom. */
+.app-text-xs   { font-size: 11px; line-height: 1.45; }
+.app-text-sm   { font-size: 12px; line-height: 1.5; }
+.app-text-base { font-size: 13px; line-height: 1.55; }
+.app-text-md   { font-size: 14px; line-height: 1.55; }
+.app-text-lg   { font-size: 16px; line-height: 1.5; letter-spacing: -0.005em; }
+.app-text-xl   { font-size: 18px; line-height: 1.4; letter-spacing: -0.01em; font-weight: 600; }
+.app-text-2xl  { font-size: 22px; line-height: 1.25; letter-spacing: -0.015em; font-weight: 700; }
+.app-text-3xl  { font-size: 28px; line-height: 1.15; letter-spacing: -0.02em; font-weight: 700; }
+.app-font-mono { font-family: var(--rpm-font-mono); }
+
+/* Semantic text colors — map intent to the existing color tokens. */
+.app-text-muted   { color: var(--rpm-text-muted); }
+.app-text-subtle  { color: var(--rpm-text-subtle); }
+.app-text-success { color: var(--rpm-success); }
+.app-text-warning { color: var(--rpm-warning); }
+.app-text-error   { color: var(--rpm-error); }
+.app-text-info    { color: var(--rpm-info); }
+
+/* Layout utilities — for inline use without inline `style={{display:"flex"}}`. */
+.app-row { display: flex; align-items: center; gap: 12px; }
+.app-row-between { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.app-stack { display: flex; flex-direction: column; gap: 12px; }
+.app-stack-sm { display: flex; flex-direction: column; gap: 6px; }
+.app-stack-lg { display: flex; flex-direction: column; gap: 24px; }
+.app-divider {
+  height: 1px;
+  background: var(--rpm-border-color);
+  border: none;
+  margin: var(--rpm-space-lg) 0;
+}
+
+/* ────── Premium polish on existing primitives ──────
+   Nudge the existing classes a little harder — better elevation curve,
+   consistent active states, smoother transitions. Pages that already use
+   .app-card / .app-btn-primary / .app-btn pick these up for free. */
+
+/* Card hover — subtle lift, not a jump. The 1px translate + shadow swap
+   reads as "this is interactive" without being noisy on dense pages. */
+.app-card {
+  transition:
+    box-shadow var(--rpm-transition),
+    border-color var(--rpm-transition),
+    transform var(--rpm-transition-fast);
+}
+.app-card:has(a):hover,
+.app-card-interactive:hover {
+  border-color: var(--rpm-border-color-strong);
+  box-shadow: var(--rpm-shadow-md);
+}
+
+/* Primary button — refined depth + active state. Adds a tactile press
+   feel and a slightly brighter hover gradient (still solid colour, no
+   gradient banding). */
+.app-btn-primary {
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--rpm-accent) 100%, white 6%) 0%, var(--rpm-accent) 100%);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.app-btn-primary:hover {
+  background-image: linear-gradient(180deg, color-mix(in srgb, var(--rpm-accent-hover) 100%, white 6%) 0%, var(--rpm-accent-hover) 100%);
+  box-shadow: 0 2px 4px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.app-btn-primary:active {
+  transform: translateY(1px);
+  box-shadow: 0 0 0 rgba(15, 23, 42, 0.12);
+}
+
+/* Secondary button — same active feel, subtle hover. */
+.app-btn:active {
+  transform: translateY(1px);
+  background: var(--rpm-surface-elevated);
+}
+
+/* Input hover/focus — softer, more confident. Gives every input a
+   "the system noticed you" affordance without screaming. */
+.app-input,
+.app-select {
+  transition:
+    border-color var(--rpm-transition-fast),
+    box-shadow var(--rpm-transition-fast),
+    background var(--rpm-transition-fast);
+}
+.app-input:hover:not(:focus),
+.app-select:hover:not(:focus) {
+  border-color: var(--rpm-border-color-strong);
+  background: var(--rpm-surface);
+}
+
+/* ────── Refined .app-page-header ──────
+   Slightly tighter rhythm + a subtle bottom shadow instead of a hard
+   border for the premium feel. Keeps the existing border for browsers
+   without backdrop-filter / shadow support. */
+.app-page-header {
+  margin-bottom: 24px;
+  padding-bottom: 18px;
+  /* Subtle hairline + soft fade — feels lighter than a 1px border alone. */
+  border-bottom: 1px solid var(--rpm-border-color);
+  position: relative;
+}
+.app-page-header::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: -1px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(15, 23, 42, 0.04), transparent);
+  pointer-events: none;
+}
+.app-page-title {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--rpm-text);
+}
+.app-page-subtitle {
+  font-size: 13px;
+  color: var(--rpm-text-muted);
+  margin-top: 4px;
+  line-height: 1.45;
+}
+
+/* Header layout — left side is title + optional back button + subtitle.
+   Right side is the action area (Save buttons, filters, etc). The h1 has
+   margin: 0 so the wrapper alone controls vertical rhythm. */
+.app-page-header__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.app-page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.app-page-header h1.app-page-title { margin: 0; }
+
+/* Back button — rounded square, subtle hover lift. The chevron centres
+   inside via flex; aria-label makes it screen-reader friendly. */
+.app-page-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--rpm-text-muted);
+  background: transparent;
+  text-decoration: none;
+  flex-shrink: 0;
+  transition: background var(--rpm-transition-fast), color var(--rpm-transition-fast), transform var(--rpm-transition-fast);
+}
+.app-page-back:hover {
+  background: var(--rpm-surface-elevated);
+  color: var(--rpm-text);
+}
+.app-page-back:active {
+  transform: translateX(-1px);
+}
+.app-page-back:focus-visible {
+  outline: 2px solid var(--rpm-accent);
+  outline-offset: 2px;
+}
+
+/* Empty state — minor: warmer fallback when surrounding card has no
+   border, so the empty box doesn't float in nothing. */
+.app-empty-state {
+  background: var(--rpm-surface-subtle);
+}
+
+/* ────── Reduced-motion respect ──────
+   Strip all transitions for users who've requested reduced motion in
+   their OS settings. Required for accessibility; also reads as
+   "tasteful" because we honour the user's preference. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -465,105 +465,168 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Hero KPI row — four primary metrics with bigger typography.
-             Split into two grids so 12 cards become a clean 4 + 8 instead
-             of 13 in a single track (which produced an orphan tail on
-             wide monitors). */}
+        {/* ── Hero KPI row — four primary metrics, modern card layout.
+             Each card has an icon chip in the header plus a trend pill. */}
         <div className="dashboard-hero-grid mb-md">
-          <Link to="/app/returns" className="dashboard-kpi-card" style={{ "--kpi-accent": "var(--rpm-accent, #3B82F6)" } as React.CSSProperties}>
-            <div className="kpi-label">Total returns</div>
-            <div className="kpi-row">
-              <span className="kpi-value">{new Intl.NumberFormat(shopLocale || "en").format(totalReturns)}</span>
+          <Link to="/app/returns" className="dashboard-kpi-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              </span>
+              <span className="kpi-label">Total returns</span>
               {periodChange !== 0 && (
                 <span className={`kpi-change ${periodChange > 0 ? "kpi-change--up" : "kpi-change--down"}`}>
-                  {periodChange > 0 ? "↑" : "↓"} {Math.abs(periodChange)}%
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                    {periodChange > 0
+                      ? <><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></>
+                      : <><line x1="7" y1="7" x2="17" y2="17"/><polyline points="17 7 17 17 7 17"/></>}
+                  </svg>
+                  {Math.abs(periodChange)}%
                 </span>
               )}
             </div>
+            <div className="kpi-value">{new Intl.NumberFormat(shopLocale || "en").format(totalReturns)}</div>
             <div className="kpi-meta">{rangeLabel}</div>
           </Link>
 
-          <Link to="/app/returns?status=pending" className="dashboard-kpi-card" style={{ "--kpi-accent": "#EAB308" } as React.CSSProperties}>
-            <div className="kpi-label">Needs review</div>
-            <span className="kpi-value" style={{ color: pendingCount > 0 ? "#EAB308" : undefined }}>{pendingCount}</span>
+          <Link to="/app/returns?status=pending" className="dashboard-kpi-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </span>
+              <span className="kpi-label">Needs review</span>
+            </div>
+            <div className="kpi-value" style={{ color: pendingCount > 0 ? "#D97706" : undefined }}>{pendingCount}</div>
             <div className="kpi-meta">{pendingCount > 0 ? "Awaiting action" : "All clear"}</div>
           </Link>
 
           <Link to="/app/returns?status=approved" className="dashboard-kpi-card" style={{ "--kpi-accent": "#10B981" } as React.CSSProperties}>
-            <div className="kpi-label">Approved</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#10B981" }}>{approvedCount}</span>
-              <span className="kpi-meta" style={{ marginTop: 0 }}>{approvalRate}% rate</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              </span>
+              <span className="kpi-label">Approved</span>
+              {totalReturns > 0 && (
+                <span className="kpi-change" style={{ background: "#ECFDF5", color: "#047857", border: "1px solid #A7F3D0" }}>
+                  {approvalRate}%
+                </span>
+              )}
             </div>
-            <div className="kpi-meta">Approved + completed</div>
+            <div className="kpi-value" style={{ color: "#059669" }}>{approvedCount}</div>
+            <div className="kpi-meta">Approved &amp; completed</div>
           </Link>
 
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
-            <div className="kpi-label">Refunded</div>
-            <span className="kpi-value" style={{ color: "#8B5CF6" }}>{refundedCount}</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </span>
+              <span className="kpi-label">Refunded</span>
+            </div>
+            <div className="kpi-value" style={{ color: "#7C3AED" }}>{refundedCount}</div>
             <div className="kpi-meta">
-              {allTimeReturns > 0 ? `${allTimeReturns} all time` : "No refunds yet"}
+              {allTimeReturns > 0 ? `${new Intl.NumberFormat(shopLocale || "en").format(allTimeReturns)} all time` : "No refunds yet"}
             </div>
           </div>
         </div>
 
-        {/* ── Secondary stats grid — compact 4×2 grid (8 cards, no orphans). */}
+        {/* ── Secondary stats grid — compact 4×2 modern cards. */}
         <div className="dashboard-stat-grid mb-md">
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
-            <div className="kpi-label">Revenue retained</div>
-            <span className="kpi-value" style={{ color: "#059669" }}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
+              </span>
+              <span className="kpi-label">Revenue retained</span>
+            </div>
+            <div className="kpi-value" style={{ color: "#059669" }}>
               {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
-            </span>
+            </div>
             <div className="kpi-meta">Exchanges &amp; store credit</div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
-            <div className="kpi-label">Revenue at risk</div>
-            <span className="kpi-value" style={{ color: revenueAtRisk > 0 ? "#D97706" : undefined }}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </span>
+              <span className="kpi-label">Revenue at risk</span>
+            </div>
+            <div className="kpi-value" style={{ color: revenueAtRisk > 0 ? "#D97706" : undefined }}>
               {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueAtRisk)}
-            </span>
+            </div>
             <div className="kpi-meta">Initiated &amp; pending (30d)</div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
-            <div className="kpi-label">Avg refund</div>
-            <span className="kpi-value" style={{ color: "#8B5CF6" }}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+              </span>
+              <span className="kpi-label">Avg refund</span>
+            </div>
+            <div className="kpi-value" style={{ color: "#7C3AED" }}>
               {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(avgRefundAmount)}
-            </span>
-            <div className="kpi-meta">{refundedCount} refunds issued</div>
+            </div>
+            <div className="kpi-meta">{refundedCount} refund{refundedCount === 1 ? "" : "s"} issued</div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#6366F1" } as React.CSSProperties}>
-            <div className="kpi-label">Refund rate</div>
-            <span className="kpi-value" style={{ color: "#6366F1" }}>{refundRate}%</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57A10 10 0 1 1 19 5.27L21.5 8"/></svg>
+              </span>
+              <span className="kpi-label">Refund rate</span>
+            </div>
+            <div className="kpi-value" style={{ color: "#4F46E5" }}>{refundRate}%</div>
             <div className="kpi-meta">{refundedCount} of {approvedCount} approved</div>
+            <div className="kpi-progress"><span style={{ width: `${Math.min(100, refundRate)}%` }} /></div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
-            <div className="kpi-label">Exchange rate</div>
-            <span className="kpi-value" style={{ color: "#3B82F6" }}>{exchangeRate}%</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              </span>
+              <span className="kpi-label">Exchange rate</span>
+            </div>
+            <div className="kpi-value" style={{ color: "#2563EB" }}>{exchangeRate}%</div>
             <div className="kpi-meta">{resolutionMap.exchange ?? 0} of {Object.values(resolutionMap).reduce((a, b) => a + b, 0)} resolved</div>
+            <div className="kpi-progress"><span style={{ width: `${Math.min(100, exchangeRate)}%` }} /></div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#06B6D4" } as React.CSSProperties}>
-            <div className="kpi-label">Green returns</div>
-            <span className="kpi-value" style={{ color: "#06B6D4" }}>{greenReturnCount}</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>
+              </span>
+              <span className="kpi-label">Green returns</span>
+            </div>
+            <div className="kpi-value" style={{ color: "#0891B2" }}>{greenReturnCount}</div>
             <div className="kpi-meta">Customer kept item</div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#DC2626" } as React.CSSProperties}>
-            <div className="kpi-label">Blocked attempts</div>
-            <span className="kpi-value" style={{ color: blocklistCount > 0 ? "#DC2626" : undefined }}>{blocklistCount}</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              </span>
+              <span className="kpi-label">Blocked attempts</span>
+            </div>
+            <div className="kpi-value" style={{ color: blocklistCount > 0 ? "#B91C1C" : undefined }}>{blocklistCount}</div>
             <div className="kpi-meta">
-              <Link to="/app/settings/blocklist" className="panel-link" style={{ fontSize: 10 }}>Manage blocklist</Link>
+              <Link to="/app/settings/blocklist" className="panel-link" style={{ fontSize: 10, padding: 0 }}>Manage blocklist →</Link>
             </div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": overdueCount > 0 ? "#DC2626" : "#10B981" } as React.CSSProperties}>
-            <div className="kpi-label">Overdue returns</div>
-            <span className="kpi-value" style={{ color: overdueCount > 0 ? "#DC2626" : undefined }}>
-              {overdueCount}
-            </span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><path d="M8 2h8"/></svg>
+              </span>
+              <span className="kpi-label">Overdue returns</span>
+            </div>
+            <div className="kpi-value" style={{ color: overdueCount > 0 ? "#B91C1C" : undefined }}>{overdueCount}</div>
             <div className="kpi-meta">Pending &gt; 3 days</div>
           </div>
         </div>

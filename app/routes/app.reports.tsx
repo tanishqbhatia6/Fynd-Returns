@@ -538,79 +538,110 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* ── Hero KPI row (4 primary metrics). */}
+        {/* ── Hero KPI row (4 primary metrics, modern). */}
         <div className="dashboard-hero-grid mb-md">
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
-            <div className="kpi-label">Total Returns</div>
-            <div className="kpi-row">
-              <span className="kpi-value">{totalReturns}</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              </span>
+              <span className="kpi-label">Total Returns</span>
               {periodChange !== 0 && (
                 <span className={`kpi-change ${periodChange > 0 ? "kpi-change--up" : "kpi-change--down"}`}>
-                  {periodChange > 0 ? "↑" : "↓"} {Math.abs(periodChange)}%
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                    {periodChange > 0
+                      ? <><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></>
+                      : <><line x1="7" y1="7" x2="17" y2="17"/><polyline points="17 7 17 17 7 17"/></>}
+                  </svg>
+                  {Math.abs(periodChange)}%
                 </span>
               )}
             </div>
+            <div className="kpi-value">{totalReturns}</div>
             <div className="kpi-meta">{rangeLabel}</div>
           </div>
 
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#10B981" } as React.CSSProperties}>
-            <div className="kpi-label">Approval Rate</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#10B981" }}>{approvalRateDisplay}%</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </span>
+              <span className="kpi-label">Approval Rate</span>
             </div>
+            <div className="kpi-value" style={{ color: "#059669" }}>{approvalRateDisplay}%</div>
             <div className="kpi-meta">{approvedCount} of {totalReturns}</div>
           </div>
 
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
-            <div className="kpi-label">Avg Processing</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#F59E0B" }}>
-                {avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)}d` : "—"}
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               </span>
+              <span className="kpi-label">Avg Processing</span>
+            </div>
+            <div className="kpi-value" style={{ color: "#D97706" }}>
+              {avgProcessingDays != null ? `${avgProcessingDays.toFixed(1)}d` : "—"}
             </div>
             <div className="kpi-meta">Request → Approval</div>
           </div>
 
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
-            <div className="kpi-label">Refund Rate</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#8B5CF6" }}>{refundRateDisplay}%</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              </span>
+              <span className="kpi-label">Refund Rate</span>
             </div>
+            <div className="kpi-value" style={{ color: "#7C3AED" }}>{refundRateDisplay}%</div>
             <div className="kpi-meta">{refundedCount} refunded</div>
           </div>
         </div>
 
         {/* ── Secondary retention / risk stats — compact 4-up row. */}
         <div className="dashboard-stat-grid mb-md">
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#14b8a6" } as React.CSSProperties}>
-            <div className="kpi-label">Exchange Conversion</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#14b8a6" }}>{exchangeConversionRate}%</span>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#14B8A6" } as React.CSSProperties}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              </span>
+              <span className="kpi-label">Exchange Conversion</span>
             </div>
+            <div className="kpi-value" style={{ color: "#0D9488" }}>{exchangeConversionRate}%</div>
             <div className="kpi-meta">{resolutionChartData.find(d => d.name === "Exchange")?.value ?? 0} of {resolvedCount} resolved</div>
+            <div className="kpi-progress"><span style={{ width: `${Math.min(100, exchangeConversionRate)}%` }} /></div>
           </div>
 
           <div className="dashboard-stat-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
-            <div className="kpi-label">Revenue Retained</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#059669" }}>{revenueRetainedRate}%</span>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>
+              </span>
+              <span className="kpi-label">Revenue Retained</span>
             </div>
+            <div className="kpi-value" style={{ color: "#047857" }}>{revenueRetainedRate}%</div>
             <div className="kpi-meta">Credit vs refunds</div>
+            <div className="kpi-progress"><span style={{ width: `${Math.min(100, revenueRetainedRate)}%` }} /></div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#f97316" } as React.CSSProperties}>
-            <div className="kpi-label">Repeat Returners</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: "#f97316" }}>{repeatReturnerRate}%</span>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#F97316" } as React.CSSProperties}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span className="kpi-label">Repeat Returners</span>
             </div>
+            <div className="kpi-value" style={{ color: "#EA580C" }}>{repeatReturnerRate}%</div>
             <div className="kpi-meta">{repeatCustomerCount} of {uniqueCustomerCount} ≥ 2 returns</div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" } as React.CSSProperties}>
-            <div className="kpi-label">Fraud Alerts</div>
-            <div className="kpi-row">
-              <span className="kpi-value" style={{ color: fraudAlertCount > 0 ? "#DC2626" : "#94a3b8" }}>{fraudAlertCount}</span>
+          <div className="dashboard-stat-card" style={{ "--kpi-accent": fraudAlertCount > 0 ? "#DC2626" : "#94A3B8" } as React.CSSProperties}>
+            <div className="kpi-header">
+              <span className="kpi-icon">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </span>
+              <span className="kpi-label">Fraud Alerts</span>
             </div>
+            <div className="kpi-value" style={{ color: fraudAlertCount > 0 ? "#B91C1C" : "#94A3B8" }}>{fraudAlertCount}</div>
             <div className="kpi-meta">High + Critical risk</div>
           </div>
         </div>

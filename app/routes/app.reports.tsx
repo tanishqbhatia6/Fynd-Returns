@@ -720,21 +720,27 @@ export default function Reports() {
           ))}
         </div>
 
-        {/* ── Resolution Breakdown ── */}
+        {/* ── Resolution Breakdown — chart on the left, legend with metrics
+             on the right. Previously the donut was 160px in a 1200px-wide
+             column so it looked lost in empty whitespace. The new
+             side-by-side layout fills the panel and lets each segment show
+             its count + percentage as a proper data row. */}
         <div className="dashboard-chart-row mb-md">
           <div className={CS}>
             <h3 className="panel-title" style={{ marginBottom: 14 }}>Resolution breakdown</h3>
-            <div style={{ height: 240, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              {resolutionChartData.length > 0 ? (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, width: "100%" }}>
-                  <ResponsiveContainer width={160} height={160}>
+            {resolutionChartData.length > 0 ? (
+              <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: 28, alignItems: "center", padding: "8px 0" }}>
+                {/* Chart pinned to a fixed width so it stays a clean circle
+                    even as the legend column grows. */}
+                <div style={{ width: 200, height: 200, position: "relative" }}>
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={resolutionChartData} cx="50%" cy="50%" innerRadius={48} outerRadius={72} paddingAngle={2} dataKey="value" nameKey="name">
+                      <Pie data={resolutionChartData} cx="50%" cy="50%" innerRadius={62} outerRadius={92} paddingAngle={2} dataKey="value" nameKey="name" stroke="none">
                         {resolutionChartData.map((entry, i) => (
                           <Cell key={i} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12 }}
+                      <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #E2E8F0", fontSize: 12, boxShadow: "0 6px 16px -3px rgba(15,23,42,0.1)" }}
                         formatter={((value: number | undefined, _: string | undefined, props: { payload?: { value: number } }) => {
                           const total = resolutionChartData.reduce((a, d) => a + d.value, 0);
                           const pct = total > 0 && props.payload ? Math.round((props.payload.value / total) * 100) : 0;
@@ -742,25 +748,50 @@ export default function Reports() {
                         }) as never} />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", justifyContent: "center" }}>
-                    {resolutionChartData.map((d, i) => {
-                      const total = resolutionChartData.reduce((a, x) => a + x.value, 0);
-                      const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
-                      return (
-                        <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 2, background: d.color, flexShrink: 0 }} />
-                          <span style={{ color: "var(--rpm-text-muted)" }}>{d.name}</span>
-                          <span style={{ fontWeight: 700 }}>{d.value}</span>
-                          <span style={{ color: "var(--rpm-text-muted)", fontSize: 11 }}>({pct}%)</span>
-                        </div>
-                      );
-                    })}
+                  {/* Centre label — total resolved, sits inside the donut hole. */}
+                  <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+                    <span style={{ fontSize: 26, fontWeight: 800, letterSpacing: "-0.02em", color: "var(--rpm-text)" }}>
+                      {resolutionChartData.reduce((a, d) => a + d.value, 0)}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--rpm-text-muted)", textTransform: "uppercase", letterSpacing: "0.06em", marginTop: 2 }}>
+                      Resolved
+                    </span>
                   </div>
                 </div>
-              ) : (
-                <div className="chart-empty">No resolution data for this period.</div>
-              )}
-            </div>
+
+                {/* Legend column — one row per segment with colour swatch,
+                    name, count, and proportional bar so it doesn't read as
+                    a flat key/value list. */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {(() => {
+                    const total = resolutionChartData.reduce((a, x) => a + x.value, 0);
+                    return resolutionChartData.map((d, i) => {
+                      const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+                      return (
+                        <div key={i} style={{ display: "grid", gridTemplateColumns: "12px 1fr auto", gap: 12, alignItems: "center" }}>
+                          <span style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flexShrink: 0 }} />
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+                              <span style={{ fontSize: 13, fontWeight: 600, color: "var(--rpm-text)" }}>{d.name}</span>
+                              <span style={{ fontSize: 12, color: "var(--rpm-text-muted)", fontVariantNumeric: "tabular-nums" }}>
+                                <strong style={{ color: "var(--rpm-text)", fontWeight: 700 }}>{d.value}</strong>
+                                {" · "}{pct}%
+                              </span>
+                            </div>
+                            <div style={{ height: 4, background: "var(--rpm-surface-elevated)", borderRadius: 999, overflow: "hidden", marginTop: 6 }}>
+                              <div style={{ height: "100%", width: `${pct}%`, background: d.color, borderRadius: 999, transition: "width 0.4s ease" }} />
+                            </div>
+                          </div>
+                          <span />
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <div className="chart-empty">No resolution data for this period.</div>
+            )}
           </div>
 
           <div className={CS}>

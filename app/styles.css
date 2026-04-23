@@ -3047,3 +3047,217 @@ s-section {
     scroll-behavior: auto !important;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   PREMIUM COMPONENT POLISH (round 2)
+   ──────────────────────────────────────────────────────────────────────
+   Tightens the secondary primitives — chart panels, status badges, table
+   typography, panel headers. Pages don't need to change; they pick the
+   refined treatment up automatically through the existing class names.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Chart panel — slightly tighter padding, better corner radius, refined
+   header rhythm. Adds a hover micro-shadow so panels feel "live" without
+   shouting. */
+.dashboard-chart-panel {
+  padding: 24px 24px 20px;
+  border-radius: 14px;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: box-shadow var(--rpm-transition), border-color var(--rpm-transition);
+}
+.dashboard-chart-panel:hover {
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04);
+  border-color: #e2e8f0;
+}
+.dashboard-chart-panel h3,
+.panel-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--rpm-text);
+}
+
+/* Panel header — title left, link right, tightened bottom margin. */
+.panel-header {
+  margin-bottom: 18px;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.panel-link {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--rpm-accent);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background var(--rpm-transition-fast);
+}
+.panel-link:hover {
+  background: var(--rpm-accent-subtle);
+  text-decoration: none;
+}
+
+/* Refined status badge — drop the pulsing dot animation (too distracting
+   on dense tables), tighten padding, give every variant a tinted
+   background so they read as proper chips, not floating text. The
+   per-variant tints below are derived from the existing semantic tokens
+   so colour changes there ripple through automatically. */
+.app-status-badge {
+  padding: 4px 10px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--rpm-surface-elevated);
+  color: var(--rpm-text-secondary);
+  border: 1px solid transparent;
+  white-space: nowrap;
+  transition: background var(--rpm-transition-fast);
+}
+.app-status-badge:hover {
+  /* Subtler hover than the previous scale(1.04) — feels less jumpy in
+     a long list of badges. */
+  background: var(--rpm-surface-hover);
+  transform: none;
+  box-shadow: none;
+}
+.app-status-dot {
+  width: 6px;
+  height: 6px;
+  /* Static — no pulse. The animation was distracting on a dense returns
+     table where every row had a pulsing dot. */
+  animation: none;
+}
+
+/* Recharts tooltip — replace the bordered white box with a soft elevated
+   card so chart hover affordances feel native to the design system. */
+.recharts-tooltip-wrapper .recharts-default-tooltip {
+  border: 1px solid var(--rpm-border-color) !important;
+  border-radius: 10px !important;
+  box-shadow: var(--rpm-shadow-md) !important;
+  padding: 8px 12px !important;
+  background: var(--rpm-surface) !important;
+  font-family: var(--rpm-font) !important;
+  font-size: 12px !important;
+}
+.recharts-tooltip-wrapper .recharts-tooltip-label {
+  font-weight: 700 !important;
+  color: var(--rpm-text) !important;
+  margin-bottom: 4px !important;
+}
+
+/* Recharts axis tick text — match our typography scale. */
+.recharts-cartesian-axis-tick text {
+  font-family: var(--rpm-font) !important;
+  font-size: 11px !important;
+  fill: var(--rpm-text-muted) !important;
+}
+
+/* Tables — tighten the typography rhythm, restrain hover styling so it
+   reads as "this row is selectable" instead of "fireworks". */
+.app-table tbody td {
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 14px 18px;
+  color: var(--rpm-text-secondary);
+}
+.app-table tbody tr:nth-child(even) {
+  /* Drop the zebra striping — it competes with hover state on a dense
+     list and modern enterprise tables (Linear, Notion, Stripe Dashboard)
+     have moved away from it. */
+  background: var(--rpm-surface);
+}
+.app-table tbody tr:hover {
+  background: var(--rpm-surface-subtle);
+  /* Replace the 3px accent stripe inset shadow with a subtler 2px one
+     — still signals selection on hover, but doesn't fight with the
+     status badge's left edge. */
+  box-shadow: inset 2px 0 0 var(--rpm-accent);
+}
+
+/* Empty state — slightly larger illustration, more breathing room,
+   refined typography. */
+.app-empty-state {
+  padding: 56px 24px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, var(--rpm-surface-subtle) 0%, var(--rpm-surface) 100%);
+  border: 1px dashed var(--rpm-border-color);
+  text-align: center;
+}
+.app-empty-state-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+  background: var(--rpm-accent-subtle);
+  color: var(--rpm-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* KPI card — refine the colored top accent. The previous 3px solid bar
+   read as "decoration" rather than "data signal". A 2px bar with a soft
+   gradient feels more intentional and less Win95. */
+.dashboard-kpi-card {
+  padding: 18px 20px;
+  border-radius: 14px;
+  border: 1px solid #eef2f7;
+}
+.dashboard-kpi-card::before {
+  height: 2px;
+  background: linear-gradient(90deg,
+    var(--kpi-accent, var(--rpm-accent)) 0%,
+    color-mix(in srgb, var(--kpi-accent, var(--rpm-accent)) 60%, transparent) 100%);
+  opacity: 1;
+  border-radius: 14px 14px 0 0;
+}
+.dashboard-kpi-card:hover {
+  border-color: #e2e8f0;
+}
+.kpi-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+}
+.kpi-value {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--rpm-text);
+  font-variant-numeric: tabular-nums;
+}
+.kpi-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--rpm-text-muted);
+  line-height: 1.4;
+}
+.kpi-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.kpi-change {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-change--up { color: var(--rpm-success); background: var(--rpm-success-bg); }
+.kpi-change--down { color: var(--rpm-error); background: var(--rpm-error-bg); }

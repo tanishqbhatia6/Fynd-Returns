@@ -3,6 +3,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { Link, useLoaderData, useRouteError, isRouteErrorResponse } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { AppPage } from "../components/AppPage";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -398,7 +399,7 @@ export default function SettingsDashboard() {
   ).length;
 
   return (
-    <s-page fullWidth heading="Settings">
+    <AppPage heading="Settings">
       <div className="app-content layout-wide">
 
         {/* ── Summary Bar ── */}
@@ -499,6 +500,6 @@ export default function SettingsDashboard() {
           </div>
         )}
       </div>
-    </s-page>
+    </AppPage>
   );
 }

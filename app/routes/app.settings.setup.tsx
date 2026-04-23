@@ -12,6 +12,7 @@ import { getNormalizedCredentialsFromRaw, testPlatformConnectionRaw } from "../l
 import { createFyndLogger } from "../lib/fynd-logger.server";
 import { getAppMode } from "../lib/fynd-config.server";
 import { processFyndWebhook } from "../lib/fynd-webhook.server";
+import { AppPage } from "../components/AppPage";
 import {
   listFyndWebhookSubscribers,
   findSubscriberWithUrl,
@@ -303,7 +304,7 @@ export default function FyndSetup() {
   const goToStep = (step: StepId) => setSearchParams({ step });
 
   return (
-    <s-page fullWidth heading="Fynd Setup">
+    <AppPage heading="Fynd Setup">
       <div className="app-content">
         <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
           Follow these steps to connect Fynd and enable automatic refund updates when Fynd processes returns.
@@ -783,6 +784,6 @@ export default function FyndSetup() {
           </details>
         )}
       </div>
-    </s-page>
+    </AppPage>
   );
 }

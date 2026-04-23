@@ -14,6 +14,7 @@ import type { FyndJourneyStep } from "../lib/fynd-payload.server";
 import { isFyndPrivateUrl, signFyndUrl, createFyndClientOrError } from "../lib/fynd.server";
 import { PRESET_LABELS } from "../lib/refund-gate-presets";
 import type { RefundGatePreset } from "../lib/refund-gate-presets";
+import { AppPage } from "../components/AppPage";
 
 /** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
 function safeStr(v: unknown): string {
@@ -1014,7 +1015,7 @@ export default function ReturnDetail() {
   const firstShipment = fwdShipment ?? retShipmentFromPayload;
 
   return (
-    <s-page fullWidth heading={`Return ${returnRequestId}`}>
+    <AppPage heading={`Return ${returnRequestId}`}>
       <div className="app-content layout-wide">
         {/* ── Alerts ── */}
         {fetcher.data?.success && !fetcher.data?.error && (
@@ -3142,7 +3143,7 @@ export default function ReturnDetail() {
           </div>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }
 
@@ -3174,7 +3175,7 @@ export function ErrorBoundary() {
         : "An unexpected error occurred.";
 
   return (
-    <s-page fullWidth heading={heading}>
+    <AppPage heading={heading}>
       <s-section>
         <p style={{ marginBottom: 16, color: "#6d7175" }}>{description}</p>
         {!is404 && !is400 && !is500 && (
@@ -3190,6 +3191,6 @@ export function ErrorBoundary() {
           <s-button variant="primary">Back to Returns</s-button>
         </Link>
       </s-section>
-    </s-page>
+    </AppPage>
   );
 }

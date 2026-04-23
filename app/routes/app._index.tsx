@@ -5,6 +5,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
 import { getStatusColor } from "../lib/status-colors";
+import { AppPage } from "../components/AppPage";
 import {
   AreaChart,
   Area,
@@ -406,7 +407,7 @@ export default function Dashboard() {
   const refundRate = approvedCount > 0 ? Math.round((refundedCount / approvedCount) * 100) : 0;
 
   return (
-    <s-page fullWidth heading="Dashboard">
+    <AppPage heading="Dashboard">
       <div className="app-content layout-wide" style={{ paddingBottom: 48 }}>
         {error && (
           <div className="app-alert app-alert-error mb-md">
@@ -799,7 +800,7 @@ export default function Dashboard() {
           </div>
         )}
       </div>
-    </s-page>
+    </AppPage>
   );
 }
 
@@ -811,7 +812,7 @@ export function ErrorBoundary() {
     : error instanceof Error ? error.message : "An unexpected error occurred.";
 
   return (
-    <s-page fullWidth heading="Dashboard">
+    <AppPage heading="Dashboard">
       <div className="app-content layout-wide" style={{ paddingBottom: 48 }}>
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>
@@ -828,6 +829,6 @@ export function ErrorBoundary() {
           <Link to="/app/portal"><s-button variant="secondary">Portal</s-button></Link>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

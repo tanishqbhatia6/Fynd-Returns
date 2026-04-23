@@ -4,6 +4,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
+import { AppPage } from "../components/AppPage";
 
 type BlocklistEntryRow = {
   id: string;
@@ -134,7 +135,7 @@ export default function BlocklistSettings() {
   }, [fetcher.data, fetcher.formData]);
 
   return (
-    <s-page fullWidth heading="Customer Blocklist">
+    <AppPage heading="Customer Blocklist">
       <div className="app-content">
         {fetcher.data?.success && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>
@@ -290,6 +291,6 @@ export default function BlocklistSettings() {
           </Link>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

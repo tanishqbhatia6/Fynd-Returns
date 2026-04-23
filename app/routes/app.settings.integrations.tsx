@@ -8,6 +8,7 @@ import { createFyndClientOrError, getNormalizedCredentialsFromRaw, testPlatformC
 import { createFyndLogger } from "../lib/fynd-logger.server";
 import { FYND_ENVIRONMENTS, getAppMode } from "../lib/fynd-config.server";
 import { sanitizeCredentialInputs } from "../lib/credential-validation.server";
+import { AppPage } from "../components/AppPage";
 
 export type PolicyFormValues = {
   returnWindowDays: number;
@@ -426,7 +427,7 @@ export default function Integrations() {
   const showTestError = fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
 
   return (
-    <s-page fullWidth heading="Partner Integrations">
+    <AppPage heading="Partner Integrations">
       <div className="app-content layout-form">
         {fetcher.data?.error && !showTestError && (
           <div className="app-alert app-alert-error">{fetcher.data.error}</div>
@@ -1069,6 +1070,6 @@ export default function Integrations() {
           </div>
         </fetcher.Form>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

@@ -7,6 +7,7 @@ import { parsePortalTheme, DEFAULT_PORTAL_THEME, FONT_OPTIONS } from "../lib/por
 import { parsePortalConfig } from "../lib/portal-config.server";
 import { findOrCreateShop } from "../lib/shop.server";
 import { SUPPORTED_LANGUAGES, DEFAULT_LABELS, getPortalLabels } from "../lib/portal-i18n";
+import { AppPage } from "../components/AppPage";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -181,7 +182,7 @@ export default function Widget() {
   }
 
   return (
-    <s-page fullWidth heading="Assure Return Widget">
+    <AppPage heading="Assure Return Widget">
       <div className="app-content layout-form">
         {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Settings saved successfully.</div>
@@ -424,6 +425,6 @@ export default function Widget() {
           </div>
         </fetcher.Form>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

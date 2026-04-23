@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, Link } from "react-router";
+import { AppPage } from "../components/AppPage";
 
 // Client-side constant for permissions (server uses ALL_PERMISSIONS from api-key-auth.server)
 const PERMISSIONS_LIST = ["read_returns", "write_returns", "read_settings", "manage_webhooks"] as const;
@@ -123,7 +124,7 @@ export default function ApiKeysSettings() {
   }
 
   return (
-    <s-page fullWidth heading="API Keys" backAction={{ content: "Settings", url: "/app/settings" }}>
+    <AppPage heading="API Keys" backHref="/app/settings">
       <div className="app-content layout-medium">
 
         {/* Generated Key Banner */}
@@ -378,6 +379,6 @@ export default function ApiKeysSettings() {
           </Link>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

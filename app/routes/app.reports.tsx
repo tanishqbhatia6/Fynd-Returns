@@ -5,6 +5,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
 import { getStatusColor } from "../lib/status-colors";
+import { AppPage } from "../components/AppPage";
 import {
   AreaChart,
   Area,
@@ -501,7 +502,7 @@ export default function Reports() {
   const CS = "dashboard-chart-panel"; // reuse dashboard card class
 
   return (
-    <s-page fullWidth heading="Analytics">
+    <AppPage heading="Analytics">
       <div className="app-content layout-wide" style={{ paddingBottom: 48 }}>
         {error && (
           <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
@@ -1127,7 +1128,7 @@ export default function Reports() {
           <span>~<strong>{avgItemsPerReturn}</strong> items per return</span>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }
 
@@ -1137,13 +1138,13 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page fullWidth heading="Analytics">
+    <AppPage heading="Analytics">
       <div className="app-content layout-wide">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
           <a href="/app/reports" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

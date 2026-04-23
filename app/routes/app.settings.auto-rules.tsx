@@ -6,6 +6,7 @@ import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
 import { parseAutoApproveRules } from "../lib/auto-approve.server";
 import type { AutoApproveRule } from "../lib/auto-approve.server";
+import { AppPage } from "../components/AppPage";
 
 const FIELD_OPTIONS = [
   { value: "orderValue", label: "Order Value" },
@@ -174,7 +175,7 @@ export default function AutoApproveRulesSettings() {
   };
 
   return (
-    <s-page fullWidth heading="Auto-Approve Rules">
+    <AppPage heading="Auto-Approve Rules">
       <div className="app-content">
         {fetcher.data?.success && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>Rules saved successfully.</div>
@@ -354,6 +355,6 @@ export default function AutoApproveRulesSettings() {
           </form>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

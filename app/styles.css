@@ -115,44 +115,9 @@
   overflow-x: hidden;
 }
 
-/* ────── FULL-WIDTH OVERRIDES ────── */
-/* Force all Shopify web components to full width.
-   Uses CSS custom properties that Polaris web components read internally,
-   plus !important overrides as fallback. */
-s-page,
-s-page[fullWidth],
-s-page[fullwidth] {
-  display: block !important;
-  max-width: 100% !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
-  --s-page-max-width: 100% !important;
-  --page-max-width: 100% !important;
-  --p-page-max-width: 100% !important;
-}
-
-s-section {
-  display: block !important;
-  max-width: 100% !important;
-  width: 100% !important;
-}
-
-s-page s-section + s-section {
-  margin-top: var(--rpm-space-xl) !important;
-}
-
-/* Override Polaris / Shopify wrapper max-width constraints (preserve padding) */
-[class*="Polaris-Page"],
-[class*="Page--"],
-[class*="Frame__Content"],
-[class*="page_container"],
-[class*="page_content"],
-[class*="PageLayout"],
-[class*="page-inner"] {
-  max-width: 100% !important;
-}
-
-/* Force parent containers that AppProvider/App Bridge may inject */
+/* Force parent containers that AppProvider/App Bridge may inject to use the
+   full available width — keeps any wrapper that App Bridge injects from
+   pinning content to a narrow column inside the embedded iframe. */
 body > div,
 #root,
 #app,
@@ -160,6 +125,15 @@ body > div,
 [class*="AppFrame"],
 [class*="app-frame"] {
   max-width: 100% !important;
+}
+
+/* <s-section> is still used by a few settings pages as a sub-block within
+   the page (not as the page wrapper). Make sure it doesn't reintroduce
+   a narrow column inside our .app-page container. */
+s-section {
+  display: block;
+  max-width: 100%;
+  width: 100%;
 }
 
 /* ────── Page Layout Classes ────── */

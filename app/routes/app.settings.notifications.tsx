@@ -6,6 +6,7 @@ import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
 import { testSmtpConnection } from "../lib/notification.server";
 import { encryptIfNeeded, decryptIfEncrypted, looksEncrypted } from "../lib/encryption.server";
+import { AppPage } from "../components/AppPage";
 
 // Sentinel returned to the client in place of the actual SMTP password. The form
 // preserves this value when saving "as-is" (no change). Any other non-empty value is
@@ -465,7 +466,7 @@ export default function Notifications() {
   };
 
   return (
-    <s-page fullWidth heading="Notifications">
+    <AppPage heading="Notifications">
       <div className="app-content layout-medium">
         {saved && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 20 }}>
@@ -1062,6 +1063,6 @@ export default function Notifications() {
           )}
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, Link } from "react-router";
 import { EXTERNAL_API_ENDPOINTS } from "../lib/api-docs-data";
+import { AppPage } from "../components/AppPage";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { authenticate } = await import("../shopify.server");
@@ -29,7 +30,7 @@ export default function ApiDocs() {
   }
 
   return (
-    <s-page fullWidth heading="API Documentation" backAction={{ content: "Settings", url: "/app/settings" }}>
+    <AppPage heading="API Documentation" backHref="/app/settings">
       <div className="app-content layout-medium">
 
         {/* Header */}
@@ -336,6 +337,6 @@ export default function ApiDocs() {
           </div>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

@@ -4,6 +4,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useSearchParams, Link, useFetcher, useRevalidator } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { AppPage } from "../components/AppPage";
 
 const PAGE_SIZE = 50;
 
@@ -384,7 +385,7 @@ export default function WebhookLogsPage() {
   const hasFilters = !!(actionFilter || statusFilter || searchQuery || dateFrom || dateTo);
 
   return (
-    <s-page fullWidth heading="Fynd Webhook Logs">
+    <AppPage heading="Fynd Webhook Logs">
       <div className="app-content layout-wide">
 
         {loaderError && (
@@ -671,7 +672,7 @@ export default function WebhookLogsPage() {
           )}
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }
 

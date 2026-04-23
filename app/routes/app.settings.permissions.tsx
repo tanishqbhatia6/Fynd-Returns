@@ -4,6 +4,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
+import { AppPage } from "../components/AppPage";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -43,7 +44,7 @@ export default function Permissions() {
   const saved = fetcher.data?.success === true;
 
   return (
-    <s-page fullWidth heading="Permissions">
+    <AppPage heading="Permissions">
       <div className="app-content">
         {saved && (
           <div className="app-alert app-alert-success">
@@ -147,6 +148,6 @@ export default function Permissions() {
           </div>
         </fetcher.Form>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

@@ -11,6 +11,7 @@ import { fetchAllLocations } from "../lib/shopify-admin.server";
 import type { ShopLocation } from "../lib/shopify-admin.server";
 import { inferPresetFromStatuses, getStatusesForPreset, PRESET_LABELS } from "../lib/refund-gate-presets";
 import type { RefundGatePreset } from "../lib/refund-gate-presets";
+import { AppPage } from "../components/AppPage";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
@@ -384,7 +385,7 @@ export default function ReturnSettings() {
   };
 
   return (
-    <s-page fullWidth heading="Return Settings">
+    <AppPage heading="Return Settings">
       <div className="app-content">
       {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Settings saved successfully.</div>
@@ -1620,6 +1621,6 @@ export default function ReturnSettings() {
         </div>
       </fetcher.Form>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

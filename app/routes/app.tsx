@@ -2,7 +2,7 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { Link, Outlet, useLoaderData, useLocation, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import React, { useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getAppMode } from "../lib/fynd-config.server";
@@ -110,133 +110,10 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
   }, [currentCount, enabled, playSound]);
 }
 
-/**
- * Force <s-page> to use full available width.
- *
- * Root cause: Shopify's <s-page> web component creates a shadow DOM with an
- * internal container that has a hardcoded max-width (~998px). CSS from outside
- * the shadow DOM cannot override this.
- *
- * Strategy (3-layer):
- * 1. root.tsx <head> script intercepts attachShadow → forces mode:"open"
- *    so we CAN access the shadow root from JS.
- * 2. This hook injects a <style> into the now-open shadow root that nukes
- *    all max-width / padding constraints on every internal element.
- * 3. CSS custom properties + inline styles on <s-page> itself as belt-and-suspenders.
- *
- * Timing: polaris.js loads async → element upgrades → shadow DOM created.
- * We use customElements.whenDefined + MutationObserver + retry timers to
- * catch the exact moment the shadow root appears.
- */
-function useSPageFullWidth() {
-  useLayoutEffect(() => {
-    const STYLE_ID = "rpm-fullwidth";
-    // Surgical shadow CSS — only target the outermost wrapper layers that enforce
-    // Shopify's narrow max-width. Do NOT touch internal padding/margins/gutters.
-    const shadowCSS = `
-      :host {
-        display: block !important;
-        max-width: 100% !important;
-        width: 100% !important;
-      }
-      :host > div,
-      :host > div > div,
-      :host > div > div > div {
-        max-width: 100% !important;
-        width: 100% !important;
-        box-sizing: border-box !important;
-      }
-    `;
-
-    function injectShadow(page: Element) {
-      const sr = page.shadowRoot;
-      if (!sr) return;
-      // Inject stylesheet once — no per-element inline style loop
-      if (!sr.getElementById(STYLE_ID)) {
-        const style = document.createElement("style");
-        style.id = STYLE_ID;
-        style.textContent = shadowCSS;
-        sr.prepend(style);
-      }
-    }
-
-    function inject(page: Element) {
-      const el = page as HTMLElement;
-      // Attributes
-      el.setAttribute("fullWidth", "");
-      el.setAttribute("fullwidth", "");
-      // CSS custom properties for max-width only — preserve padding/spacing tokens
-      const vars: [string, string][] = [
-        ["--s-page-max-width", "100%"], ["--page-max-width", "100%"],
-        ["--p-page-max-width", "100%"], ["--pc-page-max-width", "100%"],
-      ];
-      for (const [k, v] of vars) el.style.setProperty(k, v);
-      // Inline max-width only — do NOT zero padding
-      el.style.setProperty("max-width", "100%", "important");
-      el.style.setProperty("width", "100%", "important");
-      // Shadow DOM injection (open because of root.tsx interception)
-      injectShadow(page);
-    }
-
-    function forceSection(el: Element) {
-      const h = el as HTMLElement;
-      h.style.setProperty("max-width", "100%", "important");
-    }
-
-    function forceParentChain() {
-      document.querySelectorAll("s-page").forEach((spage) => {
-        let parent = spage.parentElement;
-        while (parent && parent !== document.body) {
-          const h = parent as HTMLElement;
-          h.style.setProperty("max-width", "100%", "important");
-          parent = parent.parentElement;
-        }
-      });
-    }
-
-    function run() {
-      document.querySelectorAll("s-page").forEach(inject);
-      document.querySelectorAll("s-section").forEach(forceSection);
-      forceParentChain();
-    }
-
-    // Run immediately
-    run();
-
-    // Retry at intervals (polaris.js loads async — shadow roots appear later)
-    const timers = [50, 150, 400, 800, 1500, 3000, 6000].map((ms) => setTimeout(run, ms));
-
-    // Also trigger when <s-page> custom element is defined (exact timing)
-    if (typeof customElements !== "undefined") {
-      customElements.whenDefined("s-page").then(() => {
-        // Small delay for element upgrade + shadow DOM creation
-        setTimeout(run, 0);
-        setTimeout(run, 50);
-        setTimeout(run, 200);
-      });
-    }
-
-    // MutationObserver for dynamic elements AND shadow root changes
-    const observer = new MutationObserver((mutations) => {
-      for (const m of mutations) {
-        for (const node of m.addedNodes) {
-          if (node instanceof Element) {
-            if (node.tagName === "S-PAGE") inject(node);
-            node.querySelectorAll?.("s-page").forEach(inject);
-            if (node.tagName === "S-SECTION") forceSection(node);
-            node.querySelectorAll?.("s-section").forEach(forceSection);
-          }
-        }
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      timers.forEach(clearTimeout);
-    };
-  }, []);
-}
+// useSPageFullWidth removed — every page now uses <AppPage> (a plain div with
+// our own .app-page CSS), so there's no <s-page> shadow DOM to force open.
+// The shadow-DOM hack worked inconsistently and caused the "lots of empty
+// space on the sides" / "mobile-y layout" reports from merchants.
 
 export default function App() {
   const { apiKey, appMode, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
@@ -246,7 +123,6 @@ export default function App() {
   const isDashboard = location.pathname === "/app" || location.pathname === "/app/";
   const breadcrumb = getBreadcrumb(location.pathname);
   useNotificationSound(adminSoundEnabled, pendingCount);
-  useSPageFullWidth();
 
   return (
     <AppProvider embedded apiKey={apiKey}>

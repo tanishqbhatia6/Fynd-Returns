@@ -7,6 +7,7 @@ import { findOrCreateShop } from "../lib/shop.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import { fetchOrdersForCustomer, type CustomerOrderInfo } from "../lib/shopify-admin.server";
+import { AppPage } from "../components/AppPage";
 
 type ReturnRow = {
   id: string;
@@ -543,7 +544,7 @@ export default function CustomersPage() {
   };
 
   return (
-    <s-page fullWidth heading="Customers">
+    <AppPage heading="Customers">
       <div className="app-content layout-wide">
         {/* ── Summary Stats ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
@@ -928,7 +929,7 @@ export default function CustomersPage() {
           </>
         )}
       </div>
-    </s-page>
+    </AppPage>
   );
 }
 
@@ -947,13 +948,13 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page fullWidth heading="Customers">
+    <AppPage heading="Customers">
       <div className="app-content layout-wide">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
           <Link to="/app/customers" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</Link>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

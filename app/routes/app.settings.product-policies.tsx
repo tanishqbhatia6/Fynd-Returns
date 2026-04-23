@@ -4,6 +4,7 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
+import { AppPage } from "../components/AppPage";
 
 export type ProductPolicyRule = {
   id: string;
@@ -122,7 +123,7 @@ export default function ProductPoliciesSettings() {
   };
 
   return (
-    <s-page fullWidth heading="Product-Level Return Policies">
+    <AppPage heading="Product-Level Return Policies">
       <div className="app-content">
         {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Product policies saved successfully.</div>
@@ -273,6 +274,6 @@ export default function ProductPoliciesSettings() {
           </div>
         </fetcher.Form>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

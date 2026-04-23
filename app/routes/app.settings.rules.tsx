@@ -5,6 +5,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parseJsonArray, parseJsonObject } from "../lib/parse-json";
 import { findOrCreateShop } from "../lib/shop.server";
+import { AppPage } from "../components/AppPage";
 
 const DEFAULT_REASONS = [
   "It's too loose",
@@ -288,7 +289,7 @@ export default function ReturnRules() {
   };
 
   return (
-    <s-page fullWidth heading="Return Rules">
+    <AppPage heading="Return Rules">
       <div className="app-content">
       {fetcher.data?.success === true && (
         <div className="app-alert app-alert-success">Settings saved successfully.</div>
@@ -675,6 +676,6 @@ export default function ReturnRules() {
         </div>
       </fetcher.Form>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

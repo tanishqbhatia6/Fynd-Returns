@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Link, useRouteError, isRouteErrorResponse } from "react-router";
+import { AppPage } from "../components/AppPage";
 
 /* ── Design tokens ── */
 const surface = "var(--rpm-surface, white)";
@@ -540,7 +541,7 @@ export default function Documentation() {
   const next = chapterIdx < CHAPTERS.length - 1 ? CHAPTERS[chapterIdx + 1] : null;
 
   return (
-    <s-page fullWidth heading="Documentation">
+    <AppPage heading="Documentation">
       <div className="app-content layout-medium" style={{ paddingBottom: 48 }}>
 
         {/* ── Chapter sidebar + content layout ── */}
@@ -631,7 +632,7 @@ export default function Documentation() {
           </div>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }
 
@@ -641,13 +642,13 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page fullWidth heading="Documentation">
+    <AppPage heading="Documentation">
       <div className="app-content layout-medium">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
           <a href="/app/docs" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

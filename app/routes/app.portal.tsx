@@ -5,6 +5,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { parsePortalTheme } from "../lib/portal-theme.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
+import { AppPage } from "../components/AppPage";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -79,7 +80,7 @@ export default function PortalInfo() {
   const setupDone = setupChecks.filter((c) => c.done).length;
 
   return (
-    <s-page fullWidth heading="Customer Portal">
+    <AppPage heading="Customer Portal">
       <div className="app-content layout-form">
 
         {/* ── Portal URL + Status Bar ── */}
@@ -501,7 +502,7 @@ export default function PortalInfo() {
           </div>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }
 
@@ -511,13 +512,13 @@ export function ErrorBoundary() {
     ? error.data || `Error ${error.status}`
     : error instanceof Error ? error.message : "An unexpected error occurred.";
   return (
-    <s-page fullWidth heading="Customer Portal">
+    <AppPage heading="Customer Portal">
       <div className="app-content layout-form">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
           <a href="/app/portal" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>
         </div>
       </div>
-    </s-page>
+    </AppPage>
   );
 }

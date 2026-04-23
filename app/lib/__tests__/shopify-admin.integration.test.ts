@@ -29,12 +29,14 @@ vi.mock("../observability/resilience.server", () => ({
 import {
   createAdminClient,
   fetchOrder,
+  fetchOrderByGid,
   fetchPrimaryLocationId,
   fetchAllLocations,
   OrderAccessError,
   closeShopifyReturn,
   declineShopifyReturn,
   closeShopifyReturnBestEffort,
+  createRefund,
 } from "../shopify-admin.server";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -517,5 +519,406 @@ describe("closeShopifyReturnBestEffort", () => {
     );
     // logEvent errors are caught with .catch(() => {}) so the main call succeeds.
     expect(res.ok).toBe(true);
+  });
+});
+
+/* ─ fetchOrderByGid ────────────────────────────────────────────────── */
+
+describe("fetchOrderByGid", () => {
+  it("returns null for empty/invalid GIDs without hitting the API", async () => {
+    // No MSW handler — any HTTP call would error, proving we didn't make one.
+    expect(await fetchOrderByGid(admin(), "")).toBe(null);
+    expect(await fetchOrderByGid(admin(), "1001")).toBe(null);
+    expect(await fetchOrderByGid(admin(), "not-a-gid")).toBe(null);
+  });
+
+  it("returns parsed order when orderByIdentifier resolves", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: {
+            orderByIdentifier: {
+              id: "gid://shopify/Order/1001",
+              name: "#1001",
+              createdAt: "2026-04-01T00:00:00Z",
+              displayFinancialStatus: "PAID",
+              displayFulfillmentStatus: "FULFILLED",
+              totalPriceSet: { shopMoney: { amount: "99.99", currencyCode: "USD" } },
+              lineItems: { nodes: [] },
+              fulfillments: [],
+              customAttributes: [],
+            },
+          },
+        })
+      ),
+    );
+    const result = await fetchOrderByGid(admin(), "gid://shopify/Order/1001");
+    expect(result).not.toBeNull();
+    expect(result?.name).toBe("#1001");
+  });
+
+  it("returns null when orderByIdentifier is null (order missing)", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({ data: { orderByIdentifier: null } })
+      ),
+    );
+    expect(await fetchOrderByGid(admin(), "gid://shopify/Order/999")).toBe(null);
+  });
+
+  it("throws OrderAccessError for PCDA / 'not approved' errors", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          errors: [{ message: "Your app is not approved to access the Order object" }],
+          data: { orderByIdentifier: null },
+        })
+      ),
+    );
+    await expect(
+      fetchOrderByGid(admin(), "gid://shopify/Order/1001"),
+    ).rejects.toBeInstanceOf(OrderAccessError);
+  });
+
+  it("returns null for unrelated GraphQL errors (not PCDA)", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          errors: [{ message: "Field 'xyz' doesn't exist" }],
+          data: null,
+        })
+      ),
+    );
+    expect(await fetchOrderByGid(admin(), "gid://shopify/Order/1")).toBe(null);
+  });
+
+  it("returns null on network error", async () => {
+    server.use(http.post(TEST_SHOPIFY_GRAPHQL_URL, () => HttpResponse.error()));
+    expect(await fetchOrderByGid(admin(), "gid://shopify/Order/1")).toBe(null);
+  });
+});
+
+/* ─ createRefund ───────────────────────────────────────────────────── */
+
+describe("createRefund", () => {
+  const lineItems = [{ id: "gid://shopify/LineItem/1", quantity: 1 }];
+
+  it("bails with no-line-items error when list is empty", async () => {
+    const res = await createRefund(admin(), "gid://shopify/Order/1", [], "note", "gid://loc/1");
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/No line items/);
+  });
+
+  it("happy path: original method returns refund info", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.text();
+        // First + only call is the refundCreate mutation for "original" method.
+        expect(body).toContain("refundCreate");
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: {
+                id: "gid://shopify/Refund/1",
+                createdAt: "2026-04-22T10:00:00Z",
+                totalRefundedSet: {
+                  shopMoney: { amount: "99.99", currencyCode: "USD" },
+                  presentmentMoney: { amount: "99.99", currencyCode: "USD" },
+                },
+              },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    const res = await createRefund(
+      admin(),
+      "gid://shopify/Order/1001",
+      lineItems,
+      "test refund",
+      "gid://shopify/Location/1",
+      { method: "original" },
+    );
+    expect(res.success).toBe(true);
+    expect(res.refundId).toBe("gid://shopify/Refund/1");
+    expect(res.refundAmount).toBe("99.99");
+    expect(res.refundCurrency).toBe("USD");
+  });
+
+  it("accepts string-only lineItems (legacy API shape)", async () => {
+    let receivedInput: { refundLineItems?: Array<{ lineItemId?: string; quantity?: number }> } | undefined;
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        receivedInput = body.variables?.input;
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    // Pass a string array — the impl should coerce each to { id, quantity: 1 }.
+    await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      ["gid://shopify/LineItem/99"] as unknown as Array<{ id: string; quantity: number }>,
+      undefined,
+      "gid://loc/1",
+      { method: "original" },
+    );
+    expect(receivedInput?.refundLineItems?.[0]?.quantity).toBe(1);
+  });
+
+  it("surfaces userErrors from Shopify as failures", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: null,
+              userErrors: [{ message: "Cannot refund more than paid" }],
+            },
+          },
+        })
+      ),
+    );
+    const res = await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      lineItems,
+      undefined,
+      "gid://loc/1",
+      { method: "original" },
+    );
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/more than paid/);
+  });
+
+  it("surfaces top-level GraphQL errors as failures", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          errors: [{ message: "Order frozen" }],
+          data: null,
+        })
+      ),
+    );
+    const res = await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      lineItems,
+      undefined,
+      "gid://loc/1",
+      { method: "original" },
+    );
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/Order frozen/);
+  });
+
+  it("prefers presentmentMoney over shopMoney for display", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: {
+                  // presentmentMoney is the customer-facing currency (e.g. EUR
+                  // for a EUR customer on a USD shop). Favour it for display.
+                  presentmentMoney: { amount: "89.00", currencyCode: "EUR" },
+                  shopMoney: { amount: "99.99", currencyCode: "USD" },
+                },
+              },
+              userErrors: [],
+            },
+          },
+        })
+      ),
+    );
+    const res = await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      lineItems,
+      undefined,
+      "gid://loc/1",
+      { method: "original" },
+    );
+    expect(res.refundAmount).toBe("89.00");
+    expect(res.refundCurrency).toBe("EUR");
+  });
+
+  it("uses default note when none provided", async () => {
+    let receivedNote = "";
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { input?: { note?: string } } };
+        receivedNote = body.variables?.input?.note ?? "";
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    await createRefund(admin(), "gid://shopify/Order/1", lineItems, undefined, "gid://loc/1");
+    expect(receivedNote).toMatch(/Fynd Returns/);
+  });
+
+  it("sets restockType to NO_RESTOCK when skipLocation=true", async () => {
+    let receivedRestockType = "";
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as {
+          variables?: { input?: { refundLineItems?: Array<{ restockType?: string }> } };
+        };
+        receivedRestockType = body.variables?.input?.refundLineItems?.[0]?.restockType ?? "";
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      lineItems,
+      undefined,
+      null,
+      { method: "original" },
+      { skipLocation: true },
+    );
+    expect(receivedRestockType).toBe("NO_RESTOCK");
+  });
+
+  it("sets restockType to RETURN by default (with locationId)", async () => {
+    let receivedInput: { refundLineItems?: Array<{ restockType?: string; locationId?: string }> } | undefined;
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        receivedInput = body.variables?.input;
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      lineItems,
+      undefined,
+      "gid://shopify/Location/42",
+      { method: "original" },
+    );
+    expect(receivedInput?.refundLineItems?.[0]?.restockType).toBe("RETURN");
+    expect(receivedInput?.refundLineItems?.[0]?.locationId).toBe("gid://shopify/Location/42");
+  });
+
+  it("auto-fetches primary location when locationId is null and skipLocation is false", async () => {
+    const queries: string[] = [];
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.text();
+        // Track the first ~30 chars of the query so we can assert we
+        // made BOTH a locations query and a refund mutation. Don't lock
+        // in the exact call count — withSpan / instrumentation can add
+        // probes that shouldn't affect the test outcome.
+        if (body.includes("locations")) {
+          queries.push("locations");
+          return HttpResponse.json({
+            data: {
+              locations: {
+                nodes: [{ id: "gid://shopify/Location/1", name: "Warehouse", isActive: true, fulfillsOnlineOrders: true, isFulfillmentService: false }],
+              },
+            },
+          });
+        }
+        queries.push("refundCreate");
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    const res = await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      lineItems,
+      undefined,
+      null, // no location provided
+      { method: "original" },
+    );
+    expect(res.success).toBe(true);
+    expect(queries).toContain("locations");
+    expect(queries).toContain("refundCreate");
+  });
+
+  it("accepts bare order ID and expands to gid://", async () => {
+    let receivedOrderId = "";
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { input?: { orderId?: string } } };
+        receivedOrderId = body.variables?.input?.orderId ?? "";
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    await createRefund(admin(), "1001", lineItems, undefined, "gid://loc/1", { method: "original" });
+    expect(receivedOrderId).toBe("gid://shopify/Order/1001");
+  });
+
+  it("expands bare LineItem IDs in refundLineItems", async () => {
+    let receivedInput: { refundLineItems?: Array<{ lineItemId?: string }> } | undefined;
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        receivedInput = body.variables?.input;
+        return HttpResponse.json({
+          data: {
+            refundCreate: {
+              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    await createRefund(
+      admin(),
+      "gid://shopify/Order/1",
+      [{ id: "9999", quantity: 2 }],
+      undefined,
+      "gid://loc/1",
+      { method: "original" },
+    );
+    expect(receivedInput?.refundLineItems?.[0]?.lineItemId).toBe("gid://shopify/LineItem/9999");
   });
 });

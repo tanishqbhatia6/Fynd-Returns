@@ -45,13 +45,14 @@ export default defineConfig({
       //   Phase 1 batch 2b:  15.66% (+ Prisma mock factory, fynd-webhook pure)
       //   Phase 1 batch 3:   17.83% (+ notification, close/decline Shopify return,
       //                              billing gate landed in the billing PR = 34 tests)
+      //   Phase 1 batch 4:   18.81% (+ createRefund, fetchOrderByGid, webhook-dispatch)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 17,
-        branches: 12,
-        functions: 15,
-        lines: 17,
+        statements: 18,
+        branches: 13,
+        functions: 16,
+        lines: 18,
       },
     },
   },

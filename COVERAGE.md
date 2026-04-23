@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Phase 0 | Batch 1 | Batch 2a | Batch 3 (now) |
-|-------------|--------:|--------:|--------:|---------:|--------------:|
-| Statements  | 17.83%  | 8%      | 14%     | 15.66%   | **17%**       |
-| Branches    | 12.75%  | 4%      | 10%     | 11.78%   | **12%**       |
-| Functions   | 15.37%  | 7%      | 11%     | 13.17%   | **15%**       |
-| Lines       | 17.79%  | 8%      | 14%     | 15.58%   | **17%**       |
+| Metric      | Current | Batch 3 | Batch 4 (now) |
+|-------------|--------:|--------:|--------------:|
+| Statements  | 18.81%  | 17%     | **18%**       |
+| Branches    | 13.45%  | 12%     | **13%**       |
+| Functions   | 16.50%  | 15%     | **16%**       |
+| Lines       | 18.77%  | 17%     | **18%**       |
 
-**805 tests** in 43 test files — all passing. Thresholds in
+**836 tests** in 44 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -44,12 +44,19 @@ floor; they can only ratchet upward.
 | `app/lib/fynd-webhook.server.ts` (pure helpers) | 11.4% | 15.5% |
 | `app/lib/billing.server.ts` | — | (34 tests, ~95%) |
 
-### Batch 3 — this release
+### Batch 3
 
 | File | Before | After |
 |------|-------:|------:|
 | `app/lib/notification.server.ts` | 0.3% | ~45% (35 new tests) |
 | `app/lib/shopify-admin.server.ts` (close/decline/best-effort) | 13.3% | ~30% (+16 tests) |
+
+### Batch 4 — this release
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/lib/shopify-admin.server.ts` (createRefund + fetchOrderByGid) | ~30% | ~40% (+14 tests) |
+| `app/lib/webhook-dispatch.server.ts` | 0% | ~90% (13 new tests) |
 
 ---
 

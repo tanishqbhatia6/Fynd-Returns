@@ -37,7 +37,7 @@
     "@opentelemetry/instrumentation-dns": "^0.56.0",
     "@opentelemetry/instrumentation-express": "^0.61.0",
     "@opentelemetry/instrumentation-fetch": "^0.213.0",
-    "@opentelemetry/instrumentation-http": "^0.213.0",
+    "@opentelemetry/instrumentation-http": "^0.215.0",
     "@opentelemetry/instrumentation-net": "^0.57.0",
     "@opentelemetry/resources": "^2.6.0",
     "@opentelemetry/sdk-metrics": "^2.6.0",

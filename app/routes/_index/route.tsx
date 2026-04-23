@@ -46,11 +46,22 @@ const features = [
   },
 ];
 
+/**
+ * Feature facts shown in the hero "stats" row. These are **factual
+ * product attributes** (feature counts, supported integrations) rather
+ * than marketing metrics — Shopify App Store policy prohibits
+ * unsubstantiated performance claims like "50% faster" or "3x
+ * satisfaction" without verifiable data.
+ *
+ * Previous values (removed in the April 2026 compliance pass): 50%
+ * Faster processing, 3x Customer satisfaction, 99.9% Uptime SLA,
+ * 0 Manual interventions. None of these were defensible on review.
+ */
 const stats = [
-  { value: "50%", label: "Faster processing" },
-  { value: "3x", label: "Customer satisfaction" },
-  { value: "99.9%", label: "Uptime SLA" },
-  { value: "0", label: "Manual interventions" },
+  { value: "15", label: "Languages supported" },
+  { value: "3", label: "Resolution types" },
+  { value: "25+", label: "Portal settings" },
+  { value: "REST", label: "Public API" },
 ];
 
 const steps = [

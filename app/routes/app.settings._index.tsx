@@ -193,8 +193,7 @@ export default function SettingsDashboard() {
             d.autoRefund ? { label: "Auto-refund", variant: "ok" } : { label: "Manual refund", variant: "off" },
             ...(d.hasReturnFee ? [{ label: `${d.returnFeeCurrency} ${d.returnFeeAmount} fee`, variant: "info" as const }] : []),
             ...(d.photoRequired ? [{ label: "Photo required", variant: "info" as const }] : []),
-            { label: d.refundPaymentMethod === "store_credit" ? "Store credit" : d.refundPaymentMethod === "both" ? "Split refund" : d.refundPaymentMethod === "discount_code" ? "Discount code" : "Original payment", variant: "info" as const },
-            ...(d.discountCodeRefundEnabled ? [{ label: "Discount codes", variant: "ok" as const }] : []),
+            { label: d.refundPaymentMethod === "store_credit" ? "Store credit" : d.refundPaymentMethod === "both" ? "Split refund" : "Original payment", variant: "info" as const },
           ],
         },
         {

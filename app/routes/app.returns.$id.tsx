@@ -790,10 +790,14 @@ export default function ReturnDetail() {
   const [cancelRestock, setCancelRestock] = useState(true);
   const [showApproveCancelModal, setShowApproveCancelModal] = useState(false);
   const [selectedLocationId, setSelectedLocationId] = useState<string>(fulfillmentLocationId ?? shopLocations[0]?.id ?? "");
+  // Shopify App Store policy: refunds MUST flow through refundCreate /
+  // storeCreditRefund — discount codes can no longer be presented as a
+  // refund method. `discount_code` is filtered out here so legacy shop
+  // settings that still have it saved cleanly fall back to "original".
   const defaultRefundMethod = isCodOrder
     ? "store_credit" as const
-    : (["original", "store_credit", "both", "discount_code"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both" | "discount_code";
-  const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both" | "discount_code">(defaultRefundMethod);
+    : (["original", "store_credit", "both"].includes(refundPaymentMethod) ? refundPaymentMethod : "original") as "original" | "store_credit" | "both";
+  const [modalRefundMethod, setModalRefundMethod] = useState<"original" | "store_credit" | "both">(defaultRefundMethod);
   const [modalStoreCreditPct, setModalStoreCreditPct] = useState(refundStoreCreditPct ?? 100);
   const [splitMode, setSplitMode] = useState<"percentage" | "amount">("percentage");
   const [splitScAmount, setSplitScAmount] = useState("");
@@ -2218,7 +2222,7 @@ export default function ReturnDetail() {
                               {isCodOrder && (
                                 <div style={{ marginBottom: 8, padding: "8px 12px", background: "#FEF3C7", borderRadius: 6, fontSize: 12, color: "#92400E", display: "flex", alignItems: "center", gap: 6, borderLeft: "3px solid #F59E0B" }}>
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                                  <span><strong>COD order</strong> — Refund to original payment is not available. Use Store credit or Discount code.</span>
+                                  <span><strong>COD order</strong> — Refund to original payment is not available. Use Store credit.</span>
                                 </div>
                               )}
                               <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -2226,12 +2230,6 @@ export default function ReturnDetail() {
                                   { value: "original" as const, label: "Original payment", desc: isCodOrder ? "Not available for COD orders" : "Refund to customer's original payment method", color: "#3B82F6", bg: "#EFF6FF", border: "#3B82F6", disabled: isCodOrder },
                                   { value: "store_credit" as const, label: "Store credit", desc: "Issue as store credit to customer's account", color: "#22C55E", bg: "#F0FDF4", border: "#22C55E", disabled: false },
                                   { value: "both" as const, label: "Split refund", desc: isCodOrder ? "Not available for COD orders" : "Split between original payment and store credit", color: "#F59E0B", bg: "#FFFBEB", border: "#F59E0B", disabled: isCodOrder },
-                                  ...(discountCodeRefundEnabled ? [{
-                                    value: "discount_code" as const,
-                                    label: "Discount code",
-                                    desc: `Generate a single-use discount code (${discountCodePrefix}-...) valid for ${discountCodeExpiryDays} days`,
-                                    color: "#8B5CF6", bg: "#F5F3FF", border: "#8B5CF6", disabled: false,
-                                  }] : []),
                                 ]).map((opt) => (
                                   <label key={opt.value} style={{
                                     display: "flex", alignItems: "center", gap: 8, padding: "8px 10px",
@@ -2245,9 +2243,6 @@ export default function ReturnDetail() {
                                     <input type="radio" checked={modalRefundMethod === opt.value} disabled={opt.disabled} onChange={() => !opt.disabled && setModalRefundMethod(opt.value)} style={{ accentColor: opt.color }} />
                                     <div style={{ flex: 1 }}>
                                       <div style={{ fontWeight: 600, fontSize: 12.5, color: modalRefundMethod === opt.value ? opt.color : "#374151", display: "flex", alignItems: "center", gap: 6 }}>
-                                        {opt.value === "discount_code" && (
-                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={modalRefundMethod === "discount_code" ? "#8B5CF6" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                                        )}
                                         {opt.label}
                                         {opt.value === "store_credit" && isCodOrder && (
                                           <span style={{ fontSize: 10, fontWeight: 600, padding: "1px 6px", background: "#DCFCE7", borderRadius: 4, color: "#166534", textTransform: "uppercase", letterSpacing: "0.3px" }}>Recommended</span>
@@ -2370,15 +2365,6 @@ export default function ReturnDetail() {
                                   Requires new customer accounts in Shopify. Order must have an associated customer.
                                 </div>
                               )}
-                              {modalRefundMethod === "discount_code" && (
-                                <div style={{ marginTop: 8, fontSize: 11, color: "#5B21B6", background: "#EDE9FE", padding: "8px 10px", borderRadius: 6 }}>
-                                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
-                                    <strong>Code: {discountCodePrefix}-{(returnCase as { returnRequestNo?: string | null }).returnRequestNo || "..."}</strong>
-                                  </div>
-                                  Single-use, fixed amount, expires in {discountCodeExpiryDays} days. Customer can apply at checkout.
-                                </div>
-                              )}
                             </div>
 
                             {/* Bonus Credit Preview */}
@@ -2487,7 +2473,6 @@ export default function ReturnDetail() {
                                 ) : (
                                   modalRefundMethod === "original" ? "Refund to original payment" :
                                   modalRefundMethod === "store_credit" ? "Issue store credit" :
-                                  modalRefundMethod === "discount_code" ? "Generate discount code" :
                                   "Process split refund"
                                 )}
                               </s-button>

@@ -3,7 +3,7 @@ import { authenticateApiKey } from "../lib/api-key-auth.server";
 import { apiSuccess, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
-import { createRefund, createDiscountCodeRefund, createAdminClient, closeShopifyReturnBestEffort, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createAdminClient, closeShopifyReturnBestEffort, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import prisma from "../db.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -26,13 +26,19 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   let body: { refundMethod?: string; locationId?: string; note?: string } = {};
   try { body = await request.json(); } catch { /* empty */ }
 
-  // Whitelist refundMethod — same defence as status enum on the list endpoint.
-  // Avoids passing arbitrary strings into downstream refund logic and gives the
-  // caller a clear error instead of silent fall-through (P2 finding).
+  // Whitelist refundMethod. Shopify App Store policy restricts refunds to
+  // Shopify's refundCreate / storeCreditRefund — `discount_code` is
+  // explicitly NOT a valid refund method. Callers still passing it get a
+  // clear 400 rather than silent fall-through.
   if (body.refundMethod !== undefined) {
-    const VALID_REFUND_METHODS = new Set(["original", "store_credit", "both", "discount_code"]);
+    const VALID_REFUND_METHODS = new Set(["original", "store_credit", "both"]);
     if (!VALID_REFUND_METHODS.has(body.refundMethod)) {
-      return apiError(400, "BAD_REQUEST", `Invalid refundMethod. Must be one of: ${[...VALID_REFUND_METHODS].join(", ")}`);
+      return apiError(
+        400,
+        "BAD_REQUEST",
+        `Invalid refundMethod. Must be one of: ${[...VALID_REFUND_METHODS].join(", ")}. ` +
+        `Note: discount_code is no longer supported as a refund method.`,
+      );
     }
   }
 
@@ -74,68 +80,14 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       quantity: item.qty,
     }));
 
-    // Process discount code refund path
-    if (refundMethod === "discount_code") {
-      const result = await createDiscountCodeRefund(admin, {
-        orderId: returnCase.shopifyOrderId,
-        lineItems,
-        returnRequestNo: returnCase.returnRequestNo || id,
-        prefix: settings?.discountCodePrefix || "RETURN",
-        expiryDays: settings?.discountCodeExpiryDays || 90,
-      });
-
-      if (!result.success) {
-        return apiError(400, "BAD_REQUEST", result.error || "Failed to create discount code refund");
-      }
-
-      await prisma.returnCase.update({
-        where: { id },
-        data: {
-          refundStatus: "refunded",
-          refundJson: JSON.stringify(result),
-          discountCode: result.discountCode,
-          discountCodeValue: result.discountValue,
-        },
-      });
-
-      await prisma.returnEvent.create({
-        data: {
-          returnCaseId: id,
-          source: "external_api",
-          eventType: "refunded",
-          payloadJson: JSON.stringify({ method: "discount_code", apiKeyId: auth.keyId }),
-        },
-      });
-      // Close the Shopify return after discount code refund
-      await closeShopifyReturnBestEffort(admin, returnCase, {
-        logEvent: async (evt) => {
-          await prisma.returnEvent.create({ data: { returnCaseId: id, source: "external_api", ...evt } }).catch(() => {});
-        },
-      });
-
-      dispatchWebhookEvent(auth.shopId, "return.refunded", {
-        returnId: id,
-        returnRequestNo: returnCase.returnRequestNo,
-        method: "discount_code",
-        amount: result.discountValue,
-        currency: result.discountCurrency || returnCase.currency,
-      });
-
-      return apiSuccess({
-        id,
-        refundStatus: "refunded",
-        refundDetails: {
-          amount: result.discountValue,
-          currency: result.discountCurrency || returnCase.currency,
-          method: "discount_code",
-          discountCode: result.discountCode,
-        },
-        message: "Refund processed successfully",
-      });
-    }
+    // Legacy stored setting may still be `discount_code` on some shops —
+    // coerce to `original` before reaching createRefund() so the request
+    // still succeeds instead of erroring on an invalid method. Fresh
+    // callers hit the whitelist above before reaching this point.
+    const safeMethod = refundMethod === "discount_code" ? "original" : refundMethod;
 
     // Standard refund (original, store_credit, both)
-    const refundMethodConfig: RefundMethodConfig = { method: refundMethod as any };
+    const refundMethodConfig: RefundMethodConfig = { method: safeMethod as RefundMethodConfig["method"] };
 
     const result = await createRefund(
       admin,
@@ -164,7 +116,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         returnCaseId: id,
         source: "external_api",
         eventType: "refunded",
-        payloadJson: JSON.stringify({ method: refundMethod, apiKeyId: auth.keyId }),
+        payloadJson: JSON.stringify({ method: safeMethod, apiKeyId: auth.keyId }),
       },
     });
     // Close the Shopify return after standard refund
@@ -177,7 +129,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     dispatchWebhookEvent(auth.shopId, "return.refunded", {
       returnId: id,
       returnRequestNo: returnCase.returnRequestNo,
-      method: refundMethod,
+      method: safeMethod,
       amount: result.refundAmount,
       currency: result.refundCurrency || returnCase.currency,
     });
@@ -189,7 +141,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         refundId: result.refundId,
         amount: result.refundAmount,
         currency: result.refundCurrency || returnCase.currency,
-        method: refundMethod,
+        method: safeMethod,
       },
       message: "Refund processed successfully",
     });

@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createDiscountCodeRefund, createShopifyReturn, closeShopifyReturnBestEffort, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createShopifyReturn, closeShopifyReturnBestEffort, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification, sendCancellationNotification, sendCancellationDeclinedNotification } from "../lib/notification.server";
@@ -1414,128 +1414,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const bonusCreditPct = shop.settings?.bonusCreditPct ?? 10;
         const isGreenReturn = returnCase.isGreenReturn === true;
 
+        // `discount_code` is no longer a supported refund method — see
+        // SHOPIFY_APP_STORE_READINESS.md. Legacy callers (older clients,
+        // stored settings) receive a 400 so they can't silently hit the
+        // removed path. Refund methods remaining: "original",
+        // "store_credit", "both".
         if (bodyRefundMethod === "discount_code") {
-          const prefix = shop.settings?.discountCodePrefix || "RETURN";
-          const expiryDays = shop.settings?.discountCodeExpiryDays ?? 90;
-          const returnRequestNo = (returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id.slice(0, 8).toUpperCase();
-
-          const dcResult = await createDiscountCodeRefund(admin, {
-            orderId: orderIdForRefund,
-            lineItems: lineItemsForRefund,
-            returnRequestNo,
-            prefix,
-            expiryDays,
-            note: note || returnCase.adminNotes || undefined,
-          });
-
-          if (!dcResult.success) {
-            const msg = dcResult.error ?? "Failed to create discount code.";
-            await prisma.returnEvent.create({
-              data: {
-                returnCaseId: id,
-                source: "admin",
-                eventType: "refund_failed",
-                payloadJson: JSON.stringify({ error: msg, method: "discount_code" }),
-              },
-            });
-            refundCounter.add(1, { method: "discount_code", outcome: "error" });
-            returnActionCounter.add(1, { action: "process_refund", outcome: "error" });
-            returnActionDuration.record(actionTimer(), { action: "process_refund" });
-            return Response.json({ error: msg }, { status: 400 });
-          }
-
-          const refundDetails = {
-            method: "discount_code",
-            discountCode: dcResult.discountCode,
-            amount: dcResult.discountValue,
-            currency: dcResult.discountCurrency,
-            createdAt: new Date().toISOString(),
-            source: "admin",
-            expiryDays,
-          };
-
-          await prisma.returnCase.update({
-            where: { id },
-            data: {
-              refundStatus: "refunded",
-              refundJson: JSON.stringify(refundDetails),
-              status: "completed",
-              adminNotes: note || returnCase.adminNotes,
-              discountCode: dcResult.discountCode,
-              discountCodeValue: dcResult.discountValue,
-            },
-          });
-          await prisma.returnEvent.create({
-            data: {
-              returnCaseId: id,
-              source: "admin",
-              eventType: "refund_processed",
-              payloadJson: JSON.stringify({ ...refundDetails, note: "Discount code refund created", adminEmail: sessionEmail }),
-            },
-          });
-          // Close the Shopify return after discount code refund
-          await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
-
-          // Sync refund status to Fynd (push credit_note_generated) if enabled
-          if (shop.settings?.syncRefundToFynd && returnCase.fyndShipmentId) {
-            try {
-              const fyndClientResult = await createFyndClientOrError(
-                shop.settings as Parameters<typeof createFyndClientOrError>[0],
-                { requirePlatform: true },
-              );
-              if (fyndClientResult.ok && "updateShipmentStatus" in fyndClientResult.client) {
-                const fyndClient = fyndClientResult.client as import("../lib/fynd.server").FyndPlatformClient;
-                const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
-                await fyndClient.updateShipmentStatus(callId, {
-                  statuses: [{
-                    shipments: [{ identifier: returnCase.fyndShipmentId }],
-                    status: "credit_note_generated",
-                  }],
-                  task: false,
-                  force_transition: false,
-                  lock_after_transition: false,
-                  unlock_before_transition: false,
-                });
-                refundLogger.info({ shipmentId: returnCase.fyndShipmentId }, "[process_refund] Fynd credit_note_generated synced (discount code)");
-                await prisma.returnEvent.create({
-                  data: { returnCaseId: id, source: "admin", eventType: "fynd_refund_synced", payloadJson: JSON.stringify({ status: "credit_note_generated", shipmentId: returnCase.fyndShipmentId, method: "discount_code" }) },
-                }).catch(() => {});
-              }
-            } catch (fyndErr) {
-              refundLogger.warn({ err: fyndErr }, "[process_refund] Fynd refund sync best-effort failed (discount code)");
-              await prisma.returnEvent.create({
-                data: { returnCaseId: id, source: "admin", eventType: "fynd_refund_sync_failed", payloadJson: JSON.stringify({ error: fyndErr instanceof Error ? fyndErr.message : String(fyndErr), shipmentId: returnCase.fyndShipmentId }) },
-              }).catch(() => {});
-            }
-          }
-
-          if (returnCase.customerEmailNorm) {
-            try {
-              await sendRefundNotification({
-                shopDomain: session.shop,
-                to: returnCase.customerEmailNorm,
-                orderName: returnCase.shopifyOrderName || "your order",
-                amount: dcResult.discountValue,
-                currency: dcResult.discountCurrency,
-                shopName: session.shop?.replace(".myshopify.com", ""),
-              });
-            } catch (err) {
-              refundLogger.warn({ err }, "[process_refund] Discount code notification failed");
-            }
-          }
-
-          addBusinessEvent("return.refund_initiated", { "return.id": returnCase.id, "refund.amount": dcResult.discountValue ?? 0, "refund.method": "discount_code", "refund.currency": dcResult.discountCurrency || "" });
-          refundCounter.add(1, { method: "discount_code", outcome: "success" });
-          if (dcResult.discountValue) {
-            refundAmountHistogram.record(Number(dcResult.discountValue), { currency: dcResult.discountCurrency || "USD", method: "discount_code" });
-          }
-          returnsCompletedCounter.add(1);
-          auditReturnAction("refund_processed", returnCase.id, shop.shopDomain, { type: "admin", identity: sessionEmail || "shop-admin" }, { status: { from: returnCase.status, to: "completed" } }, { method: "discount_code", amount: dcResult.discountValue });
-          returnActionCounter.add(1, { action: "process_refund", outcome: "success" });
-          returnActionDuration.record(actionTimer(), { action: "process_refund" });
-          annotateSLO("api_latency_p99", { durationMs: elapsed() });
-
-          throw redirect(`/app/returns/${id}`);
+          return Response.json({
+            error: "discount_code is no longer supported as a refund method. Use original, store_credit, or both.",
+          }, { status: 400 });
         }
 
         // Validate storeCreditPct when method is "both" (percentage mode)

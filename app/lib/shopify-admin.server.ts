@@ -1209,8 +1209,23 @@ export type RefundResult = {
   bonusAmount?: string;
 };
 
+/**
+ * Valid refund methods per Shopify App Store policy:
+ *   - "original":     refund to the original payment gateway.
+ *   - "store_credit": issue Shopify store credit via storeCreditRefund.
+ *   - "both":         split between original gateway and store credit.
+ *
+ * `discount_code` is intentionally NOT a refund method. Shopify App Store
+ * policy requires refunds to flow through refundCreate / returnProcess /
+ * storeCreditRefund — issuing a one-time discount code as a refund
+ * mechanism is prohibited. Discount codes may still be offered as a
+ * separate customer incentive (e.g. "+10% bonus on store credit") but
+ * never as the primary refund channel. See SHOPIFY_APP_STORE_READINESS.md.
+ */
+export type RefundMethod = "original" | "store_credit" | "both";
+
 export type RefundMethodConfig = {
-  method: "original" | "store_credit" | "both" | "discount_code";
+  method: RefundMethod;
   storeCreditPct?: number;
   storeCreditAmount?: number;
   originalAmount?: number;
@@ -1240,6 +1255,23 @@ export type DiscountCodeRefundResult = {
   discountCurrency?: string;
 };
 
+/**
+ * Generate a one-time Shopify discount code of the refund amount.
+ *
+ * ⚠️ NOT a refund mechanism. Shopify App Store policy prohibits using
+ * discount codes as a refund channel (refunds must go through
+ * refundCreate / storeCreditRefund to the original payment method or
+ * Shopify store credit).
+ *
+ * Kept in the codebase for non-refund incentive flows — e.g. "thanks
+ * for your return" bonus codes, retention offers, or post-resolution
+ * promotional incentives — where the merchant wants to hand a customer
+ * a discount outside of any refund accounting.
+ *
+ * @internal-use-only — do NOT wire this into any refund action handler
+ * or settings UI that's labelled as a "refund method". See
+ * SHOPIFY_APP_STORE_READINESS.md.
+ */
 export async function createDiscountCodeRefund(
   admin: AdminGraphQL,
   opts: {

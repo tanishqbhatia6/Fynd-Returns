@@ -91,9 +91,15 @@ export default function Permissions() {
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>read_all_orders</div>
-                <p style={{ fontSize: 14, color: "var(--rpm-text-muted)", lineHeight: 1.6, marginBottom: 0 }}>
-                  This permission allows the app to access all orders in your store, including those outside the default 60-day window. Required for full return and refund functionality.
+                <p style={{ fontSize: 14, color: "var(--rpm-text-muted)", lineHeight: 1.6, marginBottom: 8 }}>
+                  Shopify limits apps to orders placed in the last 60 days by default. This app
+                  needs broader access for three specific return-management features:
                 </p>
+                <ul style={{ fontSize: 13, color: "var(--rpm-text-muted)", lineHeight: 1.65, margin: 0, paddingLeft: 18 }}>
+                  <li><strong>Customer portal lookup</strong> — the self-service portal accepts returns on orders older than 60 days when your policy allows it. Without this scope, those lookups fail.</li>
+                  <li><strong>Historical analytics</strong> — return-rate, top-reasons, and revenue-impact reports across date ranges longer than 60 days.</li>
+                  <li><strong>Fynd cross-referencing</strong> — matching Fynd-originated orders to their Shopify counterparts for legacy orders migrated from Fynd OMS.</li>
+                </ul>
               </div>
             </div>
 

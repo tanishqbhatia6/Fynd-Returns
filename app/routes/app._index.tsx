@@ -465,7 +465,9 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── KPI Cards Row 1 ── */}
+        {/* ── KPI Cards (single grid — primary + secondary metrics flow
+             together so the row never breaks half-empty). The four featured
+             metrics come first; the rest follow in priority order. */}
         <div className="dashboard-kpi-grid mb-md">
           <Link to="/app/returns" className="dashboard-kpi-card" style={{ "--kpi-accent": "var(--rpm-accent, #3B82F6)" } as React.CSSProperties}>
             <div className="kpi-label">Total returns</div>
@@ -502,10 +504,7 @@ export default function Dashboard() {
               {allTimeReturns > 0 ? `${allTimeReturns} all time` : "No refunds yet"}
             </div>
           </div>
-        </div>
 
-        {/* ── KPI Cards Row 2 ── */}
-        <div className="dashboard-kpi-grid mb-md">
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
             <div className="kpi-label">Revenue retained</div>
             <span className="kpi-value" style={{ color: "#059669" }}>

@@ -1327,10 +1327,15 @@ s-section[heading]::before {
   opacity: 1;
 }
 
-/* ────── Dashboard Grid Layouts ────── */
+/* ────── Dashboard Grid Layouts ──────
+   auto-fit (not auto-fill): when the grid has FEWER cards than slots that
+   would fit, collapse the empty slots and let the cards stretch to fill
+   the row. Without this, the dashboard's first KPI row (4 cards) left
+   half the viewport empty on wide monitors — merchants reported it as
+   "the cards just stop in the middle of the page". */
 .dashboard-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
 }
 

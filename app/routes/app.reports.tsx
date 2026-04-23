@@ -538,7 +538,8 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* ── KPI Cards — 4 columns ── */}
+        {/* ── KPI Cards (single grid — primary + retention metrics flow
+             together so the row never breaks half-empty on wide monitors). */}
         <div className="dashboard-kpi-grid mb-md">
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
             <div className="kpi-label">Total Returns</div>
@@ -578,10 +579,7 @@ export default function Reports() {
             </div>
             <div className="kpi-meta">{refundedCount} refunded</div>
           </div>
-        </div>
 
-        {/* ── Retention Performance KPIs ── */}
-        <div className="dashboard-kpi-grid mb-md">
           <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#14b8a6" } as React.CSSProperties}>
             <div className="kpi-label">Exchange Conversion</div>
             <div className="kpi-row">

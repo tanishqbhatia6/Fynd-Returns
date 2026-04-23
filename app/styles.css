@@ -106,13 +106,15 @@
   font-family: var(--rpm-font);
 }
 
-/* ────── Page & Content ────── */
+/* ────── Page & Content ──────
+   .app-content lives inside .app-page now, which already adds horizontal
+   padding via clamp(). Don't double-pad — give it 0 left/right and only
+   bottom padding so content can breathe at the foot of the page. */
 .app-content {
-  padding: 0 20px 48px;
+  padding: 0 0 48px;
   max-width: 100%;
   width: 100%;
   box-sizing: border-box;
-  overflow-x: hidden;
 }
 
 /* Force parent containers that AppProvider/App Bridge may inject to use the
@@ -136,40 +138,22 @@ s-section {
   width: 100%;
 }
 
-/* ────── Page Layout Classes ────── */
-/* All pages use full width by default. Layout classes provide
-   inner content max-width for readability on forms/settings. */
-.layout-full {
+/* ────── Page Layout Classes ──────
+   Historically these capped page width at 780/1000/1400px respectively
+   for "form" / "medium" / "wide" pages. That created the inconsistency
+   merchants saw — Customer Portal at 780, Documentation at 1000,
+   Dashboard at 1400, Returns at 100% — every page a different width.
+   They are now ALL aliases for full width. Individual form INPUTS still
+   cap at .app-input's 480px max for readability; data tables and cards
+   stretch to fill the page. */
+.layout-full,
+.layout-wide,
+.layout-medium,
+.layout-form,
+.layout-form-sm {
   max-width: 100%;
   width: 100%;
-}
-
-/* Wide: data tables, list views */
-.layout-wide {
-  max-width: var(--rpm-layout-wide);
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* Medium: moderate complexity pages, docs, rule editors */
-.layout-medium {
-  max-width: var(--rpm-layout-medium);
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* Form: settings forms — constrains content to readable width */
-.layout-form {
-  max-width: var(--rpm-layout-form);
-  width: 100%;
-  margin: 0 auto;
-}
-
-/* Small form: simple permission toggles */
-.layout-form-sm {
-  max-width: var(--rpm-layout-form-sm);
-  width: 100%;
-  margin: 0 auto;
+  margin: 0;
 }
 
 /* ────── Typography ────── */
@@ -2656,8 +2640,13 @@ s-section {
    single source of truth.
    ──────────────────────────────────────────────────────────────────────── */
 .app-page {
-  padding: 24px clamp(16px, 4vw, 32px);
-  max-width: 1280px;
+  /* Full-viewport page wrapper. No max-width — merchants on wide monitors
+     kept reporting "empty space on the left and right" because the 1280px
+     cap plus a 1400px inner .layout-wide cap left 400px of blank band on
+     anything > 1400px. The horizontal padding via clamp() gives comfortable
+     breathing room without artificially narrowing the content column. */
+  padding: 24px clamp(16px, 2vw, 32px);
+  width: 100%;
   margin: 0 auto;
   font-family: var(--rpm-font);
   color: var(--rpm-text);

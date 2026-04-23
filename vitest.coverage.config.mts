@@ -46,13 +46,15 @@ export default defineConfig({
       //   Phase 1 batch 3:   17.83% (+ notification, close/decline Shopify return,
       //                              billing gate landed in the billing PR = 34 tests)
       //   Phase 1 batch 4:   18.81% (+ createRefund, fetchOrderByGid, webhook-dispatch)
+      //   Phase 1 batch 5:   20.85% (+ shop.server, postman-collection, resilience,
+      //                                fynd-status-poll, fynd-webhook-api)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 18,
-        branches: 13,
-        functions: 16,
-        lines: 18,
+        statements: 20,
+        branches: 14,
+        functions: 17,
+        lines: 20,
       },
     },
   },

@@ -53,6 +53,14 @@ topics = ["draft_orders/create"]
 uri = "/webhooks/draft-orders/update"
 topics = ["draft_orders/update"]
 
+# Shopify Managed Pricing — subscription state updates.
+# Fires on install / activation / cancellation / freeze. We refetch the
+# live snapshot in the handler so our ShopSettings cache stays in sync
+# with Shopify's source of truth.
+[[webhooks.subscriptions]]
+uri = "/webhooks/app-subscriptions/update"
+topics = ["app_subscriptions/update"]
+
 [app_proxy]
 url = "https://returnpromax-web-production.up.railway.app/apps/returns"
 subpath = "returns"

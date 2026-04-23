@@ -1424,7 +1424,12 @@ const CHAPTERS: Chapter[] = [
         <FieldRow label="Scheduled reports" description="Daily / weekly / monthly digest recipients and schedule." />
 
         <div style={h3}>Permissions <span style={{ fontWeight: 400, fontSize: 12, color: muted, marginLeft: 4 }}>Settings → Permissions</span></div>
-        <FieldRow label="read_all_orders" description="Required to look up orders older than 60 days. Without it, the portal's order lookup can only see recent orders." defaultValue="Off" required />
+        <FieldRow
+          label="read_all_orders"
+          description={<>Required whenever your return window exceeds 60 days, for historical analytics, for Fynd↔Shopify order matching on legacy orders, and for retroactive policy changes. <strong>Opt-in</strong> per merchant. Privacy: order data never leaves this app; PII deleted within 30 days of <code style={code}>customers/redact</code>; full wipe on <code style={code}>shop/redact</code>.</>}
+          defaultValue="Off"
+          required
+        />
         <FieldRow label="read_product_listings" description="Needed for variant picker in exchange flow." />
         <FieldRow label="write_discounts" description="Needed to issue store credit codes." />
 

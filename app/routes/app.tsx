@@ -1,5 +1,5 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, Outlet, useLoaderData, useLocation, useNavigation, useRouteError } from "react-router";
+import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigation, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import React, { useEffect, useRef, useCallback } from "react";
@@ -7,6 +7,7 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getAppMode } from "../lib/fynd-config.server";
 import { syncShopLocaleAndCurrency } from "../lib/shop.server";
+import { getBillingStatus } from "../lib/billing.server";
 
 declare module "react" {
   namespace JSX {
@@ -23,6 +24,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session, admin } = await authenticate.admin(request);
   const shopDomain = session.shop;
   const portalUrl = `https://${shopDomain}/apps/returns`;
+
+  // ── Billing gate ──
+  // Layers: APP_BILLING_MODE env (dev bypasses) → per-shop override
+  // (free/paid/null) → live Shopify Managed Pricing subscription check.
+  // See app/lib/billing.server.ts for the full decision tree.
+  //
+  // Redirect to /app/billing if access denied. We explicitly exempt the
+  // billing page itself and the superadmin override UI to avoid a
+  // redirect loop — if a superadmin with no subscription tries to open
+  // /app/settings/billing-override, they still need to get there.
+  const url = new URL(request.url);
+  const onBillingRoute = url.pathname === "/app/billing"
+    || url.pathname.startsWith("/app/settings/billing-override");
+  if (!onBillingRoute) {
+    const billing = await getBillingStatus(shopDomain, admin);
+    if (!billing.hasAccess) {
+      throw redirect("/app/billing");
+    }
+  }
+
   let appMode: "dev" | "prod" = "prod";
   let pendingCount = 0;
   let adminSoundEnabled = true;

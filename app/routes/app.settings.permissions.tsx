@@ -92,14 +92,45 @@ export default function Permissions() {
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600, fontSize: 16, marginBottom: 6 }}>read_all_orders</div>
                 <p style={{ fontSize: 14, color: "var(--rpm-text-muted)", lineHeight: 1.6, marginBottom: 8 }}>
-                  Shopify limits apps to orders placed in the last 60 days by default. This app
-                  needs broader access for three specific return-management features:
+                  Shopify apps can read only the last 60 days of orders by default. Fynd Returns
+                  manages the full return lifecycle — which by nature spans orders from any point
+                  in time — so four specific flows need broader access:
                 </p>
                 <ul style={{ fontSize: 13, color: "var(--rpm-text-muted)", lineHeight: 1.65, margin: 0, paddingLeft: 18 }}>
-                  <li><strong>Customer portal lookup</strong> — the self-service portal accepts returns on orders older than 60 days when your policy allows it. Without this scope, those lookups fail.</li>
-                  <li><strong>Historical analytics</strong> — return-rate, top-reasons, and revenue-impact reports across date ranges longer than 60 days.</li>
-                  <li><strong>Fynd cross-referencing</strong> — matching Fynd-originated orders to their Shopify counterparts for legacy orders migrated from Fynd OMS.</li>
+                  <li>
+                    <strong>Extended return windows.</strong> Merchants regularly set 90-, 180-,
+                    or 365-day return policies (apparel, electronics with manufacturer defects,
+                    gift purchases). When a customer starts a return through the storefront
+                    portal, we look up their order to verify eligibility, value, and fulfillment
+                    status. Without this scope, the lookup fails for the exact orders most
+                    likely to be returned under an extended policy — defeating the feature.
+                  </li>
+                  <li>
+                    <strong>Fynd &harr; Shopify order matching.</strong> Merchants using Fynd
+                    OMS receive webhooks carrying an <code style={{ fontSize: 12, padding: "1px 4px", background: "rgba(0,0,0,0.05)", borderRadius: 3 }}>affiliate_order_id</code> that identifies
+                    the corresponding Shopify order. Those orders can be arbitrarily old —
+                    especially for merchants migrating historical data. Without this scope we
+                    can't resolve legacy references, breaking reverse-logistics automation.
+                  </li>
+                  <li>
+                    <strong>Historical analytics.</strong> The dashboard supports date ranges
+                    over any window the merchant selects (This year, Last 90 days, custom). Return
+                    rate and revenue-impact metrics require reading order volume over the same
+                    period — so every multi-month report depends on reading historical orders.
+                  </li>
+                  <li>
+                    <strong>Retroactive policy changes.</strong> When a merchant extends their
+                    return window (e.g. for a holiday promotion), orders that were previously
+                    outside the window become newly eligible. Without this scope the portal
+                    would wrongly reject eligible orders.
+                  </li>
                 </ul>
+                <div style={{ fontSize: 12, color: "var(--rpm-text-muted)", marginTop: 12, padding: "8px 12px", background: "var(--rpm-surface-subtle)", borderRadius: 6, lineHeight: 1.55 }}>
+                  <strong>Privacy:</strong> order data is never sent to third parties. Customer PII
+                  is deleted within 30 days of a <code style={{ fontSize: 11 }}>customers/redact</code> webhook and
+                  all per-shop data is wiped on <code style={{ fontSize: 11 }}>shop/redact</code>. This scope is
+                  opt-in — you control when to enable it below.
+                </div>
               </div>
             </div>
 

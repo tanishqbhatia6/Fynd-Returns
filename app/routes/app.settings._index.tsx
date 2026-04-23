@@ -388,6 +388,16 @@ export default function SettingsDashboard() {
               : { label: "Limited access", variant: "warn" },
           ],
         },
+        {
+          to: "/app/billing",
+          icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>,
+          iconBg: "#F0FDFA", iconStroke: "#0D9488",
+          title: "Billing",
+          desc: "View your current Shopify plan, change plans, or review subscription status.",
+          status: [
+            { label: "Managed Pricing", variant: "info" as const },
+          ],
+        },
       ],
     },
   ];

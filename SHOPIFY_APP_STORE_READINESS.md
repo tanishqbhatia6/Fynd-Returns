@@ -175,40 +175,92 @@ for rejection.
   *Fynd the platform*, *end-shoppers who used returns flows*, etc.,
   and be backed by a concrete metric you can produce on demand.
 
-### 4. Billing — Shopify Managed Pricing or Billing API
+### 4. Billing — Shopify Managed Pricing ✅
 
-**Rule.** Apps must use Shopify's Managed Pricing or the Shopify
-Billing API (`appSubscriptionCreate`,
-`appPurchaseOneTimeCreate`). Listing an app as "free" on the App
-Store while billing merchants off-platform (contracted SaaS pricing,
-Fynd-platform fees, separate invoices) is an **automatic rejection**.
+**Resolved.** The app uses **Shopify Managed Pricing** with an
+environment-aware gate and a per-shop override. Implementation
+details are in `app/lib/billing.server.ts` (34 unit tests cover
+every decision-tree branch).
 
-**What the code does today.** Nothing. Zero matches for billing API
-symbols in `app/`. No subscription creation, no charge approval flow,
-no reinstall-on-cancel handling.
+**Design.** Three-layer billing gate:
 
-**Owner decision required.** One of:
+1. **Environment gate (`APP_BILLING_MODE`)**
+   - `APP_BILLING_MODE=dev` → billing bypassed. Every shop gets free
+     access. Used by UAT, local dev, and any non-production deploy.
+   - `APP_BILLING_MODE=prod` → subscription enforced unless one of
+     the lower layers overrides. Used by the Railway production
+     deployment.
+   - unset → defaults to `dev` (fail-open; safer than locking
+     everyone out of a misconfigured deploy).
 
-1. **The app really is free.** No billing anywhere — not here, not
-   through Fynd, not as part of a larger SaaS contract. The "Free to
-   install" framing is accurate. No code changes needed. This is the
-   default assumption embedded in the current listing.
-2. **The app is free but Fynd charges for the reverse-logistics
-   service underneath.** This is common for marketplace-style apps.
-   Make sure the App Store listing's pricing section is explicit:
-   "App is free; Fynd's logistics service has separate pricing —
-   see [link]". Shopify's reviewers will check that nothing about
-   Fynd's service is gated behind a hidden paywall *for the app's
-   core advertised features*.
-3. **The app will charge merchants directly.** Implement Shopify's
-   Billing API *before* submission. We have no code for this yet;
-   it's a multi-week effort (plan selection, charge creation, charge
-   approval redirect, reinstall-on-cancellation handling, plan
-   changes). File an issue tagged `billing-implementation` if this
-   is the direction.
+2. **Per-shop override (`ShopSettings.billingPlanOverride`)**
+   - `"free"` → shop gets full app access without an active
+     subscription. Use for partner shops, beta testers, QA shops.
+   - `"paid"` → shop must have an active subscription even on a dev
+     build. Useful for dogfooding.
+   - `null` → fall back to the environment default.
 
-Once the owner picks a path, update the App Store listing's
-**Pricing** section and the Privacy / Terms pages to match.
+3. **Live Shopify Managed Pricing check**
+   - Calls `currentAppInstallation.activeSubscriptions` via GraphQL
+     on every gate call, with a 10-minute cached snapshot on
+     `ShopSettings` for webhook contexts without an admin session.
+   - Test-mode subscriptions (Shopify's dev-store freebies) are
+     ignored — they don't count as paying subscriptions.
+   - `app_subscriptions/update` webhook refreshes the snapshot on
+     every plan change.
+
+**Pricing configured in Partner Dashboard.** One tier for
+submission — **$9.99/month with a 14-day free trial**. Shopify handles
+the payment form, plan picker, and charge approval. Merchants are
+redirected to
+`/charges/<app-handle>/pricing_plans` when no active subscription
+is detected.
+
+**Superadmin UI.** `/app/settings/billing-override` — gated by
+`SUPERADMIN_EMAILS` env var (comma-separated). Lets your team set
+the per-shop override for specific shops (partner stores, QA shops,
+enterprise deals). Every change is audited with actor email +
+timestamp + reason on the `ShopSettings` row. Regular merchants
+never see this route.
+
+**App Store listing copy — Pricing section:**
+
+> **Free 14-day trial, then $9.99/month.** Managed via Shopify
+> billing — no separate invoice. Cancel anytime from your admin.
+>
+> Development and test stores always get free access.
+
+**Env config for production (Railway):**
+
+```
+APP_BILLING_MODE=prod
+APP_MANAGED_PRICING_HANDLE=<your-app-handle>
+SUPERADMIN_EMAILS=ops@fynd.com,eng-oncall@fynd.com
+```
+
+For UAT, leave `APP_BILLING_MODE` unset or set to `dev`.
+
+### 4a. Implement Shopify Managed Pricing correctly ✅
+
+**Resolved** together with §4. Implementation checklist:
+
+- [x] Gate every `/app/*` route via the root-loader redirect in
+      `app/routes/app.tsx`.
+- [x] `/app/billing` status page with upgrade CTA to Shopify's
+      Managed Pricing plan picker.
+- [x] `app_subscriptions/update` webhook keeps the cache in sync
+      with Shopify on plan changes, cancellations, freezes.
+- [x] 34 unit tests cover dev/prod modes, override paths, cache
+      behaviour, fail-closed on network error.
+
+### 4b. Allow pricing plan changes ✅
+
+**Resolved.** Plan changes flow through Shopify Managed Pricing's
+native plan picker — merchants open `/app/billing` or Settings →
+Billing → "Manage plan", which deep-links to Shopify's
+`/charges/<handle>/pricing_plans` URL. Shopify handles the
+upgrade / downgrade UX; our `app_subscriptions/update` webhook
+syncs the new state back to our DB.
 
 ### 5. `read_all_orders` scope justification
 
@@ -231,27 +283,58 @@ uses:
 3. Fynd cross-referencing — matching Fynd-originated orders to
    Shopify orders for data migrated from Fynd OMS.
 
-**App Store listing copy — suggested text for the listing's "Data
-Access" section.** Paste this verbatim or edit to match:
+**App Store listing copy — paste this verbatim into the listing's
+"Data Access" section. It matches the in-app justification at
+[app/routes/app.settings.permissions.tsx](app/routes/app.settings.permissions.tsx)
+line-for-line, which Shopify reviewers cross-check.**
 
-> Fynd Returns requests `read_all_orders` because our self-service
-> return portal and historical analytics both require access to
-> orders older than 60 days.
+> Fynd Returns manages the complete return lifecycle on Shopify —
+> a flow that by its nature spans orders from any point in time,
+> not just the last 60 days. We request `read_all_orders` because
+> four specific, merchant-facing features depend on it:
 >
-> 1. **Return creation** — when a merchant's return window is
->    longer than 60 days (e.g. 90-day policies), the customer
->    portal must read older orders to verify the request.
+> 1. **Extended return windows.** Merchants regularly configure
+>    return policies of 90, 180, or 365 days (apparel, gift
+>    purchases, electronics with defect warranties). When a
+>    customer submits a return through the storefront portal, we
+>    look up their order to verify eligibility, value, and
+>    fulfillment status. Without this scope the portal fails
+>    precisely on the orders most likely to be returned under an
+>    extended policy, defeating the entire feature.
 >
-> 2. **Analytics** — reports on return rates, top reasons, and
->    revenue retained cover the full analytics range the merchant
->    selects, which can extend past 60 days.
+> 2. **Fynd ↔ Shopify order matching.** Merchants using the Fynd
+>    OMS layer receive webhooks carrying an `affiliate_order_id`
+>    that references the Shopify order. Those orders can be
+>    arbitrarily old — particularly for merchants migrating
+>    historical data to Shopify. Without this scope we can't
+>    resolve the references, breaking reverse-logistics
+>    automation for the very orders that most need it.
 >
-> 3. **Logistics matching** — for merchants migrating from Fynd
->    OMS, we match legacy orders to their Shopify counterparts.
+> 3. **Historical analytics.** The in-app reporting dashboard
+>    supports any date range the merchant selects — "This year",
+>    "Last 90 days", custom ranges spanning multiple years.
+>    Return-rate and revenue-impact metrics are computed relative
+>    to order volume in the same period, so every multi-month
+>    report depends on reading historical orders.
 >
-> Access is opt-in per merchant via **Settings → Permissions**.
-> Data is never shared externally and is redacted on
-> `customers/redact` and `shop/redact` webhooks.
+> 4. **Retroactive policy changes.** When a merchant extends their
+>    return window mid-cycle (e.g. a holiday extension from 30 to
+>    90 days), orders that were previously outside the window
+>    become newly eligible. Without this scope, the portal would
+>    incorrectly reject those now-valid requests.
+>
+> **Privacy and data handling:**
+>
+> - The scope is opt-in per merchant via the in-app Settings →
+>   Permissions page. Merchants who don't enable it operate with
+>   the default 60-day window and the app gracefully degrades.
+> - Order data is never shared with third parties.
+> - Customer PII is deleted within 30 days of the
+>   `customers/redact` webhook.
+> - All shop data is wiped on `shop/redact` per Shopify's GDPR
+>   compliance requirements.
+> - Credentials for Fynd OMS are AES-256-GCM encrypted at rest;
+>   webhooks are HMAC-verified before being processed.
 
 ---
 

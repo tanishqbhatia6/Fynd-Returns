@@ -212,6 +212,30 @@ model ShopSettings {
   // Country-specific return windows
   returnWindowByCountryJson String? @db.Text  // JSON: [{ country, days }]
 
+  // ── Billing override ──
+  // Per-shop override for Shopify Managed Pricing enforcement. Superadmins
+  // can set this to grant free access (partner shops, beta testers, QA
+  // shops, development stores) or force billing (rarely — only for
+  // dogfooding shops on a dev build).
+  //   "free"  — shop gets full app access without an active Shopify subscription
+  //   "paid"  — shop must have an active subscription even in dev build
+  //   null    — fall back to APP_BILLING_MODE env var (dev=free, prod=paid)
+  //
+  // Toggled via /app/settings/billing-override by users whose email is in
+  // SUPERADMIN_EMAILS. Audited as a ReturnEvent (source=billing_override).
+  billingPlanOverride          String?  // "free" | "paid" | null
+  billingPlanOverrideReason    String?  @db.Text
+  billingPlanOverrideBy        String?  // email of superadmin who set it
+  billingPlanOverrideAt        DateTime?
+
+  // Cached snapshot of the shop's Shopify Managed Pricing subscription.
+  // Refreshed on every gate check + on app_subscriptions/update webhook.
+  // `active` means Shopify reports the shop has a current subscription
+  // that isn't in test/expired state.
+  subscriptionStatus           String?  // "active" | "inactive" | null
+  subscriptionName             String?
+  subscriptionCheckedAt        DateTime?
+
   createdAt                  DateTime @default(now())
   updatedAt                  DateTime @updatedAt
 

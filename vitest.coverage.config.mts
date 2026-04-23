@@ -37,15 +37,21 @@ export default defineConfig({
         "app/entry.*",
         "app/root.tsx",
       ],
-      // Thresholds are the coverage floor enforced by CI.
-      // Phase 1 ratchet: ~8% → ~14% after testing fynd-payload, fraud-detection,
-      // source-channel, credential-validation, return-request-id, errors, and
-      // fynd.server pure exports. See COVERAGE.md for the full plan.
+      // Thresholds are the coverage floor enforced by CI. Each phase
+      // ratchets upward; the floor never drops.
+      //   Phase 0 baseline:   ~8% statements
+      //   Phase 1 batch 1:   14% (pure-logic libs)
+      //   Phase 1 batch 2a:  15.66% (MSW harness + shopify-admin pure/integration)
+      //   Phase 1 batch 2b:  15.66% (+ Prisma mock factory, fynd-webhook pure)
+      //   Phase 1 batch 3:   17.83% (+ notification, close/decline Shopify return,
+      //                              billing gate landed in the billing PR = 34 tests)
+      //   ^ this release
+      // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 14,
-        branches: 10,
-        functions: 11,
-        lines: 14,
+        statements: 17,
+        branches: 12,
+        functions: 15,
+        lines: 17,
       },
     },
   },

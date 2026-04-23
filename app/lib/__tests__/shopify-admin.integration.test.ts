@@ -32,6 +32,9 @@ import {
   fetchPrimaryLocationId,
   fetchAllLocations,
   OrderAccessError,
+  closeShopifyReturn,
+  declineShopifyReturn,
+  closeShopifyReturnBestEffort,
 } from "../shopify-admin.server";
 
 beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
@@ -244,5 +247,275 @@ describe("Admin client", () => {
     );
     await fetchOrder(admin(), "1");
     expect(received).toContain("application/json");
+  });
+});
+
+/* ─ closeShopifyReturn ─────────────────────────────────────────────── */
+
+describe("closeShopifyReturn", () => {
+  it("returns success when Shopify closes the return", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: {
+            returnClose: {
+              return: { id: "gid://shopify/Return/1", status: "CLOSED" },
+              userErrors: [],
+            },
+          },
+        })
+      ),
+    );
+    const res = await closeShopifyReturn(admin(), "gid://shopify/Return/1");
+    expect(res.success).toBe(true);
+    expect(res.status).toBe("CLOSED");
+  });
+
+  it("treats 'already closed' top-level errors as idempotent success", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          errors: [{ message: "Return is already closed" }],
+          data: null,
+        })
+      ),
+    );
+    const res = await closeShopifyReturn(admin(), "gid://shopify/Return/1");
+    expect(res.success).toBe(true);
+    expect(res.alreadyClosed).toBe(true);
+  });
+
+  it("treats 'already closed' userError as idempotent success", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: {
+            returnClose: {
+              return: null,
+              userErrors: [{ message: "Return is already CLOSED" }],
+            },
+          },
+        })
+      ),
+    );
+    const res = await closeShopifyReturn(admin(), "gid://shopify/Return/1");
+    expect(res.success).toBe(true);
+    expect(res.alreadyClosed).toBe(true);
+  });
+
+  it("returns error on non-idempotent userErrors", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: {
+            returnClose: {
+              return: null,
+              userErrors: [{ message: "Return not found" }],
+            },
+          },
+        })
+      ),
+    );
+    const res = await closeShopifyReturn(admin(), "999");
+    expect(res.success).toBe(false);
+    expect(res.error).toMatch(/not found/i);
+  });
+
+  it("returns error on network failure", async () => {
+    server.use(http.post(TEST_SHOPIFY_GRAPHQL_URL, () => HttpResponse.error()));
+    const res = await closeShopifyReturn(admin(), "1");
+    expect(res.success).toBe(false);
+  });
+
+  it("accepts bare IDs and expands them to gid://", async () => {
+    let receivedVars: { id?: string } | undefined;
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { id?: string } };
+        receivedVars = body.variables;
+        return HttpResponse.json({
+          data: { returnClose: { return: { id: "gid://shopify/Return/42", status: "CLOSED" }, userErrors: [] } },
+        });
+      }),
+    );
+    await closeShopifyReturn(admin(), "42");
+    expect(receivedVars?.id).toBe("gid://shopify/Return/42");
+  });
+});
+
+/* ─ declineShopifyReturn ───────────────────────────────────────────── */
+
+describe("declineShopifyReturn", () => {
+  it("declines with provided reason", async () => {
+    let receivedInput: { declineReason?: string; id?: string } | undefined;
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        receivedInput = body.variables?.input;
+        return HttpResponse.json({
+          data: {
+            returnDecline: {
+              return: { id: "gid://shopify/Return/1", status: "DECLINED" },
+              userErrors: [],
+            },
+          },
+        });
+      }),
+    );
+    const res = await declineShopifyReturn(admin(), "1", "Outside return window");
+    expect(res.success).toBe(true);
+    expect(res.status).toBe("DECLINED");
+    expect(receivedInput?.declineReason).toBe("Outside return window");
+  });
+
+  it("uses default reason when not provided", async () => {
+    let receivedReason = "";
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.json() as { variables?: { input?: { declineReason?: string } } };
+        receivedReason = body.variables?.input?.declineReason ?? "";
+        return HttpResponse.json({
+          data: { returnDecline: { return: { id: "gid://1", status: "DECLINED" }, userErrors: [] } },
+        });
+      }),
+    );
+    await declineShopifyReturn(admin(), "1");
+    expect(receivedReason.length).toBeGreaterThan(0);
+  });
+
+  it("returns error on userErrors", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: {
+            returnDecline: {
+              return: null,
+              userErrors: [{ message: "Invalid return state" }],
+            },
+          },
+        })
+      ),
+    );
+    const res = await declineShopifyReturn(admin(), "1", "bad");
+    expect(res.success).toBe(false);
+  });
+});
+
+/* ─ closeShopifyReturnBestEffort ───────────────────────────────────── */
+
+describe("closeShopifyReturnBestEffort", () => {
+  it("skips when returnCase has no shopifyReturnId", async () => {
+    // No MSW handler registered — any GraphQL call would error, so this
+    // also verifies we're not making one.
+    const logged: Array<{ eventType: string; payloadJson: string }> = [];
+    const res = await closeShopifyReturnBestEffort(
+      admin(),
+      { id: "rc-1", shopifyReturnId: null, shopifyOrderId: null },
+      { logEvent: async (evt) => { logged.push(evt); } },
+    );
+    expect(res.ok).toBe(true);
+    expect(res.skipped).toBe(true);
+    expect(logged[0].eventType).toBe("shopify_return_close_skipped");
+    expect(logged[0].payloadJson).toContain("no_return_id");
+  });
+
+  it("skips for manual returns (shopifyOrderId starts with 'manual:')", async () => {
+    const logged: Array<{ eventType: string; payloadJson: string }> = [];
+    const res = await closeShopifyReturnBestEffort(
+      admin(),
+      { id: "rc-2", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "manual:xyz" },
+      { logEvent: async (evt) => { logged.push(evt); } },
+    );
+    expect(res.ok).toBe(true);
+    expect(res.skipped).toBe(true);
+    expect(logged[0].payloadJson).toContain("manual_return");
+  });
+
+  it("calls closeShopifyReturn for action='close' (default)", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.text();
+        // Must be the close mutation, not decline
+        expect(body).toContain("returnClose");
+        return HttpResponse.json({
+          data: { returnClose: { return: { id: "gid://1", status: "CLOSED" }, userErrors: [] } },
+        });
+      }),
+    );
+    const res = await closeShopifyReturnBestEffort(
+      admin(),
+      { id: "rc-3", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("calls declineShopifyReturn for action='decline'", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
+        const body = await request.text();
+        expect(body).toContain("returnDecline");
+        return HttpResponse.json({
+          data: { returnDecline: { return: { id: "gid://1", status: "DECLINED" }, userErrors: [] } },
+        });
+      }),
+    );
+    const res = await closeShopifyReturnBestEffort(
+      admin(),
+      { id: "rc-4", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
+      { action: "decline", declineReason: "Outside return window" },
+    );
+    expect(res.ok).toBe(true);
+  });
+
+  it("logs shopify_return_closed on success", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: { returnClose: { return: { id: "gid://1", status: "CLOSED" }, userErrors: [] } },
+        })
+      ),
+    );
+    const logged: Array<{ eventType: string; payloadJson: string }> = [];
+    await closeShopifyReturnBestEffort(
+      admin(),
+      { id: "rc-5", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
+      { logEvent: async (evt) => { logged.push(evt); } },
+    );
+    expect(logged[0].eventType).toBe("shopify_return_closed");
+  });
+
+  it("logs shopify_return_close_failed on failure", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: { returnClose: { return: null, userErrors: [{ message: "forbidden" }] } },
+        })
+      ),
+    );
+    const logged: Array<{ eventType: string; payloadJson: string }> = [];
+    const res = await closeShopifyReturnBestEffort(
+      admin(),
+      { id: "rc-6", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
+      { logEvent: async (evt) => { logged.push(evt); } },
+    );
+    expect(res.ok).toBe(false);
+    expect(logged[0].eventType).toBe("shopify_return_close_failed");
+  });
+
+  it("survives an async logEvent that throws", async () => {
+    server.use(
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
+        HttpResponse.json({
+          data: { returnClose: { return: { id: "gid://1", status: "CLOSED" }, userErrors: [] } },
+        })
+      ),
+    );
+    const res = await closeShopifyReturnBestEffort(
+      admin(),
+      { id: "rc-7", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
+      { logEvent: async () => { throw new Error("log infra down"); } },
+    );
+    // logEvent errors are caught with .catch(() => {}) so the main call succeeds.
+    expect(res.ok).toBe(true);
   });
 });

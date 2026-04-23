@@ -12,18 +12,18 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Phase 0 floor | Phase 1 floor |
-|-------------|--------:|--------------:|--------------:|
-| Statements  | 14.24%  | 8%            | **14%**       |
-| Branches    | 10.68%  | 4%            | **10%**       |
-| Functions   | 11.87%  | 7%            | **11%**       |
-| Lines       | 14.20%  | 8%            | **14%**       |
+| Metric      | Current | Phase 0 | Batch 1 | Batch 2a | Batch 3 (now) |
+|-------------|--------:|--------:|--------:|---------:|--------------:|
+| Statements  | 17.83%  | 8%      | 14%     | 15.66%   | **17%**       |
+| Branches    | 12.75%  | 4%      | 10%     | 11.78%   | **12%**       |
+| Functions   | 15.37%  | 7%      | 11%     | 13.17%   | **15%**       |
+| Lines       | 17.79%  | 8%      | 14%     | 15.58%   | **17%**       |
 
-**637 tests** in 36 test files — all passing. The thresholds in
+**805 tests** in 43 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
-### Phase 1 (batch 1) files now covered
+### Phase 1 (batch 1) files lifted
 
 | File | Before | After |
 |------|-------:|------:|
@@ -34,7 +34,22 @@ floor; they can only ratchet upward.
 | `app/lib/observability/errors.server.ts` | 0% | 97.7% |
 | `app/lib/return-request-id.ts` | 13.5% | 97.3% |
 | `app/lib/dashboard-date-utils.ts` | 39.4% | ~90% |
-| `app/lib/fynd.server.ts` (pure exports) | 1.5% | 16.0% |
+
+### Batch 2a / 2b — MSW harness + Prisma mock factory
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/lib/shopify-admin.server.ts` (pure + GraphQL) | 2.8% | ~25% |
+| `app/lib/fynd.server.ts` (pure + token fetch) | 1.5% | 30.2% |
+| `app/lib/fynd-webhook.server.ts` (pure helpers) | 11.4% | 15.5% |
+| `app/lib/billing.server.ts` | — | (34 tests, ~95%) |
+
+### Batch 3 — this release
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/lib/notification.server.ts` | 0.3% | ~45% (35 new tests) |
+| `app/lib/shopify-admin.server.ts` (close/decline/best-effort) | 13.3% | ~30% (+16 tests) |
 
 ---
 

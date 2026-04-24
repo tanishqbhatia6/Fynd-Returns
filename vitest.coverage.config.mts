@@ -79,13 +79,16 @@ export default defineConfig({
       //   Phase 1 batch 16:  32.10% (+ api.portal.lookup — 25 tests covering
       //                                guards, OTP gate state machine, all
       //                                lookup type dispatches. File 0% → 51%)
+      //   Phase 1 batch 17:  32.68% (+ api.portal.order — 23 tests for
+      //                                pure helper, guards, error fallbacks.
+      //                                File 2% → 20%)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
         statements: 32,
         branches: 21,
-        functions: 24,
-        lines: 32,
+        functions: 25,
+        lines: 33,
       },
     },
   },

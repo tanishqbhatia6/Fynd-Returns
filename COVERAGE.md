@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 15 | Batch 16 (now) |
+| Metric      | Current | Batch 16 | Batch 17 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 32.10%  | 31%      | **32%**        |
-| Branches    | 21.19%  | 20%      | **21%**        |
-| Functions   | 24.91%  | 24%      | **24%**        |
-| Lines       | 32.58%  | 31%      | **32%**        |
+| Statements  | 32.68%  | 32%      | **32%**        |
+| Branches    | 21.51%  | 21%      | **21%**        |
+| Functions   | 25.06%  | 24%      | **25%**        |
+| Lines       | 33.22%  | 32%      | **33%**        |
 
-**1,430 tests** in 87 test files — all passing. Thresholds in
+**1,453 tests** in 88 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -201,7 +201,7 @@ discount code" path. +0.96pp global.
 |------|-------:|------:|
 | `app/routes/api.portal.create-return.ts` | 0% | ~18% (22 tests — method/rate-limit/CSRF gates, param validation, shop lookup + normalization, blocklist gate, offer accept path end-to-end incl. Shopify discount-code mutation) |
 
-### Batch 16 — this release
+### Batch 16
 
 Next biggest untouched route — `api.portal.lookup.ts` at 602 lines and
 0% coverage. 25 new tests covering the full dispatch, the OTP state
@@ -211,6 +211,20 @@ halfway covered in one pass. +1.07pp global.
 | File | Before | After |
 |------|-------:|------:|
 | `app/routes/api.portal.lookup.ts` | 0% | ~51% (25 tests — loader preflight, action guards (method/rate-limit/params/lookup-type/length/shop), OTP gate state machine (new session, resend cooldown, lockout after 15 fails, session expired/unverified/mismatched token), lookup dispatch by return_id, return_no, forward/return_awb, phone, email — plus empty-result path) |
+
+### Batch 17 — this release
+
+Next mega-route — `api.portal.order.ts` at 1,127 lines and ~2% covered.
+23 new tests cover the exported `shouldBlockOrderForExistingReturn`
+helper (regression-hardened), all loader validation guards, existing-
+returns formatting + active filter, and all three error-fallback paths
+(SessionNotFoundError → 403, OrderAccessError → 200 fallback,
+"not approved/protected" message → 200 fallback, generic → 200
+fallback). +0.58pp global; file 2% → 20%.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.portal.order.ts` | ~2% | ~20% (23 tests — shouldBlockOrderForExistingReturn (6 cases incl. over-return + defensive input), OPTIONS preflight, 429/400/404 guards with order-number sanitization + shop normalization, existing returns mapping + active filter, all 4 error-fallback branches using the real OrderAccessError class for instanceof) |
 
 ---
 

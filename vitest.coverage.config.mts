@@ -52,13 +52,17 @@ export default defineConfig({
       //                                observability modules — 68 tests)
       //   Phase 1 batch 7:   22.86% (+ tracing, logger, fynd-fdk,
       //                                fynd-consolidation — 71 tests)
+      //   Phase 1 batch 8:   23.77% (+ fynd-config, fynd-logger, portal-config,
+      //                                portal-theme, refund-gate-presets,
+      //                                return-id-counter, audit, fynd-retry —
+      //                                88 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 22,
-        branches: 15,
-        functions: 20,
-        lines: 22,
+        statements: 23,
+        branches: 16,
+        functions: 21,
+        lines: 23,
       },
     },
   },

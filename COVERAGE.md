@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 5 | Batch 6 (now) |
+| Metric      | Current | Batch 6 | Batch 7 (now) |
 |-------------|--------:|--------:|--------------:|
-| Statements  | 21.67%  | 20%     | **21%**       |
-| Branches    | 14.91%  | 14%     | **14%**       |
-| Functions   | 19.01%  | 17%     | **18%**       |
-| Lines       | 21.58%  | 20%     | **21%**       |
+| Statements  | 22.86%  | 21%     | **22%**       |
+| Branches    | 15.65%  | 14%     | **15%**       |
+| Functions   | 20.14%  | 18%     | **20%**       |
+| Lines       | 22.87%  | 21%     | **22%**       |
 
-**1,006 tests** in 53 test files — all passing. Thresholds in
+**1,077 tests** in 57 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -71,7 +71,7 @@ Five small self-contained files pushed to high coverage in one pass.
 | `app/lib/fynd-status-poll.server.ts` | 0% | ~85% (22 tests) |
 | `app/lib/fynd-webhook-api.server.ts` | 0% | ~90% (34 tests) |
 
-### Batch 6 — this release
+### Batch 6
 
 Four observability modules, 68 new tests, + test count crossed 1,000.
 
@@ -81,6 +81,18 @@ Four observability modules, 68 new tests, + test count crossed 1,000.
 | `app/lib/observability/health.server.ts` | 0% | ~90% (10 tests — DB + Fynd checks + composite readiness) |
 | `app/lib/observability/request-context.server.ts` | 8.1% | ~95% (18 tests — requestId, baggage, IP hash, correlation headers) |
 | `app/lib/observability/security.server.ts` | 51.4% | ~95% (18 tests — auth/rate-limit/webhook-sig/suspicious-activity) |
+
+### Batch 7 — this release
+
+Two more observability modules lifted, plus the Fynd FDK wrapper and the
+consolidation batch runner. 71 new tests across 4 new test files.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/lib/observability/tracing.server.ts` | 27% | ~90% (22 tests — withSpan/Sync, baggage, events, timer) |
+| `app/lib/observability/logger.server.ts` | ~60% | ~95% (11 tests — sampling, child-logger env overrides) |
+| `app/lib/fynd-fdk.server.ts` | 0% | ~90% (23 tests — Platform/App ctors, Storefront + Platform client methods, 401/403 hint messages) |
+| `app/lib/fynd-consolidation.server.ts` | 0% | ~95% (15 tests — single-case sync, multi-case grouping, failures, all-shops iteration) |
 
 ---
 

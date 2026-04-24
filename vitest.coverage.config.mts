@@ -50,13 +50,15 @@ export default defineConfig({
       //                                fynd-status-poll, fynd-webhook-api)
       //   Phase 1 batch 6:   21.67% (+ slo, health, request-context, security
       //                                observability modules — 68 tests)
+      //   Phase 1 batch 7:   22.86% (+ tracing, logger, fynd-fdk,
+      //                                fynd-consolidation — 71 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 21,
-        branches: 14,
-        functions: 18,
-        lines: 21,
+        statements: 22,
+        branches: 15,
+        functions: 20,
+        lines: 22,
       },
     },
   },

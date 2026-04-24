@@ -91,13 +91,15 @@ export default defineConfig({
       //   Phase 1 batch 20:  35.08% (+ api.returns.export CSV generation +
       //                                api.returns.bulk three bulk action
       //                                types — 30 tests, +1.11pp)
+      //   Phase 1 batch 21:  36.08% (+ api.portal.products +
+      //                                api.portal.fynd-enrich — 28 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 35,
-        branches: 22,
+        statements: 36,
+        branches: 23,
         functions: 26,
-        lines: 35,
+        lines: 36,
       },
     },
   },

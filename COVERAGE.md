@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 19 | Batch 20 (now) |
+| Metric      | Current | Batch 20 | Batch 21 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 35.08%  | 33%      | **35%**        |
-| Branches    | 22.88%  | 22%      | **22%**        |
-| Functions   | 26.19%  | 25%      | **26%**        |
-| Lines       | 35.80%  | 34%      | **35%**        |
+| Statements  | 36.08%  | 35%      | **36%**        |
+| Branches    | 23.52%  | 22%      | **23%**        |
+| Functions   | 26.96%  | 26%      | **26%**        |
+| Lines       | 36.84%  | 35%      | **36%**        |
 
-**1,556 tests** in 94 test files — all passing. Thresholds in
+**1,584 tests** in 96 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -248,7 +248,7 @@ scheduled-report cron. 36 new tests.
 | `app/routes/api.portal.cancel-return.ts` | 0% | ~95% (24 tests — loader preflight, auth gates (token/session/expired/unverified), cross-shop replay defence, portal config gate, Flow A auto-cancel (pending/processing/in progress/initiated) with email + webhook side effects, Flow B cancellation request (refund block at refunded / in_progress, duplicate pending block, success clears prior declined)) |
 | `app/routes/api.scheduled-report.ts` | 0% | ~85% (12 tests — CRON_SECRET gating, empty result set, daily/weekly/monthly dispatch, no-recipients + SMTP-unconfigured error paths, adminNotifyEmail fallback, per-shop error isolation, SMTP password decryption) |
 
-### Batch 20 — this release
+### Batch 20
 
 Two more admin routes fully covered: CSV export + bulk actions. 30
 new tests, +1.11pp global.
@@ -257,6 +257,16 @@ new tests, +1.11pp global.
 |------|-------:|------:|
 | `app/routes/api.returns.export.ts` | 0% | ~85% (9 tests — shop auto-create, 10,000-row limit, UTF-8 BOM + CRLF, PII anonymisation with stable hash tokens, status + search filter, multi-item rows, empty-items row, CSV escaping of commas/quotes, 500 on DB error) |
 | `app/routes/api.returns.bulk.ts` | 0% | ~90% (21 tests — all validation gates (method / body / action type / resolutionType / id count / reason), bulk_approve (idempotent updateMany, terminal skip, per-row errors, notification failure swallow, missing-id reporting), bulk_reject happy path + terminal skip, bulk_change_resolution update + rejected/cancelled guard) |
+
+### Batch 21 — this release
+
+Portal exchange catalog + Fynd enrichment routes. 28 new tests across
+2 files.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.portal.products.ts` | 0% | ~95% (13 tests — rate-limit, shop/exchange/session guards, single-product fetch, search fetch, availability filtering, -1 inventory = untracked, 50-limit cap, non-ok response, fetch throws, productType filter) |
+| `app/routes/api.portal.fynd-enrich.ts` | 0% | ~85% (15 tests — loader preflight, action guards (method/rate-limit/shop), Fynd-disabled fallback, storefront-client fallback, order enrichment with forward-shipment preference + mapping cache + search-throw swallow, returns enrichment with 10-id cap + exact-shipment match + stale-bag fallback) |
 
 ---
 

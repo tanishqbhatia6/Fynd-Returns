@@ -64,13 +64,15 @@ export default defineConfig({
       //                                54 tests)
       //   Phase 1 batch 11:  26.17% (+ external.returns/settings/webhooks CRUD
       //                                — 44 tests)
+      //   Phase 1 batch 12:  27.28% (+ external.returns.refund + Gorgias
+      //                                widget + Gorgias actions — 40 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 26,
-        branches: 17,
-        functions: 22,
-        lines: 26,
+        statements: 27,
+        branches: 18,
+        functions: 23,
+        lines: 27,
       },
     },
   },

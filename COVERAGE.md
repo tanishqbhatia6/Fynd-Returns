@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 10 | Batch 11 (now) |
+| Metric      | Current | Batch 11 | Batch 12 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 26.17%  | 25%      | **26%**        |
-| Branches    | 17.53%  | 17%      | **17%**        |
-| Functions   | 22.70%  | 22%      | **22%**        |
-| Lines       | 26.27%  | 25%      | **26%**        |
+| Statements  | 27.28%  | 26%      | **27%**        |
+| Branches    | 18.26%  | 17%      | **18%**        |
+| Functions   | 23.27%  | 22%      | **23%**        |
+| Lines       | 27.45%  | 26%      | **27%**        |
 
-**1,296 tests** in 80 test files — all passing. Thresholds in
+**1,336 tests** in 83 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -139,7 +139,7 @@ tests across 5 new test files.
 | `app/routes/api.portal.otp.send.ts` | 0% | ~95% (13 tests — session validation, cooldown, email dispatch) |
 | `app/routes/api.portal.otp.verify.ts` | 0% | ~90% (16 tests — bcrypt + legacy SHA-256, attempt caps, account lockout, token issuance) |
 
-### Batch 11 — this release
+### Batch 11
 
 External v1 API CRUD surface tested end-to-end — list + detail returns,
 settings, webhooks list/POST/DELETE. 44 new tests across 5 new test
@@ -154,6 +154,18 @@ webhook-touching test can use the factory instead of hand-rolling stubs.
 | `app/routes/api.v1.external.settings.ts` | 0% | ~100% (6 tests — auth cascade, sanitized response, missing/error paths) |
 | `app/routes/api.v1.external.webhooks.ts` | 0% | ~95% (12 tests — list, create with SSRF guard, duplicate detection, invalid events) |
 | `app/routes/api.v1.external.webhooks.$id.ts` | 0% | ~100% (8 tests — soft-delete, 404/500, method gating) |
+
+### Batch 12 — this release
+
+Three more action/integration routes covered — external refund,
+Gorgias widget (HTML), Gorgias actions. 40 new tests across 3 new
+test files.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.v1.external.returns.$id.refund.ts` | 0% | ~95% (13 tests — validation, state gates, refund creation, webhook dispatch, legacy discount_code coercion) |
+| `app/routes/api.integrations.gorgias.ts` | 0% | ~95% (11 tests — HTML card rendering, API-key timing-safe compare, fallback query, risk/gift badges) |
+| `app/routes/api.integrations.gorgias-actions.ts` | 0% | ~95% (16 tests — approve, reject, add_note, get_timeline actions with status gates) |
 
 ---
 

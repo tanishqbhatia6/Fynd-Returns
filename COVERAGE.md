@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 11 | Batch 12 (now) |
+| Metric      | Current | Batch 12 | Batch 13 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 27.28%  | 26%      | **27%**        |
-| Branches    | 18.26%  | 17%      | **18%**        |
-| Functions   | 23.27%  | 22%      | **23%**        |
-| Lines       | 27.45%  | 26%      | **27%**        |
+| Statements  | 28.64%  | 27%      | **28%**        |
+| Branches    | 19.05%  | 18%      | **19%**        |
+| Functions   | 23.78%  | 23%      | **23%**        |
+| Lines       | 28.85%  | 27%      | **28%**        |
 
-**1,336 tests** in 83 test files — all passing. Thresholds in
+**1,360 tests** in 84 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -155,7 +155,7 @@ webhook-touching test can use the factory instead of hand-rolling stubs.
 | `app/routes/api.v1.external.webhooks.ts` | 0% | ~95% (12 tests — list, create with SSRF guard, duplicate detection, invalid events) |
 | `app/routes/api.v1.external.webhooks.$id.ts` | 0% | ~100% (8 tests — soft-delete, 404/500, method gating) |
 
-### Batch 12 — this release
+### Batch 12
 
 Three more action/integration routes covered — external refund,
 Gorgias widget (HTML), Gorgias actions. 40 new tests across 3 new
@@ -166,6 +166,18 @@ test files.
 | `app/routes/api.v1.external.returns.$id.refund.ts` | 0% | ~95% (13 tests — validation, state gates, refund creation, webhook dispatch, legacy discount_code coercion) |
 | `app/routes/api.integrations.gorgias.ts` | 0% | ~95% (11 tests — HTML card rendering, API-key timing-safe compare, fallback query, risk/gift badges) |
 | `app/routes/api.integrations.gorgias-actions.ts` | 0% | ~95% (16 tests — approve, reject, add_note, get_timeline actions with status gates) |
+
+### Batch 13 — this release
+
+Strategic pivot: instead of many small files, target the single biggest
+uncovered file in the repo. `api.returns.$id.actions.ts` is 2,348 lines
+of multi-action dispatch that had 0% coverage — one test file here
+moved global coverage by **+1.36 percentage points**, the biggest
+single-batch jump of the campaign.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.returns.$id.actions.ts` | 0% | ~17% (24 tests — dispatch, body parsing (JSON + form), auth/id/404 guards, simple action types: update_status, add_note, save_notes_for_customer, update_label, update_instructions, edit_details, cancel_order validation) |
 
 ---
 

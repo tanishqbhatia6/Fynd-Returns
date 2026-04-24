@@ -66,13 +66,16 @@ export default defineConfig({
       //                                — 44 tests)
       //   Phase 1 batch 12:  27.28% (+ external.returns.refund + Gorgias
       //                                widget + Gorgias actions — 40 tests)
+      //   Phase 1 batch 13:  28.64% (+ api.returns.\$id.actions dispatch +
+      //                                simple action types — 24 tests, one
+      //                                big-file strategy pushed +1.36pp)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 27,
-        branches: 18,
+        statements: 28,
+        branches: 19,
         functions: 23,
-        lines: 27,
+        lines: 28,
       },
     },
   },

@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 8 | Batch 9 (now) |
-|-------------|--------:|--------:|--------------:|
-| Statements  | 24.32%  | 23%     | **24%**       |
-| Branches    | 16.68%  | 16%     | **16%**       |
-| Functions   | 21.57%  | 21%     | **21%**       |
-| Lines       | 24.42%  | 23%     | **24%**       |
+| Metric      | Current | Batch 9 | Batch 10 (now) |
+|-------------|--------:|--------:|---------------:|
+| Statements  | 25.75%  | 24%     | **25%**        |
+| Branches    | 17.32%  | 16%     | **17%**        |
+| Functions   | 22.60%  | 21%     | **22%**        |
+| Lines       | 25.93%  | 24%     | **25%**        |
 
-**1,198 tests** in 70 test files — all passing. Thresholds in
+**1,252 tests** in 75 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -111,7 +111,7 @@ pure-logic files, setting up route and big-lib tests for batches 9+.
 | `app/lib/observability/audit.server.ts` | 0% | ~100% (7 tests — auditLog + helpers, span annotation, no-span path) |
 | `app/lib/fynd-retry.server.ts` | 0% | ~90% (12 tests — throttle, happy path, retry backoff, exhaustion, scheduleRetry) |
 
-### Batch 9 — this release
+### Batch 9
 
 First batch of route-level tests — 5 small routes (health, portal, auth)
 plus a fix for the webhook-dispatch flushAll race that showed up as
@@ -124,6 +124,20 @@ parallelism climbed. 33 new tests in 5 files.
 | `app/routes/api.portal.track.ts` | 0% | ~90% (12 tests — CORS, rate limit, param validation, anti-enumeration, journey extraction) |
 | `app/routes/api.portal.returns.ts` | 0% | ~90% (11 tests — token gating, session states, enrichment, malformed JSON) |
 | `app/routes/auth.$.tsx` | 0% | ~100% (3 tests — admin gate, boundary headers) |
+
+### Batch 10 — this release
+
+Five more API routes covered: the external-API Postman collection download,
+both Fynd cron endpoints, and the customer OTP send / verify flow. 54 new
+tests across 5 new test files.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.v1.external.postman.ts` | 0% | ~100% (7 tests — 3-permission cascade, rate limits, env-driven base URL) |
+| `app/routes/api.fynd-consolidation-cron.ts` | 0% | ~100% (9 tests — CRON_SECRET gating, localhost dev fallback, aggregates, error path) |
+| `app/routes/api.fynd-webhook-retry-cron.ts` | 0% | ~95% (9 tests — retry success, reschedule-with-backoff, exhaustion, processing errors) |
+| `app/routes/api.portal.otp.send.ts` | 0% | ~95% (13 tests — session validation, cooldown, email dispatch) |
+| `app/routes/api.portal.otp.verify.ts` | 0% | ~90% (16 tests — bcrypt + legacy SHA-256, attempt caps, account lockout, token issuance) |
 
 ---
 

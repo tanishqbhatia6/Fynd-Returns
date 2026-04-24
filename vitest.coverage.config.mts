@@ -93,13 +93,15 @@ export default defineConfig({
       //                                types — 30 tests, +1.11pp)
       //   Phase 1 batch 21:  36.08% (+ api.portal.products +
       //                                api.portal.fynd-enrich — 28 tests)
+      //   Phase 1 batch 22:  37.35% (+ api.returns.\$id.diagnose +
+      //                                api.admin.create-return — 24 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 36,
-        branches: 23,
-        functions: 26,
-        lines: 36,
+        statements: 37,
+        branches: 24,
+        functions: 27,
+        lines: 37,
       },
     },
   },

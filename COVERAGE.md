@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 20 | Batch 21 (now) |
+| Metric      | Current | Batch 21 | Batch 22 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 36.08%  | 35%      | **36%**        |
-| Branches    | 23.52%  | 22%      | **23%**        |
-| Functions   | 26.96%  | 26%      | **26%**        |
-| Lines       | 36.84%  | 35%      | **36%**        |
+| Statements  | 37.35%  | 36%      | **37%**        |
+| Branches    | 24.74%  | 23%      | **24%**        |
+| Functions   | 27.67%  | 26%      | **27%**        |
+| Lines       | 38.18%  | 36%      | **37%**        |
 
-**1,584 tests** in 96 test files — all passing. Thresholds in
+**1,608 tests** in 98 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -258,7 +258,7 @@ new tests, +1.11pp global.
 | `app/routes/api.returns.export.ts` | 0% | ~85% (9 tests — shop auto-create, 10,000-row limit, UTF-8 BOM + CRLF, PII anonymisation with stable hash tokens, status + search filter, multi-item rows, empty-items row, CSV escaping of commas/quotes, 500 on DB error) |
 | `app/routes/api.returns.bulk.ts` | 0% | ~90% (21 tests — all validation gates (method / body / action type / resolutionType / id count / reason), bulk_approve (idempotent updateMany, terminal skip, per-row errors, notification failure swallow, missing-id reporting), bulk_reject happy path + terminal skip, bulk_change_resolution update + rejected/cancelled guard) |
 
-### Batch 21 — this release
+### Batch 21
 
 Portal exchange catalog + Fynd enrichment routes. 28 new tests across
 2 files.
@@ -267,6 +267,16 @@ Portal exchange catalog + Fynd enrichment routes. 28 new tests across
 |------|-------:|------:|
 | `app/routes/api.portal.products.ts` | 0% | ~95% (13 tests — rate-limit, shop/exchange/session guards, single-product fetch, search fetch, availability filtering, -1 inventory = untracked, 50-limit cap, non-ok response, fetch throws, productType filter) |
 | `app/routes/api.portal.fynd-enrich.ts` | 0% | ~85% (15 tests — loader preflight, action guards (method/rate-limit/shop), Fynd-disabled fallback, storefront-client fallback, order enrichment with forward-shipment preference + mapping cache + search-throw swallow, returns enrichment with 10-id cap + exact-shipment match + stale-bag fallback) |
+
+### Batch 22 — this release
+
+Admin tooling routes — return diagnostic + admin create-return. 24 new
+tests, +1.27pp global.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.returns.$id.diagnose.ts` | 0% | ~80% (7 tests — 404s, DB snapshot, fast-path derivation, Shopify order fetch error capture, live Fynd API trace, search-throw trace entry) |
+| `app/routes/api.admin.create-return.ts` | 0% | ~75% (17 tests — validation (method, required fields, qty, over-return), blocklist + adminOverride skip, eligibility failure, auto-approve (disabled / no rules / manual_review), orderId resolution chain (GID kept / Fynd lookup / fetchOrderByOrderNumber fallback), transaction failure) |
 
 ---
 

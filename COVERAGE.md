@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 14 | Batch 15 (now) |
+| Metric      | Current | Batch 15 | Batch 16 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 31.03%  | 30%      | **31%**        |
-| Branches    | 20.61%  | 19%      | **20%**        |
-| Functions   | 24.60%  | 24%      | **24%**        |
-| Lines       | 31.41%  | 30%      | **31%**        |
+| Statements  | 32.10%  | 31%      | **32%**        |
+| Branches    | 21.19%  | 20%      | **21%**        |
+| Functions   | 24.91%  | 24%      | **24%**        |
+| Lines       | 32.58%  | 31%      | **32%**        |
 
-**1,405 tests** in 86 test files — all passing. Thresholds in
+**1,430 tests** in 87 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -190,7 +190,7 @@ coverage over the **30% line** for the first time (+1.43pp).
 |------|-------:|------:|
 | `app/routes/api.returns.$id.actions.ts` | ~17% | ~35% (+23 tests covering reject, approve (consolidation + green), retry_fynd_sync state machine, approve_cancellation close-before-cancel invariant, decline_cancellation) |
 
-### Batch 15 — this release
+### Batch 15
 
 Next biggest untouched file — `api.portal.create-return.ts` at 1,313
 lines and 0% coverage. 22 new tests covering the validation guards,
@@ -200,6 +200,17 @@ discount code" path. +0.96pp global.
 | File | Before | After |
 |------|-------:|------:|
 | `app/routes/api.portal.create-return.ts` | 0% | ~18% (22 tests — method/rate-limit/CSRF gates, param validation, shop lookup + normalization, blocklist gate, offer accept path end-to-end incl. Shopify discount-code mutation) |
+
+### Batch 16 — this release
+
+Next biggest untouched route — `api.portal.lookup.ts` at 602 lines and
+0% coverage. 25 new tests covering the full dispatch, the OTP state
+machine, and every supported lookup type. File jumped to **51%** —
+halfway covered in one pass. +1.07pp global.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.portal.lookup.ts` | 0% | ~51% (25 tests — loader preflight, action guards (method/rate-limit/params/lookup-type/length/shop), OTP gate state machine (new session, resend cooldown, lockout after 15 fails, session expired/unverified/mismatched token), lookup dispatch by return_id, return_no, forward/return_awb, phone, email — plus empty-result path) |
 
 ---
 

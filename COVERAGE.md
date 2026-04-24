@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 22 | Batch 23 (now) |
+| Metric      | Current | Batch 23 | Batch 24 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 38.12%  | 37%      | **38%**        |
-| Branches    | 25.05%  | 24%      | **25%**        |
-| Functions   | 28.39%  | 27%      | **27%**        |
-| Lines       | 38.98%  | 37%      | **38%**        |
+| Statements  | 38.96%  | 38%      | **38%**        |
+| Branches    | 25.48%  | 25%      | **25%**        |
+| Functions   | 28.60%  | 27%      | **28%**        |
+| Lines       | 39.91%  | 38%      | **39%**        |
 
-**1,619 tests** in 100 test files — all passing. Thresholds in
+**1,658 tests** in 103 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -278,7 +278,7 @@ tests, +1.27pp global.
 | `app/routes/api.returns.$id.diagnose.ts` | 0% | ~80% (7 tests — 404s, DB snapshot, fast-path derivation, Shopify order fetch error capture, live Fynd API trace, search-throw trace entry) |
 | `app/routes/api.admin.create-return.ts` | 0% | ~75% (17 tests — validation (method, required fields, qty, over-return), blocklist + adminOverride skip, eligibility failure, auto-approve (disabled / no rules / manual_review), orderId resolution chain (GID kept / Fynd lookup / fetchOrderByOrderNumber fallback), transaction failure) |
 
-### Batch 23 — this release
+### Batch 23
 
 Two more admin diagnostic routes. 11 new tests, +0.77pp global.
 
@@ -286,6 +286,16 @@ Two more admin diagnostic routes. 11 new tests, +0.77pp global.
 |------|-------:|------:|
 | `app/routes/api.admin.return-items-data.$id.ts` | 0% | ~90% (6 tests — 404 guards, item-list + missing-fields summary, Fynd client creation failure capture, live shipment/bag/article extraction, search throw captured) |
 | `app/routes/api.debug.order-lookup.ts` | 0% | ~85% (5 tests — all 4 strategies run end-to-end with summary, return-case DB record inclusion, GraphQL errors arr → strategy error, REST HTTP 429 captured, GraphQL throw recorded as failure for every iteration) |
+
+### Batch 24 — this release
+
+Three Fynd webhook entry points. 39 new tests.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.webhooks.fynd.ts` | ~68% | ~95% (15 tests — body size 413 guards (declared + real), FYND_WEBHOOK_SECRET required in prod, 401 auth failure, 400 + log on JSON parse error, stale-timestamp 401, dedup duplicate_ignored, 500 on processFyndWebhook fail/throw, happy path passes through action + returnCaseId) |
+| `app/routes/api.webhooks.fynd.$shopId.ts` | 0% | ~95% (15 tests — shopId shape validation + 64-char cap, 413 via readBoundedBody reject, 401 anti-enumeration for shop-missing or secret-missing, 401 auth fail, stale timestamp, JSON parse 400 + log, _shop_domain injection, dedup duplicate_ignored, 500 on processFyndWebhook fail/throw, happy path) |
+| `app/routes/api.webhooks.fynd.retry.ts` | 0% | ~95% (9 tests — 405 on non-POST, single retry (log 404, missing rawPayload, success with delete, success-still-ignored without delete, throw → 500, ok:false passthrough), bulk retry counts succeeded/stillIgnored/failed across 4-log mix, 400 on unrecognised body) |
 
 ---
 

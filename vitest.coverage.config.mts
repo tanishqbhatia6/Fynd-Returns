@@ -97,13 +97,15 @@ export default defineConfig({
       //                                api.admin.create-return — 24 tests)
       //   Phase 1 batch 23:  38.12% (+ api.admin.return-items-data +
       //                                api.debug.order-lookup — 11 tests)
+      //   Phase 1 batch 24:  38.96% (+ api.webhooks.fynd + per-shop webhook
+      //                                + retry endpoint — 39 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
         statements: 38,
         branches: 25,
-        functions: 27,
-        lines: 38,
+        functions: 28,
+        lines: 39,
       },
     },
   },

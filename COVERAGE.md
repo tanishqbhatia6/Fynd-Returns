@@ -12,17 +12,16 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 13 | Batch 14 (now) |
+| Metric      | Current | Batch 14 | Batch 15 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 30.07%  | 28%      | **30%**        |
-| Branches    | 19.94%  | 19%      | **19%**        |
-| Functions   | 24.19%  | 23%      | **24%**        |
-| Lines       | 30.40%  | 28%      | **30%**        |
+| Statements  | 31.03%  | 30%      | **31%**        |
+| Branches    | 20.61%  | 19%      | **20%**        |
+| Functions   | 24.60%  | 24%      | **24%**        |
+| Lines       | 31.41%  | 30%      | **31%**        |
 
-**1,383 tests** in 85 test files — all passing. Thresholds in
+**1,405 tests** in 86 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
-floor; they can only ratchet upward. **Phase 1 target of 30%+
-statements reached.**
+floor; they can only ratchet upward.
 
 ### Phase 1 (batch 1) files lifted
 
@@ -180,7 +179,7 @@ single-batch jump of the campaign.
 |------|-------:|------:|
 | `app/routes/api.returns.$id.actions.ts` | 0% | ~17% (24 tests — dispatch, body parsing (JSON + form), auth/id/404 guards, simple action types: update_status, add_note, save_notes_for_customer, update_label, update_instructions, edit_details, cancel_order validation) |
 
-### Batch 14 — this release
+### Batch 14
 
 Continuing the big-file strategy. Heavyweight action types in the same
 file — each a self-contained state machine worth its own fixture setup.
@@ -190,6 +189,17 @@ coverage over the **30% line** for the first time (+1.43pp).
 | File | Before | After |
 |------|-------:|------:|
 | `app/routes/api.returns.$id.actions.ts` | ~17% | ~35% (+23 tests covering reject, approve (consolidation + green), retry_fynd_sync state machine, approve_cancellation close-before-cancel invariant, decline_cancellation) |
+
+### Batch 15 — this release
+
+Next biggest untouched file — `api.portal.create-return.ts` at 1,313
+lines and 0% coverage. 22 new tests covering the validation guards,
+CSRF gating, blocklist enforcement, and the complete "accept offer →
+discount code" path. +0.96pp global.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.portal.create-return.ts` | 0% | ~18% (22 tests — method/rate-limit/CSRF gates, param validation, shop lookup + normalization, blocklist gate, offer accept path end-to-end incl. Shopify discount-code mutation) |
 
 ---
 

@@ -73,13 +73,16 @@ export default defineConfig({
       //                                approve (consolidation), retry_fynd_sync,
       //                                approve/decline_cancellation — 23 tests,
       //                                crossed the 30% line)
+      //   Phase 1 batch 15:  31.03% (+ api.portal.create-return guards +
+      //                                offer-accept path — 22 tests, +0.96pp
+      //                                from a 1,313-line file)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 30,
-        branches: 19,
+        statements: 31,
+        branches: 20,
         functions: 24,
-        lines: 30,
+        lines: 31,
       },
     },
   },

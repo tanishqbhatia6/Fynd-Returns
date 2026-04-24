@@ -58,6 +58,8 @@ export const PRISMA_MODELS = [
   "session",
   "apiKey",
   "webhookEndpoint",
+  "webhookSubscription",
+  "webhookDeliveryFailure",
   "webhookDelivery",
   "fyndWebhookLog",
   "lookupSession",

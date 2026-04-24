@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 9 | Batch 10 (now) |
-|-------------|--------:|--------:|---------------:|
-| Statements  | 25.75%  | 24%     | **25%**        |
-| Branches    | 17.32%  | 16%     | **17%**        |
-| Functions   | 22.60%  | 21%     | **22%**        |
-| Lines       | 25.93%  | 24%     | **25%**        |
+| Metric      | Current | Batch 10 | Batch 11 (now) |
+|-------------|--------:|---------:|---------------:|
+| Statements  | 26.17%  | 25%      | **26%**        |
+| Branches    | 17.53%  | 17%      | **17%**        |
+| Functions   | 22.70%  | 22%      | **22%**        |
+| Lines       | 26.27%  | 25%      | **26%**        |
 
-**1,252 tests** in 75 test files — all passing. Thresholds in
+**1,296 tests** in 80 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -125,7 +125,7 @@ parallelism climbed. 33 new tests in 5 files.
 | `app/routes/api.portal.returns.ts` | 0% | ~90% (11 tests — token gating, session states, enrichment, malformed JSON) |
 | `app/routes/auth.$.tsx` | 0% | ~100% (3 tests — admin gate, boundary headers) |
 
-### Batch 10 — this release
+### Batch 10
 
 Five more API routes covered: the external-API Postman collection download,
 both Fynd cron endpoints, and the customer OTP send / verify flow. 54 new
@@ -138,6 +138,22 @@ tests across 5 new test files.
 | `app/routes/api.fynd-webhook-retry-cron.ts` | 0% | ~95% (9 tests — retry success, reschedule-with-backoff, exhaustion, processing errors) |
 | `app/routes/api.portal.otp.send.ts` | 0% | ~95% (13 tests — session validation, cooldown, email dispatch) |
 | `app/routes/api.portal.otp.verify.ts` | 0% | ~90% (16 tests — bcrypt + legacy SHA-256, attempt caps, account lockout, token issuance) |
+
+### Batch 11 — this release
+
+External v1 API CRUD surface tested end-to-end — list + detail returns,
+settings, webhooks list/POST/DELETE. 44 new tests across 5 new test
+files. Also expanded the shared Prisma mock to include
+`webhookSubscription` and `webhookDeliveryFailure` so every
+webhook-touching test can use the factory instead of hand-rolling stubs.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.v1.external.returns.ts` | 0% | ~95% (11 tests — filters, cursor + offset pagination, error envelope) |
+| `app/routes/api.v1.external.returns.$id.ts` | 0% | ~100% (7 tests — auth, per-key rate limit, 404/500 paths) |
+| `app/routes/api.v1.external.settings.ts` | 0% | ~100% (6 tests — auth cascade, sanitized response, missing/error paths) |
+| `app/routes/api.v1.external.webhooks.ts` | 0% | ~95% (12 tests — list, create with SSRF guard, duplicate detection, invalid events) |
+| `app/routes/api.v1.external.webhooks.$id.ts` | 0% | ~100% (8 tests — soft-delete, 404/500, method gating) |
 
 ---
 

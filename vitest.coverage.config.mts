@@ -62,13 +62,15 @@ export default defineConfig({
       //   Phase 1 batch 10:  25.75% (+ external.postman, 2 cron routes,
       //                                portal.otp.send + portal.otp.verify —
       //                                54 tests)
+      //   Phase 1 batch 11:  26.17% (+ external.returns/settings/webhooks CRUD
+      //                                — 44 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 25,
+        statements: 26,
         branches: 17,
         functions: 22,
-        lines: 25,
+        lines: 26,
       },
     },
   },

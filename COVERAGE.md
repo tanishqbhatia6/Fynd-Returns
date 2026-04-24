@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 17 | Batch 18 (now) |
+| Metric      | Current | Batch 18 | Batch 19 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 33.04%  | 32%      | **33%**        |
-| Branches    | 21.69%  | 21%      | **21%**        |
-| Functions   | 25.21%  | 25%      | **25%**        |
-| Lines       | 33.61%  | 33%      | **33%**        |
+| Statements  | 33.97%  | 33%      | **33%**        |
+| Branches    | 22.34%  | 21%      | **22%**        |
+| Functions   | 25.47%  | 25%      | **25%**        |
+| Lines       | 34.63%  | 33%      | **34%**        |
 
-**1,490 tests** in 90 test files — all passing. Thresholds in
+**1,526 tests** in 92 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -226,7 +226,7 @@ fallback). +0.58pp global; file 2% → 20%.
 |------|-------:|------:|
 | `app/routes/api.portal.order.ts` | ~2% | ~20% (23 tests — shouldBlockOrderForExistingReturn (6 cases incl. over-return + defensive input), OPTIONS preflight, 429/400/404 guards with order-number sanitization + shop normalization, existing returns mapping + active filter, all 4 error-fallback branches using the real OrderAccessError class for instanceof) |
 
-### Batch 18 — this release
+### Batch 18
 
 Two high-value server libraries extended: pure helpers in
 `shopify-admin.server.ts` that were still uncovered, plus the
@@ -237,6 +237,16 @@ Two high-value server libraries extended: pure helpers in
 |------|-------:|------:|
 | `app/lib/shopify-admin.server.ts` | ~35% | ~36% (25 tests — extractShopifyOrderNumberVariants (FYND prefix variants, letter+digit sub-variants, dedup, unicode safety), extractAffiliateOrderId (all 7 key variants, case-insensitive, priority order, whitespace trim, skip-empty), OrderAccessError) |
 | `app/lib/fynd.server.ts` | ~30% | ~50% (12 tests — all 10 early-return branches + 2 happy paths in createFyndClientOrError, plus the createFyndClient wrapper both succeeding and returning null) |
+
+### Batch 19 — this release
+
+Two more routes fully covered — portal cancellation state machine and
+scheduled-report cron. 36 new tests.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.portal.cancel-return.ts` | 0% | ~95% (24 tests — loader preflight, auth gates (token/session/expired/unverified), cross-shop replay defence, portal config gate, Flow A auto-cancel (pending/processing/in progress/initiated) with email + webhook side effects, Flow B cancellation request (refund block at refunded / in_progress, duplicate pending block, success clears prior declined)) |
+| `app/routes/api.scheduled-report.ts` | 0% | ~85% (12 tests — CRON_SECRET gating, empty result set, daily/weekly/monthly dispatch, no-recipients + SMTP-unconfigured error paths, adminNotifyEmail fallback, per-shop error isolation, SMTP password decryption) |
 
 ---
 

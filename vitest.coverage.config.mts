@@ -99,13 +99,18 @@ export default defineConfig({
       //                                api.debug.order-lookup — 11 tests)
       //   Phase 1 batch 24:  38.96% (+ api.webhooks.fynd + per-shop webhook
       //                                + retry endpoint — 39 tests)
+      //   Phase 1 batch 25:  40.13% (+ Shopify compliance webhooks —
+      //                                catch-all + app.uninstalled +
+      //                                scopes_update + customers.data_request
+      //                                + customers.redact + shop.redact —
+      //                                24 tests, crosses 40% line)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 38,
+        statements: 40,
         branches: 25,
-        functions: 28,
-        lines: 39,
+        functions: 29,
+        lines: 41,
       },
     },
   },

@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 23 | Batch 24 (now) |
+| Metric      | Current | Batch 24 | Batch 25 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 38.96%  | 38%      | **38%**        |
-| Branches    | 25.48%  | 25%      | **25%**        |
-| Functions   | 28.60%  | 27%      | **28%**        |
-| Lines       | 39.91%  | 38%      | **39%**        |
+| Statements  | 40.13%  | 38%      | **40%**        |
+| Branches    | 25.84%  | 25%      | **25%**        |
+| Functions   | 29.21%  | 28%      | **29%**        |
+| Lines       | 41.15%  | 39%      | **41%**        |
 
-**1,658 tests** in 103 test files — all passing. Thresholds in
+**1,682 tests** in 105 test files — all passing. **Crosses the 40% line.** Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -287,7 +287,7 @@ Two more admin diagnostic routes. 11 new tests, +0.77pp global.
 | `app/routes/api.admin.return-items-data.$id.ts` | 0% | ~90% (6 tests — 404 guards, item-list + missing-fields summary, Fynd client creation failure capture, live shipment/bag/article extraction, search throw captured) |
 | `app/routes/api.debug.order-lookup.ts` | 0% | ~85% (5 tests — all 4 strategies run end-to-end with summary, return-case DB record inclusion, GraphQL errors arr → strategy error, REST HTTP 429 captured, GraphQL throw recorded as failure for every iteration) |
 
-### Batch 24 — this release
+### Batch 24
 
 Three Fynd webhook entry points. 39 new tests.
 
@@ -296,6 +296,20 @@ Three Fynd webhook entry points. 39 new tests.
 | `app/routes/api.webhooks.fynd.ts` | ~68% | ~95% (15 tests — body size 413 guards (declared + real), FYND_WEBHOOK_SECRET required in prod, 401 auth failure, 400 + log on JSON parse error, stale-timestamp 401, dedup duplicate_ignored, 500 on processFyndWebhook fail/throw, happy path passes through action + returnCaseId) |
 | `app/routes/api.webhooks.fynd.$shopId.ts` | 0% | ~95% (15 tests — shopId shape validation + 64-char cap, 413 via readBoundedBody reject, 401 anti-enumeration for shop-missing or secret-missing, 401 auth fail, stale timestamp, JSON parse 400 + log, _shop_domain injection, dedup duplicate_ignored, 500 on processFyndWebhook fail/throw, happy path) |
 | `app/routes/api.webhooks.fynd.retry.ts` | 0% | ~95% (9 tests — 405 on non-POST, single retry (log 404, missing rawPayload, success with delete, success-still-ignored without delete, throw → 500, ok:false passthrough), bulk retry counts succeeded/stillIgnored/failed across 4-log mix, 400 on unrecognised body) |
+
+### Batch 25 — this release
+
+All Shopify compliance + lifecycle webhook handlers covered. 24 new
+tests, +1.17pp global — **crosses the 40% line**.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/webhooks.tsx` (GDPR catch-all) | 0% | ~90% (10 tests — CUSTOMERS_DATA_REQUEST log-only + shop-missing skip + error swallow, CUSTOMERS_REDACT full PII cascade incl. fyndWebhookLog updateMany + skip-no-conditions + error swallow, SHOP_REDACT cascade delete across 10 models + skip return-scope when no cases + error swallow, unknown topic no-op) |
+| `app/routes/webhooks.app.uninstalled.tsx` | 0% | ~100% (3 tests — session delete, no-op when absent, swallow DB error) |
+| `app/routes/webhooks.app.scopes_update.tsx` | 0% | ~100% (1 test) |
+| `app/routes/webhooks.customers.data_request.tsx` | 0% | ~95% (4 tests — lookup without mutate, skip when shop missing, skip when no conditions, swallow DB error) |
+| `app/routes/webhooks.customers.redact.tsx` | 0% | ~85% (3 tests — redact matching cases, no-op when shop missing, swallow DB error) |
+| `app/routes/webhooks.shop.redact.tsx` | 0% | ~85% (3 tests — delete-all when shop found, no-op when shop missing, swallow DB error) |
 
 ---
 

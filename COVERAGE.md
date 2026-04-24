@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 24 | Batch 25 (now) |
+| Metric      | Current | Batch 25 | Batch 26 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 40.13%  | 38%      | **40%**        |
-| Branches    | 25.84%  | 25%      | **25%**        |
-| Functions   | 29.21%  | 28%      | **29%**        |
-| Lines       | 41.15%  | 39%      | **41%**        |
+| Statements  | 40.65%  | 40%      | **40%**        |
+| Branches    | 26.18%  | 25%      | **26%**        |
+| Functions   | 29.47%  | 29%      | **29%**        |
+| Lines       | 41.67%  | 41%      | **41%**        |
 
-**1,682 tests** in 105 test files — all passing. **Crosses the 40% line.** Thresholds in
+**1,699 tests** in 107 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -297,7 +297,7 @@ Three Fynd webhook entry points. 39 new tests.
 | `app/routes/api.webhooks.fynd.$shopId.ts` | 0% | ~95% (15 tests — shopId shape validation + 64-char cap, 413 via readBoundedBody reject, 401 anti-enumeration for shop-missing or secret-missing, 401 auth fail, stale timestamp, JSON parse 400 + log, _shop_domain injection, dedup duplicate_ignored, 500 on processFyndWebhook fail/throw, happy path) |
 | `app/routes/api.webhooks.fynd.retry.ts` | 0% | ~95% (9 tests — 405 on non-POST, single retry (log 404, missing rawPayload, success with delete, success-still-ignored without delete, throw → 500, ok:false passthrough), bulk retry counts succeeded/stillIgnored/failed across 4-log mix, 400 on unrecognised body) |
 
-### Batch 25 — this release
+### Batch 25
 
 All Shopify compliance + lifecycle webhook handlers covered. 24 new
 tests, +1.17pp global — **crosses the 40% line**.
@@ -310,6 +310,16 @@ tests, +1.17pp global — **crosses the 40% line**.
 | `app/routes/webhooks.customers.data_request.tsx` | 0% | ~95% (4 tests — lookup without mutate, skip when shop missing, skip when no conditions, swallow DB error) |
 | `app/routes/webhooks.customers.redact.tsx` | 0% | ~85% (3 tests — redact matching cases, no-op when shop missing, swallow DB error) |
 | `app/routes/webhooks.shop.redact.tsx` | 0% | ~85% (3 tests — delete-all when shop found, no-op when shop missing, swallow DB error) |
+
+### Batch 26 — this release
+
+Remaining Shopify lifecycle webhooks. 17 new tests.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/webhooks.orders.create.tsx` | 0% | ~85% (8 tests — auth Response re-throw, non-Response auth swallow, missing-field no-op, no-fynd-affiliate fast path, metafield write + mapping upsert, metafield throw → mapping still written, numeric id → GID construction, outer DB error swallow) |
+| `app/routes/webhooks.app-subscriptions.update.tsx` | 0% | ~90% (5 tests — snapshot cache, non-Response auth swallow, Response auth re-throw, no-settings no-op, Shopify admin init failure swallow) |
+| `app/routes/webhooks.draft-orders.create.tsx` | 0% | ~95% (4 tests — mapping cache, no-fynd-affiliate skip, missing-orderName skip, DB error swallow) |
 
 ---
 

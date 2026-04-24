@@ -104,11 +104,13 @@ export default defineConfig({
       //                                scopes_update + customers.data_request
       //                                + customers.redact + shop.redact —
       //                                24 tests, crosses 40% line)
+      //   Phase 1 batch 26:  40.65% (+ orders.create + app-subscriptions.update
+      //                                + draft-orders.create — 17 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
         statements: 40,
-        branches: 25,
+        branches: 26,
         functions: 29,
         lines: 41,
       },

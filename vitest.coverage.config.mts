@@ -69,13 +69,17 @@ export default defineConfig({
       //   Phase 1 batch 13:  28.64% (+ api.returns.\$id.actions dispatch +
       //                                simple action types — 24 tests, one
       //                                big-file strategy pushed +1.36pp)
+      //   Phase 1 batch 14:  30.07% (+ heavyweight action types: reject,
+      //                                approve (consolidation), retry_fynd_sync,
+      //                                approve/decline_cancellation — 23 tests,
+      //                                crossed the 30% line)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 28,
+        statements: 30,
         branches: 19,
-        functions: 23,
-        lines: 28,
+        functions: 24,
+        lines: 30,
       },
     },
   },

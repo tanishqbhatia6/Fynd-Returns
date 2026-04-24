@@ -12,16 +12,17 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 12 | Batch 13 (now) |
+| Metric      | Current | Batch 13 | Batch 14 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 28.64%  | 27%      | **28%**        |
-| Branches    | 19.05%  | 18%      | **19%**        |
-| Functions   | 23.78%  | 23%      | **23%**        |
-| Lines       | 28.85%  | 27%      | **28%**        |
+| Statements  | 30.07%  | 28%      | **30%**        |
+| Branches    | 19.94%  | 19%      | **19%**        |
+| Functions   | 24.19%  | 23%      | **24%**        |
+| Lines       | 30.40%  | 28%      | **30%**        |
 
-**1,360 tests** in 84 test files — all passing. Thresholds in
+**1,383 tests** in 85 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
-floor; they can only ratchet upward.
+floor; they can only ratchet upward. **Phase 1 target of 30%+
+statements reached.**
 
 ### Phase 1 (batch 1) files lifted
 
@@ -167,7 +168,7 @@ test files.
 | `app/routes/api.integrations.gorgias.ts` | 0% | ~95% (11 tests — HTML card rendering, API-key timing-safe compare, fallback query, risk/gift badges) |
 | `app/routes/api.integrations.gorgias-actions.ts` | 0% | ~95% (16 tests — approve, reject, add_note, get_timeline actions with status gates) |
 
-### Batch 13 — this release
+### Batch 13
 
 Strategic pivot: instead of many small files, target the single biggest
 uncovered file in the repo. `api.returns.$id.actions.ts` is 2,348 lines
@@ -178,6 +179,17 @@ single-batch jump of the campaign.
 | File | Before | After |
 |------|-------:|------:|
 | `app/routes/api.returns.$id.actions.ts` | 0% | ~17% (24 tests — dispatch, body parsing (JSON + form), auth/id/404 guards, simple action types: update_status, add_note, save_notes_for_customer, update_label, update_instructions, edit_details, cancel_order validation) |
+
+### Batch 14 — this release
+
+Continuing the big-file strategy. Heavyweight action types in the same
+file — each a self-contained state machine worth its own fixture setup.
+23 new tests lifted the actions file 17% → 35% and pushed global
+coverage over the **30% line** for the first time (+1.43pp).
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.returns.$id.actions.ts` | ~17% | ~35% (+23 tests covering reject, approve (consolidation + green), retry_fynd_sync state machine, approve_cancellation close-before-cancel invariant, decline_cancellation) |
 
 ---
 

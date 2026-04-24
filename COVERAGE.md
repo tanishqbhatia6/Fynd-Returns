@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 21 | Batch 22 (now) |
+| Metric      | Current | Batch 22 | Batch 23 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 37.35%  | 36%      | **37%**        |
-| Branches    | 24.74%  | 23%      | **24%**        |
-| Functions   | 27.67%  | 26%      | **27%**        |
-| Lines       | 38.18%  | 36%      | **37%**        |
+| Statements  | 38.12%  | 37%      | **38%**        |
+| Branches    | 25.05%  | 24%      | **25%**        |
+| Functions   | 28.39%  | 27%      | **27%**        |
+| Lines       | 38.98%  | 37%      | **38%**        |
 
-**1,608 tests** in 98 test files — all passing. Thresholds in
+**1,619 tests** in 100 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -268,7 +268,7 @@ Portal exchange catalog + Fynd enrichment routes. 28 new tests across
 | `app/routes/api.portal.products.ts` | 0% | ~95% (13 tests — rate-limit, shop/exchange/session guards, single-product fetch, search fetch, availability filtering, -1 inventory = untracked, 50-limit cap, non-ok response, fetch throws, productType filter) |
 | `app/routes/api.portal.fynd-enrich.ts` | 0% | ~85% (15 tests — loader preflight, action guards (method/rate-limit/shop), Fynd-disabled fallback, storefront-client fallback, order enrichment with forward-shipment preference + mapping cache + search-throw swallow, returns enrichment with 10-id cap + exact-shipment match + stale-bag fallback) |
 
-### Batch 22 — this release
+### Batch 22
 
 Admin tooling routes — return diagnostic + admin create-return. 24 new
 tests, +1.27pp global.
@@ -277,6 +277,15 @@ tests, +1.27pp global.
 |------|-------:|------:|
 | `app/routes/api.returns.$id.diagnose.ts` | 0% | ~80% (7 tests — 404s, DB snapshot, fast-path derivation, Shopify order fetch error capture, live Fynd API trace, search-throw trace entry) |
 | `app/routes/api.admin.create-return.ts` | 0% | ~75% (17 tests — validation (method, required fields, qty, over-return), blocklist + adminOverride skip, eligibility failure, auto-approve (disabled / no rules / manual_review), orderId resolution chain (GID kept / Fynd lookup / fetchOrderByOrderNumber fallback), transaction failure) |
+
+### Batch 23 — this release
+
+Two more admin diagnostic routes. 11 new tests, +0.77pp global.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.admin.return-items-data.$id.ts` | 0% | ~90% (6 tests — 404 guards, item-list + missing-fields summary, Fynd client creation failure capture, live shipment/bag/article extraction, search throw captured) |
+| `app/routes/api.debug.order-lookup.ts` | 0% | ~85% (5 tests — all 4 strategies run end-to-end with summary, return-case DB record inclusion, GraphQL errors arr → strategy error, REST HTTP 429 captured, GraphQL throw recorded as failure for every iteration) |
 
 ---
 

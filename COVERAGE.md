@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 7 | Batch 8 (now) |
+| Metric      | Current | Batch 8 | Batch 9 (now) |
 |-------------|--------:|--------:|--------------:|
-| Statements  | 23.77%  | 22%     | **23%**       |
-| Branches    | 16.17%  | 15%     | **16%**       |
-| Functions   | 21.21%  | 20%     | **21%**       |
-| Lines       | 23.82%  | 22%     | **23%**       |
+| Statements  | 24.32%  | 23%     | **24%**       |
+| Branches    | 16.68%  | 16%     | **16%**       |
+| Functions   | 21.57%  | 21%     | **21%**       |
+| Lines       | 24.42%  | 23%     | **24%**       |
 
-**1,165 tests** in 65 test files — all passing. Thresholds in
+**1,198 tests** in 70 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -94,7 +94,7 @@ consolidation batch runner. 71 new tests across 4 new test files.
 | `app/lib/fynd-fdk.server.ts` | 0% | ~90% (23 tests — Platform/App ctors, Storefront + Platform client methods, 401/403 hint messages) |
 | `app/lib/fynd-consolidation.server.ts` | 0% | ~95% (15 tests — single-case sync, multi-case grouping, failures, all-shops iteration) |
 
-### Batch 8 — this release
+### Batch 8
 
 Eight small- and medium-sized uncovered libs lifted in one pass.
 88 new tests across 8 new test files. Clears out most of the remaining
@@ -110,6 +110,20 @@ pure-logic files, setting up route and big-lib tests for batches 9+.
 | `app/lib/return-id-counter.server.ts` | 0% | ~100% (5 tests — atomic increment, missing row, DB error) |
 | `app/lib/observability/audit.server.ts` | 0% | ~100% (7 tests — auditLog + helpers, span annotation, no-span path) |
 | `app/lib/fynd-retry.server.ts` | 0% | ~90% (12 tests — throttle, happy path, retry backoff, exhaustion, scheduleRetry) |
+
+### Batch 9 — this release
+
+First batch of route-level tests — 5 small routes (health, portal, auth)
+plus a fix for the webhook-dispatch flushAll race that showed up as
+parallelism climbed. 33 new tests in 5 files.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/routes/api.healthz.ts` | 0% | ~100% (4 tests — liveness response shape, BUILD_VERSION) |
+| `app/routes/api.readyz.ts` | 0% | ~100% (3 tests — 200/503 gating on composite status, no-store header) |
+| `app/routes/api.portal.track.ts` | 0% | ~90% (12 tests — CORS, rate limit, param validation, anti-enumeration, journey extraction) |
+| `app/routes/api.portal.returns.ts` | 0% | ~90% (11 tests — token gating, session states, enrichment, malformed JSON) |
+| `app/routes/auth.$.tsx` | 0% | ~100% (3 tests — admin gate, boundary headers) |
 
 ---
 

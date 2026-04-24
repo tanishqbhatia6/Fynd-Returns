@@ -56,13 +56,16 @@ export default defineConfig({
       //                                portal-theme, refund-gate-presets,
       //                                return-id-counter, audit, fynd-retry —
       //                                88 tests)
+      //   Phase 1 batch 9:   24.32% (+ first route tests — healthz, readyz,
+      //                                portal.track, portal.returns, auth.$ —
+      //                                33 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 23,
+        statements: 24,
         branches: 16,
         functions: 21,
-        lines: 23,
+        lines: 24,
       },
     },
   },

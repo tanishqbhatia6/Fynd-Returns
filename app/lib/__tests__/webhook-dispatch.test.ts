@@ -71,8 +71,10 @@ import { dispatchWebhookEvent } from "../webhook-dispatch.server";
  * without waiting on the 30 s retry timer.
  */
 async function flushAll() {
-  await new Promise((r) => setTimeout(r, 50));
-  for (let i = 0; i < 5; i++) {
+  // 200 ms covers the initial fetch + per-sub FIFO drain even under coverage
+  // instrumentation / CI concurrency. Lower values (50ms) race on loaded CI.
+  await new Promise((r) => setTimeout(r, 200));
+  for (let i = 0; i < 10; i++) {
     await new Promise((r) => setImmediate(r));
   }
 }

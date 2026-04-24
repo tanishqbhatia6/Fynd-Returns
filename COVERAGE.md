@@ -12,14 +12,14 @@ Measured with `npm run test:coverage` (vitest + v8). Numbers below are
 recomputed on every push to `main` in CI and reported on the job
 summary + Codecov.
 
-| Metric      | Current | Batch 16 | Batch 17 (now) |
+| Metric      | Current | Batch 17 | Batch 18 (now) |
 |-------------|--------:|---------:|---------------:|
-| Statements  | 32.68%  | 32%      | **32%**        |
-| Branches    | 21.51%  | 21%      | **21%**        |
-| Functions   | 25.06%  | 24%      | **25%**        |
-| Lines       | 33.22%  | 32%      | **33%**        |
+| Statements  | 33.04%  | 32%      | **33%**        |
+| Branches    | 21.69%  | 21%      | **21%**        |
+| Functions   | 25.21%  | 25%      | **25%**        |
+| Lines       | 33.61%  | 33%      | **33%**        |
 
-**1,453 tests** in 88 test files — all passing. Thresholds in
+**1,490 tests** in 90 test files — all passing. Thresholds in
 [vitest.coverage.config.mts](vitest.coverage.config.mts) are the CI
 floor; they can only ratchet upward.
 
@@ -212,7 +212,7 @@ halfway covered in one pass. +1.07pp global.
 |------|-------:|------:|
 | `app/routes/api.portal.lookup.ts` | 0% | ~51% (25 tests — loader preflight, action guards (method/rate-limit/params/lookup-type/length/shop), OTP gate state machine (new session, resend cooldown, lockout after 15 fails, session expired/unverified/mismatched token), lookup dispatch by return_id, return_no, forward/return_awb, phone, email — plus empty-result path) |
 
-### Batch 17 — this release
+### Batch 17
 
 Next mega-route — `api.portal.order.ts` at 1,127 lines and ~2% covered.
 23 new tests cover the exported `shouldBlockOrderForExistingReturn`
@@ -225,6 +225,18 @@ fallback). +0.58pp global; file 2% → 20%.
 | File | Before | After |
 |------|-------:|------:|
 | `app/routes/api.portal.order.ts` | ~2% | ~20% (23 tests — shouldBlockOrderForExistingReturn (6 cases incl. over-return + defensive input), OPTIONS preflight, 429/400/404 guards with order-number sanitization + shop normalization, existing returns mapping + active filter, all 4 error-fallback branches using the real OrderAccessError class for instanceof) |
+
+### Batch 18 — this release
+
+Two high-value server libraries extended: pure helpers in
+`shopify-admin.server.ts` that were still uncovered, plus the
+`createFyndClientOrError` / `createFyndClient` factory in `fynd.server.ts`.
+37 new tests across 2 new files.
+
+| File | Before | After |
+|------|-------:|------:|
+| `app/lib/shopify-admin.server.ts` | ~35% | ~36% (25 tests — extractShopifyOrderNumberVariants (FYND prefix variants, letter+digit sub-variants, dedup, unicode safety), extractAffiliateOrderId (all 7 key variants, case-insensitive, priority order, whitespace trim, skip-empty), OrderAccessError) |
+| `app/lib/fynd.server.ts` | ~30% | ~50% (12 tests — all 10 early-return branches + 2 happy paths in createFyndClientOrError, plus the createFyndClient wrapper both succeeding and returning null) |
 
 ---
 

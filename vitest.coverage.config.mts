@@ -82,10 +82,13 @@ export default defineConfig({
       //   Phase 1 batch 17:  32.68% (+ api.portal.order — 23 tests for
       //                                pure helper, guards, error fallbacks.
       //                                File 2% → 20%)
+      //   Phase 1 batch 18:  33.04% (+ shopify-admin pure helpers +
+      //                                createFyndClientOrError branches —
+      //                                37 tests)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 32,
+        statements: 33,
         branches: 21,
         functions: 25,
         lines: 33,

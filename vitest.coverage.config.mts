@@ -88,13 +88,16 @@ export default defineConfig({
       //   Phase 1 batch 19:  33.97% (+ api.portal.cancel-return state
       //                                machine + api.scheduled-report cron —
       //                                36 tests)
+      //   Phase 1 batch 20:  35.08% (+ api.returns.export CSV generation +
+      //                                api.returns.bulk three bulk action
+      //                                types — 30 tests, +1.11pp)
       //   ^ this release
       // See COVERAGE.md for the phase plan and next targets.
       thresholds: {
-        statements: 33,
+        statements: 35,
         branches: 22,
-        functions: 25,
-        lines: 34,
+        functions: 26,
+        lines: 35,
       },
     },
   },

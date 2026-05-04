@@ -161,8 +161,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const customerNotes = (body.customerNotes as string | undefined)?.trim();
     const customerMediaRaw = body.customerMedia as Array<{ name?: string; mimeType?: string; size?: number; dataUrl?: string }> | undefined;
     const currencyCode = (body.currency as string | undefined)?.trim().toUpperCase().slice(0, 10) || null;
-    const resolutionType = (body.resolutionType as string | undefined) === "exchange" ? "exchange" : "refund";
-    const exchangePreference = resolutionType === "exchange"
+    const rawResolutionType = (body.resolutionType as string | undefined)?.trim().toLowerCase();
+    const resolutionType =
+      rawResolutionType === "exchange" || rawResolutionType === "replacement" || rawResolutionType === "store_credit"
+        ? rawResolutionType
+        : "refund";
+    const exchangePreference = resolutionType === "exchange" || resolutionType === "replacement"
       ? (body.exchangePreference as string | undefined)?.trim().slice(0, 500) || null
       : null;
     // Structured variant selections from the portal exchange picker. We accept it as a
@@ -565,40 +569,118 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // as long as there is remaining quantity for the requested line items.
     // This replaces the old blanket duplicate check that blocked ALL returns
     // for an order if any non-terminal return existed.
+    //
+    // For Fynd multi-shipment orders we ALSO check per-(shipmentId, bagId).
+    // The Shopify line-item-level check is too coarse: when a 3-qty product
+    // is split across 3 shipments (1 bag each), the line-item-level check
+    // permits all 3 bags through (alreadyReturned=2, qty=1, originalQty=3).
+    // The bag-level check stops a customer from re-selecting a specific bag
+    // that's already in an active return — which is the actual intent.
     if (!manualMode && itemsToCreate.length > 0 && effectiveOrderId && !effectiveOrderId.startsWith("manual:")) {
       const preCheckLineItemIds = itemsToCreate.map((it) => it.lineItemId).filter((id) => id !== "manual");
-      if (preCheckLineItemIds.length > 0) {
+      const preCheckBagIds = itemsToCreate.map((it) => it.fyndBagId).filter(Boolean) as string[];
+      const preCheckShipmentIds = [...new Set(itemsToCreate.map((it) => it.fyndShipmentId).filter(Boolean) as string[])];
+
+      if (preCheckLineItemIds.length > 0 || preCheckBagIds.length > 0) {
+        const orFilters: Array<Record<string, unknown>> = [];
+        if (preCheckLineItemIds.length > 0) {
+          orFilters.push({ shopifyLineItemId: { in: preCheckLineItemIds } });
+        }
+        if (preCheckBagIds.length > 0) {
+          orFilters.push({ fyndBagId: { in: preCheckBagIds } });
+        }
+        if (preCheckShipmentIds.length > 0) {
+          orFilters.push({ fyndShipmentId: { in: preCheckShipmentIds } });
+        }
         const existingReturnItems = await prisma.returnItem.findMany({
           where: {
-            shopifyLineItemId: { in: preCheckLineItemIds },
+            ...(orFilters.length > 0 ? { OR: orFilters } : {}),
             returnCase: {
               shopId: shopRecord.id,
               shopifyOrderId: effectiveOrderId,
               status: { notIn: ["rejected", "cancelled"] },
             },
           },
-          select: { shopifyLineItemId: true, qty: true },
+          select: {
+            shopifyLineItemId: true,
+            fyndShipmentId: true,
+            fyndBagId: true,
+            sku: true,
+            qty: true,
+          },
         });
+
         const preAlreadyReturnedMap: Record<string, number> = {};
+        // Bag-level: key = `${shipmentId}::${bagId}` — exact one-bag-per-return guarantee.
+        const bagAlreadyReturnedMap: Record<string, number> = {};
+        // SKU-level per shipment fallback: key = `${shipmentId}::sku:${sku}` — used when
+        // the DB has resolved bagId away into a Shopify GID and exact bag matching fails.
+        const shipmentSkuAlreadyReturnedMap: Record<string, number> = {};
         for (const ri of existingReturnItems) {
           if (ri.shopifyLineItemId) {
             preAlreadyReturnedMap[ri.shopifyLineItemId] = (preAlreadyReturnedMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
           }
+          if (ri.fyndShipmentId && ri.fyndBagId) {
+            const k = `${ri.fyndShipmentId}::${ri.fyndBagId}`;
+            bagAlreadyReturnedMap[k] = (bagAlreadyReturnedMap[k] ?? 0) + ri.qty;
+          }
+          if (ri.fyndShipmentId && ri.sku) {
+            const k = `${ri.fyndShipmentId}::sku:${ri.sku.toLowerCase().trim()}`;
+            shipmentSkuAlreadyReturnedMap[k] = (shipmentSkuAlreadyReturnedMap[k] ?? 0) + ri.qty;
+          }
         }
+
         const lineItemEstimates = (body.lineItemEstimates ?? []) as Array<{ lineItemId: string; quantity: number }>;
+        // Track requested qtys within this submission so two items targeting the
+        // same bag in one POST can't bypass the per-bag cap individually.
+        const requestedBagMap: Record<string, number> = {};
         for (const sel of itemsToCreate) {
           if (sel.lineItemId === "manual") continue;
+          const liInfo = (body.lineItemsWithPrice as Array<{ id: string; title?: string; quantity?: number; sku?: string }> | undefined)
+            ?.find((l) => l.id === sel.lineItemId);
+          const itemTitle = liInfo?.title ?? sel.lineItemId;
+
+          // (a) Bag-level cap (Fynd multi-shipment).
+          if (sel.fyndShipmentId && sel.fyndBagId) {
+            const bagKey = `${sel.fyndShipmentId}::${sel.fyndBagId}`;
+            const bagCapacity = typeof sel.fyndQuantityAvailable === "number" && sel.fyndQuantityAvailable > 0
+              ? sel.fyndQuantityAvailable
+              : (liInfo?.quantity ?? 1);
+            const bagReturned = bagAlreadyReturnedMap[bagKey] ?? 0;
+            requestedBagMap[bagKey] = (requestedBagMap[bagKey] ?? 0) + sel.qty;
+            if (bagReturned + requestedBagMap[bagKey] > bagCapacity) {
+              return withCors(
+                Response.json({
+                  error: `"${itemTitle}" is already in an active return for shipment ${sel.fyndShipmentId}. Please refresh the page — only un-returned items can be selected.`,
+                }, { status: 400 }),
+                request,
+              );
+            }
+          } else if (sel.fyndShipmentId && liInfo?.sku) {
+            // SKU-fallback for Fynd shipments where bagId got resolved away.
+            const skuKey = `${sel.fyndShipmentId}::sku:${liInfo.sku.toLowerCase().trim()}`;
+            const skuReturned = shipmentSkuAlreadyReturnedMap[skuKey] ?? 0;
+            const cap = liInfo.quantity ?? 999;
+            if (skuReturned + sel.qty > cap) {
+              return withCors(
+                Response.json({
+                  error: `"${itemTitle}" is already in an active return for this shipment. Please refresh and select a different bag.`,
+                }, { status: 400 }),
+                request,
+              );
+            }
+          }
+
+          // (b) Order-level line-item cap (existing behaviour, kept for non-Fynd shops
+          // and as a backstop).
           const alreadyReturned = preAlreadyReturnedMap[sel.lineItemId] ?? 0;
           const originalQty = lineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity
-            ?? (body.lineItemsWithPrice as Array<{ id: string; quantity?: number }> | undefined)
-              ?.find((l) => l.id === sel.lineItemId)?.quantity
+            ?? liInfo?.quantity
             ?? 999;
           if (alreadyReturned + sel.qty > originalQty) {
-            const liInfo = (body.lineItemsWithPrice as Array<{ id: string; title?: string }> | undefined)
-              ?.find((l) => l.id === sel.lineItemId);
             return withCors(
               Response.json({
-                error: `Return quantity exceeds available for "${liInfo?.title ?? sel.lineItemId}". ${alreadyReturned} already in return, ${sel.qty} requested, but only ${originalQty} ordered.`,
+                error: `Return quantity exceeds available for "${itemTitle}". ${alreadyReturned} already in return, ${sel.qty} requested, but only ${originalQty} ordered.`,
               }, { status: 400 }),
               request,
             );

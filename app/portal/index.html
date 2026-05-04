@@ -5139,7 +5139,17 @@
               '</div>';
             var perShipMap = shipmentQtyMap[ship.shipmentId] || {};
             var itemsHtml = (ship.items || []).map(function(li) {
-              var retQty = perShipMap[li.id] || (createOrderData._returnedQtyMap || {})[li.id] || 0;
+              // Each row in a Fynd shipment is a single bag (li.bagId is unique per bag).
+              // Look up returned-qty by bagId first; fall back to li.id (legacy shopifyLineItemId)
+              // and SKU so already-returned bags still disable correctly when the DB has
+              // resolved the bagId to a Shopify GID.
+              var bagKey = li.bagId || li.id;
+              var skuKey = li.sku ? ('sku:' + String(li.sku).toLowerCase().trim()) : null;
+              var retQty = perShipMap[bagKey]
+                || perShipMap[li.id]
+                || (skuKey ? perShipMap[skuKey] : 0)
+                || (createOrderData._returnedQtyMap || {})[li.id]
+                || 0;
               var disabled = !isEligible;
               if (disabled) {
                 return '<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:#F9FAFB;opacity:0.5;">' +

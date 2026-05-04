@@ -1034,15 +1034,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               status: { notIn: ["rejected", "cancelled"] },
             },
           },
-          select: { fyndShipmentId: true, shopifyLineItemId: true, qty: true },
+          select: {
+            fyndShipmentId: true,
+            shopifyLineItemId: true,
+            fyndBagId: true,
+            sku: true,
+            qty: true,
+          },
         });
+        // The portal's per-shipment item rows are keyed by `li.id`, which for Fynd
+        // synthetic orders is the `bag_id` (each shipment-bag is uniquely identifiable).
+        // The DB's shopifyLineItemId, however, may be either:
+        //   - the original Fynd bag_id (when create-return couldn't resolve to a Shopify GID), or
+        //   - a Shopify Order LineItem GID (when resolution succeeded).
+        // To prevent customers from re-selecting an already-returned bag, we
+        // populate the map under multiple keys per row (bagId, shopifyLineItemId,
+        // and SKU). This covers both single-bag and multi-bag-same-SKU shipments
+        // where two bags share the same Shopify line item GID — they MUST be
+        // distinguished by bag, not by line item.
         for (const ri of shipmentReturnItems) {
-          if (!ri.fyndShipmentId || !ri.shopifyLineItemId) continue;
+          if (!ri.fyndShipmentId) continue;
           if (!shipmentReturnedQtyMap[ri.fyndShipmentId]) {
             shipmentReturnedQtyMap[ri.fyndShipmentId] = {};
           }
-          shipmentReturnedQtyMap[ri.fyndShipmentId][ri.shopifyLineItemId] =
-            (shipmentReturnedQtyMap[ri.fyndShipmentId][ri.shopifyLineItemId] ?? 0) + ri.qty;
+          const bucket = shipmentReturnedQtyMap[ri.fyndShipmentId];
+          if (ri.fyndBagId) {
+            bucket[ri.fyndBagId] = (bucket[ri.fyndBagId] ?? 0) + ri.qty;
+          }
+          if (ri.shopifyLineItemId) {
+            bucket[ri.shopifyLineItemId] = (bucket[ri.shopifyLineItemId] ?? 0) + ri.qty;
+          }
+          if (ri.sku) {
+            const skuKey = `sku:${ri.sku.toLowerCase().trim()}`;
+            bucket[skuKey] = (bucket[skuKey] ?? 0) + ri.qty;
+          }
         }
       } catch { /* non-fatal */ }
     }

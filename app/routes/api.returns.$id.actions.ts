@@ -2,7 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { redirect } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { createRefund, createShopifyReturn, closeShopifyReturnBestEffort, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import { createRefund, createShopifyReturn, closeShopifyReturnBestEffort, fetchOrder, fetchOrderByGid, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, fetchOrderLineItemsOnly, fetchOrderLineItemsByName, withRestCredentials, fetchVariantInfo, sendDraftOrderInvoice, type RefundMethodConfig, type ShopifyVariantInfo } from "../lib/shopify-admin.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
 import { sendRejectionNotification, sendApprovalNotification, sendRefundNotification, sendCustomerNoteNotification, sendCancellationNotification, sendCancellationDeclinedNotification } from "../lib/notification.server";
@@ -1564,8 +1564,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         // Close the Shopify return after standard refund
         await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
 
-        // Sync refund status to Fynd (push credit_note_generated) if enabled
-        if (shop.settings?.syncRefundToFynd && returnCase.fyndShipmentId) {
+        // Sync refund status to Fynd. The full lifecycle for a refund is:
+        //   return_bag_delivered → return_accepted → credit_note_generated
+        // Some sellers expect us to push BOTH return_accepted (the warehouse
+        // formally accepting the bag) and credit_note_generated (refund posted)
+        // when the admin clicks Process Refund — otherwise the Fynd shipment
+        // stays at "delivered" and the credit note never spawns.
+        //
+        // We always attempt the sync when the return has a Fynd shipment ID;
+        // the legacy `syncRefundToFynd` opt-in flag was an ergonomic dead-end
+        // because non-Fynd shops never reach this branch (no fyndShipmentId)
+        // and Fynd shops universally need the transition.
+        if (returnCase.fyndShipmentId) {
           try {
             const fyndClientResult = await createFyndClientOrError(
               shop.settings as Parameters<typeof createFyndClientOrError>[0],
@@ -1574,20 +1584,70 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             if (fyndClientResult.ok && "updateShipmentStatus" in fyndClientResult.client) {
               const fyndClient = fyndClientResult.client as import("../lib/fynd.server").FyndPlatformClient;
               const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
-              await fyndClient.updateShipmentStatus(callId, {
-                statuses: [{
-                  shipments: [{ identifier: returnCase.fyndShipmentId }],
-                  status: "credit_note_generated",
-                }],
-                task: false,
-                force_transition: false,
-                lock_after_transition: false,
-                unlock_before_transition: false,
-              });
-              refundLogger.info({ shipmentId: returnCase.fyndShipmentId }, "[process_refund] Fynd credit_note_generated synced");
-              await prisma.returnEvent.create({
-                data: { returnCaseId: id, source: "admin", eventType: "fynd_refund_synced", payloadJson: JSON.stringify({ status: "credit_note_generated", shipmentId: returnCase.fyndShipmentId }) },
-              }).catch(() => {});
+              const currentFyndStatus = (returnCase.fyndCurrentStatus || "").toLowerCase();
+              const transitions: Array<{ status: string; from: string }> = [];
+              // Step 1: return_accepted — only push if not already past it.
+              if (![
+                "return_accepted", "credit_note_generated",
+                "refund_initiated", "refund_done", "refund_completed",
+                "return_completed",
+              ].includes(currentFyndStatus)) {
+                transitions.push({ status: "return_accepted", from: currentFyndStatus });
+              }
+              // Step 2: credit_note_generated — always push (idempotent on Fynd's side
+              // when already at this status; force_transition=false keeps it safe).
+              transitions.push({ status: "credit_note_generated", from: currentFyndStatus });
+
+              const successfulTransitions: string[] = [];
+              const failedTransitions: Array<{ status: string; error: string }> = [];
+              for (const t of transitions) {
+                try {
+                  await fyndClient.updateShipmentStatus(callId, {
+                    statuses: [{
+                      shipments: [{ identifier: returnCase.fyndShipmentId }],
+                      status: t.status,
+                    }],
+                    task: false,
+                    force_transition: false,
+                    lock_after_transition: false,
+                    unlock_before_transition: false,
+                  });
+                  successfulTransitions.push(t.status);
+                  refundLogger.info({ shipmentId: returnCase.fyndShipmentId, status: t.status }, "[process_refund] Fynd status pushed");
+                } catch (transitionErr) {
+                  const errMsg = transitionErr instanceof Error ? transitionErr.message : String(transitionErr);
+                  failedTransitions.push({ status: t.status, error: errMsg });
+                  refundLogger.warn({ err: transitionErr, status: t.status }, "[process_refund] Fynd status transition failed (non-fatal)");
+                }
+              }
+
+              if (successfulTransitions.length > 0) {
+                await prisma.returnEvent.create({
+                  data: {
+                    returnCaseId: id,
+                    source: "admin",
+                    eventType: "fynd_refund_synced",
+                    payloadJson: JSON.stringify({
+                      transitions: successfulTransitions,
+                      shipmentId: returnCase.fyndShipmentId,
+                      ...(failedTransitions.length > 0 ? { partialFailures: failedTransitions } : {}),
+                    }),
+                  },
+                }).catch(() => {});
+              }
+              if (failedTransitions.length > 0 && successfulTransitions.length === 0) {
+                await prisma.returnEvent.create({
+                  data: {
+                    returnCaseId: id,
+                    source: "admin",
+                    eventType: "fynd_refund_sync_failed",
+                    payloadJson: JSON.stringify({
+                      shipmentId: returnCase.fyndShipmentId,
+                      failures: failedTransitions,
+                    }),
+                  },
+                }).catch(() => {});
+              }
             }
           } catch (fyndErr) {
             refundLogger.warn({ err: fyndErr }, "[process_refund] Fynd refund sync best-effort failed");
@@ -1670,11 +1730,12 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           return Response.json({ error: "Cannot create exchange for manual returns" }, { status: 400 });
         }
 
-        // Fynd status gate: exchange order can only be created after bag is received at warehouse
+        // Fynd status gate: exchange order can only be created after bag is received at warehouse.
         const FYND_EXCHANGE_ALLOWED_STATUSES = new Set([
           "return_bag_delivered", "return_accepted", "rto_bag_accepted", "deadstock",
           "refund_approved", "refund_initiated", "refund_completed", "return_completed",
           "deadstock_defective", "return_bag_lost", "rto_bag_delivered",
+          "credit_note_generated",
         ]);
         if (returnCase.fyndReturnId) {
           let fyndCurrentStatus: string | null = null;
@@ -1682,6 +1743,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             const payload = returnCase.fyndPayloadJson ? JSON.parse(returnCase.fyndPayloadJson) as Record<string, unknown> : null;
             fyndCurrentStatus = payload?.status ? String(payload.status) : null;
           } catch { /* ignore */ }
+          if (!fyndCurrentStatus && returnCase.fyndCurrentStatus) {
+            fyndCurrentStatus = returnCase.fyndCurrentStatus;
+          }
           if (fyndCurrentStatus && !FYND_EXCHANGE_ALLOWED_STATUSES.has(fyndCurrentStatus)) {
             returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
             return Response.json({
@@ -1704,45 +1768,194 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const customerEmail = order.email;
         if (!customerEmail) {
           returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
-          return Response.json({ error: "Original order has no customer email - cannot create exchange draft order" }, { status: 400 });
+          return Response.json({ error: "Original order has no customer email — cannot create exchange order" }, { status: 400 });
         }
 
-        const lineItemsForExchange = (returnCase.items ?? [])
-          .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
-          .map((item) => {
-            const shopifyItem = (order.lineItems ?? []).find((li) =>
-              li.id === item.shopifyLineItemId ||
-              (li.sku && item.sku && li.sku.toLowerCase() === item.sku.toLowerCase())
-            );
-            return {
-              title: item.title || shopifyItem?.title || item.sku || "Item",
-              quantity: item.qty,
-              originalUnitPrice: shopifyItem?.price || item.price || "0.00",
-            };
+        // ── Pull structured exchange variant selections from the portal ──────
+        // The portal's create-return endpoint persists the customer's variant
+        // picks as a `payloadJson.exchangeVariants` array on the `initiated`
+        // (or `auto_approved`) event. We read the most recent such payload so:
+        //   - re-runs after admin edits pick up the latest selection
+        //   - older returns without any selections still fall through cleanly
+        //     to the legacy "reship the original SKU at original price" path.
+        type PortalExchangeVariant = { lineItemId?: string; productId?: string; variantId?: string; variantTitle?: string };
+        let portalVariants: PortalExchangeVariant[] = [];
+        try {
+          const events = await prisma.returnEvent.findMany({
+            where: { returnCaseId: id },
+            orderBy: { happenedAt: "desc" },
+            take: 25,
           });
+          for (const ev of events) {
+            if (!ev.payloadJson) continue;
+            try {
+              const parsed = JSON.parse(ev.payloadJson) as { exchangeVariants?: PortalExchangeVariant[] };
+              if (Array.isArray(parsed.exchangeVariants) && parsed.exchangeVariants.length > 0) {
+                portalVariants = parsed.exchangeVariants;
+                break;
+              }
+            } catch { /* ignore malformed event */ }
+          }
+        } catch { /* non-fatal — fall through to legacy path */ }
 
-        if (lineItemsForExchange.length === 0) {
+        // Build "original returned items" map first; we need it in both paths
+        // for price-diff math + line-item association.
+        const returnedItems = (returnCase.items ?? [])
+          .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual");
+        if (returnedItems.length === 0) {
           returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
           return Response.json({ error: "No line items available for exchange" }, { status: 400 });
         }
 
+        type ResolvedExchangeLine = {
+          // Original returned item context (always present)
+          returnedTitle: string;
+          returnedQty: number;
+          returnedUnitPrice: string;
+          returnedLineItemId: string;
+          returnedSku: string | null;
+          // Replacement variant (when customer picked one)
+          replacementVariantId: string | null;
+          replacementTitle: string;
+          replacementUnitPrice: string;
+          replacementSku: string | null;
+          replacementImageUrl: string | null;
+          replacementInventoryAvailable: number | null; // null = not tracked
+        };
+
+        const variantIdsToFetch = portalVariants
+          .map((v) => v.variantId)
+          .filter((v): v is string => typeof v === "string" && v.startsWith("gid://shopify/ProductVariant/"));
+        const variantInfoMap = variantIdsToFetch.length > 0
+          ? await fetchVariantInfo(admin, variantIdsToFetch)
+          : new Map<string, ShopifyVariantInfo>();
+
+        const exchangeLines: ResolvedExchangeLine[] = returnedItems.map((item) => {
+          const shopifyItem = (order.lineItems ?? []).find((li) =>
+            li.id === item.shopifyLineItemId ||
+            (li.sku && item.sku && li.sku.toLowerCase() === item.sku.toLowerCase())
+          );
+          const returnedTitle = item.title || shopifyItem?.title || item.sku || "Item";
+          const returnedUnitPrice = shopifyItem?.price || item.price || "0.00";
+
+          // Match a portal variant pick to this line item by lineItemId first,
+          // then by ordinal fallback for legacy callers that didn't include lineItemId.
+          const matchedPick = portalVariants.find((v) => v.lineItemId && v.lineItemId === item.shopifyLineItemId)
+            ?? (portalVariants.length === returnedItems.length
+              ? portalVariants[returnedItems.indexOf(item)]
+              : undefined);
+          const variantInfo = matchedPick?.variantId ? variantInfoMap.get(matchedPick.variantId) : undefined;
+
+          return {
+            returnedTitle,
+            returnedQty: item.qty,
+            returnedUnitPrice,
+            returnedLineItemId: item.shopifyLineItemId,
+            returnedSku: item.sku ?? shopifyItem?.sku ?? null,
+            replacementVariantId: variantInfo?.id ?? matchedPick?.variantId ?? null,
+            replacementTitle: variantInfo
+              ? `${variantInfo.productTitle ?? returnedTitle}${variantInfo.variantTitle && variantInfo.variantTitle !== "Default Title" ? ` — ${variantInfo.variantTitle}` : ""}`
+              : (matchedPick?.variantTitle || returnedTitle),
+            replacementUnitPrice: variantInfo?.price ?? returnedUnitPrice,
+            replacementSku: variantInfo?.sku ?? null,
+            replacementImageUrl: variantInfo?.imageUrl ?? null,
+            replacementInventoryAvailable: variantInfo?.inventoryAvailable ?? null,
+          };
+        });
+
+        // ── Inventory pre-check ─────────────────────────────────────────────
+        // Bail out BEFORE touching Shopify mutations if any picked variant
+        // doesn't have enough stock. We still allow exchanges where the
+        // customer kept the original SKU (no replacementVariantId), since the
+        // legacy flow shipped without checking either.
+        const stockoutLines: Array<{ title: string; required: number; available: number }> = [];
+        for (const line of exchangeLines) {
+          if (!line.replacementVariantId) continue;
+          const inv = line.replacementInventoryAvailable;
+          if (inv != null && inv < line.returnedQty) {
+            stockoutLines.push({
+              title: line.replacementTitle,
+              required: line.returnedQty,
+              available: Math.max(0, inv),
+            });
+          }
+        }
+        if (stockoutLines.length > 0) {
+          const human = stockoutLines.map((s) => `${s.title} (need ${s.required}, only ${s.available} in stock)`).join("; ");
+          returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
+          await prisma.returnEvent.create({
+            data: {
+              returnCaseId: id,
+              source: "admin",
+              eventType: "exchange_inventory_blocked",
+              payloadJson: JSON.stringify({ stockoutLines }),
+            },
+          }).catch(() => {});
+          return Response.json({
+            error: `Cannot create exchange — selected variants are out of stock: ${human}. Restock or pick a different variant.`,
+            stockoutLines,
+          }, { status: 409 });
+        }
+
+        // ── Price-diff calculation ──────────────────────────────────────────
+        const originalSubtotal = exchangeLines.reduce((s, l) => s + (parseFloat(l.returnedUnitPrice) || 0) * l.returnedQty, 0);
+        const replacementSubtotal = exchangeLines.reduce((s, l) => s + (parseFloat(l.replacementUnitPrice) || 0) * l.returnedQty, 0);
+        const priceDiff = +(replacementSubtotal - originalSubtotal).toFixed(2);
+        // Currency: order currency wins; fall back to return case currency, then USD.
+        const orderCurrency = (order as { currencyCode?: string | null }).currencyCode ?? returnCase.currency ?? "USD";
+
+        // ── Create the draft order ──────────────────────────────────────────
+        // Strategy:
+        //   priceDiff <= 0  → 100% applied discount on the new line items so the
+        //                     order total is $0; complete the draft as a real Order.
+        //                     If priceDiff < 0 (cheaper variant) we ALSO refund the
+        //                     absolute difference on the original order.
+        //   priceDiff > 0   → leave the line items at full price; complete the
+        //                     draft as paymentPending=TRUE and send the customer
+        //                     a Shopify-hosted invoice email with a payment link.
+        const customerOwesDifference = priceDiff > 0;
+        const customerGetsRefund = priceDiff < 0;
+
+        const draftLineItems = exchangeLines.map((line) => {
+          const base: Record<string, unknown> = { quantity: line.returnedQty };
+          if (line.replacementVariantId) {
+            base.variantId = line.replacementVariantId;
+          } else {
+            base.title = line.replacementTitle;
+            base.originalUnitPrice = line.replacementUnitPrice;
+            if (line.replacementSku) base.sku = line.replacementSku;
+          }
+          if (!customerOwesDifference) {
+            base.appliedDiscount = {
+              valueType: "PERCENTAGE",
+              value: 100.0,
+              title: "Exchange (no charge)",
+              description: "Exchange settlement — replacement at no additional charge",
+            };
+          }
+          return base;
+        });
+
         const DRAFT_ORDER_CREATE = `#graphql
           mutation draftOrderCreate($input: DraftOrderInput!) {
             draftOrderCreate(input: $input) {
-              draftOrder { id name }
+              draftOrder { id name invoiceUrl totalPrice }
               userErrors { field message }
             }
           }
         `;
 
-        const draftInput = {
+        const draftInput: Record<string, unknown> = {
           email: customerEmail,
+          tags: ["exchange", `rpm-exchange-${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id}`],
           note: `Exchange for return ${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id} (Order ${returnCase.shopifyOrderName || ""})`,
-          lineItems: lineItemsForExchange.map((li) => ({
-            title: li.title,
-            quantity: li.quantity,
-            originalUnitPrice: li.originalUnitPrice,
-          })),
+          customAttributes: [
+            { key: "rpm_exchange_for", value: returnCase.shopifyOrderName || "" },
+            { key: "rpm_return_id", value: returnCase.id },
+            { key: "rpm_price_diff", value: priceDiff.toFixed(2) },
+            { key: "rpm_price_diff_currency", value: orderCurrency },
+          ],
+          lineItems: draftLineItems,
           ...(order.shippingAddress && {
             shippingAddress: {
               address1: order.shippingAddress.address1 || undefined,
@@ -1762,17 +1975,13 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         const draftJson = (await draftRes.json()) as {
           data?: {
             draftOrderCreate?: {
-              draftOrder?: { id: string; name: string } | null;
+              draftOrder?: { id: string; name: string; invoiceUrl?: string | null; totalPrice?: string | null } | null;
               userErrors?: Array<{ field?: string[]; message: string }>;
             };
           };
           errors?: Array<{ message: string }>;
         };
 
-        // Top-level GraphQL errors (e.g. "Access denied for draftOrderCreate field. Required
-        // access: 'write_draft_orders' access scope or 'write_quick_sale' access scope.")
-        // are NOT surfaced via userErrors — handle them explicitly so merchants get a clear
-        // remediation hint instead of a generic 500.
         if (Array.isArray(draftJson.errors) && draftJson.errors.length > 0) {
           const topErr = draftJson.errors.map((e) => e.message).join("; ");
           const scopeError = /access scope|write_draft_orders|write_quick_sale|access denied/i.test(topErr);
@@ -1780,7 +1989,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           return Response.json({
             error: scopeError
               ? "This app needs the \"write_draft_orders\" permission to create an exchange order. Please reinstall the app or accept the updated permissions when prompted, then try again."
-              : `Failed to create exchange draft order: ${topErr}`,
+              : `Failed to create exchange order: ${topErr}`,
           }, { status: scopeError ? 403 : 400 });
         }
 
@@ -1788,34 +1997,130 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         if (userErrors.length > 0) {
           const errMsg = userErrors.map((e) => e.message).join("; ");
           returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
-          // Detect the missing-scope error specifically and give the merchant an actionable
-          // message rather than a raw GraphQL field-error string.
           const scopeError = /access scope|write_draft_orders|write_quick_sale|access denied/i.test(errMsg);
-          const friendly = scopeError
-            ? "This app needs the \"write_draft_orders\" permission to create an exchange order. Please reinstall the app or accept the updated permissions when prompted, then try again."
-            : `Failed to create exchange draft order: ${errMsg}`;
-          return Response.json({ error: friendly }, { status: 400 });
+          return Response.json({
+            error: scopeError
+              ? "This app needs the \"write_draft_orders\" permission to create an exchange order. Please reinstall the app or accept the updated permissions when prompted, then try again."
+              : `Failed to create exchange draft order: ${errMsg}`,
+          }, { status: 400 });
         }
 
         const draftOrder = draftJson.data?.draftOrderCreate?.draftOrder;
         if (!draftOrder?.id) {
           returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
-          return Response.json({ error: "Failed to create exchange draft order - no order returned" }, { status: 500 });
+          return Response.json({ error: "Failed to create exchange draft order — no order returned" }, { status: 500 });
         }
 
-        const exchangeItemsData = lineItemsForExchange.map((li) => ({
-          title: li.title,
-          quantity: li.quantity,
-          price: li.originalUnitPrice,
+        // ── Branch on price-diff sign ───────────────────────────────────────
+        let realOrderId: string | null = null;
+        let realOrderName: string | null = null;
+        let invoiceUrl: string | null = null;
+        let downstreamFlow: "completed_free" | "completed_with_refund" | "invoice_pending";
+        let completeError: string | null = null;
+        let refundResult: { success: boolean; refundId?: string; amount?: string; error?: string } | null = null;
+
+        if (customerOwesDifference) {
+          // Send the Shopify-hosted invoice email; keep the draft open until paid.
+          const invoiceRes = await sendDraftOrderInvoice(
+            admin,
+            draftOrder.id,
+            customerEmail,
+            `Complete your exchange for ${returnCase.shopifyOrderName || "your order"}`,
+            `Your exchange items have a price difference of ${priceDiff.toFixed(2)} ${orderCurrency}. Click the link below to pay and we'll ship your replacement.`,
+          );
+          if (invoiceRes.success) {
+            invoiceUrl = invoiceRes.invoiceUrl ?? null;
+          } else {
+            // Non-fatal — admin can resend from Shopify Admin. Surface in event.
+            refundLogger.warn({ err: invoiceRes.error }, "[process_exchange] Invoice send failed (non-fatal)");
+          }
+          downstreamFlow = "invoice_pending";
+        } else {
+          // Complete the draft into a real Order (no payment due thanks to 100% discount).
+          const DRAFT_ORDER_COMPLETE = `#graphql
+            mutation draftOrderComplete($id: ID!) {
+              draftOrderComplete(id: $id, paymentPending: false) {
+                draftOrder { id name order { id name } }
+                userErrors { field message }
+              }
+            }
+          `;
+          try {
+            const completeRes = await admin.graphql(DRAFT_ORDER_COMPLETE, { variables: { id: draftOrder.id } });
+            const completeJson = (await completeRes.json()) as {
+              data?: {
+                draftOrderComplete?: {
+                  draftOrder?: { id: string; name: string; order?: { id: string; name: string } | null } | null;
+                  userErrors?: Array<{ field?: string[]; message: string }>;
+                };
+              };
+              errors?: Array<{ message: string }>;
+            };
+            const cuErrors = completeJson.data?.draftOrderComplete?.userErrors ?? [];
+            if (Array.isArray(completeJson.errors) && completeJson.errors.length > 0) {
+              completeError = completeJson.errors.map((e) => e.message).join("; ");
+            } else if (cuErrors.length > 0) {
+              completeError = cuErrors.map((e) => e.message).join("; ");
+            } else {
+              const completed = completeJson.data?.draftOrderComplete?.draftOrder?.order;
+              if (completed?.id) {
+                realOrderId = completed.id;
+                realOrderName = completed.name;
+              }
+            }
+          } catch (err) {
+            completeError = err instanceof Error ? err.message : String(err);
+          }
+
+          // Refund the negative diff (customer picked a cheaper replacement).
+          if (customerGetsRefund && returnCase.shopifyOrderId && !returnCase.shopifyOrderId.startsWith("manual:")) {
+            try {
+              const absDiff = Math.abs(priceDiff);
+              // Amount-only refund — no line items, no restock; the return goods
+              // path already handled inventory + return capture.
+              const result = await createRefund(
+                admin,
+                returnCase.shopifyOrderId,
+                [],
+                `Exchange price-difference refund for return ${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id}`,
+                undefined,
+                { method: "original" },
+                { skipLocation: true, transactionAmount: absDiff },
+              );
+              refundResult = {
+                success: result.success,
+                refundId: result.refundId,
+                amount: result.refundAmount,
+                error: result.error,
+              };
+            } catch (err) {
+              refundResult = { success: false, error: err instanceof Error ? err.message : String(err) };
+            }
+          }
+
+          downstreamFlow = customerGetsRefund ? "completed_with_refund" : "completed_free";
+        }
+
+        // ── Persist + audit ─────────────────────────────────────────────────
+        const exchangeItemsData = exchangeLines.map((line) => ({
+          returnedTitle: line.returnedTitle,
+          returnedQty: line.returnedQty,
+          returnedUnitPrice: line.returnedUnitPrice,
+          replacementTitle: line.replacementTitle,
+          replacementVariantId: line.replacementVariantId,
+          replacementUnitPrice: line.replacementUnitPrice,
+          replacementSku: line.replacementSku,
+          replacementImageUrl: line.replacementImageUrl,
         }));
 
         await prisma.returnCase.update({
           where: { id },
           data: {
             resolutionType: "exchange",
-            exchangeOrderId: draftOrder.id,
-            exchangeOrderName: draftOrder.name,
+            exchangeOrderId: realOrderId || draftOrder.id,
+            exchangeOrderName: realOrderName || draftOrder.name,
             exchangeItemsJson: JSON.stringify(exchangeItemsData),
+            exchangePriceDiff: priceDiff as unknown as never, // Decimal field accepts numeric string/number
           },
         });
 
@@ -1827,30 +2132,107 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
             payloadJson: JSON.stringify({
               draftOrderId: draftOrder.id,
               draftOrderName: draftOrder.name,
+              orderId: realOrderId,
+              orderName: realOrderName,
+              flow: downstreamFlow,
+              priceDiff,
+              currency: orderCurrency,
+              originalSubtotal: +originalSubtotal.toFixed(2),
+              replacementSubtotal: +replacementSubtotal.toFixed(2),
+              invoiceUrl: invoiceUrl ?? null,
+              variantIdsResolved: exchangeLines.filter((l) => l.replacementVariantId).length,
+              completeError,
+              refund: refundResult,
               itemCount: exchangeItemsData.length,
               adminEmail: sessionEmail,
             }),
           },
         });
-        // Close the Shopify return after exchange order creation
+
+        // ── Push Fynd return_completed (best-effort) ────────────────────────
+        // Once the exchange order exists, the Fynd shipment journey for the
+        // ORIGINAL bag should advance to return_completed so credit notes
+        // close out cleanly. Idempotent on Fynd's side; non-fatal if it errors.
+        if (returnCase.fyndShipmentId) {
+          try {
+            const fyndClientResult = await createFyndClientOrError(
+              shop.settings as Parameters<typeof createFyndClientOrError>[0],
+              { requirePlatform: true },
+            );
+            if (fyndClientResult.ok && "updateShipmentStatus" in fyndClientResult.client) {
+              const fyndClient = fyndClientResult.client as import("../lib/fynd.server").FyndPlatformClient;
+              const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
+              await fyndClient.updateShipmentStatus(callId, {
+                statuses: [{
+                  shipments: [{ identifier: returnCase.fyndShipmentId }],
+                  status: "return_completed",
+                }],
+                task: false,
+                force_transition: false,
+                lock_after_transition: false,
+                unlock_before_transition: false,
+              });
+              await prisma.returnEvent.create({
+                data: {
+                  returnCaseId: id,
+                  source: "admin",
+                  eventType: "fynd_exchange_synced",
+                  payloadJson: JSON.stringify({ status: "return_completed", shipmentId: returnCase.fyndShipmentId }),
+                },
+              }).catch(() => {});
+            }
+          } catch (fyndErr) {
+            refundLogger.warn({ err: fyndErr }, "[process_exchange] Fynd return_completed push failed (non-fatal)");
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: id,
+                source: "admin",
+                eventType: "fynd_exchange_sync_failed",
+                payloadJson: JSON.stringify({ error: fyndErr instanceof Error ? fyndErr.message : String(fyndErr), shipmentId: returnCase.fyndShipmentId }),
+              },
+            }).catch(() => {});
+          }
+        }
+
+        // Close the originating Shopify return now that exchange is in motion.
         await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
 
+        // ── Customer notification (rich, flow-aware) ────────────────────────
         if (returnCase.customerEmailNorm) {
+          const orderNameForEmail = returnCase.shopifyOrderName || "your order";
+          const shopName = session.shop?.replace(".myshopify.com", "");
+          let notes: string;
+          if (downstreamFlow === "invoice_pending") {
+            notes = `An exchange order (${draftOrder.name}) has been created. There's a price difference of ${priceDiff.toFixed(2)} ${orderCurrency} — we just emailed you a payment link. Once paid, your replacement will ship.`;
+          } else if (downstreamFlow === "completed_with_refund") {
+            const absDiff = Math.abs(priceDiff).toFixed(2);
+            notes = `An exchange order (${realOrderName || draftOrder.name}) has been created. Your replacement item costs ${absDiff} ${orderCurrency} less, so we've refunded the difference to your original payment method.`;
+          } else {
+            notes = `An exchange order (${realOrderName || draftOrder.name}) has been created at no additional charge. Your replacement will ship shortly.`;
+          }
           try {
             await sendApprovalNotification({
               shopDomain: session.shop,
               to: returnCase.customerEmailNorm,
-              orderName: returnCase.shopifyOrderName || "your order",
-              notes: `An exchange order (${draftOrder.name}) has been created for your return.`,
-              shopName: session.shop?.replace(".myshopify.com", ""),
+              orderName: orderNameForEmail,
+              notes,
+              shopName,
             });
           } catch (err) {
             refundLogger.warn({ err }, "[process_exchange] Notification failed");
           }
         }
 
-        addBusinessEvent("return.exchange_created", { "return.id": returnCase.id, "exchange.order_id": draftOrder.id, "exchange.order_name": draftOrder.name, "exchange.item_count": exchangeItemsData.length });
-        auditReturnAction("exchange_processed", returnCase.id, shop.shopDomain, { type: "admin", identity: sessionEmail || "shop-admin" }, { resolutionType: { from: returnCase.resolutionType || "refund", to: "exchange" } }, { draftOrderId: draftOrder.id, draftOrderName: draftOrder.name });
+        addBusinessEvent("return.exchange_created", {
+          "return.id": returnCase.id,
+          "exchange.order_id": realOrderId || draftOrder.id,
+          "exchange.order_name": realOrderName || draftOrder.name,
+          "exchange.flow": downstreamFlow,
+          "exchange.price_diff": priceDiff,
+          "exchange.currency": orderCurrency,
+          "exchange.item_count": exchangeItemsData.length,
+        });
+        auditReturnAction("exchange_processed", returnCase.id, shop.shopDomain, { type: "admin", identity: sessionEmail || "shop-admin" }, { resolutionType: { from: returnCase.resolutionType || "refund", to: "exchange" } }, { draftOrderId: draftOrder.id, orderId: realOrderId, flow: downstreamFlow, priceDiff });
         returnActionCounter.add(1, { action: "process_exchange", outcome: "success" });
         returnActionDuration.record(actionTimer(), { action: "process_exchange" });
         annotateSLO("api_latency_p99", { durationMs: elapsed() });
@@ -1877,6 +2259,411 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });
         appErrorCounter.add(1, { action: "process_exchange" });
         returnActionDuration.record(actionTimer(), { action: "process_exchange" });
+        return Response.json({ error: message }, { status: 500 });
+      }
+    });
+  }
+
+  if (actionType === "process_replacement") {
+    return await withSpan("return.action.process_replacement", {
+      "return.id": returnCase.id,
+      "return.request_no": returnCase.returnRequestNo || "",
+      "action.type": "process_replacement",
+    }, async (_span) => {
+      const actionTimer = startTimer();
+      try {
+        if (!["approved", "completed"].includes(returnCase.status.toLowerCase())) {
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({ error: "Return must be approved before processing replacement" }, { status: 400 });
+        }
+        if (returnCase.exchangeOrderId) {
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({ error: "A replacement order has already been created for this return" }, { status: 400 });
+        }
+        if (returnCase.shopifyOrderId?.startsWith("manual:")) {
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({ error: "Cannot create replacement for manual returns" }, { status: 400 });
+        }
+
+        // Same Fynd-status gate as exchange: bag must be received at warehouse before reshipping.
+        const FYND_REPLACEMENT_ALLOWED_STATUSES = new Set([
+          "return_bag_delivered", "return_accepted", "rto_bag_accepted", "deadstock",
+          "refund_approved", "refund_initiated", "refund_completed", "return_completed",
+          "deadstock_defective", "return_bag_lost", "rto_bag_delivered",
+          "credit_note_generated",
+        ]);
+        if (returnCase.fyndReturnId) {
+          let fyndCurrentStatus: string | null = null;
+          try {
+            const payload = returnCase.fyndPayloadJson ? JSON.parse(returnCase.fyndPayloadJson) as Record<string, unknown> : null;
+            fyndCurrentStatus = payload?.status ? String(payload.status) : null;
+          } catch { /* ignore */ }
+          if (fyndCurrentStatus && !FYND_REPLACEMENT_ALLOWED_STATUSES.has(fyndCurrentStatus)) {
+            returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+            return Response.json({
+              error: `Replacement order can only be created after the return bag is received at the warehouse. Current Fynd status: "${fyndCurrentStatus}". Wait until the status is "return_bag_delivered" or later.`,
+            }, { status: 400 });
+          }
+        }
+
+        const order = returnCase.shopifyOrderId
+          ? await fetchOrder(admin, returnCase.shopifyOrderId)
+          : returnCase.shopifyOrderName
+            ? await fetchOrderByOrderNumber(admin, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim())
+            : null;
+
+        if (!order) {
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({ error: "Could not fetch original order to create replacement" }, { status: 400 });
+        }
+
+        const customerEmail = order.email;
+        if (!customerEmail) {
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({ error: "Original order has no customer email — cannot create replacement order" }, { status: 400 });
+        }
+
+        // Build replacement line items from the return items, using the original order's
+        // variant IDs where possible so the reshipped product matches exactly. We reuse
+        // the same SKU + quantity the customer is returning — at zero net cost via a
+        // 100% applied discount so the merchant doesn't double-charge for a defective ship.
+        const replacementLineItems = (returnCase.items ?? [])
+          .filter((i) => !!i.shopifyLineItemId && i.shopifyLineItemId !== "manual")
+          .map((item) => {
+            const shopifyItem = (order.lineItems ?? []).find((li) =>
+              li.id === item.shopifyLineItemId ||
+              (li.sku && item.sku && li.sku.toLowerCase() === item.sku.toLowerCase())
+            );
+            const variantGid = (shopifyItem as { variantId?: string | null } | undefined)?.variantId
+              ?? (shopifyItem as { variant?: { id?: string } } | undefined)?.variant?.id
+              ?? null;
+            return {
+              variantId: variantGid,
+              title: item.title || shopifyItem?.title || item.sku || "Replacement item",
+              quantity: item.qty,
+              originalUnitPrice: shopifyItem?.price || item.price || "0.00",
+              sku: item.sku || (shopifyItem as { sku?: string | null } | undefined)?.sku || null,
+            };
+          });
+
+        if (replacementLineItems.length === 0) {
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({ error: "No line items available for replacement" }, { status: 400 });
+        }
+
+        // ── Inventory pre-check ─────────────────────────────────────────────
+        // Fail fast if any variant doesn't have enough stock — otherwise the
+        // warehouse gets a "fulfill this" task it can't satisfy.
+        const variantIdsForCheck = replacementLineItems
+          .map((l) => l.variantId)
+          .filter((v): v is string => typeof v === "string" && v.startsWith("gid://shopify/ProductVariant/"));
+        if (variantIdsForCheck.length > 0) {
+          const inventoryMap = await fetchVariantInfo(admin, variantIdsForCheck);
+          const stockoutLines: Array<{ title: string; required: number; available: number }> = [];
+          for (const line of replacementLineItems) {
+            if (!line.variantId) continue;
+            const info = inventoryMap.get(line.variantId);
+            if (info && info.inventoryAvailable != null && info.inventoryAvailable < line.quantity) {
+              stockoutLines.push({
+                title: line.title,
+                required: line.quantity,
+                available: Math.max(0, info.inventoryAvailable),
+              });
+            }
+          }
+          if (stockoutLines.length > 0) {
+            const human = stockoutLines.map((s) => `${s.title} (need ${s.required}, only ${s.available} in stock)`).join("; ");
+            returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: id,
+                source: "admin",
+                eventType: "replacement_inventory_blocked",
+                payloadJson: JSON.stringify({ stockoutLines }),
+              },
+            }).catch(() => {});
+            return Response.json({
+              error: `Cannot create replacement — items are out of stock: ${human}. Restock or process a refund instead.`,
+              stockoutLines,
+            }, { status: 409 });
+          }
+        }
+
+        const DRAFT_ORDER_CREATE = `#graphql
+          mutation draftOrderCreate($input: DraftOrderInput!) {
+            draftOrderCreate(input: $input) {
+              draftOrder { id name }
+              userErrors { field message }
+            }
+          }
+        `;
+
+        // 100% applied discount on each line item so the order total is $0 — the
+        // merchant doesn't recharge the customer for a free reshipment. We complete
+        // the draft as paymentPending=false so it converts into a real Order that
+        // appears under Shopify Orders (not just Drafts) and is fulfillable.
+        const draftInput = {
+          email: customerEmail,
+          tags: ["replacement", `rpm-replacement-${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id}`],
+          note: `Replacement for return ${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id} (Order ${returnCase.shopifyOrderName || ""}). No charge — same item reshipped to customer.`,
+          customAttributes: [
+            { key: "rpm_replacement_for", value: returnCase.shopifyOrderName || "" },
+            { key: "rpm_return_id", value: returnCase.id },
+          ],
+          lineItems: replacementLineItems.map((li) => {
+            const base: Record<string, unknown> = {
+              quantity: li.quantity,
+              appliedDiscount: {
+                valueType: "PERCENTAGE",
+                value: 100.0,
+                title: "Replacement (no charge)",
+                description: "Free replacement for returned defective/wrong item",
+              },
+            };
+            if (li.variantId) {
+              base.variantId = li.variantId;
+            } else {
+              base.title = li.title;
+              base.originalUnitPrice = li.originalUnitPrice;
+              if (li.sku) base.sku = li.sku;
+            }
+            return base;
+          }),
+          ...(order.shippingAddress && {
+            shippingAddress: {
+              address1: order.shippingAddress.address1 || undefined,
+              address2: order.shippingAddress.address2 || undefined,
+              city: order.shippingAddress.city || undefined,
+              province: order.shippingAddress.province || order.shippingAddress.provinceCode || undefined,
+              country: order.shippingAddress.country || order.shippingAddress.countryCode || undefined,
+              zip: order.shippingAddress.zip || undefined,
+              firstName: order.shippingAddress.firstName || undefined,
+              lastName: order.shippingAddress.lastName || undefined,
+              phone: order.shippingAddress.phone || undefined,
+            },
+          }),
+        };
+
+        const draftRes = await admin.graphql(DRAFT_ORDER_CREATE, { variables: { input: draftInput } });
+        const draftJson = (await draftRes.json()) as {
+          data?: {
+            draftOrderCreate?: {
+              draftOrder?: { id: string; name: string } | null;
+              userErrors?: Array<{ field?: string[]; message: string }>;
+            };
+          };
+          errors?: Array<{ message: string }>;
+        };
+
+        if (Array.isArray(draftJson.errors) && draftJson.errors.length > 0) {
+          const topErr = draftJson.errors.map((e) => e.message).join("; ");
+          const scopeError = /access scope|write_draft_orders|write_quick_sale|access denied/i.test(topErr);
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({
+            error: scopeError
+              ? "This app needs the \"write_draft_orders\" permission to create a replacement order. Please reinstall the app or accept the updated permissions when prompted, then try again."
+              : `Failed to create replacement order: ${topErr}`,
+          }, { status: scopeError ? 403 : 400 });
+        }
+
+        const userErrors = draftJson.data?.draftOrderCreate?.userErrors ?? [];
+        if (userErrors.length > 0) {
+          const errMsg = userErrors.map((e) => e.message).join("; ");
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          const scopeError = /access scope|write_draft_orders|write_quick_sale|access denied/i.test(errMsg);
+          return Response.json({
+            error: scopeError
+              ? "This app needs the \"write_draft_orders\" permission to create a replacement order. Please reinstall the app or accept the updated permissions when prompted, then try again."
+              : `Failed to create replacement draft order: ${errMsg}`,
+          }, { status: 400 });
+        }
+
+        const draftOrder = draftJson.data?.draftOrderCreate?.draftOrder;
+        if (!draftOrder?.id) {
+          returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+          return Response.json({ error: "Failed to create replacement draft order — no order returned" }, { status: 500 });
+        }
+
+        // Convert draft → real Order so it shows up under Shopify Admin > Orders
+        // and the warehouse can fulfill+ship it. paymentPending=false because the
+        // order total is $0 thanks to the 100% applied discount.
+        const DRAFT_ORDER_COMPLETE = `#graphql
+          mutation draftOrderComplete($id: ID!) {
+            draftOrderComplete(id: $id, paymentPending: false) {
+              draftOrder { id name order { id name } }
+              userErrors { field message }
+            }
+          }
+        `;
+        let realOrderId: string | null = null;
+        let realOrderName: string | null = null;
+        let completeError: string | null = null;
+        try {
+          const completeRes = await admin.graphql(DRAFT_ORDER_COMPLETE, { variables: { id: draftOrder.id } });
+          const completeJson = (await completeRes.json()) as {
+            data?: {
+              draftOrderComplete?: {
+                draftOrder?: { id: string; name: string; order?: { id: string; name: string } | null } | null;
+                userErrors?: Array<{ field?: string[]; message: string }>;
+              };
+            };
+            errors?: Array<{ message: string }>;
+          };
+          const completeUserErrors = completeJson.data?.draftOrderComplete?.userErrors ?? [];
+          if (Array.isArray(completeJson.errors) && completeJson.errors.length > 0) {
+            completeError = completeJson.errors.map((e) => e.message).join("; ");
+          } else if (completeUserErrors.length > 0) {
+            completeError = completeUserErrors.map((e) => e.message).join("; ");
+          } else {
+            const completedOrder = completeJson.data?.draftOrderComplete?.draftOrder?.order;
+            if (completedOrder?.id) {
+              realOrderId = completedOrder.id;
+              realOrderName = completedOrder.name;
+            }
+          }
+        } catch (err) {
+          completeError = err instanceof Error ? err.message : String(err);
+        }
+
+        // Persist whichever order we got. If completion failed, the draft is still
+        // there — admin can complete it manually in Shopify. Save the draft GID
+        // anyway so the UI shows the link and merchants don't lose track of it.
+        const replacementItemsData = replacementLineItems.map((li) => ({
+          title: li.title,
+          quantity: li.quantity,
+          price: "0.00",
+          originalUnitPrice: li.originalUnitPrice,
+          sku: li.sku,
+          variantId: li.variantId,
+        }));
+
+        await prisma.returnCase.update({
+          where: { id },
+          data: {
+            resolutionType: "replacement",
+            exchangeOrderId: realOrderId || draftOrder.id,
+            exchangeOrderName: realOrderName || draftOrder.name,
+            exchangeItemsJson: JSON.stringify(replacementItemsData),
+          },
+        });
+
+        await prisma.returnEvent.create({
+          data: {
+            returnCaseId: id,
+            source: "admin",
+            eventType: "replacement_created",
+            payloadJson: JSON.stringify({
+              draftOrderId: draftOrder.id,
+              draftOrderName: draftOrder.name,
+              orderId: realOrderId,
+              orderName: realOrderName,
+              completed: !!realOrderId,
+              completeError: completeError || undefined,
+              itemCount: replacementItemsData.length,
+              adminEmail: sessionEmail,
+            }),
+          },
+        });
+
+        // ── Push Fynd return_completed (best-effort) ────────────────────────
+        // Replacement, like exchange, settles the return — push the original
+        // bag to return_completed so Fynd accounting closes out cleanly.
+        if (returnCase.fyndShipmentId) {
+          try {
+            const fyndClientResult = await createFyndClientOrError(
+              shop.settings as Parameters<typeof createFyndClientOrError>[0],
+              { requirePlatform: true },
+            );
+            if (fyndClientResult.ok && "updateShipmentStatus" in fyndClientResult.client) {
+              const fyndClient = fyndClientResult.client as import("../lib/fynd.server").FyndPlatformClient;
+              const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
+              await fyndClient.updateShipmentStatus(callId, {
+                statuses: [{
+                  shipments: [{ identifier: returnCase.fyndShipmentId }],
+                  status: "return_completed",
+                }],
+                task: false,
+                force_transition: false,
+                lock_after_transition: false,
+                unlock_before_transition: false,
+              });
+              await prisma.returnEvent.create({
+                data: {
+                  returnCaseId: id,
+                  source: "admin",
+                  eventType: "fynd_replacement_synced",
+                  payloadJson: JSON.stringify({ status: "return_completed", shipmentId: returnCase.fyndShipmentId }),
+                },
+              }).catch(() => {});
+            }
+          } catch (fyndErr) {
+            refundLogger.warn({ err: fyndErr }, "[process_replacement] Fynd return_completed push failed (non-fatal)");
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: id,
+                source: "admin",
+                eventType: "fynd_replacement_sync_failed",
+                payloadJson: JSON.stringify({ error: fyndErr instanceof Error ? fyndErr.message : String(fyndErr), shipmentId: returnCase.fyndShipmentId }),
+              },
+            }).catch(() => {});
+          }
+        }
+
+        // Close the originating Shopify return — replacement supersedes it.
+        await closeShopifyReturnBestEffort(admin, returnCase, { logEvent: logShopifyReturnEvent });
+
+        if (returnCase.customerEmailNorm) {
+          const orderNameForEmail = returnCase.shopifyOrderName || "your order";
+          const notesBase = realOrderId
+            ? `A replacement order (${realOrderName}) has been created for your return. The same item will be reshipped at no additional charge.`
+            : `A replacement order (${draftOrder.name}) has been started for your return. Once finalised, the same item will be reshipped at no charge.`;
+          try {
+            await sendApprovalNotification({
+              shopDomain: session.shop,
+              to: returnCase.customerEmailNorm,
+              orderName: orderNameForEmail,
+              notes: notesBase,
+              shopName: session.shop?.replace(".myshopify.com", ""),
+            });
+          } catch (err) {
+            refundLogger.warn({ err }, "[process_replacement] Notification failed");
+          }
+        }
+
+        addBusinessEvent("return.replacement_created", {
+          "return.id": returnCase.id,
+          "replacement.order_id": realOrderId || draftOrder.id,
+          "replacement.order_name": realOrderName || draftOrder.name,
+          "replacement.completed": !!realOrderId,
+          "replacement.item_count": replacementItemsData.length,
+        });
+        auditReturnAction("replacement_processed", returnCase.id, shop.shopDomain, { type: "admin", identity: sessionEmail || "shop-admin" }, { resolutionType: { from: returnCase.resolutionType || "refund", to: "replacement" } }, { orderId: realOrderId || draftOrder.id, orderName: realOrderName || draftOrder.name });
+        returnActionCounter.add(1, { action: "process_replacement", outcome: "success" });
+        returnActionDuration.record(actionTimer(), { action: "process_replacement" });
+        annotateSLO("api_latency_p99", { durationMs: elapsed() });
+
+        throw redirect(`/app/returns/${id}`);
+      } catch (err) {
+        if (isRedirectResponse(err)) throw err;
+        if (err instanceof Response) throw err;
+        const rawMessage = await extractErrorMessage(err);
+        const message = rawMessage || "Replacement could not be processed. Please try again.";
+        refundLogger.error({ err, returnId: id }, "[process_replacement] Error");
+        try {
+          await prisma.returnEvent.create({
+            data: {
+              returnCaseId: id,
+              source: "admin",
+              eventType: "replacement_failed",
+              payloadJson: JSON.stringify({ error: message }),
+            },
+          });
+        } catch (logErr) {
+          refundLogger.error({ err: logErr }, "[process_replacement] Failed to log replacement_failed event");
+        }
+        returnActionCounter.add(1, { action: "process_replacement", outcome: "error" });
+        appErrorCounter.add(1, { action: "process_replacement" });
+        returnActionDuration.record(actionTimer(), { action: "process_replacement" });
         return Response.json({ error: message }, { status: 500 });
       }
     });

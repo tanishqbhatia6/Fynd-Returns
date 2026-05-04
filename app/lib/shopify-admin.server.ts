@@ -1298,7 +1298,7 @@ export async function createRefund(
   note?: string,
   locationId?: string | null,
   refundMethodConfig?: RefundMethodConfig | null,
-  options?: { bonusAmount?: number; skipLocation?: boolean },
+  options?: { bonusAmount?: number; skipLocation?: boolean; transactionAmount?: number },
 ): Promise<RefundResult> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
   const method = refundMethodConfig?.method ?? "original";
@@ -1310,22 +1310,29 @@ export async function createRefund(
       return item;
     });
 
-    if (normalized.length === 0) {
+    const isAmountOnly = options?.transactionAmount != null && options.transactionAmount > 0;
+    if (normalized.length === 0 && !isAmountOnly) {
       return { success: false, error: "No line items specified for refund. Please select items to refund." };
     }
 
     const skipLocation = options?.skipLocation === true;
     let restockLocationId = locationId;
-    if (!skipLocation && !restockLocationId) {
+    if (!skipLocation && !restockLocationId && !isAmountOnly) {
       restockLocationId = await fetchPrimaryLocationId(admin);
     }
 
-    const refundLineItems = normalized.map((item) => ({
-      lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
-      quantity: item.quantity,
-      restockType: skipLocation ? ("NO_RESTOCK" as string) : ("RETURN" as string),
-      ...(!skipLocation && restockLocationId ? { locationId: restockLocationId } : {}),
-    }));
+    // Amount-only refunds (transactionAmount set) skip per-item refund — those
+    // restock + adjust the order, but here we just want to push money back.
+    const refundLineItems = isAmountOnly
+      ? []
+      : normalized
+          .filter((item) => item.quantity > 0)
+          .map((item) => ({
+            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+            quantity: item.quantity,
+            restockType: skipLocation ? ("NO_RESTOCK" as string) : ("RETURN" as string),
+            ...(!skipLocation && restockLocationId ? { locationId: restockLocationId } : {}),
+          }));
 
     const storeCreditPct = refundMethodConfig?.storeCreditPct ?? 100;
 
@@ -1461,13 +1468,32 @@ export async function createRefund(
       };
       const suggested = suggestJson.data?.order?.suggestedRefund;
       if (suggested?.suggestedTransactions?.length) {
-        refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
-          orderId: gid,
-          kind: "REFUND",
-          gateway: t.gateway ?? "manual",
-          amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
-          ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
-        }));
+        // When the caller supplied an explicit transactionAmount (e.g. an
+        // exchange price-difference refund), refund exactly that amount via the
+        // first suggested gateway/parentTransaction instead of the full suggested
+        // line-item totals. This lets us issue partial refunds without having
+        // to compute per-line-item splits.
+        if (options?.transactionAmount != null && options.transactionAmount > 0) {
+          const amt = Math.round(options.transactionAmount * 100) / 100;
+          const txn = suggested.suggestedTransactions[0];
+          refundInput.transactions = [{
+            orderId: gid,
+            kind: "REFUND",
+            gateway: txn.gateway ?? "manual",
+            amount: amt.toFixed(2),
+            ...(txn.parentTransaction?.id ? { parentId: txn.parentTransaction.id } : {}),
+          }];
+          // Don't restock — this is a price-adjustment refund, not a goods return.
+          refundInput.refundLineItems = [];
+        } else {
+          refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
+            orderId: gid,
+            kind: "REFUND",
+            gateway: t.gateway ?? "manual",
+            amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
+            ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
+          }));
+        }
       }
     }
 
@@ -1555,6 +1581,27 @@ const RETURNABLE_FULFILLMENTS_QUERY = `#graphql
                   lineItem {
                     id
                     sku
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    returns(first: 50) {
+      edges {
+        node {
+          id
+          status
+          returnLineItems(first: 50) {
+            edges {
+              node {
+                ... on ReturnLineItem {
+                  quantity
+                  fulfillmentLineItem {
+                    id
+                    lineItem { id sku }
                   }
                 }
               }
@@ -1651,6 +1698,25 @@ export async function createShopifyReturn(
             };
           }>;
         };
+        returns?: {
+          edges?: Array<{
+            node?: {
+              id: string;
+              status?: string | null;
+              returnLineItems?: {
+                edges?: Array<{
+                  node?: {
+                    quantity: number;
+                    fulfillmentLineItem?: {
+                      id: string;
+                      lineItem?: { id: string; sku?: string | null };
+                    };
+                  };
+                }>;
+              };
+            };
+          }>;
+        };
       };
       errors?: Array<{ message?: string }>;
     };
@@ -1663,27 +1729,80 @@ export async function createShopifyReturn(
       return { success: false, error: `Failed to query returnable fulfillments: ${errMsg}` };
     }
 
-    // Build maps: order lineItem GID → fulfillmentLineItem, and SKU → fulfillmentLineItem
-    const fulfillmentLineItemMap = new Map<string, { fulfillmentLineItemId: string; maxQty: number }>();
-    const skuMap = new Map<string, { fulfillmentLineItemId: string; maxQty: number }>();
+    // Build maps: order lineItem GID → fulfillmentLineItem, and SKU → fulfillmentLineItem.
+    // We accumulate qty across fulfillments for the same lineItem GID (a 3-qty product
+    // split into 3 separate fulfillments produces three edges with qty=1 each — the
+    // overall returnable qty is 3, not 1 from the last fulfillment seen). We also keep
+    // a per-fulfillment-line-item entry so the returnCreate mutation can target a
+    // specific fulfillment_line_item_id (Shopify requires exact ID, not a roll-up).
+    type FliEntry = { fulfillmentLineItemId: string; maxQty: number };
+    const fulfillmentLineItemMap = new Map<string, FliEntry[]>();
+    const skuMap = new Map<string, FliEntry[]>();
 
     for (const edge of fulfillmentsJson.data?.returnableFulfillments?.edges ?? []) {
       for (const lineEdge of edge.node?.returnableFulfillmentLineItems?.edges ?? []) {
         const fli = lineEdge.node?.fulfillmentLineItem;
         if (!fli?.id) continue;
         const maxQty = lineEdge.node?.quantity ?? 0;
+        if (maxQty <= 0) continue;
+        const entry: FliEntry = { fulfillmentLineItemId: fli.id, maxQty };
 
         if (fli.lineItem?.id) {
-          fulfillmentLineItemMap.set(fli.lineItem.id, { fulfillmentLineItemId: fli.id, maxQty });
+          const arr = fulfillmentLineItemMap.get(fli.lineItem.id) ?? [];
+          arr.push(entry);
+          fulfillmentLineItemMap.set(fli.lineItem.id, arr);
         }
         if (fli.lineItem?.sku) {
           const skuKey = fli.lineItem.sku.toLowerCase().trim();
-          if (skuKey && !skuMap.has(skuKey)) {
-            skuMap.set(skuKey, { fulfillmentLineItemId: fli.id, maxQty });
+          if (skuKey) {
+            const arr = skuMap.get(skuKey) ?? [];
+            arr.push(entry);
+            skuMap.set(skuKey, arr);
           }
         }
       }
     }
+
+    // Subtract qty from any in-flight Shopify Return on this order to prevent the
+    // returnCreate call from over-returning. Without this, two separate ReturnCases
+    // created on the same order will each see Shopify's "returnable" qty as the
+    // ordered qty (Shopify only decrements *after* a return is closed), and both
+    // will create returns — the order ends up with two open returns covering the
+    // same units. We treat OPEN-status returns as already consuming returnable qty.
+    const NON_TERMINAL_RETURN_STATUSES = new Set(["OPEN", "REQUESTED", "IN_PROGRESS"]);
+    for (const retEdge of fulfillmentsJson.data?.returns?.edges ?? []) {
+      const ret = retEdge.node;
+      if (!ret) continue;
+      const status = (ret.status ?? "").toUpperCase();
+      if (status && !NON_TERMINAL_RETURN_STATUSES.has(status)) continue;
+      for (const lineEdge of ret.returnLineItems?.edges ?? []) {
+        const node = lineEdge.node;
+        if (!node?.fulfillmentLineItem?.id) continue;
+        const consumedFliId = node.fulfillmentLineItem.id;
+        const consumedQty = node.quantity ?? 0;
+        if (consumedQty <= 0) continue;
+        const decrement = (entries?: FliEntry[]) => {
+          if (!entries) return;
+          for (const e of entries) {
+            if (e.fulfillmentLineItemId === consumedFliId) {
+              e.maxQty = Math.max(0, e.maxQty - consumedQty);
+            }
+          }
+        };
+        if (node.fulfillmentLineItem.lineItem?.id) {
+          decrement(fulfillmentLineItemMap.get(node.fulfillmentLineItem.lineItem.id));
+        }
+        if (node.fulfillmentLineItem.lineItem?.sku) {
+          decrement(skuMap.get(node.fulfillmentLineItem.lineItem.sku.toLowerCase().trim()));
+        }
+      }
+    }
+
+    // Pick best entry (highest remaining maxQty) for fallback callers that don't iterate.
+    const pickBest = (entries?: FliEntry[]): FliEntry | undefined => {
+      if (!entries || entries.length === 0) return undefined;
+      return entries.reduce((best, cur) => (cur.maxQty > best.maxQty ? cur : best), entries[0]);
+    };
 
     if (fulfillmentLineItemMap.size === 0 && skuMap.size === 0) {
       return { success: false, error: "No returnable fulfillment line items found. The order may not be fulfilled yet, or all items have already been returned." };
@@ -1700,38 +1819,63 @@ export async function createShopifyReturn(
     }> = [];
 
     for (const item of returnItems) {
-      let match: { fulfillmentLineItemId: string; maxQty: number } | undefined;
+      let entries: FliEntry[] | undefined;
 
       // Primary: match by order lineItem GID
       if (item.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")) {
-        match = fulfillmentLineItemMap.get(item.shopifyLineItemId);
+        entries = fulfillmentLineItemMap.get(item.shopifyLineItemId);
       }
 
       // Fallback: match by SKU
-      if (!match && item.sku) {
+      if ((!entries || entries.length === 0) && item.sku) {
         const skuKey = item.sku.toLowerCase().trim();
-        match = skuMap.get(skuKey);
+        entries = skuMap.get(skuKey);
       }
 
-      if (!match) {
-        refundLogger.warn({ lineItemId: item.shopifyLineItemId, sku: item.sku }, "createShopifyReturn: no fulfillment line item match, skipping");
-        continue;
+      if (!entries || entries.length === 0) {
+        // Last-resort: pickBest off the maps (any remaining entry tied to the line)
+        const fallback = pickBest(item.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")
+          ? fulfillmentLineItemMap.get(item.shopifyLineItemId)
+          : item.sku ? skuMap.get(item.sku.toLowerCase().trim()) : undefined);
+        if (!fallback) {
+          refundLogger.warn({ lineItemId: item.shopifyLineItemId, sku: item.sku }, "createShopifyReturn: no fulfillment line item match, skipping");
+          continue;
+        }
+        entries = [fallback];
       }
-
-      const qty = Math.min(item.qty, match.maxQty);
-      if (qty <= 0) continue;
 
       const reason = mapReturnReason(item.reasonCode);
-      returnLineItems.push({
-        fulfillmentLineItemId: match.fulfillmentLineItemId,
-        quantity: qty,
-        returnReason: reason,
-        ...(item.notes
-          ? { returnReasonNote: item.notes.slice(0, 255) }
-          : reason === "OTHER"
-            ? { returnReasonNote: item.reasonCode || "Customer return request" }
-            : {}),
-      });
+      // Distribute the requested qty across the available fulfillment line items.
+      // For multi-fulfillment lineItems (Shopify split a 3-qty order across 3
+      // fulfillments) one returnLineItem with qty=3 isn't valid — Shopify wants
+      // up to qty per fulfillment_line_item_id. We consume in-place from each
+      // entry's maxQty, which also keeps the bookkeeping correct if multiple
+      // returnItems target the same lineItem GID (e.g. two separate bags).
+      let remainingQty = Math.max(0, Math.floor(item.qty));
+      for (const entry of entries) {
+        if (remainingQty <= 0) break;
+        if (entry.maxQty <= 0) continue;
+        const take = Math.min(remainingQty, entry.maxQty);
+        if (take <= 0) continue;
+        returnLineItems.push({
+          fulfillmentLineItemId: entry.fulfillmentLineItemId,
+          quantity: take,
+          returnReason: reason,
+          ...(item.notes
+            ? { returnReasonNote: item.notes.slice(0, 255) }
+            : reason === "OTHER"
+              ? { returnReasonNote: item.reasonCode || "Customer return request" }
+              : {}),
+        });
+        entry.maxQty -= take;
+        remainingQty -= take;
+      }
+      if (remainingQty > 0) {
+        refundLogger.warn(
+          { lineItemId: item.shopifyLineItemId, sku: item.sku, requested: item.qty, unfulfilled: remainingQty },
+          "createShopifyReturn: requested qty exceeds returnable balance — capped to what Shopify reports as remaining",
+        );
+      }
     }
 
     if (returnLineItems.length === 0) {
@@ -2158,4 +2302,187 @@ export async function fetchOrdersForCustomer(
     refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "fetchOrdersForCustomer: error");
     return [];
   }
+}
+
+/* ── Product variant fetch (for exchange/replacement flows) ─────────────────
+ *
+ * Returns price (`shopMoney`), inventory, and identity for a batch of variants
+ * so the exchange flow can:
+ *   - validate inventory before creating a draft order;
+ *   - compute the price difference between original returned items and the
+ *     replacement variants the customer picked;
+ *   - render rich UI without the merchant having to round-trip to Shopify.
+ *
+ * `inventoryAvailable` is conservatively `null` when `tracksInventory=false`,
+ * so callers can interpret it as "infinite / not tracked" instead of zero.
+ */
+export type ShopifyVariantInfo = {
+  id: string;                      // gid://shopify/ProductVariant/...
+  productId: string | null;        // gid://shopify/Product/...
+  productTitle: string | null;
+  variantTitle: string | null;     // e.g. "M / Blue"
+  sku: string | null;
+  price: string;                   // numeric string in the shop's currency
+  currencyCode: string;
+  compareAtPrice: string | null;
+  inventoryAvailable: number | null;  // null = inventory not tracked
+  availableForSale: boolean;
+  imageUrl: string | null;
+};
+
+const VARIANTS_BY_ID_QUERY = `#graphql
+  query exchangeVariants($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on ProductVariant {
+        id
+        sku
+        title
+        availableForSale
+        inventoryQuantity
+        inventoryPolicy
+        inventoryItem { tracked }
+        price
+        compareAtPrice
+        image { url }
+        product {
+          id
+          title
+          featuredImage { url }
+        }
+      }
+    }
+  }
+`;
+
+export async function fetchVariantInfo(
+  admin: AdminGraphQL,
+  variantIds: string[],
+): Promise<Map<string, ShopifyVariantInfo>> {
+  const out = new Map<string, ShopifyVariantInfo>();
+  const ids = (variantIds || [])
+    .filter((id) => typeof id === "string" && id.trim().length > 0)
+    .map((id) => (id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id.replace(/^.*\//, "")}`));
+  if (ids.length === 0) return out;
+
+  return withSpan("shopify.variants.fetch", { "variant.count": ids.length }, async () => {
+    try {
+      const res = await admin.graphql(VARIANTS_BY_ID_QUERY, { variables: { ids } });
+      if (!res.ok) return out;
+      const json = (await res.json()) as {
+        data?: {
+          nodes?: Array<null | {
+            id?: string;
+            sku?: string | null;
+            title?: string | null;
+            availableForSale?: boolean;
+            inventoryQuantity?: number | null;
+            inventoryPolicy?: string | null;
+            inventoryItem?: { tracked?: boolean } | null;
+            price?: string;
+            compareAtPrice?: string | null;
+            image?: { url?: string | null } | null;
+            product?: {
+              id?: string;
+              title?: string | null;
+              featuredImage?: { url?: string | null } | null;
+            } | null;
+          }>;
+        };
+        errors?: Array<{ message?: string }>;
+      };
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        refundLogger.warn({ errors: json.errors.map((e) => e.message).join("; ") }, "fetchVariantInfo: GraphQL errors");
+      }
+      for (const node of json.data?.nodes ?? []) {
+        if (!node?.id) continue;
+        const tracked = node.inventoryItem?.tracked ?? true;
+        const info: ShopifyVariantInfo = {
+          id: node.id,
+          productId: node.product?.id ?? null,
+          productTitle: node.product?.title ?? null,
+          variantTitle: node.title ?? null,
+          sku: node.sku ?? null,
+          price: node.price ?? "0.00",
+          currencyCode: "shop", // shop currency; caller will resolve from order
+          compareAtPrice: node.compareAtPrice ?? null,
+          inventoryAvailable: tracked ? (node.inventoryQuantity ?? 0) : null,
+          availableForSale: node.availableForSale ?? false,
+          imageUrl: node.image?.url ?? node.product?.featuredImage?.url ?? null,
+        };
+        out.set(node.id, info);
+      }
+      return out;
+    } catch (err) {
+      refundLogger.warn({ err: err instanceof Error ? err.message : String(err) }, "fetchVariantInfo: error");
+      return out;
+    }
+  });
+}
+
+/* ── Draft order completion + invoice (for exchange payment workflows) ──── */
+
+const DRAFT_ORDER_INVOICE_SEND_MUTATION = `#graphql
+  mutation draftOrderInvoiceSend($id: ID!, $email: EmailInput) {
+    draftOrderInvoiceSend(id: $id, email: $email) {
+      draftOrder { id name invoiceUrl }
+      userErrors { field message }
+    }
+  }
+`;
+
+export type DraftOrderInvoiceResult = {
+  success: boolean;
+  invoiceUrl?: string | null;
+  error?: string;
+};
+
+/**
+ * Send the Shopify draft-order invoice email to the customer. Used when an
+ * exchange leaves a positive balance for the customer to pay before the
+ * warehouse ships the new variant.
+ */
+export async function sendDraftOrderInvoice(
+  admin: AdminGraphQL,
+  draftOrderId: string,
+  customerEmail: string | null,
+  subject?: string,
+  bodyMessage?: string,
+): Promise<DraftOrderInvoiceResult> {
+  return withSpan("shopify.draft_order.invoice_send", { "draft.id": draftOrderId }, async () => {
+    try {
+      const variables: Record<string, unknown> = {
+        id: draftOrderId,
+        email: customerEmail
+          ? {
+              to: customerEmail,
+              subject: subject ?? "Complete your exchange",
+              customMessage: bodyMessage ?? "Please complete payment to receive your exchange items.",
+            }
+          : null,
+      };
+      const res = await admin.graphql(DRAFT_ORDER_INVOICE_SEND_MUTATION, { variables });
+      const json = (await res.json()) as {
+        data?: {
+          draftOrderInvoiceSend?: {
+            draftOrder?: { id: string; name: string; invoiceUrl?: string | null } | null;
+            userErrors?: Array<{ field?: string[]; message: string }>;
+          };
+        };
+        errors?: Array<{ message?: string }>;
+      };
+      if (Array.isArray(json.errors) && json.errors.length > 0) {
+        return { success: false, error: json.errors.map((e) => e.message).join("; ") };
+      }
+      const ue = json.data?.draftOrderInvoiceSend?.userErrors ?? [];
+      if (ue.length > 0) {
+        return { success: false, error: ue.map((e) => e.message).join("; ") };
+      }
+      return {
+        success: true,
+        invoiceUrl: json.data?.draftOrderInvoiceSend?.draftOrder?.invoiceUrl ?? null,
+      };
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  });
 }

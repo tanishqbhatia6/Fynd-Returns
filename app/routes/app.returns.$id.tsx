@@ -782,6 +782,7 @@ export default function ReturnDetail() {
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [selectedResolutionType, setSelectedResolutionType] = useState<string>("refund");
   const [showExchangeConfirm, setShowExchangeConfirm] = useState(false);
+  const [showReplacementConfirm, setShowReplacementConfirm] = useState(false);
   const [showEditAddress, setShowEditAddress] = useState(false);
   const [showRefundConfirm, setShowRefundConfirm] = useState(false);
   const [showCancelOrder, setShowCancelOrder] = useState(false);
@@ -931,6 +932,8 @@ export default function ReturnDetail() {
     && fyndCurrentStatus
     && !FYND_EXCHANGE_ALLOWED_STATUSES.has(fyndCurrentStatus)
   );
+  // Replacement uses the same Fynd-status gate as exchange (bag must be received).
+  const replacementBlockedByFynd = exchangeBlockedByFynd;
 
   const fyndTrackingStatus = fyndPayloadInfo?.shipments?.[0]
     ? safeStr((fyndPayloadInfo.shipments[0] as { shipmentStatus?: string }).shipmentStatus)
@@ -2489,6 +2492,59 @@ export default function ReturnDetail() {
                     Manual return — process refund in Shopify Admin for <strong>{returnCase.shopifyOrderName || "--"}</strong>
                   </div>
                 )}
+                {(isApproved || isCompleted) && returnCase.resolutionType === "replacement" && !returnCase.exchangeOrderId && !isManualReturn && (
+                  <>
+                    <s-button
+                      type="button"
+                      variant="primary"
+                      disabled={fetcher.state !== "idle" || replacementBlockedByFynd}
+                      onClick={() => !replacementBlockedByFynd && setShowReplacementConfirm(true)}
+                      style={{ width: "100%" }}
+                    >
+                      Process Replacement
+                    </s-button>
+                    {replacementBlockedByFynd && (
+                      <div style={{ marginTop: 6, padding: "8px 12px", background: "#FEF3C7", borderRadius: 6, fontSize: 12, color: "#92400E", border: "1px solid #FDE68A" }}>
+                        <strong>Replacement unavailable</strong> — Return bag not yet received at warehouse. Current Fynd status: <code style={{ background: "#FDE68A", padding: "1px 5px", borderRadius: 3 }}>{fyndCurrentStatus}</code>. Available after <code style={{ background: "#FDE68A", padding: "1px 5px", borderRadius: 3 }}>return_bag_delivered</code>.
+                      </div>
+                    )}
+                    {showReplacementConfirm && (
+                      <div className="app-modal-overlay" onClick={() => setShowReplacementConfirm(false)}>
+                        <div className="app-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 480 }}>
+                          <div className="app-modal-title">Process Replacement</div>
+                          <div className="app-modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                            <p style={{ margin: 0 }}>
+                              Create a new Shopify order to reship the same item(s) at no charge for order <strong>{returnCase.shopifyOrderName || "--"}</strong>.
+                            </p>
+                            <div style={{ padding: 12, background: "#FFF7ED", borderRadius: 8, border: "1px solid #FED7AA", fontSize: 13, color: "#9A3412" }}>
+                              A real Shopify order will be created with a 100% applied discount (no charge to the customer). It will appear under <strong>Orders</strong> in Shopify Admin so the warehouse can fulfill it.
+                            </div>
+                            {fetcher.data?.error && (
+                              <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderLeft: "4px solid #DC2626", borderRadius: 8, fontSize: 13, color: "#991B1B" }}>
+                                {fetcher.data.error}
+                              </div>
+                            )}
+                            <p style={{ color: "#DC2626", fontWeight: 500, fontSize: 13, margin: 0 }}>This action cannot be undone.</p>
+                          </div>
+                          <div className="app-modal-actions">
+                            <s-button type="button" variant="secondary" onClick={() => setShowReplacementConfirm(false)}>Cancel</s-button>
+                            <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
+                              <input type="hidden" name="json" value={JSON.stringify({ action: "process_replacement" })} />
+                              <s-button type="submit" variant="primary" disabled={fetcher.state !== "idle"}>
+                                {fetcher.state !== "idle" ? (
+                                  <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <svg style={{ animation: "spin 1s linear infinite" }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                                    Creating...
+                                  </span>
+                                ) : "Create Replacement Order"}
+                              </s-button>
+                            </fetcher.Form>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
                 {(isApproved || isCompleted) && returnCase.resolutionType === "exchange" && !returnCase.exchangeOrderId && !isManualReturn && (
                   <>
                     <s-button
@@ -2549,38 +2605,121 @@ export default function ReturnDetail() {
                   </>
                 )}
                 {returnCase.exchangeOrderId && (() => {
-                  const exchangeOrderGidNum = returnCase.exchangeOrderId.replace(/^gid:\/\/shopify\/DraftOrder\//, "");
-                  const exchangeUrl = `https://admin.shopify.com/store/${storeName}/draft_orders/${exchangeOrderGidNum}`;
-                  let exchangeItems: Array<{ title?: string; quantity?: number; price?: string }> = [];
+                  const isReplacement = returnCase.resolutionType === "replacement";
+                  // Replacement creates a real Order; exchange creates a DraftOrder.
+                  // Detect from the GID itself so legacy records render correctly.
+                  const isDraftGid = returnCase.exchangeOrderId.startsWith("gid://shopify/DraftOrder/");
+                  const orderGidNum = returnCase.exchangeOrderId
+                    .replace(/^gid:\/\/shopify\/DraftOrder\//, "")
+                    .replace(/^gid:\/\/shopify\/Order\//, "");
+                  const orderPath = isDraftGid ? "draft_orders" : "orders";
+                  const orderUrl = `https://admin.shopify.com/store/${storeName}/${orderPath}/${orderGidNum}`;
+                  type ExchangeItemRich = {
+                    title?: string; quantity?: number; price?: string;
+                    returnedTitle?: string; returnedQty?: number; returnedUnitPrice?: string;
+                    replacementTitle?: string; replacementUnitPrice?: string; replacementImageUrl?: string;
+                  };
+                  let exchangeItems: ExchangeItemRich[] = [];
                   try {
                     if (returnCase.exchangeItemsJson) exchangeItems = JSON.parse(returnCase.exchangeItemsJson);
                   } catch { /* ignore */ }
+
+                  // Pull the most recent exchange_created / replacement_created event payload
+                  // for flow + price-diff + invoice URL. Falls back to neutral defaults so
+                  // legacy records (no event) still render the basic "order created" panel.
+                  type ExchangeEventPayload = {
+                    flow?: "completed_free" | "completed_with_refund" | "invoice_pending";
+                    priceDiff?: number;
+                    currency?: string;
+                    invoiceUrl?: string | null;
+                    refund?: { success?: boolean; amount?: string; refundId?: string } | null;
+                  };
+                  let exchangePayload: ExchangeEventPayload = {};
+                  const events = Array.isArray(returnCase.events) ? returnCase.events : [];
+                  for (let i = events.length - 1; i >= 0; i--) {
+                    const ev = events[i];
+                    if (!ev || (ev.eventType !== "exchange_created" && ev.eventType !== "replacement_created")) continue;
+                    if (!ev.payloadJson) continue;
+                    try {
+                      exchangePayload = JSON.parse(ev.payloadJson) as ExchangeEventPayload;
+                      break;
+                    } catch { /* skip */ }
+                  }
+
+                  const flow = exchangePayload.flow;
+                  const priceDiff = typeof exchangePayload.priceDiff === "number" ? exchangePayload.priceDiff : null;
+                  const currency = exchangePayload.currency || returnCase.currency || "";
+                  const invoiceUrl = exchangePayload.invoiceUrl || null;
+
+                  const headlineLabel = isReplacement
+                    ? "Replacement order created"
+                    : flow === "invoice_pending"
+                      ? "Exchange awaiting payment"
+                      : "Exchange order created";
+                  const subLabel = isDraftGid ? "Draft Order" : "Order";
+                  const panelBg = flow === "invoice_pending" ? "#FFFBEB" : "#DCFCE7";
+                  const panelBorder = flow === "invoice_pending" ? "#FDE68A" : "#BBF7D0";
+                  const panelText = flow === "invoice_pending" ? "#92400E" : "#166534";
+
                   return (
-                    <div style={{ padding: 14, background: "#DCFCE7", borderRadius: 10, border: "1px solid #BBF7D0" }}>
+                    <div style={{ padding: 14, background: panelBg, borderRadius: 10, border: `1px solid ${panelBorder}` }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#166534" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                        <span style={{ fontWeight: 700, fontSize: 14, color: "#166534" }}>Exchange order created</span>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={panelText} strokeWidth="2.5">
+                          {flow === "invoice_pending"
+                            ? (<><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></>)
+                            : (<polyline points="20 6 9 17 4 12"/>)
+                          }
+                        </svg>
+                        <span style={{ fontWeight: 700, fontSize: 14, color: panelText }}>{headlineLabel}</span>
                       </div>
                       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                         {returnCase.exchangeOrderName && (
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-                            <span style={{ color: "#166534" }}>Draft Order</span>
-                            <span style={{ fontWeight: 700, color: "#166534" }}>{returnCase.exchangeOrderName}</span>
+                            <span style={{ color: panelText }}>{subLabel}</span>
+                            <span style={{ fontWeight: 700, color: panelText }}>{returnCase.exchangeOrderName}</span>
+                          </div>
+                        )}
+                        {priceDiff != null && Math.abs(priceDiff) > 0.001 && (
+                          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                            <span style={{ color: panelText }}>{priceDiff > 0 ? "Customer owes" : "Refunded to customer"}</span>
+                            <span style={{ fontWeight: 700, color: panelText }}>
+                              {Math.abs(priceDiff).toFixed(2)} {currency}
+                            </span>
+                          </div>
+                        )}
+                        {flow === "completed_with_refund" && exchangePayload.refund?.success && exchangePayload.refund?.amount && (
+                          <div style={{ fontSize: 12, color: "#15803D" }}>
+                            ✓ Difference refunded ({exchangePayload.refund.amount} {currency})
+                          </div>
+                        )}
+                        {flow === "completed_with_refund" && exchangePayload.refund?.success === false && (
+                          <div style={{ fontSize: 12, color: "#B91C1C", padding: "4px 8px", background: "#FEF2F2", borderRadius: 6, border: "1px solid #FECACA" }}>
+                            ⚠ Difference refund failed — process manually in Shopify
                           </div>
                         )}
                         {exchangeItems.length > 0 && (
-                          <div style={{ fontSize: 12, color: "#15803D", marginTop: 4 }}>
+                          <div style={{ fontSize: 12, color: panelText, marginTop: 4 }}>
                             {exchangeItems.length} item{exchangeItems.length !== 1 ? "s" : ""}
                           </div>
                         )}
                         <a
-                          href={exchangeUrl}
+                          href={orderUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          style={{ fontSize: 12, fontWeight: 600, color: "#059669", marginTop: 4 }}
+                          style={{ fontSize: 12, fontWeight: 600, color: flow === "invoice_pending" ? "#B45309" : "#059669", marginTop: 4 }}
                         >
                           View in Shopify Admin &rarr;
                         </a>
+                        {invoiceUrl && (
+                          <a
+                            href={invoiceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ fontSize: 12, fontWeight: 600, color: "#B45309", marginTop: 2 }}
+                          >
+                            Customer payment link &rarr;
+                          </a>
+                        )}
                       </div>
                     </div>
                   );

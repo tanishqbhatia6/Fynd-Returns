@@ -27,7 +27,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
-  sendOtpEmailMock: vi.fn(async () => undefined),
+  sendOtpEmailMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   fetchOrdersByFilterMock: vi.fn(async () => []),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },

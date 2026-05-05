@@ -18,7 +18,7 @@ const {
   authenticateMock: vi.fn(),
   getBillingStatusMock: vi.fn(async () => ({ hasAccess: true })),
   getAppModeMock: vi.fn(() => "prod"),
-  syncShopLocaleAndCurrencyMock: vi.fn(async () => undefined),
+  syncShopLocaleAndCurrencyMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
 }));
 Object.assign(prismaMock, createPrismaMock());
 

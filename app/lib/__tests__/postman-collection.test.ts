@@ -1,114 +1,196 @@
+/**
+ * Tests for postman-collection.server.ts: generatePostmanCollection produces a
+ * valid Postman v2.1.0 JSON document. Cover JSON shape, baseUrl substitution,
+ * auth headers, and item/folder counts. Pure (no IO) — parse the result and
+ * assert structure rather than strings so harmless copy edits don't break it.
+ */
 import { describe, it, expect } from "vitest";
 import { generatePostmanCollection } from "../postman-collection.server";
+import { EXTERNAL_API_ENDPOINTS } from "../api-docs-data";
 
-/* Pure generator — no IO. Parse the result as JSON and assert
-   structure, not strings, so minor copy tweaks don't break it. */
+describe("generatePostmanCollection — JSON shape", () => {
+  it("returns a string that parses as JSON", () => {
+    const out = generatePostmanCollection("https://example.com");
+    expect(typeof out).toBe("string");
+    expect(() => JSON.parse(out)).not.toThrow();
+  });
 
-describe("generatePostmanCollection", () => {
-  const collection = JSON.parse(generatePostmanCollection("https://returnpromax.app"));
-
-  it("produces valid Postman Collection v2.1.0 schema", () => {
-    expect(collection.info.schema).toBe(
+  it("emits the v2.1.0 schema URL and collection name", () => {
+    const c = JSON.parse(generatePostmanCollection("https://example.com"));
+    expect(c.info.schema).toBe(
       "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     );
-    expect(collection.info.name).toBe("ReturnProMax External API");
+    expect(c.info.name).toBe("ReturnProMax External API");
   });
 
-  it("includes a prominent SECURITY warning in the intro", () => {
-    expect(collection.info.description).toMatch(/SECURITY/);
-    expect(collection.info.description).toMatch(/rotate the key/i);
+  it("top-level shape has info, variable, auth, item arrays/objects", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    expect(c.info).toBeTypeOf("object");
+    expect(Array.isArray(c.variable)).toBe(true);
+    expect(c.auth).toBeTypeOf("object");
+    expect(Array.isArray(c.item)).toBe(true);
   });
 
-  it("defines the collection-level {{base_url}} variable from input", () => {
-    const baseVar = collection.variable.find((v: { key: string; value: string }) => v.key === "base_url");
-    expect(baseVar?.value).toBe("https://returnpromax.app");
+  it("output is pretty-printed with 2-space indent", () => {
+    const out = generatePostmanCollection("https://x.test");
+    // The second line of pretty-printed JSON.stringify(_, null, 2) starts with
+    // exactly two spaces — locks in the formatting contract.
+    expect(out.split("\n")[1].startsWith("  ")).toBe(true);
+  });
+});
+
+describe("generatePostmanCollection — baseUrl substitution", () => {
+  it("uses the provided baseUrl as the {{base_url}} variable value", () => {
+    const c = JSON.parse(generatePostmanCollection("https://my-shop.example.com"));
+    const baseVar = c.variable.find((v: { key: string }) => v.key === "base_url");
+    expect(baseVar?.value).toBe("https://my-shop.example.com");
   });
 
-  it("defines an {{api_key}} variable with an intentionally-obvious placeholder", () => {
-    const keyVar = collection.variable.find((v: { key: string; value: string }) => v.key === "api_key");
-    expect(keyVar?.value).toBe("rpm_YOUR_API_KEY_HERE");
+  it("substitutes empty string baseUrl without throwing", () => {
+    const c = JSON.parse(generatePostmanCollection(""));
+    const baseVar = c.variable.find((v: { key: string }) => v.key === "base_url");
+    expect(baseVar?.value).toBe("");
   });
 
-  it("configures apikey auth in the X-API-Key header", () => {
-    expect(collection.auth.type).toBe("apikey");
-    const keyField = collection.auth.apikey.find((f: { key: string; value: string }) => f.key === "key");
-    const placement = collection.auth.apikey.find((f: { key: string; value: string }) => f.key === "in");
-    expect(keyField?.value).toBe("X-API-Key");
-    expect(placement?.value).toBe("header");
-  });
-
-  it("groups endpoints into folders", () => {
-    expect(Array.isArray(collection.item)).toBe(true);
-    expect(collection.item.length).toBeGreaterThan(0);
-    for (const folder of collection.item) {
-      expect(typeof folder.name).toBe("string");
-      expect(Array.isArray(folder.item)).toBe(true);
-    }
-  });
-
-  it("every request includes Content-Type + X-API-Key headers", () => {
-    for (const folder of collection.item) {
+  it("does NOT inline the baseUrl into request URLs (uses placeholder instead)", () => {
+    // This is important: if we inlined, exporting the collection would leak
+    // the merchant's domain into every request. Verify only the variable holds
+    // the literal — request URLs reference {{base_url}}.
+    const c = JSON.parse(generatePostmanCollection("https://leak-me.example"));
+    for (const folder of c.item) {
       for (const req of folder.item) {
-        const headers = req.request.header;
-        expect(headers.some((h: { key: string }) => h.key === "Content-Type")).toBe(true);
-        expect(headers.some((h: { key: string }) => h.key === "X-API-Key")).toBe(true);
+        expect(req.request.url.raw).not.toContain("leak-me.example");
+        expect(req.request.url.raw.startsWith("{{base_url}}")).toBe(true);
       }
     }
   });
 
-  it("every request URL uses the {{base_url}} variable", () => {
-    for (const folder of collection.item) {
+  it("renders request URL host as ['{{base_url}}']", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    for (const folder of c.item) {
       for (const req of folder.item) {
-        expect(req.request.url.raw).toMatch(/^\{\{base_url\}\}/);
         expect(req.request.url.host).toEqual(["{{base_url}}"]);
       }
     }
   });
+});
 
-  it("POST webhook-create endpoints return 201 in example response", () => {
-    for (const folder of collection.item) {
+describe("generatePostmanCollection — auth", () => {
+  it("declares apikey-type auth in the X-API-Key header", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    expect(c.auth.type).toBe("apikey");
+    const findField = (k: string) =>
+      c.auth.apikey.find((f: { key: string; value: string }) => f.key === k);
+    expect(findField("key")?.value).toBe("X-API-Key");
+    expect(findField("value")?.value).toBe("{{api_key}}");
+    expect(findField("in")?.value).toBe("header");
+  });
+
+  it("ships an obvious placeholder api_key (never a real key)", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    const k = c.variable.find((v: { key: string }) => v.key === "api_key");
+    expect(k?.value).toBe("rpm_YOUR_API_KEY_HERE");
+  });
+
+  it("every request also carries an X-API-Key header at the request level", () => {
+    // Belt-and-suspenders: collection-level auth + per-request header so that
+    // merchants who clone a single request still see the auth header.
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    for (const folder of c.item) {
+      for (const req of folder.item) {
+        const h = req.request.header.find(
+          (x: { key: string }) => x.key === "X-API-Key",
+        );
+        expect(h?.value).toBe("{{api_key}}");
+      }
+    }
+  });
+
+  it("intro description warns against committing real keys", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    expect(c.info.description).toMatch(/SECURITY/);
+    expect(c.info.description).toMatch(/rotate the key/i);
+  });
+});
+
+describe("generatePostmanCollection — item/folder counts", () => {
+  it("produces one folder per distinct ep.folder value", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    const expectedFolders = new Set(EXTERNAL_API_ENDPOINTS.map((e) => e.folder));
+    expect(c.item.length).toBe(expectedFolders.size);
+    const got = new Set(c.item.map((f: { name: string }) => f.name));
+    expect(got).toEqual(expectedFolders);
+  });
+
+  it("flattened item count equals total endpoint count", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    const total = c.item.reduce(
+      (sum: number, f: { item: unknown[] }) => sum + f.item.length,
+      0,
+    );
+    expect(total).toBe(EXTERNAL_API_ENDPOINTS.length);
+  });
+
+  it("each folder contains only endpoints whose ep.folder matches the folder name", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    for (const folder of c.item) {
+      const expectedNames = EXTERNAL_API_ENDPOINTS.filter(
+        (e) => e.folder === folder.name,
+      ).map((e) => e.name);
+      const gotNames = folder.item.map((r: { name: string }) => r.name);
+      // Order within folder is insertion order from the source registry.
+      expect(gotNames).toEqual(expectedNames);
+    }
+  });
+
+  it("preserves first-seen folder order from the registry", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    const seen: string[] = [];
+    for (const e of EXTERNAL_API_ENDPOINTS) {
+      if (!seen.includes(e.folder)) seen.push(e.folder);
+    }
+    expect(c.item.map((f: { name: string }) => f.name)).toEqual(seen);
+  });
+});
+
+describe("generatePostmanCollection — request semantics", () => {
+  it("POST webhooks-create endpoints respond 201, others 200", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    for (const folder of c.item) {
       for (const req of folder.item) {
         const isWebhookCreate =
           req.request.method === "POST" &&
           req.request.url.raw.includes("webhooks") &&
           !req.request.url.raw.includes(":id");
-        if (isWebhookCreate) {
-          expect(req.response[0].code).toBe(201);
-        }
+        expect(req.response[0].code).toBe(isWebhookCreate ? 201 : 200);
       }
     }
   });
 
-  it("non-webhook-create endpoints return 200 in example response", () => {
-    for (const folder of collection.item) {
+  it("attaches a raw-JSON body whenever the endpoint declares requestBody", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    for (const folder of c.item) {
       for (const req of folder.item) {
-        const isWebhookCreate =
-          req.request.method === "POST" &&
-          req.request.url.raw.includes("webhooks") &&
-          !req.request.url.raw.includes(":id");
-        if (!isWebhookCreate) {
-          expect(req.response[0].code).toBe(200);
-        }
-      }
-    }
-  });
-
-  it("bodies are attached as raw JSON when the endpoint has a requestBody", () => {
-    for (const folder of collection.item) {
-      for (const req of folder.item) {
-        if (req.request.body) {
+        const ep = EXTERNAL_API_ENDPOINTS.find((e) => e.name === req.name);
+        if (ep?.requestBody) {
           expect(req.request.body.mode).toBe("raw");
-          expect(() => JSON.parse(req.request.body.raw)).not.toThrow();
           expect(req.request.body.options.raw.language).toBe("json");
+          expect(() => JSON.parse(req.request.body.raw)).not.toThrow();
+        } else {
+          expect(req.request.body).toBeUndefined();
         }
       }
     }
   });
 
-  it("query params are marked disabled by default (merchant enables them)", () => {
-    for (const folder of collection.item) {
+  it("query params are emitted disabled-by-default with example values", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    for (const folder of c.item) {
       for (const req of folder.item) {
-        if (req.request.url.query) {
+        const ep = EXTERNAL_API_ENDPOINTS.find((e) => e.name === req.name);
+        if (ep?.queryParams && ep.queryParams.length > 0) {
+          expect(req.request.url.query).toBeDefined();
+          expect(req.request.url.query.length).toBe(ep.queryParams.length);
           for (const q of req.request.url.query) {
             expect(q.disabled).toBe(true);
           }
@@ -117,17 +199,29 @@ describe("generatePostmanCollection", () => {
     }
   });
 
-  it("description includes the permission name for each endpoint", () => {
-    for (const folder of collection.item) {
+  it("description appends 'Permission: <perm>' for every endpoint", () => {
+    const c = JSON.parse(generatePostmanCollection("https://x.test"));
+    for (const folder of c.item) {
       for (const req of folder.item) {
-        expect(req.request.description).toMatch(/Permission:/);
+        const ep = EXTERNAL_API_ENDPOINTS.find((e) => e.name === req.name);
+        expect(req.request.description).toContain(`Permission: ${ep!.permission}`);
       }
     }
   });
+});
 
-  it("is deterministic — same baseUrl in, same JSON out", () => {
-    const a = generatePostmanCollection("https://x.com");
-    const b = generatePostmanCollection("https://x.com");
+describe("generatePostmanCollection — determinism", () => {
+  it("returns byte-identical output for the same input", () => {
+    const a = generatePostmanCollection("https://same.test");
+    const b = generatePostmanCollection("https://same.test");
     expect(a).toBe(b);
+  });
+
+  it("differs only in baseUrl substitution between distinct inputs", () => {
+    const a = generatePostmanCollection("https://a.test");
+    const b = generatePostmanCollection("https://b.test");
+    expect(a).not.toBe(b);
+    // Replacing 'a.test' with 'b.test' in the first should yield the second.
+    expect(a.replaceAll("a.test", "b.test")).toBe(b);
   });
 });

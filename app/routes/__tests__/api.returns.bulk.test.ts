@@ -4,8 +4,8 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, authenticateMock, sendApprovalMock, sendRejectionMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  sendApprovalMock: vi.fn(async () => undefined),
-  sendRejectionMock: vi.fn(async () => undefined),
+  sendApprovalMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRejectionMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
 }));
 Object.assign(prismaMock, createPrismaMock());
 

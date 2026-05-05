@@ -14,11 +14,11 @@ import { createPrismaMock, resetPrismaMock } from "../../../test/prisma-mock";
 
 const { prismaMock, sendCustomerNoteNotificationMock, closeShopifyReturnBestEffortMock, fetchOrderByOrderNumberMock, sendRejectionNotificationMock, sendCancellationDeclinedNotificationMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  sendCustomerNoteNotificationMock: vi.fn(async () => undefined),
+  sendCustomerNoteNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  sendRejectionNotificationMock: vi.fn(async () => undefined),
-  sendCancellationDeclinedNotificationMock: vi.fn(async () => undefined),
+  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -67,7 +67,7 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
     sessionEmail: "admin@example.com",
     isTerminal: false,
     elapsed: () => 100,
-    logShopifyReturnEvent: vi.fn(async () => undefined),
+    logShopifyReturnEvent: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
     ...overrides,
   };
 }

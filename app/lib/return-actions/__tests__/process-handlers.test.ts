@@ -50,8 +50,8 @@ const {
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
   sendDraftOrderInvoiceMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, invoiceUrl: "https://shop/invoice" })),
   createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendApprovalNotificationMock: vi.fn(async () => undefined),
-  sendRefundNotificationMock: vi.fn(async () => undefined),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -115,7 +115,7 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
     sessionEmail: "admin@example.com",
     isTerminal: false,
     elapsed: () => 100,
-    logShopifyReturnEvent: vi.fn(async () => undefined),
+    logShopifyReturnEvent: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
     ...overrides,
   };
 }
@@ -342,7 +342,7 @@ describe("handleProcessRefund", () => {
         fyndCurrentStatus: "return_bag_delivered",
       } as never,
     });
-    const updateShipmentStatus = vi.fn(async () => undefined);
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },

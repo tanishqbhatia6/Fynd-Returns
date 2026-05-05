@@ -21,7 +21,7 @@ const {
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
   checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => unknown>(() => ({ eligible: true })),
   normalizeSourceChannelMock: vi.fn((s: string | null) => s),
-  evaluateAutoApproveRulesMock: vi.fn(() => "approve"),
+  evaluateAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown>(() => "approve"),
   parseAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
   buildReturnRequestIdMock: vi.fn(() => "R-123"),
   nextReturnIdCounterMock: vi.fn(async () => 1),

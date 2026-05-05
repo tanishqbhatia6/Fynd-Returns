@@ -15,7 +15,7 @@ const {
   verifyPortalCsrfTokenMock: vi.fn(() => true),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   parsePortalConfigMock: vi.fn(() => ({ allowReturnCancellation: true })),
-  sendCancellationNotificationMock: vi.fn(async () => undefined),
+  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   dispatchWebhookEventMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());

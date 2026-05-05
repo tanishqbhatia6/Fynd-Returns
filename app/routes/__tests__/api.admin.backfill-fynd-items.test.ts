@@ -72,7 +72,7 @@ describe("POST /api/admin/backfill-fynd-items", () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
-      client: { getShipments: vi.fn(async () => null) },
+      client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -86,7 +86,7 @@ describe("POST /api/admin/backfill-fynd-items", () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
-      client: { getShipments: vi.fn(async () => null) },
+      client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     await action({ request: mkReq({ returnCaseId: "rc-target" }), params: {}, context: {} } as never);
@@ -99,7 +99,7 @@ describe("POST /api/admin/backfill-fynd-items", () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
-      client: { getShipments: vi.fn(async () => null) },
+      client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     await action({ request: mkReq({ limit: 5000 }), params: {}, context: {} } as never);
@@ -110,7 +110,7 @@ describe("POST /api/admin/backfill-fynd-items", () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
-      client: { getShipments: vi.fn(async () => null) },
+      client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     const req = new Request("https://app.example/api/admin/backfill-fynd-items", {

@@ -14,11 +14,11 @@ const {
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateApiKeyMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn(async () => null),
+  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   dispatchWebhookEventMock: vi.fn(),
   createRefundMock: vi.fn(),
   createAdminClientMock: vi.fn(() => ({})),
-  closeShopifyReturnMock: vi.fn(async () => undefined),
+  closeShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
 }));
 Object.assign(prismaMock, createPrismaMock());
 

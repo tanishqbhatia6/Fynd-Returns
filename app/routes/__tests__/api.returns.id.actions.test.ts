@@ -32,10 +32,10 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  closeShopifyReturnMock: vi.fn(async () => undefined),
+  closeShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   fetchOrderByOrderNumberMock: vi.fn(),
-  sendCustomerNoteNotificationMock: vi.fn(async () => undefined),
+  sendCustomerNoteNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   dispatchWebhookEventMock: vi.fn(),
   setRequestContextMock: vi.fn(),
   refundLoggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },

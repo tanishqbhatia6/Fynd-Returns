@@ -5,7 +5,7 @@ const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateL
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateApiKeyMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn(async () => null),
+  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   isSafeOutboundUrlMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true })),
 }));
 Object.assign(prismaMock, createPrismaMock());

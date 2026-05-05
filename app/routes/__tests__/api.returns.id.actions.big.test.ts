@@ -36,10 +36,10 @@ const {
   createShopifyReturnMock: vi.fn(async () => ({ success: true, shopifyReturnId: "gid://shopify/Return/1" })),
   createFyndClientOrErrorMock: vi.fn(),
   createReturnOnFyndMock: vi.fn(),
-  sendApprovalNotificationMock: vi.fn(async () => undefined),
-  sendRejectionNotificationMock: vi.fn(async () => undefined),
-  sendCancellationNotificationMock: vi.fn(async () => undefined),
-  sendCancellationDeclinedNotificationMock: vi.fn(async () => undefined),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   refundLoggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());

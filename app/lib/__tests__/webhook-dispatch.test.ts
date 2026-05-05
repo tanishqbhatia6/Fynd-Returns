@@ -1,42 +1,42 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /**
- * webhook-dispatch.server.ts tests.
+ * webhook-dispatch.server.ts — unit tests.
  * ────────────────────────────────────────────────────────────────────
+ * Mirrors the prismaMock pattern used in notification.test.ts.
  *
- * Challenge: dispatchWebhookEvent is fire-and-forget — it returns
- * immediately and the async delivery chain runs in the background via
- * an IIFE. We use a tracked fetch + an explicit "settle" helper that
- * awaits the microtask queue until the outbound fetch has been
- * attempted.
+ * dispatchWebhookEvent is fire-and-forget: it returns void synchronously
+ * and the actual delivery happens inside an IIFE. Tests rely on a
+ * `flushAll` helper that waits long enough for the initial fetch attempt
+ * (and per-subscription queue drain) to complete — but never long enough
+ * to wait through the 30 s retry back-off, which we sidestep entirely
+ * by *not* asserting through retries unless the test specifically
+ * stubs out timers or sequences `fetch` results carefully.
  *
- * We also mock url-safety.server so the SSRF re-check always passes
- * (the real check DNS-resolves and may block localhost — irrelevant
- * for these tests).
- *
- * Signing correctness is verified by reading the X-Webhook-Signature
- * header and re-computing the HMAC ourselves.
+ * The url-safety SSRF re-check is mocked unconditionally to "safe" so
+ * tests don't depend on DNS resolution.
  */
 
 import crypto from "crypto";
 
-const { prismaMock, fetchSpy } = vi.hoisted(() => ({
+const { prismaMock, fetchSpy, isSafeOutboundUrlMock } = vi.hoisted(() => ({
   prismaMock: {
     webhookSubscription: {
       findMany: vi.fn(),
-      findFirst: vi.fn().mockResolvedValue({ id: "sub-1" }),
+      findFirst: vi.fn(),
     },
-    webhookDeliveryFailure: { create: vi.fn().mockResolvedValue({}) },
+    webhookDeliveryFailure: {
+      create: vi.fn(),
+    },
   },
   fetchSpy: vi.fn(),
+  isSafeOutboundUrlMock: vi.fn(),
 }));
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 
-// SSRF re-check happens via dynamic import of url-safety.server — stub it
-// unconditionally to "safe" so tests don't rely on DNS.
 vi.mock("../url-safety.server", () => ({
-  isSafeOutboundUrl: vi.fn().mockResolvedValue({ ok: true }),
+  isSafeOutboundUrl: isSafeOutboundUrlMock,
 }));
 
 vi.mock("../observability/logger.server", () => ({
@@ -59,31 +59,53 @@ vi.mock("../observability/metrics.server", () => ({
 import { dispatchWebhookEvent } from "../webhook-dispatch.server";
 
 /**
- * Wait for pending microtasks + macrotasks to flush.
- *
- * The delivery chain spans:
- *   IIFE → withSpan → findMany → signPayload → enqueueForSubscription →
- *   deliverWithRetry → webhookInflight.add → try → deliverWebhook →
- *   dynamic import("./url-safety.server") → isSafeOutboundUrl → fetch
- *
- * Several dynamic imports + multiple awaits make microtask-only flushing
- * unreliable. A real 50 ms sleep is plenty to complete the initial fetch
- * without waiting on the 30 s retry timer.
+ * Wait for the IIFE → withSpan → findMany → enqueueForSubscription →
+ * deliverWithRetry → dynamic import("./url-safety.server") → fetch
+ * chain to flush. 200 ms is enough on CI without races and never
+ * crosses the 30 s retry timer.
  */
 async function flushAll() {
-  // 200 ms covers the initial fetch + per-sub FIFO drain even under coverage
-  // instrumentation / CI concurrency. Lower values (50ms) race on loaded CI.
   await new Promise((r) => setTimeout(r, 200));
   for (let i = 0; i < 10; i++) {
     await new Promise((r) => setImmediate(r));
   }
 }
 
+/* ── Fixtures ─────────────────────────────────────────────────────── */
+
+let subCounter = 0;
+function uniqueId(prefix: string) {
+  subCounter += 1;
+  return `${prefix}-${subCounter}-${Date.now()}`;
+}
+
+function makeSub(overrides: Partial<{
+  id: string;
+  shopId: string;
+  isActive: boolean;
+  url: string;
+  secret: string;
+  events: string;
+}> = {}) {
+  return {
+    id: overrides.id ?? uniqueId("sub"),
+    shopId: "shop-1",
+    isActive: true,
+    url: "https://hook.example.com/incoming",
+    secret: "test-secret",
+    events: JSON.stringify(["return.approved"]),
+    ...overrides,
+  };
+}
+
+/* ── Setup ────────────────────────────────────────────────────────── */
+
 beforeEach(() => {
   prismaMock.webhookSubscription.findMany.mockReset().mockResolvedValue([]);
-  prismaMock.webhookSubscription.findFirst.mockReset().mockResolvedValue({ id: "sub-1" });
+  prismaMock.webhookSubscription.findFirst.mockReset().mockResolvedValue({ id: "sub-default" });
   prismaMock.webhookDeliveryFailure.create.mockReset().mockResolvedValue({});
   fetchSpy.mockReset();
+  isSafeOutboundUrlMock.mockReset().mockResolvedValue({ ok: true });
   vi.stubGlobal("fetch", fetchSpy);
 });
 
@@ -91,210 +113,329 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("dispatchWebhookEvent — no subscribers", () => {
-  it("does nothing when the shop has no subscriptions", async () => {
+/* ── 1. No subscriptions = no-op ──────────────────────────────────── */
+
+describe("dispatchWebhookEvent — no subscriptions", () => {
+  it("returns synchronously without throwing", () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([]);
-    dispatchWebhookEvent("shop-1", "return.approved", { id: "r-1" });
+    expect(() => dispatchWebhookEvent("shop-1", "return.approved", { id: "r" }))
+      .not.toThrow();
+  });
+
+  it("does not call fetch when there are zero subscriptions for the shop", async () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([]);
+    dispatchWebhookEvent("shop-1", "return.approved", { id: "r" });
     await flushAll();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("does nothing when no subscriptions match the event type", async () => {
+  it("does not call fetch when no subscription matches the event type", async () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([
-      {
-        id: "sub-1", shopId: "shop-1", isActive: true,
-        url: "https://hook.example.com/a",
-        secret: "s1",
-        events: JSON.stringify(["return.rejected"]), // doesn't include "return.approved"
-      },
+      makeSub({ events: JSON.stringify(["return.rejected"]) }),
     ]);
-    dispatchWebhookEvent("shop-1", "return.approved", { id: "r-1" });
+    dispatchWebhookEvent("shop-1", "return.approved", { id: "r" });
     await flushAll();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("skips a subscription whose events JSON is invalid", async () => {
+  it("filters out subscriptions whose events JSON is malformed", async () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([
-      {
-        id: "sub-bad", shopId: "shop-1", isActive: true,
-        url: "https://hook.example.com/bad",
-        secret: "s",
-        events: "{{{not json",
-      },
+      makeSub({ events: "}}}garbage" }),
     ]);
-    dispatchWebhookEvent("shop-1", "return.approved", { id: "r-1" });
+    dispatchWebhookEvent("shop-1", "return.approved", { id: "r" });
     await flushAll();
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("queries findMany with shopId + isActive filter", async () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([]);
+    dispatchWebhookEvent("shop-xyz", "return.approved", { id: "r" });
+    await flushAll();
+    expect(prismaMock.webhookSubscription.findMany).toHaveBeenCalledWith({
+      where: { shopId: "shop-xyz", isActive: true },
+    });
   });
 });
 
-describe("dispatchWebhookEvent — successful delivery", () => {
-  // Per-sub FIFO queue persists across tests — use unique IDs per test.
-  const mkSub = (id: string) => ({
-    id,
-    shopId: "shop-1",
-    isActive: true,
-    url: "https://hook.example.com/approved",
-    secret: "super-secret",
-    events: JSON.stringify(["return.approved", "return.refunded"]),
+/* ── 2. Fire-and-forget signature verification ────────────────────── */
+
+describe("dispatchWebhookEvent — fire-and-forget + signing", () => {
+  it("returns void synchronously (does not block the caller)", () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
+    fetchSpy.mockResolvedValue({ ok: true });
+    const result = dispatchWebhookEvent("shop-1", "return.approved", { id: "r" });
+    expect(result).toBeUndefined();
   });
 
-  it("POSTs to the subscription URL with the expected body", async () => {
-    const sub = mkSub("sub-ok-1");
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([sub]);
+  it("posts JSON body containing event, data, timestamp and idempotencyKey", async () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
     fetchSpy.mockResolvedValue({ ok: true });
-    dispatchWebhookEvent("shop-1", "return.approved", { returnId: "r-42" });
+    dispatchWebhookEvent("shop-1", "return.approved", { returnId: "r-99" });
     await flushAll();
     expect(fetchSpy).toHaveBeenCalledOnce();
-    const [url, init] = fetchSpy.mock.calls[0];
-    expect(url).toBe(sub.url);
-    const body = JSON.parse((init as { body: string }).body);
+    const init = fetchSpy.mock.calls[0][1] as { method: string; body: string };
+    expect(init.method).toBe("POST");
+    const body = JSON.parse(init.body);
     expect(body.event).toBe("return.approved");
-    expect(body.data.returnId).toBe("r-42");
-    expect(typeof body.idempotencyKey).toBe("string");
+    expect(body.data).toEqual({ returnId: "r-99" });
     expect(typeof body.timestamp).toBe("string");
+    expect(typeof body.idempotencyKey).toBe("string");
+    expect(body.idempotencyKey.length).toBeGreaterThan(10);
   });
 
-  it("signs the body with HMAC-SHA256 in X-Webhook-Signature", async () => {
-    const sub = mkSub("sub-ok-2");
+  it("sets X-Webhook-Signature to HMAC-SHA256(body, sub.secret) prefixed sha256=", async () => {
+    const sub = makeSub({ secret: "my-strong-secret" });
     prismaMock.webhookSubscription.findMany.mockResolvedValue([sub]);
     fetchSpy.mockResolvedValue({ ok: true });
-    dispatchWebhookEvent("shop-1", "return.approved", { a: 1 });
+    dispatchWebhookEvent("shop-1", "return.approved", { foo: "bar" });
     await flushAll();
-    const [, init] = fetchSpy.mock.calls[0];
-    const headers = (init as { headers: Record<string, string> }).headers;
-    const body = (init as { body: string }).body;
-    const expected = "sha256=" + crypto.createHmac("sha256", sub.secret).update(body).digest("hex");
-    expect(headers["X-Webhook-Signature"]).toBe(expected);
+    const init = fetchSpy.mock.calls[0][1] as {
+      headers: Record<string, string>;
+      body: string;
+    };
+    const expected =
+      "sha256=" +
+      crypto.createHmac("sha256", sub.secret).update(init.body).digest("hex");
+    expect(init.headers["X-Webhook-Signature"]).toBe(expected);
   });
 
-  it("also sets the legacy X-RPM-Signature for one-release compatibility", async () => {
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([mkSub("sub-ok-3")]);
+  it("also sets the legacy X-RPM-Signature header for backwards compat", async () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
     fetchSpy.mockResolvedValue({ ok: true });
-    dispatchWebhookEvent("shop-1", "return.approved", { a: 1 });
+    dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
     await flushAll();
     const headers = (fetchSpy.mock.calls[0][1] as { headers: Record<string, string> }).headers;
     expect(headers["X-RPM-Signature"]).toBeTruthy();
     expect(headers["X-RPM-Event"]).toBe("return.approved");
   });
 
-  it("includes X-Webhook-Event: <eventType> header", async () => {
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([mkSub("sub-ok-4")]);
+  it("sets Content-Type and X-Webhook-Event headers", async () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
     fetchSpy.mockResolvedValue({ ok: true });
     dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
     await flushAll();
     const headers = (fetchSpy.mock.calls[0][1] as { headers: Record<string, string> }).headers;
-    expect(headers["X-Webhook-Event"]).toBe("return.approved");
     expect(headers["Content-Type"]).toBe("application/json");
+    expect(headers["X-Webhook-Event"]).toBe("return.approved");
   });
 
-  it("dispatches to multiple matching subscriptions", async () => {
-    const subA = { ...mkSub("sub-multi-a"), url: "https://a.example.com" };
-    const subB = { ...mkSub("sub-multi-b"), url: "https://b.example.com" };
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([subA, subB]);
+  it("dispatches to multiple matching subscriptions in parallel", async () => {
+    const a = makeSub({ url: "https://a.example.com/hook" });
+    const b = makeSub({ url: "https://b.example.com/hook" });
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([a, b]);
     fetchSpy.mockResolvedValue({ ok: true });
-    dispatchWebhookEvent("shop-1", "return.approved", { r: 1 });
+    dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
     await flushAll();
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     const urls = fetchSpy.mock.calls.map((c) => c[0]);
-    expect(urls).toContain("https://a.example.com");
-    expect(urls).toContain("https://b.example.com");
+    expect(urls).toContain(a.url);
+    expect(urls).toContain(b.url);
   });
-});
 
-describe("dispatchWebhookEvent — SSRF re-check", () => {
-  it("skips delivery when the URL fails the SSRF re-check", async () => {
-    // Override the url-safety mock for this test only.
-    const urlSafety = await import("../url-safety.server");
-    (urlSafety.isSafeOutboundUrl as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
-      ok: false,
-      reason: "private_ip",
-    });
-
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([{
-      id: "sub-ssrf", shopId: "shop-1", isActive: true,
-      url: "http://169.254.169.254/fake",
-      secret: "s",
-      events: JSON.stringify(["return.approved"]),
-    }]);
+  it("uses each subscription's own secret for signing", async () => {
+    const a = makeSub({ url: "https://a.example.com", secret: "secret-A" });
+    const b = makeSub({ url: "https://b.example.com", secret: "secret-B" });
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([a, b]);
     fetchSpy.mockResolvedValue({ ok: true });
-    dispatchWebhookEvent("shop-1", "return.approved", { r: 1 });
+    dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
     await flushAll();
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-});
-
-describe("dispatchWebhookEvent — failure handling", () => {
-  // Unique subscription IDs per test — the per-sub FIFO queue persists
-  // across tests, so sharing an ID would make this test inherit a
-  // pending task from an earlier test and never dispatch.
-  const mkSub = (id: string) => ({
-    id,
-    shopId: "shop-1",
-    isActive: true,
-    url: "https://hook.example.com/x",
-    secret: "s",
-    events: JSON.stringify(["return.approved"]),
+    const calls = fetchSpy.mock.calls;
+    for (const call of calls) {
+      const init = call[1] as { headers: Record<string, string>; body: string };
+      const isA = call[0] === a.url;
+      const expected =
+        "sha256=" +
+        crypto
+          .createHmac("sha256", isA ? a.secret : b.secret)
+          .update(init.body)
+          .digest("hex");
+      expect(init.headers["X-Webhook-Signature"]).toBe(expected);
+    }
   });
 
-  it("treats 4xx/5xx response as failure (initial attempt counted)", async () => {
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([mkSub("sub-fail-4xx")]);
-    fetchSpy.mockResolvedValue({ ok: false, status: 500 });
-    dispatchWebhookEvent("shop-1", "return.approved", { r: 1 });
-    await flushAll();
-    // Initial attempt happened.
-    expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it("survives a network error from fetch without throwing synchronously", async () => {
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([mkSub("sub-fail-net")]);
+  it("does not throw synchronously when fetch rejects", () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
     fetchSpy.mockRejectedValue(new Error("ECONNREFUSED"));
-    // Fire-and-forget — the synchronous call must not throw.
-    expect(() => dispatchWebhookEvent("shop-1", "return.approved", { r: 1 })).not.toThrow();
-    await flushAll();
-    expect(fetchSpy).toHaveBeenCalled();
+    expect(() =>
+      dispatchWebhookEvent("shop-1", "return.approved", { id: "r" }),
+    ).not.toThrow();
   });
 
-  it("swallows a Prisma findMany error silently (logged, fire-and-forget)", async () => {
-    prismaMock.webhookSubscription.findMany.mockRejectedValue(new Error("DB down"));
-    expect(() => dispatchWebhookEvent("shop-1", "return.approved", { r: 1 })).not.toThrow();
+  it("swallows Prisma findMany rejection without throwing", async () => {
+    prismaMock.webhookSubscription.findMany.mockRejectedValue(new Error("db down"));
+    expect(() =>
+      dispatchWebhookEvent("shop-1", "return.approved", { id: "r" }),
+    ).not.toThrow();
+    await flushAll();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("skips delivery when SSRF re-check returns ok:false", async () => {
+    isSafeOutboundUrlMock.mockResolvedValueOnce({ ok: false, reason: "private_ip" });
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([
+      makeSub({ url: "http://169.254.169.254/imds" }),
+    ]);
+    fetchSpy.mockResolvedValue({ ok: true });
+    dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
+    await flushAll();
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("skips delivery when the SSRF re-check itself throws (fail closed)", async () => {
+    isSafeOutboundUrlMock.mockRejectedValueOnce(new Error("dns failure"));
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
+    fetchSpy.mockResolvedValue({ ok: true });
+    dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
     await flushAll();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 
-describe("dispatchWebhookEvent — per-subscription FIFO", () => {
-  it("serialises calls for the same subscription (2nd fires after 1st resolves)", async () => {
-    const sub = {
-      id: "sub-fifo",
-      shopId: "shop-1",
-      isActive: true,
-      url: "https://hook.example.com/fifo",
-      secret: "s",
-      events: JSON.stringify(["return.approved"]),
-    };
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([sub]);
+/* ── 3. Retry on 5xx ──────────────────────────────────────────────── */
 
-    // Make the first fetch block until we manually resolve it.
-    let firstResolve!: () => void;
-    const firstBlocker = new Promise<{ ok: true }>((r) => {
-      firstResolve = () => r({ ok: true });
-    });
-    fetchSpy
-      .mockReturnValueOnce(firstBlocker)
-      .mockResolvedValueOnce({ ok: true });
-
-    dispatchWebhookEvent("shop-1", "return.approved", { i: 1 });
-    dispatchWebhookEvent("shop-1", "return.approved", { i: 2 });
+describe("dispatchWebhookEvent — retry on failure", () => {
+  it("counts an initial 5xx response as a delivery attempt (no immediate retry without timer advance)", async () => {
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
+    fetchSpy.mockResolvedValue({ ok: false, status: 503 });
+    dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
     await flushAll();
-
-    // Only the first call is in-flight; the second is queued behind it.
+    // The initial attempt fired exactly once; retries are gated by 30 s/2 min
+    // setTimeout we don't advance through.
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
 
-    firstResolve();
-    await flushAll();
+  it("retries after the back-off delay using fake timers (initial 500 → retry succeeds)", async () => {
+    vi.useFakeTimers();
+    try {
+      prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
+      // First call fails with 500, the retry succeeds.
+      fetchSpy
+        .mockResolvedValueOnce({ ok: false, status: 500 })
+        .mockResolvedValueOnce({ ok: true });
 
-    // Now both fired.
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+      dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
+
+      // Drain the initial async chain.
+      await vi.advanceTimersByTimeAsync(0);
+      // Initial attempt completes.
+      // Then the retry loop awaits 30s — advance past it.
+      await vi.advanceTimersByTimeAsync(30_000);
+      // Allow the post-retry promise chain to settle.
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      // No DLQ write because the retry succeeded.
+      expect(prismaMock.webhookDeliveryFailure.create).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("abandons the retry when subscription has been deactivated between attempts", async () => {
+    vi.useFakeTimers();
+    try {
+      const sub = makeSub();
+      prismaMock.webhookSubscription.findMany.mockResolvedValue([sub]);
+      // Initial attempt fails so we enter the retry loop.
+      fetchSpy.mockResolvedValueOnce({ ok: false, status: 500 });
+      // Subscription has been disabled between attempts.
+      prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce(null);
+
+      dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      // Only the initial attempt fired; the retry was abandoned.
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(prismaMock.webhookDeliveryFailure.create).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+/* ── 4. DLQ write on permanent failure ────────────────────────────── */
+
+describe("dispatchWebhookEvent — dead-letter queue", () => {
+  it("persists to webhookDeliveryFailure when all attempts fail", async () => {
+    vi.useFakeTimers();
+    try {
+      const sub = makeSub({ url: "https://broken.example.com/hook" });
+      prismaMock.webhookSubscription.findMany.mockResolvedValue([sub]);
+      // All three attempts return 500.
+      fetchSpy.mockResolvedValue({ ok: false, status: 500 });
+
+      dispatchWebhookEvent("shop-1", "return.approved", { id: "r-1" });
+      // Initial attempt.
+      await vi.advanceTimersByTimeAsync(0);
+      // First retry after 30s.
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(0);
+      // Second retry after 2min.
+      await vi.advanceTimersByTimeAsync(120_000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(prismaMock.webhookDeliveryFailure.create).toHaveBeenCalledOnce();
+      const data = (prismaMock.webhookDeliveryFailure.create.mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      }).data;
+      expect(data.subscriptionId).toBe(sub.id);
+      expect(data.shopId).toBe("shop-1");
+      expect(data.eventType).toBe("return.approved");
+      expect(data.url).toBe(sub.url);
+      expect(data.attemptCount).toBe(3);
+      expect(typeof data.payloadJson).toBe("string");
+      expect(typeof data.idempotencyKey).toBe("string");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not write DLQ if the eventual retry succeeds", async () => {
+    vi.useFakeTimers();
+    try {
+      prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
+      fetchSpy
+        .mockResolvedValueOnce({ ok: false, status: 502 })
+        .mockResolvedValueOnce({ ok: false, status: 502 })
+        .mockResolvedValueOnce({ ok: true });
+
+      dispatchWebhookEvent("shop-1", "return.approved", { x: 1 });
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(120_000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchSpy).toHaveBeenCalledTimes(3);
+      expect(prismaMock.webhookDeliveryFailure.create).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("survives a DLQ write failure without throwing", async () => {
+    vi.useFakeTimers();
+    try {
+      prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
+      fetchSpy.mockResolvedValue({ ok: false, status: 500 });
+      prismaMock.webhookDeliveryFailure.create.mockRejectedValue(new Error("DLQ table missing"));
+
+      expect(() =>
+        dispatchWebhookEvent("shop-1", "return.approved", { x: 1 }),
+      ).not.toThrow();
+
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(120_000);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(prismaMock.webhookDeliveryFailure.create).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

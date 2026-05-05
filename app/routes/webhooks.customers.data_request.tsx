@@ -10,13 +10,25 @@ import prisma from "../db.server";
  * The merchant must send the data to the customer within 30 days.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, payload } = await authenticate.webhook(request);
+  // Re-throw HMAC 401 Responses; swallow other authenticate-time errors.
+  let authed: Awaited<ReturnType<typeof authenticate.webhook>>;
+  try {
+    authed = await authenticate.webhook(request);
+  } catch (err) {
+    if (err instanceof Response) throw err;
+    console.error("[webhook:customers/data_request] authenticate failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return new Response();
+  }
+  const { shop, payload } = authed;
 
   const customerId = payload.customer?.id?.toString() ?? "";
   const customerEmail = payload.customer?.email?.toLowerCase().trim() ?? "";
 
+  // Don't log raw email — pino redaction doesn't apply to console.log.
   console.log(
-    `[webhooks.customers.data_request] shop=${shop} customerId=${customerId} email=${customerEmail}`,
+    `[webhooks.customers.data_request] shop=${shop} customerId=${customerId} email=${customerEmail ? "[present]" : "[missing]"}`,
   );
 
   try {

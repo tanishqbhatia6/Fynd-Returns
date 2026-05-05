@@ -14,7 +14,20 @@ import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
  * (status → "completed") at which point the real order ID is captured.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, payload } = await authenticate.webhook(request);
+  // Same hardening as orders.create: re-throw HMAC 401 Responses (Shopify
+  // expects them) but swallow other authenticate-time errors so we don't
+  // trigger Shopify's retry storm against the topic.
+  let authed: Awaited<ReturnType<typeof authenticate.webhook>>;
+  try {
+    authed = await authenticate.webhook(request);
+  } catch (err) {
+    if (err instanceof Response) throw err;
+    console.error("[webhook:draft-orders/create] authenticate failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return new Response();
+  }
+  const { shop, payload } = authed;
   if (!payload || typeof payload !== "object") return new Response();
 
   const p = payload as Record<string, unknown>;

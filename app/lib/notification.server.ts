@@ -87,13 +87,20 @@ async function getSmtpConfig(shopDomain: string): Promise<{
   // tolerant of pre-encryption-rollout plaintext rows (returns them as-is) so the
   // cutover doesn't require a backfill before this code is safe to ship.
   const { decryptIfEncrypted } = await import("./encryption.server");
+  const decryptedPass = decryptIfEncrypted(s.smtpPass);
+  if (s.smtpPass && !decryptedPass) {
+    // ciphertext failed to decrypt (key rotation gone wrong, corrupt blob).
+    // SMTP auth would silently fail with empty password; surface the cause so
+    // operators see why notifications are bouncing.
+    notifLogger.error({ shopDomain }, "[notification] SMTP password decryption returned null — SMTP auth will fail. Check ENCRYPTION_KEY rotation.");
+  }
   return {
     smtp: {
       host: s.smtpHost,
       port: s.smtpPort ?? 587,
       secure: s.smtpSecure ?? false,
       user: s.smtpUser,
-      pass: decryptIfEncrypted(s.smtpPass) ?? "",
+      pass: decryptedPass ?? "",
       fromEmail: s.smtpFromEmail || s.smtpUser,
       fromName: s.smtpFromName || "Fynd Returns",
     },

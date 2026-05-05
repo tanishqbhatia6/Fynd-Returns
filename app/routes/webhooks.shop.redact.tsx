@@ -9,7 +9,19 @@ import prisma from "../db.server";
  * We must delete all data associated with this shop.
  */
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, payload } = await authenticate.webhook(request);
+  // Re-throw HMAC 401 Responses (correct Shopify behaviour) but swallow other
+  // authenticate-time errors so we don't trigger retry storms.
+  let authed: Awaited<ReturnType<typeof authenticate.webhook>>;
+  try {
+    authed = await authenticate.webhook(request);
+  } catch (err) {
+    if (err instanceof Response) throw err;
+    console.error("[webhook:shop/redact] authenticate failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return new Response();
+  }
+  const { shop, payload } = authed;
 
   console.log(
     `[webhooks.shop.redact] shop=${shop} shopId=${payload.shop_id}`,

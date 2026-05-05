@@ -13,6 +13,17 @@ import prisma from "../db.server";
 import { withRestCredentials, fetchOrderByGid, type AdminGraphQL } from "../lib/shopify-admin.server";
 
 const API_VERSION = "2026-01";
+const SHOPIFY_FETCH_TIMEOUT_MS = 15_000;
+
+async function shopifyFetch(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 type StrategyResult = {
   strategy: string;
@@ -56,7 +67,7 @@ async function testRestLookup(
 ): Promise<{ orders: Array<{ id: number; name: string }>; error?: string; statusCode?: number }> {
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
   const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
-  const res = await fetch(url, {
+  const res = await shopifyFetch(url, {
     headers: { "X-Shopify-Access-Token": accessToken },
   });
   if (!res.ok) {

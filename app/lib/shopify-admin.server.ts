@@ -1170,7 +1170,7 @@ export async function fetchOrderLineItemsByName(
             }
           }
         }`;
-        const res = await fetch(url, {
+        const res = await shopifyFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": accessToken },
           body: JSON.stringify({ query: gqlQuery, variables: { q, first: 50 } }),

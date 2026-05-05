@@ -72,15 +72,14 @@ export async function checkDatabase(): Promise<HealthCheckResult> {
  */
 export async function checkFyndApi(): Promise<HealthCheckResult> {
   const start = performance.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 5000);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 5000);
-
     const res = await fetch("https://api.fynd.com", {
       method: "HEAD",
       signal: controller.signal,
     });
-    clearTimeout(timer);
+    void res; // suppress unused-var; we only care that it resolved
 
     const latencyMs = Math.round(performance.now() - start);
     healthCheckDuration.record(latencyMs, { dependency: "fynd_api" });
@@ -95,6 +94,10 @@ export async function checkFyndApi(): Promise<HealthCheckResult> {
       latencyMs,
       message: err instanceof Error ? err.message : "Fynd API unreachable",
     };
+  } finally {
+    // Always clear the timer so a thrown fetch doesn't leave it queued
+    // for ~5s doing nothing.
+    clearTimeout(timer);
   }
 }
 

@@ -302,9 +302,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const resolved = await fetchOrderByFyndAffiliateId(admin, searchId);
         if (resolved?.id) {
           console.log(`[create-return] Resolved orderId "${effectiveOrderId}" → "${resolved.id}"`);
-          // Backfill the FyndOrderMapping with the resolved Shopify GID for future lookups
+          // Backfill the FyndOrderMapping with the resolved Shopify GID for future lookups.
+          // `void` makes the fire-and-forget intent explicit so linters / future readers
+          // don't add a stray `await` that would block the request on a best-effort cache write.
           if (resolved.id.startsWith("gid://") && shopifyOrderName) {
-            prisma.fyndOrderMapping.upsert({
+            void prisma.fyndOrderMapping.upsert({
               where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
               create: { shopId: shopRecord.id, shopifyOrderName, shopifyOrderId: resolved.id, searchStrategy: "create_return_resolve" },
               update: { shopifyOrderId: resolved.id },
@@ -349,9 +351,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           if (lastResort?.id?.startsWith("gid://")) {
             console.log(`[create-return] Last-resort resolved orderId "${effectiveOrderId}" → "${lastResort.id}"`);
             effectiveOrderId = lastResort.id;
-            // Backfill FyndOrderMapping for future lookups
+            // Backfill FyndOrderMapping for future lookups (fire-and-forget cache write)
             if (shopifyOrderName) {
-              prisma.fyndOrderMapping.upsert({
+              void prisma.fyndOrderMapping.upsert({
                 where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
                 create: { shopId: shopRecord.id, shopifyOrderName, shopifyOrderId: lastResort.id, searchStrategy: "create_return_last_resort" },
                 update: { shopifyOrderId: lastResort.id },

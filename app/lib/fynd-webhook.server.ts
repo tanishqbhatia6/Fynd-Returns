@@ -1128,7 +1128,14 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         if (hasNonGidLineItems) {
           // Try to match stored items to Shopify line items by SKU or title
           const returnItems = returnCase.items ?? [];
-          const shopifyByTitle = new Map(order.lineItems.map((li) => [li.title?.toLowerCase(), li]));
+          // Filter both maps to items with the lookup key present — keying a Map
+          // with `undefined` collides every titleless line item into one bucket
+          // and yields the wrong match when shopifyByTitle.get() is queried.
+          const shopifyByTitle = new Map(
+            order.lineItems
+              .filter((li): li is typeof li & { title: string } => typeof li.title === "string" && li.title.length > 0)
+              .map((li) => [li.title.toLowerCase(), li]),
+          );
           const shopifyBySku = new Map(order.lineItems.filter((li) => li.sku).map((li) => [li.sku!.toLowerCase(), li]));
           const resolved: Array<{ id: string; quantity: number }> = [];
           for (const li of lineItemsForRefund) {

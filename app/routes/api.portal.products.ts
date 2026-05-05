@@ -10,6 +10,20 @@ import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
+// Cap upstream Shopify Admin REST calls so a hung backend doesn't pin the
+// portal request thread indefinitely. 10s matches the Fynd client.
+const SHOPIFY_FETCH_TIMEOUT_MS = 10_000;
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 interface PortalProduct {
   id: string;
   title: string;
@@ -74,7 +88,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     if (productId) {
       // Fetch specific product variants (for same-product exchange)
-      const response = await fetch(
+      const response = await fetchWithTimeout(
         `https://${shop.shopDomain}/admin/api/2024-10/products/${productId.replace("gid://shopify/Product/", "")}.json?fields=id,title,handle,product_type,vendor,images,variants`,
         {
           headers: {
@@ -102,7 +116,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         ? `https://${shop.shopDomain}/admin/api/2024-10/products.json?limit=${limit}&fields=id,title,handle,product_type,vendor,images,variants&title=${encodeURIComponent(search)}`
         : `https://${shop.shopDomain}/admin/api/2024-10/products.json?limit=${limit}&fields=id,title,handle,product_type,vendor,images,variants`;
 
-      const response = await fetch(endpoint, {
+      const response = await fetchWithTimeout(endpoint, {
         headers: {
           "X-Shopify-Access-Token": session.accessToken,
           "Content-Type": "application/json",

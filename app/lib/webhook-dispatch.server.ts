@@ -73,9 +73,9 @@ async function deliverWebhook(
     }
   } catch { /* if the safety check itself errors, fail closed */ return false; }
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     const res = await fetch(url, {
       method: "POST",
       headers: {
@@ -94,10 +94,15 @@ async function deliverWebhook(
       body,
       signal: controller.signal,
     });
-    clearTimeout(timer);
     return res.ok;
   } catch {
     return false;
+  } finally {
+    // Always clear the timer — without this, a fetch() that throws synchronously
+    // (DNS failure, malformed URL) leaves the timeout queued in the event loop
+    // for up to TIMEOUT_MS doing nothing. Across 1000s of failed deliveries this
+    // accumulates into noticeable RAM/event-loop pressure.
+    clearTimeout(timer);
   }
 }
 

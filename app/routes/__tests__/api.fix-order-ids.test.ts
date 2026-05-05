@@ -92,6 +92,15 @@ describe("loader: GET /api/fix-order-ids", () => {
 });
 
 describe("action: POST /api/fix-order-ids", () => {
+  it("405 on non-POST methods", async () => {
+    authenticateMock.mockResolvedValueOnce({
+      session: { shop: "store.myshopify.com" },
+      admin: {},
+    });
+    const res = await action({ request: mkReq("PUT"), params: {}, context: {} } as never);
+    expect(res.status).toBe(405);
+  });
+
   it("404 when shop not found", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     const res = await action({ request: mkReq("POST"), params: {}, context: {} } as never);
@@ -103,5 +112,77 @@ describe("action: POST /api/fix-order-ids", () => {
     await expect(
       action({ request: mkReq("POST"), params: {}, context: {} } as never),
     ).rejects.toBeInstanceOf(Response);
+  });
+
+  it("500 when no offline session has an access token", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.session.findFirst.mockResolvedValueOnce(null);
+    const res = await action({ request: mkReq("POST"), params: {}, context: {} } as never);
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body.error).toMatch(/offline session/i);
+  });
+
+  it("enrich path: returns empty results when no cases found", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
+
+    const res = await action({
+      request: mkReq("POST", "/api/fix-order-ids?action=enrich"),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.message).toMatch(/Enriched 0 of 0/);
+  });
+
+  it("enrich path: scopes by shopId", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
+
+    await action({
+      request: mkReq("POST", "/api/fix-order-ids?action=enrich"),
+      params: {},
+      context: {},
+    } as never);
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ shopId: "shop-1" }),
+      }),
+    );
+  });
+
+  it("enrich path: scopes by specific id when provided", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
+
+    await action({
+      request: mkReq("POST", "/api/fix-order-ids?action=enrich&id=rc-target"),
+      params: {},
+      context: {},
+    } as never);
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ shopId: "shop-1", id: "rc-target" }),
+      }),
+    );
+  });
+
+  it("fix path: scopes by shopId and finds candidates with invalid IDs", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    // Return zero cases so the fix loop is a no-op (no Shopify network calls).
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
+    const res = await action({ request: mkReq("POST"), params: {}, context: {} } as never);
+    expect(res.status).toBe(200);
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ shopId: "shop-1" }),
+      }),
+    );
   });
 });

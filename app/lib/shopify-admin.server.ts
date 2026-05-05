@@ -11,13 +11,29 @@ import { shopifyCircuitBreaker } from "./observability/resilience.server";
 
 const API_VERSION = "2026-01";
 
+/** Default per-request timeout for direct fetch() calls to Shopify Admin REST/GraphQL.
+ *  The Shopify Admin SDK applies its own timeout, but the bare `fetch()` calls in
+ *  this module would otherwise hang the request worker indefinitely on upstream
+ *  network failure. */
+const SHOPIFY_FETCH_TIMEOUT_MS = 15_000;
+
+async function shopifyFetch(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 /** Create Admin GraphQL client from shop domain and access token (e.g. for webhooks/background jobs) */
 export function createAdminClient(shopDomain: string, accessToken: string): AdminGraphQL {
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
   const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
   return {
     graphql: async (query: string, options?: { variables?: Record<string, unknown> }) => {
-      return fetch(url, {
+      return shopifyFetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -390,10 +406,20 @@ async function searchOrders(
     if (throwOnError) throw err;
     return null;
   }
-  const json = (await res.json()) as {
+  let json: {
     data?: { orders?: { nodes?: Array<Record<string, unknown>> } };
     errors?: Array<{ message?: string }>;
   };
+  try {
+    json = await res.json();
+  } catch (err) {
+    // Malformed Shopify response (e.g. HTML error page on 502, truncated body).
+    // Without this guard the function rejects with an unhandled error instead of
+    // the controlled null/OrderAccessError path the rest of the function uses.
+    refundLogger.warn({ query, error: err instanceof Error ? err.message : String(err) }, "searchOrders: response.json() failed");
+    if (throwOnError) throw err;
+    return null;
+  }
   const errMsg = json.errors?.[0]?.message ?? "";
   if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
     throw new OrderAccessError(errMsg, "PCDA");
@@ -459,7 +485,7 @@ async function restOrderLookupByName(
   for (const nameQuery of [`#${clean}`, clean]) {
     try {
       const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
-      const res = await fetch(url, {
+      const res = await shopifyFetch(url, {
         headers: { "X-Shopify-Access-Token": accessToken },
       });
       if (!res.ok) {
@@ -510,22 +536,34 @@ async function rawGraphQLSearch(
       nodes { ${ORDER_FIELDS_FRAGMENT} }
     }
   }`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Shopify-Access-Token": accessToken,
-    },
-    body: JSON.stringify({ query: gqlQuery, variables: { q: queryString, first: limit } }),
-  });
+  let res: Response;
+  try {
+    res = await shopifyFetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": accessToken,
+      },
+      body: JSON.stringify({ query: gqlQuery, variables: { q: queryString, first: limit } }),
+    });
+  } catch (err) {
+    refundLogger.warn({ error: err instanceof Error ? err.message : String(err), query: queryString }, "rawGraphQLSearch: fetch failed (network/timeout)");
+    return null;
+  }
   if (!res.ok) {
     refundLogger.warn({ statusCode: res.status, query: queryString }, "rawGraphQLSearch: HTTP error");
     return null;
   }
-  const json = (await res.json()) as {
+  let json: {
     data?: { orders?: { nodes?: Array<Record<string, unknown>> } };
     errors?: Array<{ message?: string }>;
   };
+  try {
+    json = await res.json();
+  } catch (err) {
+    refundLogger.warn({ error: err instanceof Error ? err.message : String(err), query: queryString }, "rawGraphQLSearch: response.json() failed");
+    return null;
+  }
   if (json.errors?.length) {
     refundLogger.warn({ query: queryString, error: json.errors[0]?.message }, "rawGraphQLSearch: GraphQL errors");
     return null;

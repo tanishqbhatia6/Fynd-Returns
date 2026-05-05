@@ -200,13 +200,23 @@ export async function testPlatformConnectionRaw(
     fyndLogger.info({ companyId, path }, "Testing platform connection");
     log?.("fynd-test-raw", "Request", `GET ${path}`);
     const elapsed = startTimer();
-    const res = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${token}`,
-      },
-    });
+    // Cap upstream Fynd API call so a hung backend doesn't pin the worker.
+    // 15s matches the Shopify Admin client cap.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timer);
+    }
     const text = await res.text();
     const elapsedMs = elapsed();
     fyndApiDuration.record(elapsedMs, { operation: "test_connection", status_code: String(res.status) });

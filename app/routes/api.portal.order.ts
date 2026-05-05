@@ -352,7 +352,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               // with the real GID so future lookups (in create-return, webhooks) are instant.
               if (order && order.id.startsWith("gid://")) {
                 const resolvedCleanName = `#${orderNumber}`;
-                prisma.fyndOrderMapping.upsert({
+                // Best-effort cache write — `void` makes the fire-and-forget
+                // intent explicit (matches the same pattern in create-return).
+                void prisma.fyndOrderMapping.upsert({
                   where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolvedCleanName } },
                   create: {
                     shopId: shopRecord.id,
@@ -629,7 +631,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 // Cache all shipment IDs in FyndOrderMapping (comma-separated)
                 const allShipmentIds = collectedShipments.map(s => s.shipmentId).filter(Boolean);
                 if (allShipmentIds.length > 0) {
-                  prisma.fyndOrderMapping.upsert({
+                  // Best-effort cache write — fire-and-forget by intent.
+                  void prisma.fyndOrderMapping.upsert({
                     where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: `#${orderNumber}` } },
                     create: {
                       shopId: shopRecord.id,

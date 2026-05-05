@@ -123,7 +123,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (recentDup) {
         return Response.json({ ok: true, action: "duplicate_ignored" });
       }
-    } catch { /* Non-fatal: proceed without dedup check */ }
+    } catch (err) {
+      // Non-fatal: proceed without dedup check, but surface the cause so a
+      // failing dedup query doesn't silently turn into a flood of duplicate
+      // webhook processing.
+      console.warn("[Fynd webhook] dedup check failed (proceeding without):", err instanceof Error ? err.message : err);
+    }
   }
 
   try {

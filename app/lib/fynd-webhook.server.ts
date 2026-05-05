@@ -1381,7 +1381,13 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
             if (hasNonGidAutoItems) {
               const returnItems = returnCase.items ?? [];
               const shopifyBySku = new Map(order.lineItems.filter((li) => li.sku).map((li) => [li.sku!.toLowerCase(), li]));
-              const shopifyByTitle = new Map(order.lineItems.map((li) => [li.title?.toLowerCase(), li]));
+              // Filter to items with a title before keying — otherwise titleless items
+              // all collide on the `undefined` key and yield wrong matches.
+              const shopifyByTitle = new Map(
+                order.lineItems
+                  .filter((li): li is typeof li & { title: string } => typeof li.title === "string" && li.title.length > 0)
+                  .map((li) => [li.title.toLowerCase(), li]),
+              );
               const resolved: Array<{ id: string; quantity: number }> = [];
               for (const li of lineItemsForRefund) {
                 if (li.id.startsWith("gid://")) { resolved.push(li); continue; }

@@ -43,6 +43,9 @@ export default defineConfig({
   build: { assetsInlineLimit: 0 },
   optimizeDeps: { include: ["@shopify/app-bridge-react"] },
   test: {
+    // .ts only — React component tests live in *.test.tsx and run via the
+    // separate vitest.components.config.mts (which skips the React Router
+    // plugin so jsdom can mount components directly).
     include: ["app/**/*.test.ts", "app/**/*.e2e.test.ts"],
     environment: "node",
     globals: true,

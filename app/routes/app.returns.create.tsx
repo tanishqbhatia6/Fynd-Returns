@@ -975,7 +975,7 @@ export default function CreateReturn() {
                                 <div>
                                   <label style={S.label}>Return Qty</label>
                                   <input type="number" min={1} max={li.quantity} value={sel.qty}
-                                    onChange={(e) => updateItem(li.id, "qty", Math.max(1, Math.min(li.quantity, parseInt(e.target.value) || 1)))}
+                                    onChange={(e) => updateItem(li.id, "qty", Math.max(1, Math.min(li.quantity, parseInt(e.target.value, 10) || 1)))}
                                     style={S.input} />
                                 </div>
                                 <div>
@@ -1063,7 +1063,7 @@ export default function CreateReturn() {
                               max={li.quantity}
                               value={sel.qty}
                               onChange={(e) =>
-                                updateItem(li.id, "qty", Math.max(1, Math.min(li.quantity, parseInt(e.target.value) || 1)))
+                                updateItem(li.id, "qty", Math.max(1, Math.min(li.quantity, parseInt(e.target.value, 10) || 1)))
                               }
                               style={S.input}
                             />

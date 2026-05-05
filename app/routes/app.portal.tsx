@@ -436,7 +436,7 @@ export default function PortalInfo() {
                   {enabledSections.slice(0, 3).map((s, i) => (
                     <div key={s} style={{
                       flex: 1, padding: "8px 4px", textAlign: "center" as const,
-                      fontSize: 10, fontWeight: 600, borderRadius: `${parseInt(theme.borderRadius) / 2}px`,
+                      fontSize: 10, fontWeight: 600, borderRadius: `${parseInt(theme.borderRadius, 10) / 2}px`,
                       background: i === 0 ? theme.primaryColor : theme.surfaceColor,
                       color: i === 0 ? "#fff" : theme.textMutedColor || "#64748b",
                       border: i === 0 ? "none" : `1px solid ${theme.borderColor || "#E5E7EB"}`,

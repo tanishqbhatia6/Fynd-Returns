@@ -675,19 +675,28 @@ export async function sendWhatsAppNotification(
   try {
     if (config.provider === "meta_cloud" && config.phoneNumberId) {
       const url = `https://graph.facebook.com/v18.0/${config.phoneNumberId}/messages`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${config.apiKey}`,
-        },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "text",
-          text: { body: message },
-        }),
-      });
+      // 15s cap so a hung Meta API doesn't block the notification queue.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 15_000);
+      let res: Response;
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${config.apiKey}`,
+          },
+          body: JSON.stringify({
+            messaging_product: "whatsapp",
+            to: phone,
+            type: "text",
+            text: { body: message },
+          }),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(timer);
+      }
       if (!res.ok) {
         const errText = await res.text().catch(() => "");
         return { success: false, error: `Meta Cloud WhatsApp API error ${res.status}: ${errText}` };

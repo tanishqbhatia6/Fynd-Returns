@@ -16,6 +16,21 @@ import { authenticate } from "../shopify.server";
 
 const API_VERSION = "2026-01";
 
+const SHOPIFY_FETCH_TIMEOUT_MS = 15_000;
+
+/** Wrap fetch with an AbortController-based timeout so a hung upstream
+ *  doesn't pin the worker. Used for direct REST/GraphQL calls in this
+ *  admin diagnostic+repair endpoint. */
+async function shopifyFetch(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function isValidShopifyId(id: string | null | undefined): boolean {
   if (!id) return false;
   if (id.startsWith("gid://")) return true;
@@ -36,7 +51,7 @@ async function resolveOrderByName(
   for (const nameQuery of [`#${clean}`, clean]) {
     try {
       const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
-      const res = await fetch(url, {
+      const res = await shopifyFetch(url, {
         headers: { "X-Shopify-Access-Token": accessToken },
       });
       if (!res.ok) continue;
@@ -188,7 +203,7 @@ async function fetchShopifyOrderCustomerInfo(
     }
   }`;
   try {
-    const res = await fetch(url, {
+    const res = await shopifyFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": accessToken },
       body: JSON.stringify({ query, variables: { id: orderGid } }),
@@ -237,7 +252,7 @@ async function fetchShopifyOrderLineItems(
     }
   }`;
   try {
-    const res = await fetch(url, {
+    const res = await shopifyFetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Shopify-Access-Token": accessToken },
       body: JSON.stringify({ query, variables: { id: orderGid } }),

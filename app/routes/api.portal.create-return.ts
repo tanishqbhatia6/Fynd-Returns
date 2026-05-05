@@ -1010,10 +1010,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           try {
             const productLegacyId = pair.productId.replace(/^gid:\/\/shopify\/Product\//, "");
             const variantLegacyId = pair.variantId.replace(/^gid:\/\/shopify\/ProductVariant\//, "");
-            const res = await fetch(
-              `https://${shopRecord.shopDomain}/admin/api/2024-10/products/${productLegacyId}.json?fields=id,variants`,
-              { headers: { "X-Shopify-Access-Token": session.accessToken } },
-            );
+            // 10s cap so a hung Shopify upstream doesn't pin the request worker.
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 10_000);
+            let res: Response;
+            try {
+              res = await fetch(
+                `https://${shopRecord.shopDomain}/admin/api/2024-10/products/${productLegacyId}.json?fields=id,variants`,
+                {
+                  headers: { "X-Shopify-Access-Token": session.accessToken },
+                  signal: ctrl.signal,
+                },
+              );
+            } finally {
+              clearTimeout(timer);
+            }
             if (!res.ok) {
               invalid.push({ ...pair, reason: `product fetch ${res.status}` });
               continue;

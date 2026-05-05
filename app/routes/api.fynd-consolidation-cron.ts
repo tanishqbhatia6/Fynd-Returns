@@ -9,7 +9,22 @@
  * with header: Authorization: Bearer <CRON_SECRET>
  */
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
+import { timingSafeEqual } from "crypto";
 import { runConsolidationForAllShops } from "../lib/fynd-consolidation.server";
+
+function safeCompare(a: string, b: string): boolean {
+  // Length mismatch: return false but still do a constant-time compare against
+  // a same-length buffer so we don't leak length via timing.
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) {
+    // Compare against a dummy buffer of the same length as `a` so timing is
+    // independent of `b`'s length.
+    timingSafeEqual(aBuf, Buffer.alloc(aBuf.length, 0));
+    return false;
+  }
+  return timingSafeEqual(aBuf, bBuf);
+}
 
 function isAuthorized(request: Request): boolean {
   const secret = process.env.CRON_SECRET;
@@ -19,7 +34,9 @@ function isAuthorized(request: Request): boolean {
     return host.includes("localhost") || host.includes("127.0.0.1");
   }
   const auth = request.headers.get("authorization") ?? "";
-  return auth === `Bearer ${secret}`;
+  // Constant-time compare so an attacker can't probe the secret byte by byte
+  // via response timing.
+  return safeCompare(auth, `Bearer ${secret}`);
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

@@ -5,7 +5,7 @@ import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import prisma from "../db.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const rl = checkRateLimit(request, "external.settings");
+  const rl = await checkRateLimit(request, "external.settings");
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const auth = await authenticateApiKey(request, "read_settings");

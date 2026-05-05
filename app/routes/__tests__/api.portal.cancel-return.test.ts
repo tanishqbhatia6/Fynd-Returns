@@ -4,6 +4,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const {
   prismaMock,
   verifyPortalTokenMock,
+  verifyPortalCsrfTokenMock,
   checkRateLimitMock,
   parsePortalConfigMock,
   sendCancellationNotificationMock,
@@ -11,7 +12,8 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   verifyPortalTokenMock: vi.fn(),
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
+  verifyPortalCsrfTokenMock: vi.fn(() => true),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   parsePortalConfigMock: vi.fn(() => ({ allowReturnCancellation: true })),
   sendCancellationNotificationMock: vi.fn(async () => undefined),
   dispatchWebhookEventMock: vi.fn(),
@@ -19,7 +21,10 @@ const {
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
-vi.mock("../../lib/portal-auth.server", () => ({ verifyPortalToken: verifyPortalTokenMock }));
+vi.mock("../../lib/portal-auth.server", () => ({
+  verifyPortalToken: verifyPortalTokenMock,
+  verifyPortalCsrfToken: verifyPortalCsrfTokenMock,
+}));
 vi.mock("../../lib/portal-cors.server", () => ({
   getPortalCorsHeaders: () => new Headers(),
   withCors: (res: Response) => res,
@@ -64,7 +69,8 @@ function validSession() {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   verifyPortalTokenMock.mockReset().mockReturnValue({ sessionId: "sess-1", shopId: "shop-1" });
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  verifyPortalCsrfTokenMock.mockReset().mockReturnValue(true);
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   parsePortalConfigMock.mockReset().mockReturnValue({ allowReturnCancellation: true });
   sendCancellationNotificationMock.mockReset().mockResolvedValue(undefined);
   dispatchWebhookEventMock.mockClear();
@@ -87,7 +93,7 @@ describe("action guards", () => {
     expect(res.status).toBe(405);
   });
   it("429 rate-limit", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await action({ request: jsonReq({}), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

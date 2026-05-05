@@ -55,7 +55,13 @@ function getKeyRing(): { active: Buffer; retired: Buffer[] } {
   if (!active) {
     if (isDevOrTest) {
       console.warn("[encryption] Using insecure dev key. Set ENCRYPTION_KEY for real encryption.");
-      return { active: Buffer.alloc(32, "dev-key-change-in-production"), retired: [] };
+      // Buffer.alloc(32, str) only fills with the FIRST byte of `str`, so this
+      // produces 32 copies of 0x64 ("d"). It's deliberately weak and used only
+      // when ENCRYPTION_KEY is unset in dev/test. Use Buffer.from(...).slice
+      // to spread the literal bytes for slightly better dev-mode entropy and
+      // make the intent explicit.
+      const seed = Buffer.from("dev-key-change-in-production-padding-32b").subarray(0, 32);
+      return { active: seed, retired: [] };
     }
     throw new Error(
       `ENCRYPTION_KEY must be set in NODE_ENV="${env || "(unset)"}" (treated as production): 64 hex chars (32 bytes). Run: openssl rand -hex 32`,

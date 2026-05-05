@@ -15,6 +15,7 @@ import { isFyndPrivateUrl, signFyndUrl, createFyndClientOrError } from "../lib/f
 import { PRESET_LABELS } from "../lib/refund-gate-presets";
 import type { RefundGatePreset } from "../lib/refund-gate-presets";
 import { AppPage } from "../components/AppPage";
+import { refundLogger } from "../lib/observability/logger.server";
 
 /** Ensure we never render objects (React error #31) - Fynd API sometimes returns objects instead of strings */
 function safeStr(v: unknown): string {
@@ -217,7 +218,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     let fyndPayloadJson = (returnCase as { fyndPayloadJson?: string | null }).fyndPayloadJson;
     // Attach REST credentials so order lookup can fall back to REST API (exact name match)
     const sessionAccessToken = session.accessToken ?? "";
-    console.log(`[return-detail-loader] shopifyOrderId="${returnCase.shopifyOrderId}" shopifyOrderName="${returnCase.shopifyOrderName ?? ""}" hasAccessToken=${!!sessionAccessToken} shop="${session.shop}"`);
+    refundLogger.debug({
+      shopifyOrderId: returnCase.shopifyOrderId,
+      shopifyOrderName: returnCase.shopifyOrderName ?? "",
+      hasAccessToken: !!sessionAccessToken,
+      shop: session.shop,
+    }, "[return-detail-loader] start");
     const adminWithRest = withRestCredentials(admin, session.shop, sessionAccessToken);
     if (!isManualReturn && returnCase.shopifyOrderId) {
       try {
@@ -237,7 +243,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
             const affId = extractAffiliateOrderIdFromFyndPayload(fyndPayloadJson);
             if (affId) candidates.add(affId.replace(/^#/, "").trim());
           }
-          console.log(`[return-detail-loader] Slow path candidates: [${[...candidates].join(", ")}]`);
+          refundLogger.debug({ candidates: [...candidates] }, "[return-detail-loader] slow path candidates");
           // Try all candidates in parallel — take the first successful result (preserves order priority)
           const candidateArray = [...candidates].filter(Boolean);
           if (candidateArray.length > 0) {
@@ -248,12 +254,12 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
               const r = results[i];
               if (r.status === "fulfilled" && r.value) {
                 shopifyOrder = r.value;
-                console.log(`[return-detail-loader] Resolved via candidate="${candidateArray[i]}" → ${shopifyOrder.id}`);
+                refundLogger.debug({ candidate: candidateArray[i], resolvedId: shopifyOrder.id }, "[return-detail-loader] resolved via candidate");
                 break;
               }
             }
             if (!shopifyOrder) {
-              console.warn(`[return-detail-loader] Failed to resolve order from any candidate: [${candidateArray.join(", ")}]`);
+              refundLogger.warn({ candidates: candidateArray }, "[return-detail-loader] failed to resolve order from any candidate");
             }
           }
         }

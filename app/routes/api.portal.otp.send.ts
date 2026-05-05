@@ -24,7 +24,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
 
-  const rl = checkRateLimit(request, "portal.otp.send");
+  const rl = await checkRateLimit(request, "portal.otp.send");
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
@@ -46,7 +46,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return withCors(Response.json({ error: `Please wait ${waitSec}s before requesting another OTP` }, { status: 429 }), request);
     }
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000));
+    const otp = String(crypto.randomInt(100000, 1000000));
     const otpHash = hashOtp(otp);
 
     await prisma.lookupSession.update({

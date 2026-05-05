@@ -13,7 +13,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
   checkPerKeyRateLimitMock: vi.fn(async () => null),
   dispatchWebhookEventMock: vi.fn(),
   createRefundMock: vi.fn(),
@@ -71,7 +71,7 @@ function approvedReturn(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
   dispatchWebhookEventMock.mockClear();
   createRefundMock.mockReset();
@@ -86,7 +86,7 @@ describe("POST /api/v1/external/returns/:id/refund", () => {
   });
 
   it("429 on IP rate-limit", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(429);
   });

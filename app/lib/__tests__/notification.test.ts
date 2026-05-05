@@ -424,7 +424,6 @@ describe("sendCancellationNotification", () => {
       shopDomain: "my-shop.myshopify.com",
       to: "cust@example.com",
       orderName: "#1001",
-      reason: "Customer request",
     });
     expect(res.success).toBe(true);
     expect(sendMailMock).not.toHaveBeenCalled();
@@ -437,7 +436,6 @@ describe("sendCancellationNotification", () => {
       shopDomain: "my-shop.myshopify.com",
       to: "cust@example.com",
       orderName: "#1001",
-      reason: "Customer request",
     });
     expect(sendMailMock).toHaveBeenCalledOnce();
   });
@@ -451,7 +449,6 @@ describe("sendCancellationDeclinedNotification", () => {
       shopDomain: "my-shop.myshopify.com",
       to: "cust@example.com",
       orderName: "#1001",
-      reason: "Already shipped",
     });
     expect(res.success).toBe(true);
     expect(sendMailMock).toHaveBeenCalled();
@@ -463,7 +460,6 @@ describe("sendCancellationDeclinedNotification", () => {
       shopDomain: "my-shop.myshopify.com",
       to: "cust@example.com",
       orderName: "#1001",
-      reason: "Already shipped",
     });
     expect(res.success).toBe(true);
   });

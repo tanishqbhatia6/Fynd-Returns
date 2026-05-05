@@ -29,7 +29,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  closeShopifyReturnMock: vi.fn(async () => ({ ok: true as const })),
+  closeShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; error?: string }>>(async () => ({ ok: true })),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),

@@ -24,7 +24,7 @@ export async function checkPerKeyRateLimit(
   keyId: string,
 ): Promise<Response | null> {
   const { checkRateLimit, rateLimitResponse } = await import("./rate-limit.server");
-  const rl = checkRateLimit(request, endpoint, keyId);
+  const rl = await checkRateLimit(request, endpoint, keyId);
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
   return null;
 }

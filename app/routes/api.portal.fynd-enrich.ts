@@ -19,7 +19,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
 
-  const rl = checkRateLimit(request, "portal.fynd-enrich");
+  const rl = await checkRateLimit(request, "portal.fynd-enrich");
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {

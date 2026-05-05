@@ -11,8 +11,8 @@ const {
   getPickupAddressMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
-  createFyndClientOrErrorMock: vi.fn(async () => ({ ok: false, error: "disabled" })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
   parseFyndOrderDetailsMock: vi.fn(() => ({ orderInfo: { name: "#1001" } })),
   extractFyndJourneyMock: vi.fn(() => [{ status: "delivery_done" }]),
   getTrackingInfoMock: vi.fn(() => ({ awb: "AWB-1" })),
@@ -58,7 +58,7 @@ beforeEach(() => {
   const mapping = (prismaMock as unknown as Record<string, Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>>).fyndOrderMapping;
   mapping.upsert.mockReset();
   mapping.upsert.mockResolvedValue({});
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   parseFyndOrderDetailsMock.mockReset().mockReturnValue({ orderInfo: { name: "#1001" } });
   extractFyndJourneyMock.mockReset().mockReturnValue([{ status: "delivery_done" }]);
@@ -80,7 +80,7 @@ describe("action guards", () => {
   });
 
   it("429 on rate limit", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await action({ request: jsonReq({}), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

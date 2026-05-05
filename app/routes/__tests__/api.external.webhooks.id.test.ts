@@ -4,8 +4,8 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn(async () => null),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -30,7 +30,7 @@ const mkReq = (method: string = "DELETE") =>
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
 });
 
@@ -41,7 +41,7 @@ describe("DELETE /api/v1/external/webhooks/:id", () => {
   });
 
   it("429 on IP rate limit", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await action({ request: mkReq(), params: { id: "sub-1" }, context: {} } as never);
     expect(res.status).toBe(429);
   });

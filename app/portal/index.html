@@ -4117,7 +4117,15 @@
       var token = window.__RPM_AUTH_TOKEN__;
       if (!token) { alert('Session expired. Please look up your return again.'); return; }
 
-      var body = JSON.stringify({ shop: shopDomain, returnCaseId: returnId, reason: reason || undefined });
+      var body = JSON.stringify({
+        shop: shopDomain,
+        returnCaseId: returnId,
+        reason: reason || undefined,
+        // Shop-bound CSRF token, issued by /api/portal/lookup on every
+        // authenticated portal session. Server validates when present and
+        // requires it when PORTAL_CSRF_REQUIRED=true (default).
+        portalCsrfToken: window.__RPM_PORTAL_CSRF__ || undefined,
+      });
 
       fetch(API + '/cancel-return', {
         method: 'POST',
@@ -4424,6 +4432,9 @@
       var shop = document.getElementById('shop').value.trim();
       const orders = data.orders || [];
       const returns = data.returns || [];
+      // Capture the shop-bound CSRF token so subsequent state-changing portal
+      // calls (cancel-return, etc.) can present it.
+      if (data.portalCsrfToken) window.__RPM_PORTAL_CSRF__ = data.portalCsrfToken;
 
       document.getElementById('step-otp').classList.remove('active');
       document.getElementById('step2').classList.add('active');

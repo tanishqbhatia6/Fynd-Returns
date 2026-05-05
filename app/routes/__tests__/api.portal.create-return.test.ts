@@ -27,7 +27,7 @@ const {
       admin: vi.fn(),
     },
   },
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   verifyPortalCsrfMock: vi.fn(() => true),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
@@ -109,7 +109,7 @@ beforeEach(() => {
   ((prismaMock as unknown as Record<string, unknown>).fyndOrderMapping as Record<string, { mockReset?: () => void; mockResolvedValue?: (v: unknown) => void }>).upsert.mockReset?.();
   ((prismaMock as unknown as Record<string, unknown>).fyndOrderMapping as Record<string, { mockReset?: () => void; mockResolvedValue?: (v: unknown) => void }>).findFirst.mockReset?.();
   shopifyModuleMock.unauthenticated.admin.mockReset();
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   verifyPortalCsrfMock.mockReset().mockReturnValue(true);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderByFyndAffiliateIdMock.mockReset();
@@ -145,7 +145,7 @@ describe("action: top-level guards", () => {
   });
 
   it("429 when rate-limited", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await action({ request: jsonReq({ shop: "x" }), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

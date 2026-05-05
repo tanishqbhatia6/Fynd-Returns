@@ -35,7 +35,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
 
-  const rl = checkRateLimit(request, "portal.otp.verify");
+  const rl = await checkRateLimit(request, "portal.otp.verify");
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {

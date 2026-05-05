@@ -9,7 +9,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return apiError(405, "METHOD_NOT_ALLOWED", "Use DELETE to remove a webhook subscription");
   }
 
-  const rl = checkRateLimit(request, "external.webhooks");
+  const rl = await checkRateLimit(request, "external.webhooks");
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const auth = await authenticateApiKey(request, "manage_webhooks");

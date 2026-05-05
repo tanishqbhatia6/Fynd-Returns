@@ -10,7 +10,7 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
 }));

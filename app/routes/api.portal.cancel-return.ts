@@ -13,7 +13,7 @@
  */
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { verifyPortalToken } from "../lib/portal-auth.server";
+import { verifyPortalToken, verifyPortalCsrfToken } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
@@ -35,7 +35,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
 
-  const rl = checkRateLimit(request, "portal.cancel-return");
+  const rl = await checkRateLimit(request, "portal.cancel-return");
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
@@ -49,6 +49,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         Response.json({ error: "shop and returnCaseId are required" }, { status: 400 }),
         request,
       );
+    }
+
+    // CSRF gate — same pattern as create-return. The portal HTML sends
+    // portalCsrfToken whenever it has one. Soft-enforced: if the token is
+    // present we validate it; full enforcement is gated by the env flag so
+    // existing portal sessions aren't broken on rollout.
+    const REQUIRE_CSRF = String(process.env.PORTAL_CSRF_REQUIRED ?? "true").toLowerCase() !== "false";
+    const portalCsrfToken = body.portalCsrfToken as string | undefined;
+    if (REQUIRE_CSRF || portalCsrfToken) {
+      const expectedShop = shopRaw.includes(".") ? shopRaw : `${shopRaw}.myshopify.com`;
+      if (!verifyPortalCsrfToken(portalCsrfToken, expectedShop)) {
+        return withCors(
+          Response.json({ error: "Session expired. Refresh the page and try again." }, { status: 403 }),
+          request,
+        );
+      }
     }
 
     // Auth: Bearer JWT

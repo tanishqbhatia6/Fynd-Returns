@@ -26,7 +26,7 @@ const {
   getPickupAddressMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   sendOtpEmailMock: vi.fn(async () => undefined),
   fetchOrdersByFilterMock: vi.fn(async () => []),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
@@ -70,6 +70,9 @@ vi.mock("../../lib/fynd-payload.server", () => ({
 vi.mock("../../lib/portal-i18n", () => ({
   getPortalLabels: getPortalLabelsMock,
 }));
+vi.mock("../../lib/portal-auth.server", () => ({
+  createPortalCsrfToken: () => "test-csrf-token",
+}));
 
 import { loader, action } from "../api.portal.lookup";
 
@@ -92,7 +95,7 @@ function baseShop(settings: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
   fetchOrdersByFilterMock.mockReset().mockResolvedValue([]);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
@@ -126,7 +129,7 @@ describe("action: guards", () => {
   });
 
   it("429 when rate-limited", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 60000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 60000 });
     const res = await action({ request: jsonReq({}), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });
@@ -337,9 +340,9 @@ describe("lookup dispatch (no OTP required)", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValue({
       portalLanguage: "en", portalLabelsJson: null, defaultReturnInstructions: null,
     });
-    prismaMock.returnCase.findMany
-      .mockResolvedValueOnce([{ id: "rc-1" }])   // first call: select: { id: true }
-      .mockResolvedValueOnce([]);                 // second call: empty full-load
+    // Single findMany now (id + include were consolidated). Default to empty so each
+    // test only asserts on the where-clause shape, which is what these tests care about.
+    prismaMock.returnCase.findMany.mockResolvedValue([]);
     prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
   });
 

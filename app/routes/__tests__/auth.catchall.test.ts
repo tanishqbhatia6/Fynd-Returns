@@ -42,6 +42,6 @@ describe("auth.$ headers", () => {
     const args = { parentHeaders: new Headers(), loaderHeaders: new Headers(), actionHeaders: new Headers(), errorHeaders: undefined };
     const out = headers(args as never);
     expect(boundaryHeadersMock).toHaveBeenCalledWith(args);
-    expect(out.get("x-test-boundary")).toBe("1");
+    expect((out as Headers).get("x-test-boundary")).toBe("1");
   });
 });

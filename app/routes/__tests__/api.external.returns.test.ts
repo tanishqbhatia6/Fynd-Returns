@@ -9,8 +9,8 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn(async () => null),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -40,13 +40,13 @@ function mkReq(qs = "") {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
 });
 
 describe("GET /api/v1/external/returns", () => {
   it("429 when IP rate-limited", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

@@ -13,7 +13,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     return apiError(405, "METHOD_NOT_ALLOWED", "Use POST");
   }
 
-  const rl = checkRateLimit(request, "external.returns.reject");
+  const rl = await checkRateLimit(request, "external.returns.reject");
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const auth = await authenticateApiKey(request, "write_returns");

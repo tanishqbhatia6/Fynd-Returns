@@ -4,7 +4,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, sendOtpEmailMock, checkRateLimitMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   sendOtpEmailMock: vi.fn(),
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -34,7 +34,7 @@ function jsonReq(body: unknown, method = "POST") {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
 });
 
 describe("loader /api/portal/otp/send", () => {
@@ -56,7 +56,7 @@ describe("action /api/portal/otp/send", () => {
   });
 
   it("429 when rate-limited", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

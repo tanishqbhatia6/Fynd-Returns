@@ -10,6 +10,7 @@ import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
 import { sendOtpEmail } from "../lib/notification.server";
+import { createPortalCsrfToken } from "../lib/portal-auth.server";
 
 const OTP_TTL_MS = 10 * 60 * 1000; // 10 min
 const OTP_COOLDOWN_MS = 60_000; // 60s resend cooldown
@@ -36,7 +37,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(res, request);
   }
 
-  const rl = checkRateLimit(request, "portal.lookup");
+  const rl = await checkRateLimit(request, "portal.lookup");
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
@@ -96,7 +97,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             return withCors(Response.json({ requiresOtp: true, sessionId: existing.id, cooldownMs: cooldownRemaining }), request);
           }
           // Resend: generate new OTP
-          const otp = String(Math.floor(100000 + Math.random() * 900000));
+          const otp = String(crypto.randomInt(100000, 1000000));
           const otpHash = await hashOtp(otp);
           await prisma.lookupSession.update({
             where: { id: existing.id },
@@ -130,7 +131,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
 
         // Create new session
-        const otp = String(Math.floor(100000 + Math.random() * 900000));
+        const otp = String(crypto.randomInt(100000, 1000000));
         const otpHash = await hashOtp(otp);
         const session = await prisma.lookupSession.create({
           data: {
@@ -201,20 +202,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ];
     }
 
-    const matches = await prisma.returnCase.findMany({ where, select: { id: true } });
-    const matchedReturnIds = matches.map((m) => m.id);
+    // Single query: fetch full records with includes; matched IDs derive from result.
+    // (Previous implementation issued two findMany calls — id-only then full include — which
+    // doubled DB round-trips with no benefit since the predicate is identical.)
+    const returnsRaw = await prisma.returnCase.findMany({
+      where,
+      include: {
+        items: true,
+        events: { orderBy: { happenedAt: "desc" }, take: 10 },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const matchedReturnIds = returnsRaw.map((r) => r.id);
 
-    const returnsRaw =
-      matchedReturnIds.length > 0
-        ? await prisma.returnCase.findMany({
-          where: { id: { in: matchedReturnIds }, shopId: shopRecord.id },
-          include: {
-            items: true,
-            events: { orderBy: { happenedAt: "desc" }, take: 10 },
-          },
-          orderBy: { createdAt: "desc" },
-        })
-        : [];
+    // Persist matched IDs to the OTP-verified session so the cancel-return /
+    // portal-returns endpoints can authorize ownership on subsequent calls.
+    if (otpRequired && sessionId) {
+      try {
+        await prisma.lookupSession.update({
+          where: { id: sessionId },
+          data: { matchedReturnIds: JSON.stringify(matchedReturnIds) },
+        });
+      } catch { /* non-fatal */ }
+    }
 
     // Load shop settings for labels, language, and default instructions
     const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
@@ -546,7 +556,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Fynd enrichment: attach live Fynd shipment data to an order already found by Shopify.
     // Skip if _needsFyndEnrich is false (already enriched by the discovery block above).
-    if ((normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && orders.length > 0 && shopRecord.settings && orders[0]._needsFyndEnrich !== false) {
+    if ((normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && orders.length > 0 && shopRecord.settings && orders[0]._needsFyndEnrich === true) {
       const orderNumberForFynd = rawValue.replace(/^#/, "").trim();
       if (orderNumberForFynd) {
         try {
@@ -594,7 +604,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } catch { /* best-effort */ }
     }
 
-    return withCors(Response.json({ orders, returns, labels, portalLanguage }), request);
+    // Issue a shop-bound CSRF token so subsequent state-changing portal calls
+    // (cancel-return, etc.) can present it. Same token used by /api/portal/order.
+    const portalCsrfToken = createPortalCsrfToken(shopDomain);
+    return withCors(Response.json({ orders, returns, labels, portalLanguage, portalCsrfToken }), request);
   } catch (err) {
     console.error("Portal lookup:", err);
     return withCors(Response.json({ error: "Something went wrong. Please try again." }, { status: 500 }), request);

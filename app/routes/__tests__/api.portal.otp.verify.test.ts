@@ -6,7 +6,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, createPortalTokenMock, checkRateLimitMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   createPortalTokenMock: vi.fn(() => "jwt-token"),
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -50,7 +50,7 @@ function mkValidSession(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   createPortalTokenMock.mockClear();
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
 });
 
 describe("loader /api/portal/otp/verify", () => {
@@ -67,7 +67,7 @@ describe("action /api/portal/otp/verify", () => {
   });
 
   it("429 when rate-limited", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await action({ request: jsonReq({ sessionId: "s", otp: "000000" }), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

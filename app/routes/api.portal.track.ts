@@ -19,7 +19,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return new Response(null, { status: 204, headers: getPortalCorsHeaders(request) });
   }
 
-  const rl = checkRateLimit(request, "portal.track");
+  const rl = await checkRateLimit(request, "portal.track");
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   const url = new URL(request.url);

@@ -65,7 +65,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Lazy-import so the route loader doesn't unconditionally pull rate-limit deps
     // (kept consistent with portal endpoints).
     const { checkRateLimit } = await import("../lib/rate-limit.server");
-    const rl = checkRateLimit(request, "admin.customers.search");
+    const rl = await checkRateLimit(request, "admin.customers.search");
     if (!rl.allowed) {
       throw new Response("Search rate limit exceeded — try again in a minute.", { status: 429 });
     }

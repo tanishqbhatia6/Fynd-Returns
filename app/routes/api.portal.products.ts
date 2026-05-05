@@ -35,7 +35,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Rate limit FIRST — was previously absent, allowing catalog enumeration. The
   // exchange variant picker on the customer portal calls this 1-2 times per item;
   // 60/min is plenty for legitimate flows.
-  const rl = checkRateLimit(request, "portal.products");
+  const rl = await checkRateLimit(request, "portal.products");
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   const url = new URL(request.url);

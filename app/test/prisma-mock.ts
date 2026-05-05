@@ -62,9 +62,11 @@ export const PRISMA_MODELS = [
   "webhookDeliveryFailure",
   "webhookDelivery",
   "fyndWebhookLog",
+  "fyndOrderMapping",
   "lookupSession",
   "blocklistEntry",
   "notification",
+  "notificationLog",
   "customerRiskProfile",
 ] as const;
 

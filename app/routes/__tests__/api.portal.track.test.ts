@@ -3,7 +3,7 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const { prismaMock, checkRateLimitMock, extractJourneyMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
   extractJourneyMock: vi.fn(() => [{ status: "return_initiated", at: "2025-01-01" }]),
 }));
 
@@ -33,7 +33,7 @@ function mkRequest(qs: string, method = "GET") {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   extractJourneyMock.mockClear();
 });
 
@@ -45,7 +45,7 @@ describe("GET /api/portal/track", () => {
   });
 
   it("returns 429 when rate-limited", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 60000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 60000 });
     const res = await loader({ request: mkRequest("shop=x"), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

@@ -27,7 +27,7 @@ vi.mock("../../lib/api-key-auth.server", () => ({
 }));
 
 vi.mock("../../lib/rate-limit.server", () => ({
-  checkRateLimit: vi.fn().mockReturnValue({ allowed: true, remaining: 100, retryAfterMs: 0 }),
+  checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 100, retryAfterMs: 0 }),
   rateLimitResponse: vi.fn(),
 }));
 

@@ -64,6 +64,7 @@ async function createDiscountCode(
       startsAt: new Date().toISOString(),
       endsAt: endsAt.toISOString(),
       usageLimit: 1,
+      appliesOncePerCustomer: true,
       customerSelection: { all: true },
       customerGets: {
         value: isPercentage
@@ -108,7 +109,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
   }
 
-  const rl = checkRateLimit(request, "portal.create-return");
+  const rl = await checkRateLimit(request, "portal.create-return");
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
@@ -117,10 +118,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // CSRF gate — token is issued by /api/portal/order and bound to the requesting
     // shop. Defends against cross-origin POSTs that the wildcard *.myshopify.com CORS
-    // regex used to allow. The token is OPTIONAL during a soft rollout window so
-    // existing portal sessions don't all break the moment this ships — once the
-    // portal HTML always sends it, switch to require=true (one-line change).
-    const REQUIRE_CSRF = String(process.env.PORTAL_CSRF_REQUIRED ?? "false").toLowerCase() === "true";
+    // regex would otherwise allow. The portal HTML always sends the token, so
+    // we require it by default; set PORTAL_CSRF_REQUIRED=false only as a temporary
+    // emergency escape hatch.
+    const REQUIRE_CSRF = String(process.env.PORTAL_CSRF_REQUIRED ?? "true").toLowerCase() !== "false";
     if (REQUIRE_CSRF || body.portalCsrfToken) {
       const expectedShop = shop?.includes(".") ? shop : `${shop}.myshopify.com`;
       const ok = verifyPortalCsrfToken(body.portalCsrfToken as string | undefined, expectedShop);

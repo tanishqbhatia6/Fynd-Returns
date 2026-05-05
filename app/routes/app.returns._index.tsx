@@ -43,7 +43,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const where: Record<string, unknown> = { shopId: shop.id };
-  if (status) where.status = status;
+  if (status) {
+    const list = status.split(",").map((s) => s.trim()).filter(Boolean);
+    where.status = list.length > 1 ? { in: list } : list[0];
+  }
   if (resolutionType) where.resolutionType = resolutionType;
   if (sourceChannel) where.sourceChannel = sourceChannel === "web" ? null : sourceChannel;
   if (dateFrom || dateTo) {
@@ -67,7 +70,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   try {
-    const [returns, totalCount, pendingCount, approvedCount, rejectedCount, allCount] = await Promise.all([
+    const [returns, totalCount, pendingCount, inProgressCount, approvedCount, rejectedCount, allCount] = await Promise.all([
       prisma.returnCase.findMany({
         where,
         include: { items: { take: 3 } },
@@ -77,22 +80,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       }),
       prisma.returnCase.count({ where }),
       prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["pending", "initiated"] } } }),
+      prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["processing", "in progress"] } } }),
       prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["approved", "completed"] } } }),
       prisma.returnCase.count({ where: { shopId: shop.id, status: "rejected" } }),
       prisma.returnCase.count({ where: { shopId: shop.id } }),
     ]);
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-    return { returns, query, status, resolutionType, sourceChannel, page, totalCount, totalPages, pendingCount, approvedCount, rejectedCount, allCount, error: null, shopLocale: shop?.settings?.shopLocale ?? "en", shopTimezone: shop?.settings?.shopTimezone ?? "UTC" };
+    return { returns, query, status, resolutionType, sourceChannel, page, totalCount, totalPages, pendingCount, inProgressCount, approvedCount, rejectedCount, allCount, error: null, shopLocale: shop?.settings?.shopLocale ?? "en", shopTimezone: shop?.settings?.shopTimezone ?? "UTC" };
   } catch (err) {
     console.error("Returns loader error:", err);
-    return { returns: [], query, status, resolutionType: "", sourceChannel: "", page: 1, totalCount: 0, totalPages: 1, pendingCount: 0, approvedCount: 0, rejectedCount: 0, allCount: 0, error: "Failed to load returns. Please try again.", shopLocale: "en", shopTimezone: "UTC" };
+    return { returns: [], query, status, resolutionType: "", sourceChannel: "", page: 1, totalCount: 0, totalPages: 1, pendingCount: 0, inProgressCount: 0, approvedCount: 0, rejectedCount: 0, allCount: 0, error: "Failed to load returns. Please try again.", shopLocale: "en", shopTimezone: "UTC" };
   }
 };
 
 /* Styles moved to app/styles.css — see .returns-* classes */
 
 export default function ReturnsList() {
-  const { returns, query, status, page, totalCount, totalPages, pendingCount, approvedCount, rejectedCount, allCount, error, shopLocale, shopTimezone } = useLoaderData<typeof loader>();
+  const { returns, query, status, page, totalCount, totalPages, pendingCount, inProgressCount, approvedCount, rejectedCount, allCount, error, shopLocale, shopTimezone } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -205,7 +209,6 @@ export default function ReturnsList() {
 
   const allSelectableSelected = selectableReturns.length > 0 && selectableReturns.every((r) => selectedIds.has(r.id));
   const someSelected = selectedIds.size > 0;
-  const inProgressCount = Math.max(0, allCount - pendingCount - approvedCount - rejectedCount);
 
   const fmtDateParts = (d: string | Date): { date: string; time: string } => {
     try {
@@ -219,9 +222,9 @@ export default function ReturnsList() {
 
   const stats = [
     { label: "Total", value: allCount, color: "#334155", bg: "#f8fafc", border: "#e2e8f0", filterStatus: "" },
-    { label: "Pending", value: pendingCount, color: "#d97706", bg: "#fffbeb", border: "#fde68a", filterStatus: "pending" },
-    { label: "In Progress", value: inProgressCount, color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", filterStatus: "processing" },
-    { label: "Approved", value: approvedCount, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", filterStatus: "approved" },
+    { label: "Pending", value: pendingCount, color: "#d97706", bg: "#fffbeb", border: "#fde68a", filterStatus: "pending,initiated" },
+    { label: "In Progress", value: inProgressCount, color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", filterStatus: "processing,in progress" },
+    { label: "Approved", value: approvedCount, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", filterStatus: "approved,completed" },
     { label: "Rejected", value: rejectedCount, color: "#dc2626", bg: "#fef2f2", border: "#fecaca", filterStatus: "rejected" },
   ];
 

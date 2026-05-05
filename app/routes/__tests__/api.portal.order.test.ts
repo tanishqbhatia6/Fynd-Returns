@@ -29,12 +29,12 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByGidMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
   withRestCredentialsMock: vi.fn((a: unknown) => a),
-  createFyndClientOrErrorMock: vi.fn(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
   formatReturnRequestIdMock: vi.fn((x: string) => `R-${x.slice(0, 6)}`),
   checkReturnEligibilityMock: vi.fn(() => ({ eligible: true })),
   createPortalCsrfTokenMock: vi.fn(() => "csrf-token-abc"),
@@ -105,7 +105,7 @@ beforeEach(() => {
   mapping.findFirst.mockReset();
   mapping.findFirst.mockResolvedValue(null);
   shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   fetchOrderByOrderNumberMock.mockReset();
   fetchOrderByGidMock.mockReset();
   fetchOrderByFyndAffiliateIdMock.mockReset();
@@ -172,7 +172,7 @@ describe("loader guards", () => {
   });
 
   it("429 when rate-limited", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await loader({ request: mkReq("shop=x&orderNumber=1001"), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });
@@ -288,7 +288,7 @@ describe("error fallbacks", () => {
 
   it("200 fallback on OrderAccessError (e.g. protected customer data, not approved)", async () => {
     shopifyModuleMock.unauthenticated.admin.mockRejectedValueOnce(
-      new OrderAccessError("protected_customer_data", "1001"),
+      new OrderAccessError("protected_customer_data", "PCDA"),
     );
     const res = await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
     expect(res.status).toBe(200);

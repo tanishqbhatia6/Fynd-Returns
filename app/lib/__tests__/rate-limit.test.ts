@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { checkRateLimit, rateLimitResponse } from "../rate-limit.server";
+import { describe, it, expect, beforeEach } from "vitest";
+import { checkRateLimit, rateLimitResponse, __resetRateLimitForTests } from "../rate-limit.server";
 
 /**
  * Helper to create a minimal Request object with a given IP and optional shop param.
@@ -10,122 +10,126 @@ function makeRequest(ip: string, shop = "test-shop.myshopify.com"): Request {
   });
 }
 
-/**
- * Each test uses a unique IP to avoid state leaking between tests,
- * since the rate limiter uses a module-level Map.
- */
 let ipCounter = 0;
 function uniqueIp(): string {
   ipCounter++;
   return `10.0.${Math.floor(ipCounter / 256)}.${ipCounter % 256}`;
 }
 
+beforeEach(() => {
+  __resetRateLimitForTests();
+});
+
 describe("checkRateLimit", () => {
-  it("allows requests under the limit", () => {
+  it("allows requests under the limit", async () => {
     const ip = uniqueIp();
     const req = makeRequest(ip);
-    // Default limit is 60/min; first request should be allowed
-    const result = checkRateLimit(req, "default");
+    const result = await checkRateLimit(req, "default");
     expect(result.allowed).toBe(true);
     expect(result.remaining).toBeGreaterThan(0);
     expect(result.retryAfterMs).toBe(0);
   });
 
-  it("blocks requests over the limit", () => {
+  it("blocks requests over the limit", async () => {
     const ip = uniqueIp();
     const endpoint = "portal.otp.send"; // limit: 5 per 5min
 
-    // Send 5 allowed requests
     for (let i = 0; i < 5; i++) {
-      const result = checkRateLimit(makeRequest(ip), endpoint);
+      const result = await checkRateLimit(makeRequest(ip), endpoint);
       expect(result.allowed).toBe(true);
     }
 
-    // 6th request should be blocked
-    const blocked = checkRateLimit(makeRequest(ip), endpoint);
+    const blocked = await checkRateLimit(makeRequest(ip), endpoint);
     expect(blocked.allowed).toBe(false);
     expect(blocked.remaining).toBe(0);
     expect(blocked.retryAfterMs).toBeGreaterThan(0);
   });
 
-  it("returns correct remaining count", () => {
+  it("returns correct remaining count", async () => {
     const ip = uniqueIp();
     const endpoint = "portal.otp.verify"; // limit: 10/min
 
-    const first = checkRateLimit(makeRequest(ip), endpoint);
-    expect(first.remaining).toBe(9); // 10 - 1
+    const first = await checkRateLimit(makeRequest(ip), endpoint);
+    expect(first.remaining).toBe(9);
 
-    const second = checkRateLimit(makeRequest(ip), endpoint);
-    expect(second.remaining).toBe(8); // 10 - 2
+    const second = await checkRateLimit(makeRequest(ip), endpoint);
+    expect(second.remaining).toBe(8);
   });
 
-  it("uses endpoint-specific limits for portal.otp.send (5 per 5min)", () => {
+  it("uses endpoint-specific limits for portal.otp.send (5 per 5min)", async () => {
     const ip = uniqueIp();
     const endpoint = "portal.otp.send";
 
-    // Should allow exactly 5 requests
     for (let i = 0; i < 5; i++) {
-      const result = checkRateLimit(makeRequest(ip), endpoint);
+      const result = await checkRateLimit(makeRequest(ip), endpoint);
       expect(result.allowed).toBe(true);
       expect(result.remaining).toBe(4 - i);
     }
 
-    // 6th should be blocked
-    const blocked = checkRateLimit(makeRequest(ip), endpoint);
+    const blocked = await checkRateLimit(makeRequest(ip), endpoint);
     expect(blocked.allowed).toBe(false);
   });
 
-  it("falls back to default limits for unknown endpoints", () => {
+  it("falls back to default limits for unknown endpoints", async () => {
     const ip = uniqueIp();
-    const result = checkRateLimit(makeRequest(ip), "some.unknown.endpoint");
+    const result = await checkRateLimit(makeRequest(ip), "some.unknown.endpoint");
     expect(result.allowed).toBe(true);
-    // Default is 60; after 1 request, remaining is 59
     expect(result.remaining).toBe(59);
   });
 
-  it("tracks different IPs separately", () => {
+  it("tracks different IPs separately", async () => {
     const ip1 = uniqueIp();
     const ip2 = uniqueIp();
-    const endpoint = "portal.otp.send"; // limit 5
+    const endpoint = "portal.otp.send";
 
-    // Exhaust ip1
     for (let i = 0; i < 5; i++) {
-      checkRateLimit(makeRequest(ip1), endpoint);
+      await checkRateLimit(makeRequest(ip1), endpoint);
     }
-    const blockedIp1 = checkRateLimit(makeRequest(ip1), endpoint);
+    const blockedIp1 = await checkRateLimit(makeRequest(ip1), endpoint);
     expect(blockedIp1.allowed).toBe(false);
 
-    // ip2 should still be allowed
-    const ip2Result = checkRateLimit(makeRequest(ip2), endpoint);
+    const ip2Result = await checkRateLimit(makeRequest(ip2), endpoint);
     expect(ip2Result.allowed).toBe(true);
   });
 
-  it("tracks different shops separately for the same IP", () => {
+  it("tracks different shops separately for the same IP", async () => {
     const ip = uniqueIp();
-    const endpoint = "portal.otp.send"; // limit 5
+    const endpoint = "portal.otp.send";
 
-    // Exhaust limit for shop A
     for (let i = 0; i < 5; i++) {
-      checkRateLimit(makeRequest(ip, "shop-a.myshopify.com"), endpoint);
+      await checkRateLimit(makeRequest(ip, "shop-a.myshopify.com"), endpoint);
     }
-    const blockedShopA = checkRateLimit(makeRequest(ip, "shop-a.myshopify.com"), endpoint);
+    const blockedShopA = await checkRateLimit(makeRequest(ip, "shop-a.myshopify.com"), endpoint);
     expect(blockedShopA.allowed).toBe(false);
 
-    // shop B should still be allowed
-    const shopBResult = checkRateLimit(makeRequest(ip, "shop-b.myshopify.com"), endpoint);
+    const shopBResult = await checkRateLimit(makeRequest(ip, "shop-b.myshopify.com"), endpoint);
     expect(shopBResult.allowed).toBe(true);
+  });
+
+  it("isolates per-principal limits from per-IP limits", async () => {
+    const ip = uniqueIp();
+    const endpoint = "portal.otp.send";
+
+    for (let i = 0; i < 5; i++) {
+      await checkRateLimit(makeRequest(ip), endpoint, "principal-A");
+    }
+    const blockedA = await checkRateLimit(makeRequest(ip), endpoint, "principal-A");
+    expect(blockedA.allowed).toBe(false);
+
+    const okB = await checkRateLimit(makeRequest(ip), endpoint, "principal-B");
+    expect(okB.allowed).toBe(true);
   });
 });
 
 describe("rateLimitResponse", () => {
   it("returns a 429 response with Retry-After header", async () => {
-    const response = rateLimitResponse(30000); // 30 seconds
+    const response = rateLimitResponse(30000);
     expect(response.status).toBe(429);
     expect(response.headers.get("Retry-After")).toBe("30");
   });
 
   it("rounds Retry-After up to the nearest second", async () => {
-    const response = rateLimitResponse(1500); // 1.5 seconds
+    const response = rateLimitResponse(1500);
     expect(response.headers.get("Retry-After")).toBe("2");
   });
 

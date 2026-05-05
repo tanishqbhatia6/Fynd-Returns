@@ -5,7 +5,7 @@ import { checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { generatePostmanCollection } from "../lib/postman-collection.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const rl = checkRateLimit(request, "external.postman");
+  const rl = await checkRateLimit(request, "external.postman");
   if (!rl.allowed) return rateLimitResponse(rl.retryAfterMs);
 
   // Any valid API key can download the collection. Try each permission in order

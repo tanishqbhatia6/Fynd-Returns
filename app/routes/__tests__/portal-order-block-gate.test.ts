@@ -7,8 +7,17 @@
  * blocked any further returns. The gate must only block when EVERY line item is fully
  * returned.
  */
-import { describe, it, expect } from "vitest";
-import { shouldBlockOrderForExistingReturn } from "../api.portal.order";
+import { describe, it, expect, vi } from "vitest";
+
+// The api.portal.order module pulls in the Shopify SDK, which throws at import
+// time if SHOPIFY_API_KEY / SHOPIFY_API_SECRET are unset. Stub a minimal env
+// before the import so this pure-function test can run without real credentials.
+vi.stubEnv("SHOPIFY_API_KEY", "test-key");
+vi.stubEnv("SHOPIFY_API_SECRET", "test-secret");
+vi.stubEnv("SHOPIFY_APP_URL", "https://app.example");
+vi.stubEnv("SCOPES", "read_orders");
+
+const { shouldBlockOrderForExistingReturn } = await import("../api.portal.order");
 
 describe("shouldBlockOrderForExistingReturn", () => {
   it("does NOT block when no items have been returned yet", () => {

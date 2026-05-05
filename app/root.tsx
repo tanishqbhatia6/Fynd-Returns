@@ -1,5 +1,6 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 import type { HeadersFunction } from "react-router";
+import crypto from "node:crypto";
 import "./styles.css";
 
 /**
@@ -24,10 +25,14 @@ import "./styles.css";
  *    telemetry that App Bridge sends.
  */
 
-// SHA-256 of the inline `attachShadow` patch in <head>. If you change that script,
-// regenerate this constant — otherwise CSP will block it and Polaris layout will
-// break inside Shopify Admin.
-const INLINE_SCRIPT_HASH = "sha256-MvIWSUsGMaMHZNos6NlzEMaHh3AYXAp1ZZM9cIjGnk0=";
+// Single source of truth for the inline attachShadow patch. The CSP hash is
+// derived from this string at boot, so edits can't desync the script and its
+// allow-listed hash. Keep this on ONE line — React preserves the textContent
+// verbatim, so any whitespace change here changes the hash, but since we
+// recompute it the policy stays in sync automatically.
+const INLINE_SCRIPT_BODY = `(function(){var o=HTMLElement.prototype.attachShadow;HTMLElement.prototype.attachShadow=function(i){if(this.tagName&&/^S-/i.test(this.tagName)){i=Object.assign({},i,{mode:"open"})}return o.call(this,i)};})();`;
+
+const INLINE_SCRIPT_HASH = `sha256-${crypto.createHash("sha256").update(INLINE_SCRIPT_BODY).digest("base64")}`;
 
 export const headers: HeadersFunction = () => {
   const csp = [
@@ -76,7 +81,7 @@ export default function App() {
           constraints. By forcing mode: "open", our JS can later inject CSS into
           the shadow root to remove those constraints.
         */}
-        <script dangerouslySetInnerHTML={{ __html: `(function(){var o=HTMLElement.prototype.attachShadow;HTMLElement.prototype.attachShadow=function(i){if(this.tagName&&/^S-/i.test(this.tagName)){i=Object.assign({},i,{mode:"open"})}return o.call(this,i)};})();` }} />
+        <script dangerouslySetInnerHTML={{ __html: INLINE_SCRIPT_BODY }} />
         <link rel="preconnect" href="https://cdn.shopify.com/" />
         <link
           rel="stylesheet"

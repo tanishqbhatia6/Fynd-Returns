@@ -4,9 +4,9 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock, isSafeOutboundUrlMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(() => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
   checkPerKeyRateLimitMock: vi.fn(async () => null),
-  isSafeOutboundUrlMock: vi.fn(async () => ({ ok: true })),
+  isSafeOutboundUrlMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -38,14 +38,14 @@ function mkReq(method: string = "GET", body?: unknown) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockReturnValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
   isSafeOutboundUrlMock.mockReset().mockResolvedValue({ ok: true });
 });
 
 describe("GET /api/v1/external/webhooks (loader)", () => {
   it("429 on rate limit", async () => {
-    checkRateLimitMock.mockReturnValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
+    checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
   });

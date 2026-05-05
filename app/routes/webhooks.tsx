@@ -21,7 +21,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const customerEmail =
         payload.customer?.email?.toLowerCase().trim() ?? "";
       console.log(
-        `[webhooks] customers/data_request shop=${shop} email=${customerEmail}`,
+        `[webhooks] customers/data_request shop=${shop} email=${customerEmail ? "[present]" : "[missing]"}`,
       );
 
       try {
@@ -54,9 +54,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     case "CUSTOMERS_REDACT": {
       const customerEmail =
         payload.customer?.email?.toLowerCase().trim() ?? "";
-      const customerId = payload.customer?.id?.toString() ?? "";
       console.log(
-        `[webhooks] customers/redact shop=${shop} email=${customerEmail}`,
+        `[webhooks] customers/redact shop=${shop} email=${customerEmail ? "[present]" : "[missing]"}`,
       );
 
       try {
@@ -64,13 +63,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           where: { shopDomain: shop },
         });
         if (shopRecord) {
+          // Match by email only. The previous fallback used
+          // `shopifyOrderId: { contains: customerId }` which produced false
+          // positives (numeric customer IDs are short and substring-match
+          // unrelated Order GIDs), redacting the wrong shoppers' records.
           const conditions = [];
           if (customerEmail)
             conditions.push({ customerEmailNorm: customerEmail });
-          if (customerId)
-            conditions.push({
-              shopifyOrderId: { contains: customerId },
-            });
 
           if (conditions.length > 0) {
             const returnCases = await prisma.returnCase.findMany({

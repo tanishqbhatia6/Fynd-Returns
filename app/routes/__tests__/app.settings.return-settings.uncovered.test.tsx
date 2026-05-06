@@ -670,8 +670,8 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const manualRadio = container.querySelector(
       "input[name='refundLocationMode'][value='manual']",
     ) as HTMLInputElement;
-    fireEvent.click(manualRadio);
-    expect(manualRadio.checked).toBe(true);
+    await act(async () => { fireEvent.click(manualRadio); });
+    await waitFor(() => { expect(manualRadio.checked).toBe(true); });
   });
 
   it("toggles each on/off switch for sync, gift, donate, scheduled, photo, autoApprove, autoRefund, portalExchange, fyndConsolidate", async () => {

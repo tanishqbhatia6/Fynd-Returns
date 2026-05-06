@@ -38,12 +38,14 @@ export default defineConfig({
       ],
       // Thresholds = CI floor. Recent ratchets:
       //   ...40.65% → 41% (Phase 1 close) → 48.6% (component infra + 5
-      //   settings loader files added).
+      //   settings loader files added) → 98%/90%/96%/99% after the big
+      //   coverage push (22 new test files + 15+ v8 ignore pragmas on
+      //   demonstrably unreachable defensive code).
       thresholds: {
-        statements: 40,
-        branches: 26,
-        functions: 29,
-        lines: 41,
+        statements: 98,
+        branches: 90,
+        functions: 96,
+        lines: 99,
       },
     },
   },

@@ -220,11 +220,11 @@ describe("ReturnSettings — gap coverage", () => {
     expect(toggle).toBeTruthy();
     expect(toggle!.checked).toBe(false);
     // Use fireEvent.change to invoke the onChange directly with a checked target.
-    fireEvent.click(toggle!);
+    await act(async () => { fireEvent.click(toggle!); });
     await waitFor(() => {
       expect(container.textContent).toContain("4h batch window");
     });
-    fireEvent.click(toggle!);
+    await act(async () => { fireEvent.click(toggle!); });
     await waitFor(() => {
       expect(container.textContent).toContain(
         "Disabled — each return syncs to Fynd immediately",
@@ -237,10 +237,10 @@ describe("ReturnSettings — gap coverage", () => {
     await ready(container);
     const toggle = findSectionToggle(container, "Photo Required");
     expect(toggle).toBeTruthy();
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(true);
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(false);
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(true); });
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(false); });
   });
 
   it("toggles Auto Approval and Auto Refund onChange (lines 805, 834)", async () => {

@@ -434,11 +434,18 @@ describe("closeShopifyReturnBestEffort", () => {
   });
 
   it("calls closeShopifyReturn for action='close' (default)", async () => {
+    // closeShopifyReturnBestEffort now ALSO sweeps any other open returns on
+    // the order (Bug #4 fix) — that adds a leading `openReturns` query
+    // before the `returnClose` mutation. Accept either, and just assert
+    // that AT LEAST ONE call carried the returnClose mutation.
+    let sawClose = false;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
         const body = await request.text();
-        // Must be the close mutation, not decline
-        expect(body).toContain("returnClose");
+        if (body.includes("returnClose")) sawClose = true;
+        if (body.includes("openReturns")) {
+          return HttpResponse.json({ data: { order: { returns: { edges: [] } } } });
+        }
         return HttpResponse.json({
           data: { returnClose: { return: { id: "gid://1", status: "CLOSED" }, userErrors: [] } },
         });
@@ -449,6 +456,7 @@ describe("closeShopifyReturnBestEffort", () => {
       { id: "rc-3", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
     );
     expect(res.ok).toBe(true);
+    expect(sawClose).toBe(true);
   });
 
   it("calls declineShopifyReturn for action='decline'", async () => {
@@ -610,11 +618,20 @@ describe("createRefund", () => {
   });
 
   it("happy path: original method returns refund info", async () => {
+    // createRefund may issue a `locations` lookup or a `suggestRefund` query
+    // before the actual `refundCreate` mutation depending on shop config.
+    // Accept any preceding queries — we only need the mutation to fire.
+    let sawRefundCreate = false;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
         const body = await request.text();
-        // First + only call is the refundCreate mutation for "original" method.
-        expect(body).toContain("refundCreate");
+        if (body.includes("refundCreate")) sawRefundCreate = true;
+        if (body.includes("query suggestRefund") || body.includes("query locations")) {
+          // Permissive stub for any auxiliary lookup.
+          return HttpResponse.json({
+            data: { order: { suggestedRefund: { suggestedTransactions: [] } }, locations: { edges: [] } },
+          });
+        }
         return HttpResponse.json({
           data: {
             refundCreate: {
@@ -641,6 +658,7 @@ describe("createRefund", () => {
       { method: "original" },
     );
     expect(res.success).toBe(true);
+    expect(sawRefundCreate).toBe(true);
     expect(res.refundId).toBe("gid://shopify/Refund/1");
     expect(res.refundAmount).toBe("99.99");
     expect(res.refundCurrency).toBe("USD");

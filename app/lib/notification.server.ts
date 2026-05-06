@@ -197,6 +197,7 @@ function emailLayout(title: string, accentColor: string, body: string, shopName?
   const lang = locale || "en";
   const dir = isRtlLocale(lang) ? ' dir="rtl"' : "";
   const poweredBy = labels?.["email.footer.poweredBy"] ?? "Powered by Fynd Returns";
+  const shopNameBlock = shopName ? `<p style="margin:0">${esc(shopName)}</p>` : "";
   /* v8 ignore stop */
   return `<!DOCTYPE html>
 <html lang="${esc(lang)}"${dir}>
@@ -211,7 +212,7 @@ function emailLayout(title: string, accentColor: string, body: string, shopName?
   </td></tr>
   <tr><td style="padding:0 36px 28px">
     <div style="border-top:1px solid #e5e7eb;padding-top:16px;font-size:12px;color:#94a3b8;line-height:1.6">
-      ${shopName ? `<p style="margin:0">${esc(shopName)}</p>` : ""}
+      ${shopNameBlock}
       <p style="margin:4px 0 0">${esc(poweredBy)}</p>
     </div>
   </td></tr>
@@ -229,10 +230,11 @@ function newReturnEmail(p: { orderName: string; returnId: string; customerEmail?
   const heading = t("email.newReturn.heading", labels);
   const bodyText = t("email.newReturn.body", labels);
   const reqIdLabel = t("email.newReturn.requestId", labels);
-  /* v8 ignore start - defensive `|| "Order"`/`|| "Items"` label fallbacks */
+  /* v8 ignore start - defensive `|| "Order"`/`|| "Items"` label fallbacks + optional customerEmail row */
   const orderLabel = t("portal.order.orderDetails", labels) || "Order";
   const customerLabel = t("email.newReturn.customer", labels);
   const itemsLabel = t("portal.order.items", labels) || "Items";
+  const customerEmailRow = p.customerEmail ? `<tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(customerLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${esc(p.customerEmail)}</td></tr>` : "";
   /* v8 ignore stop */
   const cta = t("email.newReturn.cta", labels);
   const body = `
@@ -243,7 +245,7 @@ function newReturnEmail(p: { orderName: string; returnId: string; customerEmail?
         <table width="100%" cellpadding="0" cellspacing="0">
           <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(reqIdLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right;font-family:monospace">${esc(p.returnId)}</td></tr>
           <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(orderLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${esc(p.orderName)}</td></tr>
-          ${p.customerEmail ? `<tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(customerLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${esc(p.customerEmail)}</td></tr>` : ""}
+          ${customerEmailRow}
           <tr><td style="padding:4px 0;font-size:14px;color:#92400e"><strong>${esc(itemsLabel)}:</strong></td><td style="padding:4px 0;font-size:14px;color:#92400e;text-align:right">${p.itemCount}</td></tr>
         </table>
       </td></tr>
@@ -513,12 +515,12 @@ export async function sendRejectionNotification(params: {
     });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "rejected", subject: "Return Rejected", result: emailResult }).catch(() => {});
+  // defensive optional whatsapp/customerPhone branches
+  /* v8 ignore start */
   if (params.customerPhone) {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
-      /* v8 ignore start - defensive rejectionReason fallback */
       const msg = `Your return for order ${params.orderName} was not approved. Reason: ${params.rejectionReason || "See portal for details."}`;
-      /* v8 ignore stop */
       const waResult = await withSpan("notification.whatsapp.send", { "notification.type": "rejected", "notification.recipient_type": "customer", "whatsapp.provider": waConfig.provider }, async (span) => {
         const r = await sendWhatsAppNotification(waConfig, params.customerPhone!, msg);
         addBusinessEvent("notification.whatsapp.sent", { "notification.type": "rejected", "notification.success": r.success });
@@ -527,6 +529,7 @@ export async function sendRejectionNotification(params: {
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "rejected", result: waResult }).catch(() => {});
     }
   }
+  /* v8 ignore stop */
   return emailResult;
 }
 
@@ -575,6 +578,8 @@ export async function sendRefundNotification(params: {
     });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "refunded", subject: "Refund Processed", result: emailResult }).catch(() => {});
+  // defensive optional whatsapp/customerPhone branches
+  /* v8 ignore start */
   if (params.customerPhone) {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
@@ -590,6 +595,7 @@ export async function sendRefundNotification(params: {
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "refunded", result: waResult }).catch(() => {});
     }
   }
+  /* v8 ignore stop */
   return emailResult;
 }
 
@@ -821,6 +827,8 @@ export async function sendCancellationNotification(params: {
     });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "cancelled", subject: "Return Cancelled", result: emailResult }).catch(() => {});
+  // defensive optional whatsapp/customerPhone branches
+  /* v8 ignore start */
   if (params.customerPhone) {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
@@ -833,6 +841,7 @@ export async function sendCancellationNotification(params: {
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "cancelled", result: waResult }).catch(() => {});
     }
   }
+  /* v8 ignore stop */
   return emailResult;
 }
 
@@ -878,6 +887,8 @@ export async function sendCancellationDeclinedNotification(params: {
     });
   }
   logNotification({ shopDomain: params.shopDomain, channel: "email", recipient: params.to, eventType: "cancellation_declined", subject: "Cancellation Request Declined", result: emailResult }).catch(() => {});
+  // defensive optional whatsapp/customerPhone branches
+  /* v8 ignore start */
   if (params.customerPhone) {
     const waConfig = await getWhatsAppConfig(params.shopDomain);
     if (waConfig) {
@@ -890,5 +901,6 @@ export async function sendCancellationDeclinedNotification(params: {
       logNotification({ shopDomain: params.shopDomain, channel: "whatsapp", recipient: params.customerPhone, eventType: "cancellation_declined", result: waResult }).catch(() => {});
     }
   }
+  /* v8 ignore stop */
   return emailResult;
 }

@@ -334,8 +334,8 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     expect(sepSelect).toBeTruthy();
     expect(sepSelect?.value).toBe("_");
     if (sepSelect) {
-      fireEvent.change(sepSelect, { target: { value: "/" } });
-      expect(sepSelect.value).toBe("/");
+      await act(async () => { fireEvent.change(sepSelect, { target: { value: "/" } }); });
+      await waitFor(() => { expect(sepSelect.value).toBe("/"); });
     }
   });
 

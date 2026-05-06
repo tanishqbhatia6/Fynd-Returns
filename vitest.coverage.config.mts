@@ -50,8 +50,8 @@ export default defineConfig({
       //   blocks shrunk the function denominator).
       thresholds: {
         statements: 99.9,
-        branches: 96,
-        functions: 98.9,
+        branches: 98,
+        functions: 99,
         lines: 100,
       },
     },

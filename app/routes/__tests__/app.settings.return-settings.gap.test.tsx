@@ -273,8 +273,8 @@ describe("ReturnSettings — gap coverage", () => {
     const radio = labels[0].querySelector(
       "input[type='radio']",
     ) as HTMLInputElement;
-    fireEvent.click(radio);
-    expect(radio.checked).toBe(true);
+    await act(async () => { fireEvent.click(radio); });
+    await waitFor(() => { expect(radio.checked).toBe(true); });
   });
 
   it("clicks the 'store_credit' payment-method radio (line 914)", async () => {
@@ -313,9 +313,9 @@ describe("ReturnSettings — gap coverage", () => {
     expect(auto).toBeTruthy();
     expect(manual).toBeTruthy();
     await act(async () => { fireEvent.click(manual); });
-    expect(manual.checked).toBe(true);
+    await waitFor(() => { expect(manual.checked).toBe(true); });
     await act(async () => { fireEvent.click(auto); });
-    expect(auto.checked).toBe(true);
+    await waitFor(() => { expect(auto.checked).toBe(true); });
   });
 
   it("changes the refundLocationId select onChange (line 1028)", async () => {

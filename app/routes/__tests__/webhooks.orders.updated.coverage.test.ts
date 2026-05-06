@@ -31,7 +31,7 @@ const {
   graphqlMock: vi.fn(),
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
   extractAffiliateOrderIdMock: vi.fn(),
-  normalizeSourceChannelMock: vi.fn(() => null),
+  normalizeSourceChannelMock: vi.fn<(...args: unknown[]) => string | null>(() => null),
 }));
 Object.assign(prismaMock, createPrismaMock());
 

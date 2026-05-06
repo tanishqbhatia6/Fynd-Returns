@@ -410,7 +410,7 @@ describe("observability/request-context.server — gap branches", () => {
 
   it("setRequestContext sets every span attribute and baggage entry when a span is active", async () => {
     const setAttribute = vi.fn();
-    const setEntry = vi.fn(function (this: unknown) {
+    const setEntry = vi.fn<(...args: unknown[]) => unknown>(function (this: unknown) {
       return this; // chainable
     });
     const setBaggage = vi.fn();

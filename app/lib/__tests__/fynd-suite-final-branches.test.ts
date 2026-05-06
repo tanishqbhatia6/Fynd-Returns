@@ -120,8 +120,7 @@ import { getFyndBaseUrl, getAppMode } from "../fynd-config.server";
 const fetchMock = vi.fn();
 beforeEach(() => {
   fetchMock.mockReset();
-  // @ts-expect-error overriding global fetch for test
-  global.fetch = fetchMock;
+  (global as { fetch: unknown }).fetch = fetchMock;
   prismaMock.returnCase.findUnique.mockReset();
   prismaMock.returnCase.update.mockReset().mockResolvedValue({});
   createFyndClientOrErrorMock.mockReset();

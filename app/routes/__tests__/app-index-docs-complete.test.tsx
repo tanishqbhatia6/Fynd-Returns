@@ -358,18 +358,19 @@ describe("app.docs Documentation — final branch coverage", () => {
     // an invalid id — so we patch React.useState to inject one for the very
     // first call (the `activeChapter` slot in Documentation).
     const realUseState = React.useState;
-    const spy = vi
-      .spyOn(React, "useState")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .mockImplementationOnce((initial: any) => {
-        // First call inside Documentation is `useState("welcome")`. Replace
-        // the initial value with a known-bad id so `find(...)` returns
-        // undefined and the `|| CHAPTERS[0]` fallback fires.
-        return realUseState.call(
-          React,
-          initial === "welcome" ? "__no_such_chapter__" : initial,
-        );
-      });
+    const spy = (vi.spyOn(React, "useState") as unknown as {
+      mockImplementationOnce: (impl: (initial: unknown) => unknown) => unknown;
+      mockRestore: () => void;
+    });
+    spy.mockImplementationOnce((initial: unknown) => {
+      // First call inside Documentation is `useState("welcome")`. Replace
+      // the initial value with a known-bad id so `find(...)` returns
+      // undefined and the `|| CHAPTERS[0]` fallback fires.
+      return (realUseState as (init: unknown) => unknown).call(
+        React,
+        initial === "welcome" ? "__no_such_chapter__" : initial,
+      );
+    });
 
     const { container } = renderWithRouter(Documentation, {
       initialEntries: ["/app/docs"],

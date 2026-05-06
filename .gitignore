@@ -42,8 +42,16 @@ cov-target*/
 .cov-target/
 cov-targets*/
 cov-test-pragma*/
+tmp-cov-check/
 tmp-coverage*/
 tmp-shopify-cov/
+
+# Agent-created narrow-scope vitest configs (not for project use)
+vitest.returns-id.config.mts
+vitest.targets9.config.mts
+vitest.fynd-final.config.mts
+vitest.portal-final.config.mts
+vitest.target.config.mts
 
 # OS
 .DS_Store

@@ -43,11 +43,14 @@ export default defineConfig({
       //   ineffective /* v8 ignore next */ + // comment pragmas; close
       //   app.returns.$id) → 99/91/98/100 (catch-callback closures for
       //   fynd-webhook + process-refund + shopify-admin: lines hit
-      //   exactly 100%).
+      //   exactly 100%) → 99.9/91/99/100 (4 routes to 100% stmts+fn:
+      //   app.returns.$id, app.returns._index, api.portal.create-return,
+      //   api.portal.order — only 7 stmts uncov across 6 lib files,
+      //   all v8-coverage `??`-fallback reporting quirks).
       thresholds: {
-        statements: 99,
+        statements: 99.9,
         branches: 91,
-        functions: 98,
+        functions: 99,
         lines: 100,
       },
     },

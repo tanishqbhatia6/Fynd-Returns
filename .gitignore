@@ -44,3 +44,4 @@ coverage-tmp*
 coverage_int_baseline/
 coverage-*/
 coverage-*/
+.coverage-*/

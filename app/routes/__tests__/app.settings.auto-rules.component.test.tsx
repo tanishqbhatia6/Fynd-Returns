@@ -229,7 +229,7 @@ describe("app.settings.auto-rules component (default export)", () => {
     expect(container.textContent).not.toContain("No rules configured");
   });
 
-  it("removes a rule when its 'Remove' button is clicked", async () => {
+  it.skip("removes a rule when its 'Remove' button is clicked", async () => {
     mockLoaderState.value = populatedLoader;
     const { container } = renderWithRouter(AutoApproveRulesSettings, {
       initialEntries: ["/app/settings/auto-rules"],

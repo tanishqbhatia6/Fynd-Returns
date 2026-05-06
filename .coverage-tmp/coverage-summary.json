@@ -1,3 +1,0 @@
-{"total": {"lines":{"total":512,"covered":310,"skipped":0,"pct":60.54},"statements":{"total":566,"covered":338,"skipped":0,"pct":59.71},"functions":{"total":58,"covered":41,"skipped":0,"pct":70.68},"branches":{"total":736,"covered":402,"skipped":0,"pct":54.61},"branchesTrue":{"total":0,"covered":0,"skipped":0,"pct":"Unknown"}}
-,"/Users/farhankhan/Shopify_Returns/returnpromax-1/app/routes/api.portal.create-return.ts": {"lines":{"total":512,"covered":310,"skipped":0,"pct":60.54},"functions":{"total":58,"covered":41,"skipped":0,"pct":70.68},"statements":{"total":566,"covered":338,"skipped":0,"pct":59.71},"branches":{"total":736,"covered":402,"skipped":0,"pct":54.61}}
-}

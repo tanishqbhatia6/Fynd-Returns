@@ -116,6 +116,33 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
         refundLogger.info({ sampleId: rawLineItems[0]?.id }, "[refund] Line item IDs are not Shopify GIDs — will fetch from Shopify order");
       }
 
+      // When SKU match fails (or returnItems lack SKU), distribute the actual
+      // returned qty across the Shopify line items so we never refund more
+      // than the customer requested. Fall back to first lineItem only when
+      // returnItems is empty.
+      const fallbackByReturnQty = (
+        shopifyLineItems: Array<{ id: string; quantity: number; sku?: string | null }>,
+        returnItems: typeof returnCase.items,
+      ): Array<{ id: string; quantity: number }> => {
+        const totalReturnQty = (returnItems ?? []).reduce(
+          (sum, ri) => sum + Math.max(0, Math.floor(Number(ri.qty) || 0)),
+          0,
+        );
+        if (totalReturnQty <= 0) {
+          return shopifyLineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+        }
+        let remaining = totalReturnQty;
+        const out: Array<{ id: string; quantity: number }> = [];
+        for (const li of shopifyLineItems) {
+          if (remaining <= 0) break;
+          const take = Math.min(li.quantity, remaining);
+          if (take <= 0) continue;
+          out.push({ id: li.id, quantity: take });
+          remaining -= take;
+        }
+        return out;
+      };
+
       const applyResolvedOrder = async (shopifyOrder: { id: string; name?: string; lineItems?: Array<{ id: string; quantity: number; sku?: string | null }> }) => {
         orderIdForRefund = shopifyOrder.id;
         const updates: Record<string, string> = { shopifyOrderId: shopifyOrder.id };
@@ -139,11 +166,11 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
               lineItemsForRefund = matched;
               refundLogger.info({ matchCount: matched.length }, "[refund] Matched line items by SKU");
             } else {
-              lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
-              refundLogger.info({ count: lineItemsForRefund.length }, "[refund] SKU match failed, using all Shopify line items");
+              lineItemsForRefund = fallbackByReturnQty(shopifyOrder.lineItems, returnItems);
+              refundLogger.info({ count: lineItemsForRefund.length }, "[refund] SKU match failed, distributed return qty across line items");
             }
           } else {
-            lineItemsForRefund = shopifyOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            lineItemsForRefund = fallbackByReturnQty(shopifyOrder.lineItems, returnItems);
           }
         }
       };
@@ -279,9 +306,9 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
             }
             lineItemsForRefund = matched.length > 0
               ? matched
-              : minimalOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+              : fallbackByReturnQty(minimalOrder.lineItems, returnItems);
           } else {
-            lineItemsForRefund = minimalOrder.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            lineItemsForRefund = fallbackByReturnQty(minimalOrder.lineItems, returnItems);
           }
           refundLogger.info({ count: lineItemsForRefund.length }, "[refund] Resolved line items from PCDA-safe query");
         } else {
@@ -306,7 +333,7 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
             }
           }
           if (order?.lineItems?.length) {
-            lineItemsForRefund = order.lineItems.map((li) => ({ id: li.id, quantity: li.quantity }));
+            lineItemsForRefund = fallbackByReturnQty(order.lineItems, returnCase.items ?? []);
             refundLogger.info({ count: lineItemsForRefund.length }, "[refund] Resolved line items from full query fallback");
           } else {
             refundLogger.error({ orderIdForRefund, shopifyOrderName: returnCase.shopifyOrderName }, "[refund] ALL order fetch strategies failed");
@@ -463,6 +490,15 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
             const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
             const currentFyndStatus = (returnCase.fyndCurrentStatus || "").toLowerCase();
             const transitions: Array<{ status: string; from: string }> = [];
+            // Statuses considered "at or past credit_note_generated" — once the
+            // shipment is in any of these terminal/post-refund states, pushing
+            // another status update is a no-op at best and can flag stale-data
+            // warnings on Fynd's side.
+            const PAST_CREDIT_NOTE = new Set([
+              "credit_note_generated",
+              "refund_initiated", "refund_done", "refund_completed",
+              "return_completed",
+            ]);
             if (![
               "return_accepted", "credit_note_generated",
               "refund_initiated", "refund_done", "refund_completed",
@@ -470,7 +506,11 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
             ].includes(currentFyndStatus)) {
               transitions.push({ status: "return_accepted", from: currentFyndStatus });
             }
-            transitions.push({ status: "credit_note_generated", from: currentFyndStatus });
+            // Only push credit_note_generated when not already at/past it —
+            // prevents redundant Fynd webhook noise after re-processing.
+            if (!PAST_CREDIT_NOTE.has(currentFyndStatus)) {
+              transitions.push({ status: "credit_note_generated", from: currentFyndStatus });
+            }
 
             const successfulTransitions: string[] = [];
             const failedTransitions: Array<{ status: string; error: string }> = [];
@@ -496,6 +536,15 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
             }
 
             if (successfulTransitions.length > 0) {
+              // Mirror the latest pushed status to our local DB so subsequent
+              // operations don't see a stale `fyndCurrentStatus` (Bug #2 +
+              // refund-gate guards). Pick the LAST successful transition since
+              // they're applied in order (return_accepted → credit_note_generated).
+              const latestStatus = successfulTransitions[successfulTransitions.length - 1];
+              await prisma.returnCase.update({
+                where: { id },
+                data: { fyndCurrentStatus: latestStatus },
+              }).catch(() => {});
               await prisma.returnEvent.create({
                 data: {
                   returnCaseId: id,

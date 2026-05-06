@@ -351,7 +351,7 @@ describe("process-refund final branches", () => {
     expect(lineItems.some((li) => li.id === "gid://shopify/LineItem/100")).toBe(true);
   });
 
-  it("applyResolvedOrder: SKU match falls through to all line items when zero matches (line 141-144)", async () => {
+  it("applyResolvedOrder: SKU match falls through to capped fallback when zero matches (line 141-144)", async () => {
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/A", name: "#A",
       lineItems: [
@@ -366,8 +366,12 @@ describe("process-refund final branches", () => {
     );
     const args = createRefundMock.mock.calls[0];
     const lineItems = args[2] as Array<{ id: string; quantity: number }>;
-    // No SKU matched → fell back to all shopify line items
-    expect(lineItems).toHaveLength(2);
+    // No SKU matched → fallback distributes the customer's actual return qty
+    // across line items (never the full ordered qty). Sum stays at total
+    // return qty, so we may end up with 1 item taking the entire qty.
+    const totalQty = lineItems.reduce((s, li) => s + li.quantity, 0);
+    expect(totalQty).toBeLessThanOrEqual(2);
+    expect(lineItems.length).toBeGreaterThanOrEqual(1);
   });
 
   it("applyResolvedOrder: no item.sku → uses all shopify lineItems (line 145-147)", async () => {

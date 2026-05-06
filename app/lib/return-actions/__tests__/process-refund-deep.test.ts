@@ -557,7 +557,8 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
     );
     expect(fetchOrderLineItemsOnlyMock).toHaveBeenCalled();
     const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
-    expect(liArg).toEqual([{ id: "gid://shopify/LineItem/A", quantity: 2 }]);
+    // Caps qty by total return-item qty (1) — never refunds the full ordered qty (2).
+    expect(liArg).toEqual([{ id: "gid://shopify/LineItem/A", quantity: 1 }]);
   });
 
   it("Strategy 0b: PCDA-safe by-name when GID lookup fails", async () => {
@@ -607,7 +608,8 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
     );
     expect(fetchOrderMock).toHaveBeenCalled();
     const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
-    expect(liArg).toEqual([{ id: "gid://shopify/LineItem/C", quantity: 3 }]);
+    // Caps qty at return-item qty (1) instead of full ordered qty (3).
+    expect(liArg).toEqual([{ id: "gid://shopify/LineItem/C", quantity: 1 }]);
   });
 
   it("Strategy 0: SKU match preferred over fallback to all items", async () => {
@@ -658,13 +660,15 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       "/app/returns/rc-1",
     );
     const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
+    // Total return qty is 1; fallback distributes across line items in order
+    // (first line takes 1, remaining 0 → second line skipped). Never refunds
+    // the full ordered qty across multiple lines.
     expect(liArg).toEqual([
       { id: "gid://shopify/LineItem/X", quantity: 1 },
-      { id: "gid://shopify/LineItem/Y", quantity: 2 },
     ]);
   });
 
-  it("uses all line items when no return items have SKU", async () => {
+  it("caps refund qty at total return qty when no return items have SKU", async () => {
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
@@ -683,7 +687,8 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       "/app/returns/rc-1",
     );
     const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
-    expect(liArg).toEqual([{ id: "gid://shopify/LineItem/Q", quantity: 4 }]);
+    // Caps at return-item qty (1), never refunds full ordered qty (4).
+    expect(liArg).toEqual([{ id: "gid://shopify/LineItem/Q", quantity: 1 }]);
   });
 });
 

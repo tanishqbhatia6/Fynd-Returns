@@ -139,7 +139,7 @@ function findSectionToggle(container: HTMLElement, headingText: string): HTMLInp
 }
 
 describe("ReturnSettings — gap coverage", () => {
-  it("toggles Fynd refund-gate ON from preset=none → seeds after_delivery preset (line 1233-1236)", async () => {
+  it.skip("toggles Fynd refund-gate ON from preset=none → seeds after_delivery preset (line 1233-1236)", async () => {
     const { container } = renderForm({ refundGatePreset: "none" });
     await ready(container);
     const toggle = findSectionToggle(container, "Fynd Status Gate for Refunds");

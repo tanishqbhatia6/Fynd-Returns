@@ -162,17 +162,29 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
           { key: "rpm_return_id", value: returnCase.id },
         ],
         lineItems: replacementLineItems.map((li) => {
+          // FIXED_AMOUNT discount preserves the original line price visibly
+          // and produces a clearly-attributed replacement-discount line in
+          // the Shopify order (instead of a flat ₹0 item that loses context).
+          const unitPrice = parseFloat(li.originalUnitPrice) || 0;
+          const lineSubtotal = +(unitPrice * li.quantity).toFixed(2);
           const base: Record<string, unknown> = {
             quantity: li.quantity,
-            appliedDiscount: {
-              valueType: "PERCENTAGE",
-              value: 100.0,
-              title: "Replacement (no charge)",
-              description: "Free replacement for returned defective/wrong item",
-            },
+            ...(lineSubtotal > 0
+              ? {
+                  appliedDiscount: {
+                    valueType: "FIXED_AMOUNT",
+                    value: lineSubtotal,
+                    title: "Replacement (no charge)",
+                    description: "Free replacement for returned defective/wrong item",
+                  },
+                }
+              : {}),
           };
           if (li.variantId) {
             base.variantId = li.variantId;
+            // Always carry sku alongside variantId so Fynd order-create has
+            // a marketplace identifier; variant lookup may not surface it.
+            if (li.sku) base.sku = li.sku;
           } else {
             base.title = li.title;
             base.originalUnitPrice = li.originalUnitPrice;

@@ -890,6 +890,20 @@ export default function ReturnDetail() {
   const isRejected = statusLower === "rejected";
   const isCompleted = statusLower === "completed";
   const isRefunded = returnCase.refundStatus === "refunded";
+  // In-progress statuses where post-approval actions (refund/exchange/replacement)
+  // should remain available. Fynd webhooks progress the status through several
+  // intermediate stages (pickup_scheduled, in_transit, received, etc.) and the
+  // action buttons must not disappear during that journey.
+  const isPostApproval = [
+    "approved", "in_progress", "in progress", "processing",
+    "pickup_scheduled", "pickup scheduled", "picked_up", "picked up",
+    "in_transit", "in transit", "received", "refund_processing",
+  ].includes(statusLower);
+  // Once an exchange/replacement order has been created downstream, the refund
+  // path is no longer applicable for that resolution type — the journey ends
+  // at "exchanged" / "replacement issued".
+  const exchangeResolved = !!returnCase.exchangeOrderId
+    && (returnCase.resolutionType === "exchange" || returnCase.resolutionType === "replacement");
   const isGreenReturn = returnCase.isGreenReturn === true;
   const fulfillmentStatusUpper = (shopifyOrder?.displayFulfillmentStatus ?? "").toUpperCase();
   const isOrderCancellable = !isManualReturn
@@ -2172,7 +2186,7 @@ export default function ReturnDetail() {
                     )}
                   </>
                 )}
-                {(isApproved || isCompleted) && !isRefunded && !isManualReturn && (() => {
+                {(isPostApproval || isCompleted) && !isRefunded && !isManualReturn && !exchangeResolved && (() => {
                   const isFyndIntegrated = !!(returnCase.fyndOrderId || returnCase.fyndShipmentId || returnCase.fyndReturnId);
                   const refundGateStatuses = allowedFyndStatusesForRefund ?? [];
                   const currentFyndStatusLower = (fyndCurrentStatus ?? "").toLowerCase().trim();
@@ -2496,12 +2510,12 @@ export default function ReturnDetail() {
                   </>
                   );
                 })()}
-                {(isApproved || isCompleted) && !isRefunded && isManualReturn && (
+                {(isPostApproval || isCompleted) && !isRefunded && isManualReturn && !exchangeResolved && (
                   <div style={{ padding: 10, background: "#FEF3C7", borderRadius: 8, fontSize: 13, color: "#92400E" }}>
                     Manual return — process refund in Shopify Admin for <strong>{returnCase.shopifyOrderName || "--"}</strong>
                   </div>
                 )}
-                {(isApproved || isCompleted) && returnCase.resolutionType === "replacement" && !returnCase.exchangeOrderId && !isManualReturn && (
+                {(isPostApproval || isCompleted) && returnCase.resolutionType === "replacement" && !returnCase.exchangeOrderId && !isManualReturn && (
                   <>
                     <s-button
                       type="button"
@@ -2554,7 +2568,7 @@ export default function ReturnDetail() {
                     )}
                   </>
                 )}
-                {(isApproved || isCompleted) && returnCase.resolutionType === "exchange" && !returnCase.exchangeOrderId && !isManualReturn && (
+                {(isPostApproval || isCompleted) && returnCase.resolutionType === "exchange" && !returnCase.exchangeOrderId && !isManualReturn && (
                   <>
                     <s-button
                       type="button"

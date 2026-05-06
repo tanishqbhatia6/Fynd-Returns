@@ -219,20 +219,32 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
 
       const draftLineItems = exchangeLines.map((line) => {
         const base: Record<string, unknown> = { quantity: line.returnedQty };
+        // Always include sku so downstream Fynd order-creation has a marketplace
+        // identifier — fall back through replacement → returned sku to avoid
+        // empty `mkp_identifiers` causing Fynd's order-create to fail.
+        const fallbackSku = line.replacementSku || line.returnedSku || null;
         if (line.replacementVariantId) {
           base.variantId = line.replacementVariantId;
+          if (fallbackSku) base.sku = fallbackSku;
         } else {
           base.title = line.replacementTitle;
           base.originalUnitPrice = line.replacementUnitPrice;
-          if (line.replacementSku) base.sku = line.replacementSku;
+          if (fallbackSku) base.sku = fallbackSku;
         }
         if (!customerOwesDifference) {
-          base.appliedDiscount = {
-            valueType: "PERCENTAGE",
-            value: 100.0,
-            title: "Exchange (no charge)",
-            description: "Exchange settlement — replacement at no additional charge",
-          };
+          // Use FIXED_AMOUNT equal to the line subtotal so the order preserves
+          // the original price + a clearly-attributed exchange discount line
+          // (rather than a flat ₹0 line item that obscures the actual value).
+          const unitPrice = parseFloat(line.replacementUnitPrice) || 0;
+          const lineSubtotal = +(unitPrice * line.returnedQty).toFixed(2);
+          if (lineSubtotal > 0) {
+            base.appliedDiscount = {
+              valueType: "FIXED_AMOUNT",
+              value: lineSubtotal,
+              title: "Exchange (no charge)",
+              description: "Exchange settlement — replacement at no additional charge",
+            };
+          }
         }
         return base;
       });

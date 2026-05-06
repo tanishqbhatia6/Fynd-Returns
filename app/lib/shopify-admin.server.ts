@@ -2114,6 +2114,53 @@ export type CloseShopifyReturnBestEffortResult = {
   error?: string;
 };
 
+/**
+ * Close ALL non-terminal returns currently open on a Shopify order. Used as a
+ * post-refund safety net: `createRefund` with `restockType: RETURN` causes
+ * Shopify to auto-attach a Return entity to the refund, which keeps the order
+ * displaying "Return in progress" until that Return is explicitly closed.
+ * Returns the list of closed return IDs (errors are swallowed best-effort).
+ */
+async function closeAllOpenReturnsOnOrder(
+  admin: AdminGraphQL,
+  orderGid: string,
+  excludeReturnIds: Set<string> = new Set(),
+): Promise<{ closed: string[]; failed: Array<{ id: string; error: string }> }> {
+  const closed: string[] = [];
+  const failed: Array<{ id: string; error: string }> = [];
+  try {
+    const res = await admin.graphql(
+      `#graphql
+        query openReturns($id: ID!) {
+          order(id: $id) {
+            returns(first: 50) {
+              edges { node { id status } }
+            }
+          }
+        }`,
+      { variables: { id: orderGid } },
+    );
+    const json = (await res.json()) as {
+      data?: { order?: { returns?: { edges?: Array<{ node?: { id: string; status: string } }> } } | null };
+    };
+    const edges = json.data?.order?.returns?.edges ?? [];
+    const open = edges
+      .map((e) => e.node)
+      .filter((n): n is { id: string; status: string } =>
+        !!n && ["OPEN", "REQUESTED", "IN_PROGRESS"].includes((n.status || "").toUpperCase()),
+      )
+      .filter((n) => !excludeReturnIds.has(n.id));
+    for (const ret of open) {
+      const r = await closeShopifyReturn(admin, ret.id);
+      if (r.success) closed.push(ret.id);
+      else failed.push({ id: ret.id, error: r.error ?? "unknown" });
+    }
+  } catch (err) {
+    refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "closeAllOpenReturnsOnOrder: query failed (non-fatal)");
+  }
+  return { closed, failed };
+}
+
 export async function closeShopifyReturnBestEffort(
   admin: AdminGraphQL,
   returnCase: { id: string; shopifyReturnId?: string | null; shopifyOrderId?: string | null },
@@ -2126,15 +2173,6 @@ export async function closeShopifyReturnBestEffort(
   try {
     const { shopifyReturnId, shopifyOrderId } = returnCase;
 
-    if (!shopifyReturnId) {
-      refundLogger.info({ returnCaseId: returnCase.id }, "closeShopifyReturnBestEffort: no shopifyReturnId, skipping");
-      await options?.logEvent?.({
-        eventType: "shopify_return_close_skipped",
-        payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
-      }).catch(() => {});
-      return { ok: true, skipped: true };
-    }
-
     if (shopifyOrderId?.startsWith("manual:")) {
       refundLogger.info({ returnCaseId: returnCase.id }, "closeShopifyReturnBestEffort: manual return, skipping Shopify close");
       await options?.logEvent?.({
@@ -2144,11 +2182,55 @@ export async function closeShopifyReturnBestEffort(
       return { ok: true, skipped: true };
     }
 
+    // For close-action, ALWAYS sweep any other open returns on the order
+    // (e.g. one auto-created by `createRefund` with `restockType: RETURN`).
+    // Decline-action stays narrowly scoped to the explicit shopifyReturnId.
+    const orderGid = shopifyOrderId && shopifyOrderId.startsWith("gid://")
+      ? shopifyOrderId
+      : shopifyOrderId && /^\d+$/.test(shopifyOrderId)
+        ? `gid://shopify/Order/${shopifyOrderId}`
+        : null;
+
+    if (!shopifyReturnId) {
+      // No tracked Shopify return — but the order may still have an auto-created
+      // Return from a prior createRefund. Sweep on close-action to clear the
+      // order's "Return in progress" indicator (Bug #4).
+      if (options?.action !== "decline" && orderGid) {
+        const sweep = await closeAllOpenReturnsOnOrder(admin, orderGid);
+        await options?.logEvent?.({
+          eventType: sweep.closed.length > 0 ? "shopify_return_closed" : "shopify_return_close_skipped",
+          payloadJson: JSON.stringify({
+            reason: "no_tracked_return_id",
+            returnCaseId: returnCase.id,
+            sweepClosed: sweep.closed,
+            sweepFailed: sweep.failed,
+          }),
+        }).catch(() => {});
+        return { ok: true, skipped: sweep.closed.length === 0 };
+      }
+      refundLogger.info({ returnCaseId: returnCase.id }, "closeShopifyReturnBestEffort: no shopifyReturnId, skipping");
+      await options?.logEvent?.({
+        eventType: "shopify_return_close_skipped",
+        payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
+      }).catch(() => {});
+      return { ok: true, skipped: true };
+    }
+
     let result: CloseShopifyReturnResult;
     if (options?.action === "decline") {
       result = await declineShopifyReturn(admin, shopifyReturnId, options.declineReason);
     } else {
       result = await closeShopifyReturn(admin, shopifyReturnId);
+    }
+
+    // Post-close sweep: if a refund auto-created a sibling Return on the order,
+    // close that too so the order UI clears "Return in progress".
+    let sweepClosed: string[] = [];
+    let sweepFailed: Array<{ id: string; error: string }> = [];
+    if (options?.action !== "decline" && orderGid && result.success) {
+      const sweep = await closeAllOpenReturnsOnOrder(admin, orderGid, new Set([shopifyReturnId]));
+      sweepClosed = sweep.closed;
+      sweepFailed = sweep.failed;
     }
 
     const eventType = result.success
@@ -2163,6 +2245,8 @@ export async function closeShopifyReturnBestEffort(
         status: result.status,
         alreadyClosed: result.alreadyClosed,
         error: result.error,
+        ...(sweepClosed.length > 0 ? { sweepClosed } : {}),
+        ...(sweepFailed.length > 0 ? { sweepFailed } : {}),
       }),
     }).catch(() => {});
 

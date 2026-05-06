@@ -417,6 +417,7 @@ export default function ReturnSettings() {
                     <div>
                       <label style={{ fontSize: 12, color: "#6d7175" }}>Start</label>
                       <input
+                        aria-label="No-return period start date"
                         type="date"
                         name="noReturnPeriodStart"
                         defaultValue={data.noReturnPeriodStart}
@@ -426,6 +427,7 @@ export default function ReturnSettings() {
                     <div>
                       <label style={{ fontSize: 12, color: "#6d7175" }}>End</label>
                       <input
+                        aria-label="No-return period end date"
                         type="date"
                         name="noReturnPeriodEnd"
                         defaultValue={data.noReturnPeriodEnd}
@@ -448,6 +450,7 @@ export default function ReturnSettings() {
             </p>
             <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
               <input
+                aria-label="Search restricted product tags"
                 type="text"
                 placeholder="Search tags"
                 value={tagInput}
@@ -492,6 +495,7 @@ export default function ReturnSettings() {
                   <div style={{ flex: 1, minWidth: 120 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Prefix</label>
                     <input
+                      aria-label="Return ID prefix"
                       type="text" value={ridPrefix} maxLength={20}
                       onChange={(e) => setRidPrefix(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
                       style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, fontFamily: "monospace" }}
@@ -501,6 +505,7 @@ export default function ReturnSettings() {
                   <div style={{ minWidth: 100 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Separator</label>
                     <select
+                      aria-label="Return ID separator"
                       value={ridSeparator}
                       onChange={(e) => setRidSeparator(e.target.value)}
                       style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, background: "white" }}
@@ -514,6 +519,7 @@ export default function ReturnSettings() {
                   <div style={{ flex: 1, minWidth: 120 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Suffix (optional)</label>
                     <input
+                      aria-label="Return ID suffix"
                       type="text" value={ridSuffix} maxLength={10}
                       onChange={(e) => setRidSuffix(e.target.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ""))}
                       style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, fontFamily: "monospace" }}
@@ -558,6 +564,7 @@ export default function ReturnSettings() {
                   <div style={{ maxWidth: 200 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Hash Length</label>
                     <select
+                      aria-label="Return ID hash length"
                       value={ridHashLength}
                       onChange={(e) => setRidHashLength(Number(e.target.value))}
                       style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, background: "white" }}
@@ -572,6 +579,7 @@ export default function ReturnSettings() {
                   <div style={{ maxWidth: 200 }}>
                     <label style={{ fontSize: 12, fontWeight: 600, color: "#6d7175", display: "block", marginBottom: 4 }}>Counter Padding</label>
                     <select
+                      aria-label="Return ID counter padding"
                       value={ridSeqPadding}
                       onChange={(e) => setRidSeqPadding(Number(e.target.value))}
                       style={{ padding: "7px 10px", borderRadius: 6, border: "1px solid #e1e3e5", width: "100%", fontSize: 13, background: "white" }}
@@ -600,7 +608,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Photo Required</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={photoRequired} onChange={(e) => setPhotoRequired(e.target.checked)}
+                <input aria-label="Photo required for returns" type="checkbox" checked={photoRequired} onChange={(e) => setPhotoRequired(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: photoRequired ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: photoRequired ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -626,7 +634,7 @@ export default function ReturnSettings() {
               Configure a return fee that is subtracted from the refund amount automatically during the return process.
             </p>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <select name="returnFeeCurrency" defaultValue={data.returnFeeCurrency} style={{ padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}>
+              <select aria-label="Return fee currency" name="returnFeeCurrency" defaultValue={data.returnFeeCurrency} style={{ padding: 10, borderRadius: 6, border: "1px solid #e1e3e5" }}>
                 <option value="AED">AED – UAE Dirham</option>
                 <option value="AFN">AFN – Afghan Afghani</option>
                 <option value="ALL">ALL – Albanian Lek</option>
@@ -782,6 +790,7 @@ export default function ReturnSettings() {
                 <option value="ZWL">ZWL – Zimbabwean Dollar</option>
               </select>
               <input
+                aria-label="Return fee amount"
                 type="number"
                 name="returnFeeAmount"
                 defaultValue={data.returnFeeAmount}
@@ -802,7 +811,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Auto Approval</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={autoApproveEnabled} onChange={(e) => setAutoApproveEnabled(e.target.checked)}
+                <input aria-label="Enable auto approval" type="checkbox" checked={autoApproveEnabled} onChange={(e) => setAutoApproveEnabled(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: autoApproveEnabled ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: autoApproveEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -831,7 +840,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Auto Refund on Credit Note</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={autoRefundEnabled} onChange={(e) => setAutoRefundEnabled(e.target.checked)}
+                <input aria-label="Enable auto refund" type="checkbox" checked={autoRefundEnabled} onChange={(e) => setAutoRefundEnabled(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: autoRefundEnabled ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: autoRefundEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -861,7 +870,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Sync Refund Status to Fynd</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={syncRefundToFynd} onChange={(e) => setSyncRefundToFynd(e.target.checked)}
+                <input aria-label="Sync refund to Fynd" type="checkbox" checked={syncRefundToFynd} onChange={(e) => setSyncRefundToFynd(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: syncRefundToFynd ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: syncRefundToFynd ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -947,6 +956,7 @@ export default function ReturnSettings() {
                 </label>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <input
+                    aria-label="Store credit percentage"
                     type="range"
                     min={5}
                     max={95}
@@ -1025,7 +1035,7 @@ export default function ReturnSettings() {
                     ? "Used when the fulfillment location cannot be determined (e.g. unfulfilled orders)."
                     : "This location will be pre-selected in the refund modal, but admin can change it."}
                 </p>
-                <select name="refundLocationId" value={selectedLocId} onChange={(e) => setSelectedLocId(e.target.value)} style={{ width: "100%", maxWidth: 400, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}>
+                <select aria-label="Refund location" name="refundLocationId" value={selectedLocId} onChange={(e) => setSelectedLocId(e.target.value)} style={{ width: "100%", maxWidth: 400, padding: 10, borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13 }}>
                   <option value="">None — auto-detect from Shopify</option>
                   {data.shopLocations.filter((l: ShopLocation) => l.isActive).map((loc: ShopLocation) => (
                     <option key={loc.id} value={loc.id}>{loc.name}</option>
@@ -1050,7 +1060,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Portal Exchange</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={portalExchangeEnabled} onChange={(e) => setPortalExchangeEnabled(e.target.checked)}
+                <input aria-label="Enable portal exchange" type="checkbox" checked={portalExchangeEnabled} onChange={(e) => setPortalExchangeEnabled(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: portalExchangeEnabled ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: portalExchangeEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -1111,7 +1121,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Fynd Status Gate for Return Initiation</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={fyndReturnGateEnabled} onChange={(e) => {
+                <input aria-label="Enable Fynd return-status gate" type="checkbox" checked={fyndReturnGateEnabled} onChange={(e) => {
                   setFyndReturnGateEnabled(e.target.checked);
                   if (!e.target.checked) setAllowedFyndReturnStatuses([]);
                 }}
@@ -1225,7 +1235,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Fynd Status Gate for Refunds</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={fyndStatusGateEnabled} onChange={(e) => {
+                <input aria-label="Enable Fynd refund-status gate" type="checkbox" checked={fyndStatusGateEnabled} onChange={(e) => {
                   setFyndStatusGateEnabled(e.target.checked);
                   if (!e.target.checked) {
                     setRefundGatePreset("none");
@@ -1407,7 +1417,7 @@ export default function ReturnSettings() {
                 <div style={{ fontWeight: 600, fontSize: 14 }}>Fynd Return Consolidation</div>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" checked={fyndConsolidateReturns} onChange={(e) => setFyndConsolidateReturns(e.target.checked)}
+                <input aria-label="Consolidate Fynd returns" type="checkbox" checked={fyndConsolidateReturns} onChange={(e) => setFyndConsolidateReturns(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: fyndConsolidateReturns ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: fyndConsolidateReturns ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -1452,7 +1462,7 @@ export default function ReturnSettings() {
                 </p>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" name="giftReturnsEnabled" checked={giftReturnsEnabled} onChange={(e) => setGiftReturnsEnabled(e.target.checked)}
+                <input aria-label="Enable gift returns" type="checkbox" name="giftReturnsEnabled" checked={giftReturnsEnabled} onChange={(e) => setGiftReturnsEnabled(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: giftReturnsEnabled ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: giftReturnsEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -1473,7 +1483,7 @@ export default function ReturnSettings() {
                 </p>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" name="greenReturnsDonateEnabled" checked={greenReturnsDonateEnabled} onChange={(e) => setGreenReturnsDonateEnabled(e.target.checked)}
+                <input aria-label="Enable donate option" type="checkbox" name="greenReturnsDonateEnabled" checked={greenReturnsDonateEnabled} onChange={(e) => setGreenReturnsDonateEnabled(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: greenReturnsDonateEnabled ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: greenReturnsDonateEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -1483,7 +1493,7 @@ export default function ReturnSettings() {
             {greenReturnsDonateEnabled && (
               <div style={{ marginTop: 10 }}>
                 <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Donate message (shown to customer)</label>
-                <input type="text" name="greenReturnsDonateMessage" value={greenReturnsDonateMessage}
+                <input aria-label="Donate message shown to customer" type="text" name="greenReturnsDonateMessage" value={greenReturnsDonateMessage}
                   onChange={(e) => setGreenReturnsDonateMessage(e.target.value)}
                   placeholder="e.g. Your item will be donated to a local charity"
                   style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }} />
@@ -1503,7 +1513,7 @@ export default function ReturnSettings() {
                 </p>
               </div>
               <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                <input type="checkbox" name="scheduledReportEnabled" checked={scheduledReportEnabled} onChange={(e) => setScheduledReportEnabled(e.target.checked)}
+                <input aria-label="Enable scheduled reports" type="checkbox" name="scheduledReportEnabled" checked={scheduledReportEnabled} onChange={(e) => setScheduledReportEnabled(e.target.checked)}
                   style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
                 <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: scheduledReportEnabled ? "#3B82F6" : "#cbd5e1" }}>
                   <span style={{ position: "absolute", left: scheduledReportEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
@@ -1514,7 +1524,7 @@ export default function ReturnSettings() {
               <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
                 <div>
                   <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Frequency</label>
-                  <select name="scheduledReportFrequency" value={scheduledReportFrequency}
+                  <select aria-label="Scheduled report frequency" name="scheduledReportFrequency" value={scheduledReportFrequency}
                     onChange={(e) => setScheduledReportFrequency(e.target.value)}
                     style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}>
                     <option value="daily">Daily</option>
@@ -1525,7 +1535,7 @@ export default function ReturnSettings() {
                 {scheduledReportFrequency === "weekly" && (
                   <div>
                     <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Day of week</label>
-                    <select name="scheduledReportDay" value={scheduledReportDay}
+                    <select aria-label="Scheduled report day of week" name="scheduledReportDay" value={scheduledReportDay}
                       onChange={(e) => setScheduledReportDay(parseInt(e.target.value, 10))}
                       style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }}>
                       {["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"].map((d, i) => (
@@ -1537,7 +1547,7 @@ export default function ReturnSettings() {
                 {scheduledReportFrequency === "monthly" && (
                   <div>
                     <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Day of month</label>
-                    <input type="number" name="scheduledReportDay" value={scheduledReportDay}
+                    <input aria-label="Scheduled report day of month" type="number" name="scheduledReportDay" value={scheduledReportDay}
                       onChange={(e) => setScheduledReportDay(parseInt(e.target.value, 10) || 1)}
                       min={1} max={28}
                       style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13, width: 80 }} />
@@ -1545,7 +1555,7 @@ export default function ReturnSettings() {
                 )}
                 <div>
                   <label style={{ fontWeight: 600, fontSize: 13, display: "block", marginBottom: 6 }}>Recipients (comma-separated emails)</label>
-                  <input type="text" name="scheduledReportEmails" value={scheduledReportEmails}
+                  <input aria-label="Scheduled report recipients" type="text" name="scheduledReportEmails" value={scheduledReportEmails}
                     onChange={(e) => setScheduledReportEmails(e.target.value)}
                     placeholder="e.g. admin@store.com, manager@store.com"
                     style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid #d1d5db", fontSize: 13 }} />

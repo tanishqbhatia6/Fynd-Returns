@@ -797,7 +797,7 @@ export default function Integrations() {
             </p>
           </div>
           <p className="app-field-helper" style={{ marginBottom: 24, fontSize: 14 }}>
-            Connect Fynd for reverse logistics. All Fynd operations use <strong>Platform API only</strong> (OAuth). Storefront API is not used. From <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
+            Connect Fynd for reverse logistics. All Fynd operations use <strong>Platform API only</strong> (OAuth). Storefront API is not used. From <a href="https://platform.fynd.com" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
           </p>
 
           <s-section heading="App Mode">

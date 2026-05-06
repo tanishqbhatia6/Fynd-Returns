@@ -418,7 +418,7 @@ export default function FyndSetup() {
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
                 Enter your Fynd Platform API credentials. You need <strong>Company ID</strong>, <strong>Application ID</strong>,{" "}
                 <strong>Client ID</strong>, and <strong>Client Secret</strong> from{" "}
-                <a href="https://platform.fynd.com" target="_blank" rel="noreferrer" style={{ color: "#005bd3" }}>
+                <a href="https://platform.fynd.com" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3" }}>
                   Fynd Platform
                 </a>
                 .

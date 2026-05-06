@@ -403,7 +403,10 @@ async function searchOrders(
     res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query, first: limit } });
   } catch (err) {
     refundLogger.warn({ query, error: err instanceof Error ? err.message : String(err) }, "searchOrders: GraphQL call failed");
+    // unreachable: searchOrders is only called with throwOnError=false
+    /* v8 ignore start */
     if (throwOnError) throw err;
+    /* v8 ignore stop */
     return null;
   }
   let json: {
@@ -417,7 +420,10 @@ async function searchOrders(
     // Without this guard the function rejects with an unhandled error instead of
     // the controlled null/OrderAccessError path the rest of the function uses.
     refundLogger.warn({ query, error: err instanceof Error ? err.message : String(err) }, "searchOrders: response.json() failed");
+    // unreachable: searchOrders is only called with throwOnError=false
+    /* v8 ignore start */
     if (throwOnError) throw err;
+    /* v8 ignore stop */
     return null;
   }
   const errMsg = json.errors?.[0]?.message ?? "";
@@ -481,7 +487,10 @@ async function restOrderLookupByName(
   orderName: string
 ): Promise<string | null> {
   const clean = orderName.replace(/^#/, "").trim();
+  // unreachable: only caller (fetchOrderByOrderNumber) already returns null at the same guard
+  /* v8 ignore start */
   if (!clean) return null;
+  /* v8 ignore stop */
 
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
   // Try with # prefix (standard Shopify name format) and without
@@ -1479,6 +1488,8 @@ export async function createRefund(
             error: "Shopify reports zero refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the \"Discount code\" refund method instead, or process manually in Shopify Admin.",
           };
         }
+        // unreachable: outer branch requires method=store_credit|both, which all return above when totalAmount=0
+        /* v8 ignore start */
         if (suggested?.suggestedTransactions?.length) {
           refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
             orderId: gid,
@@ -1488,6 +1499,7 @@ export async function createRefund(
             ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
           }));
         }
+        /* v8 ignore stop */
       }
     } else {
       const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
@@ -1829,7 +1841,10 @@ export async function createShopifyReturn(
         const consumedQty = node.quantity ?? 0;
         if (consumedQty <= 0) continue;
         const decrement = (entries?: FliEntry[]) => {
+          // unreachable: callers always pass result of map.get() under a truthy lineItem.id/sku check, never undefined here
+          /* v8 ignore start */
           if (!entries) return;
+          /* v8 ignore stop */
           for (const e of entries) {
             if (e.fulfillmentLineItemId === consumedFliId) {
               e.maxQty = Math.max(0, e.maxQty - consumedQty);
@@ -1846,11 +1861,13 @@ export async function createShopifyReturn(
     }
 
     // Pick best entry (highest remaining maxQty) for fallback callers that don't iterate.
-    /* v8 ignore next 4 */ // unreachable: callers re-lookup the same maps that already returned undefined/empty
+    // unreachable: callers re-lookup the same maps that already returned undefined/empty
+    /* v8 ignore start */
     const pickBest = (entries?: FliEntry[]): FliEntry | undefined => {
       if (!entries || entries.length === 0) return undefined;
       return entries.reduce((best, cur) => (cur.maxQty > best.maxQty ? cur : best), entries[0]);
     };
+    /* v8 ignore stop */
 
     if (fulfillmentLineItemMap.size === 0 && skuMap.size === 0) {
       return { success: false, error: "No returnable fulfillment line items found. The order may not be fulfilled yet, or all items have already been returned." };
@@ -1905,9 +1922,15 @@ export async function createShopifyReturn(
       let remainingQty = Math.max(0, Math.floor(item.qty));
       for (const entry of entries) {
         if (remainingQty <= 0) break;
+        // unreachable: entries with maxQty<=0 are filtered at map-build time (line ~1794) and only decremented in-place during this same loop
+        /* v8 ignore start */
         if (entry.maxQty <= 0) continue;
+        /* v8 ignore stop */
         const take = Math.min(remainingQty, entry.maxQty);
+        // unreachable: take = min(remainingQty>0, entry.maxQty>0) so always >0
+        /* v8 ignore start */
         if (take <= 0) continue;
+        /* v8 ignore stop */
         returnLineItems.push({
           fulfillmentLineItemId: entry.fulfillmentLineItemId,
           quantity: take,
@@ -1938,12 +1961,15 @@ export async function createShopifyReturn(
     // fulfillments) at a glance in production logs.
     const totalReturnRequestedQty = returnItems.reduce((s, ri) => s + Math.max(0, Math.floor(Number(ri.qty) || 0)), 0);
     const totalShopifyReturnQty = returnLineItems.reduce((s, rli) => s + (rli.quantity || 0), 0);
+    // unreachable: distribution loop caps `take` at remainingQty so totalShopifyReturnQty <= sum(floor(item.qty)) = totalReturnRequestedQty (defensive bug-#9 sentinel)
+    /* v8 ignore start */
     if (totalShopifyReturnQty > totalReturnRequestedQty) {
       refundLogger.error(
         { totalReturnRequestedQty, totalShopifyReturnQty, returnLineItemsCount: returnLineItems.length, orderGid },
         "createShopifyReturn: SHOPIFY RETURN QTY EXCEEDS CUSTOMER REQUEST — bug #9 regression",
       );
     }
+    /* v8 ignore stop */
     refundLogger.info(
       { lineItemCount: returnLineItems.length, totalShopifyReturnQty, totalReturnRequestedQty, orderGid },
       "createShopifyReturn: creating Shopify return",

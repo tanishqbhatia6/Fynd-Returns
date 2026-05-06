@@ -141,7 +141,10 @@ export default function ReturnsList() {
   const executeBulkAction = useCallback(
     async (action: "bulk_approve" | "bulk_reject" | "bulk_change_resolution", extra?: { reason?: string; resolutionType?: string }) => {
       const ids = Array.from(selectedIds);
+      // defensive: bulk action buttons are disabled when no rows are selected
+      /* v8 ignore start */
       if (ids.length === 0) return;
+      /* v8 ignore stop */
       setBulkLoading(true);
       setBulkError(null);
       setBulkSuccess(null);

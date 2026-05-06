@@ -258,4 +258,75 @@ describe("app.returns.$id loader — coverage closure", () => {
     // Loader still returns shop data (no crash)
     expect(data.shopDomain).toBe("store.myshopify.com");
   });
+
+  it("backfills customerCountry from shopifyOrder.shippingAddress (line 312)", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "set-1" } });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderId: "gid://shopify/Order/100",
+        customerName: null, // trigger enrichment gate
+        customerEmailNorm: null,
+        customerCity: null,
+        customerCountry: null,
+      }),
+    );
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ id: "set-1", shopId: "shop-1" });
+    fetchOrderMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/100",
+      name: "#100",
+      email: "u@example.com",
+      shippingAddress: { country: "Canada", city: "Toronto" },
+    });
+    const data = await runLoader();
+    expect(prismaMock.returnCase.update).toHaveBeenCalled();
+    const updateArg = prismaMock.returnCase.update.mock.calls.find(
+      (c: unknown[]) => (c[0] as { data: Record<string, unknown> }).data.customerCountry === "Canada",
+    );
+    expect(updateArg).toBeTruthy();
+    expect(data.returnCase.customerCountry).toBe("Canada");
+  });
+
+  it("backfills customerCountry from Fynd payload when shopifyOrder fallback misses (line 326)", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "set-1" } });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderId: "manual:x",
+        fyndPayloadJson: '{"shipments":[]}',
+        customerName: null,
+        customerEmailNorm: null,
+        customerCity: null,
+        customerCountry: null,
+      }),
+    );
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ id: "set-1", shopId: "shop-1" });
+    extractCustomerFromFyndPayloadMock.mockReturnValueOnce({
+      country: "India",
+      city: null, address1: null, address2: null, province: null, zip: null,
+      name: null, email: null, phone: null,
+    });
+    const data = await runLoader();
+    expect(data.returnCase.customerCountry).toBe("India");
+  });
+
+  it("backfills customerAddress2 from Fynd payload when both shopify and case are missing it (line 328)", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "set-1" } });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderId: "manual:x",
+        fyndPayloadJson: '{"shipments":[]}',
+        customerName: null,
+        customerEmailNorm: null,
+        customerCity: null,
+        customerAddress2: null,
+      }),
+    );
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ id: "set-1", shopId: "shop-1" });
+    extractCustomerFromFyndPayloadMock.mockReturnValueOnce({
+      address2: "Apt 5B",
+      address1: null, country: null, city: null, province: null, zip: null,
+      name: null, email: null, phone: null,
+    });
+    const data = await runLoader();
+    expect(data.returnCase.customerAddress2).toBe("Apt 5B");
+  });
 });

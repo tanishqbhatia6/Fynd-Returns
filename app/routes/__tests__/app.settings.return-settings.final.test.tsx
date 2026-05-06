@@ -46,7 +46,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import ReturnSettings from "../app.settings.return-settings";
 
 const baseLoaderData = {
@@ -253,8 +253,8 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     const cb = labels[0].querySelector(
       "input[type='checkbox']",
     ) as HTMLInputElement;
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(true); });
   });
 
   it("unchecks a Delivery & Handover status checkbox in custom mode", async () => {

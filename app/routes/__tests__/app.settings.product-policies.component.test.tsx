@@ -391,8 +391,10 @@ describe("ProductPoliciesSettings (default export)", () => {
     );
     expect(emptyPolicyText).toBeTruthy();
 
-    fireEvent.change(emptyPolicyText!, {
-      target: { value: "Electronics: 14-day window" },
+    await act(async () => {
+      fireEvent.change(emptyPolicyText!, {
+        target: { value: "Electronics: 14-day window" },
+      });
     });
 
     await waitFor(() => {

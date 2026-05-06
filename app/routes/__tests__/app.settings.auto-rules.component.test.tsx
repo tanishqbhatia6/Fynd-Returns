@@ -280,7 +280,7 @@ describe("app.settings.auto-rules component (default export)", () => {
       expect(container.textContent).toContain("Rules (2)");
     });
     const selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
-    fireEvent.change(selects[0], { target: { value: "returnReason" } });
+    await act(async () => { fireEvent.change(selects[0], { target: { value: "returnReason" } }); });
     await waitFor(() => {
       const refreshed = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(refreshed[0].value).toBe("returnReason");
@@ -301,7 +301,7 @@ describe("app.settings.auto-rules component (default export)", () => {
       expect(container.textContent).toContain("Rules (2)");
     });
     const selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
-    fireEvent.change(selects[1], { target: { value: "gt" } });
+    await act(async () => { fireEvent.change(selects[1], { target: { value: "gt" } }); });
     await waitFor(() => {
       const refreshed = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(refreshed[1].value).toBe("gt");

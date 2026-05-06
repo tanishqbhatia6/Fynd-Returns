@@ -543,7 +543,12 @@ describe("app.returns._index — bulk-action UI", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    fireEvent.click(getRowCheckboxCells(container)[0]);
+    await act(async () => { fireEvent.click(getRowCheckboxCells(container)[0]); });
+    await waitFor(() => {
+      expect(
+        container.querySelector(".returns-bulk-bar")?.className,
+      ).toContain("returns-bulk-bar--visible");
+    });
     await act(async () => {
       fireEvent.click(getButtonByText(container, "Approve")!);
     });

@@ -357,12 +357,12 @@ describe("app.settings.auto-rules component (default export)", () => {
     });
     const selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
     expect(selects[2].value).toBe("approve");
-    fireEvent.change(selects[2], { target: { value: "manual_review" } });
+    await act(async () => { fireEvent.change(selects[2], { target: { value: "manual_review" } }); });
     await waitFor(() => {
       const refreshed = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(refreshed[2].value).toBe("manual_review");
     });
-    expect(container.textContent).toContain("MANUAL REVIEW");
+    await waitFor(() => { expect(container.textContent).toContain("MANUAL REVIEW"); });
   });
 
   it("submitting the form runs handleSubmit (filters empty-value rules)", async () => {

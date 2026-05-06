@@ -640,4 +640,334 @@ describe("app.returns.$id — final branch closure", () => {
     });
     expect(container.textContent).toContain("JoinedAddr");
   });
+
+  it("daysRemaining=0 (expired) + fraud high + sourceChannel pos + giftReturn fires badge branches", async () => {
+    const rc = makeReturnCase({
+      status: "approved",
+      sourceChannel: "pos",
+      fraudRiskLevel: "high",
+      fraudRiskScore: 75,
+      isGiftReturn: true,
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({
+        returnCase: rc,
+        daysRemaining: 0,
+        returnDeadline: new Date("2026-04-01T00:00:00Z").toISOString(),
+      }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/Expired|POS|Gift|Risk/i);
+  });
+
+  it("daysRemaining=5 (warning band) + sourceChannel draft_order + fraud critical fires alt color branches", async () => {
+    const rc = makeReturnCase({
+      status: "approved",
+      sourceChannel: "draft_order",
+      fraudRiskLevel: "critical",
+      fraudRiskScore: 95,
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({
+        returnCase: rc,
+        daysRemaining: 5,
+      }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+  });
+
+  it("sourceChannel b2b + green return + resolutionType exchange + fraud medium", async () => {
+    const rc = makeReturnCase({
+      status: "approved",
+      sourceChannel: "b2b",
+      resolutionType: "exchange",
+      isGreenReturn: true,
+      fraudRiskLevel: "medium",
+      fraudRiskScore: 50,
+      exchangePreference: "Size up to L",
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/B2B|Green|Exchange/i);
+  });
+
+  it("unknown sourceChannel falls through to default cfg (covers cfg fallback)", async () => {
+    const rc = makeReturnCase({ status: "approved", sourceChannel: "kiosk" });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+  });
+
+  it("cancellation declined indicator renders when no active request + declined timestamp", async () => {
+    const rc = makeReturnCase({
+      status: "approved",
+      cancellationRequestedAt: null,
+      cancellationRequestedBy: null,
+      cancellationDeclinedAt: new Date("2026-05-01T00:00:00Z").toISOString(),
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/declined/i);
+  });
+
+  it("cancellation request active fires approve/decline buttons branch", async () => {
+    const rc = makeReturnCase({
+      status: "approved",
+      cancellationRequestedAt: new Date("2026-05-01T00:00:00Z").toISOString(),
+      cancellationRequestedBy: "customer",
+      cancellationReason: "Changed mind",
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/Approve Cancellation|Decline/i);
+  });
+
+  it("exchangeOrderId set with completed_with_refund flow + priceDiff > 0 fires headline branches", async () => {
+    const rc = makeReturnCase({
+      status: "completed",
+      resolutionType: "exchange",
+      exchangeOrderId: "gid://shopify/DraftOrder/9999",
+      exchangeOrderName: "#D-9999",
+      exchangeItemsJson: JSON.stringify([{ title: "ItemA", quantity: 1, price: "12.00" }]),
+      events: [{
+        id: "ev1",
+        eventType: "exchange_created",
+        type: "exchange_created",
+        actor: "system",
+        happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
+        payloadJson: JSON.stringify({
+          flow: "completed_with_refund",
+          priceDiff: -5.50,
+          currency: "USD",
+          invoiceUrl: null,
+          refund: { success: true, amount: "5.50", refundId: "gid://shopify/Refund/55" },
+        }),
+      }],
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/Exchange order|Refunded to customer/i);
+  });
+
+  it("exchangeOrderId with invoice_pending flow + replacement type renders payment-link branch", async () => {
+    const rc = makeReturnCase({
+      status: "completed",
+      resolutionType: "replacement",
+      exchangeOrderId: "gid://shopify/Order/8888",
+      exchangeOrderName: "#R-8888",
+      exchangeItemsJson: JSON.stringify([{ title: "Repl", quantity: 1, price: "20.00" }]),
+      events: [{
+        id: "ev2",
+        eventType: "replacement_created",
+        type: "replacement_created",
+        actor: "system",
+        happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
+        payloadJson: JSON.stringify({
+          flow: "invoice_pending",
+          priceDiff: 7.25,
+          currency: "USD",
+          invoiceUrl: "https://invoice.example/inv-8888",
+          refund: null,
+        }),
+      }],
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/Customer payment link|Customer owes|awaiting payment/i);
+  });
+
+  it("exchangeOrderId with completed_with_refund.success=false fires failure branch", async () => {
+    const rc = makeReturnCase({
+      status: "completed",
+      resolutionType: "exchange",
+      exchangeOrderId: "gid://shopify/DraftOrder/7777",
+      exchangeOrderName: "#D-7777",
+      events: [{
+        id: "ev3",
+        eventType: "exchange_created",
+        type: "exchange_created",
+        actor: "system",
+        happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
+        payloadJson: JSON.stringify({
+          flow: "completed_with_refund",
+          priceDiff: -3.0,
+          currency: "USD",
+          refund: { success: false },
+        }),
+      }],
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/refund failed/i);
+  });
+
+  it("blocklisted flag + serial returner badge fires customer-history red panel", async () => {
+    const rc = makeReturnCase({ status: "approved", customerEmailNorm: "serial@example.com" });
+    const history = Array.from({ length: 4 }, (_, i) => ({
+      id: `prev_${i}`,
+      returnRequestNo: `RMA-PREV-${i}`,
+      status: "completed",
+      createdAt: new Date(`2026-04-0${i + 1}T00:00:00Z`).toISOString(),
+    }));
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({
+        returnCase: rc,
+        isBlocklisted: true,
+        customerReturnCount: 4,
+        customerReturnHistory: history,
+        customerEmail: "serial@example.com",
+      }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/Serial Returner|Flagged customer/i);
+  });
+
+  it("rich pickupAddress with formatted only (no full customer address) renders fallback path", async () => {
+    const rc = makeReturnCase({
+      status: "approved",
+      customerAddress1: null,
+      customerZip: null,
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({
+        returnCase: rc,
+        pickupAddress: {
+          formatted: null,
+          name: "PickupName",
+          address1: "Line1",
+          address2: "Line2",
+          city: "PickupCity",
+          state: "PS",
+          pincode: "00099",
+          country: "PC",
+        },
+      }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/Line1|PickupCity/);
+  });
+
+  it("isCodOrder with paymentGatewayNames + shippingAddress renders address+COD branches", async () => {
+    const rc = makeReturnCase({ status: "approved" });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({
+        returnCase: rc,
+        isCodOrder: true,
+        shopifyOrder: {
+          id: "gid://shopify/Order/100",
+          name: "#BR1",
+          email: "br@example.com",
+          phone: "+1-555",
+          createdAt: "2026-04-01T00:00:00Z",
+          displayFulfillmentStatus: "fulfilled",
+          displayFinancialStatus: "paid",
+          paymentGatewayNames: ["Cash on Delivery"],
+          shippingAddress: {
+            name: "Ship Name",
+            address1: "1 Ship",
+            address2: null,
+            city: "ShipCity",
+            province: "SP",
+            zip: "00001",
+            country: "SC",
+            firstName: null,
+            lastName: null,
+          },
+          billingAddress: null,
+          subtotalPrice: "10.00",
+          totalDiscounts: "1.00",
+          totalPrice: "9.00",
+          currencyCode: "USD",
+          processedAt: "2026-04-01T00:00:00Z",
+          customer: null,
+          fulfillments: [],
+          lineItems: [],
+        },
+      }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/COD|Cash on Delivery|ShipCity/);
+  });
+
+  it("manual return short-circuits Shipment & Logistics card", async () => {
+    const rc = makeReturnCase({
+      status: "approved",
+      shopifyOrderId: "manual:abc123",
+      shopifyOrderName: "#MANUAL-1",
+    });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({ returnCase: rc, isManualReturn: true }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+  });
+
+  it("retJourney rendered when length > 0 (covers timeline branch)", async () => {
+    const rc = makeReturnCase({ status: "approved" });
+    const { container } = renderWithRouter(Component, {
+      initialEntries: ["/app/returns/ret_br_001"],
+      loaderData: makeLoaderData({
+        returnCase: rc,
+        returnJourney: [
+          { status: "return_initiated", displayName: "Return Initiated", time: "2026-05-01T10:00:00Z" },
+          { status: "in_transit", displayName: "In Transit", time: "2026-05-02T08:00:00Z" },
+        ],
+      }) as never,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("RMA-BR-001");
+    });
+    expect(container.textContent).toMatch(/Return Journey|Return Initiated/i);
+  });
 });

@@ -504,7 +504,7 @@ describe("handleCancelOrder — gap coverage", () => {
       // throw a non-Error, non-Response value with empty string coercion -> default.
       const adminMock = {
         graphql: vi.fn(async () => {
-          // eslint-disable-next-line no-throw-literal
+           
           throw "";
         }),
       };

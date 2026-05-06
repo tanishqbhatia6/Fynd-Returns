@@ -870,7 +870,7 @@ export function extractShippingDetailsFromFyndPayload(fyndPayloadJson: string | 
     const awbCandidate = typeof awbVal === "string" && awbVal.trim() ? awbVal.trim() : null;
     const trackingNumber = awbCandidate && !isLikelyFyndId(awbCandidate) ? awbCandidate : null;
     // Tracking URL
-    let trackingUrl = first.tracking_url ?? first.track_url ?? first.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url ?? meta.tracking_url ?? meta.track_url;
+    const trackingUrl = first.tracking_url ?? first.track_url ?? first.trackUrl ?? dpDetails.track_url ?? dpDetails.tracking_url ?? meta.tracking_url ?? meta.track_url;
     let trackingUrlStr = typeof trackingUrl === "string" && trackingUrl.trim() ? trackingUrl.trim() : null;
     if (!trackingUrlStr && trackingNumber && carrier) {
       trackingUrlStr = buildTrackingUrlFromCourierAndAwb(carrier, trackingNumber);

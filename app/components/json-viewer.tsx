@@ -73,6 +73,15 @@ export function PayloadViewer({ rawPayload, title }: { rawPayload: string | null
   const [copied, setCopied] = useState(false);
   const [search, setSearch] = useState("");
 
+  // Hooks must run on every render — call before any conditional return.
+  const handleCopy = useCallback(() => {
+    if (!rawPayload) return;
+    navigator.clipboard.writeText(rawPayload).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }).catch(() => {});
+  }, [rawPayload]);
+
   if (!rawPayload) return <div style={{ padding: 10, color: "#6B7280", fontSize: 12 }}>No payload</div>;
 
   let parsed: unknown = null;
@@ -83,13 +92,6 @@ export function PayloadViewer({ rawPayload, title }: { rawPayload: string | null
   const displayText = search
     ? formatted.split("\n").filter((l) => l.toLowerCase().includes(search.toLowerCase())).join("\n")
     : formatted;
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(rawPayload).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
-  }, [rawPayload]);
 
   return (
     <div style={{

@@ -349,7 +349,6 @@ describe("app.docs branch-coverage gap suite", () => {
   it("renders ErrorBoundary fallback string when error is non-Error/non-Response", () => {
     function Boom(): React.ReactElement {
       // Throw a plain string — caught by react-router and surfaced via useRouteError().
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
       throw "raw-string-error";
     }
     const routes: RouteObject[] = [

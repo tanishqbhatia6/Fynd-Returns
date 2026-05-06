@@ -623,7 +623,7 @@ describe("app.returns.create — branch gaps", () => {
       'input[type="checkbox"]',
     ) as HTMLInputElement;
     fireEvent.click(checkbox);
-    let selects = container.querySelectorAll("select");
+    const selects = container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     let buttons = Array.from(container.querySelectorAll("button"));
@@ -668,7 +668,7 @@ describe("app.returns.create — branch gaps", () => {
       'input[type="checkbox"]',
     ) as HTMLInputElement;
     fireEvent.click(checkbox);
-    let selects = container.querySelectorAll("select");
+    const selects = container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     let buttons = Array.from(container.querySelectorAll("button"));

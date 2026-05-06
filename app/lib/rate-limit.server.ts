@@ -40,7 +40,7 @@ rateLimiterKeysActive.addCallback((obs) => {
 });
 
 if (process.env.NODE_ENV === "production" && Number(process.env.WEB_CONCURRENCY ?? "1") > 1 && !process.env.REDIS_URL) {
-  // eslint-disable-next-line no-console
+   
   console.warn(
     "[rate-limit] WEB_CONCURRENCY>1 detected with no REDIS_URL. In-memory limiter is per-replica; " +
     "effective per-IP limit is maxRequests × replica count. Set REDIS_URL for cluster-wide enforcement.",
@@ -145,7 +145,7 @@ async function checkRedis(
   } catch (err) {
     if (!redisFailureLogged) {
       redisFailureLogged = true;
-      // eslint-disable-next-line no-console
+       
       console.warn(
         "[rate-limit] Redis unavailable on this request; falling back to in-memory.",
         err instanceof Error ? err.message : err,

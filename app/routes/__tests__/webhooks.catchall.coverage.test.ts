@@ -25,7 +25,6 @@ vi.mock("../../shopify.server", () => ({
   authenticate: { webhook: authenticateWebhookMock },
 }));
 
-// eslint-disable-next-line import/first
 import { action } from "../webhooks";
 
 beforeEach(() => {

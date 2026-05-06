@@ -55,7 +55,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     // First variant rejects with a non-Error value (a plain string), the rest
     // resolve normally. Pagination and metafield each consume one call.
     const graphqlMock = vi.fn();
-    // eslint-disable-next-line prefer-promise-reject-errors
+     
     graphqlMock.mockRejectedValueOnce("plain-string-rejection");
     for (let i = 0; i < 6; i++) {
       graphqlMock.mockResolvedValueOnce({ json: async () => EMPTY_GQL });
@@ -124,7 +124,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       call++;
       if (call === 1) {
         // Throw a non-Error rejection — exercises String(err) branch.
-        // eslint-disable-next-line prefer-promise-reject-errors, no-throw-literal
+         
         throw "rest-string-fail";
       }
       return { ok: true, json: async () => ({ orders: [] }) };

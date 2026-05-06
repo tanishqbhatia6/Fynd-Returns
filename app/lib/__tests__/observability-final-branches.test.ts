@@ -298,7 +298,6 @@ describe("tracing.server.ts — final branches", () => {
     const { withSpanSync } = await import("../observability/tracing.server");
     expect(() =>
       withSpanSync("op", {}, () => {
-        // eslint-disable-next-line @typescript-eslint/no-throw-literal
         throw "string-thrown";
       }),
     ).toThrow();
@@ -385,7 +384,6 @@ describe("audit.server.ts — span-active annotation", () => {
 describe("health.server.ts — non-Error message fallback", () => {
   it("checkFyndApi returns 'degraded' with a message when fetch rejects with non-Error", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
       return Promise.reject("network down");
     });
     const { checkFyndApi } = await import("../observability/health.server");

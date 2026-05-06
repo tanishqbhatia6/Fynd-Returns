@@ -290,7 +290,7 @@ describe("app.docs Documentation — final branch coverage", () => {
 
   afterEach(() => {
     if (originalMap) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       Array.prototype.map = originalMap as any;
     }
     vi.restoreAllMocks();
@@ -307,30 +307,30 @@ describe("app.docs Documentation — final branch coverage", () => {
     // documentation tree are untouched.
     originalMap = Array.prototype.map;
     const orig = originalMap;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (Array.prototype as any).map = function patchedMap(
       this: unknown[],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       cb: (...a: any[]) => any,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       thisArg?: any,
     ) {
       if (
         Array.isArray(this) &&
         this.length > 0 &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         typeof (this[0] as any) === "object" &&
         this[0] !== null &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         typeof (this[0] as any).title === "string" &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         typeof (this[0] as any).description === "string" &&
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         !("icon" in (this[0] as any))
       ) {
         return orig.call(
           this,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           (h: any, i: number, arr: any) =>
             cb.call(thisArg, { ...h, icon: "★" }, i, arr),
           thisArg,

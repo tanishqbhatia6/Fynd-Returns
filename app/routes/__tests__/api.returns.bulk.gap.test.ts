@@ -84,7 +84,6 @@ describe("bulk_reject — per-row update failure (lines 237-238)", () => {
     ]);
     // Non-Error rejection — the route's `err instanceof Error` branch flips false.
     prismaMock.returnCase.update.mockImplementationOnce(async () => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
       throw "raw-string-failure";
     });
 

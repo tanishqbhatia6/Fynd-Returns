@@ -24,9 +24,26 @@ npm-debug.log*
 
 # IDE
 .idea/
-.vscode/
+# Note: .vscode is intentionally tracked — settings.json suppresses
+# noisy webhint warnings on this codebase's intentional inline styles.
+.vscode/*
+!.vscode/settings.json
 *.swp
 *.swo
+
+# Claude Code
+.claude/
+
+# Scratch coverage dirs (one-off measurement runs)
+cov-base/
+cov-pragma-check*/
+cov-returns-*/
+cov-target*/
+.cov-target/
+cov-targets*/
+cov-test-pragma*/
+tmp-coverage*/
+tmp-shopify-cov/
 
 # OS
 .DS_Store

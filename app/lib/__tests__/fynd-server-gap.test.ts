@@ -763,7 +763,6 @@ describe("fetchFyndPlatformToken — unexpected error path", () => {
 
   it("rethrows non-Error throwables converted to string", async () => {
     globalThis.fetch = vi.fn(async () => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
       throw "string-error-literal";
     }) as unknown as typeof fetch;
     await expect(

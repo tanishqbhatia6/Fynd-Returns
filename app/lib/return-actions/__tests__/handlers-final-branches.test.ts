@@ -10,7 +10,7 @@
  * blocks so the module-level import binds to the right mock.
  */
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../../test/prisma-mock";
 

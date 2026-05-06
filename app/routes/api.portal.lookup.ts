@@ -334,7 +334,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // If Shopify name search didn't find it, try FyndOrderMapping by fyndOrderId or shopifyOrderName
       if (orders.length === 0) {
         try {
-          let fyndMapping = await prisma.fyndOrderMapping.findFirst({
+          const fyndMapping = await prisma.fyndOrderMapping.findFirst({
             where: {
               shopId: shopRecord.id,
               OR: [

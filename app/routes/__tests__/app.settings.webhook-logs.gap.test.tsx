@@ -83,7 +83,7 @@ import { waitFor, fireEvent, act } from "@testing-library/react";
 import WebhookLogsPage, { loader } from "../app.settings.webhook-logs";
 import prismaMod from "../../db.server";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 const prisma: any = prismaMod;
 
 const baseLoaderData = {
@@ -430,7 +430,6 @@ describe("loader gap — log mapping (line 106) + statusOptions (line 133) + cat
 
   it("returns generic loaderError message when thrown value isn't an Error", async () => {
     prisma.fyndWebhookLog.count.mockImplementationOnce(() => {
-      // eslint-disable-next-line @typescript-eslint/no-throw-literal
       throw "non-error string";
     });
     prisma.fyndWebhookLog.findMany.mockResolvedValue([]);

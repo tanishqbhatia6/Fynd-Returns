@@ -286,7 +286,7 @@ describe("webhooks.draft-orders.update — coverage", () => {
     });
     // Throw a plain string (non-Error) from inside the try block.
     prismaMock.shop.findUnique.mockImplementationOnce(async () => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "string-thrown";
     });
     const res = await action({

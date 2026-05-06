@@ -131,7 +131,7 @@ describe("api.webhooks.fynd — final branches", () => {
   it("logs non-Error parse failure with String(err) — fallback path on line 82", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     unwrapFyndWebhookPayloadMock.mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "string-not-error";
     });
     const res = await fyndAction({
@@ -169,7 +169,7 @@ describe("api.webhooks.fynd — final branches", () => {
   it("logs non-Error from processFyndWebhook outer catch via String(err)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     processFyndWebhookMock.mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw { code: 99, weird: true };
     });
     const res = await fyndAction({
@@ -218,7 +218,7 @@ describe("api.webhooks.fynd.retry — final branches", () => {
       rawPayload: JSON.stringify({}),
     });
     processFyndWebhookMock.mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw 12345;
     });
     const res = await fyndRetryAction({
@@ -327,7 +327,7 @@ describe("api.webhooks.fynd.$shopId — final branches", () => {
       settings: { fyndWebhookSecret: "enc:secret" },
     });
     unwrapFyndWebhookPayloadMock.mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "raw-string-thrown";
     });
     const res = await fyndShopIdAction({
@@ -355,7 +355,7 @@ describe("api.webhooks.fynd.$shopId — final branches", () => {
       settings: { fyndWebhookSecret: "enc:secret" },
     });
     processFyndWebhookMock.mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "weird-string";
     });
     const res = await fyndShopIdAction({
@@ -460,7 +460,7 @@ describe("webhooks.shop.redact — final branches", () => {
   it("auth threw a non-Error value → String(err) fallback used (line 20 false branch)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     authenticateWebhookMock.mockImplementationOnce(() => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "auth-string-error";
     });
     const res = await shopRedactAction({

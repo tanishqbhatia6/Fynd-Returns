@@ -121,7 +121,6 @@ describe("withSpan", () => {
   it("wraps non-Error thrown values into an Error before recording", async () => {
     await expect(
       withSpan("op", {}, async () => {
-        // eslint-disable-next-line @typescript-eslint/no-throw-literal
         throw "string-error";
       }),
     ).rejects.toBe("string-error");

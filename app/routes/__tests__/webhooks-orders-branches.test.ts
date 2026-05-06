@@ -262,7 +262,7 @@ describe("webhooks.orders.fulfilled — branch coverage", () => {
     // Reject with non-Error from returnCase.findMany so the outer catch hits the
     // `String(err)` branch.
     prismaMock.returnCase.findMany.mockImplementationOnce(async () => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "raw-string-error";
     });
 
@@ -350,7 +350,7 @@ describe("webhooks.orders.updated — branch coverage", () => {
     extractAffiliateOrderIdMock.mockReturnValueOnce(null);
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop_1" });
     prismaMock.returnCase.findMany.mockImplementationOnce(async () => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "non-error-thrown";
     });
 
@@ -373,7 +373,7 @@ describe("webhooks.orders.updated — branch coverage", () => {
 describe("webhooks.app-subscriptions.update — non-Error branches", () => {
   it("auth catch: non-Error thrown → logs String(err) (lines 31-32)", async () => {
     authenticateWebhookMock.mockImplementationOnce(async () => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "auth-string-fail";
     });
     const res = await appSubscriptionsAction({
@@ -391,7 +391,7 @@ describe("webhooks.app-subscriptions.update — non-Error branches", () => {
   it("outer catch: non-Error thrown → logs String(err) (lines 63-64)", async () => {
     authenticateWebhookMock.mockResolvedValueOnce({ shop: "store.myshopify.com" });
     shopifyModuleMock.unauthenticated.admin.mockImplementationOnce(async () => {
-      // eslint-disable-next-line no-throw-literal
+       
       throw "outer-string-fail";
     });
     const res = await appSubscriptionsAction({
@@ -466,7 +466,7 @@ describe("api.webhooks.fynd — security/branch coverage", () => {
     vi.doMock("../../lib/fynd-webhook.server", () => ({
       processFyndWebhook: vi.fn(),
       unwrapFyndWebhookPayload: () => {
-        // eslint-disable-next-line no-throw-literal
+         
         throw "parse-string-fail";
       },
     }));
@@ -494,7 +494,7 @@ describe("api.webhooks.fynd — security/branch coverage", () => {
   it("processFyndWebhook handler catch: non-Error thrown → logs String(err) (line 142)", async () => {
     vi.doMock("../../lib/fynd-webhook.server", () => ({
       processFyndWebhook: vi.fn().mockImplementation(() => {
-        // eslint-disable-next-line no-throw-literal
+         
         throw "handler-string-fail";
       }),
       unwrapFyndWebhookPayload: (raw: string) => ({

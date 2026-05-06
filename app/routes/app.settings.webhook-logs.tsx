@@ -19,7 +19,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const dateFrom = url.searchParams.get("dateFrom") ?? "";
   const dateTo = url.searchParams.get("dateTo") ?? "";
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   const where: any = {};
   if (actionFilter) where.action = actionFilter;
   if (statusFilter) where.fyndStatus = statusFilter;

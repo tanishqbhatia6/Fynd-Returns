@@ -10,7 +10,7 @@
  *  - per-principal vs per-IP key isolation (matches the in-memory test).
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ 
 import RedisMock from "ioredis-mock";
 import { __setRedisForTests } from "../redis.server";
 import { checkRateLimit, __resetRateLimitForTests } from "../rate-limit.server";

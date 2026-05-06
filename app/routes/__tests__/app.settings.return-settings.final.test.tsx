@@ -170,10 +170,10 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     });
     const toggle = findGateToggle(container, "Fynd Status Gate for Refunds");
     expect(toggle).toBeTruthy();
-    fireEvent.click(toggle!); // OFF — exercises if-branch (resets to none + clears)
-    expect(toggle!.checked).toBe(false);
-    fireEvent.click(toggle!); // ON again — refundGatePreset is now 'none', so else-branch fires
-    expect(toggle!.checked).toBe(true);
+    await act(async () => { fireEvent.click(toggle!); }); // OFF
+    await waitFor(() => { expect(toggle!.checked).toBe(false); });
+    await act(async () => { fireEvent.click(toggle!); }); // ON again
+    await waitFor(() => { expect(toggle!.checked).toBe(true); });
   });
 
   it("unchecks a Return Flow status checkbox in custom mode (line ~1350)", async () => {

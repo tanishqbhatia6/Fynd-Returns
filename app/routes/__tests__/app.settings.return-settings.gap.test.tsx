@@ -364,8 +364,8 @@ describe("ReturnSettings — gap coverage", () => {
       "input[type='checkbox']",
     ) as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(false); });
   });
 
   it("renders the no-statuses-selected warning after unchecking the last refund status", async () => {

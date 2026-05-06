@@ -537,7 +537,14 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
+    await act(async () => {
+      fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
+    });
+    await waitFor(() => {
+      expect(
+        container.querySelector(".returns-bulk-bar")?.className,
+      ).toContain("returns-bulk-bar--visible");
+    });
     await act(async () => {
       fireEvent.click(container.querySelector(".bulk-btn--approve")!);
     });
@@ -791,13 +798,18 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
-    fireEvent.click(container.querySelector(".bulk-btn--reject")!);
+    await act(async () => { fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]); });
+    await waitFor(() => {
+      expect(
+        container.querySelector(".returns-bulk-bar")?.className,
+      ).toContain("returns-bulk-bar--visible");
+    });
+    await act(async () => { fireEvent.click(container.querySelector(".bulk-btn--reject")!); });
     await waitFor(() => {
       expect(container.querySelector("textarea")).toBeTruthy();
     });
     const ta = container.querySelector("textarea")!;
-    fireEvent.change(ta, { target: { value: "fraud" } });
+    await act(async () => { fireEvent.change(ta, { target: { value: "fraud" } }); });
     await act(async () => {
       fireEvent.keyDown(ta, { key: "Enter", metaKey: true });
     });

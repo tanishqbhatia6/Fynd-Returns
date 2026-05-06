@@ -209,7 +209,7 @@ vi.mock("react-router", async () => {
 });
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import ReturnRules, { action as rulesAction } from "../app.settings.rules";
 import Widget from "../app.settings.widget";
 import Integrations, {
@@ -269,7 +269,7 @@ describe("app.settings.rules — final branches", () => {
       (b) => b.textContent?.trim() === "+ Add country",
     );
     expect(addBtn).toBeTruthy();
-    fireEvent.click(addBtn!);
+    await act(async () => { fireEvent.click(addBtn!); });
     await waitFor(() => {
       countryInputs = Array.from(
         container.querySelectorAll<HTMLInputElement>(

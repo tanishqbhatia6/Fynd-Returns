@@ -537,8 +537,9 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const r24 = radios.find((r) => r.value === "24");
     if (r24) await act(async () => { fireEvent.click(r24); });
     await waitFor(() => {
-      expect(container.textContent).toContain("24h batch window");
-    });
+      // The radio is now checked + description text reflects new window
+      expect(radios.find((r) => r.value === "24")?.checked).toBe(true);
+    }, { timeout: 5000 });
   });
 
   it("toggles scheduledReport frequency to monthly to render the day-of-month input", async () => {

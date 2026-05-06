@@ -37,6 +37,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 
 import { renderWithRouter } from "../../test/component-helpers";
 import {
+  act,
   waitFor as rtlWaitFor,
   fireEvent,
   configure,
@@ -88,8 +89,10 @@ describe("app.settings.product-policies — coverage closure", () => {
       'input[type="text"][placeholder^="e.g. final-sale"]',
     ) as HTMLInputElement | null;
     expect(matchValueInput).toBeTruthy();
-    fireEvent.change(matchValueInput!, { target: { value: "clearance,final" } });
-    expect(matchValueInput!.value).toBe("clearance,final");
+    await act(async () => {
+      fireEvent.change(matchValueInput!, { target: { value: "clearance,final" } });
+    });
+    await waitFor(() => { expect(matchValueInput!.value).toBe("clearance,final"); });
 
     // Click an in-bounds Move-down (row 0, direction +1) → exercises the
     // non-guarded body of moveRule (lines 112-115).
@@ -151,7 +154,7 @@ describe("app.settings.product-policies — coverage closure", () => {
         'button[aria-label="Remove rule"]',
       ),
     );
-    fireEvent.click(removeBtns[0]);
+    await act(async () => { fireEvent.click(removeBtns[0]); });
     await waitFor(() => {
       const remaining = container.querySelectorAll(
         'button[aria-label="Remove rule"]',

@@ -216,11 +216,13 @@ describe("app.returns._index — bulk-action UI", () => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
     const selectAll = getSelectAllCheckbox(container);
-    fireEvent.click(selectAll); // select
-    fireEvent.click(selectAll); // deselect
+    await act(async () => { fireEvent.click(selectAll); }); // select
+    await act(async () => { fireEvent.click(selectAll); }); // deselect
     await waitFor(() => expect(selectAll.checked).toBe(false));
-    const bar = getBulkBar(container)!;
-    expect(bar.className).toContain("returns-bulk-bar--hidden");
+    await waitFor(() => {
+      const bar = getBulkBar(container)!;
+      expect(bar.className).toContain("returns-bulk-bar--hidden");
+    });
     const rowCbs = getRowCheckboxes(container);
     expect(rowCbs.every((c) => !c.checked)).toBe(true);
   });

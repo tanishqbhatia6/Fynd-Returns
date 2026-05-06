@@ -22,6 +22,7 @@ const SCRIPTS = [
   "backfill-shopify-order-ids.mjs",
   "backfill-webhook-logs.mjs",
   "backfill-customer-info.mjs",
+  "backfill-refund-gate-preset.mjs",
 ];
 
 const STRICT = String(process.env.BACKFILL_STRICT ?? "false").toLowerCase() === "true";

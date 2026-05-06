@@ -596,11 +596,13 @@ export default function CreateReturn() {
       setValidationError("Customer email is required.");
       return false;
     }
-    /* v8 ignore next 4 */ // unreachable: resolutionType defaults to "refund" and the typed setter only accepts 4 valid literals
+    // unreachable: resolutionType defaults to "refund" and the typed setter only accepts 4 valid literals
+    /* v8 ignore start */
     if (!resolutionType) {
       setValidationError("Please select a resolution type.");
       return false;
     }
+    /* v8 ignore stop */
     setValidationError(null);
     return true;
   }, [customerEmail, resolutionType]);
@@ -611,8 +613,10 @@ export default function CreateReturn() {
 
   /* ── Step 4: submit ── */
   const handleSubmit = useCallback(() => {
-    /* v8 ignore next */ // unreachable: submit button only renders when step === 4 && orderData
+    // unreachable: submit button only renders when step === 4 && orderData
+    /* v8 ignore start */
     if (!orderData) return;
+    /* v8 ignore stop */
 
     const items = Object.values(selectedItems).map((si) => ({
       lineItemId: si.lineItemId,

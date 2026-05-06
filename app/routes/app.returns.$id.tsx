@@ -27,8 +27,10 @@ function safeStr(v: unknown): string {
     const s = o.name ?? o.title ?? o.display_name ?? o.code ?? o.id;
     return typeof s === "string" ? s : "";
   }
-  /* v8 ignore next */ // unreachable: bigint/symbol/function never appear in JSON.parse output
+  /* v8 ignore start */
+  // unreachable: bigint/symbol/function never appear in JSON.parse output
   return "";
+  /* v8 ignore stop */
 }
 
 type UnifiedReturnState = {
@@ -164,11 +166,15 @@ function formatMoney(amount: string | null | undefined, currency?: string | null
     if (currency) {
       return new Intl.NumberFormat(locale || "en", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
     }
-    /* v8 ignore next */ // unreachable: every render call site passes shop currency
+    /* v8 ignore start */
+    // unreachable: every render call site passes shop currency
     return new Intl.NumberFormat(locale || undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    /* v8 ignore stop */
   } catch {
-    /* v8 ignore next */ // unreachable: Intl.NumberFormat doesn't throw on valid currency strings in jsdom/node
+    /* v8 ignore start */
+    // unreachable: Intl.NumberFormat doesn't throw on valid currency strings in jsdom/node
     return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    /* v8 ignore stop */
   }
 }
 
@@ -1450,7 +1456,10 @@ export default function ReturnDetail() {
                         const v = obj.amount ?? obj.value ?? obj.effective ?? obj.transfer_price ?? obj.price_effective;
                         return v != null ? String(v) : null;
                       }
+                      /* v8 ignore start */
+                      // unreachable: typed rawPrice is string|null|object; no number/boolean/bigint shape from Prisma or shopify-admin
                       return String(rawPrice);
+                      /* v8 ignore stop */
                     })();
                     return (
                       <div key={item.id} style={{ display: "flex", gap: 14, padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>

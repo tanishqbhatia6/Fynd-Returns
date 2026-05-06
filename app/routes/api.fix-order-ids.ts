@@ -45,8 +45,10 @@ async function resolveOrderByName(
   orderName: string
 ): Promise<{ gid: string; name: string } | null> {
   const clean = orderName.replace(/^#/, "").trim();
-  /* v8 ignore next */ // unreachable: getOrderNameVariants pre-filters empty strings
+  // unreachable: getOrderNameVariants pre-filters empty strings
+  /* v8 ignore start */
   if (!clean) return null;
+  /* v8 ignore stop */
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
 
   for (const nameQuery of [`#${clean}`, clean]) {

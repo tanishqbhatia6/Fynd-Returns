@@ -426,8 +426,10 @@ async function searchOrders(
   }
   if (json.errors?.length) {
     if (!throwOnError) return null;
-    /* v8 ignore next */ // unreachable: searchOrders is only called with throwOnError=false
+    // unreachable: searchOrders is only called with throwOnError=false
+    /* v8 ignore start */
     throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
+    /* v8 ignore stop */
   }
   const nodes = json.data?.orders?.nodes ?? [];
   if (nodes.length === 0) {
@@ -581,8 +583,10 @@ async function rawGraphQLSearch(
     if (!match) return null;
     return parseOrderNode(match);
   }
-  /* v8 ignore next */ // unreachable: rawGraphQLSearch is only called with exactName set
+  // unreachable: rawGraphQLSearch is only called with exactName set
+  /* v8 ignore start */
   return parseOrderNode(nodes[0]);
+  /* v8 ignore stop */
 }
 
 export async function fetchOrderByOrderNumber(
@@ -622,8 +626,10 @@ export async function fetchOrderByOrderNumber(
         return fetchOrderByGid(admin, gid);
       }
     } catch (err) {
-      /* v8 ignore next */ // unreachable: restOrderLookupByName wraps everything in try/catch and never throws
+      // unreachable: restOrderLookupByName wraps everything in try/catch and never throws
+      /* v8 ignore start */
       refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: REST lookup error");
+      /* v8 ignore stop */
     }
   } else {
     refundLogger.warn({ hasAccessToken: !!admin._rest?.accessToken, hasRest: !!admin._rest }, "fetchOrderByOrderNumber: no REST credentials, skipping raw fetch");
@@ -1883,8 +1889,10 @@ export async function createShopifyReturn(
           refundLogger.warn({ lineItemId: item.shopifyLineItemId, sku: item.sku }, "createShopifyReturn: no fulfillment line item match, skipping");
           continue;
         }
-        /* v8 ignore next */ // unreachable: pickBest always returns undefined here (see comment above)
+        // unreachable: pickBest always returns undefined here (see comment above)
+        /* v8 ignore start */
         entries = [fallback];
+        /* v8 ignore stop */
       }
 
       const reason = mapReturnReason(item.reasonCode);

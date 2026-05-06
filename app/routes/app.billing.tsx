@@ -223,7 +223,8 @@ function ReasonLabel({ reason, subscriptionName }: {
 
 // Helper for the switch's exhaustiveness check.
 // Never actually called — purely for TypeScript narrowing of the reason union.
-/* v8 ignore next 3 */
+/* v8 ignore start */
 function mapReasonNever(): "dev_mode" | "override_free" | "subscription_active" | "subscription_missing" | "override_paid_no_sub" {
   throw new Error("unreachable");
 }
+/* v8 ignore stop */

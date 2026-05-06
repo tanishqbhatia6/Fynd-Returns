@@ -160,8 +160,10 @@ function toDisplayString(val: unknown): string | null {
     if (typeof s === "number") return String(s);
     return null;
   }
-  /* v8 ignore next */ // unreachable: callers feed JSON.parse output (no bigint/symbol/function)
+  // unreachable: callers feed JSON.parse output (no bigint/symbol/function)
+  /* v8 ignore start */
   return null;
+  /* v8 ignore stop */
 }
 
 /** Prefer full/display names over short codes - for logistics partner etc. */
@@ -174,8 +176,10 @@ function toFullDisplayString(val: unknown): string | null {
     const s = (o.display_name ?? o.displayName ?? o.full_name ?? o.fullName ?? o.long_name ?? o.title ?? o.name ?? o.code ?? o.id) as string | undefined;
     return (typeof s === "string" && s) ? s : null;
   }
-  /* v8 ignore next */ // unreachable: callers feed JSON.parse output (no bigint/symbol/function)
+  // unreachable: callers feed JSON.parse output (no bigint/symbol/function)
+  /* v8 ignore start */
   return null;
+  /* v8 ignore stop */
 }
 
 /** Normalize raw Fynd API response to array of shipment-like objects */
@@ -776,8 +780,10 @@ export function extractCustomerFromFyndPayload(fyndPayloadJson: string | null | 
     const billingAddr = (first.billing_address ?? first.billingAddress) as Record<string, unknown> | undefined;
     const meta = (first.meta ?? {}) as Record<string, unknown>;
     const addr = deliveryAddr ?? billingAddr;
-    /* v8 ignore next */ // unreachable: meta is always `first.meta ?? {}` (truthy)
+    // unreachable: meta is always `first.meta ?? {}` (truthy)
+    /* v8 ignore start */
     if (!addr && !meta) return null;
+    /* v8 ignore stop */
     const a = (addr ?? {}) as Record<string, unknown>;
     const firstName = typeof a.first_name === "string" ? a.first_name : "";
     const lastName = typeof a.last_name === "string" ? a.last_name : "";

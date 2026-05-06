@@ -52,8 +52,10 @@ export function verifyWebhookSignature(
     if (sigBuf.length !== expBuf.length) return false;
     return crypto.timingSafeEqual(sigBuf, expBuf);
   } catch {
-    /* v8 ignore next */ // unreachable: Buffer.from(hex) + length-checked timingSafeEqual cannot throw
+    // unreachable: Buffer.from(hex) + length-checked timingSafeEqual cannot throw
+    /* v8 ignore start */
     return false;
+    /* v8 ignore stop */
   }
 }
 

@@ -104,7 +104,9 @@ export async function fetchFyndPlatformToken(
     log?.("fynd-platform-oauth", "Fetching token", `url=${url}`);
     const OAUTH_TIMEOUT_MS = 5_000;
     const controller = new AbortController();
-    /* v8 ignore next */ const timer = setTimeout(() => controller.abort(), OAUTH_TIMEOUT_MS);
+    /* v8 ignore start */
+    const timer = setTimeout(() => controller.abort(), OAUTH_TIMEOUT_MS);
+    /* v8 ignore stop */
     const elapsed = startTimer();
     let res: Response;
     try {
@@ -205,7 +207,9 @@ export async function testPlatformConnectionRaw(
     // Cap upstream Fynd API call so a hung backend doesn't pin the worker.
     // 15s matches the Shopify Admin client cap.
     const controller = new AbortController();
-    /* v8 ignore next */ const timer = setTimeout(() => controller.abort(), 15_000);
+    /* v8 ignore start */
+    const timer = setTimeout(() => controller.abort(), 15_000);
+    /* v8 ignore stop */
     let res: Response;
     try {
       res = await fetch(url, {
@@ -274,7 +278,9 @@ export class FyndPlatformClient {
       fyndLogger.debug({ companyId: this.companyId, method, path }, "Fynd platform request");
       this.log?.("fynd-platform", "Request", `${method} ${path}`);
       const controller = new AbortController();
-      /* v8 ignore next */ const timer = setTimeout(() => controller.abort(), FyndPlatformClient.REQUEST_TIMEOUT_MS);
+      /* v8 ignore start */
+      const timer = setTimeout(() => controller.abort(), FyndPlatformClient.REQUEST_TIMEOUT_MS);
+      /* v8 ignore stop */
       const elapsed = startTimer();
       let res: Response;
       try {
@@ -485,7 +491,9 @@ export class FyndStorefrontClient {
       fyndLogger.debug({ applicationId: this.applicationId, method, path }, "Fynd storefront request");
       this.log?.("fynd-storefront", "Request", `${method} ${path}`);
       const controller = new AbortController();
-      /* v8 ignore next */ const timer = setTimeout(() => controller.abort(), FyndStorefrontClient.REQUEST_TIMEOUT_MS);
+      /* v8 ignore start */
+      const timer = setTimeout(() => controller.abort(), FyndStorefrontClient.REQUEST_TIMEOUT_MS);
+      /* v8 ignore stop */
       const elapsed = startTimer();
       let res: Response;
       try {

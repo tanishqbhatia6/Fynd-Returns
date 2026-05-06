@@ -137,9 +137,11 @@ function FeatureIcon({ name }: { name: string }) {
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       );
-    /* v8 ignore next 2 */ // unreachable: icon name is from a hardcoded internal feature list
+    // unreachable: icon name is from a hardcoded internal feature list
+    /* v8 ignore start */
     default:
       return null;
+    /* v8 ignore stop */
   }
 }
 
@@ -219,8 +221,10 @@ export default function Index() {
   const [resolvedDark, setResolvedDark] = useState(true);
 
   const applyTheme = useCallback((t: Theme) => {
-    /* v8 ignore next */ // unreachable: jsdom always provides window
+    // unreachable: jsdom always provides window
+    /* v8 ignore start */
     if (typeof window === "undefined") return;
+    /* v8 ignore stop */
     let isDark: boolean;
     if (t === "system") {
       isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;

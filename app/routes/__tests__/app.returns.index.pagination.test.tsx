@@ -558,7 +558,14 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
+    await act(async () => {
+      fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
+    });
+    await waitFor(() => {
+      expect(
+        container.querySelector(".returns-bulk-bar")?.className,
+      ).toContain("returns-bulk-bar--visible");
+    });
     await act(async () => {
       fireEvent.click(container.querySelector(".bulk-btn--approve")!);
     });

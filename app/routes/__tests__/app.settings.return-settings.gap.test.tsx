@@ -344,10 +344,10 @@ describe("ReturnSettings — gap coverage", () => {
     await ready(container);
     const toggle = findSectionToggle(container, "Portal Exchange");
     expect(toggle).toBeTruthy();
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(true);
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(false);
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(true); });
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(false); });
   });
 
   it("re-toggles a Delivery & Handover status off (custom mode, covers checked → unchecked path on Delivery section)", async () => {

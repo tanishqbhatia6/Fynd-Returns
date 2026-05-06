@@ -254,8 +254,8 @@ describe("app.returns._index — bulk-action UI", () => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
     const cells = getRowCheckboxCells(container);
-    fireEvent.click(cells[0]);
-    fireEvent.click(cells[0]);
+    await act(async () => { fireEvent.click(cells[0]); });
+    await act(async () => { fireEvent.click(cells[0]); });
     await waitFor(() => {
       expect(getBulkBar(container)?.className).toContain(
         "returns-bulk-bar--hidden",

@@ -1084,6 +1084,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
     const activeReturnsForBlock = allItemsFullyReturned ? activeReturns : [];
 
+    // ── Per-line-item availability (Bug #10 hardening)
+    // Pre-compute `availableQty` and `alreadyInReturn` per line item so the
+    // widget can disable rows with a single field lookup instead of inferring
+    // from three different maps (and missing edge-cases). For Fynd-shipped
+    // orders, max(returned-by-line-item-id, returned-by-bag, returned-by-sku)
+    // is used to be conservative — if ANY of the three says it's in return,
+    // we treat it as already in return.
+    const lineItemAvailability: Record<string, {
+      orderedQty: number;
+      returnedQty: number;
+      availableQty: number;
+      alreadyInReturn: boolean;
+    }> = {};
+    for (const li of (order.lineItems ?? [])) {
+      const orderedQty = li.quantity ?? 1;
+      // Direct line-item-id match
+      let returnedQty = returnedQtyMap[li.id] ?? 0;
+      // Per-shipment max — if any Fynd shipment says this line/bag/sku is
+      // already in return, take the higher value to be conservative.
+      if (shipmentReturnedQtyMap) {
+        for (const bucket of Object.values(shipmentReturnedQtyMap)) {
+          const byId = bucket[li.id] ?? 0;
+          const bySku = li.sku ? (bucket[`sku:${li.sku.toLowerCase().trim()}`] ?? 0) : 0;
+          returnedQty = Math.max(returnedQty, byId, bySku);
+        }
+      }
+      const availableQty = Math.max(0, orderedQty - returnedQty);
+      lineItemAvailability[li.id] = {
+        orderedQty,
+        returnedQty,
+        availableQty,
+        alreadyInReturn: availableQty <= 0,
+      };
+    }
+
     return withCors(Response.json({
       order,
       existingReturns: formattedReturns,
@@ -1100,6 +1135,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       lineItemEstimates,
       returnOffers: returnOffersData,
       returnedQtyMap,
+      // Per-line-item availability (preferred over computing from the three
+      // maps) — Bug #10 hardening so widgets render disabled state correctly
+      // even when shipment-level metadata is missing.
+      lineItemAvailability,
       portalExchangeEnabled,
       photoRequired,
       // Multi-shipment data (null when single-shipment or Fynd not available)

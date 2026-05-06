@@ -1059,6 +1059,34 @@ export default function ReturnDetail() {
             </span>
           </div>
         )}
+        {/* ── State desync banner (Bug #2) ──
+            Surfaces when our local DB has advanced past the Fynd shipment
+            journey (e.g. admin processed refund early). Helps the merchant
+            understand why the two surfaces show different statuses and
+            offers an explicit refresh action. */}
+        {(() => {
+          const fLocal = (returnCase.fyndCurrentStatus ?? "").toLowerCase().trim();
+          if (!fLocal || isManualReturn) return null;
+          const fyndIsAtOrPastReceived = [
+            "return_bag_delivered", "return_delivered", "return_accepted",
+            "return_completed", "credit_note_generated", "refund_initiated",
+            "refund_done", "refund_completed",
+          ].includes(fLocal);
+          const localSaysCompleted = isCompleted || isRefunded;
+          const localSaysFynd = ["return_bag_in_transit", "in_transit", "out_for_pickup", "dp_out_for_pickup", "bag_picked", "return_bag_picked"].includes(fLocal);
+          if (localSaysCompleted && localSaysFynd && !fyndIsAtOrPastReceived) {
+            return (
+              <div className="app-alert app-alert-warning" style={{ marginBottom: 16, borderLeft: "4px solid #b45309" }}>
+                <strong style={{ color: "#92400e" }}>Status desync detected: </strong>
+                <span style={{ color: "#78350f" }}>
+                  Local status is <code>{returnCase.status}</code>{isRefunded ? " / refunded" : ""}, but the Fynd shipment is still <code>{fLocal.replace(/_/g, " ")}</code>.
+                  This usually clears once Fynd's webhook for the next stage arrives. Use <em>Refresh Fynd details</em> on the right to re-fetch now.
+                </span>
+              </div>
+            );
+          }
+          return null;
+        })()}
         {fyndSuccess && <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>{fyndSuccess === "already_synced" ? "Already synced to Fynd." : fyndSuccess === "already_exists" ? "Return already exists on Fynd — details loaded." : "Synced to Fynd successfully."}</div>}
         {fyndRefresh && <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>Fynd details refreshed.</div>}
         {(fyndProcessing || fyndSyncStatus === "processing") && !hasRealShipmentData && !(pollCount >= MAX_POLLS || Date.now() - new Date(returnCase.updatedAt).getTime() > 10 * 60 * 1000) && (

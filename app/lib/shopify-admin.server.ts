@@ -1920,7 +1920,21 @@ export async function createShopifyReturn(
       return { success: false, error: "Could not match any return items to fulfilled line items. Items may not be fulfilled yet or have already been returned." };
     }
 
-    refundLogger.info({ lineItemCount: returnLineItems.length, orderGid }, "createShopifyReturn: creating Shopify return");
+    // Diagnostic: log the qty distribution + the customer-requested qty so
+    // we can spot Bug #9-shaped regressions (over-creating qty across
+    // fulfillments) at a glance in production logs.
+    const totalReturnRequestedQty = returnItems.reduce((s, ri) => s + Math.max(0, Math.floor(Number(ri.qty) || 0)), 0);
+    const totalShopifyReturnQty = returnLineItems.reduce((s, rli) => s + (rli.quantity || 0), 0);
+    if (totalShopifyReturnQty > totalReturnRequestedQty) {
+      refundLogger.error(
+        { totalReturnRequestedQty, totalShopifyReturnQty, returnLineItemsCount: returnLineItems.length, orderGid },
+        "createShopifyReturn: SHOPIFY RETURN QTY EXCEEDS CUSTOMER REQUEST — bug #9 regression",
+      );
+    }
+    refundLogger.info(
+      { lineItemCount: returnLineItems.length, totalShopifyReturnQty, totalReturnRequestedQty, orderGid },
+      "createShopifyReturn: creating Shopify return",
+    );
 
     // Step 3: Call returnCreate mutation
     const returnInput: Record<string, unknown> = {

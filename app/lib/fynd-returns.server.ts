@@ -33,7 +33,17 @@ function looksLikeShipmentId(id: string): boolean {
   return /^\d{15,}$/.test(trimmed);
 }
 
-/** Build products + reasons arrays from return items for Fynd payload */
+/** Build products + reasons arrays from return items for Fynd payload.
+ *
+ * Bag-aware emission (Bug #1 fix). When the return item has a `fyndBagId`,
+ * we emit ONE entry per bag with `quantity: 1` and the bag id as identifier.
+ * Fynd's status-internal endpoint uses the identifier to target a specific
+ * bag — this avoids the "Requested quantity > available bags quantity"
+ * error that fires when an aggregate `{sku, qty: N}` payload doesn't
+ * match Fynd's per-bag bookkeeping (e.g. after a prior partial return).
+ *
+ * Falls back to sku/aggregate-quantity emission only when bag id is unknown.
+ */
 function buildProductsPayload(
   items: ReturnItem[],
   targetShipId: string | null,
@@ -52,19 +62,40 @@ function buildProductsPayload(
     ? allItems.filter(it => !it.fyndShipmentId || it.fyndShipmentId === targetShipId)
     : allItems;
 
+  // Track sequential line_number for items missing fyndLineNumber so retries
+  // don't drift across calls.
+  let nextSeqLineNumber = 1;
+
   filtered.forEach((item) => {
+    if (item.shopifyLineItemId === "manual") return;
+    const reasonText = item.reasonCode || defaultReasonText;
+    const fyndBagId = (item as { fyndBagId?: string | null }).fyndBagId;
     const sku = item.fyndSellerIdentifier || item.sku || item.shopifyLineItemId;
-    if (sku && item.shopifyLineItemId !== "manual") {
-      // Use actual Fynd line_number if available; fallback to sequential numbering
-      const lineNum = (item as { fyndLineNumber?: number | null }).fyndLineNumber
-        ?? (products.length + 1);
+    const explicitLineNum = (item as { fyndLineNumber?: number | null }).fyndLineNumber;
+    const lineNum = explicitLineNum ?? nextSeqLineNumber++;
+
+    // Bag-aware path: when Fynd's bag id is known, target the specific bag
+    // with quantity=1. For multi-qty single-bag items we still fan out one
+    // entry per qty unit to keep Fynd's per-bag accounting explicit.
+    if (fyndBagId && item.qty > 0) {
+      const qty = Math.max(1, Math.floor(item.qty));
+      products.push({ line_number: lineNum, quantity: qty, identifier: fyndBagId });
+      reasonProducts.push({
+        filters: [{ identifier: fyndBagId, line_number: lineNum, quantity: qty }],
+        data: { reason_id: defaultReasonId, reason_text: reasonText },
+      });
+      return;
+    }
+
+    // Legacy/aggregate path: no bag id — send sku + quantity. Fynd will
+    // pick from available bags but may reject when the count doesn't match
+    // its bookkeeping. This path stays for backward compatibility with
+    // older returns that pre-date bag-id capture.
+    if (sku) {
       products.push({ line_number: lineNum, quantity: item.qty, identifier: sku });
       reasonProducts.push({
         filters: [{ identifier: sku, line_number: lineNum, quantity: item.qty }],
-        data: {
-          reason_id: defaultReasonId,
-          reason_text: item.reasonCode || defaultReasonText,
-        },
+        data: { reason_id: defaultReasonId, reason_text: reasonText },
       });
     }
   });

@@ -20,11 +20,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *   - throttle is bypassed/applied based on Date.now math (boundary)
  */
 
-const {
-  prismaMock,
-  createFyndClientOrErrorMock,
-  getShipmentsMock,
-} = vi.hoisted(() => ({
+const { prismaMock, createFyndClientOrErrorMock, getShipmentsMock } = vi.hoisted(() => ({
   prismaMock: {
     returnCase: {
       findMany: vi.fn(),
@@ -51,10 +47,11 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: {
-    setAttribute: () => void;
-    setAttributes: () => void;
-  }) => Promise<T>) => fn({ setAttribute: () => {}, setAttributes: () => {} }),
+  withSpan: async <T>(
+    _n: string,
+    _a: unknown,
+    fn: (s: { setAttribute: () => void; setAttributes: () => void }) => Promise<T>,
+  ) => fn({ setAttribute: () => {}, setAttributes: () => {} }),
 }));
 
 import { pollStaleReturns } from "../fynd-status-poll.server";
@@ -63,21 +60,24 @@ function mkShipmentClient(): { getShipments: typeof getShipmentsMock } {
   return { getShipments: getShipmentsMock };
 }
 
-function mkReturn(overrides: {
-  id?: string;
-  shopId?: string;
-  fyndShipmentId?: string | null;
-  fyndOrderId?: string | null;
-  forwardAwb?: string | null;
-  settings?: unknown;
-} = {}) {
-  const settings = "settings" in overrides
-    ? overrides.settings
-    : {
-        fyndCredentials: JSON.stringify({ platform: { clientId: "c", clientSecret: "s" } }),
-        fyndApplicationId: "app",
-        fyndCompanyId: "co",
-      };
+function mkReturn(
+  overrides: {
+    id?: string;
+    shopId?: string;
+    fyndShipmentId?: string | null;
+    fyndOrderId?: string | null;
+    forwardAwb?: string | null;
+    settings?: unknown;
+  } = {},
+) {
+  const settings =
+    "settings" in overrides
+      ? overrides.settings
+      : {
+          fyndCredentials: JSON.stringify({ platform: { clientId: "c", clientSecret: "s" } }),
+          fyndApplicationId: "app",
+          fyndCompanyId: "co",
+        };
   return {
     id: overrides.id ?? "rc-1",
     shopId: overrides.shopId ?? "shop-1",
@@ -175,7 +175,9 @@ describe("pollStaleReturns — fyndOrderId fallback", () => {
       mkReturn({ fyndOrderId: "ORD-EXPLICIT", fyndShipmentId: "SHX" }),
     ]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
-    getShipmentsMock.mockResolvedValue({ items: [{ shipment_id: "SHX", shipment_status: "in_transit" }] });
+    getShipmentsMock.mockResolvedValue({
+      items: [{ shipment_id: "SHX", shipment_status: "in_transit" }],
+    });
 
     await pollStaleReturns();
     expect(getShipmentsMock).toHaveBeenCalledWith("ORD-EXPLICIT");
@@ -186,7 +188,9 @@ describe("pollStaleReturns — fyndOrderId fallback", () => {
       mkReturn({ fyndOrderId: null, fyndShipmentId: "SH-FALLBACK" }),
     ]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
-    getShipmentsMock.mockResolvedValue({ items: [{ shipment_id: "SH-FALLBACK", shipment_status: "in_transit" }] });
+    getShipmentsMock.mockResolvedValue({
+      items: [{ shipment_id: "SH-FALLBACK", shipment_status: "in_transit" }],
+    });
 
     await pollStaleReturns();
     expect(getShipmentsMock).toHaveBeenCalledWith("SH-FALLBACK");
@@ -249,16 +253,16 @@ describe("pollStaleReturns — payload-driven update fields", () => {
   });
 
   it("does NOT overwrite an existing forwardAwb on the return case", async () => {
-    prismaMock.returnCase.findMany.mockResolvedValue([
-      mkReturn({ forwardAwb: "EXISTING-AWB" }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValue([mkReturn({ forwardAwb: "EXISTING-AWB" })]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
-      items: [{
-        shipment_id: "SH1",
-        shipment_status: "in_transit",
-        dp_details: { awb_no: "NEW-AWB-67890" },
-      }],
+      items: [
+        {
+          shipment_id: "SH1",
+          shipment_status: "in_transit",
+          dp_details: { awb_no: "NEW-AWB-67890" },
+        },
+      ],
     });
 
     await pollStaleReturns();
@@ -273,7 +277,9 @@ describe("pollStaleReturns — payload-driven update fields", () => {
     getShipmentsMock.mockResolvedValue(payload);
 
     await pollStaleReturns();
-    const call = prismaMock.returnCase.update.mock.calls[0][0] as { data: { fyndPayloadJson?: string } };
+    const call = prismaMock.returnCase.update.mock.calls[0][0] as {
+      data: { fyndPayloadJson?: string };
+    };
     expect(call.data.fyndPayloadJson).toBe(JSON.stringify(payload));
   });
 });

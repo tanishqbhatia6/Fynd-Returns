@@ -44,7 +44,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -102,7 +102,9 @@ describe("dispatchWebhookEvent — no subscribers", () => {
   it("does nothing when no subscriptions match the event type", async () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([
       {
-        id: "sub-1", shopId: "shop-1", isActive: true,
+        id: "sub-1",
+        shopId: "shop-1",
+        isActive: true,
         url: "https://hook.example.com/a",
         secret: "s1",
         events: JSON.stringify(["return.rejected"]), // doesn't include "return.approved"
@@ -116,7 +118,9 @@ describe("dispatchWebhookEvent — no subscribers", () => {
   it("skips a subscription whose events JSON is invalid", async () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([
       {
-        id: "sub-bad", shopId: "shop-1", isActive: true,
+        id: "sub-bad",
+        shopId: "shop-1",
+        isActive: true,
         url: "https://hook.example.com/bad",
         secret: "s",
         events: "{{{not json",
@@ -211,12 +215,16 @@ describe("dispatchWebhookEvent — SSRF re-check", () => {
       reason: "private_ip",
     });
 
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([{
-      id: "sub-ssrf", shopId: "shop-1", isActive: true,
-      url: "http://169.254.169.254/fake",
-      secret: "s",
-      events: JSON.stringify(["return.approved"]),
-    }]);
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([
+      {
+        id: "sub-ssrf",
+        shopId: "shop-1",
+        isActive: true,
+        url: "http://169.254.169.254/fake",
+        secret: "s",
+        events: JSON.stringify(["return.approved"]),
+      },
+    ]);
     fetchSpy.mockResolvedValue({ ok: true });
     dispatchWebhookEvent("shop-1", "return.approved", { r: 1 });
     await flushAll();
@@ -280,9 +288,7 @@ describe("dispatchWebhookEvent — per-subscription FIFO", () => {
     const firstBlocker = new Promise<{ ok: true }>((r) => {
       firstResolve = () => r({ ok: true });
     });
-    fetchSpy
-      .mockReturnValueOnce(firstBlocker)
-      .mockResolvedValueOnce({ ok: true });
+    fetchSpy.mockReturnValueOnce(firstBlocker).mockResolvedValueOnce({ ok: true });
 
     dispatchWebhookEvent("shop-1", "return.approved", { i: 1 });
     dispatchWebhookEvent("shop-1", "return.approved", { i: 2 });

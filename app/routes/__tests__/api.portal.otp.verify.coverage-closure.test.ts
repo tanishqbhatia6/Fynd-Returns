@@ -46,7 +46,9 @@ function jsonReq(body: unknown) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
 });
 
 describe("api.portal.otp.verify — coverage closure", () => {

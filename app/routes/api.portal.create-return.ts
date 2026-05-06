@@ -5,9 +5,18 @@ import { checkReturnEligibility } from "../lib/return-rules.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
-import { fetchOrder, fetchOrderByOrderNumber, fetchOrderByFyndAffiliateId, withRestCredentials } from "../lib/shopify-admin.server";
+import {
+  fetchOrder,
+  fetchOrderByOrderNumber,
+  fetchOrderByFyndAffiliateId,
+  withRestCredentials,
+} from "../lib/shopify-admin.server";
 import { sendNewReturnNotification } from "../lib/notification.server";
-import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from "../lib/return-request-id";
+import {
+  parseReturnIdConfig,
+  buildReturnRequestId,
+  formatReturnRequestId,
+} from "../lib/return-request-id";
 import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { verifyPortalCsrfToken } from "../lib/portal-auth.server";
@@ -39,7 +48,12 @@ function matchReturnOffers(
 }
 
 async function createDiscountCode(
-  admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
+  admin: {
+    graphql: (
+      query: string,
+      options?: { variables?: Record<string, unknown> },
+    ) => Promise<Response>;
+  },
   offer: ReturnOffer,
   shopDomain: string,
 ): Promise<{ code: string; error?: string }> {
@@ -94,7 +108,10 @@ async function createDiscountCode(
     return { code };
   } catch (err) {
     /* v8 ignore start - defensive catch */
-    return { code: "", error: err instanceof Error ? err.message : "Failed to create discount code" };
+    return {
+      code: "",
+      error: err instanceof Error ? err.message : "Failed to create discount code",
+    };
     /* v8 ignore stop */
   }
 }
@@ -126,7 +143,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // we require it by default; set PORTAL_CSRF_REQUIRED=false only as a temporary
     // emergency escape hatch.
     /* v8 ignore start - defensive `?? "true"` env fallback */
-    const REQUIRE_CSRF = String(process.env.PORTAL_CSRF_REQUIRED ?? "true").toLowerCase() !== "false";
+    const REQUIRE_CSRF =
+      String(process.env.PORTAL_CSRF_REQUIRED ?? "true").toLowerCase() !== "false";
     /* v8 ignore stop */
     if (REQUIRE_CSRF || body.portalCsrfToken) {
       /* v8 ignore start - defensive shop-domain normalization ternary */
@@ -135,7 +153,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const ok = verifyPortalCsrfToken(body.portalCsrfToken as string | undefined, expectedShop);
       if (!ok) {
         return withCors(
-          Response.json({ error: "Session expired. Refresh the page and try again." }, { status: 403 }),
+          Response.json(
+            { error: "Session expired. Refresh the page and try again." },
+            { status: 403 },
+          ),
           request,
         );
       }
@@ -155,37 +176,59 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* v8 ignore stop */
     // defensive: optional-chain `|| null` fallbacks for absent customer fields
     /* v8 ignore start */
-    const customerPhone = (body.customerPhone as string | undefined)?.trim().replace(/[^\d+]/g, '') || null;
+    const customerPhone =
+      (body.customerPhone as string | undefined)?.trim().replace(/[^\d+]/g, "") || null;
     const customerName = (body.customerName as string | undefined)?.trim() || null;
     const customerCity = (body.customerCity as string | undefined)?.trim() || null;
     const customerCountry = (body.customerCountry as string | undefined)?.trim() || null;
-    const customerAddress1 = (body.customerAddress1 as string | undefined)?.trim().slice(0, 500) || null;
-    const customerAddress2 = (body.customerAddress2 as string | undefined)?.trim().slice(0, 500) || null;
-    const customerProvince = (body.customerProvince as string | undefined)?.trim().slice(0, 100) || null;
+    const customerAddress1 =
+      (body.customerAddress1 as string | undefined)?.trim().slice(0, 500) || null;
+    const customerAddress2 =
+      (body.customerAddress2 as string | undefined)?.trim().slice(0, 500) || null;
+    const customerProvince =
+      (body.customerProvince as string | undefined)?.trim().slice(0, 100) || null;
     const customerZip = (body.customerZip as string | undefined)?.trim().slice(0, 20) || null;
-    const customerLandmark = (body.customerLandmark as string | undefined)?.trim().slice(0, 500) || null;
+    const customerLandmark =
+      (body.customerLandmark as string | undefined)?.trim().slice(0, 500) || null;
     /* v8 ignore stop */
-    const items = body.items as Array<{
-      lineItemId: string; qty: number; reasonCode?: string; condition?: string;
-      fyndShipmentId?: string; fyndBagId?: string;
-      fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
-      fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
-      fyndLineNumber?: number;
-    }> | undefined;
+    const items = body.items as
+      | Array<{
+          lineItemId: string;
+          qty: number;
+          reasonCode?: string;
+          condition?: string;
+          fyndShipmentId?: string;
+          fyndBagId?: string;
+          fyndArticleId?: string;
+          fyndAffiliateLineId?: string;
+          fyndSellerIdentifier?: string;
+          fyndItemId?: string;
+          fyndQuantityAvailable?: number;
+          fyndPriceEffective?: string;
+          fyndSize?: string;
+          fyndLineNumber?: number;
+        }>
+      | undefined;
     const manualMode = body.manual === true;
     /* v8 ignore start - defensive `?.trim()`/`|| null` fallbacks for optional body fields */
     const manualItemDescription = (body.manualItemDescription as string | undefined)?.trim();
     const customerNotes = (body.customerNotes as string | undefined)?.trim();
-    const customerMediaRaw = body.customerMedia as Array<{ name?: string; mimeType?: string; size?: number; dataUrl?: string }> | undefined;
-    const currencyCode = (body.currency as string | undefined)?.trim().toUpperCase().slice(0, 10) || null;
+    const customerMediaRaw = body.customerMedia as
+      | Array<{ name?: string; mimeType?: string; size?: number; dataUrl?: string }>
+      | undefined;
+    const currencyCode =
+      (body.currency as string | undefined)?.trim().toUpperCase().slice(0, 10) || null;
     const rawResolutionType = (body.resolutionType as string | undefined)?.trim().toLowerCase();
     const resolutionType =
-      rawResolutionType === "exchange" || rawResolutionType === "replacement" || rawResolutionType === "store_credit"
+      rawResolutionType === "exchange" ||
+      rawResolutionType === "replacement" ||
+      rawResolutionType === "store_credit"
         ? rawResolutionType
         : "refund";
-    const exchangePreference = resolutionType === "exchange" || resolutionType === "replacement"
-      ? (body.exchangePreference as string | undefined)?.trim().slice(0, 500) || null
-      : null;
+    const exchangePreference =
+      resolutionType === "exchange" || resolutionType === "replacement"
+        ? (body.exchangePreference as string | undefined)?.trim().slice(0, 500) || null
+        : null;
     /* v8 ignore stop */
     // Structured variant selections from the portal exchange picker. We accept it as a
     // sidecar payload (sanitised into the existing exchangePreference text) so we don't
@@ -195,40 +238,43 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // against Shopify catalog" block). The client-supplied variantTitle is treated as
     // display-only — never trusted as the source of truth.
     const rawExchangeVariants = body.exchangeVariants as
-      | Array<{ lineItemId?: string; productId?: string; variantId?: string; variantTitle?: string }>
+      | Array<{
+          lineItemId?: string;
+          productId?: string;
+          variantId?: string;
+          variantTitle?: string;
+        }>
       | undefined;
-    const exchangeVariantSelections = resolutionType === "exchange" && Array.isArray(rawExchangeVariants)
-      // defensive: nullish/typeof fallbacks for partial exchange variant payloads
-      /* v8 ignore start */
-      ? rawExchangeVariants
-          .slice(0, 20)
-          .filter((v) => typeof v?.variantId === "string" && v.variantId.trim().length > 0)
-          .map((v) => ({
-            lineItemId: String(v.lineItemId ?? "").slice(0, 200),
-            productId: String(v.productId ?? "").slice(0, 200),
-            variantId: String(v.variantId).slice(0, 200),
-            variantTitle: typeof v.variantTitle === "string" ? v.variantTitle.slice(0, 200) : "",
-          }))
-      /* v8 ignore stop */
-      : [];
+    const exchangeVariantSelections =
+      resolutionType === "exchange" && Array.isArray(rawExchangeVariants)
+        ? // defensive: nullish/typeof fallbacks for partial exchange variant payloads
+          /* v8 ignore start */
+          rawExchangeVariants
+            .slice(0, 20)
+            .filter((v) => typeof v?.variantId === "string" && v.variantId.trim().length > 0)
+            .map((v) => ({
+              lineItemId: String(v.lineItemId ?? "").slice(0, 200),
+              productId: String(v.productId ?? "").slice(0, 200),
+              variantId: String(v.variantId).slice(0, 200),
+              variantTitle: typeof v.variantTitle === "string" ? v.variantTitle.slice(0, 200) : "",
+            }))
+        : /* v8 ignore stop */
+          [];
 
     if (!shop || !shopifyOrderName) {
       return withCors(
         Response.json({ error: "Shop and order number are required" }, { status: 400 }),
-        request
+        request,
       );
     }
     const orderNameClean = shopifyOrderName.replace(/^#/, "").trim();
     if (!orderNameClean || orderNameClean.length > 64) {
-      return withCors(
-        Response.json({ error: "Invalid order number" }, { status: 400 }),
-        request
-      );
+      return withCors(Response.json({ error: "Invalid order number" }, { status: 400 }), request);
     }
     if (!manualMode && !orderId) {
       return withCors(
         Response.json({ error: "orderId is required for automatic mode" }, { status: 400 }),
-        request
+        request,
       );
     }
 
@@ -257,13 +303,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const blockChecks: { type: string; value: string }[] = [];
       if (customerEmail) blockChecks.push({ type: "email", value: customerEmail });
       if (customerPhone) blockChecks.push({ type: "phone", value: customerPhone });
-      if (shopifyOrderName) blockChecks.push({ type: "order_name", value: shopifyOrderName.toLowerCase() });
+      if (shopifyOrderName)
+        blockChecks.push({ type: "order_name", value: shopifyOrderName.toLowerCase() });
       /* v8 ignore stop */
 
       // defensive: blockChecks always non-empty when blocklistEnabled (email + phone + order_name); empty fallback unreachable
       /* v8 ignore start */
       if (blockChecks.length > 0) {
-      /* v8 ignore stop */
+        /* v8 ignore stop */
         const blocked = await prisma.blocklistEntry.findFirst({
           where: {
             settingsId: settings.id,
@@ -272,9 +319,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         if (blocked) {
           return withCors(
-            Response.json({
-              error: "Unable to process return request. Please contact support.",
-            }, { status: 403 }),
+            Response.json(
+              {
+                error: "Unable to process return request. Please contact support.",
+              },
+              { status: 403 },
+            ),
             request,
           );
         }
@@ -285,16 +335,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const acceptOffer = body.acceptOffer === true;
     if (acceptOffer && !manualMode) {
       if (!settings?.returnOffersEnabled) {
-        return withCors(Response.json({ error: "Return offers are not enabled" }, { status: 400 }), request);
+        return withCors(
+          Response.json({ error: "Return offers are not enabled" }, { status: 400 }),
+          request,
+        );
       }
       /* v8 ignore start - defensive `?? null`/`?? []` fallbacks for optional offer fields */
       const offersArr = parseJsonArray<ReturnOffer>(settings.returnOffersJson ?? null, []);
-      const firstReasonCode = (body.items as Array<{ reasonCode?: string }> | undefined)?.[0]?.reasonCode;
-      const allTags = ((body.lineItemsWithPrice ?? []) as Array<{ productTags?: string[] }>).flatMap((li) => li.productTags ?? []);
+      const firstReasonCode = (body.items as Array<{ reasonCode?: string }> | undefined)?.[0]
+        ?.reasonCode;
+      const allTags = (
+        (body.lineItemsWithPrice ?? []) as Array<{ productTags?: string[] }>
+      ).flatMap((li) => li.productTags ?? []);
       /* v8 ignore stop */
       const matchedOffer = matchReturnOffers(offersArr, firstReasonCode, allTags);
       if (!matchedOffer) {
-        return withCors(Response.json({ error: "No matching offer found" }, { status: 400 }), request);
+        return withCors(
+          Response.json({ error: "No matching offer found" }, { status: 400 }),
+          request,
+        );
       }
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
@@ -302,7 +361,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const discountResult = await createDiscountCode(admin, matchedOffer, shopDomain);
         if (discountResult.error || !discountResult.code) {
           /* v8 ignore start - defensive `||` fallback for empty error message */
-          return withCors(Response.json({ error: discountResult.error || "Failed to generate discount code" }, { status: 500 }), request);
+          return withCors(
+            Response.json(
+              { error: discountResult.error || "Failed to generate discount code" },
+              { status: 500 },
+            ),
+            request,
+          );
           /* v8 ignore stop */
         }
         return withCors(
@@ -318,7 +383,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       } catch (err) {
         console.error("[Portal create-return] Offer discount code error:", err);
-        return withCors(Response.json({ error: "Could not generate discount code. Please try again." }, { status: 500 }), request);
+        return withCors(
+          Response.json(
+            { error: "Could not generate discount code. Please try again." },
+            { status: 500 },
+          ),
+          request,
+        );
       }
     }
 
@@ -327,7 +398,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Ensure shopifyOrderId is always a valid Shopify GID when possible.
     // If the portal sends an order name (e.g. FYNDSHOPIFYX14126) instead of a GID,
     // resolve it to the real Shopify GID now so future lookups are instant.
-    if (!manualMode && effectiveOrderId && !effectiveOrderId.startsWith("gid://") && !/^\d+$/.test(effectiveOrderId)) {
+    if (
+      !manualMode &&
+      effectiveOrderId &&
+      !effectiveOrderId.startsWith("gid://") &&
+      !/^\d+$/.test(effectiveOrderId)
+    ) {
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
@@ -339,13 +415,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           // `void` makes the fire-and-forget intent explicit so linters / future readers
           // don't add a stray `await` that would block the request on a best-effort cache write.
           if (resolved.id.startsWith("gid://") && shopifyOrderName) {
-            void prisma.fyndOrderMapping.upsert({
-              where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
-              create: { shopId: shopRecord.id, shopifyOrderName, shopifyOrderId: resolved.id, searchStrategy: "create_return_resolve" },
-              update: { shopifyOrderId: resolved.id },
-              // best-effort cache write — swallow upstream errors
-              /* v8 ignore start */
-            }).catch(() => {});
+            void prisma.fyndOrderMapping
+              .upsert({
+                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
+                create: {
+                  shopId: shopRecord.id,
+                  shopifyOrderName,
+                  shopifyOrderId: resolved.id,
+                  searchStrategy: "create_return_resolve",
+                },
+                update: { shopifyOrderId: resolved.id },
+                // best-effort cache write — swallow upstream errors
+                /* v8 ignore start */
+              })
+              .catch(() => {});
             /* v8 ignore stop */
           }
           effectiveOrderId = resolved.id;
@@ -369,7 +452,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             },
           });
           if (mapping?.shopifyOrderId?.startsWith("gid://")) {
-            console.log(`[create-return] Resolved orderId "${effectiveOrderId}" → "${mapping.shopifyOrderId}" via FyndOrderMapping`);
+            console.log(
+              `[create-return] Resolved orderId "${effectiveOrderId}" → "${mapping.shopifyOrderId}" via FyndOrderMapping`,
+            );
             effectiveOrderId = mapping.shopifyOrderId;
           }
         } catch {
@@ -379,24 +464,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       // Last resort: if order ID still looks like a Fynd affiliate ID (e.g. FYNDSHOPIFYX14115),
       // try resolving with Fynd prefix stripping to extract the Shopify order number.
-      if (!effectiveOrderId.startsWith("gid://") && /^FYND/i.test(effectiveOrderId.replace(/^#/, ""))) {
+      if (
+        !effectiveOrderId.startsWith("gid://") &&
+        /^FYND/i.test(effectiveOrderId.replace(/^#/, ""))
+      ) {
         try {
           const { admin: rawAdmin2 } = await shopify.unauthenticated.admin(shopDomain);
           const admin2 = withRestCredentials(rawAdmin2, shopDomain, shopAccessToken);
-          const lastResort = await fetchOrderByFyndAffiliateId(admin2, effectiveOrderId.replace(/^#/, ""));
+          const lastResort = await fetchOrderByFyndAffiliateId(
+            admin2,
+            effectiveOrderId.replace(/^#/, ""),
+          );
           /* v8 ignore start - defensive `?.id?.startsWith` chain on null lastResort */
           if (lastResort?.id?.startsWith("gid://")) {
-            console.log(`[create-return] Last-resort resolved orderId "${effectiveOrderId}" → "${lastResort.id}"`);
+            console.log(
+              `[create-return] Last-resort resolved orderId "${effectiveOrderId}" → "${lastResort.id}"`,
+            );
             effectiveOrderId = lastResort.id;
             // Backfill FyndOrderMapping for future lookups (fire-and-forget cache write)
             if (shopifyOrderName) {
-              void prisma.fyndOrderMapping.upsert({
-                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
-                create: { shopId: shopRecord.id, shopifyOrderName, shopifyOrderId: lastResort.id, searchStrategy: "create_return_last_resort" },
-                update: { shopifyOrderId: lastResort.id },
-                // best-effort cache write — swallow upstream errors
-                /* v8 ignore start */
-              }).catch(() => {});
+              void prisma.fyndOrderMapping
+                .upsert({
+                  where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName } },
+                  create: {
+                    shopId: shopRecord.id,
+                    shopifyOrderName,
+                    shopifyOrderId: lastResort.id,
+                    searchStrategy: "create_return_last_resort",
+                  },
+                  update: { shopifyOrderId: lastResort.id },
+                  // best-effort cache write — swallow upstream errors
+                  /* v8 ignore start */
+                })
+                .catch(() => {});
               /* v8 ignore stop */
             }
           }
@@ -409,10 +509,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
     let itemsToCreate: Array<{
-      lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string;
-      fyndShipmentId?: string; fyndBagId?: string;
-      fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
-      fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
+      lineItemId: string;
+      qty: number;
+      reasonCode?: string;
+      notes?: string;
+      condition?: string;
+      fyndShipmentId?: string;
+      fyndBagId?: string;
+      fyndArticleId?: string;
+      fyndAffiliateLineId?: string;
+      fyndSellerIdentifier?: string;
+      fyndItemId?: string;
+      fyndQuantityAvailable?: number;
+      fyndPriceEffective?: string;
+      fyndSize?: string;
       fyndLineNumber?: number;
     }>;
     let lineItemsWithPrice: Array<{
@@ -429,28 +539,38 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (!customerEmail) {
         return withCors(
           Response.json({ error: "Email is required for manual return requests" }, { status: 400 }),
-          request
+          request,
         );
       }
       if (!EMAIL_REGEX.test(customerEmail)) {
         return withCors(
           Response.json({ error: "Please enter a valid email address" }, { status: 400 }),
-          request
+          request,
         );
       }
       if (!manualItemDescription || manualItemDescription.length < 3) {
         return withCors(
-          Response.json({ error: "Please describe the item(s) you want to return (at least 3 characters)" }, { status: 400 }),
-          request
+          Response.json(
+            { error: "Please describe the item(s) you want to return (at least 3 characters)" },
+            { status: 400 },
+          ),
+          request,
         );
       }
       if (manualItemDescription.length > 2000) {
         return withCors(
           Response.json({ error: "Item description is too long" }, { status: 400 }),
-          request
+          request,
         );
       }
-      itemsToCreate = [{ lineItemId: "manual", qty: 1, reasonCode: body.reasonCode || "Other", notes: manualItemDescription }];
+      itemsToCreate = [
+        {
+          lineItemId: "manual",
+          qty: 1,
+          reasonCode: body.reasonCode || "Other",
+          notes: manualItemDescription,
+        },
+      ];
 
       // Best-effort fulfillment check for manual returns
       /* v8 ignore start - defensive best-effort manual order lookup */
@@ -464,20 +584,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           const manualFulfill = (manualOrderLookup.displayFulfillmentStatus ?? "").toUpperCase();
           const manualFinancial = (manualOrderLookup.displayFinancialStatus ?? "").toUpperCase();
           /* v8 ignore stop */
-          if (manualFulfill === "UNFULFILLED" || manualFulfill === "" || manualFulfill === "SCHEDULED" || manualFulfill === "ON_HOLD") {
+          if (
+            manualFulfill === "UNFULFILLED" ||
+            manualFulfill === "" ||
+            manualFulfill === "SCHEDULED" ||
+            manualFulfill === "ON_HOLD"
+          ) {
             return withCors(
-              Response.json({
-                error: "This order has not been fulfilled yet. Returns can only be created for orders that have been shipped and delivered.",
-              }, { status: 400 }),
-              request
+              Response.json(
+                {
+                  error:
+                    "This order has not been fulfilled yet. Returns can only be created for orders that have been shipped and delivered.",
+                },
+                { status: 400 },
+              ),
+              request,
             );
           }
           if (manualFinancial === "REFUNDED" || manualFinancial === "VOIDED") {
             return withCors(
-              Response.json({
-                error: "This order has already been refunded and is not eligible for a return.",
-              }, { status: 400 }),
-              request
+              Response.json(
+                {
+                  error: "This order has already been refunded and is not eligible for a return.",
+                },
+                { status: 400 },
+              ),
+              request,
             );
           }
         }
@@ -488,28 +620,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } else {
       if (!items || !Array.isArray(items) || items.length === 0) {
         return withCors(
-          Response.json({ error: "At least one item must be selected for return" }, { status: 400 }),
-          request
+          Response.json(
+            { error: "At least one item must be selected for return" },
+            { status: 400 },
+          ),
+          request,
         );
       }
       for (const it of items) {
         if (!it?.lineItemId || typeof it.qty !== "number" || it.qty < 1) {
           return withCors(
-            Response.json({ error: "Each item must have lineItemId and qty >= 1" }, { status: 400 }),
-            request
+            Response.json(
+              { error: "Each item must have lineItemId and qty >= 1" },
+              { status: 400 },
+            ),
+            request,
           );
         }
         if (it.qty > 999) {
           return withCors(
             Response.json({ error: "Item quantity exceeds maximum allowed" }, { status: 400 }),
-            request
+            request,
           );
         }
       }
       if (items.length > 100) {
         return withCors(
           Response.json({ error: "Too many items in return request" }, { status: 400 }),
-          request
+          request,
         );
       }
       itemsToCreate = items.map((it) => ({
@@ -522,11 +660,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
         fyndBagId: it.fyndBagId ? String(it.fyndBagId).slice(0, 256) : undefined,
         fyndArticleId: it.fyndArticleId ? String(it.fyndArticleId).slice(0, 256) : undefined,
-        fyndAffiliateLineId: it.fyndAffiliateLineId ? String(it.fyndAffiliateLineId).slice(0, 256) : undefined,
-        fyndSellerIdentifier: it.fyndSellerIdentifier ? String(it.fyndSellerIdentifier).slice(0, 256) : undefined,
+        fyndAffiliateLineId: it.fyndAffiliateLineId
+          ? String(it.fyndAffiliateLineId).slice(0, 256)
+          : undefined,
+        fyndSellerIdentifier: it.fyndSellerIdentifier
+          ? String(it.fyndSellerIdentifier).slice(0, 256)
+          : undefined,
         fyndItemId: it.fyndItemId ? String(it.fyndItemId).slice(0, 256) : undefined,
-        fyndQuantityAvailable: typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
-        fyndPriceEffective: it.fyndPriceEffective ? String(it.fyndPriceEffective).slice(0, 64) : undefined,
+        fyndQuantityAvailable:
+          typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
+        fyndPriceEffective: it.fyndPriceEffective
+          ? String(it.fyndPriceEffective).slice(0, 64)
+          : undefined,
         fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
         fyndLineNumber: typeof it.fyndLineNumber === "number" ? it.fyndLineNumber : undefined,
         /* v8 ignore stop */
@@ -543,7 +688,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     let capturedSourceChannel: string | null = null; // set when Shopify order is fetched
     if (!manualMode) {
       const hasNonGidLineItems = itemsToCreate.some(
-        (it) => it.lineItemId !== "manual" && !it.lineItemId.startsWith("gid://shopify/LineItem/")
+        (it) => it.lineItemId !== "manual" && !it.lineItemId.startsWith("gid://shopify/LineItem/"),
       );
       if (hasNonGidLineItems) {
         /* v8 ignore start - defensive line-item resolution best-effort path */
@@ -562,7 +707,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopifyOrder = resolved;
               // Also update effectiveOrderId to the resolved GID since we found the order
               if (resolved.id.startsWith("gid://")) {
-                console.log(`[create-return] Late-resolved orderId "${effectiveOrderId}" → "${resolved.id}" during line item resolution`);
+                console.log(
+                  `[create-return] Late-resolved orderId "${effectiveOrderId}" → "${resolved.id}" during line item resolution`,
+                );
                 effectiveOrderId = resolved.id;
               }
             }
@@ -573,8 +720,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           if (shopifyOrder?.lineItems && shopifyOrder.lineItems.length > 0) {
             const shopifyLineItems = shopifyOrder.lineItems;
             // Build lookup maps for matching: by title (lowercased), by SKU
-            const byTitle = new Map<string, typeof shopifyLineItems[0]>();
-            const bySku = new Map<string, typeof shopifyLineItems[0]>();
+            const byTitle = new Map<string, (typeof shopifyLineItems)[0]>();
+            const bySku = new Map<string, (typeof shopifyLineItems)[0]>();
             for (const sli of shopifyLineItems) {
               if (sli.title) byTitle.set(sli.title.toLowerCase(), sli);
               if (sli.sku) bySku.set(sli.sku.toLowerCase(), sli);
@@ -583,7 +730,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             // Also build lineItemsWithPrice title lookup for cross-referencing
             const portalItemById = new Map<string, { title?: string; sku?: string }>();
             const rawLineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
-              id: string; title?: string; sku?: string;
+              id: string;
+              title?: string;
+              sku?: string;
             }>;
             for (const li of rawLineItemsWithPrice) {
               portalItemById.set(li.id, li);
@@ -592,7 +741,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             for (const it of itemsToCreate) {
               // defensive: gid-prefixed items are already resolved
               /* v8 ignore start */
-              if (it.lineItemId === "manual" || it.lineItemId.startsWith("gid://shopify/LineItem/")) continue;
+              if (it.lineItemId === "manual" || it.lineItemId.startsWith("gid://shopify/LineItem/"))
+                continue;
               /* v8 ignore stop */
               const originalId = it.lineItemId;
               // Try to find the matching Shopify line item
@@ -600,7 +750,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const titleToMatch = portalItem?.title?.toLowerCase();
               const skuToMatch = portalItem?.sku?.toLowerCase();
 
-              let matched: typeof shopifyLineItems[0] | undefined;
+              let matched: (typeof shopifyLineItems)[0] | undefined;
               // Match by SKU first (more reliable)
               if (skuToMatch) matched = bySku.get(skuToMatch);
               // Fall back to title match
@@ -609,7 +759,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               if (!matched && shopifyLineItems.length === 1) matched = shopifyLineItems[0];
 
               if (matched) {
-                console.log(`[create-return] Resolved lineItemId "${it.lineItemId}" → "${matched.id}" (${matched.title}, sku: ${matched.sku})`);
+                console.log(
+                  `[create-return] Resolved lineItemId "${it.lineItemId}" → "${matched.id}" (${matched.title}, sku: ${matched.sku})`,
+                );
                 it.lineItemId = matched.id;
                 lineItemIdMapping.set(matched.id, originalId);
                 if (matched.sku) resolvedLineItemSkus.set(matched.id, matched.sku);
@@ -635,11 +787,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // permits all 3 bags through (alreadyReturned=2, qty=1, originalQty=3).
     // The bag-level check stops a customer from re-selecting a specific bag
     // that's already in an active return — which is the actual intent.
-    if (!manualMode && itemsToCreate.length > 0 && effectiveOrderId && !effectiveOrderId.startsWith("manual:")) {
+    if (
+      !manualMode &&
+      itemsToCreate.length > 0 &&
+      effectiveOrderId &&
+      !effectiveOrderId.startsWith("manual:")
+    ) {
       /* v8 ignore start - defensive `.filter(Boolean)` for optional Fynd id fields */
-      const preCheckLineItemIds = itemsToCreate.map((it) => it.lineItemId).filter((id) => id !== "manual");
+      const preCheckLineItemIds = itemsToCreate
+        .map((it) => it.lineItemId)
+        .filter((id) => id !== "manual");
       const preCheckBagIds = itemsToCreate.map((it) => it.fyndBagId).filter(Boolean) as string[];
-      const preCheckShipmentIds = [...new Set(itemsToCreate.map((it) => it.fyndShipmentId).filter(Boolean) as string[])];
+      const preCheckShipmentIds = [
+        ...new Set(itemsToCreate.map((it) => it.fyndShipmentId).filter(Boolean) as string[]),
+      ];
       /* v8 ignore stop */
 
       if (preCheckLineItemIds.length > 0 || preCheckBagIds.length > 0) {
@@ -679,7 +840,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const shipmentSkuAlreadyReturnedMap: Record<string, number> = {};
         for (const ri of existingReturnItems) {
           if (ri.shopifyLineItemId) {
-            preAlreadyReturnedMap[ri.shopifyLineItemId] = (preAlreadyReturnedMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
+            preAlreadyReturnedMap[ri.shopifyLineItemId] =
+              (preAlreadyReturnedMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
           }
           if (ri.fyndShipmentId && ri.fyndBagId) {
             const k = `${ri.fyndShipmentId}::${ri.fyndBagId}`;
@@ -691,29 +853,39 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
         }
 
-        const lineItemEstimates = (body.lineItemEstimates ?? []) as Array<{ lineItemId: string; quantity: number }>;
+        const lineItemEstimates = (body.lineItemEstimates ?? []) as Array<{
+          lineItemId: string;
+          quantity: number;
+        }>;
         // Track requested qtys within this submission so two items targeting the
         // same bag in one POST can't bypass the per-bag cap individually.
         const requestedBagMap: Record<string, number> = {};
         for (const sel of itemsToCreate) {
           if (sel.lineItemId === "manual") continue;
-          const liInfo = (body.lineItemsWithPrice as Array<{ id: string; title?: string; quantity?: number; sku?: string }> | undefined)
-            ?.find((l) => l.id === sel.lineItemId);
+          const liInfo = (
+            body.lineItemsWithPrice as
+              | Array<{ id: string; title?: string; quantity?: number; sku?: string }>
+              | undefined
+          )?.find((l) => l.id === sel.lineItemId);
           const itemTitle = liInfo?.title ?? sel.lineItemId;
 
           // (a) Bag-level cap (Fynd multi-shipment).
           if (sel.fyndShipmentId && sel.fyndBagId) {
             const bagKey = `${sel.fyndShipmentId}::${sel.fyndBagId}`;
-            const bagCapacity = typeof sel.fyndQuantityAvailable === "number" && sel.fyndQuantityAvailable > 0
-              ? sel.fyndQuantityAvailable
-              : (liInfo?.quantity ?? 1);
+            const bagCapacity =
+              typeof sel.fyndQuantityAvailable === "number" && sel.fyndQuantityAvailable > 0
+                ? sel.fyndQuantityAvailable
+                : (liInfo?.quantity ?? 1);
             const bagReturned = bagAlreadyReturnedMap[bagKey] ?? 0;
             requestedBagMap[bagKey] = (requestedBagMap[bagKey] ?? 0) + sel.qty;
             if (bagReturned + requestedBagMap[bagKey] > bagCapacity) {
               return withCors(
-                Response.json({
-                  error: `"${itemTitle}" is already in an active return for shipment ${sel.fyndShipmentId}. Please refresh the page — only un-returned items can be selected.`,
-                }, { status: 400 }),
+                Response.json(
+                  {
+                    error: `"${itemTitle}" is already in an active return for shipment ${sel.fyndShipmentId}. Please refresh the page — only un-returned items can be selected.`,
+                  },
+                  { status: 400 },
+                ),
                 request,
               );
             }
@@ -724,9 +896,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             const cap = liInfo.quantity ?? 999;
             if (skuReturned + sel.qty > cap) {
               return withCors(
-                Response.json({
-                  error: `"${itemTitle}" is already in an active return for this shipment. Please refresh and select a different bag.`,
-                }, { status: 400 }),
+                Response.json(
+                  {
+                    error: `"${itemTitle}" is already in an active return for this shipment. Please refresh and select a different bag.`,
+                  },
+                  { status: 400 },
+                ),
                 request,
               );
             }
@@ -735,14 +910,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           // (b) Order-level line-item cap (existing behaviour, kept for non-Fynd shops
           // and as a backstop).
           const alreadyReturned = preAlreadyReturnedMap[sel.lineItemId] ?? 0;
-          const originalQty = lineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity
-            ?? liInfo?.quantity
-            ?? 999;
+          const originalQty =
+            lineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity ??
+            liInfo?.quantity ??
+            999;
           if (alreadyReturned + sel.qty > originalQty) {
             return withCors(
-              Response.json({
-                error: `Return quantity exceeds available for "${itemTitle}". ${alreadyReturned} already in return, ${sel.qty} requested, but only ${originalQty} ordered.`,
-              }, { status: 400 }),
+              Response.json(
+                {
+                  error: `Return quantity exceeds available for "${itemTitle}". ${alreadyReturned} already in return, ${sel.qty} requested, but only ${originalQty} ordered.`,
+                },
+                { status: 400 },
+              ),
               request,
             );
           }
@@ -763,20 +942,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           const finStatus = (liveOrder.displayFinancialStatus ?? "").toUpperCase();
           /* v8 ignore stop */
 
-          if (fulfillStatus === "UNFULFILLED" || fulfillStatus === "" || fulfillStatus === "SCHEDULED" || fulfillStatus === "ON_HOLD") {
+          if (
+            fulfillStatus === "UNFULFILLED" ||
+            fulfillStatus === "" ||
+            fulfillStatus === "SCHEDULED" ||
+            fulfillStatus === "ON_HOLD"
+          ) {
             return withCors(
-              Response.json({
-                error: "This order has not been fulfilled yet. Returns can only be created for orders that have been shipped and delivered.",
-              }, { status: 400 }),
-              request
+              Response.json(
+                {
+                  error:
+                    "This order has not been fulfilled yet. Returns can only be created for orders that have been shipped and delivered.",
+                },
+                { status: 400 },
+              ),
+              request,
             );
           }
           if (finStatus === "REFUNDED" || finStatus === "VOIDED") {
             return withCors(
-              Response.json({
-                error: "This order has already been refunded and is not eligible for a return.",
-              }, { status: 400 }),
-              request
+              Response.json(
+                {
+                  error: "This order has already been refunded and is not eligible for a return.",
+                },
+                { status: 400 },
+              ),
+              request,
             );
           }
         }
@@ -790,11 +981,24 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Applies to ALL orders with Fynd data (not just when merchant has configured the gate).
     // Post-delivery statuses are always allowed; pre-delivery requires explicit merchant opt-in.
     const FYND_DELIVERED_STATUSES_CREATE = new Set([
-      "delivery_done", "delivered", "bag_delivered", "handed_over_to_customer",
-      "return_initiated", "return_dp_assigned", "return_bag_picked", "return_bag_in_transit",
-      "return_bag_out_for_delivery", "return_bag_delivered", "return_bag_not_received",
-      "return_pre_qc", "return_accepted", "return_completed",
-      "credit_note_generated", "refund_initiated", "refund_done", "refund_completed",
+      "delivery_done",
+      "delivered",
+      "bag_delivered",
+      "handed_over_to_customer",
+      "return_initiated",
+      "return_dp_assigned",
+      "return_bag_picked",
+      "return_bag_in_transit",
+      "return_bag_out_for_delivery",
+      "return_bag_delivered",
+      "return_bag_not_received",
+      "return_pre_qc",
+      "return_accepted",
+      "return_completed",
+      "credit_note_generated",
+      "refund_initiated",
+      "refund_done",
+      "refund_completed",
     ]);
 
     if (!manualMode && orderId && !(body.adminOverride === true)) {
@@ -804,7 +1008,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             shopId: shopRecord.id,
             OR: [
               { shopifyOrderName: { equals: shopifyOrderName, mode: "insensitive" } },
-              { shopifyOrderName: { equals: `#${shopifyOrderName.replace(/^#/, "")}`, mode: "insensitive" } },
+              {
+                shopifyOrderName: {
+                  equals: `#${shopifyOrderName.replace(/^#/, "")}`,
+                  mode: "insensitive",
+                },
+              },
             ],
           },
         });
@@ -818,7 +1027,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 allowedReturnStatuses = parsed.map((s: unknown) => String(s).toLowerCase().trim());
               }
             }
-          } catch { /* ignore */ }
+          } catch {
+            /* ignore */
+          }
 
           // Try multiple sources for current Fynd status
           let currentFyndStatus: string | null = null;
@@ -833,7 +1044,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             select: { fyndStatus: true },
           });
           if (latestLog?.fyndStatus) {
-            currentFyndStatus = latestLog.fyndStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+            currentFyndStatus = latestLog.fyndStatus
+              .toLowerCase()
+              .replace(/[\s_]+/g, "_")
+              .trim();
           }
 
           // Source 2: fyndCurrentStatus from existing return cases for this order
@@ -848,7 +1062,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               select: { fyndCurrentStatus: true },
             });
             if (existingCase?.fyndCurrentStatus) {
-              currentFyndStatus = existingCase.fyndCurrentStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+              currentFyndStatus = existingCase.fyndCurrentStatus
+                .toLowerCase()
+                .replace(/[\s_]+/g, "_")
+                .trim();
             }
           }
 
@@ -863,7 +1080,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               select: { fyndStatus: true },
             });
             if (shipmentLog?.fyndStatus) {
-              currentFyndStatus = shipmentLog.fyndStatus.toLowerCase().replace(/[\s_]+/g, "_").trim();
+              currentFyndStatus = shipmentLog.fyndStatus
+                .toLowerCase()
+                .replace(/[\s_]+/g, "_")
+                .trim();
             }
           }
 
@@ -871,16 +1091,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             // Check: is it a delivered status?
             const isDelivered = FYND_DELIVERED_STATUSES_CREATE.has(currentFyndStatus);
             // Check: is it explicitly allowed by merchant?
-            const isMerchantAllowed = allowedReturnStatuses.length > 0 && allowedReturnStatuses.some((s) => {
-              const norm = s.replace(/[\s_]+/g, "_").trim();
-              return currentFyndStatus === norm || currentFyndStatus!.includes(norm);
-            });
+            const isMerchantAllowed =
+              allowedReturnStatuses.length > 0 &&
+              allowedReturnStatuses.some((s) => {
+                const norm = s.replace(/[\s_]+/g, "_").trim();
+                return currentFyndStatus === norm || currentFyndStatus!.includes(norm);
+              });
             if (!isDelivered && !isMerchantAllowed) {
-              const friendly = currentFyndStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+              const friendly = currentFyndStatus
+                .replace(/_/g, " ")
+                .replace(/\b\w/g, (c) => c.toUpperCase());
               return withCors(
-                Response.json({
-                  error: `Return cannot be initiated. Current shipment status is "${friendly}". Returns can only be created after the order has been delivered.`,
-                }, { status: 400 }),
+                Response.json(
+                  {
+                    error: `Return cannot be initiated. Current shipment status is "${friendly}". Returns can only be created after the order has been delivered.`,
+                  },
+                  { status: 400 },
+                ),
                 request,
               );
             }
@@ -899,10 +1126,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
       if (new Date() > windowEnd) {
         return withCors(
-          Response.json({
-            error: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.`,
-          }, { status: 400 }),
-          request
+          Response.json(
+            {
+              error: `Return window has expired. Returns are accepted within ${returnWindowDays} days of order date.`,
+            },
+            { status: 400 },
+          ),
+          request,
         );
       }
 
@@ -920,13 +1150,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // After line-item ID resolution, sel.lineItemId may be a Shopify GID while
         // lineItemsWithPrice still has the original Fynd bag ID.  Accept either.
         const originalPortalId = lineItemIdMapping.get(sel.lineItemId);
-        if (!validLineIds.has(sel.lineItemId) && (!originalPortalId || !validLineIds.has(originalPortalId))) {
+        if (
+          !validLineIds.has(sel.lineItemId) &&
+          (!originalPortalId || !validLineIds.has(originalPortalId))
+        ) {
           return withCors(
-            Response.json({ error: "Invalid line item selected. Please refresh and try again." }, { status: 400 }),
-            request
+            Response.json(
+              { error: "Invalid line item selected. Please refresh and try again." },
+              { status: 400 },
+            ),
+            request,
           );
         }
-        const li = lineItemsWithPrice.find((l) => l.id === sel.lineItemId || l.id === originalPortalId);
+        const li = lineItemsWithPrice.find(
+          (l) => l.id === sel.lineItemId || l.id === originalPortalId,
+        );
         // defensive: optional-chain `?? []` fallbacks on price/tags
         /* v8 ignore start */
         const price = li?.price ? parseFloat(li.price) : undefined;
@@ -942,8 +1180,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         if (!eligibility.eligible) {
           return withCors(
-            Response.json({ error: eligibility.reason ?? "Item not eligible for return" }, { status: 400 }),
-            request
+            Response.json(
+              { error: eligibility.reason ?? "Item not eligible for return" },
+              { status: 400 },
+            ),
+            request,
           );
         }
       }
@@ -953,8 +1194,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const MAX_MEDIA_FILES = 5;
     const MAX_MEDIA_SIZE = 5 * 1024 * 1024;
     const ALLOWED_MEDIA_PREFIXES = [
-      "data:image/jpeg", "data:image/png", "data:image/gif", "data:image/webp",
-      "data:video/mp4", "data:video/webm", "data:video/quicktime",
+      "data:image/jpeg",
+      "data:image/png",
+      "data:image/gif",
+      "data:image/webp",
+      "data:video/mp4",
+      "data:video/webm",
+      "data:video/quicktime",
     ];
     let customerMediaJson: string | null = null;
     if (Array.isArray(customerMediaRaw) && customerMediaRaw.length > 0) {
@@ -1031,13 +1277,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Green return eligibility check
     let qualifiesForGreenReturn = false;
     if (settings?.greenReturnsEnabled && !manualMode) {
-      const greenThreshold = settings.greenReturnsThreshold ? parseFloat(String(settings.greenReturnsThreshold)) : null;
+      const greenThreshold = settings.greenReturnsThreshold
+        ? parseFloat(String(settings.greenReturnsThreshold))
+        : null;
       let greenTagsArr: string[] = [];
       try {
         if (settings.greenReturnsProductTags) {
           greenTagsArr = JSON.parse(settings.greenReturnsProductTags);
         }
-      } catch { /* invalid JSON, skip tag check */ }
+      } catch {
+        /* invalid JSON, skip tag check */
+      }
 
       const itemTotalValue = lineItemsWithPrice.reduce((sum, li) => {
         const selectedItem = itemsToCreate.find((it) => it.lineItemId === li.id);
@@ -1049,7 +1299,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         return sum + (Number.isFinite(p) ? p * selectedItem.qty : 0);
       }, 0);
 
-      const belowThreshold = greenThreshold != null && greenThreshold > 0 && itemTotalValue > 0 && itemTotalValue < greenThreshold;
+      const belowThreshold =
+        greenThreshold != null &&
+        greenThreshold > 0 &&
+        itemTotalValue > 0 &&
+        itemTotalValue < greenThreshold;
 
       // defensive: productTags ?? [] fallback for items missing tags
       /* v8 ignore start */
@@ -1057,7 +1311,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         .filter((li) => itemsToCreate.some((it) => it.lineItemId === li.id))
         .flatMap((li) => li.productTags ?? [])
         .map((t) => t.toLowerCase());
-      const tagsMatch = greenTagsArr.length > 0 && greenTagsArr.some((gt) => allItemTags.includes(gt.toLowerCase()));
+      const tagsMatch =
+        greenTagsArr.length > 0 &&
+        greenTagsArr.some((gt) => allItemTags.includes(gt.toLowerCase()));
       /* v8 ignore stop */
 
       qualifiesForGreenReturn = belowThreshold || tagsMatch;
@@ -1081,14 +1337,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           /* v8 ignore start */
           if (!sel.productId || !sel.variantId) continue;
           /* v8 ignore stop */
-          uniquePairs.set(`${sel.productId}::${sel.variantId}`, { productId: sel.productId, variantId: sel.variantId });
+          uniquePairs.set(`${sel.productId}::${sel.variantId}`, {
+            productId: sel.productId,
+            variantId: sel.variantId,
+          });
         }
         const invalid: Array<{ productId: string; variantId: string; reason: string }> = [];
         // Validate via REST: cheap one-product-at-a-time fetch (max 20 from upstream cap).
         for (const pair of uniquePairs.values()) {
           try {
             const productLegacyId = pair.productId.replace(/^gid:\/\/shopify\/Product\//, "");
-            const variantLegacyId = pair.variantId.replace(/^gid:\/\/shopify\/ProductVariant\//, "");
+            const variantLegacyId = pair.variantId.replace(
+              /^gid:\/\/shopify\/ProductVariant\//,
+              "",
+            );
             // 10s cap so a hung Shopify upstream doesn't pin the request worker.
             const ctrl = new AbortController();
             // defensive: 10s abort callback only fires on real network hang
@@ -1111,7 +1373,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               invalid.push({ ...pair, reason: `product fetch ${res.status}` });
               continue;
             }
-            const data = (await res.json()) as { product?: { variants?: Array<{ id: number | string }> } };
+            const data = (await res.json()) as {
+              product?: { variants?: Array<{ id: number | string }> };
+            };
             const variants = data.product?.variants ?? [];
             const found = variants.some((v) => String(v.id) === variantLegacyId);
             if (!found) invalid.push({ ...pair, reason: "variant not in product" });
@@ -1121,10 +1385,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         }
         if (invalid.length > 0) {
           return withCors(
-            Response.json({
-              error: "One or more selected exchange variants are no longer available. Please reload the page and pick again.",
-              details: invalid,
-            }, { status: 400 }),
+            Response.json(
+              {
+                error:
+                  "One or more selected exchange variants are no longer available. Please reload the page and pick again.",
+                details: invalid,
+              },
+              { status: 400 },
+            ),
             request,
           );
         }
@@ -1135,13 +1403,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Atomic transaction: per-line-item quantity validation + create return + event in one go
-    const txLineItemEstimates = (body.lineItemEstimates ?? []) as Array<{ lineItemId: string; quantity: number }>;
-    let returnCase: Awaited<ReturnType<typeof prisma.returnCase.create>> & { returnRequestNo?: string | null };
+    const txLineItemEstimates = (body.lineItemEstimates ?? []) as Array<{
+      lineItemId: string;
+      quantity: number;
+    }>;
+    let returnCase: Awaited<ReturnType<typeof prisma.returnCase.create>> & {
+      returnRequestNo?: string | null;
+    };
     try {
       returnCase = await prisma.$transaction(async (tx) => {
         // Per-line-item quantity validation inside transaction (race-safe)
-        if (!manualMode && itemsToCreate.length > 0 && effectiveOrderId && !effectiveOrderId.startsWith("manual:")) {
-          const requestedLineItemIds = itemsToCreate.map((it) => it.lineItemId).filter((id) => id !== "manual");
+        if (
+          !manualMode &&
+          itemsToCreate.length > 0 &&
+          effectiveOrderId &&
+          !effectiveOrderId.startsWith("manual:")
+        ) {
+          const requestedLineItemIds = itemsToCreate
+            .map((it) => it.lineItemId)
+            .filter((id) => id !== "manual");
           const existingReturnItems = await tx.returnItem.findMany({
             where: {
               shopifyLineItemId: { in: requestedLineItemIds },
@@ -1156,12 +1436,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           const alreadyReturnedMap: Record<string, number> = {};
           for (const ri of existingReturnItems) {
             if (ri.shopifyLineItemId) {
-              alreadyReturnedMap[ri.shopifyLineItemId] = (alreadyReturnedMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
+              alreadyReturnedMap[ri.shopifyLineItemId] =
+                (alreadyReturnedMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
             }
           }
           // SKU fallback: for Fynd orders, stored shopifyLineItemId may differ from current IDs
           const txRequestedSkus = itemsToCreate
-            .map((it) => resolvedLineItemSkus.get(it.lineItemId) || (lineItemsWithPrice.find((l) => l.id === it.lineItemId) as { sku?: string } | undefined)?.sku)
+            .map(
+              (it) =>
+                resolvedLineItemSkus.get(it.lineItemId) ||
+                (
+                  lineItemsWithPrice.find((l) => l.id === it.lineItemId) as
+                    | { sku?: string }
+                    | undefined
+                )?.sku,
+            )
             .filter(Boolean) as string[];
           if (txRequestedSkus.length > 0) {
             try {
@@ -1182,15 +1471,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 if (!ri.sku) continue;
                 /* v8 ignore stop */
                 const matchingItem = itemsToCreate.find((it) => {
-                  const itSku = resolvedLineItemSkus.get(it.lineItemId)
-                    || (lineItemsWithPrice.find((l) => l.id === it.lineItemId) as { sku?: string } | undefined)?.sku;
+                  const itSku =
+                    resolvedLineItemSkus.get(it.lineItemId) ||
+                    (
+                      lineItemsWithPrice.find((l) => l.id === it.lineItemId) as
+                        | { sku?: string }
+                        | undefined
+                    )?.sku;
                   return itSku === ri.sku;
                 });
                 if (matchingItem && !(alreadyReturnedMap[matchingItem.lineItemId] > 0)) {
-                  alreadyReturnedMap[matchingItem.lineItemId] = (alreadyReturnedMap[matchingItem.lineItemId] ?? 0) + ri.qty;
+                  alreadyReturnedMap[matchingItem.lineItemId] =
+                    (alreadyReturnedMap[matchingItem.lineItemId] ?? 0) + ri.qty;
                 }
               }
-            } catch { /* non-fatal SKU fallback */ }
+            } catch {
+              /* non-fatal SKU fallback */
+            }
           }
           for (const sel of itemsToCreate) {
             if (sel.lineItemId === "manual") continue;
@@ -1198,10 +1495,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             /* v8 ignore start */
             const alreadyReturned = alreadyReturnedMap[sel.lineItemId] ?? 0;
             const liInfo = lineItemsWithPrice.find((l) => l.id === sel.lineItemId);
-            const originalQty = txLineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity
-              ?? (body.lineItemsWithPrice as Array<{ id: string; quantity?: number }> | undefined)
-                ?.find((l) => l.id === sel.lineItemId)?.quantity
-              ?? 999;
+            const originalQty =
+              txLineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity ??
+              (
+                body.lineItemsWithPrice as Array<{ id: string; quantity?: number }> | undefined
+              )?.find((l) => l.id === sel.lineItemId)?.quantity ??
+              999;
             if (alreadyReturned + sel.qty > originalQty) {
               throw new Error(`QUANTITY_EXCEEDED:${liInfo?.title ?? sel.lineItemId}`);
             }
@@ -1246,7 +1545,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 .map((v) => v.variantTitle || v.variantId)
                 .filter(Boolean)
                 .join(", ");
-              const parts = [structured, exchangePreference].filter((s) => s && String(s).trim().length > 0);
+              const parts = [structured, exchangePreference].filter(
+                (s) => s && String(s).trim().length > 0,
+              );
               const joined = parts.join(" — ").trim();
               return joined ? joined.slice(0, 1000) : null;
             })(),
@@ -1260,7 +1561,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             orderProcessedAt: orderCreatedAtValue,
             // Set fyndShipmentId from items (use first item's shipmentId, or common shipmentId if all match)
             fyndShipmentId: (() => {
-              const shipIds = (itemsToCreate ?? []).map(it => it.fyndShipmentId).filter(Boolean) as string[];
+              const shipIds = (itemsToCreate ?? [])
+                .map((it) => it.fyndShipmentId)
+                .filter(Boolean) as string[];
               if (shipIds.length === 0) return null;
               const unique = [...new Set(shipIds)];
               return unique.length === 1 ? unique[0] : shipIds[0]; // prefer single shipment; fallback to first
@@ -1270,7 +1573,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 // After line item ID resolution, the ID may have changed from a Fynd bag ID
                 // to a Shopify GID. Look up liInfo using the original portal ID if needed.
                 const originalPortalId = lineItemIdMapping.get(it.lineItemId) ?? it.lineItemId;
-                const liInfo = lineItemsWithPrice?.find((l) => l.id === it.lineItemId || l.id === originalPortalId);
+                const liInfo = lineItemsWithPrice?.find(
+                  (l) => l.id === it.lineItemId || l.id === originalPortalId,
+                );
                 const resolvedSku = resolvedLineItemSkus.get(it.lineItemId);
                 return {
                   shopifyLineItemId: it.lineItemId,
@@ -1284,7 +1589,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                     /* v8 ignore start */
                     if (typeof raw === "object") {
                       const obj = raw as Record<string, unknown>;
-                      const v = obj.amount ?? obj.value ?? obj.effective ?? obj.transfer_price ?? obj.price_effective;
+                      const v =
+                        obj.amount ??
+                        obj.value ??
+                        obj.effective ??
+                        obj.transfer_price ??
+                        obj.price_effective;
                       return v != null ? String(v) : null;
                     }
                     /* v8 ignore stop */
@@ -1335,7 +1645,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               itemCount: itemsToCreate.length,
               manual: manualMode,
               resolutionType,
-              ...(exchangeVariantSelections.length > 0 ? { exchangeVariants: exchangeVariantSelections } : {}),
+              ...(exchangeVariantSelections.length > 0
+                ? { exchangeVariants: exchangeVariantSelections }
+                : {}),
               ...(qualifiesForGreenReturn ? { greenReturn: true } : {}),
             }),
           },
@@ -1360,10 +1672,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (txErr instanceof Error && txErr.message.startsWith("QUANTITY_EXCEEDED:")) {
         const itemTitle = txErr.message.replace("QUANTITY_EXCEEDED:", "");
         return withCors(
-          Response.json({
-            error: `Return quantity exceeds available quantity for: ${itemTitle}. Please refresh and try again.`,
-          }, { status: 400 }),
-          request
+          Response.json(
+            {
+              error: `Return quantity exceeds available quantity for: ${itemTitle}. Please refresh and try again.`,
+            },
+            { status: 400 },
+          ),
+          request,
         );
       }
       throw txErr;
@@ -1390,7 +1705,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const order = await fetchOrder(admin, orderId);
         const affiliateOrderId = order?.affiliateOrderId ?? null;
-        const fyndSettings = shopRecord.settings as Parameters<typeof createFyndClientOrError>[0] | null;
+        const fyndSettings = shopRecord.settings as
+          | Parameters<typeof createFyndClientOrError>[0]
+          | null;
         const fyndResult = fyndSettings
           ? await createFyndClientOrError(fyndSettings, { requirePlatform: true })
           : { ok: false as const, error: "Fynd not configured" };
@@ -1405,7 +1722,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             affiliateOrderId,
             targetShipmentId: rcWithItems.fyndShipmentId || null,
           });
-          if (fyndSync.success && (fyndSync.fyndReturnId ?? fyndSync.fyndShipmentId ?? fyndSync.alreadyExists)) {
+          if (
+            fyndSync.success &&
+            (fyndSync.fyndReturnId ?? fyndSync.fyndShipmentId ?? fyndSync.alreadyExists)
+          ) {
             await prisma.returnCase.update({
               where: { id: returnCase.id },
               data: {
@@ -1441,7 +1761,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         try {
           const { scheduleRetry } = await import("../lib/fynd-retry.server");
           await scheduleRetry(returnCase.id, errMsg);
-        } catch { /* Non-fatal */ }
+        } catch {
+          /* Non-fatal */
+        }
       }
       /* v8 ignore stop */
     }
@@ -1481,7 +1803,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           nextSteps,
         },
       }),
-      request
+      request,
     );
   } catch (err) {
     console.error("Portal create return:", err);
@@ -1500,10 +1822,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const errMsg = err instanceof Error ? err.message : "";
     const isSafe = SAFE_PATTERNS.some((p) => p.test(errMsg));
     return withCors(
-      Response.json({
-        error: isSafe ? errMsg : "Something went wrong. Please try again later.",
-      }, { status: 500 }),
-      request
+      Response.json(
+        {
+          error: isSafe ? errMsg : "Something went wrong. Please try again later.",
+        },
+        { status: 500 },
+      ),
+      request,
     );
   }
 };

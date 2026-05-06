@@ -30,9 +30,8 @@ function makeStubLogger(level = "info"): Record<string, unknown> {
     debug: vi.fn(),
     trace: vi.fn(),
     fatal: vi.fn(),
-    child: vi.fn(
-      (_b: Record<string, unknown>, opts?: { level?: string }) =>
-        makeStubLogger(opts?.level ?? level),
+    child: vi.fn((_b: Record<string, unknown>, opts?: { level?: string }) =>
+      makeStubLogger(opts?.level ?? level),
     ),
   };
   return stub;

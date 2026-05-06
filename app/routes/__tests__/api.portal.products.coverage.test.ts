@@ -39,7 +39,9 @@ const shopWithExchange = {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   prismaMock.shop.findUnique.mockResolvedValue(shopWithExchange);
   prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
   globalThis.fetch = vi.fn();
@@ -50,7 +52,8 @@ afterEach(() => {
 });
 
 function fetchCallUrl(idx = 0): string {
-  const calls = (globalThis.fetch as unknown as { mock: { calls: Array<[string, unknown]> } }).mock.calls;
+  const calls = (globalThis.fetch as unknown as { mock: { calls: Array<[string, unknown]> } }).mock
+    .calls;
   return calls[idx][0];
 }
 
@@ -60,9 +63,25 @@ describe("specific product fetch by id", () => {
       ok: true,
       json: async () => ({
         product: {
-          id: 9876, title: "P", handle: "p", product_type: "", vendor: "",
-          images: [], variants: [
-            { id: 1, title: "v", price: "1.00", compare_at_price: null, inventory_quantity: 1, sku: null, option1: null, option2: null, option3: null, image_id: null },
+          id: 9876,
+          title: "P",
+          handle: "p",
+          product_type: "",
+          vendor: "",
+          images: [],
+          variants: [
+            {
+              id: 1,
+              title: "v",
+              price: "1.00",
+              compare_at_price: null,
+              inventory_quantity: 1,
+              sku: null,
+              option1: null,
+              option2: null,
+              option3: null,
+              image_id: null,
+            },
           ],
         },
       }),
@@ -70,7 +89,8 @@ describe("specific product fetch by id", () => {
 
     await loader({
       request: mkReq("shop=store&productId=gid%3A%2F%2Fshopify%2FProduct%2F9876"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     const url = fetchCallUrl();
@@ -86,7 +106,8 @@ describe("specific product fetch by id", () => {
 
     await loader({
       request: mkReq("shop=store&productId=42"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(fetchCallUrl()).toContain("/products/42.json");
@@ -100,7 +121,8 @@ describe("specific product fetch by id", () => {
 
     const res = await loader({
       request: mkReq("shop=store&productId=42"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.products).toEqual([]);
@@ -111,13 +133,24 @@ describe("specific product fetch by id", () => {
       ok: true,
       json: async () => ({
         product: {
-          id: 5, title: "Boot", handle: "boot", product_type: "Footwear", vendor: "Acme",
+          id: 5,
+          title: "Boot",
+          handle: "boot",
+          product_type: "Footwear",
+          vendor: "Acme",
           images: [{ src: "https://img/a.jpg" }, { src: "https://img/b.jpg" }],
           variants: [
             {
-              id: 51, title: "Black / 10 / Wide", price: "120.00", compare_at_price: "150.00",
-              inventory_quantity: 3, sku: "BT-B-10-W",
-              option1: "Black", option2: "10", option3: "Wide", image_id: 999,
+              id: 51,
+              title: "Black / 10 / Wide",
+              price: "120.00",
+              compare_at_price: "150.00",
+              inventory_quantity: 3,
+              sku: "BT-B-10-W",
+              option1: "Black",
+              option2: "10",
+              option3: "Wide",
+              image_id: 999,
             },
           ],
         },
@@ -126,7 +159,8 @@ describe("specific product fetch by id", () => {
 
     const res = await loader({
       request: mkReq("shop=store&productId=5"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.products[0].imageUrl).toBe("https://img/a.jpg");
@@ -149,9 +183,24 @@ describe("specific product fetch by id", () => {
       ok: true,
       json: async () => ({
         product: {
-          id: 7, title: "NoImg", handle: "n", product_type: "", vendor: "",
+          id: 7,
+          title: "NoImg",
+          handle: "n",
+          product_type: "",
+          vendor: "",
           variants: [
-            { id: 71, title: "v", price: "1.00", compare_at_price: null, inventory_quantity: 1, sku: null, option1: null, option2: null, option3: null, image_id: null },
+            {
+              id: 71,
+              title: "v",
+              price: "1.00",
+              compare_at_price: null,
+              inventory_quantity: 1,
+              sku: null,
+              option1: null,
+              option2: null,
+              option3: null,
+              image_id: null,
+            },
           ],
         },
       }),
@@ -159,7 +208,8 @@ describe("specific product fetch by id", () => {
 
     const res = await loader({
       request: mkReq("shop=store&productId=7"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.products[0].imageUrl).toBeNull();
@@ -170,12 +220,14 @@ describe("specific product fetch by id", () => {
 describe("search by query + product_type filter", () => {
   it("encodes title query parameter when search is provided", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ products: [] }),
+      ok: true,
+      json: async () => ({ products: [] }),
     }) as typeof fetch;
 
     await loader({
       request: mkReq("shop=store&search=red%20shirt"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     const url = fetchCallUrl();
@@ -185,12 +237,14 @@ describe("search by query + product_type filter", () => {
 
   it("hits the search endpoint variant when productType is provided alone", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ products: [] }),
+      ok: true,
+      json: async () => ({ products: [] }),
     }) as typeof fetch;
 
     await loader({
       request: mkReq("shop=store&productType=Shirts"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     // queryParts now non-empty -> branch with title= is taken
@@ -201,12 +255,14 @@ describe("search by query + product_type filter", () => {
 
   it("uses default products endpoint (no title param) when neither search nor productType given", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ products: [] }),
+      ok: true,
+      json: async () => ({ products: [] }),
     }) as typeof fetch;
 
     await loader({
       request: mkReq("shop=store"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     const url = fetchCallUrl();
@@ -216,12 +272,14 @@ describe("search by query + product_type filter", () => {
 
   it("respects custom limit below the 50 cap", async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ products: [] }),
+      ok: true,
+      json: async () => ({ products: [] }),
     }) as typeof fetch;
 
     await loader({
       request: mkReq("shop=store&limit=12"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(fetchCallUrl()).toContain("limit=12");
@@ -230,17 +288,21 @@ describe("search by query + product_type filter", () => {
   it("sends X-Shopify-Access-Token header from the persisted session", async () => {
     prismaMock.session.findFirst.mockResolvedValue({ accessToken: "secret-token-abc" });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ products: [] }),
+      ok: true,
+      json: async () => ({ products: [] }),
     }) as typeof fetch;
 
     await loader({
       request: mkReq("shop=store"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
-    const calls = (globalThis.fetch as unknown as {
-      mock: { calls: Array<[string, { headers: Record<string, string> }]> };
-    }).mock.calls;
+    const calls = (
+      globalThis.fetch as unknown as {
+        mock: { calls: Array<[string, { headers: Record<string, string> }]> };
+      }
+    ).mock.calls;
     expect(calls[0][1].headers["X-Shopify-Access-Token"]).toBe("secret-token-abc");
   });
 });
@@ -270,7 +332,8 @@ describe("fetch timeout", () => {
     try {
       const promise = loader({
         request: mkReq("shop=store"),
-        params: {}, context: {},
+        params: {},
+        context: {},
       } as never);
       // Trip the SHOPIFY_FETCH_TIMEOUT_MS (10s) timer.
       await vi.advanceTimersByTimeAsync(10_001);
@@ -292,7 +355,8 @@ describe("fetch timeout", () => {
 
     await loader({
       request: mkReq("shop=store"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(capturedSignal).toBeInstanceOf(AbortSignal);
@@ -308,12 +372,49 @@ describe("available variant filtering", () => {
       json: async () => ({
         products: [
           {
-            id: 1, title: "Mixed", handle: "m", product_type: "", vendor: "",
+            id: 1,
+            title: "Mixed",
+            handle: "m",
+            product_type: "",
+            vendor: "",
             images: [],
             variants: [
-              { id: 11, title: "InStock", price: "1.00", compare_at_price: null, inventory_quantity: 5, sku: null, option1: "S", option2: null, option3: null, image_id: null },
-              { id: 12, title: "SoldOut", price: "1.00", compare_at_price: null, inventory_quantity: 0, sku: null, option1: "M", option2: null, option3: null, image_id: null },
-              { id: 13, title: "Untracked", price: "1.00", compare_at_price: null, inventory_quantity: -1, sku: null, option1: "L", option2: null, option3: null, image_id: null },
+              {
+                id: 11,
+                title: "InStock",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: 5,
+                sku: null,
+                option1: "S",
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
+              {
+                id: 12,
+                title: "SoldOut",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: 0,
+                sku: null,
+                option1: "M",
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
+              {
+                id: 13,
+                title: "Untracked",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: -1,
+                sku: null,
+                option1: "L",
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
             ],
           },
         ],
@@ -322,7 +423,8 @@ describe("available variant filtering", () => {
 
     const res = await loader({
       request: mkReq("shop=store"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.products).toHaveLength(1);
@@ -336,21 +438,69 @@ describe("available variant filtering", () => {
       json: async () => ({
         products: [
           {
-            id: 1, title: "Live", handle: "l", product_type: "", vendor: "",
-            images: [], variants: [
-              { id: 11, title: "v", price: "1.00", compare_at_price: null, inventory_quantity: 2, sku: null, option1: null, option2: null, option3: null, image_id: null },
+            id: 1,
+            title: "Live",
+            handle: "l",
+            product_type: "",
+            vendor: "",
+            images: [],
+            variants: [
+              {
+                id: 11,
+                title: "v",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: 2,
+                sku: null,
+                option1: null,
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
             ],
           },
           {
-            id: 2, title: "Dead", handle: "d", product_type: "", vendor: "",
-            images: [], variants: [
-              { id: 21, title: "v", price: "1.00", compare_at_price: null, inventory_quantity: 0, sku: null, option1: null, option2: null, option3: null, image_id: null },
+            id: 2,
+            title: "Dead",
+            handle: "d",
+            product_type: "",
+            vendor: "",
+            images: [],
+            variants: [
+              {
+                id: 21,
+                title: "v",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: 0,
+                sku: null,
+                option1: null,
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
             ],
           },
           {
-            id: 3, title: "AlsoLive", handle: "al", product_type: "", vendor: "",
-            images: [], variants: [
-              { id: 31, title: "v", price: "1.00", compare_at_price: null, inventory_quantity: -1, sku: null, option1: null, option2: null, option3: null, image_id: null },
+            id: 3,
+            title: "AlsoLive",
+            handle: "al",
+            product_type: "",
+            vendor: "",
+            images: [],
+            variants: [
+              {
+                id: 31,
+                title: "v",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: -1,
+                sku: null,
+                option1: null,
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
             ],
           },
         ],
@@ -359,7 +509,8 @@ describe("available variant filtering", () => {
 
     const res = await loader({
       request: mkReq("shop=store"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const titles = body.products.map((p: { title: string }) => p.title);
@@ -371,10 +522,25 @@ describe("available variant filtering", () => {
       ok: true,
       json: async () => ({
         product: {
-          id: 9, title: "OOS", handle: "oos", product_type: "", vendor: "",
+          id: 9,
+          title: "OOS",
+          handle: "oos",
+          product_type: "",
+          vendor: "",
           images: [],
           variants: [
-            { id: 91, title: "v", price: "1.00", compare_at_price: null, inventory_quantity: 0, sku: null, option1: null, option2: null, option3: null, image_id: null },
+            {
+              id: 91,
+              title: "v",
+              price: "1.00",
+              compare_at_price: null,
+              inventory_quantity: 0,
+              sku: null,
+              option1: null,
+              option2: null,
+              option3: null,
+              image_id: null,
+            },
           ],
         },
       }),
@@ -382,7 +548,8 @@ describe("available variant filtering", () => {
 
     const res = await loader({
       request: mkReq("shop=store&productId=9"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.products).toEqual([]);
@@ -393,14 +560,23 @@ describe("available variant filtering", () => {
       ok: true,
       json: async () => ({
         products: [
-          { id: 1, title: "NoVariants", handle: "nv", product_type: "", vendor: "", images: [], variants: [] },
+          {
+            id: 1,
+            title: "NoVariants",
+            handle: "nv",
+            product_type: "",
+            vendor: "",
+            images: [],
+            variants: [],
+          },
         ],
       }),
     }) as typeof fetch;
 
     const res = await loader({
       request: mkReq("shop=store"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.products).toEqual([]);

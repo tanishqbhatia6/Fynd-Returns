@@ -80,9 +80,7 @@ describe("webhooks.orders.fulfilled — Fynd metafield + mapping backfill", () =
     const res = await callAction();
     expect(res.status).toBe(200);
 
-    expect(shopifyModuleMock.unauthenticated.admin).toHaveBeenCalledWith(
-      "shop.myshopify.com",
-    );
+    expect(shopifyModuleMock.unauthenticated.admin).toHaveBeenCalledWith("shop.myshopify.com");
     expect(graphqlMock).toHaveBeenCalledTimes(1);
     const [, options] = graphqlMock.mock.calls[0]!;
     expect(options.variables.input.id).toBe("gid://shopify/Order/999");
@@ -170,9 +168,7 @@ describe("webhooks.orders.fulfilled — Fynd metafield + mapping backfill", () =
     });
     extractAffiliateOrderIdMock.mockReturnValueOnce("F-5");
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop_1" });
-    prismaMock.fyndOrderMapping.upsert.mockRejectedValueOnce(
-      new Error("unique violation"),
-    );
+    prismaMock.fyndOrderMapping.upsert.mockRejectedValueOnce(new Error("unique violation"));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
 
     const res = await callAction();
@@ -219,10 +215,7 @@ describe("webhooks.orders.fulfilled — returnCase event loop", () => {
     });
     extractAffiliateOrderIdMock.mockReturnValueOnce(null);
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop_1" });
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc_1" },
-      { id: "rc_2" },
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc_1" }, { id: "rc_2" }]);
     prismaMock.returnEvent.findFirst.mockResolvedValue(null);
 
     await callAction();
@@ -249,10 +242,7 @@ describe("webhooks.orders.fulfilled — returnCase event loop", () => {
     });
     extractAffiliateOrderIdMock.mockReturnValueOnce(null);
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop_1" });
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc_1" },
-      { id: "rc_2" },
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc_1" }, { id: "rc_2" }]);
     // First case: recent dup → skip. Second: no dup → create.
     prismaMock.returnEvent.findFirst
       .mockResolvedValueOnce({ id: "ev_recent" })
@@ -279,9 +269,7 @@ describe("webhooks.orders.fulfilled — returnCase event loop", () => {
     prismaMock.returnEvent.findFirst.mockResolvedValueOnce(null);
 
     await callAction();
-    const parsed = JSON.parse(
-      prismaMock.returnEvent.create.mock.calls[0]![0].data.payloadJson,
-    );
+    const parsed = JSON.parse(prismaMock.returnEvent.create.mock.calls[0]![0].data.payloadJson);
     expect(parsed.fulfillment_status).toBe("partial");
   });
 
@@ -316,9 +304,7 @@ describe("webhooks.orders.fulfilled — returnCase event loop", () => {
     extractAffiliateOrderIdMock.mockReturnValueOnce(null);
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop_1" });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc_1" }]);
-    prismaMock.returnEvent.findFirst.mockRejectedValueOnce(
-      new Error("findFirst exploded"),
-    );
+    prismaMock.returnEvent.findFirst.mockRejectedValueOnce(new Error("findFirst exploded"));
 
     const res = await callAction();
     expect(res.status).toBe(200);

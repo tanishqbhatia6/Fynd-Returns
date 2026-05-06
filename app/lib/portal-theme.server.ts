@@ -40,9 +40,15 @@ export function applyPortalThemeToHtml(html: string, theme: PortalTheme): string
 }
 
 export const FONT_OPTIONS = [
-  { value: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", label: "DM Sans (Modern)" },
+  {
+    value: "'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    label: "DM Sans (Modern)",
+  },
   { value: "Inter, -apple-system, BlinkMacSystemFont, sans-serif", label: "Inter" },
-  { value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", label: "System UI" },
+  {
+    value: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+    label: "System UI",
+  },
   { value: "Georgia, 'Times New Roman', serif", label: "Georgia" },
   { value: "'Playfair Display', Georgia, serif", label: "Playfair Display" },
 ] as const;

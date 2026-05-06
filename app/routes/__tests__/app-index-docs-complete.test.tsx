@@ -28,21 +28,14 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 /* ─────────────────── Module-level mocks (shared) ─────────────────── */
 
-const {
-  prismaMock,
-  authenticateMock,
-  runFyndRetryQueueMock,
-  pollStaleReturnsMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  runFyndRetryQueueMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
-    async () => undefined,
-  ),
-  pollStaleReturnsMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
-    async () => undefined,
-  ),
-}));
+const { prismaMock, authenticateMock, runFyndRetryQueueMock, pollStaleReturnsMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    runFyndRetryQueueMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+    pollStaleReturnsMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -87,13 +80,7 @@ vi.mock("recharts", () => {
 
 // AppPage stub for both Dashboard + Documentation render paths.
 vi.mock("../../components/AppPage", () => ({
-  AppPage: ({
-    heading,
-    children,
-  }: {
-    heading: React.ReactNode;
-    children: React.ReactNode;
-  }) => (
+  AppPage: ({ heading, children }: { heading: React.ReactNode; children: React.ReactNode }) => (
     <div data-testid="app-page">
       <h1 data-testid="app-page-heading">{heading}</h1>
       {children}
@@ -290,7 +277,6 @@ describe("app.docs Documentation — final branch coverage", () => {
 
   afterEach(() => {
     if (originalMap) {
-       
       Array.prototype.map = originalMap as any;
     }
     vi.restoreAllMocks();
@@ -307,32 +293,27 @@ describe("app.docs Documentation — final branch coverage", () => {
     // documentation tree are untouched.
     originalMap = Array.prototype.map;
     const orig = originalMap;
-     
+
     (Array.prototype as any).map = function patchedMap(
       this: unknown[],
-       
+
       cb: (...a: any[]) => any,
-       
+
       thisArg?: any,
     ) {
       if (
         Array.isArray(this) &&
         this.length > 0 &&
-         
         typeof (this[0] as any) === "object" &&
         this[0] !== null &&
-         
         typeof (this[0] as any).title === "string" &&
-         
         typeof (this[0] as any).description === "string" &&
-         
         !("icon" in (this[0] as any))
       ) {
         return orig.call(
           this,
-           
-          (h: any, i: number, arr: any) =>
-            cb.call(thisArg, { ...h, icon: "★" }, i, arr),
+
+          (h: any, i: number, arr: any) => cb.call(thisArg, { ...h, icon: "★" }, i, arr),
           thisArg,
         );
       }
@@ -358,10 +339,10 @@ describe("app.docs Documentation — final branch coverage", () => {
     // an invalid id — so we patch React.useState to inject one for the very
     // first call (the `activeChapter` slot in Documentation).
     const realUseState = React.useState;
-    const spy = (vi.spyOn(React, "useState") as unknown as {
+    const spy = vi.spyOn(React, "useState") as unknown as {
       mockImplementationOnce: (impl: (initial: unknown) => unknown) => unknown;
       mockRestore: () => void;
-    });
+    };
     spy.mockImplementationOnce((initial: unknown) => {
       // First call inside Documentation is `useState("welcome")`. Replace
       // the initial value with a known-bad id so `find(...)` returns

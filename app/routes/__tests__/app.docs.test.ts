@@ -37,12 +37,12 @@ describe("app.docs module", () => {
   });
 
   it("does not export a loader (pure documentation route)", async () => {
-    const mod = await import("../app.docs") as Record<string, unknown>;
+    const mod = (await import("../app.docs")) as Record<string, unknown>;
     expect(mod.loader).toBeUndefined();
   });
 
   it("does not export an action (pure documentation route)", async () => {
-    const mod = await import("../app.docs") as Record<string, unknown>;
+    const mod = (await import("../app.docs")) as Record<string, unknown>;
     expect(mod.action).toBeUndefined();
   });
 });

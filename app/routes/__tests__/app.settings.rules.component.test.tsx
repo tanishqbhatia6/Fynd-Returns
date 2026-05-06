@@ -20,7 +20,9 @@ vi.mock("../db.server", () => ({
 }));
 vi.mock("../lib/shop.server", () => ({
   findOrCreateShop: vi.fn(async () => ({ id: "shop-1", settings: null })),
-  syncShopLocaleAndCurrency: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  syncShopLocaleAndCurrency: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 
 // app/shopify.server.ts (which is what the route imports) calls shopifyApp()
@@ -53,9 +55,7 @@ const baseLoaderData = {
   returnWindowDays: 30,
   minimumReturnPrice: "0",
   returnReasons: ["Wrong size", "Damaged item"],
-  returnReasonsByCategory: [
-    { category: "Apparel", reasons: ["Too tight", "Too loose"] },
-  ],
+  returnReasonsByCategory: [{ category: "Apparel", reasons: ["Too tight", "Too loose"] }],
   restrictedRegions: [{ country: "Cuba" }],
   returnOffers: [
     {
@@ -94,9 +94,7 @@ describe("app.settings.rules component (default export)", () => {
     expect(container.textContent).toContain("Restricted regions");
     expect(container.textContent).toContain("Return Days");
     expect(container.textContent).toContain("Per-Reason Restocking Fees");
-    expect(container.textContent).toContain(
-      "Country-Specific Return Windows",
-    );
+    expect(container.textContent).toContain("Country-Specific Return Windows");
   });
 
   it("hydrates the return-window and minimum-price inputs from loader data", async () => {
@@ -129,9 +127,7 @@ describe("app.settings.rules component (default export)", () => {
       expect(container.textContent).toContain("Wrong size");
     });
     expect(container.textContent).toContain("Damaged item");
-    const removeBtn = container.querySelector(
-      'button[aria-label="Remove Damaged item"]',
-    );
+    const removeBtn = container.querySelector('button[aria-label="Remove Damaged item"]');
     expect(removeBtn).toBeTruthy();
   });
 
@@ -147,13 +143,15 @@ describe("app.settings.rules component (default export)", () => {
       ) as HTMLInputElement | null;
       expect(reasonInput).toBeTruthy();
     });
-    await act(async () => { fireEvent.change(reasonInput!, { target: { value: "Late delivery" } }); });
-    await waitFor(() => { expect(reasonInput!.value).toBe("Late delivery"); });
+    await act(async () => {
+      fireEvent.change(reasonInput!, { target: { value: "Late delivery" } });
+    });
+    await waitFor(() => {
+      expect(reasonInput!.value).toBe("Late delivery");
+    });
     // Click the Add button next to the reason input. There may be multiple
     // "Add" buttons on the page, so pick the one inside the same parent.
-    const addBtn = reasonInput!.parentElement?.querySelector(
-      "s-button",
-    ) as HTMLElement | null;
+    const addBtn = reasonInput!.parentElement?.querySelector("s-button") as HTMLElement | null;
     expect(addBtn).toBeTruthy();
     fireEvent.click(addBtn!);
     await waitFor(() => {
@@ -169,9 +167,7 @@ describe("app.settings.rules component (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("15% off");
     });
-    expect(container.textContent).toContain(
-      "Keep your item and get 15% off your next order!",
-    );
+    expect(container.textContent).toContain("Keep your item and get 15% off your next order!");
     expect(container.textContent).toContain("Wrong size");
   });
 

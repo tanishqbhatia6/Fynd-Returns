@@ -129,11 +129,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 
 import { renderWithRouter } from "../../test/component-helpers";
 import { render, fireEvent, waitFor } from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import Component, { ErrorBoundary } from "../app.returns.$id";
 
 /**
@@ -146,7 +142,9 @@ function renderErrorBoundary(thrown: unknown) {
   const routes: RouteObject[] = [
     {
       path: "*",
-      loader: () => { throw thrown; },
+      loader: () => {
+        throw thrown;
+      },
       element: <div>ok</div>,
       errorElement: <ErrorBoundary />,
       hydrateFallbackElement: <div data-testid="hydrate-fallback" />,
@@ -326,9 +324,7 @@ describe("app.returns.$id — uncovered branches", () => {
     expect(container.textContent).toContain("Upload 3");
     // click an upload button — exercise openDataUrl branches (data: vs http:)
     const buttons = getAllByRole("button");
-    const uploadBtn = buttons.find((b) =>
-      (b.getAttribute("title") || "").includes("photo.jpg"),
-    );
+    const uploadBtn = buttons.find((b) => (b.getAttribute("title") || "").includes("photo.jpg"));
     if (uploadBtn) {
       // Prevent jsdom from logging "Not implemented: window.open"
       const origOpen = window.open;
@@ -527,8 +523,8 @@ describe("app.returns.$id — uncovered branches", () => {
         expect(container.textContent).toContain("Confirm Cancellation");
       });
       // Close via Go Back button
-      const goBack = Array.from(container.querySelectorAll("button")).find((b) =>
-        (b.textContent || "").trim() === "Go Back",
+      const goBack = Array.from(container.querySelectorAll("button")).find(
+        (b) => (b.textContent || "").trim() === "Go Back",
       );
       if (goBack) fireEvent.click(goBack);
     }
@@ -560,8 +556,8 @@ describe("app.returns.$id — uncovered branches", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Edit pickup address");
     });
-    const toggle = Array.from(container.querySelectorAll("button")).find(
-      (b) => (b.textContent || "").includes("Edit pickup address"),
+    const toggle = Array.from(container.querySelectorAll("button")).find((b) =>
+      (b.textContent || "").includes("Edit pickup address"),
     );
     expect(toggle).toBeTruthy();
     if (toggle) {
@@ -591,9 +587,7 @@ describe("app.returns.$id — uncovered branches", () => {
         returnCase: rc,
         fyndCurrentStatus: "return_initiated",
         fyndPayloadInfo: {
-          shipments: [
-            { shipmentStatus: "return_initiated", id: "FYND-SHIP-99" },
-          ],
+          shipments: [{ shipmentStatus: "return_initiated", id: "FYND-SHIP-99" }],
         },
       }) as never,
     });
@@ -601,8 +595,8 @@ describe("app.returns.$id — uncovered branches", () => {
       expect(container.textContent).toContain("RMA-TEST-001");
     });
     // Toggle raw fynd JSON viewer
-    const rawToggle = Array.from(container.querySelectorAll("button")).find(
-      (b) => /raw|JSON|payload/i.test(b.textContent || ""),
+    const rawToggle = Array.from(container.querySelectorAll("button")).find((b) =>
+      /raw|JSON|payload/i.test(b.textContent || ""),
     );
     if (rawToggle) fireEvent.click(rawToggle);
   });

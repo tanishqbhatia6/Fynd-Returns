@@ -114,13 +114,15 @@ describe("Settings dashboard (default export)", () => {
     // Every card is wrapped in a Link — verify a few hrefs are present.
     const anchors = Array.from(container.querySelectorAll("a"));
     const hrefs = anchors.map((a) => a.getAttribute("href"));
-    expect(hrefs).toEqual(expect.arrayContaining([
-      "/app/settings/rules",
-      "/app/settings/return-settings",
-      "/app/settings/integrations",
-      "/app/settings/notifications",
-      "/app/billing",
-    ]));
+    expect(hrefs).toEqual(
+      expect.arrayContaining([
+        "/app/settings/rules",
+        "/app/settings/return-settings",
+        "/app/settings/integrations",
+        "/app/settings/notifications",
+        "/app/billing",
+      ]),
+    );
   });
 
   it("shows the Fynd setup banner when hasFynd=false", async () => {

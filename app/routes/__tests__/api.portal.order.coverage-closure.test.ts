@@ -34,11 +34,18 @@ const {
   fetchOrderByGidMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
   withRestCredentialsMock: vi.fn((a: unknown) => a),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   formatReturnRequestIdMock: vi.fn((x: string) => `R-${x.slice(0, 6)}`),
-  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(() => ({ eligible: true })),
+  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(
+    () => ({ eligible: true }),
+  ),
   createPortalCsrfTokenMock: vi.fn(() => "csrf-token-abc"),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping = {
@@ -73,7 +80,10 @@ vi.mock("../../lib/portal-auth.server", () => ({
 }));
 vi.mock("../../lib/shopify-admin.server", async () => {
   class OrderAccessError extends Error {
-    constructor(public reason: string, public orderNumber: string) {
+    constructor(
+      public reason: string,
+      public orderNumber: string,
+    ) {
       super(`Order ${orderNumber} cannot be accessed: ${reason}`);
       this.name = "OrderAccessError";
     }
@@ -114,8 +124,12 @@ beforeEach(() => {
   mapping.upsert.mockResolvedValue({});
   mapping.findFirst.mockReset();
   mapping.findFirst.mockResolvedValue(null);
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
   fetchOrderByGidMock.mockReset();
   fetchOrderByFyndAffiliateIdMock.mockReset().mockResolvedValue(null);
@@ -124,7 +138,9 @@ beforeEach(() => {
   formatReturnRequestIdMock.mockReset().mockImplementation((x: string) => `R-${x.slice(0, 6)}`);
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   createPortalCsrfTokenMock.mockReset().mockReturnValue("csrf-token-abc");
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
 
   prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com" });
   prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });

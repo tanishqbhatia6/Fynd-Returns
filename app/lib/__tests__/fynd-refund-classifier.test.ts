@@ -87,14 +87,26 @@ describe("classifyFyndRefundStatus", () => {
   describe("edge cases", () => {
     it("null/empty/undefined are neutral", () => {
       expect(classifyFyndRefundStatus(null)).toEqual({ isInProgress: false, isComplete: false });
-      expect(classifyFyndRefundStatus(undefined)).toEqual({ isInProgress: false, isComplete: false });
+      expect(classifyFyndRefundStatus(undefined)).toEqual({
+        isInProgress: false,
+        isComplete: false,
+      });
       expect(classifyFyndRefundStatus("")).toEqual({ isInProgress: false, isComplete: false });
     });
 
     it("unrelated tokens are neutral", () => {
-      expect(classifyFyndRefundStatus("bag_packed")).toEqual({ isInProgress: false, isComplete: false });
-      expect(classifyFyndRefundStatus("handed_over_to_customer")).toEqual({ isInProgress: false, isComplete: false });
-      expect(classifyFyndRefundStatus("deadstock")).toEqual({ isInProgress: false, isComplete: false });
+      expect(classifyFyndRefundStatus("bag_packed")).toEqual({
+        isInProgress: false,
+        isComplete: false,
+      });
+      expect(classifyFyndRefundStatus("handed_over_to_customer")).toEqual({
+        isInProgress: false,
+        isComplete: false,
+      });
+      expect(classifyFyndRefundStatus("deadstock")).toEqual({
+        isInProgress: false,
+        isComplete: false,
+      });
     });
   });
 });

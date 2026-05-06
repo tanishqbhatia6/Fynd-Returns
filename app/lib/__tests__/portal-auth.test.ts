@@ -57,13 +57,7 @@ describe("verifyPortalToken", () => {
     // Flip a character in the signature portion
     const parts = token.split(".");
     const sig = parts[2];
-    const tampered =
-      parts[0] +
-      "." +
-      parts[1] +
-      "." +
-      (sig[0] === "A" ? "B" : "A") +
-      sig.slice(1);
+    const tampered = parts[0] + "." + parts[1] + "." + (sig[0] === "A" ? "B" : "A") + sig.slice(1);
     expect(verifyPortalToken(tampered)).toBeNull();
   });
 
@@ -74,9 +68,13 @@ describe("verifyPortalToken", () => {
   });
 
   it("returns null for a token signed with a different secret", () => {
-    const wrongToken = jwt.sign({ userId: "wrong" }, "totally-different-secret-that-is-long-enough", {
-      expiresIn: "1h",
-    });
+    const wrongToken = jwt.sign(
+      { userId: "wrong" },
+      "totally-different-secret-that-is-long-enough",
+      {
+        expiresIn: "1h",
+      },
+    );
     expect(verifyPortalToken(wrongToken)).toBeNull();
   });
 });

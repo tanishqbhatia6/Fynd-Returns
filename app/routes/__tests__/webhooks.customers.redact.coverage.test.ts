@@ -50,14 +50,8 @@ describe("webhooks.customers.redact — coverage", () => {
       },
     });
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1" },
-      { id: "rc-2" },
-    ]);
-    prismaMock.fyndWebhookLog.findMany.mockResolvedValueOnce([
-      { id: "fl-1" },
-      { id: "fl-2" },
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc-1" }, { id: "rc-2" }]);
+    prismaMock.fyndWebhookLog.findMany.mockResolvedValueOnce([{ id: "fl-1" }, { id: "fl-2" }]);
 
     const res = await action({
       request: mkReq(),
@@ -80,10 +74,7 @@ describe("webhooks.customers.redact — coverage", () => {
     expect(prismaMock.lookupSession.deleteMany).toHaveBeenCalledTimes(1);
     const lsCall = prismaMock.lookupSession.deleteMany.mock.calls[0]?.[0];
     expect(lsCall.where.shopId).toBe("shop-1");
-    expect(lsCall.where.lookupValueNorm.in).toEqual([
-      "customer@example.com",
-      "+15551234567",
-    ]);
+    expect(lsCall.where.lookupValueNorm.in).toEqual(["customer@example.com", "+15551234567"]);
 
     // notificationLog.deleteMany scoped to caseIds
     expect(prismaMock.notificationLog.deleteMany).toHaveBeenCalledWith({
@@ -213,9 +204,7 @@ describe("webhooks.customers.redact — coverage", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc-1" }]);
     // Error thrown mid-pipeline — exercises the catch block
-    prismaMock.returnCase.updateMany.mockRejectedValueOnce(
-      new Error("constraint violation"),
-    );
+    prismaMock.returnCase.updateMany.mockRejectedValueOnce(new Error("constraint violation"));
 
     const res = await action({
       request: mkReq(),

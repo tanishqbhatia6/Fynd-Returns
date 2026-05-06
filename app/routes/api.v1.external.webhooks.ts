@@ -1,7 +1,12 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import crypto from "crypto";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
-import { apiSuccess, apiCreated, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
+import {
+  apiSuccess,
+  apiCreated,
+  apiError,
+  checkPerKeyRateLimit,
+} from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { WEBHOOK_EVENTS } from "../lib/api-docs-data";
 import { isSafeOutboundUrl } from "../lib/url-safety.server";
@@ -55,7 +60,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (perKey) return perKey;
 
   let body: { url?: string; events?: string[] } = {};
-  try { body = await request.json(); } catch {
+  try {
+    body = await request.json();
+  } catch {
     return apiError(400, "BAD_REQUEST", "Invalid JSON body");
   }
 
@@ -79,7 +86,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const validEvents = WEBHOOK_EVENTS as readonly string[];
   const invalidEvents = body.events.filter((e) => !validEvents.includes(e));
   if (invalidEvents.length > 0) {
-    return apiError(400, "BAD_REQUEST", `Invalid events: ${invalidEvents.join(", ")}. Valid: ${validEvents.join(", ")}`);
+    return apiError(
+      400,
+      "BAD_REQUEST",
+      `Invalid events: ${invalidEvents.join(", ")}. Valid: ${validEvents.join(", ")}`,
+    );
   }
 
   try {

@@ -28,7 +28,13 @@ describe("apiSuccess", () => {
   });
 
   it("includes meta when provided", async () => {
-    const res = apiSuccess([{ id: "rc-1" }], { page: 1, pageSize: 25, totalCount: 1, totalPages: 1, hasNextPage: false });
+    const res = apiSuccess([{ id: "rc-1" }], {
+      page: 1,
+      pageSize: 25,
+      totalCount: 1,
+      totalPages: 1,
+      hasNextPage: false,
+    });
     const body = await res.json();
     expect(body.meta).toBeDefined();
     expect(body.meta.totalCount).toBe(1);
@@ -120,13 +126,15 @@ describe("buildMeta", () => {
 
   it("includes page, pageSize, totalCount in returned meta", () => {
     const meta = buildMeta(2, 50, 200);
-    expect(meta).toEqual(expect.objectContaining({
-      page: 2,
-      pageSize: 50,
-      totalCount: 200,
-      totalPages: 4,
-      hasNextPage: true,
-    }));
+    expect(meta).toEqual(
+      expect.objectContaining({
+        page: 2,
+        pageSize: 50,
+        totalCount: 200,
+        totalPages: 4,
+        hasNextPage: true,
+      }),
+    );
   });
 });
 
@@ -188,8 +196,30 @@ describe("sanitizeReturnDetail", () => {
   it("includes mapped items and events", () => {
     const result = sanitizeReturnDetail({
       id: "rc-1",
-      items: [{ id: "i-1", shopifyLineItemId: "gid://1", title: "T", variantTitle: "V", sku: "S", price: "10", qty: 1, reasonCode: "DAMAGED", condition: "open", notes: null, INTERNAL: "leaked?" }],
-      events: [{ id: "e-1", source: "admin", eventType: "approved", happenedAt: "2025-01-01", payloadJson: "leaked?" }],
+      items: [
+        {
+          id: "i-1",
+          shopifyLineItemId: "gid://1",
+          title: "T",
+          variantTitle: "V",
+          sku: "S",
+          price: "10",
+          qty: 1,
+          reasonCode: "DAMAGED",
+          condition: "open",
+          notes: null,
+          INTERNAL: "leaked?",
+        },
+      ],
+      events: [
+        {
+          id: "e-1",
+          source: "admin",
+          eventType: "approved",
+          happenedAt: "2025-01-01",
+          payloadJson: "leaked?",
+        },
+      ],
     });
     expect(result.items).toHaveLength(1);
     expect(result.items[0]).not.toHaveProperty("INTERNAL");

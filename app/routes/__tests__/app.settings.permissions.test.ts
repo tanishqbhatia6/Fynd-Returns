@@ -42,7 +42,11 @@ describe("loader", () => {
     findOrCreateShopMock.mockResolvedValueOnce({
       settings: { readAllOrdersEnabled: true },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.hasReadAllOrdersScope).toBe(true);
     expect(data.readAllOrdersEnabled).toBe(true);
   });
@@ -50,7 +54,11 @@ describe("loader", () => {
   it("hasReadAllOrdersScope=false when SCOPES is missing it", async () => {
     process.env.SCOPES = "read_orders,write_orders";
     findOrCreateShopMock.mockResolvedValueOnce({ settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.hasReadAllOrdersScope).toBe(false);
     expect(data.readAllOrdersEnabled).toBe(false);
   });
@@ -58,14 +66,22 @@ describe("loader", () => {
   it("returns scopes array (split + preserved)", async () => {
     process.env.SCOPES = "a,b,c";
     findOrCreateShopMock.mockResolvedValueOnce({ settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.scopes).toEqual(["a", "b", "c"]);
   });
 
   it("scopes is empty array when SCOPES env unset", async () => {
     delete process.env.SCOPES;
     findOrCreateShopMock.mockResolvedValueOnce({ settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.scopes).toEqual([]);
   });
 });
@@ -75,7 +91,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ readAllOrdersEnabled: "on" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     expect(prismaMock.shopSettings.upsert).toHaveBeenCalledWith(
@@ -90,7 +107,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({}),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     expect(prismaMock.shopSettings.upsert).toHaveBeenCalledWith(
@@ -105,7 +123,8 @@ describe("action", () => {
     prismaMock.shopSettings.upsert.mockRejectedValueOnce(new Error("DB unavailable"));
     const res = await action({
       request: formReq({ readAllOrdersEnabled: "on" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: false, error: "DB unavailable" });
   });

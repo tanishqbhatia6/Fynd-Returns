@@ -32,10 +32,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return withCors(Response.json({ error: "shop is required" }, { status: 400 }), request);
   }
   if (!returnRequestNo) {
-    return withCors(Response.json({ error: "returnRequestNo is required" }, { status: 400 }), request);
+    return withCors(
+      Response.json({ error: "returnRequestNo is required" }, { status: 400 }),
+      request,
+    );
   }
   if (!emailParam && !phoneParam) {
-    return withCors(Response.json({ error: "email or phone is required" }, { status: 400 }), request);
+    return withCors(
+      Response.json({ error: "email or phone is required" }, { status: 400 }),
+      request,
+    );
   }
 
   const shopDomain = shopParam.includes(".") ? shopParam : `${shopParam}.myshopify.com`;
@@ -57,7 +63,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Verify caller knows email or phone (anti-enumeration)
   const emailMatch = emailParam && rc.customerEmailNorm && rc.customerEmailNorm === emailParam;
-  const phoneMatch = phoneParam && rc.customerPhoneNorm && rc.customerPhoneNorm.replace(/[^\d+]/g, "") === phoneParam;
+  const phoneMatch =
+    phoneParam &&
+    rc.customerPhoneNorm &&
+    rc.customerPhoneNorm.replace(/[^\d+]/g, "") === phoneParam;
   if (!emailMatch && !phoneMatch) {
     return withCors(Response.json({ error: "Return not found" }, { status: 404 }), request);
   }
@@ -67,16 +76,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     ? extractFyndJourney((rc as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
     : null;
 
-  return withCors(Response.json({
-    returnRequestNo: rc.returnRequestNo,
-    status: rc.status,
-    refundStatus: rc.refundStatus ?? null,
-    resolutionType: rc.resolutionType,
-    fyndReturnNo: rc.fyndReturnNo ?? null,
-    returnAwb: rc.returnAwb ?? null,
-    notesForCustomer: rc.notesForCustomer ?? null,
-    createdAt: rc.createdAt,
-    updatedAt: rc.updatedAt,
-    returnJourney: returnJourney ?? [],
-  }), request);
+  return withCors(
+    Response.json({
+      returnRequestNo: rc.returnRequestNo,
+      status: rc.status,
+      refundStatus: rc.refundStatus ?? null,
+      resolutionType: rc.resolutionType,
+      fyndReturnNo: rc.fyndReturnNo ?? null,
+      returnAwb: rc.returnAwb ?? null,
+      notesForCustomer: rc.notesForCustomer ?? null,
+      createdAt: rc.createdAt,
+      updatedAt: rc.updatedAt,
+      returnJourney: returnJourney ?? [],
+    }),
+    request,
+  );
 };

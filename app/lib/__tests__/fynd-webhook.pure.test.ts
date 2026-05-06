@@ -24,20 +24,14 @@ describe("classifyFyndRefundStatus", () => {
     expect(classifyFyndRefundStatus(s).isComplete).toBe(false);
   });
 
-  const complete = [
-    "refund_done",
-    "refund done",
-    "REFUNDED",
-    "refunded",
-    "completed",
-  ];
+  const complete = ["refund_done", "refund done", "REFUNDED", "refunded", "completed"];
   it.each(complete)("flags %s as complete", (s) => {
     expect(classifyFyndRefundStatus(s).isComplete).toBe(true);
     expect(classifyFyndRefundStatus(s).isInProgress).toBe(false);
   });
 
   const neither = [
-    "return_initiated",      // logistics event, not refund
+    "return_initiated", // logistics event, not refund
     "return_dp_assigned",
     "bag_picked",
     "delivery_done",
@@ -139,11 +133,13 @@ describe("unwrapFyndWebhookPayload", () => {
 
   it("promotes first shipment's fields when shipments[] present", () => {
     const body = JSON.stringify({
-      shipments: [{
-        shipment_id: "S-FIRST",
-        order_id: "O-FIRST",
-        order: { affiliate_order_id: "AFF1" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S-FIRST",
+          order_id: "O-FIRST",
+          order: { affiliate_order_id: "AFF1" },
+        },
+      ],
     });
     const r = unwrapFyndWebhookPayload(body);
     expect(r.payload.shipment_id).toBe("S-FIRST");
@@ -177,20 +173,22 @@ describe("unwrapFyndWebhookPayload", () => {
 
   it("pulls shop_domain and journey_type from bags[0].affiliate_bag_details", () => {
     const body = JSON.stringify({
-      bags: [{
-        affiliate_bag_details: {
-          affiliate_order_id: "AFF3",
-          affiliate_meta: { shop_domain: "my-store.myshopify.com" },
-        },
-        bag_status_history: [
-          {
-            bag_state_mapper: {
-              name: "return_initiated",
-              journey_type: "return",
-            },
+      bags: [
+        {
+          affiliate_bag_details: {
+            affiliate_order_id: "AFF3",
+            affiliate_meta: { shop_domain: "my-store.myshopify.com" },
           },
-        ],
-      }],
+          bag_status_history: [
+            {
+              bag_state_mapper: {
+                name: "return_initiated",
+                journey_type: "return",
+              },
+            },
+          ],
+        },
+      ],
     });
     const r = unwrapFyndWebhookPayload(body);
     expect(r.payload._shop_domain).toBe("my-store.myshopify.com");
@@ -200,10 +198,12 @@ describe("unwrapFyndWebhookPayload", () => {
 
   it("handles deeply-nested order.fynd_order_id from first shipment", () => {
     const body = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        order: { fynd_order_id: "FY100" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          order: { fynd_order_id: "FY100" },
+        },
+      ],
     });
     const r = unwrapFyndWebhookPayload(body);
     expect(r.payload.order_id).toBe("FY100");

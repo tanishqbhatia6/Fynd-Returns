@@ -78,7 +78,11 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       createdAt: new Date("2024-01-01T00:00:00Z"),
       items: [],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -108,7 +112,9 @@ beforeEach(() => {
   createReturnOnFyndMock.mockReset();
   fetchOrderMock.mockReset().mockResolvedValue(null);
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
-  createShopifyReturnMock.mockReset().mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99" });
+  createShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99" });
 });
 
 describe("handleRetryFyndSync — status guard", () => {
@@ -221,7 +227,12 @@ describe("handleRetryFyndSync — fynd config errors", () => {
   });
 
   it("rejects storefront-only client (no getShipments) with platform required message", async () => {
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { /* no getShipments */ } });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: {
+        /* no getShipments */
+      },
+    });
     let captured: Response | null = null;
     try {
       await handleRetryFyndSync(mkCtx(), RETRY_BODY);
@@ -352,7 +363,9 @@ describe("handleRetryFyndSync — createReturnOnFynd happy path", () => {
       "fyndSuccess=1",
     );
     const args = createReturnOnFyndMock.mock.calls[0]!;
-    const opts = args[2] as { pickupAddress: { address1: string; city: string; name: string } | null };
+    const opts = args[2] as {
+      pickupAddress: { address1: string; city: string; name: string } | null;
+    };
     expect(opts.pickupAddress).not.toBeNull();
     expect(opts.pickupAddress!.address1).toBe("1 Main St");
     expect(opts.pickupAddress!.name).toBe("Alice");
@@ -450,7 +463,9 @@ describe("handleRetryFyndSync — createReturnOnFynd reports !success", () => {
 
   it("uses fallback message when success=true but no IDs returned", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
-    createReturnOnFyndMock.mockResolvedValueOnce({ success: true /* no fyndReturnId / no alreadyExists */ });
+    createReturnOnFyndMock.mockResolvedValueOnce({
+      success: true /* no fyndReturnId / no alreadyExists */,
+    });
 
     await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndError=");
 
@@ -465,13 +480,18 @@ describe("handleRetryFyndSync — Shopify Return creation as side effect", () =>
   it("creates Shopify Return when missing AND order is GID AND not green return", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
-    createShopifyReturnMock.mockResolvedValueOnce({ success: true, shopifyReturnId: "gid://shopify/Return/123" });
+    createShopifyReturnMock.mockResolvedValueOnce({
+      success: true,
+      shopifyReturnId: "gid://shopify/Return/123",
+    });
 
     await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndSuccess=1");
 
     expect(createShopifyReturnMock).toHaveBeenCalled();
     const updates = prismaMock.returnCase.update.mock.calls;
-    const sideEffect = updates.find((c) => c[0].data?.shopifyReturnId === "gid://shopify/Return/123");
+    const sideEffect = updates.find(
+      (c) => c[0].data?.shopifyReturnId === "gid://shopify/Return/123",
+    );
     expect(sideEffect).toBeDefined();
   });
 

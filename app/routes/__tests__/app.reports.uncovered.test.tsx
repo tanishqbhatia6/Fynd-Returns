@@ -137,17 +137,8 @@ vi.mock("recharts", () => {
 });
 
 import { renderWithRouter } from "../../test/component-helpers";
-import {
-  configure,
-  fireEvent,
-  render,
-  waitFor,
-} from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { configure, fireEvent, render, waitFor } from "@testing-library/react";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import Reports, { ErrorBoundary, loader } from "../app.reports";
 
 // Default authenticate stub — every loader call needs a session.
@@ -324,10 +315,7 @@ const richLoaderData: LoaderData = {
  * waits until `Analytics` (the page heading) appears in the DOM, so async
  * loader resolution has completed before the caller queries the tree.
  */
-async function mountReports(
-  loaderData: LoaderData,
-  initialEntries: string[] = ["/app/reports"],
-) {
+async function mountReports(loaderData: LoaderData, initialEntries: string[] = ["/app/reports"]) {
   const result = renderWithRouter(Reports, {
     initialEntries,
     loaderData,
@@ -458,10 +446,9 @@ describe("app.reports component — secondary stat row", () => {
 
 describe("app.reports component — date range filter", () => {
   it("range select dropdown reflects the loader's range", async () => {
-    const { container } = await mountReports(
-      { ...richLoaderData, range: "last_7_days" },
-      ["/app/reports?range=last_7_days"],
-    );
+    const { container } = await mountReports({ ...richLoaderData, range: "last_7_days" }, [
+      "/app/reports?range=last_7_days",
+    ]);
     const select = container.querySelector("select") as HTMLSelectElement;
     expect(select).toBeTruthy();
     expect(select.value).toBe("last_7_days");
@@ -558,10 +545,9 @@ describe("app.reports component — date range filter", () => {
 
 describe("app.reports component — export & navigation", () => {
   it("renders the Export CSV link with the active range query string", async () => {
-    const { container } = await mountReports(
-      { ...richLoaderData, range: "last_7_days" },
-      ["/app/reports?range=last_7_days"],
-    );
+    const { container } = await mountReports({ ...richLoaderData, range: "last_7_days" }, [
+      "/app/reports?range=last_7_days",
+    ]);
     const link = Array.from(container.querySelectorAll("a")).find((a) =>
       a.getAttribute("href")?.includes("/api/returns/export"),
     );
@@ -597,9 +583,7 @@ describe("app.reports component — export & navigation", () => {
 describe("app.reports component — charts visibility per data state", () => {
   it("renders the recharts AreaChart when returnsOverTime has data", async () => {
     const { container } = await mountReports(richLoaderData);
-    expect(
-      container.querySelectorAll("[data-testid='recharts-mock']").length,
-    ).toBeGreaterThan(0);
+    expect(container.querySelectorAll("[data-testid='recharts-mock']").length).toBeGreaterThan(0);
   });
 
   it("renders the resolution donut when resolutionChartData has data", async () => {
@@ -663,9 +647,7 @@ describe("app.reports component — group/breakdown panels", () => {
       ...richLoaderData,
       customerFrequencyData: [{ email: "single@example.com", count: 1 }],
     });
-    expect(container.textContent).not.toContain(
-      "Top Customers by Return Frequency",
-    );
+    expect(container.textContent).not.toContain("Top Customers by Return Frequency");
   });
 
   it("renders Returns by Country when geoData populated", async () => {

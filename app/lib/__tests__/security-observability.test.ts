@@ -54,7 +54,7 @@ describe("recordAuthFailure", () => {
   it("sets span attributes on active span", () => {
     setAttributeMock.mockClear();
     recordAuthFailure(mkRequest(), "api_key", "invalid_key");
-    const names = setAttributeMock.mock.calls.map(c => c[0]);
+    const names = setAttributeMock.mock.calls.map((c) => c[0]);
     expect(names).toContain("security.auth_failure");
     expect(names).toContain("security.auth_type");
     expect(names).toContain("security.failure_reason");
@@ -67,7 +67,9 @@ describe("recordAuthFailure", () => {
 
   it("accepts optional meta", () => {
     expect(() =>
-      recordAuthFailure(mkRequest({ "x-forwarded-for": "1.2.3.4" }), "api_key", "expired", { keyId: "k-1" }),
+      recordAuthFailure(mkRequest({ "x-forwarded-for": "1.2.3.4" }), "api_key", "expired", {
+        keyId: "k-1",
+      }),
     ).not.toThrow();
   });
 });
@@ -76,14 +78,14 @@ describe("recordRateLimitCheck", () => {
   it("allowed path doesn't set rate_limited span attr", () => {
     setAttributeMock.mockClear();
     recordRateLimitCheck(mkRequest(), "portal.otp.send", true, 50);
-    const names = setAttributeMock.mock.calls.map(c => c[0]);
+    const names = setAttributeMock.mock.calls.map((c) => c[0]);
     expect(names).not.toContain("security.rate_limited");
   });
 
   it("denied path sets rate_limited attrs", () => {
     setAttributeMock.mockClear();
     recordRateLimitCheck(mkRequest(), "portal.otp.send", false, 0);
-    const names = setAttributeMock.mock.calls.map(c => c[0]);
+    const names = setAttributeMock.mock.calls.map((c) => c[0]);
     expect(names).toContain("security.rate_limited");
     expect(names).toContain("security.rate_limit_endpoint");
   });
@@ -103,9 +105,13 @@ describe("recordWebhookSignatureFailure", () => {
   it("sets span suspicious + signal attrs", () => {
     setAttributeMock.mockClear();
     recordWebhookSignatureFailure("fynd", "mismatch");
-    const entries = setAttributeMock.mock.calls.map(c => [c[0], c[1]]);
+    const entries = setAttributeMock.mock.calls.map((c) => [c[0], c[1]]);
     expect(entries).toContainEqual(["security.suspicious", true]);
-    expect(entries.some(e => e[0] === "security.signal" && String(e[1]).includes("webhook_signature_mismatch"))).toBe(true);
+    expect(
+      entries.some(
+        (e) => e[0] === "security.signal" && String(e[1]).includes("webhook_signature_mismatch"),
+      ),
+    ).toBe(true);
   });
 
   it.each<[string, string]>([
@@ -114,7 +120,10 @@ describe("recordWebhookSignatureFailure", () => {
     ["outbound", "replay"],
   ])("handles %s/%s", (webhookType, reason) => {
     expect(() =>
-      recordWebhookSignatureFailure(webhookType as "fynd" | "shopify" | "outbound", reason as "missing" | "mismatch" | "replay"),
+      recordWebhookSignatureFailure(
+        webhookType as "fynd" | "shopify" | "outbound",
+        reason as "missing" | "mismatch" | "replay",
+      ),
     ).not.toThrow();
   });
 
@@ -129,7 +138,7 @@ describe("recordSuspiciousActivity", () => {
   it("sets risk score and signal on span", () => {
     setAttributeMock.mockClear();
     recordSuspiciousActivity("ip_mismatch", 75);
-    const entries = setAttributeMock.mock.calls.map(c => [c[0], c[1]]);
+    const entries = setAttributeMock.mock.calls.map((c) => [c[0], c[1]]);
     expect(entries).toContainEqual(["security.suspicious", true]);
     expect(entries).toContainEqual(["security.signal", "ip_mismatch"]);
     expect(entries).toContainEqual(["security.risk_score", 75]);

@@ -51,26 +51,18 @@ describe("Channel Policies — interaction coverage", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector("input[name='pos_returnEnabled']"),
-      ).toBeTruthy();
+      expect(container.querySelector("input[name='pos_returnEnabled']")).toBeTruthy();
     });
-    const hidden = container.querySelector(
-      "input[name='pos_returnEnabled']",
-    ) as HTMLInputElement;
+    const hidden = container.querySelector("input[name='pos_returnEnabled']") as HTMLInputElement;
     expect(hidden.value).toBe("true");
     fireEvent.click(hidden.nextElementSibling as HTMLElement);
     await waitFor(() => {
       expect(
-        (container.querySelector(
-          "input[name='pos_returnEnabled']",
-        ) as HTMLInputElement).value,
+        (container.querySelector("input[name='pos_returnEnabled']") as HTMLInputElement).value,
       ).toBe("false");
     });
     expect(container.querySelectorAll("input[type='number']").length).toBe(2);
-    expect(container.textContent).toMatch(
-      /Returns are disabled for Point of Sale \(POS\) orders/i,
-    );
+    expect(container.textContent).toMatch(/Returns are disabled for Point of Sale \(POS\) orders/i);
   });
 
   it("toggles the draft_order channel off then back on", async () => {
@@ -79,9 +71,7 @@ describe("Channel Policies — interaction coverage", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector("input[name='draft_order_returnEnabled']"),
-      ).toBeTruthy();
+      expect(container.querySelector("input[name='draft_order_returnEnabled']")).toBeTruthy();
     });
     const h1 = container.querySelector(
       "input[name='draft_order_returnEnabled']",
@@ -89,9 +79,8 @@ describe("Channel Policies — interaction coverage", () => {
     fireEvent.click(h1.nextElementSibling as HTMLElement);
     await waitFor(() => {
       expect(
-        (container.querySelector(
-          "input[name='draft_order_returnEnabled']",
-        ) as HTMLInputElement).value,
+        (container.querySelector("input[name='draft_order_returnEnabled']") as HTMLInputElement)
+          .value,
       ).toBe("false");
     });
     const h2 = container.querySelector(
@@ -100,9 +89,8 @@ describe("Channel Policies — interaction coverage", () => {
     fireEvent.click(h2.nextElementSibling as HTMLElement);
     await waitFor(() => {
       expect(
-        (container.querySelector(
-          "input[name='draft_order_returnEnabled']",
-        ) as HTMLInputElement).value,
+        (container.querySelector("input[name='draft_order_returnEnabled']") as HTMLInputElement)
+          .value,
       ).toBe("true");
     });
   });
@@ -113,24 +101,16 @@ describe("Channel Policies — interaction coverage", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector("input[name='b2b_returnEnabled']"),
-      ).toBeTruthy();
+      expect(container.querySelector("input[name='b2b_returnEnabled']")).toBeTruthy();
     });
-    const hidden = container.querySelector(
-      "input[name='b2b_returnEnabled']",
-    ) as HTMLInputElement;
+    const hidden = container.querySelector("input[name='b2b_returnEnabled']") as HTMLInputElement;
     fireEvent.click(hidden.nextElementSibling as HTMLElement);
     await waitFor(() => {
       expect(
-        (container.querySelector(
-          "input[name='b2b_returnEnabled']",
-        ) as HTMLInputElement).value,
+        (container.querySelector("input[name='b2b_returnEnabled']") as HTMLInputElement).value,
       ).toBe("false");
     });
-    expect(container.textContent).toMatch(
-      /Returns are disabled for B2B \/ Wholesale orders/i,
-    );
+    expect(container.textContent).toMatch(/Returns are disabled for B2B \/ Wholesale orders/i);
   });
 
   it("updates and clears the return-window number input", async () => {
@@ -151,9 +131,7 @@ describe("Channel Policies — interaction coverage", () => {
       ) as HTMLInputElement[];
       expect(refreshed[0].value).toBe("21");
     });
-    inputs = Array.from(
-      container.querySelectorAll("input[type='number']"),
-    ) as HTMLInputElement[];
+    inputs = Array.from(container.querySelectorAll("input[type='number']")) as HTMLInputElement[];
     fireEvent.change(inputs[0], { target: { value: "" } });
     await waitFor(() => {
       const again = Array.from(
@@ -171,34 +149,22 @@ describe("Channel Policies — interaction coverage", () => {
     await waitFor(() => {
       expect(container.querySelector("select")).toBeTruthy();
     });
-    let selects = Array.from(
-      container.querySelectorAll("select"),
-    ) as HTMLSelectElement[];
+    let selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
     fireEvent.change(selects[0], { target: { value: "true" } });
     await waitFor(() => {
-      const s = Array.from(
-        container.querySelectorAll("select"),
-      ) as HTMLSelectElement[];
+      const s = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(s[0].value).toBe("true");
     });
-    selects = Array.from(
-      container.querySelectorAll("select"),
-    ) as HTMLSelectElement[];
+    selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
     fireEvent.change(selects[1], { target: { value: "false" } });
     await waitFor(() => {
-      const s = Array.from(
-        container.querySelectorAll("select"),
-      ) as HTMLSelectElement[];
+      const s = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(s[1].value).toBe("false");
     });
-    selects = Array.from(
-      container.querySelectorAll("select"),
-    ) as HTMLSelectElement[];
+    selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
     fireEvent.change(selects[2], { target: { value: "" } });
     await waitFor(() => {
-      const s = Array.from(
-        container.querySelectorAll("select"),
-      ) as HTMLSelectElement[];
+      const s = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(s[2].value).toBe("");
     });
   });
@@ -217,9 +183,7 @@ describe("Channel Policies — interaction coverage", () => {
       container.querySelectorAll("input[type='number']"),
     ) as HTMLInputElement[];
     fireEvent.change(numberInputs[0], { target: { value: "10" } });
-    const selects = Array.from(
-      container.querySelectorAll("select"),
-    ) as HTMLSelectElement[];
+    const selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
     fireEvent.change(selects[1], { target: { value: "true" } });
     fireEvent.click(saveBtn);
     await waitFor(() => {
@@ -252,9 +216,7 @@ describe("Channel Policies — interaction coverage", () => {
       actionData: { success: true },
     });
     const saveBtn = (await findByText(/Save Changes/i)) as HTMLElement;
-    expect(container.textContent).toMatch(
-      /Returns are disabled for Point of Sale \(POS\) orders/i,
-    );
+    expect(container.textContent).toMatch(/Returns are disabled for Point of Sale \(POS\) orders/i);
     fireEvent.click(saveBtn);
     await waitFor(() => {
       expect(saveBtn).toBeTruthy();
@@ -269,9 +231,7 @@ describe("Channel Policies — interaction coverage", () => {
     await waitFor(() => {
       expect(container.querySelector("svg polyline")).toBeTruthy();
     });
-    const backBtn = container.querySelector(
-      "button",
-    ) as HTMLButtonElement | null;
+    const backBtn = container.querySelector("button") as HTMLButtonElement | null;
     expect(backBtn).toBeTruthy();
     fireEvent.click(backBtn!);
   });

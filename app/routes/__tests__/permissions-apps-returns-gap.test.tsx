@@ -109,9 +109,7 @@ describe("Permissions — toggle onChange (gap)", () => {
     });
     await waitFor(() => {
       expect(
-        container.querySelector(
-          "input[type='checkbox'][name='readAllOrdersEnabled']",
-        ),
+        container.querySelector("input[type='checkbox'][name='readAllOrdersEnabled']"),
       ).toBeTruthy();
     });
     const toggle = container.querySelector(
@@ -120,11 +118,19 @@ describe("Permissions — toggle onChange (gap)", () => {
     expect(toggle.checked).toBe(false);
 
     // Trigger the onChange handler — covers line 173.
-    await act(async () => { fireEvent.click(toggle); });
-    await waitFor(() => { expect(toggle.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => {
+      expect(toggle.checked).toBe(true);
+    });
 
-    await act(async () => { fireEvent.click(toggle); });
-    await waitFor(() => { expect(toggle.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    await waitFor(() => {
+      expect(toggle.checked).toBe(false);
+    });
   });
 
   it("supports a direct change event with target.checked=true", async () => {
@@ -134,16 +140,18 @@ describe("Permissions — toggle onChange (gap)", () => {
     });
     await waitFor(() => {
       expect(
-        container.querySelector(
-          "input[type='checkbox'][name='readAllOrdersEnabled']",
-        ),
+        container.querySelector("input[type='checkbox'][name='readAllOrdersEnabled']"),
       ).toBeTruthy();
     });
     const toggle = container.querySelector(
       "input[type='checkbox'][name='readAllOrdersEnabled']",
     ) as HTMLInputElement;
-    await act(async () => { fireEvent.change(toggle, { target: { checked: true } }); });
-    await waitFor(() => { expect(toggle.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.change(toggle, { target: { checked: true } });
+    });
+    await waitFor(() => {
+      expect(toggle.checked).toBe(true);
+    });
   });
 });
 
@@ -153,10 +161,10 @@ describe("Permissions — toggle onChange (gap)", () => {
 
 const TEMPLATE_HTML = [
   '<html lang="en">',
-  '<head>',
-  '  <!-- %FAVICON% -->',
-  '  <title>Returns</title>',
-  '  <style>body{color:%TEXT_COLOR%;background:%BG_COLOR%;}</style>',
+  "<head>",
+  "  <!-- %FAVICON% -->",
+  "  <title>Returns</title>",
+  "  <style>body{color:%TEXT_COLOR%;background:%BG_COLOR%;}</style>",
   "</head>",
   "<body>",
   '  <input type="hidden" id="shop" value="%SHOP%">',
@@ -227,9 +235,7 @@ describe("apps.returns loader — portalThemeJson + portalLabelsJson (gap)", () 
         }),
       },
     });
-    const res = (await appsReturnsLoader(
-      makeArgs(makeRequest("?shop=acme")),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeArgs(makeRequest("?shop=acme")))) as Response;
     expect(res.status).toBe(200);
     const body = await res.text();
     // The template's %TEXT_COLOR% / %BG_COLOR% placeholders remain present
@@ -249,9 +255,7 @@ describe("apps.returns loader — portalThemeJson + portalLabelsJson (gap)", () 
         portalLabelsJson: JSON.stringify({ "portal.title": "My Returns" }),
       },
     });
-    const res = (await appsReturnsLoader(
-      makeArgs(makeRequest("?shop=acme")),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeArgs(makeRequest("?shop=acme")))) as Response;
     expect(res.status).toBe(200);
     const body = await res.text();
     // Override label is merged into __RPM_LABELS__ — visible in the bootstrap
@@ -269,9 +273,7 @@ describe("apps.returns loader — portalThemeJson + portalLabelsJson (gap)", () 
       },
     });
     // Loader must NOT throw — it swallows the JSON parse error.
-    const res = (await appsReturnsLoader(
-      makeArgs(makeRequest("?shop=acme")),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeArgs(makeRequest("?shop=acme")))) as Response;
     expect(res.status).toBe(200);
     const body = await res.text();
     // Bootstrap script still emitted with default labels.
@@ -288,9 +290,7 @@ describe("apps.returns loader — portalThemeJson + portalLabelsJson (gap)", () 
         portalLabelsJson: JSON.stringify({ greeting: "Hello" }),
       },
     });
-    const res = (await appsReturnsLoader(
-      makeArgs(makeRequest("?shop=acme")),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeArgs(makeRequest("?shop=acme")))) as Response;
     expect(res.status).toBe(200);
     const body = await res.text();
     expect(body).toContain("<html");

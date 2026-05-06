@@ -22,7 +22,9 @@ vi.mock("../lib/fynd-config.server", () => ({
   getAppMode: vi.fn(() => "prod"),
 }));
 vi.mock("../lib/shop.server", () => ({
-  syncShopLocaleAndCurrency: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  syncShopLocaleAndCurrency: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../lib/billing.server", () => ({
   getBillingStatus: vi.fn(async () => ({ hasAccess: true })),
@@ -46,7 +48,9 @@ vi.mock("react-router", async () => {
 // the expected arguments without pulling in the real Shopify server impl
 // (which expects a live request context).
 const errorSpy = vi.fn((err: unknown) => (
-  <div data-testid="boundary-error">boundary:{(err as { message?: string })?.message ?? "none"}</div>
+  <div data-testid="boundary-error">
+    boundary:{(err as { message?: string })?.message ?? "none"}
+  </div>
 ));
 const headersSpy = vi.fn((args: unknown) => {
   const h = new Headers();

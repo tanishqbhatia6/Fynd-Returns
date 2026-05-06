@@ -1,12 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, verifyPortalTokenMock, getPortalLabelsMock, extractJourneyMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  verifyPortalTokenMock: vi.fn(),
-  getPortalLabelsMock: vi.fn(() => ({ heading: "Your Returns" })),
-  extractJourneyMock: vi.fn(() => [{ status: "return_initiated" }]),
-}));
+const { prismaMock, verifyPortalTokenMock, getPortalLabelsMock, extractJourneyMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    verifyPortalTokenMock: vi.fn(),
+    getPortalLabelsMock: vi.fn(() => ({ heading: "Your Returns" })),
+    extractJourneyMock: vi.fn(() => [{ status: "return_initiated" }]),
+  }),
+);
 
 Object.assign(prismaMock, createPrismaMock());
 
@@ -79,7 +81,11 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession("[]"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
 
     expect(prismaMock.returnCase.findMany).not.toHaveBeenCalled();
     const body = await res.json();
@@ -95,7 +101,11 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     });
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
 
     expect(prismaMock.returnCase.findMany).not.toHaveBeenCalled();
     expect(res.status).toBe(200);
@@ -106,7 +116,11 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession("not-json"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
 
     expect(prismaMock.returnCase.findMany).not.toHaveBeenCalled();
     const body = await res.json();
@@ -115,9 +129,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
 
   it("uses payload.shopId — not the session's — to scope returns (cross-shop guard)", async () => {
     verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-FROM-TOKEN" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkSession(JSON.stringify(["rc-9"])),
-    );
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-9"])));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
@@ -144,15 +156,24 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     // results; what we assert is the WHERE clause restricts to the exact ids
     // the verified session matched.
     verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkSession(JSON.stringify(["rc-1"])),
-    );
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"])));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1", status: "pending", items: [], events: [], returnLabelJson: null, fyndPayloadJson: null },
+      {
+        id: "rc-1",
+        status: "pending",
+        items: [],
+        events: [],
+        returnLabelJson: null,
+        fyndPayloadJson: null,
+      },
     ]);
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
 
     const arg = prismaMock.returnCase.findMany.mock.calls[0][0];
@@ -166,12 +187,30 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
       mkSession(JSON.stringify(["rc-1", "rc-2"])),
     );
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1", status: "approved", items: [], events: [], returnLabelJson: null, fyndPayloadJson: '{"secret":"x"}' },
-      { id: "rc-2", status: "completed", items: [], events: [], returnLabelJson: null, fyndPayloadJson: '{"secret":"y"}' },
+      {
+        id: "rc-1",
+        status: "approved",
+        items: [],
+        events: [],
+        returnLabelJson: null,
+        fyndPayloadJson: '{"secret":"x"}',
+      },
+      {
+        id: "rc-2",
+        status: "completed",
+        items: [],
+        events: [],
+        returnLabelJson: null,
+        fyndPayloadJson: '{"secret":"y"}',
+      },
     ]);
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returns).toHaveLength(2);
     for (const r of body.returns) {
@@ -194,16 +233,15 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
 
   it("returns approved status with returnLabel parsed from returnLabelJson", async () => {
     verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkSession(JSON.stringify(["rc-1"])),
-    );
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"])));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
         status: "Approved",
         items: [],
         events: [],
-        returnLabelJson: '{"carrier":"USPS","trackingNumber":"1Z","labelUrl":"https://x","qrCodeUrl":null}',
+        returnLabelJson:
+          '{"carrier":"USPS","trackingNumber":"1Z","labelUrl":"https://x","qrCodeUrl":null}',
         fyndPayloadJson: null,
       },
     ]);
@@ -212,7 +250,11 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
       defaultReturnInstructions: "Bring to UPS",
     });
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returns[0].returnLabel).toEqual({
       carrier: "USPS",
@@ -225,9 +267,7 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
 
   it("recovers when returnLabelJson is malformed (returnLabel = null)", async () => {
     verifyPortalTokenMock.mockReturnValue({ sessionId: "s1", shopId: "shop-A" });
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkSession(JSON.stringify(["rc-1"])),
-    );
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession(JSON.stringify(["rc-1"])));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
@@ -240,7 +280,11 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     ]);
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ portalLanguage: "en" });
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     // Malformed JSON => returnLabelInfo stays null even though approved/completed
@@ -252,7 +296,11 @@ describe("api.portal.returns — authorized scope by matchedReturnIds", () => {
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkSession("[]"));
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce(null);
 
-    const res = await loader({ request: mkRequest({ auth: "Bearer t" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest({ auth: "Bearer t" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.language).toBe("en");

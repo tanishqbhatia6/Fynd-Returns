@@ -103,7 +103,6 @@ describe("api.webhooks.fynd security — extra coverage", () => {
       const res = await action({ request: req } as never);
       expect(res.status).toBe(503);
     });
-
   });
 
   // ──────────────────────────────────────────────────────────────────────────

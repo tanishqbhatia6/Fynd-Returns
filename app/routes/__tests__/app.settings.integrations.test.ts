@@ -25,7 +25,9 @@ const {
   authenticateMock: vi.fn(),
   encryptMock: vi.fn((s: string) => `enc(${s})`),
   encryptIfNeededMock: vi.fn((s: string | null | undefined) => (s ? `enc(${s})` : null)),
-  decryptIfEncryptedMock: vi.fn((s: string | null | undefined) => (s ? String(s).replace(/^enc\(|\)$/g, "") : null)),
+  decryptIfEncryptedMock: vi.fn((s: string | null | undefined) =>
+    s ? String(s).replace(/^enc\(|\)$/g, "") : null,
+  ),
   getNormalizedCredentialsFromRawMock: vi.fn(),
   testPlatformConnectionRawMock: vi.fn(),
   createFyndClientOrErrorMock: vi.fn(),
@@ -78,8 +80,12 @@ beforeEach(() => {
   // circuits before consuming it, the queued value leaks into the next
   // test. Fully reset the mocks the integrations action touches.
   prismaMock.shop.findUnique.mockReset().mockResolvedValue(null);
-  prismaMock.shop.create.mockReset().mockImplementation(async ({ data }) => ({ id: "cmmock", ...data }));
-  prismaMock.shopSettings.upsert.mockReset().mockImplementation(async ({ create, where }) => ({ ...where, ...create }));
+  prismaMock.shop.create
+    .mockReset()
+    .mockImplementation(async ({ data }) => ({ id: "cmmock", ...data }));
+  prismaMock.shopSettings.upsert
+    .mockReset()
+    .mockImplementation(async ({ create, where }) => ({ ...where, ...create }));
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   encryptMock.mockClear();
   encryptIfNeededMock.mockClear();
@@ -88,7 +94,9 @@ beforeEach(() => {
   testPlatformConnectionRawMock.mockReset();
   createFyndClientOrErrorMock.mockReset();
   getAppModeMock.mockReset().mockReturnValue("prod");
-  sanitizeCredentialInputsMock.mockReset().mockImplementation((v) => ({ valid: true, sanitized: v }));
+  sanitizeCredentialInputsMock
+    .mockReset()
+    .mockImplementation((v) => ({ valid: true, sanitized: v }));
   generateWebhookSecretMock.mockClear();
   process.env.SHOPIFY_APP_URL = "https://app.example.com";
 });
@@ -111,9 +119,15 @@ describe("loader", () => {
         fyndEnvironment: "uat",
       },
     });
-    getNormalizedCredentialsFromRawMock.mockReturnValueOnce({ platform: { clientId: "ci", clientSecret: "cs" } });
+    getNormalizedCredentialsFromRawMock.mockReturnValueOnce({
+      platform: { clientId: "ci", clientSecret: "cs" },
+    });
 
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
 
     expect(data.fyndCredentials).toBe("[configured]");
     expect(JSON.stringify(data)).not.toContain("ENCRYPTED-BLOB-DO-NOT-LEAK");
@@ -127,7 +141,11 @@ describe("loader", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.fyndCredentials).toBe("");
     expect(data.hasPlatformCreds).toBe(false);
     expect(data.hasStorefrontCreds).toBe(false);
@@ -140,10 +158,16 @@ describe("loader", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
-    expect(prismaMock.shop.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: { shopDomain: "store.myshopify.com" },
-    }));
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
+    expect(prismaMock.shop.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { shopDomain: "store.myshopify.com" },
+      }),
+    );
     expect(data.fyndWebhookUrl).toBe("https://app.example.com/api/webhooks/fynd/shop-new");
   });
 
@@ -153,7 +177,11 @@ describe("loader", () => {
       shopDomain: "store.myshopify.com",
       settings: { gorgiasApiKey: "REAL-SECRET-KEY", gorgiasEnabled: true },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.gorgiasApiKey).toBe("__UNCHANGED__");
     expect(JSON.stringify(data)).not.toContain("REAL-SECRET-KEY");
     expect(data.gorgiasEnabled).toBe(true);
@@ -165,7 +193,11 @@ describe("loader", () => {
       shopDomain: "store.myshopify.com",
       settings: { fyndWebhookSecret: "enc(secret)" },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.fyndWebhookSecretConfigured).toBe(true);
     expect(data.fyndWebhookUrl).toBe("https://app.example.com/api/webhooks/fynd/shop-1");
     // Loader never includes the secret value itself.
@@ -180,10 +212,15 @@ describe("action — webhook secret generation", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    const res = await action({
+    const res = (await action({
       request: formReq({ intent: "generate_fynd_webhook_secret" }),
-      params: {}, context: {},
-    } as never) as { success: boolean; fyndWebhookSecretJustGenerated?: string; fyndWebhookUrl?: string };
+      params: {},
+      context: {},
+    } as never)) as {
+      success: boolean;
+      fyndWebhookSecretJustGenerated?: string;
+      fyndWebhookUrl?: string;
+    };
 
     expect(res.success).toBe(true);
     expect(res.fyndWebhookSecretJustGenerated).toBe("generated-secret-xyz");
@@ -201,10 +238,11 @@ describe("action — webhook secret generation", () => {
       shopDomain: "store.myshopify.com",
       settings: { fyndWebhookSecret: "enc(old)" },
     });
-    const res = await action({
+    const res = (await action({
       request: formReq({ intent: "rotate_fynd_webhook_secret" }),
-      params: {}, context: {},
-    } as never) as { success: boolean; fyndWebhookSecretJustGenerated?: string };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; fyndWebhookSecretJustGenerated?: string };
     expect(res.success).toBe(true);
     expect(res.fyndWebhookSecretJustGenerated).toBe("generated-secret-xyz");
   });
@@ -215,10 +253,15 @@ describe("action — webhook secret generation", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    const res = await action({
+    const res = (await action({
       request: formReq({ intent: "test_fynd_webhook_secret" }),
-      params: {}, context: {},
-    } as never) as { success: boolean; fyndWebhookTestResult: boolean; fyndWebhookTestError?: string };
+      params: {},
+      context: {},
+    } as never)) as {
+      success: boolean;
+      fyndWebhookTestResult: boolean;
+      fyndWebhookTestError?: string;
+    };
     expect(res.success).toBe(false);
     expect(res.fyndWebhookTestResult).toBe(false);
     expect(res.fyndWebhookTestError).toMatch(/No webhook secret configured/);
@@ -230,14 +273,15 @@ describe("action — webhook secret generation", () => {
       shopDomain: "store.myshopify.com",
       settings: { fyndWebhookSecret: "enc(plain-secret)" },
     });
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200, statusText: "OK" }) as Response,
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200, statusText: "OK" }) as Response);
     try {
-      const res = await action({
+      const res = (await action({
         request: formReq({ intent: "test_fynd_webhook_secret" }),
-        params: {}, context: {},
-      } as never) as { success: boolean; fyndWebhookTestResult: boolean };
+        params: {},
+        context: {},
+      } as never)) as { success: boolean; fyndWebhookTestResult: boolean };
       expect(res.success).toBe(true);
       expect(res.fyndWebhookTestResult).toBe(true);
       expect(fetchSpy).toHaveBeenCalledWith(
@@ -264,7 +308,7 @@ describe("action — test connection", () => {
       settings: null,
     });
     testPlatformConnectionRawMock.mockResolvedValueOnce({ ok: true });
-    const res = await action({
+    const res = (await action({
       request: formReq({
         intent: "test_platform",
         fyndEnvironment: "uat",
@@ -273,8 +317,9 @@ describe("action — test connection", () => {
         fyndClientId: "client-id",
         fyndClientSecret: "client-secret",
       }),
-      params: {}, context: {},
-    } as never) as { success: boolean; testResult: boolean; testMessage?: string };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; testResult: boolean; testMessage?: string };
     expect(res.success).toBe(true);
     expect(res.testResult).toBe(true);
     expect(res.testMessage).toMatch(/Platform API connection successful/);
@@ -287,15 +332,16 @@ describe("action — test connection", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    const res = await action({
+    const res = (await action({
       request: formReq({
         intent: "test_platform",
         fyndCompanyId: "2263",
         fyndClientId: "ci",
         fyndClientSecret: "cs",
       }),
-      params: {}, context: {},
-    } as never) as { success: boolean; error?: string; testResult: boolean };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; error?: string; testResult: boolean };
     expect(res.success).toBe(false);
     expect(res.testResult).toBe(false);
     expect(res.error).toMatch(/Application ID/);
@@ -307,8 +353,11 @@ describe("action — test connection", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    testPlatformConnectionRawMock.mockResolvedValueOnce({ ok: false, error: "403 Forbidden — missing scope" });
-    const res = await action({
+    testPlatformConnectionRawMock.mockResolvedValueOnce({
+      ok: false,
+      error: "403 Forbidden — missing scope",
+    });
+    const res = (await action({
       request: formReq({
         intent: "test_platform",
         fyndApplicationId: "appid",
@@ -316,8 +365,9 @@ describe("action — test connection", () => {
         fyndClientId: "ci",
         fyndClientSecret: "cs",
       }),
-      params: {}, context: {},
-    } as never) as { success: boolean; error?: string; testResult: boolean };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; error?: string; testResult: boolean };
     expect(res.success).toBe(false);
     expect(res.testResult).toBe(false);
     expect(res.error).toBe("403 Forbidden — missing scope");
@@ -331,7 +381,7 @@ describe("action — save credentials", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    const res = await action({
+    const res = (await action({
       request: formReq({
         fyndEnvironment: "prod",
         fyndCompanyId: "2263",
@@ -340,12 +390,15 @@ describe("action — save credentials", () => {
         fyndClientSecret: "client-secret-new",
         appMode: "prod",
       }),
-      params: {}, context: {},
-    } as never) as { success: boolean; tokenUpdated?: boolean };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; tokenUpdated?: boolean };
     expect(res.success).toBe(true);
     expect(res.tokenUpdated).toBe(true);
     expect(encryptMock).toHaveBeenCalledWith(
-      JSON.stringify({ platform: { clientId: "client-id-new", clientSecret: "client-secret-new" } }),
+      JSON.stringify({
+        platform: { clientId: "client-id-new", clientSecret: "client-secret-new" },
+      }),
     );
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(upsertArg.create.fyndApiType).toBe("platform");
@@ -360,14 +413,18 @@ describe("action — save credentials", () => {
       shopDomain: "store.myshopify.com",
       settings: null,
     });
-    sanitizeCredentialInputsMock.mockReturnValueOnce({ valid: false, error: "Invalid Company ID format" });
-    const res = await action({
+    sanitizeCredentialInputsMock.mockReturnValueOnce({
+      valid: false,
+      error: "Invalid Company ID format",
+    });
+    const res = (await action({
       request: formReq({
         fyndCompanyId: "<script>",
         fyndApplicationId: "appid",
       }),
-      params: {}, context: {},
-    } as never) as { success: boolean; error?: string };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; error?: string };
     expect(res.success).toBe(false);
     expect(res.error).toBe("Invalid Company ID format");
     expect(prismaMock.shopSettings.upsert).not.toHaveBeenCalled();
@@ -378,10 +435,11 @@ describe("action — save credentials", () => {
       id: "shop-1",
       shopDomain: "store.myshopify.com",
     });
-    const res = await action({
+    const res = (await action({
       request: formReq({ intent: "clear_token" }),
-      params: {}, context: {},
-    } as never) as { success: boolean; cleared?: boolean };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; cleared?: boolean };
     expect(res.success).toBe(true);
     expect(res.cleared).toBe(true);
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -395,14 +453,15 @@ describe("action — save credentials", () => {
       shopDomain: "store.myshopify.com",
       settings: { gorgiasApiKey: "stored-encrypted-key" },
     });
-    const res = await action({
+    const res = (await action({
       request: formReq({
         gorgiasApiKey: "__UNCHANGED__",
         gorgiasEnabled: "on",
         fyndApplicationId: "appid",
       }),
-      params: {}, context: {},
-    } as never) as { success: boolean };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean };
     expect(res.success).toBe(true);
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(upsertArg.create.gorgiasApiKey).toBe("stored-encrypted-key");
@@ -416,10 +475,11 @@ describe("action — save credentials", () => {
       settings: null,
     });
     prismaMock.shopSettings.upsert.mockRejectedValueOnce(new Error("DB unavailable"));
-    const res = await action({
+    const res = (await action({
       request: formReq({ fyndApplicationId: "appid" }),
-      params: {}, context: {},
-    } as never) as { success: boolean; error?: string };
+      params: {},
+      context: {},
+    } as never)) as { success: boolean; error?: string };
     expect(res.success).toBe(false);
     expect(res.error).toBe("DB unavailable");
   });

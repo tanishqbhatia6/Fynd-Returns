@@ -31,7 +31,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) rules = parsed;
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   return { rules };
 };
@@ -77,7 +79,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (e) {
     /* v8 ignore start */
     // defensive: instanceof Error narrowing for upsert failure
-    return { success: false, error: e instanceof Error ? e.message : "Failed to save product policies." };
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Failed to save product policies.",
+    };
     /* v8 ignore stop */
   }
 };
@@ -94,7 +99,9 @@ const EMPTY_RULE: () => ProductPolicyRule = () => ({
 export default function ProductPoliciesSettings() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<{ success?: boolean }>();
-  const [rules, setRules] = React.useState<ProductPolicyRule[]>(data.rules.length > 0 ? data.rules : []);
+  const [rules, setRules] = React.useState<ProductPolicyRule[]>(
+    data.rules.length > 0 ? data.rules : [],
+  );
 
   React.useEffect(() => {
     setRules(data.rules.length > 0 ? data.rules : []);
@@ -135,80 +142,217 @@ export default function ProductPoliciesSettings() {
           <div className="app-alert app-alert-success">Product policies saved successfully.</div>
         )}
         {fetcher.data && fetcher.data.success === false && (
-          <div className="app-alert app-alert-error">{
-            /* v8 ignore start */
-            // defensive: error message fallback
-            (fetcher.data as { error?: string }).error || "Failed to save product policies."
-            /* v8 ignore stop */
-          }</div>
+          <div className="app-alert app-alert-error">
+            {
+              /* v8 ignore start */
+              // defensive: error message fallback
+              (fetcher.data as { error?: string }).error || "Failed to save product policies."
+              /* v8 ignore stop */
+            }
+          </div>
         )}
 
         <div className="layout-form" style={{ marginBottom: 16 }}>
           <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16, lineHeight: 1.6 }}>
             Define per-product return policies based on product tags, product type, or collection.
-            Rules are evaluated in priority order (first match wins). If no rule matches, the global return window is used.
+            Rules are evaluated in priority order (first match wins). If no rule matches, the global
+            return window is used.
           </p>
         </div>
 
         <fetcher.Form method="post" onSubmit={handleSubmit}>
-          <div className="layout-form" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div
+            className="layout-form"
+            style={{ display: "flex", flexDirection: "column", gap: 16 }}
+          >
             {rules.length === 0 && (
-              <div style={{ padding: 32, background: "#F9FAFB", borderRadius: 12, border: "1px dashed #D1D5DB", textAlign: "center" }}>
-                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.5" style={{ marginBottom: 8 }}><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
-                <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 12 }}>No product policies defined yet.</p>
+              <div
+                style={{
+                  padding: 32,
+                  background: "#F9FAFB",
+                  borderRadius: 12,
+                  border: "1px dashed #D1D5DB",
+                  textAlign: "center",
+                }}
+              >
+                <svg
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#9CA3AF"
+                  strokeWidth="1.5"
+                  style={{ marginBottom: 8 }}
+                >
+                  <path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2" />
+                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1" />
+                </svg>
+                <p style={{ fontSize: 14, color: "#6B7280", marginBottom: 12 }}>
+                  No product policies defined yet.
+                </p>
                 <p style={{ fontSize: 12, color: "#9CA3AF", marginBottom: 16 }}>
                   All products will use the global return window from Return Settings.
                 </p>
-                <s-button type="button" variant="primary" onClick={addRule}>Add first rule</s-button>
+                <s-button type="button" variant="primary" onClick={addRule}>
+                  Add first rule
+                </s-button>
               </div>
             )}
 
             {rules.map((rule, index) => (
-              <div key={rule.id} style={{
-                padding: 16, background: "#fff", borderRadius: 12,
-                border: rule.returnable ? "1px solid #E5E7EB" : "1px solid #FECACA",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <div
+                key={rule.id}
+                style={{
+                  padding: 16,
+                  background: "#fff",
+                  borderRadius: 12,
+                  border: rule.returnable ? "1px solid #E5E7EB" : "1px solid #FECACA",
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: 12,
+                  }}
+                >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#6B7280", fontVariantNumeric: "tabular-nums" }}>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: "#6B7280",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
                       #{index + 1}
                     </span>
-                    <span style={{
-                      fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 4,
-                      background: rule.returnable ? "#DCFCE7" : "#FEE2E2",
-                      color: rule.returnable ? "#166534" : "#991B1B",
-                      textTransform: "uppercase", letterSpacing: "0.5px",
-                    }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 600,
+                        padding: "2px 8px",
+                        borderRadius: 4,
+                        background: rule.returnable ? "#DCFCE7" : "#FEE2E2",
+                        color: rule.returnable ? "#166534" : "#991B1B",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                      }}
+                    >
                       {rule.returnable ? "Returnable" : "Not returnable"}
                     </span>
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
-                    <button type="button" onClick={() => moveRule(index, -1)} disabled={index === 0}
-                      style={{ background: "none", border: "1px solid #E5E7EB", borderRadius: 6, padding: "4px 8px", cursor: index === 0 ? "default" : "pointer", opacity: index === 0 ? 0.3 : 1 }}
-                      aria-label="Move up" title="Move up">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><polyline points="18 15 12 9 6 15"/></svg>
+                    <button
+                      type="button"
+                      onClick={() => moveRule(index, -1)}
+                      disabled={index === 0}
+                      style={{
+                        background: "none",
+                        border: "1px solid #E5E7EB",
+                        borderRadius: 6,
+                        padding: "4px 8px",
+                        cursor: index === 0 ? "default" : "pointer",
+                        opacity: index === 0 ? 0.3 : 1,
+                      }}
+                      aria-label="Move up"
+                      title="Move up"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#6B7280"
+                        strokeWidth="2"
+                      >
+                        <polyline points="18 15 12 9 6 15" />
+                      </svg>
                     </button>
-                    <button type="button" onClick={() => moveRule(index, 1)} disabled={index === rules.length - 1}
-                      style={{ background: "none", border: "1px solid #E5E7EB", borderRadius: 6, padding: "4px 8px", cursor: index === rules.length - 1 ? "default" : "pointer", opacity: index === rules.length - 1 ? 0.3 : 1 }}
-                      aria-label="Move down" title="Move down">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                    <button
+                      type="button"
+                      onClick={() => moveRule(index, 1)}
+                      disabled={index === rules.length - 1}
+                      style={{
+                        background: "none",
+                        border: "1px solid #E5E7EB",
+                        borderRadius: 6,
+                        padding: "4px 8px",
+                        cursor: index === rules.length - 1 ? "default" : "pointer",
+                        opacity: index === rules.length - 1 ? 0.3 : 1,
+                      }}
+                      aria-label="Move down"
+                      title="Move down"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#6B7280"
+                        strokeWidth="2"
+                      >
+                        <polyline points="6 9 12 15 18 9" />
+                      </svg>
                     </button>
-                    <button type="button" onClick={() => removeRule(rule.id)}
-                      style={{ background: "none", border: "1px solid #FECACA", borderRadius: 6, padding: "4px 8px", cursor: "pointer", color: "#DC2626" }}
-                      aria-label="Remove rule" title="Remove rule">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <button
+                      type="button"
+                      onClick={() => removeRule(rule.id)}
+                      style={{
+                        background: "none",
+                        border: "1px solid #FECACA",
+                        borderRadius: 6,
+                        padding: "4px 8px",
+                        cursor: "pointer",
+                        color: "#DC2626",
+                      }}
+                      aria-label="Remove rule"
+                      title="Remove rule"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      >
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
                     </button>
                   </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
                   <div style={{ minWidth: 140 }}>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 4 }}>Match by</label>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: "#374151",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Match by
+                    </label>
                     <select
                       value={rule.matchType}
-                      onChange={(e) => updateRule(rule.id, { matchType: e.target.value as ProductPolicyRule["matchType"] })}
-                      style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13 }}
+                      onChange={(e) =>
+                        updateRule(rule.id, {
+                          matchType: e.target.value as ProductPolicyRule["matchType"],
+                        })
+                      }
+                      style={{
+                        width: "100%",
+                        padding: 8,
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        fontSize: 13,
+                      }}
                     >
                       <option value="tags">Product tags</option>
                       <option value="product_type">Product type</option>
@@ -216,22 +360,49 @@ export default function ProductPoliciesSettings() {
                     </select>
                   </div>
                   <div style={{ flex: 1, minWidth: 200 }}>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 4 }}>
-                      {rule.matchType === "tags" ? "Tag (comma-separated)" : rule.matchType === "product_type" ? "Product type" : "Collection name/handle"}
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: "#374151",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {rule.matchType === "tags"
+                        ? "Tag (comma-separated)"
+                        : rule.matchType === "product_type"
+                          ? "Product type"
+                          : "Collection name/handle"}
                     </label>
                     <input
                       type="text"
                       value={rule.matchValue}
                       onChange={(e) => updateRule(rule.id, { matchValue: e.target.value })}
-                      placeholder={rule.matchType === "tags" ? "e.g. final-sale, clearance" : rule.matchType === "product_type" ? "e.g. Electronics" : "e.g. summer-sale"}
-                      style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, boxSizing: "border-box" }}
+                      placeholder={
+                        rule.matchType === "tags"
+                          ? "e.g. final-sale, clearance"
+                          : rule.matchType === "product_type"
+                            ? "e.g. Electronics"
+                            : "e.g. summer-sale"
+                      }
+                      style={{
+                        width: "100%",
+                        padding: 8,
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
                     />
                   </div>
                 </div>
 
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end" }}>
                   <div>
-                    <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+                    <label
+                      style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
+                    >
                       <input
                         type="checkbox"
                         checked={rule.returnable}
@@ -243,25 +414,63 @@ export default function ProductPoliciesSettings() {
                   </div>
                   {rule.returnable && (
                     <div style={{ minWidth: 120 }}>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 4 }}>Return window (days)</label>
+                      <label
+                        style={{
+                          display: "block",
+                          fontSize: 12,
+                          fontWeight: 500,
+                          color: "#374151",
+                          marginBottom: 4,
+                        }}
+                      >
+                        Return window (days)
+                      </label>
                       <input
                         type="number"
                         value={rule.windowDays}
-                        onChange={(e) => updateRule(rule.id, { windowDays: Math.max(0, parseInt(e.target.value, 10) || 0) })}
+                        onChange={(e) =>
+                          updateRule(rule.id, {
+                            windowDays: Math.max(0, parseInt(e.target.value, 10) || 0),
+                          })
+                        }
                         min={0}
                         max={365}
-                        style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, boxSizing: "border-box" }}
+                        style={{
+                          width: "100%",
+                          padding: 8,
+                          borderRadius: 6,
+                          border: "1px solid #D1D5DB",
+                          fontSize: 13,
+                          boxSizing: "border-box",
+                        }}
                       />
                     </div>
                   )}
                   <div style={{ flex: 1, minWidth: 200 }}>
-                    <label style={{ display: "block", fontSize: 12, fontWeight: 500, color: "#374151", marginBottom: 4 }}>Custom policy text (optional)</label>
+                    <label
+                      style={{
+                        display: "block",
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: "#374151",
+                        marginBottom: 4,
+                      }}
+                    >
+                      Custom policy text (optional)
+                    </label>
                     <input
                       type="text"
                       value={rule.policyText || ""}
                       onChange={(e) => updateRule(rule.id, { policyText: e.target.value })}
                       placeholder="e.g. Final sale items cannot be returned"
-                      style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, boxSizing: "border-box" }}
+                      style={{
+                        width: "100%",
+                        padding: 8,
+                        borderRadius: 6,
+                        border: "1px solid #D1D5DB",
+                        fontSize: 13,
+                        boxSizing: "border-box",
+                      }}
                     />
                   </div>
                 </div>
@@ -278,9 +487,13 @@ export default function ProductPoliciesSettings() {
           </div>
 
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
+            <s-button type="submit" loading={fetcher.state !== "idle"}>
+              Save
+            </s-button>
             <Link to="/app/settings">
-              <s-button variant="secondary" type="button">Discard</s-button>
+              <s-button variant="secondary" type="button">
+                Discard
+              </s-button>
             </Link>
           </div>
         </fetcher.Form>

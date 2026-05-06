@@ -1,6 +1,12 @@
 import React, { useState } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useSearchParams, useRouteError, isRouteErrorResponse } from "react-router";
+import {
+  Link,
+  useLoaderData,
+  useSearchParams,
+  useRouteError,
+  isRouteErrorResponse,
+} from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { findOrCreateShop } from "../lib/shop.server";
@@ -79,21 +85,32 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const { securityLogger } = await import("../lib/observability/logger.server");
       // defensive `?? null` and `query.length > 0` audit-logging fallbacks
       /* v8 ignore start */
-      securityLogger.info({
-        event: "admin.customer_search",
-        shopId: shop.id,
-        shopDomain: session.shop,
-        adminEmail: (session.onlineAccessInfo?.associated_user?.email as string | undefined) ?? null,
-        // Never log the full query if it could be an email/phone — hash for traceability.
-        queryHash: query.length > 0
-          ? (await import("node:crypto")).createHash("sha256").update(query).digest("hex").slice(0, 16)
-          : null,
-        queryLength: query.length,
-        page,
-        sortBy,
-      }, "Admin customer search");
+      securityLogger.info(
+        {
+          event: "admin.customer_search",
+          shopId: shop.id,
+          shopDomain: session.shop,
+          adminEmail:
+            (session.onlineAccessInfo?.associated_user?.email as string | undefined) ?? null,
+          // Never log the full query if it could be an email/phone — hash for traceability.
+          queryHash:
+            query.length > 0
+              ? (await import("node:crypto"))
+                  .createHash("sha256")
+                  .update(query)
+                  .digest("hex")
+                  .slice(0, 16)
+              : null,
+          queryLength: query.length,
+          page,
+          sortBy,
+        },
+        "Admin customer search",
+      );
       /* v8 ignore stop */
-    } catch { /* audit logging must never fail the request */ }
+    } catch {
+      /* audit logging must never fail the request */
+    }
   }
 
   // ── Step 1: Global summary stats via fast aggregates (all customers, not just page) ──
@@ -118,12 +135,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   for (const rc of refundedForTotal) {
     // defensive ?? + || fallbacks for missing/invalid refundJson amount
     /* v8 ignore start */
-    try { totalRefunded += parseFloat(JSON.parse(rc.refundJson ?? "{}").amount ?? "0") || 0; } catch { /* skip */ }
+    try {
+      totalRefunded += parseFloat(JSON.parse(rc.refundJson ?? "{}").amount ?? "0") || 0;
+    } catch {
+      /* skip */
+    }
     /* v8 ignore stop */
   }
 
   // ── Step 2: Search where (supports query filter) ──
-  const searchWhere: Record<string, unknown> = { shopId: shop.id, customerEmailNorm: { not: null } };
+  const searchWhere: Record<string, unknown> = {
+    shopId: shop.id,
+    customerEmailNorm: { not: null },
+  };
   if (query) {
     searchWhere.OR = [
       { customerEmailNorm: { contains: query, mode: "insensitive" } },
@@ -135,9 +159,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // ── Step 3: Paginated customer groups — sorted server-side ──
   // "amount" sort falls back to count sort (cross-page amount sort requires full data; within-page re-sort happens post-enrichment)
-  const groupOrderBy = sortBy === "recent"
-    ? { _max: { createdAt: "desc" as const } }
-    : { _count: { id: "desc" as const } };
+  const groupOrderBy =
+    sortBy === "recent"
+      ? { _max: { createdAt: "desc" as const } }
+      : { _count: { id: "desc" as const } };
 
   const [customerGroups, filteredGroupStats] = await Promise.all([
     prisma.returnCase.groupBy({
@@ -161,45 +186,49 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const emailsForPage = customerGroups.map((g) => g.customerEmailNorm).filter(Boolean) as string[];
 
   // ── Step 4: Fetch full return data ONLY for this page's customers ──
-  const allReturns = emailsForPage.length > 0
-    ? await prisma.returnCase.findMany({
-        where: { shopId: shop.id, customerEmailNorm: { in: emailsForPage } },
-        select: {
-          id: true,
-          returnRequestNo: true,
-          shopifyOrderName: true,
-          shopifyOrderId: true,
-          customerEmailNorm: true,
-          customerPhoneNorm: true,
-          customerName: true,
-          customerCity: true,
-          customerCountry: true,
-          status: true,
-          refundJson: true,
-          refundStatus: true,
-          resolutionType: true,
-          isGreenReturn: true,
-          bonusCreditAmount: true,
-          discountCodeValue: true,
-          createdAt: true,
-          items: {
-            select: { title: true, qty: true, price: true },
+  const allReturns =
+    emailsForPage.length > 0
+      ? await prisma.returnCase.findMany({
+          where: { shopId: shop.id, customerEmailNorm: { in: emailsForPage } },
+          select: {
+            id: true,
+            returnRequestNo: true,
+            shopifyOrderName: true,
+            shopifyOrderId: true,
+            customerEmailNorm: true,
+            customerPhoneNorm: true,
+            customerName: true,
+            customerCity: true,
+            customerCountry: true,
+            status: true,
+            refundJson: true,
+            refundStatus: true,
+            resolutionType: true,
+            isGreenReturn: true,
+            bonusCreditAmount: true,
+            discountCodeValue: true,
+            createdAt: true,
+            items: {
+              select: { title: true, qty: true, price: true },
+            },
           },
-        },
-        orderBy: { createdAt: "desc" },
-      })
-    : [];
+          orderBy: { createdAt: "desc" },
+        })
+      : [];
 
   // Group by email
-  const grouped = new Map<string, {
-    email: string;
-    phone: string | null;
-    name: string | null;
-    city: string | null;
-    country: string | null;
-    orderIds: Set<string>;
-    returns: typeof allReturns;
-  }>();
+  const grouped = new Map<
+    string,
+    {
+      email: string;
+      phone: string | null;
+      name: string | null;
+      city: string | null;
+      country: string | null;
+      orderIds: Set<string>;
+      returns: typeof allReturns;
+    }
+  >();
 
   for (const r of allReturns) {
     const email = (r.customerEmailNorm || "").toLowerCase().trim();
@@ -237,7 +266,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   for (const batch of emailBatches) {
     const results = await Promise.allSettled(
-      batch.map((email) => fetchOrdersForCustomer(admin, email, 25))
+      batch.map((email) => fetchOrdersForCustomer(admin, email, 25)),
     );
     for (let i = 0; i < batch.length; i++) {
       const res = results[i];
@@ -257,7 +286,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const shopifyOrders = shopifyDataByEmail.get(email) ?? [];
 
     // Build order refund map: orderName -> total refunded from Shopify
-    const orderRefundMap = new Map<string, { refunded: number; currency: string; orderTotal: number }>();
+    const orderRefundMap = new Map<
+      string,
+      { refunded: number; currency: string; orderTotal: number }
+    >();
     for (const o of shopifyOrders) {
       orderRefundMap.set(o.orderName, {
         refunded: o.totalRefundedAmount,
@@ -314,7 +346,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             const refund = JSON.parse(r.refundJson) as { amount?: string; currency?: string };
             refundAmount = parseFloat(refund.amount ?? "0") || 0;
             refundCurrency = refund.currency ?? "";
-          } catch { /* skip */ }
+          } catch {
+            /* skip */
+          }
         }
         if (refundAmount === 0 && r.discountCodeValue) {
           refundAmount = parseFloat(r.discountCodeValue) || 0;
@@ -326,8 +360,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         // have no recorded amount. This is a best-effort and may differ from the
         // actual Shopify refund (line-item discounts / taxes / partial refunds
         // not captured here). Mark as provisional so the UI can label it.
-        const isRefunded = ["completed", "refunded"].includes((r.status || "").toLowerCase())
-          || (r.refundStatus || "").toLowerCase() === "refunded";
+        const isRefunded =
+          ["completed", "refunded"].includes((r.status || "").toLowerCase()) ||
+          (r.refundStatus || "").toLowerCase() === "refunded";
         if (refundAmount === 0 && isRefunded) {
           for (const item of r.items) {
             if (item.price) {
@@ -424,36 +459,45 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   /* v8 ignore start */
   if (backfillUpdates.length > 0) {
     Promise.allSettled(
-      backfillUpdates.slice(0, 100).map(({ id, data }) =>
-        prisma.returnCase.update({ where: { id }, data })
-      )
-    ).then(async (results) => {
-      const failures = results.filter((r) => r.status === "rejected");
-      if (failures.length > 0) {
-        try {
-          const { appLogger } = await import("../lib/observability/logger.server");
-          appLogger.warn(
-            {
-              module: "customers.backfill",
-              shopId: shop.id,
-              attempted: results.length,
-              failed: failures.length,
-              firstError: failures[0]?.status === "rejected"
-                ? String((failures[0] as PromiseRejectedResult).reason).slice(0, 200)
-                : null,
-            },
-            "Customer-data backfill had partial failures",
-          );
-        } catch { /* logging must never throw */ }
-      }
-    }).catch(() => { /* outer catch — defensive only */ });
+      backfillUpdates
+        .slice(0, 100)
+        .map(({ id, data }) => prisma.returnCase.update({ where: { id }, data })),
+    )
+      .then(async (results) => {
+        const failures = results.filter((r) => r.status === "rejected");
+        if (failures.length > 0) {
+          try {
+            const { appLogger } = await import("../lib/observability/logger.server");
+            appLogger.warn(
+              {
+                module: "customers.backfill",
+                shopId: shop.id,
+                attempted: results.length,
+                failed: failures.length,
+                firstError:
+                  failures[0]?.status === "rejected"
+                    ? String((failures[0] as PromiseRejectedResult).reason).slice(0, 200)
+                    : null,
+              },
+              "Customer-data backfill had partial failures",
+            );
+          } catch {
+            /* logging must never throw */
+          }
+        }
+      })
+      .catch(() => {
+        /* outer catch — defensive only */
+      });
   }
   /* v8 ignore stop */
 
   if (sortBy === "amount") {
     customers.sort((a, b) => b.totalRefundAmount - a.totalRefundAmount);
   } else if (sortBy === "recent") {
-    customers.sort((a, b) => new Date(b.lastReturnDate).getTime() - new Date(a.lastReturnDate).getTime());
+    customers.sort(
+      (a, b) => new Date(b.lastReturnDate).getTime() - new Date(a.lastReturnDate).getTime(),
+    );
   } else {
     customers.sort((a, b) => b.returnCount - a.returnCount);
   }
@@ -508,7 +552,10 @@ function fmtMoneyZero(currency?: string | null, locale?: string | null): string 
 
 function fmtDate(d: string | Date, locale?: string | null, tz?: string | null): string {
   try {
-    return new Intl.DateTimeFormat(locale || "en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(d));
+    return new Intl.DateTimeFormat(locale || "en", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(d));
   } catch {
     return String(d).slice(0, 10);
   }
@@ -531,10 +578,19 @@ const RESOLUTION_STYLES: Record<string, { bg: string; color: string }> = {
 
 export default function CustomersPage() {
   const {
-    customers, query, sortBy,
-    totalCustomers, totalReturns, totalRefunded, serialReturners,
-    page, totalPages, totalFilteredCustomers,
-    shopLocale, shopCurrency, shopTimezone,
+    customers,
+    query,
+    sortBy,
+    totalCustomers,
+    totalReturns,
+    totalRefunded,
+    serialReturners,
+    page,
+    totalPages,
+    totalFilteredCustomers,
+    shopLocale,
+    shopCurrency,
+    shopTimezone,
   } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [expandedEmail, setExpandedEmail] = useState<string | null>(null);
@@ -570,18 +626,76 @@ export default function CustomersPage() {
     <AppPage heading="Customers">
       <div className="app-content layout-wide">
         {/* ── Summary Stats ── */}
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 10,
+            marginBottom: 20,
+          }}
+        >
           {[
-            { label: "Total Customers", value: String(totalCustomers), color: "#334155", bg: "#f8fafc", border: "#e2e8f0" },
-            { label: "Total Returns", value: String(totalReturns), color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe" },
-            { label: "Total Refunded", value: fmtMoney(totalRefunded, shopCurrency, shopLocale), color: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe" },
-            { label: "Serial Returners", value: String(serialReturners), color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+            {
+              label: "Total Customers",
+              value: String(totalCustomers),
+              color: "#334155",
+              bg: "#f8fafc",
+              border: "#e2e8f0",
+            },
+            {
+              label: "Total Returns",
+              value: String(totalReturns),
+              color: "#3b82f6",
+              bg: "#eff6ff",
+              border: "#bfdbfe",
+            },
+            {
+              label: "Total Refunded",
+              value: fmtMoney(totalRefunded, shopCurrency, shopLocale),
+              color: "#7c3aed",
+              bg: "#f5f3ff",
+              border: "#ddd6fe",
+            },
+            {
+              label: "Serial Returners",
+              value: String(serialReturners),
+              color: "#dc2626",
+              bg: "#fef2f2",
+              border: "#fecaca",
+            },
           ].map((s) => (
-            <div key={s.label} style={{ padding: "14px 16px", background: s.bg, borderRadius: 10, border: `1px solid ${s.border}`, textAlign: "center" }}>
-              <div style={{ fontSize: s.label === "Total Refunded" ? 16 : 22, fontWeight: 800, color: s.color, lineHeight: 1.2, marginBottom: 4, fontVariantNumeric: "tabular-nums" }}>
+            <div
+              key={s.label}
+              style={{
+                padding: "14px 16px",
+                background: s.bg,
+                borderRadius: 10,
+                border: `1px solid ${s.border}`,
+                textAlign: "center",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: s.label === "Total Refunded" ? 16 : 22,
+                  fontWeight: 800,
+                  color: s.color,
+                  lineHeight: 1.2,
+                  marginBottom: 4,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
                 {s.value}
               </div>
-              <div style={{ fontSize: 10, fontWeight: 700, color: s.color, opacity: 0.7, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  color: s.color,
+                  opacity: 0.7,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                }}
+              >
                 {s.label}
               </div>
             </div>
@@ -589,10 +703,37 @@ export default function CustomersPage() {
         </div>
 
         {/* ── Search & Sort Toolbar ── */}
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", padding: "14px 20px", background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", marginBottom: 16 }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            alignItems: "center",
+            flexWrap: "wrap",
+            padding: "14px 20px",
+            background: "#fff",
+            borderRadius: 12,
+            border: "1px solid #e5e7eb",
+            marginBottom: 16,
+          }}
+        >
           <div style={{ flex: "1 1 240px", minWidth: 180, position: "relative" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", pointerEvents: "none" }}>
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#9ca3af"
+              strokeWidth="2"
+              style={{
+                position: "absolute",
+                left: 12,
+                top: "50%",
+                transform: "translateY(-50%)",
+                pointerEvents: "none",
+              }}
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             <input
               type="text"
@@ -607,17 +748,23 @@ export default function CustomersPage() {
             />
           </div>
           <div style={{ display: "flex", gap: 4 }}>
-            {([
-              { key: "count", label: "Most Returns" },
-              { key: "amount", label: "Highest Refund" },
-              { key: "recent", label: "Most Recent" },
-            ] as const).map((s) => (
+            {(
+              [
+                { key: "count", label: "Most Returns" },
+                { key: "amount", label: "Highest Refund" },
+                { key: "recent", label: "Most Recent" },
+              ] as const
+            ).map((s) => (
               <button
                 key={s.key}
                 type="button"
                 onClick={() => handleSort(s.key)}
                 style={{
-                  padding: "7px 14px", borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer",
+                  padding: "7px 14px",
+                  borderRadius: 7,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: "pointer",
                   border: sortBy === s.key ? "1px solid #4f46e5" : "1px solid #e5e7eb",
                   background: sortBy === s.key ? "#eef2ff" : "#fff",
                   color: sortBy === s.key ? "#4f46e5" : "#6b7280",
@@ -632,7 +779,16 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={() => handleSearch("")}
-              style={{ padding: "7px 14px", borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: "pointer", border: "1px solid #e5e7eb", background: "#fff", color: "#6b7280" }}
+              style={{
+                padding: "7px 14px",
+                borderRadius: 7,
+                fontSize: 12,
+                fontWeight: 600,
+                cursor: "pointer",
+                border: "1px solid #e5e7eb",
+                background: "#fff",
+                color: "#6b7280",
+              }}
             >
               Clear
             </button>
@@ -641,15 +797,34 @@ export default function CustomersPage() {
 
         {/* ── Results ── */}
         {customers.length === 0 ? (
-          <div style={{ padding: "64px 24px", textAlign: "center", background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb" }}>
-            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" strokeWidth="1.5" style={{ marginBottom: 16 }}>
-              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          <div
+            style={{
+              padding: "64px 24px",
+              textAlign: "center",
+              background: "#fff",
+              borderRadius: 12,
+              border: "1px solid #e5e7eb",
+            }}
+          >
+            <svg
+              width="48"
+              height="48"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#d1d5db"
+              strokeWidth="1.5"
+              style={{ marginBottom: 16 }}
+            >
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
             </svg>
             <p style={{ fontSize: 16, fontWeight: 700, color: "#111827", marginBottom: 6 }}>
               {query ? "No customers found" : "No customer data yet"}
             </p>
             <p style={{ fontSize: 13, color: "#6b7280", maxWidth: 360, margin: "0 auto" }}>
-              {query ? `No customers match "${query}". Try adjusting your search.` : "Customer data will appear here after returns are submitted."}
+              {query
+                ? `No customers match "${query}". Try adjusting your search.`
+                : "Customer data will appear here after returns are submitted."}
             </p>
           </div>
         ) : (
@@ -657,14 +832,46 @@ export default function CustomersPage() {
             <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8, padding: "0 4px" }}>
               {query
                 ? `${totalFilteredCustomers} customer${totalFilteredCustomers !== 1 ? "s" : ""} matching "${query}" — page ${page} of ${totalPages}`
-                : `Showing ${((page - 1) * CUSTOMERS_PAGE_SIZE) + 1}–${Math.min(page * CUSTOMERS_PAGE_SIZE, totalCustomers)} of ${totalCustomers} customers`}
+                : `Showing ${(page - 1) * CUSTOMERS_PAGE_SIZE + 1}–${Math.min(page * CUSTOMERS_PAGE_SIZE, totalCustomers)} of ${totalCustomers} customers`}
             </div>
 
-            <div style={{ background: "#fff", borderRadius: 12, border: "1px solid #e5e7eb", overflow: "hidden" }}>
+            <div
+              style={{
+                background: "#fff",
+                borderRadius: 12,
+                border: "1px solid #e5e7eb",
+                overflow: "hidden",
+              }}
+            >
               {/* Table Header */}
-              <div style={{ display: "grid", gridTemplateColumns: "2fr 1.3fr 1fr 0.6fr 1fr 0.9fr 0.9fr", padding: "10px 20px", background: "#f9fafb", borderBottom: "1px solid #e5e7eb" }}>
-                {["Customer", "Phone", "Location", "Returns", "Total Refunded", "First Return", "Last Return"].map((h) => (
-                  <div key={h} style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "2fr 1.3fr 1fr 0.6fr 1fr 0.9fr 0.9fr",
+                  padding: "10px 20px",
+                  background: "#f9fafb",
+                  borderBottom: "1px solid #e5e7eb",
+                }}
+              >
+                {[
+                  "Customer",
+                  "Phone",
+                  "Location",
+                  "Returns",
+                  "Total Refunded",
+                  "First Return",
+                  "Last Return",
+                ].map((h) => (
+                  <div
+                    key={h}
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#6b7280",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
                     {h}
                   </div>
                 ))}
@@ -677,7 +884,10 @@ export default function CustomersPage() {
                 const isLast = idx === customers.length - 1;
 
                 return (
-                  <div key={cust.email} style={{ borderBottom: isLast ? "none" : "1px solid #f3f4f6" }}>
+                  <div
+                    key={cust.email}
+                    style={{ borderBottom: isLast ? "none" : "1px solid #f3f4f6" }}
+                  >
                     {/* Summary Row */}
                     <div
                       onClick={() => setExpandedEmail(isExpanded ? null : cust.email)}
@@ -690,43 +900,114 @@ export default function CustomersPage() {
                         transition: "background 0.1s",
                         background: isExpanded ? "#fafbff" : "transparent",
                       }}
-                      onMouseEnter={(e) => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = "#fafbfc"; }}
-                      onMouseLeave={(e) => { if (!isExpanded) (e.currentTarget as HTMLDivElement).style.background = "transparent"; }}
+                      onMouseEnter={(e) => {
+                        if (!isExpanded)
+                          (e.currentTarget as HTMLDivElement).style.background = "#fafbfc";
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isExpanded)
+                          (e.currentTarget as HTMLDivElement).style.background = "transparent";
+                      }}
                     >
                       {/* Customer Name + Email */}
                       <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="2" style={{ flexShrink: 0, transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
-                          <polyline points="9 18 15 12 9 6"/>
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="#9ca3af"
+                          strokeWidth="2"
+                          style={{
+                            flexShrink: 0,
+                            transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                            transition: "transform 0.15s",
+                          }}
+                        >
+                          <polyline points="9 18 15 12 9 6" />
                         </svg>
                         <div style={{ minWidth: 0, overflow: "hidden" }}>
                           {cust.name && (
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div
+                              style={{
+                                fontSize: 13,
+                                fontWeight: 700,
+                                color: "#111827",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               {cust.name}
                             </div>
                           )}
-                          <div style={{ fontSize: cust.name ? 11 : 13, fontWeight: cust.name ? 500 : 600, color: cust.name ? "#6b7280" : "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          <div
+                            style={{
+                              fontSize: cust.name ? 11 : 13,
+                              fontWeight: cust.name ? 500 : 600,
+                              color: cust.name ? "#6b7280" : "#111827",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                          >
                             {cust.email}
                           </div>
                         </div>
                         {isSerial && (
-                          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 7px", borderRadius: 999, background: "#FEE2E2", color: "#DC2626", textTransform: "uppercase", letterSpacing: "0.03em", flexShrink: 0 }}>
+                          <span
+                            style={{
+                              fontSize: 9,
+                              fontWeight: 700,
+                              padding: "2px 7px",
+                              borderRadius: 999,
+                              background: "#FEE2E2",
+                              color: "#DC2626",
+                              textTransform: "uppercase",
+                              letterSpacing: "0.03em",
+                              flexShrink: 0,
+                            }}
+                          >
                             Serial
                           </span>
                         )}
                       </div>
 
                       {/* Phone */}
-                      <div style={{ fontSize: 13, color: cust.phone ? "#374151" : "#d1d5db", fontVariantNumeric: "tabular-nums" }}>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: cust.phone ? "#374151" : "#d1d5db",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
                         {cust.phone || "Not provided"}
                       </div>
 
                       {/* Location */}
-                      <div style={{ fontSize: 12, color: cust.city || cust.country ? "#374151" : "#d1d5db", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {cust.city && cust.country ? `${cust.city}, ${cust.country}` : cust.country || cust.city || "—"}
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: cust.city || cust.country ? "#374151" : "#d1d5db",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {cust.city && cust.country
+                          ? `${cust.city}, ${cust.country}`
+                          : cust.country || cust.city || "—"}
                       </div>
 
                       {/* Returns count */}
-                      <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", fontVariantNumeric: "tabular-nums" }}>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          color: "#111827",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
                         {cust.returnCount}
                       </div>
 
@@ -734,63 +1015,161 @@ export default function CustomersPage() {
                           total was estimated from line-item list prices instead of
                           a real Shopify refund record (see app.customers.tsx:289). */}
                       <div
-                        style={{ fontSize: 13, fontWeight: 600, color: cust.totalRefundAmount > 0 ? "#111827" : "#9ca3af", fontVariantNumeric: "tabular-nums" }}
-                        title={cust.totalRefundAmountIsEstimate ? "At least one refund amount is estimated from line-item prices and may differ from the actual Shopify refund." : undefined}
+                        style={{
+                          fontSize: 13,
+                          fontWeight: 600,
+                          color: cust.totalRefundAmount > 0 ? "#111827" : "#9ca3af",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                        title={
+                          cust.totalRefundAmountIsEstimate
+                            ? "At least one refund amount is estimated from line-item prices and may differ from the actual Shopify refund."
+                            : undefined
+                        }
                       >
-                        {cust.totalRefundAmountIsEstimate ? "~" : ""}{fmtMoney(cust.totalRefundAmount, cust.currency || shopCurrency, shopLocale)}
+                        {cust.totalRefundAmountIsEstimate ? "~" : ""}
+                        {fmtMoney(
+                          cust.totalRefundAmount,
+                          cust.currency || shopCurrency,
+                          shopLocale,
+                        )}
                       </div>
 
                       {/* First Return */}
-                      <div style={{ fontSize: 12, color: "#6b7280", fontVariantNumeric: "tabular-nums" }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#6b7280",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
                         {fmtDate(cust.firstReturnDate, shopLocale, shopTimezone)}
                       </div>
 
                       {/* Last Return */}
-                      <div style={{ fontSize: 12, color: "#6b7280", fontVariantNumeric: "tabular-nums" }}>
+                      <div
+                        style={{
+                          fontSize: 12,
+                          color: "#6b7280",
+                          fontVariantNumeric: "tabular-nums",
+                        }}
+                      >
                         {fmtDate(cust.lastReturnDate, shopLocale, shopTimezone)}
                       </div>
                     </div>
 
                     {/* Expanded Detail */}
                     {isExpanded && (
-                      <div style={{ padding: "0 20px 20px", background: "#fafbff", borderTop: "1px solid #eef2ff" }}>
+                      <div
+                        style={{
+                          padding: "0 20px 20px",
+                          background: "#fafbff",
+                          borderTop: "1px solid #eef2ff",
+                        }}
+                      >
                         {/* Customer Profile Card */}
-                        <div style={{ display: "flex", gap: 20, flexWrap: "wrap", marginTop: 16, marginBottom: 16 }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: 20,
+                            flexWrap: "wrap",
+                            marginTop: 16,
+                            marginBottom: 16,
+                          }}
+                        >
                           {/* Left: Customer Info */}
-                          <div style={{ flex: "1 1 280px", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb" }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+                          <div
+                            style={{
+                              flex: "1 1 280px",
+                              padding: "14px 18px",
+                              background: "#fff",
+                              borderRadius: 10,
+                              border: "1px solid #e5e7eb",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: "#6b7280",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.04em",
+                                marginBottom: 10,
+                              }}
+                            >
                               Customer Profile
                             </div>
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: 12 }}>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "1fr 1fr",
+                                gap: "8px 16px",
+                                fontSize: 12,
+                              }}
+                            >
                               <div>
                                 <span style={{ color: "#9ca3af", fontWeight: 500 }}>Name</span>
-                                <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>{cust.name || "—"}</div>
+                                <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>
+                                  {cust.name || "—"}
+                                </div>
                               </div>
                               <div>
                                 <span style={{ color: "#9ca3af", fontWeight: 500 }}>Email</span>
-                                <div style={{ fontWeight: 600, color: "#111827", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{cust.email}</div>
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    color: "#111827",
+                                    marginTop: 1,
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {cust.email}
+                                </div>
                               </div>
                               <div>
                                 <span style={{ color: "#9ca3af", fontWeight: 500 }}>Phone</span>
-                                <div style={{ fontWeight: 600, color: cust.phone ? "#111827" : "#d1d5db", marginTop: 1 }}>{cust.phone || "Not provided"}</div>
+                                <div
+                                  style={{
+                                    fontWeight: 600,
+                                    color: cust.phone ? "#111827" : "#d1d5db",
+                                    marginTop: 1,
+                                  }}
+                                >
+                                  {cust.phone || "Not provided"}
+                                </div>
                               </div>
                               <div>
                                 <span style={{ color: "#9ca3af", fontWeight: 500 }}>Location</span>
                                 <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>
-                                  {cust.city && cust.country ? `${cust.city}, ${cust.country}` : cust.country || cust.city || "—"}
+                                  {cust.city && cust.country
+                                    ? `${cust.city}, ${cust.country}`
+                                    : cust.country || cust.city || "—"}
                                 </div>
                               </div>
                               {/* v8 ignore start - lifetime-order/spent conditional + currency || fallback unhit */}
                               {cust.lifetimeOrderCount != null && (
                                 <div>
-                                  <span style={{ color: "#9ca3af", fontWeight: 500 }}>Lifetime Orders</span>
-                                  <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>{cust.lifetimeOrderCount}</div>
+                                  <span style={{ color: "#9ca3af", fontWeight: 500 }}>
+                                    Lifetime Orders
+                                  </span>
+                                  <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>
+                                    {cust.lifetimeOrderCount}
+                                  </div>
                                 </div>
                               )}
                               {cust.lifetimeSpent != null && (
                                 <div>
-                                  <span style={{ color: "#9ca3af", fontWeight: 500 }}>Lifetime Spent</span>
-                                  <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>{fmtMoney(cust.lifetimeSpent, cust.currency || shopCurrency, shopLocale)}</div>
+                                  <span style={{ color: "#9ca3af", fontWeight: 500 }}>
+                                    Lifetime Spent
+                                  </span>
+                                  <div style={{ fontWeight: 600, color: "#111827", marginTop: 1 }}>
+                                    {fmtMoney(
+                                      cust.lifetimeSpent,
+                                      cust.currency || shopCurrency,
+                                      shopLocale,
+                                    )}
+                                  </div>
                                 </div>
                               )}
                               {/* v8 ignore stop */}
@@ -798,36 +1177,95 @@ export default function CustomersPage() {
                           </div>
 
                           {/* Right: Return Stats */}
-                          <div style={{ flex: "1 1 280px", padding: "14px 18px", background: "#fff", borderRadius: 10, border: "1px solid #e5e7eb" }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 10 }}>
+                          <div
+                            style={{
+                              flex: "1 1 280px",
+                              padding: "14px 18px",
+                              background: "#fff",
+                              borderRadius: 10,
+                              border: "1px solid #e5e7eb",
+                            }}
+                          >
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontWeight: 700,
+                                color: "#6b7280",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.04em",
+                                marginBottom: 10,
+                              }}
+                            >
                               Return Analytics
                             </div>
                             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                              <MiniStat label="Returns" value={String(cust.returnCount)} color="#3b82f6" />
-                              <MiniStat label="Items" value={String(cust.totalItemCount)} color="#6b7280" />
+                              <MiniStat
+                                label="Returns"
+                                value={String(cust.returnCount)}
+                                color="#3b82f6"
+                              />
+                              <MiniStat
+                                label="Items"
+                                value={String(cust.totalItemCount)}
+                                color="#6b7280"
+                              />
                               {/* v8 ignore start */}
                               {/* defensive: cust.currency always set in fixtures; shopCurrency fallback unreachable */}
-                              <MiniStat label="Refunded" value={fmtMoney(cust.totalRefundAmount, cust.currency || shopCurrency, shopLocale)} color="#7c3aed" />
+                              <MiniStat
+                                label="Refunded"
+                                value={fmtMoney(
+                                  cust.totalRefundAmount,
+                                  cust.currency || shopCurrency,
+                                  shopLocale,
+                                )}
+                                color="#7c3aed"
+                              />
                               {cust.totalOrderValue > 0 && (
-                                <MiniStat label="Order Value" value={fmtMoney(cust.totalOrderValue, cust.currency || shopCurrency, shopLocale)} color="#059669" />
+                                <MiniStat
+                                  label="Order Value"
+                                  value={fmtMoney(
+                                    cust.totalOrderValue,
+                                    cust.currency || shopCurrency,
+                                    shopLocale,
+                                  )}
+                                  color="#059669"
+                                />
                               )}
                               {/* v8 ignore stop */}
                               {cust.totalOrderValue > 0 && cust.totalRefundAmount > 0 && (
                                 <MiniStat
                                   label="Return Rate"
                                   value={`${Math.min(100, Math.round((cust.totalRefundAmount / cust.totalOrderValue) * 100))}%`}
-                                  color={cust.totalRefundAmount / cust.totalOrderValue > 0.5 ? "#dc2626" : "#f59e0b"}
+                                  color={
+                                    cust.totalRefundAmount / cust.totalOrderValue > 0.5
+                                      ? "#dc2626"
+                                      : "#f59e0b"
+                                  }
                                 />
                               )}
                               {Object.entries(cust.resolutionBreakdown).map(([res, count]) => (
-                                <MiniStat key={res} label={RESOLUTION_LABELS[res] || res} value={String(count)} color={(RESOLUTION_STYLES[res] || { color: "#6b7280" }).color} />
+                                <MiniStat
+                                  key={res}
+                                  label={RESOLUTION_LABELS[res] || res}
+                                  value={String(count)}
+                                  color={(RESOLUTION_STYLES[res] || { color: "#6b7280" }).color}
+                                />
                               ))}
                             </div>
                           </div>
                         </div>
 
                         {/* Return History */}
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.04em", marginBottom: 8 }}>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            fontWeight: 700,
+                            color: "#6b7280",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            marginBottom: 8,
+                          }}
+                        >
                           Return History
                         </div>
                         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -849,12 +1287,26 @@ export default function CustomersPage() {
                                   border: "1px solid #e5e7eb",
                                   transition: "border-color 0.15s, box-shadow 0.15s",
                                 }}
-                                onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#c7d2fe"; (e.currentTarget as HTMLDivElement).style.boxShadow = "0 1px 3px rgba(79,70,229,0.08)"; }}
-                                onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.borderColor = "#e5e7eb"; (e.currentTarget as HTMLDivElement).style.boxShadow = "none"; }}
+                                onMouseEnter={(e) => {
+                                  (e.currentTarget as HTMLDivElement).style.borderColor = "#c7d2fe";
+                                  (e.currentTarget as HTMLDivElement).style.boxShadow =
+                                    "0 1px 3px rgba(79,70,229,0.08)";
+                                }}
+                                onMouseLeave={(e) => {
+                                  (e.currentTarget as HTMLDivElement).style.borderColor = "#e5e7eb";
+                                  (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
+                                }}
                               >
                                 {/* Return ID + Order */}
                                 <div>
-                                  <div style={{ fontSize: 12, fontWeight: 700, fontFamily: "var(--rpm-font-mono, monospace)", color: "#4f46e5" }}>
+                                  <div
+                                    style={{
+                                      fontSize: 12,
+                                      fontWeight: 700,
+                                      fontFamily: "var(--rpm-font-mono, monospace)",
+                                      color: "#4f46e5",
+                                    }}
+                                  >
                                     {r.returnRequestNo || formatReturnRequestId(r.id)}
                                   </div>
                                   <div style={{ fontSize: 11, color: "#6b7280", marginTop: 2 }}>
@@ -867,45 +1319,122 @@ export default function CustomersPage() {
                                   <div style={{ fontSize: 12, color: "#374151" }}>
                                     {r.itemCount} item{r.itemCount !== 1 ? "s" : ""}
                                     {r.isGreenReturn && (
-                                      <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 4, background: "#DCFCE7", color: "#166534" }}>GREEN</span>
+                                      <span
+                                        style={{
+                                          marginLeft: 6,
+                                          fontSize: 9,
+                                          fontWeight: 700,
+                                          padding: "1px 5px",
+                                          borderRadius: 4,
+                                          background: "#DCFCE7",
+                                          color: "#166534",
+                                        }}
+                                      >
+                                        GREEN
+                                      </span>
                                     )}
                                   </div>
                                   {r.itemTitles.length > 0 && (
-                                    <div style={{ fontSize: 10, color: "#9ca3af", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 200 }}>
-                                      {r.itemTitles.slice(0, 2).join(", ")}{r.itemTitles.length > 2 ? ` +${r.itemTitles.length - 2}` : ""}
+                                    <div
+                                      style={{
+                                        fontSize: 10,
+                                        color: "#9ca3af",
+                                        marginTop: 2,
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                        whiteSpace: "nowrap",
+                                        maxWidth: 200,
+                                      }}
+                                    >
+                                      {r.itemTitles.slice(0, 2).join(", ")}
+                                      {r.itemTitles.length > 2
+                                        ? ` +${r.itemTitles.length - 2}`
+                                        : ""}
                                     </div>
                                   )}
                                 </div>
 
                                 {/* Status + Resolution */}
-                                <div style={{ display: "flex", flexDirection: "column", gap: 3, alignItems: "flex-start" }}>
-                                  <span style={{
-                                    display: "inline-flex", alignItems: "center", gap: 4,
-                                    padding: "2px 8px", borderRadius: 5, fontSize: 10, fontWeight: 700,
-                                    background: getStatusBg(r.status), color: getStatusColor(r.status),
-                                    textTransform: "capitalize",
-                                  }}>
-                                    <span style={{ width: 5, height: 5, borderRadius: "50%", background: getStatusColor(r.status) }} />
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    gap: 3,
+                                    alignItems: "flex-start",
+                                  }}
+                                >
+                                  <span
+                                    style={{
+                                      display: "inline-flex",
+                                      alignItems: "center",
+                                      gap: 4,
+                                      padding: "2px 8px",
+                                      borderRadius: 5,
+                                      fontSize: 10,
+                                      fontWeight: 700,
+                                      background: getStatusBg(r.status),
+                                      color: getStatusColor(r.status),
+                                      textTransform: "capitalize",
+                                    }}
+                                  >
+                                    <span
+                                      style={{
+                                        width: 5,
+                                        height: 5,
+                                        borderRadius: "50%",
+                                        background: getStatusColor(r.status),
+                                      }}
+                                    />
                                     {r.status}
                                   </span>
                                   {r.resolutionType && r.resolutionType !== "refund" && (
-                                    <span style={{
-                                      fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 4, textTransform: "uppercase",
-                                      background: (RESOLUTION_STYLES[r.resolutionType] || { bg: "#f3f4f6" }).bg,
-                                      color: (RESOLUTION_STYLES[r.resolutionType] || { color: "#374151" }).color,
-                                    }}>
+                                    <span
+                                      style={{
+                                        fontSize: 9,
+                                        fontWeight: 700,
+                                        padding: "1px 6px",
+                                        borderRadius: 4,
+                                        textTransform: "uppercase",
+                                        background: (
+                                          RESOLUTION_STYLES[r.resolutionType] || { bg: "#f3f4f6" }
+                                        ).bg,
+                                        color: (
+                                          RESOLUTION_STYLES[r.resolutionType] || {
+                                            color: "#374151",
+                                          }
+                                        ).color,
+                                      }}
+                                    >
                                       {RESOLUTION_LABELS[r.resolutionType] || r.resolutionType}
                                     </span>
                                   )}
                                 </div>
 
                                 {/* Refund Amount */}
-                                <div style={{ fontSize: 12, fontWeight: 600, color: r.refundAmount > 0 ? "#111827" : "#9ca3af", fontVariantNumeric: "tabular-nums" }}>
-                                  {fmtMoney(r.refundAmount, r.refundCurrency || shopCurrency, shopLocale)}
+                                <div
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: r.refundAmount > 0 ? "#111827" : "#9ca3af",
+                                    fontVariantNumeric: "tabular-nums",
+                                  }}
+                                >
+                                  {fmtMoney(
+                                    r.refundAmount,
+                                    r.refundCurrency || shopCurrency,
+                                    shopLocale,
+                                  )}
                                 </div>
 
                                 {/* Date */}
-                                <div style={{ fontSize: 11, color: "#6b7280", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                                <div
+                                  style={{
+                                    fontSize: 11,
+                                    color: "#6b7280",
+                                    textAlign: "right",
+                                    fontVariantNumeric: "tabular-nums",
+                                  }}
+                                >
                                   {fmtDate(r.createdAt, shopLocale, shopTimezone)}
                                 </div>
                               </div>
@@ -927,7 +1456,16 @@ export default function CustomersPage() {
                   disabled={page <= 1}
                   onClick={() => goToPage(page - 1)}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
                 </button>
                 {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                   let p: number;
@@ -953,7 +1491,16 @@ export default function CustomersPage() {
                   disabled={page >= totalPages}
                   onClick={() => goToPage(page + 1)}
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
                 </button>
               </div>
             )}
@@ -966,9 +1513,38 @@ export default function CustomersPage() {
 
 function MiniStat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div style={{ padding: "8px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e5e7eb", minWidth: 70 }}>
-      <div style={{ fontSize: 15, fontWeight: 800, color, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>{value}</div>
-      <div style={{ fontSize: 10, fontWeight: 600, color: "#9ca3af", textTransform: "uppercase", letterSpacing: "0.03em", marginTop: 2 }}>{label}</div>
+    <div
+      style={{
+        padding: "8px 14px",
+        background: "#f9fafb",
+        borderRadius: 8,
+        border: "1px solid #e5e7eb",
+        minWidth: 70,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 15,
+          fontWeight: 800,
+          color,
+          lineHeight: 1.2,
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: "#9ca3af",
+          textTransform: "uppercase",
+          letterSpacing: "0.03em",
+          marginTop: 2,
+        }}
+      >
+        {label}
+      </div>
     </div>
   );
 }
@@ -979,14 +1555,21 @@ export function ErrorBoundary() {
   /* v8 ignore start */
   const msg = isRouteErrorResponse(error)
     ? error.data || `Error ${error.status}`
-    : error instanceof Error ? error.message : "An unexpected error occurred.";
+    : error instanceof Error
+      ? error.message
+      : "An unexpected error occurred.";
   /* v8 ignore stop */
   return (
     <AppPage heading="Customers">
       <div className="app-content layout-wide">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
-          <Link to="/app/customers" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</Link>
+          <Link
+            to="/app/customers"
+            style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}
+          >
+            Try again
+          </Link>
         </div>
       </div>
     </AppPage>

@@ -49,10 +49,17 @@ const {
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(async () => new Map()),
+  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(
+    async () => new Map(),
+  ),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -89,20 +96,43 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       currency: "USD",
       refundStatus: null,
       cancellationRequestedAt: null,
-      fyndOrderId: null, fyndShipmentId: null, fyndReturnId: null, fyndPayloadJson: null,
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndPayloadJson: null,
       fyndCurrentStatus: null,
       shopifyReturnId: null,
       exchangeOrderId: null,
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: {
       graphql: vi.fn(async () => ({
-        json: async () => ({ data: { draftOrderCreate: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" }, userErrors: [] } } }),
+        json: async () => ({
+          data: {
+            draftOrderCreate: {
+              draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" },
+              userErrors: [],
+            },
+          },
+        }),
       })),
     } as never,
     shopDomain: "store.myshopify.com",
@@ -118,10 +148,7 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
  * Builds an admin.graphql mock: 1st call returns draftOrderCreate response,
  * 2nd call returns draftOrderComplete response.
  */
-function mkAdmin(
-  createRes: unknown,
-  completeRes: unknown,
-): ReturnHandlerContext["admin"] {
+function mkAdmin(createRes: unknown, completeRes: unknown): ReturnHandlerContext["admin"] {
   let n = 0;
   return {
     graphql: vi.fn(async () => {
@@ -146,10 +173,24 @@ async function expectRedirect(p: Promise<unknown>, frag: string) {
 }
 
 const DRAFT_OK = {
-  data: { draftOrderCreate: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" }, userErrors: [] } },
+  data: {
+    draftOrderCreate: {
+      draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" },
+      userErrors: [],
+    },
+  },
 };
 const COMPLETE_OK = {
-  data: { draftOrderComplete: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", order: { id: "gid://shopify/Order/9", name: "#9" } }, userErrors: [] } },
+  data: {
+    draftOrderComplete: {
+      draftOrder: {
+        id: "gid://shopify/DraftOrder/1",
+        name: "D1",
+        order: { id: "gid://shopify/Order/9", name: "#9" },
+      },
+      userErrors: [],
+    },
+  },
 };
 
 beforeEach(() => {
@@ -166,15 +207,18 @@ beforeEach(() => {
 describe("handleProcessReplacement — variant ID resolution", () => {
   it("resolves variantId via line-item id match (top-level variantId field)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        id: "gid://shopify/LineItem/1",
-        title: "Item 1",
-        sku: "SKU-X",
-        price: "10.00",
-        quantity: 1,
-        variantId: "gid://shopify/ProductVariant/V1",
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-X",
+          price: "10.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
@@ -182,69 +226,83 @@ describe("handleProcessReplacement — variant ID resolution", () => {
       "/app/returns/rc-1",
     );
     // Variant must have been included in inventory check
-    expect(fetchVariantInfoMock).toHaveBeenCalledWith(
-      expect.anything(),
-      ["gid://shopify/ProductVariant/V1"],
-    );
+    expect(fetchVariantInfoMock).toHaveBeenCalledWith(expect.anything(), [
+      "gid://shopify/ProductVariant/V1",
+    ]);
     // Persisted exchangeItems must carry the resolved variantId
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items[0].variantId).toBe("gid://shopify/ProductVariant/V1");
   });
 
   it("resolves variantId via SKU case-insensitive fallback when line-item ids differ", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        // intentionally non-matching id — must fall through to SKU compare
-        id: "gid://shopify/LineItem/99",
-        title: "Item 1",
-        sku: "sku-1", // lowercase, item.sku is "SKU-1"
-        price: "10.00",
-        quantity: 1,
-        variantId: "gid://shopify/ProductVariant/V_SKU",
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          // intentionally non-matching id — must fall through to SKU compare
+          id: "gid://shopify/LineItem/99",
+          title: "Item 1",
+          sku: "sku-1", // lowercase, item.sku is "SKU-1"
+          price: "10.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V_SKU",
+        },
+      ],
     });
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    expect(fetchVariantInfoMock).toHaveBeenCalledWith(
-      expect.anything(),
-      ["gid://shopify/ProductVariant/V_SKU"],
-    );
+    expect(fetchVariantInfoMock).toHaveBeenCalledWith(expect.anything(), [
+      "gid://shopify/ProductVariant/V_SKU",
+    ]);
   });
 
   it("resolves variantId from nested variant.id shape", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        id: "gid://shopify/LineItem/1",
-        title: "Item 1",
-        sku: "SKU-1",
-        price: "10.00",
-        quantity: 1,
-        // No top-level variantId — uses nested variant.id
-        variant: { id: "gid://shopify/ProductVariant/V_NESTED" },
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 1,
+          // No top-level variantId — uses nested variant.id
+          variant: { id: "gid://shopify/ProductVariant/V_NESTED" },
+        },
+      ],
     });
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    expect(fetchVariantInfoMock).toHaveBeenCalledWith(
-      expect.anything(),
-      ["gid://shopify/ProductVariant/V_NESTED"],
-    );
+    expect(fetchVariantInfoMock).toHaveBeenCalledWith(expect.anything(), [
+      "gid://shopify/ProductVariant/V_NESTED",
+    ]);
   });
 
   it("custom-line path: persists with null variantId when no shopify line-item match", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       // No matching line items at all in the order
-      lineItems: [{ id: "gid://shopify/LineItem/77", title: "Other", sku: "OTHER", price: "5.00", quantity: 1 }],
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/77",
+          title: "Other",
+          sku: "OTHER",
+          price: "5.00",
+          quantity: 1,
+        },
+      ],
     });
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
@@ -253,22 +311,52 @@ describe("handleProcessReplacement — variant ID resolution", () => {
     );
     // No GID-shaped variants → fetchVariantInfo not called
     expect(fetchVariantInfoMock).not.toHaveBeenCalled();
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items[0].variantId).toBeNull();
   });
 
   it("excludes line items with shopifyLineItemId === 'manual'", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "Real", sku: "SKU-1", price: "10.00", quantity: 1, variantId: "gid://shopify/ProductVariant/V1" }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Real",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Real" },
-          { id: "li-2", shopifyLineItemId: "manual", qty: 1, sku: "SKU-MANUAL", price: "5.00", reasonCode: null, notes: null, title: "Manual" },
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "SKU-1",
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: "Real",
+          },
+          {
+            id: "li-2",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: "SKU-MANUAL",
+            price: "5.00",
+            reasonCode: null,
+            notes: null,
+            title: "Manual",
+          },
         ],
       } as never,
       admin: mkAdmin(DRAFT_OK, COMPLETE_OK),
@@ -277,7 +365,9 @@ describe("handleProcessReplacement — variant ID resolution", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items).toHaveLength(1);
     expect(items[0].sku).toBe("SKU-1");
@@ -285,15 +375,42 @@ describe("handleProcessReplacement — variant ID resolution", () => {
 
   it("excludes line items missing shopifyLineItemId entirely", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "Real", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Real",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 1,
+        },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "li-skip", shopifyLineItemId: null, qty: 1, sku: "SKU-NO-ID", price: "5.00", reasonCode: null, notes: null, title: "skipped" },
-          { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Real" },
+          {
+            id: "li-skip",
+            shopifyLineItemId: null,
+            qty: 1,
+            sku: "SKU-NO-ID",
+            price: "5.00",
+            reasonCode: null,
+            notes: null,
+            title: "skipped",
+          },
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "SKU-1",
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: "Real",
+          },
         ],
       } as never,
       admin: mkAdmin(DRAFT_OK, COMPLETE_OK),
@@ -302,7 +419,9 @@ describe("handleProcessReplacement — variant ID resolution", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items).toHaveLength(1);
   });
@@ -312,8 +431,11 @@ describe("handleProcessReplacement — variant ID resolution", () => {
 describe("handleProcessReplacement — draftOrderComplete branches", () => {
   function setupHappyOrder() {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
   }
 
@@ -324,7 +446,9 @@ describe("handleProcessReplacement — draftOrderComplete branches", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeOrderId: string; exchangeOrderName: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeOrderId: string; exchangeOrderName: string };
+    };
     expect(update.data.exchangeOrderId).toBe("gid://shopify/Order/9");
     expect(update.data.exchangeOrderName).toBe("#9");
     // replacement_created event captures completed=true and no completeError
@@ -340,14 +464,21 @@ describe("handleProcessReplacement — draftOrderComplete branches", () => {
   it("userErrors path: falls back to draft order id/name and records completeError", async () => {
     setupHappyOrder();
     const completeBody = {
-      data: { draftOrderComplete: { draftOrder: null, userErrors: [{ field: ["id"], message: "Cannot complete: payment pending" }] } },
+      data: {
+        draftOrderComplete: {
+          draftOrder: null,
+          userErrors: [{ field: ["id"], message: "Cannot complete: payment pending" }],
+        },
+      },
     };
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, completeBody) });
     await expectRedirect(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeOrderId: string; exchangeOrderName: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeOrderId: string; exchangeOrderName: string };
+    };
     expect(update.data.exchangeOrderId).toBe("gid://shopify/DraftOrder/1");
     expect(update.data.exchangeOrderName).toBe("D1");
     const ev = prismaMock.returnEvent.create.mock.calls
@@ -391,7 +522,9 @@ describe("handleProcessReplacement — draftOrderComplete branches", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeOrderId: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeOrderId: string };
+    };
     expect(update.data.exchangeOrderId).toBe("gid://shopify/DraftOrder/1");
     const ev = prismaMock.returnEvent.create.mock.calls
       .map((c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data)
@@ -404,14 +537,19 @@ describe("handleProcessReplacement — draftOrderComplete branches", () => {
 describe("handleProcessReplacement — Fynd return_completed push", () => {
   function setupHappyOrder() {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
   }
 
   it("success: writes fynd_replacement_synced event when client transitions OK", async () => {
     setupHappyOrder();
-    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
@@ -428,19 +566,28 @@ describe("handleProcessReplacement — Fynd return_completed push", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    expect(updateShipmentStatus).toHaveBeenCalledWith("FY-O-1", expect.objectContaining({
-      statuses: [expect.objectContaining({
-        shipments: [{ identifier: "SH-1" }],
-        status: "return_completed",
-      })],
-    }));
-    const eventTypes = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    expect(updateShipmentStatus).toHaveBeenCalledWith(
+      "FY-O-1",
+      expect.objectContaining({
+        statuses: [
+          expect.objectContaining({
+            shipments: [{ identifier: "SH-1" }],
+            status: "return_completed",
+          }),
+        ],
+      }),
+    );
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(eventTypes).toContain("fynd_replacement_synced");
   });
 
   it("uses fyndShipmentId as callId fallback when fyndOrderId is null", async () => {
     setupHappyOrder();
-    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
@@ -462,7 +609,9 @@ describe("handleProcessReplacement — Fynd return_completed push", () => {
 
   it("error: writes fynd_replacement_sync_failed event when transition throws", async () => {
     setupHappyOrder();
-    const updateShipmentStatus = vi.fn(async () => { throw new Error("Fynd 503"); });
+    const updateShipmentStatus = vi.fn(async () => {
+      throw new Error("Fynd 503");
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
@@ -479,8 +628,9 @@ describe("handleProcessReplacement — Fynd return_completed push", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const events = prismaMock.returnEvent.create.mock.calls
-      .map((c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data);
+    const events = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data,
+    );
     const failed = events.find((e) => e.eventType === "fynd_replacement_sync_failed")!;
     expect(failed).toBeDefined();
     expect(JSON.parse(failed.payloadJson).error).toContain("Fynd 503");
@@ -495,14 +645,19 @@ describe("handleProcessReplacement — Fynd return_completed push", () => {
       "/app/returns/rc-1",
     );
     expect(createFyndClientOrErrorMock).not.toHaveBeenCalled();
-    const eventTypes = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(eventTypes).not.toContain("fynd_replacement_synced");
     expect(eventTypes).not.toContain("fynd_replacement_sync_failed");
   });
 
   it("skipped when createFyndClientOrError returns ok:false (no transition attempted)", async () => {
     setupHappyOrder();
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "platform creds missing" });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: false,
+      error: "platform creds missing",
+    });
     const ctx = mkCtx({
       returnCase: { ...mkCtx().returnCase, fyndShipmentId: "SH-4" } as never,
       admin: mkAdmin(DRAFT_OK, COMPLETE_OK),
@@ -511,7 +666,9 @@ describe("handleProcessReplacement — Fynd return_completed push", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const eventTypes = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(eventTypes).not.toContain("fynd_replacement_synced");
     expect(eventTypes).not.toContain("fynd_replacement_sync_failed");
   });
@@ -521,8 +678,11 @@ describe("handleProcessReplacement — Fynd return_completed push", () => {
 describe("handleProcessReplacement — customer notification", () => {
   function setupHappyOrder() {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
   }
 
@@ -534,7 +694,10 @@ describe("handleProcessReplacement — customer notification", () => {
       "/app/returns/rc-1",
     );
     expect(sendApprovalNotificationMock).toHaveBeenCalledTimes(1);
-    const args = sendApprovalNotificationMock.mock.calls[0][0] as unknown as { notes: string; orderName: string };
+    const args = sendApprovalNotificationMock.mock.calls[0][0] as unknown as {
+      notes: string;
+      orderName: string;
+    };
     expect(args.notes).toContain("#9"); // real order name
     expect(args.notes).toContain("has been created");
     expect(args.orderName).toBe("#1001");
@@ -543,7 +706,9 @@ describe("handleProcessReplacement — customer notification", () => {
   it("falls back to draft order name in notes when complete failed", async () => {
     setupHappyOrder();
     const completeFail = {
-      data: { draftOrderComplete: { draftOrder: null, userErrors: [{ message: "Payment pending" }] } },
+      data: {
+        draftOrderComplete: { draftOrder: null, userErrors: [{ message: "Payment pending" }] },
+      },
     };
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, completeFail) });
     await expectRedirect(
@@ -588,15 +753,21 @@ describe("handleProcessReplacement — customer notification", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const args = sendApprovalNotificationMock.mock.calls[0][0] as unknown as { shopName?: string; shopDomain: string };
+    const args = sendApprovalNotificationMock.mock.calls[0][0] as unknown as {
+      shopName?: string;
+      shopDomain: string;
+    };
     expect(args.shopName).toBe("store");
     expect(args.shopDomain).toBe("store.myshopify.com");
   });
 
   it("uses 'your order' fallback in notes when returnCase.shopifyOrderName is empty", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {

@@ -126,12 +126,10 @@ vi.mock("../lib/fynd-config.server", () => ({
   getAppMode: (...args: unknown[]) => (getAppModeMock as any)(...args),
 }));
 vi.mock("../lib/shop.server", () => ({
-  syncShopLocaleAndCurrency: (...args: unknown[]) =>
-    (syncShopLocaleMock as any)(...args),
+  syncShopLocaleAndCurrency: (...args: unknown[]) => (syncShopLocaleMock as any)(...args),
 }));
 vi.mock("../lib/billing.server", () => ({
-  getBillingStatus: (...args: unknown[]) =>
-    (getBillingStatusMock as any)(...args),
+  getBillingStatus: (...args: unknown[]) => (getBillingStatusMock as any)(...args),
 }));
 
 afterAll(() => {

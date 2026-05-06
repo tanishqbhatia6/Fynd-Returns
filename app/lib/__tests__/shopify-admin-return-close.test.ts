@@ -5,7 +5,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
+  withSpan: async <T>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -14,7 +14,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -97,10 +97,7 @@ beforeEach(() => vi.clearAllMocks());
 
 describe("createShopifyReturn — happy path & shaping", () => {
   it("returns success with shopifyReturnId on the happy path", async () => {
-    const { admin, calls } = makeAdmin([
-      fulfillmentsResp({ qty: 2 }),
-      RETURN_OK,
-    ]);
+    const { admin, calls } = makeAdmin([fulfillmentsResp({ qty: 2 }), RETURN_OK]);
     const result = await createShopifyReturn(admin, "555", [
       { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1, reasonCode: "defective" },
     ]);
@@ -172,20 +169,27 @@ describe("createShopifyReturn — line-item resolution", () => {
       { shopifyLineItemId: "gid://shopify/LineItem/000", qty: 2, sku: "my-sku" },
     ]);
     expect(r.success).toBe(true);
-    const input = (calls[1]?.variables as { returnInput: { returnLineItems: Array<{ fulfillmentLineItemId: string; quantity: number }> } }).returnInput;
-    expect(input.returnLineItems[0]?.fulfillmentLineItemId).toBe("gid://shopify/FulfillmentLineItem/77");
+    const input = (
+      calls[1]?.variables as {
+        returnInput: {
+          returnLineItems: Array<{ fulfillmentLineItemId: string; quantity: number }>;
+        };
+      }
+    ).returnInput;
+    expect(input.returnLineItems[0]?.fulfillmentLineItemId).toBe(
+      "gid://shopify/FulfillmentLineItem/77",
+    );
     expect(input.returnLineItems[0]?.quantity).toBe(2);
   });
 
   it("caps quantity to remaining returnable balance", async () => {
-    const { admin, calls } = makeAdmin([
-      fulfillmentsResp({ qty: 1 }),
-      RETURN_OK,
-    ]);
+    const { admin, calls } = makeAdmin([fulfillmentsResp({ qty: 1 }), RETURN_OK]);
     await createShopifyReturn(admin, "1", [
       { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 5 },
     ]);
-    const input = (calls[1]?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }).returnInput;
+    const input = (
+      calls[1]?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput;
     expect(input.returnLineItems[0]?.quantity).toBe(1);
   });
 
@@ -246,7 +250,9 @@ describe("createShopifyReturn — line-item resolution", () => {
       { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 10 },
     ]);
     expect(r.success).toBe(true);
-    const input = (calls[1]?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }).returnInput;
+    const input = (
+      calls[1]?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput;
     // 5 fulfilled - 2 in-flight OPEN = 3 returnable, capped from requested 10
     expect(input.returnLineItems[0]?.quantity).toBe(3);
   });
@@ -450,9 +456,7 @@ describe("closeShopifyReturnBestEffort — accept vs decline branches", () => {
   });
 
   it("logs shopify_return_close_failed event when underlying call fails", async () => {
-    const { admin } = makeAdmin([
-      { errors: [{ message: "boom" }] },
-    ]);
+    const { admin } = makeAdmin([{ errors: [{ message: "boom" }] }]);
     const logEvent = vi.fn(async (_event: { eventType: string; payloadJson: string }) => {});
     const r = await closeShopifyReturnBestEffort(
       admin,
@@ -502,9 +506,11 @@ describe("closeShopifyReturnBestEffort — accept vs decline branches", () => {
         },
       },
     ]);
-    const logEvent = vi.fn(async (_event: { eventType: string; payloadJson: string }): Promise<void> => {
-      throw new Error("event sink down");
-    });
+    const logEvent = vi.fn(
+      async (_event: { eventType: string; payloadJson: string }): Promise<void> => {
+        throw new Error("event sink down");
+      },
+    );
     const r = await closeShopifyReturnBestEffort(
       admin,
       { id: "rc-1", shopifyReturnId: "9" },

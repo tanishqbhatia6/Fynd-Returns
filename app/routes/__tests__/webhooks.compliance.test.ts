@@ -53,13 +53,21 @@ describe("webhooks.draft-orders.create", () => {
 
   it("swallows non-Response auth errors and returns 200", async () => {
     authenticateWebhookMock.mockRejectedValueOnce(new Error("DB unavailable during auth"));
-    const res = await draftOrdersCreateAction({ request: mkReq(), params: {}, context: {} } as never);
+    const res = await draftOrdersCreateAction({
+      request: mkReq(),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 
   it("returns 200 on missing payload", async () => {
     authenticateWebhookMock.mockResolvedValueOnce({ shop: "store.myshopify.com", payload: null });
-    const res = await draftOrdersCreateAction({ request: mkReq(), params: {}, context: {} } as never);
+    const res = await draftOrdersCreateAction({
+      request: mkReq(),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 
@@ -69,7 +77,11 @@ describe("webhooks.draft-orders.create", () => {
       shop: "store.myshopify.com",
       payload: { id: 42, name: "#D-1", note_attributes: [] },
     });
-    const res = await draftOrdersCreateAction({ request: mkReq(), params: {}, context: {} } as never);
+    const res = await draftOrdersCreateAction({
+      request: mkReq(),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(prismaMock.shop.findUnique).not.toHaveBeenCalled();
   });
@@ -77,10 +89,19 @@ describe("webhooks.draft-orders.create", () => {
   it("returns 200 on shop not found, no upsert", async () => {
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "store.myshopify.com",
-      payload: { id: 42, admin_graphql_api_id: "gid://shopify/DraftOrder/42", name: "#D-1", note_attributes: [{ name: "affiliate_order_id", value: "FYNDX1" }] },
+      payload: {
+        id: 42,
+        admin_graphql_api_id: "gid://shopify/DraftOrder/42",
+        name: "#D-1",
+        note_attributes: [{ name: "affiliate_order_id", value: "FYNDX1" }],
+      },
     });
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    const res = await draftOrdersCreateAction({ request: mkReq(), params: {}, context: {} } as never);
+    const res = await draftOrdersCreateAction({
+      request: mkReq(),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(prismaMock.fyndOrderMapping.upsert).not.toHaveBeenCalled();
   });
@@ -123,7 +144,11 @@ describe("webhooks.customers.data_request", () => {
 
   it("swallows non-Response auth errors and returns 200", async () => {
     authenticateWebhookMock.mockRejectedValueOnce(new Error("auth backend down"));
-    const res = await customersDataRequestAction({ request: mkReq(), params: {}, context: {} } as never);
+    const res = await customersDataRequestAction({
+      request: mkReq(),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 
@@ -151,7 +176,11 @@ describe("webhooks.customers.data_request", () => {
       payload: { customer: { id: 123 } },
     });
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    const res = await customersDataRequestAction({ request: mkReq(), params: {}, context: {} } as never);
+    const res = await customersDataRequestAction({
+      request: mkReq(),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 });

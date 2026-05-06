@@ -31,7 +31,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const { processFyndWebhook, unwrapFyndWebhookPayload } = await import("../lib/fynd-webhook.server");
+  const { processFyndWebhook, unwrapFyndWebhookPayload } =
+    await import("../lib/fynd-webhook.server");
 
   // Cheap pre-check via Content-Length, then enforce again after reading the body
   // (Content-Length can lie; the post-read check is the real guard).
@@ -54,10 +55,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (isProd && !secret) {
     // Fail closed in production. An unsigned webhook in prod is unsafe — anyone could
     // forge refund-done events to trigger real Shopify refunds.
-    console.error("[Fynd webhook] FYND_WEBHOOK_SECRET not configured in production — rejecting webhook");
-    return Response.json({
-      error: "Webhook signature verification is not configured on this server. Contact the merchant's developer to set FYND_WEBHOOK_SECRET.",
-    }, { status: 503 });
+    console.error(
+      "[Fynd webhook] FYND_WEBHOOK_SECRET not configured in production — rejecting webhook",
+    );
+    return Response.json(
+      {
+        error:
+          "Webhook signature verification is not configured on this server. Contact the merchant's developer to set FYND_WEBHOOK_SECRET.",
+      },
+      { status: 503 },
+    );
   }
   if (secret) {
     // Dual-mode auth: shared-secret in headers (Fynd Commerce compatible) OR
@@ -80,7 +87,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     ({ payload, eventType } = unwrapFyndWebhookPayload(rawBodyText));
   } catch (parseErr) {
     const errMsg = parseErr instanceof Error ? parseErr.message : String(parseErr);
-    console.error("[Fynd webhook] Parse error:", errMsg, "Body preview:", rawBodyText.slice(0, 300));
+    console.error(
+      "[Fynd webhook] Parse error:",
+      errMsg,
+      "Body preview:",
+      rawBodyText.slice(0, 300),
+    );
     // Store the failed webhook for later inspection
     try {
       const { default: prismaClient } = await import("../db.server");
@@ -93,16 +105,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           error: `JSON parse error: ${errMsg}`,
         },
       });
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
   // Replay protection: reject webhooks with timestamps older than 5 minutes
-  const webhookTimestamp = request.headers.get("x-webhook-timestamp") ?? request.headers.get("x-fynd-timestamp");
+  const webhookTimestamp =
+    request.headers.get("x-webhook-timestamp") ?? request.headers.get("x-fynd-timestamp");
   if (webhookTimestamp) {
     const ts = new Date(webhookTimestamp).getTime();
     if (!isNaN(ts) && Math.abs(Date.now() - ts) > 5 * 60_000) {
-      console.warn("[Fynd webhook] Stale webhook rejected (timestamp drift:", Math.abs(Date.now() - ts), "ms)");
+      console.warn(
+        "[Fynd webhook] Stale webhook rejected (timestamp drift:",
+        Math.abs(Date.now() - ts),
+        "ms)",
+      );
       return Response.json({ error: "Webhook timestamp too old" }, { status: 401 });
     }
   }
@@ -127,7 +146,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Non-fatal: proceed without dedup check, but surface the cause so a
       // failing dedup query doesn't silently turn into a flood of duplicate
       // webhook processing.
-      console.warn("[Fynd webhook] dedup check failed (proceeding without):", err instanceof Error ? err.message : err);
+      console.warn(
+        "[Fynd webhook] dedup check failed (proceeding without):",
+        err instanceof Error ? err.message : err,
+      );
     }
   }
 

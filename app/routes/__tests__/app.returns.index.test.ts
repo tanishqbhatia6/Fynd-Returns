@@ -18,7 +18,11 @@ vi.mock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock
 
 import { loader } from "../app.returns._index";
 
-const SHOP = { id: "shop-1", shopDomain: "store.myshopify.com", settings: { shopLocale: "en", shopTimezone: "UTC" } };
+const SHOP = {
+  id: "shop-1",
+  shopDomain: "store.myshopify.com",
+  settings: { shopLocale: "en", shopTimezone: "UTC" },
+};
 
 function mkReq(qs = "") {
   return new Request(`https://app.example/app/returns${qs ? `?${qs}` : ""}`);
@@ -49,11 +53,11 @@ describe("app.returns._index loader", () => {
     // Promise.all order: returns, totalCount, pending, inProgress, approved, rejected, all
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     prismaMock.returnCase.count
-      .mockResolvedValueOnce(0)   // totalCount
-      .mockResolvedValueOnce(5)   // pendingCount (pending+initiated)
-      .mockResolvedValueOnce(3)   // inProgressCount
-      .mockResolvedValueOnce(7)   // approvedCount
-      .mockResolvedValueOnce(2)   // rejectedCount
+      .mockResolvedValueOnce(0) // totalCount
+      .mockResolvedValueOnce(5) // pendingCount (pending+initiated)
+      .mockResolvedValueOnce(3) // inProgressCount
+      .mockResolvedValueOnce(7) // approvedCount
+      .mockResolvedValueOnce(2) // rejectedCount
       .mockResolvedValueOnce(17); // allCount
     const data = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(data).toMatchObject({
@@ -108,7 +112,11 @@ describe("app.returns._index loader", () => {
   });
 
   it("treats comma-separated status as `in` clause and trims whitespace", async () => {
-    await loader({ request: mkReq("status=pending%2C%20initiated"), params: {}, context: {} } as never);
+    await loader({
+      request: mkReq("status=pending%2C%20initiated"),
+      params: {},
+      context: {},
+    } as never);
     expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ status: { in: ["pending", "initiated"] } }),
@@ -199,7 +207,8 @@ describe("app.returns._index loader", () => {
   it("applies date range filter with start-of-day / end-of-day boundaries", async () => {
     await loader({
       request: mkReq("from=2026-05-01&to=2026-05-05"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const findManyCall = prismaMock.returnCase.findMany.mock.calls[0][0];
     const where = findManyCall.where as { createdAt: { gte: Date; lte: Date } };
@@ -210,7 +219,11 @@ describe("app.returns._index loader", () => {
   it("returns the error fallback shape when prisma throws", async () => {
     prismaMock.returnCase.findMany.mockRejectedValueOnce(new Error("DB down"));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const data = await loader({ request: mkReq("query=foo&status=approved"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: mkReq("query=foo&status=approved"),
+      params: {},
+      context: {},
+    } as never);
     expect(data).toMatchObject({
       returns: [],
       query: "foo",

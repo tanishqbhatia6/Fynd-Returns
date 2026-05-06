@@ -182,8 +182,9 @@ describe("app.settings.auto-rules component (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (2)");
     });
-    const removeButtons = Array.from(container.querySelectorAll("button"))
-      .filter((b) => b.textContent?.trim() === "Remove");
+    const removeButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Remove",
+    );
     expect(removeButtons.length).toBe(2);
     const selects = container.querySelectorAll("select");
     expect(selects.length).toBe(2 * 3);
@@ -219,8 +220,9 @@ describe("app.settings.auto-rules component (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (0)");
     });
-    const addBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => b.textContent?.includes("Add rule"));
+    const addBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Add rule"),
+    );
     expect(addBtn).toBeTruthy();
     fireEvent.click(addBtn!);
     await waitFor(() => {
@@ -238,9 +240,12 @@ describe("app.settings.auto-rules component (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (2)");
     });
-    const removeButtons = Array.from(container.querySelectorAll("button"))
-      .filter((b) => b.textContent?.trim() === "Remove");
-    await act(async () => { fireEvent.click(removeButtons[0]); });
+    const removeButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Remove",
+    );
+    await act(async () => {
+      fireEvent.click(removeButtons[0]);
+    });
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (1)");
     });
@@ -265,9 +270,7 @@ describe("app.settings.auto-rules component (default export)", () => {
     await waitFor(() => {
       expect(populatedContainer.textContent).toContain("Rule preview");
     });
-    expect(populatedContainer.textContent).toContain(
-      "submit for review (auto-approve disabled)",
-    );
+    expect(populatedContainer.textContent).toContain("submit for review (auto-approve disabled)");
   });
 
   it("changing the field selector resets operator + clears value (orderValue → returnReason)", async () => {
@@ -280,7 +283,9 @@ describe("app.settings.auto-rules component (default export)", () => {
       expect(container.textContent).toContain("Rules (2)");
     });
     const selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
-    await act(async () => { fireEvent.change(selects[0], { target: { value: "returnReason" } }); });
+    await act(async () => {
+      fireEvent.change(selects[0], { target: { value: "returnReason" } });
+    });
     await waitFor(() => {
       const refreshed = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(refreshed[0].value).toBe("returnReason");
@@ -301,13 +306,17 @@ describe("app.settings.auto-rules component (default export)", () => {
       expect(container.textContent).toContain("Rules (2)");
     });
     const selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
-    await act(async () => { fireEvent.change(selects[1], { target: { value: "gt" } }); });
+    await act(async () => {
+      fireEvent.change(selects[1], { target: { value: "gt" } });
+    });
     await waitFor(() => {
       const refreshed = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(refreshed[1].value).toBe("gt");
     });
     const inputs = Array.from(container.querySelectorAll("input")) as HTMLInputElement[];
-    await act(async () => { fireEvent.change(inputs[0], { target: { value: "100" } }); });
+    await act(async () => {
+      fireEvent.change(inputs[0], { target: { value: "100" } });
+    });
     await waitFor(() => {
       const refreshedInputs = Array.from(container.querySelectorAll("input")) as HTMLInputElement[];
       expect(refreshedInputs[0].value).toBe("100");
@@ -324,8 +333,9 @@ describe("app.settings.auto-rules component (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (0)");
     });
-    const addBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => b.textContent?.includes("Add rule"));
+    const addBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Add rule"),
+    );
     fireEvent.click(addBtn!);
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (1)");
@@ -336,7 +346,9 @@ describe("app.settings.auto-rules component (default export)", () => {
       const refreshedField = container.querySelectorAll("select")[0] as HTMLSelectElement;
       expect(refreshedField.value).toBe("returnReason");
     });
-    const valInput = container.querySelector("input[placeholder='wrong_size']") as HTMLInputElement | null;
+    const valInput = container.querySelector(
+      "input[placeholder='wrong_size']",
+    ) as HTMLInputElement | null;
     expect(valInput).toBeTruthy();
     fireEvent.change(valInput!, { target: { value: "damaged" } });
     await waitFor(() => {
@@ -357,12 +369,16 @@ describe("app.settings.auto-rules component (default export)", () => {
     });
     const selects = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
     expect(selects[2].value).toBe("approve");
-    await act(async () => { fireEvent.change(selects[2], { target: { value: "manual_review" } }); });
+    await act(async () => {
+      fireEvent.change(selects[2], { target: { value: "manual_review" } });
+    });
     await waitFor(() => {
       const refreshed = Array.from(container.querySelectorAll("select")) as HTMLSelectElement[];
       expect(refreshed[2].value).toBe("manual_review");
     });
-    await waitFor(() => { expect(container.textContent).toContain("MANUAL REVIEW"); });
+    await waitFor(() => {
+      expect(container.textContent).toContain("MANUAL REVIEW");
+    });
   });
 
   it("submitting the form runs handleSubmit (filters empty-value rules)", async () => {
@@ -374,8 +390,9 @@ describe("app.settings.auto-rules component (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (2)");
     });
-    const addBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => b.textContent?.includes("Add rule"));
+    const addBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Add rule"),
+    );
     fireEvent.click(addBtn!);
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (3)");
@@ -443,7 +460,8 @@ describe("app.settings.auto-rules loader", () => {
     findOrCreateShopMock.mockResolvedValueOnce({
       id: "shop-1",
       settings: {
-        autoApproveRulesJson: '[{"field":"orderValue","operator":"lte","value":"100","action":"approve"}]',
+        autoApproveRulesJson:
+          '[{"field":"orderValue","operator":"lte","value":"100","action":"approve"}]',
         autoApproveEnabled: true,
       },
     });

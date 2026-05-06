@@ -253,8 +253,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("RMA-CL2-001");
     });
-    const allBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "All Returns");
+    const allBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "All Returns",
+    );
     expect(allBtn).toBeTruthy();
     fireEvent.click(allBtn!);
   });
@@ -263,7 +264,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     vi.useFakeTimers();
     try {
       const { container } = renderWithRouter(Component, {
-        initialEntries: ["/app/returns/ret_cl2_001?fyndError=oops&fyndSuccess=ok&fyndRefresh=1&fyndProcessing=1&consolidationQueued=1"],
+        initialEntries: [
+          "/app/returns/ret_cl2_001?fyndError=oops&fyndSuccess=ok&fyndRefresh=1&fyndProcessing=1&consolidationQueued=1",
+        ],
         loaderData: makeLoaderData() as never,
       });
       // Allow effects to register
@@ -341,8 +344,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Sync timed out");
     });
-    const retryBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Click to retry");
+    const retryBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Click to retry",
+    );
     expect(retryBtn).toBeTruthy();
     fireEvent.click(retryBtn!);
   });
@@ -379,11 +383,15 @@ describe("app.returns.$id — coverage closure round 2", () => {
     if (det) det.setAttribute("open", "");
     const carrier = container.querySelector('input[name="carrier"]') as HTMLInputElement | null;
     if (carrier) fireEvent.change(carrier, { target: { value: "FedEx" } });
-    const tracking = container.querySelector('input[name="trackingNumber"]') as HTMLInputElement | null;
+    const tracking = container.querySelector(
+      'input[name="trackingNumber"]',
+    ) as HTMLInputElement | null;
     if (tracking) fireEvent.change(tracking, { target: { value: "AWB123" } });
     const labelUrl = container.querySelector('input[name="labelUrl"]') as HTMLInputElement | null;
     if (labelUrl) fireEvent.change(labelUrl, { target: { value: "https://label.example/x" } });
-    const instr = container.querySelector('textarea[name="returnInstructions"]') as HTMLTextAreaElement | null;
+    const instr = container.querySelector(
+      'textarea[name="returnInstructions"]',
+    ) as HTMLTextAreaElement | null;
     if (instr) fireEvent.change(instr, { target: { value: "Pack securely." } });
   });
 
@@ -401,8 +409,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Changed my mind");
     });
-    const approveBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Approve Cancellation");
+    const approveBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Approve Cancellation",
+    );
     fireEvent.click(approveBtn!);
     await waitFor(() => {
       expect(container.textContent).toContain("Confirm Cancellation");
@@ -412,8 +421,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     if (overlay) fireEvent.click(overlay);
     // Re-open and submit the form (line 2112 onSubmit)
     fireEvent.click(approveBtn!);
-    const confirmBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Confirm Cancellation");
+    const confirmBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Confirm Cancellation",
+    );
     expect(confirmBtn).toBeTruthy();
     const form = confirmBtn!.closest("form");
     if (form) fireEvent.submit(form);
@@ -428,8 +438,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Approve Return");
     });
-    const approveBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Approve Return");
+    const approveBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Approve Return",
+    );
     expect(approveBtn).toBeTruthy();
     fireEvent.click(approveBtn!);
     await waitFor(() => {
@@ -443,8 +454,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Resolution type");
     });
-    const cancelBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Cancel");
+    const cancelBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Cancel",
+    );
     if (cancelBtn) fireEvent.click(cancelBtn);
   });
 
@@ -477,30 +489,37 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Process Refund");
     });
-    const processBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Process Refund");
+    const processBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Process Refund",
+    );
     fireEvent.click(processBtn!);
     await waitFor(() => {
       expect(container.textContent).toContain("Refund method");
     });
     // Switch to Amount mode (sets splitScAmount/splitOrigAmount)
-    const amountBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Amount");
+    const amountBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Amount",
+    );
     expect(amountBtn).toBeTruthy();
     fireEvent.click(amountBtn!);
     // Type into Store Credit amount field (covers 2375-2379)
-    const scInput = container.querySelector('input[aria-label="Store credit amount"]') as HTMLInputElement | null;
+    const scInput = container.querySelector(
+      'input[aria-label="Store credit amount"]',
+    ) as HTMLInputElement | null;
     if (scInput) fireEvent.change(scInput, { target: { value: "3.00" } });
     // Type into Original Payment amount field (covers 2394-2398)
-    const origInput = container.querySelector('input[aria-label="Original payment amount"]') as HTMLInputElement | null;
+    const origInput = container.querySelector(
+      'input[aria-label="Original payment amount"]',
+    ) as HTMLInputElement | null;
     if (origInput) fireEvent.change(origInput, { target: { value: "999" } });
     // The mismatch warning (line 2408) appears when sums diverge by >0.01
     await waitFor(() => {
       expect(container.textContent).toMatch(/does not match/i);
     });
     // Toggle back to Percentage (line 2318 handler)
-    const pctBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Percentage");
+    const pctBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Percentage",
+    );
     if (pctBtn) fireEvent.click(pctBtn);
   });
 
@@ -517,8 +536,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Process Replacement");
     });
-    const processBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Process Replacement");
+    const processBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Process Replacement",
+    );
     fireEvent.click(processBtn!);
     await waitFor(() => {
       expect(container.textContent).toContain("Create a new Shopify order");
@@ -540,8 +560,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Process Exchange");
     });
-    const processBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Process Exchange");
+    const processBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Process Exchange",
+    );
     fireEvent.click(processBtn!);
     await waitFor(() => {
       expect(container.textContent).toContain("Create a draft order");
@@ -555,8 +576,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
       expect(container.textContent).toContain("Create a draft order");
     });
     // Click the modal's Cancel s-button
-    const cancelBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Cancel");
+    const cancelBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Cancel",
+    );
     if (cancelBtn) fireEvent.click(cancelBtn);
   });
 
@@ -573,8 +595,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("RMA-CL2-001");
     });
-    const cancelOrderBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Cancel Order");
+    const cancelOrderBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Cancel Order",
+    );
     if (!cancelOrderBtn) {
       // If gating prevents it, abort the test gracefully
       return;
@@ -584,7 +607,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
       expect(container.textContent).toContain("Cancellation reason");
     });
     // Reason select onChange (line 2796)
-    const select = container.querySelector('select[aria-label="Cancellation reason"]') as HTMLSelectElement | null;
+    const select = container.querySelector(
+      'select[aria-label="Cancellation reason"]',
+    ) as HTMLSelectElement | null;
     if (select) fireEvent.change(select, { target: { value: "FRAUD" } });
     // Refund checkbox (the first one – line 2805)
     const checkboxes = container.querySelectorAll('input[type="checkbox"]');
@@ -599,8 +624,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Cancellation reason");
     });
-    const goBack = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Go Back");
+    const goBack = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Go Back",
+    );
     if (goBack) fireEvent.click(goBack);
   });
 
@@ -620,8 +646,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
       await waitFor(() => {
         expect(container.textContent).toContain("Customer uploads");
       });
-      const buttons = Array.from(container.querySelectorAll("button"))
-        .filter((b) => b.querySelector("img,video"));
+      const buttons = Array.from(container.querySelectorAll("button")).filter((b) =>
+        b.querySelector("img,video"),
+      );
       if (buttons[0]) fireEvent.click(buttons[0]);
     } finally {
       window.open = origOpen;
@@ -629,14 +656,15 @@ describe("app.returns.$id — coverage closure round 2", () => {
   });
 
   it("Customer-uploads: forced atob throw triggers catch fallback (line 3246)", async () => {
-    const dataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    const dataUrl =
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
     const rc = makeReturnCase({
-      customerMediaJson: JSON.stringify([
-        { name: "broken.png", mimeType: "image/png", dataUrl },
-      ]),
+      customerMediaJson: JSON.stringify([{ name: "broken.png", mimeType: "image/png", dataUrl }]),
     });
     const origAtob = global.atob;
-    global.atob = (() => { throw new Error("forced"); }) as typeof atob;
+    global.atob = (() => {
+      throw new Error("forced");
+    }) as typeof atob;
     const origOpen = window.open;
     window.open = vi.fn(() => null) as typeof window.open;
     try {
@@ -647,8 +675,9 @@ describe("app.returns.$id — coverage closure round 2", () => {
       await waitFor(() => {
         expect(container.textContent).toContain("Customer uploads");
       });
-      const buttons = Array.from(container.querySelectorAll("button"))
-        .filter((b) => b.querySelector("img,video"));
+      const buttons = Array.from(container.querySelectorAll("button")).filter((b) =>
+        b.querySelector("img,video"),
+      );
       expect(buttons.length).toBeGreaterThan(0);
       fireEvent.click(buttons[0]);
     } finally {

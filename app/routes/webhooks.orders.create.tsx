@@ -104,7 +104,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     } catch (err) {
       /* v8 ignore start - defensive Error narrowing in catch */
       console.error("[webhook:orders/create] metafield write failed", {
-        shop, orderName, fyndOrderId,
+        shop,
+        orderName,
+        fyndOrderId,
         error: err instanceof Error ? err.message : String(err),
       });
       /* v8 ignore stop */

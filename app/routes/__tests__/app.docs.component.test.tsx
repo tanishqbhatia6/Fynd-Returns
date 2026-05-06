@@ -69,12 +69,7 @@ describe("app.docs (Documentation component)", () => {
     const anchors = Array.from(sidebar!.querySelectorAll("a"));
     const hrefs = anchors.map((a) => a.getAttribute("href"));
     expect(hrefs).toEqual(
-      expect.arrayContaining([
-        "/app",
-        "/app/returns",
-        "/app/settings",
-        "/app/api-docs",
-      ]),
+      expect.arrayContaining(["/app", "/app/returns", "/app/settings", "/app/api-docs"]),
     );
   });
 
@@ -102,17 +97,13 @@ describe("app.docs (Documentation component)", () => {
     });
     const sidebar = container.querySelector(".docs-sidebar") as HTMLElement;
     const buttons = Array.from(sidebar.querySelectorAll("button"));
-    const setupBtn = buttons.find((b) =>
-      (b.textContent || "").includes("First-Time Setup"),
-    );
+    const setupBtn = buttons.find((b) => (b.textContent || "").includes("First-Time Setup"));
     expect(setupBtn).toBeTruthy();
 
     fireEvent.click(setupBtn!);
 
     await waitFor(() => {
-      const h1s = Array.from(container.querySelectorAll("h1")).map((h) =>
-        h.textContent?.trim(),
-      );
+      const h1s = Array.from(container.querySelectorAll("h1")).map((h) => h.textContent?.trim());
       expect(h1s).toContain("First-Time Setup");
     });
   });

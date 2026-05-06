@@ -39,7 +39,10 @@ function buildRequestItem(ep: ApiEndpointDef, baseUrl: string) {
       {
         name: "Success",
         status: "OK",
-        code: ep.method === "POST" && ep.path.includes("webhooks") && !ep.path.includes(":id") ? 201 : 200,
+        code:
+          ep.method === "POST" && ep.path.includes("webhooks") && !ep.path.includes(":id")
+            ? 201
+            : 200,
         header: [{ key: "Content-Type", value: "application/json" }],
         body: JSON.stringify(ep.responseExample, null, 2),
       },
@@ -96,7 +99,8 @@ export function generatePostmanCollection(baseUrl: string): string {
       {
         key: "api_key",
         value: "rpm_YOUR_API_KEY_HERE",
-        description: "Your API key (generate from Settings → API Keys). DO NOT COMMIT this file with the real value — see SECURITY note in collection description.",
+        description:
+          "Your API key (generate from Settings → API Keys). DO NOT COMMIT this file with the real value — see SECURITY note in collection description.",
       },
     ],
     auth: {

@@ -87,7 +87,11 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
     const pages = [
       {
         nodes: [
-          { id: "gid://shopify/Order/1", name: "#1001", customAttributes: [{ key: "affiliate_order_id", value: "FY1" }] },
+          {
+            id: "gid://shopify/Order/1",
+            name: "#1001",
+            customAttributes: [{ key: "affiliate_order_id", value: "FY1" }],
+          },
         ],
         hasNextPage: false,
         endCursor: null,
@@ -98,7 +102,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValueOnce("FY1");
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -128,8 +135,16 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
     const pages = [
       {
         nodes: [
-          { id: "gid://shopify/Order/1", name: "#1001", customAttributes: [{ key: "affiliate_order_id", value: "FA" }] },
-          { id: "gid://shopify/Order/2", name: "#1002", customAttributes: [{ key: "affiliate_order_id", value: "FB" }] },
+          {
+            id: "gid://shopify/Order/1",
+            name: "#1001",
+            customAttributes: [{ key: "affiliate_order_id", value: "FA" }],
+          },
+          {
+            id: "gid://shopify/Order/2",
+            name: "#1002",
+            customAttributes: [{ key: "affiliate_order_id", value: "FB" }],
+          },
         ],
         hasNextPage: false,
         endCursor: null,
@@ -140,7 +155,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValueOnce("FA").mockReturnValueOnce("FB");
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -172,7 +190,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     // Always return a fynd id so every node triggers an upsert
     extractAffiliateOrderIdMock.mockImplementation(() => "FYALL");
 
@@ -204,7 +225,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockImplementation((attrs) => {
       const arr = attrs as Array<{ key: string; value: string }> | undefined;
       const hit = arr?.find((a) => a.key === "affiliate_order_id");
@@ -226,7 +250,11 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
     const pages = [
       {
         nodes: [
-          { id: "gid://shopify/Order/1", name: "#1", customAttributes: [{ key: "affiliate_order_id", value: "F1" }] },
+          {
+            id: "gid://shopify/Order/1",
+            name: "#1",
+            customAttributes: [{ key: "affiliate_order_id", value: "F1" }],
+          },
         ],
         hasNextPage: true,
         endCursor: null,
@@ -240,7 +268,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValueOnce("F1");
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -253,15 +284,15 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
 
   it("empty first page short-circuits the while loop (success, zeros)", async () => {
     const orderUpdate = vi.fn(async () => ({ data: {} }));
-    const graphql = makeGraphql(
-      [{ nodes: [], hasNextPage: false, endCursor: null }],
-      orderUpdate,
-    );
+    const graphql = makeGraphql([{ nodes: [], hasNextPage: false, endCursor: null }], orderUpdate);
     authenticateMock.mockResolvedValueOnce({
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
@@ -281,8 +312,16 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
     const pages = [
       {
         nodes: [
-          { id: "gid://shopify/Order/1", name: "#1", customAttributes: [{ key: "affiliate_order_id", value: "F1" }] },
-          { id: "gid://shopify/Order/2", name: "#2", customAttributes: [{ key: "affiliate_order_id", value: "F2" }] },
+          {
+            id: "gid://shopify/Order/1",
+            name: "#1",
+            customAttributes: [{ key: "affiliate_order_id", value: "F1" }],
+          },
+          {
+            id: "gid://shopify/Order/2",
+            name: "#2",
+            customAttributes: [{ key: "affiliate_order_id", value: "F2" }],
+          },
         ],
         hasNextPage: false,
         endCursor: null,
@@ -296,7 +335,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValueOnce("F1").mockReturnValueOnce("F2");
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -322,7 +364,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     // No fynd id — extract returns null (default)
 
     // Send a request with no JSON body at all to exercise the catch branch
@@ -345,7 +390,11 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
     const pages = [
       {
         nodes: [
-          { id: "gid://shopify/Order/1", name: "#1", customAttributes: [{ key: "affiliate_order_id", value: "FY-EXACT" }] },
+          {
+            id: "gid://shopify/Order/1",
+            name: "#1",
+            customAttributes: [{ key: "affiliate_order_id", value: "FY-EXACT" }],
+          },
         ],
         hasNextPage: false,
         endCursor: null,
@@ -373,7 +422,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValueOnce("FY-EXACT");
 
     await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -399,7 +451,11 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
     const pages = [
       {
         nodes: [
-          { id: "gid://shopify/Order/77", name: "#1077", customAttributes: [{ key: "affiliate_order_id", value: "FY-77" }] },
+          {
+            id: "gid://shopify/Order/77",
+            name: "#1077",
+            customAttributes: [{ key: "affiliate_order_id", value: "FY-77" }],
+          },
         ],
         hasNextPage: false,
         endCursor: null,
@@ -410,7 +466,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-xyz", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-xyz",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValueOnce("FY-77");
 
     await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -448,7 +507,13 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
           json: async () => ({
             data: {
               orders: {
-                nodes: [{ id: "gid://shopify/Order/1", name: "#1", customAttributes: [{ key: "affiliate_order_id", value: "F1" }] }],
+                nodes: [
+                  {
+                    id: "gid://shopify/Order/1",
+                    name: "#1",
+                    customAttributes: [{ key: "affiliate_order_id", value: "F1" }],
+                  },
+                ],
                 pageInfo: { hasNextPage: true, endCursor: "c1" },
               },
             },
@@ -461,7 +526,10 @@ describe("POST /api/admin/backfill-fynd-mappings (coverage)", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValue("F1");
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);

@@ -57,7 +57,9 @@ beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateWebhookMock.mockReset();
   shopifyModuleMock.unauthenticated.admin.mockReset();
-  graphqlMock.mockReset().mockResolvedValue({ data: { orderUpdate: { order: { id: "gid://x" } } } });
+  graphqlMock
+    .mockReset()
+    .mockResolvedValue({ data: { orderUpdate: { order: { id: "gid://x" } } } });
   shopifyModuleMock.unauthenticated.admin.mockResolvedValue({ admin: { graphql: graphqlMock } });
   extractAffiliateOrderIdMock.mockReset();
   normalizeSourceChannelMock.mockReset().mockReturnValue(null);
@@ -84,7 +86,10 @@ describe("webhooks.orders.updated coverage", () => {
     expect(prismaMock.fyndOrderMapping.upsert).toHaveBeenCalledTimes(1);
     const upsertArg = prismaMock.fyndOrderMapping.upsert.mock.calls[0][0];
     expect(upsertArg.create.shopifyOrderId).toBe("gid://shopify/Order/123");
-    expect(upsertArg.update).toMatchObject({ fyndOrderId: "F-1", shopifyOrderId: "gid://shopify/Order/123" });
+    expect(upsertArg.update).toMatchObject({
+      fyndOrderId: "F-1",
+      shopifyOrderId: "gid://shopify/Order/123",
+    });
   });
 
   it("fynd id falls back to p.id when admin_graphql_api_id missing", async () => {

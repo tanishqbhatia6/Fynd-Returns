@@ -30,17 +30,14 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 // `vi.hoisted` ensures these mocks are constructed before the SUT's
 // `vi.mock` calls are evaluated — same shape as the existing
 // `app.index.test.ts` loader test.
-const {
-  prismaMock,
-  authenticateMock,
-  runFyndRetryQueueMock,
-  pollStaleReturnsMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  runFyndRetryQueueMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  pollStaleReturnsMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-}));
+const { prismaMock, authenticateMock, runFyndRetryQueueMock, pollStaleReturnsMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    runFyndRetryQueueMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+    pollStaleReturnsMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -201,7 +198,9 @@ describe("app._index loader — buildSuggestions gap branches", () => {
     // approvedWithEvents.length >= 1 ⇒ branch entered. The findMany call
     // for approvedWithEvents is the one with `select: { createdAt, updatedAt }`.
     prismaMock.returnCase.findMany.mockImplementation(async (args: unknown) => {
-      const a = args as { select?: Record<string, boolean>; where?: { status?: { in?: string[] } } } | undefined;
+      const a = args as
+        | { select?: Record<string, boolean>; where?: { status?: { in?: string[] } } }
+        | undefined;
       // approvedWithEvents: select: { createdAt: true, updatedAt: true }
       if (a?.select?.createdAt && a?.select?.updatedAt) {
         return [
@@ -211,9 +210,7 @@ describe("app._index loader — buildSuggestions gap branches", () => {
       }
       return [];
     });
-    prismaMock.returnCase.groupBy.mockResolvedValueOnce([
-      { status: "approved", _count: 3 },
-    ]);
+    prismaMock.returnCase.groupBy.mockResolvedValueOnce([{ status: "approved", _count: 3 }]);
     // The `$queryRaw` is called twice in this codepath: once for
     // atRiskResult, once for the avg processing time. The first returns
     // the at-risk total, the second returns avg_days.
@@ -261,9 +258,7 @@ describe("app._index loader — buildSuggestions gap branches", () => {
     // The branch checks for both 'Other' and 'other' — exercise the
     // lowercase variant explicitly.
     prismaMock.shop.findUnique.mockResolvedValueOnce(mkShop());
-    prismaMock.returnItem.groupBy.mockResolvedValueOnce([
-      { reasonCode: "other", _count: 4 },
-    ]);
+    prismaMock.returnItem.groupBy.mockResolvedValueOnce([{ reasonCode: "other", _count: 4 }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(2); // totalReturns >= 2
 
     const data = await loader({
@@ -305,9 +300,7 @@ describe("app._index loader — buildSuggestions gap branches", () => {
     prismaMock.returnCase.groupBy.mockResolvedValueOnce([
       { status: "approved", _count: 5 }, // approvedCount=5 > fyndSyncedCount=0
     ]);
-    prismaMock.returnItem.groupBy.mockResolvedValueOnce([
-      { reasonCode: "Other", _count: 9 },
-    ]);
+    prismaMock.returnItem.groupBy.mockResolvedValueOnce([{ reasonCode: "Other", _count: 9 }]);
 
     const data = await loader({
       request: mkReq("/app"),
@@ -420,9 +413,7 @@ describe("app._index loader — avgProcessingDays SQL gap (lines 247-271)", () =
       }
       return [];
     });
-    prismaMock.returnCase.groupBy.mockResolvedValueOnce([
-      { status: "approved", _count: 5 },
-    ]);
+    prismaMock.returnCase.groupBy.mockResolvedValueOnce([{ status: "approved", _count: 5 }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(5); // totalReturns
     prismaMock.$queryRaw
       .mockResolvedValueOnce([{ total: "0" }])
@@ -460,13 +451,11 @@ describe("app._index loader — avgProcessingDays SQL gap (lines 247-271)", () =
       }
       return [];
     });
-    prismaMock.returnCase.groupBy.mockResolvedValueOnce([
-      { status: "approved", _count: 4 },
-    ]);
+    prismaMock.returnCase.groupBy.mockResolvedValueOnce([{ status: "approved", _count: 4 }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(8); // totalReturns >= 2
     prismaMock.$queryRaw
       .mockResolvedValueOnce([{ total: "0" }]) // revenueAtRisk OK
-      .mockRejectedValueOnce(new Error("relation \"ReturnEvent\" does not exist")); // SQL fails
+      .mockRejectedValueOnce(new Error('relation "ReturnEvent" does not exist')); // SQL fails
 
     const data = await loader({
       request: mkReq("/app"),
@@ -503,9 +492,7 @@ describe("app._index loader — avgProcessingDays SQL gap (lines 247-271)", () =
       }
       return [];
     });
-    prismaMock.returnCase.groupBy.mockResolvedValueOnce([
-      { status: "approved", _count: 4 },
-    ]);
+    prismaMock.returnCase.groupBy.mockResolvedValueOnce([{ status: "approved", _count: 4 }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(8);
     prismaMock.$queryRaw
       .mockResolvedValueOnce([{ total: "0" }])
@@ -598,12 +585,19 @@ describe("app._index loader — once-per-day cleanup gap (lines 95-109)", () => 
     vi.doMock("../../db.server", () => ({ default: prismaMock }));
     vi.doMock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock } }));
     vi.doMock("../../lib/fynd-retry.server", () => ({ runFyndRetryQueue: runFyndRetryQueueMock }));
-    vi.doMock("../../lib/fynd-status-poll.server", () => ({ pollStaleReturns: pollStaleReturnsMock }));
+    vi.doMock("../../lib/fynd-status-poll.server", () => ({
+      pollStaleReturns: pollStaleReturnsMock,
+    }));
     vi.doMock("recharts", () => {
       const Empty = () => null;
       return {
-        AreaChart: Empty, Area: Empty, XAxis: Empty, YAxis: Empty,
-        CartesianGrid: Empty, Tooltip: Empty, ResponsiveContainer: Empty,
+        AreaChart: Empty,
+        Area: Empty,
+        XAxis: Empty,
+        YAxis: Empty,
+        CartesianGrid: Empty,
+        Tooltip: Empty,
+        ResponsiveContainer: Empty,
       };
     });
     vi.doMock("@shopify/shopify-app-react-router/server", () => ({
@@ -611,8 +605,10 @@ describe("app._index loader — once-per-day cleanup gap (lines 95-109)", () => 
       shopifyApp: vi.fn(() => ({
         addDocumentResponseHeaders: vi.fn(),
         authenticate: { admin: vi.fn() },
-        unauthenticated: {}, login: vi.fn(),
-        registerWebhooks: vi.fn(), sessionStorage: {},
+        unauthenticated: {},
+        login: vi.fn(),
+        registerWebhooks: vi.fn(),
+        sessionStorage: {},
       })),
       ApiVersion: { January25: "2025-01" },
       AppDistribution: { AppStore: "app_store" },
@@ -717,9 +713,7 @@ describe("app._index loader — misc branch coverage", () => {
   it("does not emit the 'Other' suggestion when totalReturns < 2", async () => {
     // Drives the `&& data.totalReturns >= 2` false branch on line 73.
     prismaMock.shop.findUnique.mockResolvedValueOnce(mkShop());
-    prismaMock.returnItem.groupBy.mockResolvedValueOnce([
-      { reasonCode: "Other", _count: 1 },
-    ]);
+    prismaMock.returnItem.groupBy.mockResolvedValueOnce([{ reasonCode: "Other", _count: 1 }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(1); // totalReturns=1
 
     const data = await loader({

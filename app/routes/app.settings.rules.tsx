@@ -36,13 +36,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shop = await findOrCreateShop(session.shop);
   const s = shop.settings;
   const reasons = parseJsonArray<string>(s?.returnReasonsJson ?? null, DEFAULT_REASONS);
-  const regions = parseJsonArray<{ country?: string; province?: string }>(s?.restrictedRegionsJson ?? null, []);
+  const regions = parseJsonArray<{ country?: string; province?: string }>(
+    s?.restrictedRegionsJson ?? null,
+    [],
+  );
   const offers = parseJsonArray<ReturnOffer>(s?.returnOffersJson ?? null, []);
-  const reasonsByCategoryRaw = parseJsonObject<Record<string, string[]>>(s?.returnReasonsByCategoryJson ?? null, {});
-  const reasonsByCategory = Object.entries(reasonsByCategoryRaw).filter(([k]) => k && typeof k === "string").map(([category, r]) => ({ category, reasons: Array.isArray(r) ? r : [] }));
+  const reasonsByCategoryRaw = parseJsonObject<Record<string, string[]>>(
+    s?.returnReasonsByCategoryJson ?? null,
+    {},
+  );
+  const reasonsByCategory = Object.entries(reasonsByCategoryRaw)
+    .filter(([k]) => k && typeof k === "string")
+    .map(([category, r]) => ({ category, reasons: Array.isArray(r) ? r : [] }));
 
-  const feesByReason = parseJsonArray<{ reason: string; feeAmount: number }>(s?.returnFeesByReasonJson ?? null, []);
-  const windowsByCountry = parseJsonArray<{ country: string; days: number }>(s?.returnWindowByCountryJson ?? null, []);
+  const feesByReason = parseJsonArray<{ reason: string; feeAmount: number }>(
+    s?.returnFeesByReasonJson ?? null,
+    [],
+  );
+  const windowsByCountry = parseJsonArray<{ country: string; days: number }>(
+    s?.returnWindowByCountryJson ?? null,
+    [],
+  );
 
   return {
     returnWindowDays: s?.returnWindowDays ?? 30,
@@ -61,7 +75,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const formData = await request.formData();
-  const returnWindowDays = Math.min(365, Math.max(1, parseInt(String(formData.get("returnWindowDays") ?? "30"), 10) || 30));
+  const returnWindowDays = Math.min(
+    365,
+    Math.max(1, parseInt(String(formData.get("returnWindowDays") ?? "30"), 10) || 30),
+  );
   const minPriceVal = parseFloat(String(formData.get("minimumReturnPrice") ?? "0"));
   const minimumReturnPrice = Math.max(0, Number.isFinite(minPriceVal) ? minPriceVal : 0);
   const returnReasonsJson = formData.get("returnReasonsJson") as string | null;
@@ -151,11 +168,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         minimumReturnPrice,
         returnOffersEnabled,
         ...(returnReasonsStr !== undefined && { returnReasonsJson: returnReasonsStr }),
-        ...(returnReasonsByCategoryStr !== undefined && { returnReasonsByCategoryJson: returnReasonsByCategoryStr }),
+        ...(returnReasonsByCategoryStr !== undefined && {
+          returnReasonsByCategoryJson: returnReasonsByCategoryStr,
+        }),
         ...(restrictedRegionsStr !== undefined && { restrictedRegionsJson: restrictedRegionsStr }),
         ...(returnOffersStr !== undefined && { returnOffersJson: returnOffersStr }),
         ...(feesByReasonStr !== undefined && { returnFeesByReasonJson: feesByReasonStr }),
-        ...(windowsByCountryStr !== undefined && { returnWindowByCountryJson: windowsByCountryStr }),
+        ...(windowsByCountryStr !== undefined && {
+          returnWindowByCountryJson: windowsByCountryStr,
+        }),
       },
     });
     return { success: true };
@@ -171,19 +192,31 @@ export default function ReturnRules() {
   const fetcher = useFetcher<{ success?: boolean }>();
   const [reasons, setReasons] = React.useState<string[]>(data.returnReasons);
   const [reasonInput, setReasonInput] = React.useState("");
-  const [reasonsByCategory, setReasonsByCategory] = React.useState<CategoryReasons[]>(data.returnReasonsByCategory);
-  const [categoryReasonInputs, setCategoryReasonInputs] = React.useState<Record<number, string>>({});
-  const [regions, setRegions] = React.useState<Array<{ country?: string; province?: string }>>(data.restrictedRegions);
+  const [reasonsByCategory, setReasonsByCategory] = React.useState<CategoryReasons[]>(
+    data.returnReasonsByCategory,
+  );
+  const [categoryReasonInputs, setCategoryReasonInputs] = React.useState<Record<number, string>>(
+    {},
+  );
+  const [regions, setRegions] = React.useState<Array<{ country?: string; province?: string }>>(
+    data.restrictedRegions,
+  );
   const [regionInput, setRegionInput] = React.useState("");
 
   const [offers, setOffers] = React.useState<ReturnOffer[]>(data.returnOffers);
   const [offersEnabled, setOffersEnabled] = React.useState(data.returnOffersEnabled);
   const [showOfferForm, setShowOfferForm] = React.useState(false);
-  const [feesByReason, setFeesByReason] = React.useState<{ reason: string; feeAmount: number }[]>(data.feesByReason);
-  const [windowsByCountry, setWindowsByCountry] = React.useState<{ country: string; days: number }[]>(data.windowsByCountry);
+  const [feesByReason, setFeesByReason] = React.useState<{ reason: string; feeAmount: number }[]>(
+    data.feesByReason,
+  );
+  const [windowsByCountry, setWindowsByCountry] = React.useState<
+    { country: string; days: number }[]
+  >(data.windowsByCountry);
   const [newOfferReason, setNewOfferReason] = React.useState("");
   const [newOfferTag, setNewOfferTag] = React.useState("");
-  const [newOfferType, setNewOfferType] = React.useState<"discount_pct" | "discount_flat">("discount_pct");
+  const [newOfferType, setNewOfferType] = React.useState<"discount_pct" | "discount_flat">(
+    "discount_pct",
+  );
   const [newOfferValue, setNewOfferValue] = React.useState("");
   const [newOfferMessage, setNewOfferMessage] = React.useState("");
 
@@ -195,7 +228,15 @@ export default function ReturnRules() {
     setOffersEnabled(data.returnOffersEnabled);
     setFeesByReason(data.feesByReason);
     setWindowsByCountry(data.windowsByCountry);
-  }, [data.returnReasons, data.returnReasonsByCategory, data.restrictedRegions, data.returnOffers, data.returnOffersEnabled, data.feesByReason, data.windowsByCountry]);
+  }, [
+    data.returnReasons,
+    data.returnReasonsByCategory,
+    data.restrictedRegions,
+    data.returnOffers,
+    data.returnOffersEnabled,
+    data.feesByReason,
+    data.windowsByCountry,
+  ]);
 
   const addOffer = () => {
     const val = parseFloat(newOfferValue);
@@ -257,10 +298,10 @@ export default function ReturnRules() {
     setReasonsByCategory(reasonsByCategory.filter((_, i) => i !== idx));
   };
   const setCategoryName = (idx: number, category: string) => {
-    setReasonsByCategory(reasonsByCategory.map((c, i) => i === idx ? { ...c, category } : c));
+    setReasonsByCategory(reasonsByCategory.map((c, i) => (i === idx ? { ...c, category } : c)));
   };
   const setCategoryReasons = (idx: number, reasons: string[]) => {
-    setReasonsByCategory(reasonsByCategory.map((c, i) => i === idx ? { ...c, reasons } : c));
+    setReasonsByCategory(reasonsByCategory.map((c, i) => (i === idx ? { ...c, reasons } : c)));
   };
   const addReasonToCategory = (idx: number, reason: string) => {
     const r = reason.trim();
@@ -271,7 +312,10 @@ export default function ReturnRules() {
     setCategoryReasonInputs((prev) => ({ ...prev, [idx]: "" }));
   };
   const removeReasonFromCategory = (idx: number, reason: string) => {
-    setCategoryReasons(idx, reasonsByCategory[idx].reasons.filter((x) => x !== reason));
+    setCategoryReasons(
+      idx,
+      reasonsByCategory[idx].reasons.filter((x) => x !== reason),
+    );
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -294,404 +338,892 @@ export default function ReturnRules() {
     /* v8 ignore start */
     if (offersEnabled) fd.set("returnOffersEnabled", "on");
     /* v8 ignore stop */
-    fd.set("feesByReasonJson", JSON.stringify(feesByReason.filter((f) => f.reason && f.feeAmount >= 0)));
-    fd.set("windowsByCountryJson", JSON.stringify(windowsByCountry.filter((w) => w.country && w.days > 0)));
+    fd.set(
+      "feesByReasonJson",
+      JSON.stringify(feesByReason.filter((f) => f.reason && f.feeAmount >= 0)),
+    );
+    fd.set(
+      "windowsByCountryJson",
+      JSON.stringify(windowsByCountry.filter((w) => w.country && w.days > 0)),
+    );
     fetcher.submit(fd, { method: "post" });
   };
 
   return (
     <AppPage heading="Return Rules">
       <div className="app-content">
-      {/* v8 ignore start - defensive optional chain on fetcher.data */}
-      {fetcher.data?.success === true && (
-        <div className="app-alert app-alert-success">Settings saved successfully.</div>
-      )}
-      {fetcher.data && fetcher.data.success === false && (
-        <div className="app-alert app-alert-error">{(fetcher.data as { error?: string }).error || "Failed to save settings."}</div>
-      )}
-      {/* v8 ignore stop */}
-
-      <fetcher.Form method="post" onSubmit={handleSubmit}>
-        <div className="layout-medium rpm-grid-2">
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Offers</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Offer discounts during returns to encourage customers to keep the product, reducing return costs.
-            </p>
+        {/* v8 ignore start - defensive optional chain on fetcher.data */}
+        {fetcher.data?.success === true && (
+          <div className="app-alert app-alert-success">Settings saved successfully.</div>
+        )}
+        {fetcher.data && fetcher.data.success === false && (
+          <div className="app-alert app-alert-error">
+            {(fetcher.data as { error?: string }).error || "Failed to save settings."}
           </div>
-          <s-section heading="Return Offers">
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-                <input type="checkbox" checked={offersEnabled} onChange={(e) => setOffersEnabled(e.target.checked)} style={{ width: 18, height: 18 }} />
-                Enable return offers
-              </label>
+        )}
+        {/* v8 ignore stop */}
+
+        <fetcher.Form method="post" onSubmit={handleSubmit}>
+          <div className="layout-medium rpm-grid-2">
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Offers</h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                Offer discounts during returns to encourage customers to keep the product, reducing
+                return costs.
+              </p>
             </div>
-            {offersEnabled && (
-              <>
-                {offers.length > 0 && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
-                    {/* v8 ignore start - defensive `o.id ?? idx` and `shopCurrency || "USD"` fallbacks in offer-item map */}
-                    {offers.map((o, idx) => (
-                      <div key={o.id ?? idx} style={{ padding: 14, background: "#f9fafb", borderRadius: 10, border: "1px solid #e1e3e5" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
-                              {o.offerType === "discount_pct" ? `${o.offerValue}% off` : `${new Intl.NumberFormat("en", { style: "currency", currency: data.shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(o.offerValue)} off`}
+            <s-section heading="Return Offers">
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    fontSize: 13,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={offersEnabled}
+                    onChange={(e) => setOffersEnabled(e.target.checked)}
+                    style={{ width: 18, height: 18 }}
+                  />
+                  Enable return offers
+                </label>
+              </div>
+              {offersEnabled && (
+                <>
+                  {offers.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 10,
+                        marginBottom: 14,
+                      }}
+                    >
+                      {/* v8 ignore start - defensive `o.id ?? idx` and `shopCurrency || "USD"` fallbacks in offer-item map */}
+                      {offers.map((o, idx) => (
+                        <div
+                          key={o.id ?? idx}
+                          style={{
+                            padding: 14,
+                            background: "#f9fafb",
+                            borderRadius: 10,
+                            border: "1px solid #e1e3e5",
+                          }}
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "flex-start",
+                              gap: 8,
+                            }}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>
+                                {o.offerType === "discount_pct"
+                                  ? `${o.offerValue}% off`
+                                  : `${new Intl.NumberFormat("en", { style: "currency", currency: data.shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(o.offerValue)} off`}
+                              </div>
+                              <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>
+                                {o.reasonCode && (
+                                  <span>
+                                    Reason: <strong>{o.reasonCode}</strong>
+                                  </span>
+                                )}
+                                {o.reasonCode && o.tag && <span> &middot; </span>}
+                                {o.tag && (
+                                  <span>
+                                    Tag: <strong>{o.tag}</strong>
+                                  </span>
+                                )}
+                                {!o.reasonCode && !o.tag && (
+                                  <span style={{ fontStyle: "italic" }}>All returns</span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 12, color: "#374151" }}>{o.message}</div>
                             </div>
-                            <div style={{ fontSize: 12, color: "#6d7175", marginBottom: 4 }}>
-                              {o.reasonCode && <span>Reason: <strong>{o.reasonCode}</strong></span>}
-                              {o.reasonCode && o.tag && <span> &middot; </span>}
-                              {o.tag && <span>Tag: <strong>{o.tag}</strong></span>}
-                              {!o.reasonCode && !o.tag && <span style={{ fontStyle: "italic" }}>All returns</span>}
-                            </div>
-                            <div style={{ fontSize: 12, color: "#374151" }}>{o.message}</div>
+                            <button
+                              type="button"
+                              onClick={() => removeOffer(idx)}
+                              style={{
+                                padding: "6px 10px",
+                                borderRadius: 6,
+                                border: "1px solid #FECACA",
+                                background: "#fff",
+                                color: "#DC2626",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Remove
+                            </button>
                           </div>
-                          <button type="button" onClick={() => removeOffer(idx)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid #FECACA", background: "#fff", color: "#DC2626", fontSize: 12, fontWeight: 500, cursor: "pointer" }}>
-                            Remove
-                          </button>
+                        </div>
+                      ))}
+                      {/* v8 ignore stop */}
+                    </div>
+                  )}
+                  {showOfferForm ? (
+                    <div
+                      style={{
+                        padding: 16,
+                        background: "#f9fafb",
+                        borderRadius: 10,
+                        border: "1px solid #e1e3e5",
+                        marginBottom: 10,
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>
+                        New Offer
+                      </div>
+                      <div className="rpm-grid-2-narrow" style={{ marginBottom: 10 }}>
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: 12,
+                              fontWeight: 500,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Return reason (optional)
+                          </label>
+                          <select
+                            value={newOfferReason}
+                            onChange={(e) => setNewOfferReason(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "8px 10px",
+                              borderRadius: 6,
+                              border: "1px solid #e1e3e5",
+                              fontSize: 13,
+                              background: "#fff",
+                            }}
+                          >
+                            <option value="">Any reason</option>
+                            {reasons.map((r) => (
+                              <option key={r} value={r}>
+                                {r}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: 12,
+                              fontWeight: 500,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Product tag (optional)
+                          </label>
+                          <input
+                            type="text"
+                            placeholder="e.g. clearance"
+                            value={newOfferTag}
+                            onChange={(e) => setNewOfferTag(e.target.value)}
+                            style={{
+                              width: "100%",
+                              padding: "8px 10px",
+                              borderRadius: 6,
+                              border: "1px solid #e1e3e5",
+                              fontSize: 13,
+                              boxSizing: "border-box",
+                            }}
+                          />
                         </div>
                       </div>
-                    ))}
-                    {/* v8 ignore stop */}
-                  </div>
-                )}
-                {showOfferForm ? (
-                  <div style={{ padding: 16, background: "#f9fafb", borderRadius: 10, border: "1px solid #e1e3e5", marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 12 }}>New Offer</div>
-                    <div className="rpm-grid-2-narrow" style={{ marginBottom: 10 }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Return reason (optional)</label>
-                        <select value={newOfferReason} onChange={(e) => setNewOfferReason(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}>
-                          <option value="">Any reason</option>
-                          {reasons.map((r) => <option key={r} value={r}>{r}</option>)}
-                        </select>
+                      <div className="rpm-grid-2-narrow" style={{ marginBottom: 10 }}>
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: 12,
+                              fontWeight: 500,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Offer type
+                          </label>
+                          <select
+                            value={newOfferType}
+                            onChange={(e) =>
+                              setNewOfferType(e.target.value as "discount_pct" | "discount_flat")
+                            }
+                            style={{
+                              width: "100%",
+                              padding: "8px 10px",
+                              borderRadius: 6,
+                              border: "1px solid #e1e3e5",
+                              fontSize: 13,
+                              background: "#fff",
+                            }}
+                          >
+                            <option value="discount_pct">Percentage off (%)</option>
+                            <option value="discount_flat">Flat amount off ($)</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label
+                            style={{
+                              display: "block",
+                              fontSize: 12,
+                              fontWeight: 500,
+                              marginBottom: 4,
+                            }}
+                          >
+                            Value
+                          </label>
+                          <input
+                            type="number"
+                            placeholder={newOfferType === "discount_pct" ? "e.g. 15" : "e.g. 10"}
+                            value={newOfferValue}
+                            onChange={(e) => setNewOfferValue(e.target.value)}
+                            min={0}
+                            step="0.01"
+                            style={{
+                              width: "100%",
+                              padding: "8px 10px",
+                              borderRadius: 6,
+                              border: "1px solid #e1e3e5",
+                              fontSize: 13,
+                              boxSizing: "border-box",
+                            }}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Product tag (optional)</label>
-                        <input type="text" placeholder="e.g. clearance" value={newOfferTag} onChange={(e) => setNewOfferTag(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, boxSizing: "border-box" }} />
+                      <div style={{ marginBottom: 12 }}>
+                        <label
+                          style={{
+                            display: "block",
+                            fontSize: 12,
+                            fontWeight: 500,
+                            marginBottom: 4,
+                          }}
+                        >
+                          Message shown to customer
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Keep your item and get 15% off your next order!"
+                          value={newOfferMessage}
+                          onChange={(e) => setNewOfferMessage(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "8px 10px",
+                            borderRadius: 6,
+                            border: "1px solid #e1e3e5",
+                            fontSize: 13,
+                            boxSizing: "border-box",
+                          }}
+                        />
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <s-button type="button" variant="primary" onClick={addOffer}>
+                          Add Offer
+                        </s-button>
+                        <s-button
+                          type="button"
+                          variant="secondary"
+                          onClick={() => setShowOfferForm(false)}
+                        >
+                          Cancel
+                        </s-button>
                       </div>
                     </div>
-                    <div className="rpm-grid-2-narrow" style={{ marginBottom: 10 }}>
-                      <div>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Offer type</label>
-                        <select value={newOfferType} onChange={(e) => setNewOfferType(e.target.value as "discount_pct" | "discount_flat")} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}>
-                          <option value="discount_pct">Percentage off (%)</option>
-                          <option value="discount_flat">Flat amount off ($)</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Value</label>
-                        <input type="number" placeholder={newOfferType === "discount_pct" ? "e.g. 15" : "e.g. 10"} value={newOfferValue} onChange={(e) => setNewOfferValue(e.target.value)} min={0} step="0.01" style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, boxSizing: "border-box" }} />
-                      </div>
-                    </div>
-                    <div style={{ marginBottom: 12 }}>
-                      <label style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>Message shown to customer</label>
-                      <input type="text" placeholder="Keep your item and get 15% off your next order!" value={newOfferMessage} onChange={(e) => setNewOfferMessage(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, boxSizing: "border-box" }} />
-                    </div>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <s-button type="button" variant="primary" onClick={addOffer}>Add Offer</s-button>
-                      <s-button type="button" variant="secondary" onClick={() => setShowOfferForm(false)}>Cancel</s-button>
-                    </div>
-                  </div>
-                ) : (
-                  <s-button variant="secondary" type="button" onClick={() => setShowOfferForm(true)}>Add New Offer</s-button>
-                )}
-              </>
-            )}
-          </s-section>
+                  ) : (
+                    <s-button
+                      variant="secondary"
+                      type="button"
+                      onClick={() => setShowOfferForm(true)}
+                    >
+                      Add New Offer
+                    </s-button>
+                  )}
+                </>
+              )}
+            </s-section>
 
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Price Rules</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Products below this price are not eligible for returns.
-            </p>
-          </div>
-          <s-section heading="Minimum Price">
-            <input
-              type="number"
-              name="minimumReturnPrice"
-              defaultValue={data.minimumReturnPrice}
-              min={0}
-              step="0.01"
-              style={{ width: 120, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)", boxSizing: "border-box" }}
-            />
-          </s-section>
-
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Reasons</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              View and update allowed reasons for return
-            </p>
-          </div>
-          <s-section heading="Search Reasons">
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Price Rules</h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                Products below this price are not eligible for returns.
+              </p>
+            </div>
+            <s-section heading="Minimum Price">
               <input
-                type="text"
-                placeholder="Search or add reason"
-                value={reasonInput}
-                onChange={(e) => setReasonInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addReason())}
-                style={{ flex: 1, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
+                type="number"
+                name="minimumReturnPrice"
+                defaultValue={data.minimumReturnPrice}
+                min={0}
+                step="0.01"
+                style={{
+                  width: 120,
+                  padding: "9px 12px",
+                  borderRadius: "var(--rpm-radius-sm, 8px)",
+                  border: "var(--rpm-border, 1px solid #e1e3e5)",
+                  fontSize: 14,
+                  background: "var(--rpm-surface, #fff)",
+                  color: "var(--rpm-text, #0f172a)",
+                  boxSizing: "border-box",
+                }}
               />
-              <s-button type="button" variant="secondary" onClick={addReason}>Add</s-button>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {reasons.map((r) => (
-                <span
-                  key={r}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "6px 12px",
-                    background: "#f6f6f7",
-                    borderRadius: 8,
-                    fontSize: 13,
-                  }}
-                >
-                  {r}
-                  <button
-                    type="button"
-                    onClick={() => removeReason(r)}
-                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#6d7175", fontSize: 16, lineHeight: 1 }}
-                    aria-label={`Remove ${r}`}
-                  >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          </s-section>
+            </s-section>
 
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return reasons by category</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Show different reasons per product type. Category names must match your Shopify product types.
-            </p>
-          </div>
-          <s-section heading="Category-specific reasons">
-            {reasonsByCategory.map((cat, idx) => (
-              <div key={idx} style={{ marginBottom: 20, padding: 16, background: "#f9fafb", borderRadius: 10, border: "1px solid #e1e3e5" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                  <input
-                    type="text"
-                    placeholder="Category / Product type (e.g. Apparel)"
-                    value={cat.category}
-                    onChange={(e) => setCategoryName(idx, e.target.value)}
-                    style={{ flex: 1, maxWidth: 240, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
-                  />
-                  <button type="button" onClick={() => removeCategory(idx)} style={{ padding: "8px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px solid #FECACA", background: "var(--rpm-surface, #fff)", color: "#DC2626", fontSize: 13, fontWeight: 500, cursor: "pointer", transition: "var(--rpm-transition, all 0.15s)" }}>Remove</button>
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-                  {cat.reasons.map((r) => (
-                    <span key={r} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 12px", background: "#fff", borderRadius: 8, fontSize: 13, border: "1px solid #e1e3e5" }}>
-                      {r}
-                      <button type="button" onClick={() => removeReasonFromCategory(idx, r)} style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#6d7175", fontSize: 16 }} aria-label={`Remove ${r}`}>×</button>
-                    </span>
-                  ))}
-                  {/* v8 ignore start - defensive `?? ""` fallbacks for uncontrolled-input default */}
-                  <input
-                    type="text"
-                    placeholder="Add reason"
-                    value={categoryReasonInputs[idx] ?? ""}
-                    onChange={(e) => setCategoryReasonInputs((prev) => ({ ...prev, [idx]: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReasonToCategory(idx, (e.target as HTMLInputElement).value); } }}
-                    style={{ width: 120, padding: "6px 10px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
-                  />
-                  <button type="button" onClick={() => addReasonToCategory(idx, categoryReasonInputs[idx] ?? "")} style={{ padding: "6px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", background: "var(--rpm-surface, #fff)", fontSize: 13, fontWeight: 500, cursor: "pointer", color: "var(--rpm-text-secondary, #374151)", transition: "var(--rpm-transition, all 0.15s)" }}>Add</button>
-                  {/* v8 ignore stop */}
-                </div>
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Reasons</h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                View and update allowed reasons for return
+              </p>
+            </div>
+            <s-section heading="Search Reasons">
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input
+                  type="text"
+                  placeholder="Search or add reason"
+                  value={reasonInput}
+                  onChange={(e) => setReasonInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addReason())}
+                  style={{
+                    flex: 1,
+                    padding: "9px 12px",
+                    borderRadius: "var(--rpm-radius-sm, 8px)",
+                    border: "var(--rpm-border, 1px solid #e1e3e5)",
+                    fontSize: 14,
+                    background: "var(--rpm-surface, #fff)",
+                    color: "var(--rpm-text, #0f172a)",
+                  }}
+                />
+                <s-button type="button" variant="secondary" onClick={addReason}>
+                  Add
+                </s-button>
               </div>
-            ))}
-            <button type="button" onClick={addCategory} style={{ padding: "10px 16px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px dashed var(--rpm-border-color, #e1e3e5)", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text-muted, #6d7175)", fontSize: 14, cursor: "pointer", transition: "var(--rpm-transition, all 0.15s)", width: "100%" }}>+ Add category</button>
-          </s-section>
-
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Restricted regions</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Orders from these countries or provinces are not eligible for returns.
-            </p>
-          </div>
-          <s-section heading="Search country">
-            <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-              <input
-                type="text"
-                placeholder="Search country"
-                value={regionInput}
-                onChange={(e) => setRegionInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRegion())}
-                style={{ flex: 1, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
-              />
-              <s-button type="button" variant="secondary" onClick={addRegion}>Add</s-button>
-            </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {regions.map((r, i) => (
-                <span
-                  key={i}
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 6,
-                    padding: "6px 12px",
-                    background: "#f6f6f7",
-                    borderRadius: 8,
-                    fontSize: 13,
-                  }}
-                >
-                  {r.country || r.province || "—"}
-                  <button
-                    type="button"
-                    onClick={() => removeRegion(i)}
-                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: "#6d7175", fontSize: 16, lineHeight: 1 }}
-                    aria-label="Remove"
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {reasons.map((r) => (
+                  <span
+                    key={r}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      background: "#f6f6f7",
+                      borderRadius: 8,
+                      fontSize: 13,
+                    }}
                   >
-                    ×
-                  </button>
-                </span>
-              ))}
-            </div>
-          </s-section>
-
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Days</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Number of days after purchase within which customers can initiate a return.
-            </p>
-          </div>
-          <s-section heading="Return Policy Duration">
-            <input
-              type="number"
-              name="returnWindowDays"
-              defaultValue={data.returnWindowDays}
-              min={1}
-              max={365}
-              style={{ width: 120, padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 14, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)", boxSizing: "border-box" }}
-            />
-            <span style={{ marginLeft: 8, fontSize: 14, color: "#6d7175" }}>days</span>
-          </s-section>
-
-          {/* ── Per-Reason Restocking Fees ── */}
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Per-Reason Restocking Fees</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Charge different restocking fees based on the return reason. Per-reason fees override the global fee.
-            </p>
-          </div>
-          <s-section heading="Reason-specific fees">
-            {feesByReason.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-                {feesByReason.map((f, idx) => (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5" }}>
-                    <span style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{f.reason}</span>
-                    <input
-                      type="number"
-                      value={f.feeAmount}
-                      min={0}
-                      step="0.01"
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value) || 0;
-                        setFeesByReason(feesByReason.map((x, i) => i === idx ? { ...x, feeAmount: val } : x));
-                      }}
-                      style={{ width: 90, padding: "6px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, textAlign: "right", background: "#fff" }}
-                    />
+                    {r}
                     <button
                       type="button"
-                      onClick={() => setFeesByReason(feesByReason.filter((_, i) => i !== idx))}
-                      style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #FECACA", background: "#fff", color: "#DC2626", fontSize: 12, cursor: "pointer" }}
+                      onClick={() => removeReason(r)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        color: "#6d7175",
+                        fontSize: 16,
+                        lineHeight: 1,
+                      }}
+                      aria-label={`Remove ${r}`}
                     >
                       ×
                     </button>
-                  </div>
+                  </span>
                 ))}
               </div>
-            )}
-            <div style={{ display: "flex", gap: 8 }}>
-              <select
-                id="feeReasonSelect"
-                style={{ flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}
-              >
-                <option value="">Select reason...</option>
-                {reasons.filter((r) => !feesByReason.some((f) => f.reason === r)).map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-              <s-button
-                type="button"
-                variant="secondary"
-                onClick={() => {
-                  const sel = document.getElementById("feeReasonSelect") as HTMLSelectElement;
-                  if (sel?.value) {
-                    setFeesByReason([...feesByReason, { reason: sel.value, feeAmount: 0 }]);
-                    sel.value = "";
-                  }
-                }}
-              >
-                Add
-              </s-button>
-            </div>
-          </s-section>
+            </s-section>
 
-          {/* ── Country-Specific Return Windows ── */}
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Country-Specific Return Windows</h3>
-            <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
-              Set different return window durations per country. Country-specific windows override the global setting.
-            </p>
-          </div>
-          <s-section heading="Country return windows">
-            {windowsByCountry.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
-                {windowsByCountry.map((w, idx) => (
-                  <div key={idx} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "#f9fafb", borderRadius: 8, border: "1px solid #e1e3e5", flexWrap: "wrap" }}>
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                Return reasons by category
+              </h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                Show different reasons per product type. Category names must match your Shopify
+                product types.
+              </p>
+            </div>
+            <s-section heading="Category-specific reasons">
+              {reasonsByCategory.map((cat, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    marginBottom: 20,
+                    padding: 16,
+                    background: "#f9fafb",
+                    borderRadius: 10,
+                    border: "1px solid #e1e3e5",
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
                     <input
                       type="text"
-                      value={w.country}
-                      placeholder="Country code (e.g. US, UK, DE)"
-                      onChange={(e) => {
-                        setWindowsByCountry(windowsByCountry.map((x, i) => i === idx ? { ...x, country: e.target.value } : x));
+                      placeholder="Category / Product type (e.g. Apparel)"
+                      value={cat.category}
+                      onChange={(e) => setCategoryName(idx, e.target.value)}
+                      style={{
+                        flex: 1,
+                        maxWidth: 240,
+                        padding: "9px 12px",
+                        borderRadius: "var(--rpm-radius-sm, 8px)",
+                        border: "var(--rpm-border, 1px solid #e1e3e5)",
+                        fontSize: 14,
+                        background: "var(--rpm-surface, #fff)",
+                        color: "var(--rpm-text, #0f172a)",
                       }}
-                      style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, background: "#fff" }}
                     />
-                    <input
-                      type="number"
-                      value={w.days}
-                      min={1}
-                      max={365}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value, 10) || 30;
-                        setWindowsByCountry(windowsByCountry.map((x, i) => i === idx ? { ...x, days: val } : x));
-                      }}
-                      style={{ width: 80, padding: "6px 10px", borderRadius: 6, border: "1px solid #e1e3e5", fontSize: 13, textAlign: "right", background: "#fff" }}
-                    />
-                    <span style={{ fontSize: 12, color: "#6d7175" }}>days</span>
                     <button
                       type="button"
-                      onClick={() => setWindowsByCountry(windowsByCountry.filter((_, i) => i !== idx))}
-                      style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid #FECACA", background: "#fff", color: "#DC2626", fontSize: 12, cursor: "pointer" }}
+                      onClick={() => removeCategory(idx)}
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: "var(--rpm-radius-sm, 8px)",
+                        border: "1px solid #FECACA",
+                        background: "var(--rpm-surface, #fff)",
+                        color: "#DC2626",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        transition: "var(--rpm-transition, all 0.15s)",
+                      }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                    {cat.reasons.map((r) => (
+                      <span
+                        key={r}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "6px 12px",
+                          background: "#fff",
+                          borderRadius: 8,
+                          fontSize: 13,
+                          border: "1px solid #e1e3e5",
+                        }}
+                      >
+                        {r}
+                        <button
+                          type="button"
+                          onClick={() => removeReasonFromCategory(idx, r)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            padding: 0,
+                            color: "#6d7175",
+                            fontSize: 16,
+                          }}
+                          aria-label={`Remove ${r}`}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                    {/* v8 ignore start - defensive `?? ""` fallbacks for uncontrolled-input default */}
+                    <input
+                      type="text"
+                      placeholder="Add reason"
+                      value={categoryReasonInputs[idx] ?? ""}
+                      onChange={(e) =>
+                        setCategoryReasonInputs((prev) => ({ ...prev, [idx]: e.target.value }))
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          addReasonToCategory(idx, (e.target as HTMLInputElement).value);
+                        }
+                      }}
+                      style={{
+                        width: 120,
+                        padding: "6px 10px",
+                        borderRadius: "var(--rpm-radius-sm, 8px)",
+                        border: "var(--rpm-border, 1px solid #e1e3e5)",
+                        fontSize: 13,
+                        background: "var(--rpm-surface, #fff)",
+                        color: "var(--rpm-text, #0f172a)",
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => addReasonToCategory(idx, categoryReasonInputs[idx] ?? "")}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "var(--rpm-radius-sm, 8px)",
+                        border: "var(--rpm-border, 1px solid #e1e3e5)",
+                        background: "var(--rpm-surface, #fff)",
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: "pointer",
+                        color: "var(--rpm-text-secondary, #374151)",
+                        transition: "var(--rpm-transition, all 0.15s)",
+                      }}
+                    >
+                      Add
+                    </button>
+                    {/* v8 ignore stop */}
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addCategory}
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "var(--rpm-radius-sm, 8px)",
+                  border: "1px dashed var(--rpm-border-color, #e1e3e5)",
+                  background: "var(--rpm-surface, #fff)",
+                  color: "var(--rpm-text-muted, #6d7175)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  transition: "var(--rpm-transition, all 0.15s)",
+                  width: "100%",
+                }}
+              >
+                + Add category
+              </button>
+            </s-section>
+
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Restricted regions</h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                Orders from these countries or provinces are not eligible for returns.
+              </p>
+            </div>
+            <s-section heading="Search country">
+              <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+                <input
+                  type="text"
+                  placeholder="Search country"
+                  value={regionInput}
+                  onChange={(e) => setRegionInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRegion())}
+                  style={{
+                    flex: 1,
+                    padding: "9px 12px",
+                    borderRadius: "var(--rpm-radius-sm, 8px)",
+                    border: "var(--rpm-border, 1px solid #e1e3e5)",
+                    fontSize: 14,
+                    background: "var(--rpm-surface, #fff)",
+                    color: "var(--rpm-text, #0f172a)",
+                  }}
+                />
+                <s-button type="button" variant="secondary" onClick={addRegion}>
+                  Add
+                </s-button>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {regions.map((r, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 12px",
+                      background: "#f6f6f7",
+                      borderRadius: 8,
+                      fontSize: 13,
+                    }}
+                  >
+                    {r.country || r.province || "—"}
+                    <button
+                      type="button"
+                      onClick={() => removeRegion(i)}
+                      style={{
+                        background: "none",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        color: "#6d7175",
+                        fontSize: 16,
+                        lineHeight: 1,
+                      }}
+                      aria-label="Remove"
                     >
                       ×
                     </button>
-                  </div>
+                  </span>
                 ))}
               </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setWindowsByCountry([...windowsByCountry, { country: "", days: 30 }])}
-              style={{ padding: "10px 16px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "1px dashed var(--rpm-border-color, #e1e3e5)", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text-muted, #6d7175)", fontSize: 14, cursor: "pointer", width: "100%", transition: "var(--rpm-transition, all 0.15s)" }}
-            >
-              + Add country
-            </button>
-          </s-section>
-        </div>
+            </s-section>
 
-        <div className="app-actions">
-          <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
-          <Link to="/app/settings">
-            <s-button variant="secondary" type="button">Discard</s-button>
-          </Link>
-        </div>
-      </fetcher.Form>
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Return Days</h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                Number of days after purchase within which customers can initiate a return.
+              </p>
+            </div>
+            <s-section heading="Return Policy Duration">
+              <input
+                type="number"
+                name="returnWindowDays"
+                defaultValue={data.returnWindowDays}
+                min={1}
+                max={365}
+                style={{
+                  width: 120,
+                  padding: "9px 12px",
+                  borderRadius: "var(--rpm-radius-sm, 8px)",
+                  border: "var(--rpm-border, 1px solid #e1e3e5)",
+                  fontSize: 14,
+                  background: "var(--rpm-surface, #fff)",
+                  color: "var(--rpm-text, #0f172a)",
+                  boxSizing: "border-box",
+                }}
+              />
+              <span style={{ marginLeft: 8, fontSize: 14, color: "#6d7175" }}>days</span>
+            </s-section>
+
+            {/* ── Per-Reason Restocking Fees ── */}
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                Per-Reason Restocking Fees
+              </h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                Charge different restocking fees based on the return reason. Per-reason fees
+                override the global fee.
+              </p>
+            </div>
+            <s-section heading="Reason-specific fees">
+              {feesByReason.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                  {feesByReason.map((f, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 14px",
+                        background: "#f9fafb",
+                        borderRadius: 8,
+                        border: "1px solid #e1e3e5",
+                      }}
+                    >
+                      <span
+                        style={{
+                          flex: 1,
+                          fontSize: 13,
+                          fontWeight: 500,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                          minWidth: 0,
+                        }}
+                      >
+                        {f.reason}
+                      </span>
+                      <input
+                        type="number"
+                        value={f.feeAmount}
+                        min={0}
+                        step="0.01"
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value) || 0;
+                          setFeesByReason(
+                            feesByReason.map((x, i) => (i === idx ? { ...x, feeAmount: val } : x)),
+                          );
+                        }}
+                        style={{
+                          width: 90,
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          border: "1px solid #e1e3e5",
+                          fontSize: 13,
+                          textAlign: "right",
+                          background: "#fff",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFeesByReason(feesByReason.filter((_, i) => i !== idx))}
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 6,
+                          border: "1px solid #FECACA",
+                          background: "#fff",
+                          color: "#DC2626",
+                          fontSize: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8 }}>
+                <select
+                  id="feeReasonSelect"
+                  style={{
+                    flex: 1,
+                    padding: "8px 12px",
+                    borderRadius: 6,
+                    border: "1px solid #e1e3e5",
+                    fontSize: 13,
+                    background: "#fff",
+                  }}
+                >
+                  <option value="">Select reason...</option>
+                  {reasons
+                    .filter((r) => !feesByReason.some((f) => f.reason === r))
+                    .map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                </select>
+                <s-button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => {
+                    const sel = document.getElementById("feeReasonSelect") as HTMLSelectElement;
+                    if (sel?.value) {
+                      setFeesByReason([...feesByReason, { reason: sel.value, feeAmount: 0 }]);
+                      sel.value = "";
+                    }
+                  }}
+                >
+                  Add
+                </s-button>
+              </div>
+            </s-section>
+
+            {/* ── Country-Specific Return Windows ── */}
+            <div>
+              <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>
+                Country-Specific Return Windows
+              </h3>
+              <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
+                Set different return window durations per country. Country-specific windows override
+                the global setting.
+              </p>
+            </div>
+            <s-section heading="Country return windows">
+              {windowsByCountry.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 12 }}>
+                  {windowsByCountry.map((w, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 10,
+                        padding: "10px 14px",
+                        background: "#f9fafb",
+                        borderRadius: 8,
+                        border: "1px solid #e1e3e5",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <input
+                        type="text"
+                        value={w.country}
+                        placeholder="Country code (e.g. US, UK, DE)"
+                        onChange={(e) => {
+                          setWindowsByCountry(
+                            windowsByCountry.map((x, i) =>
+                              i === idx ? { ...x, country: e.target.value } : x,
+                            ),
+                          );
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          border: "1px solid #e1e3e5",
+                          fontSize: 13,
+                          background: "#fff",
+                        }}
+                      />
+                      <input
+                        type="number"
+                        value={w.days}
+                        min={1}
+                        max={365}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10) || 30;
+                          setWindowsByCountry(
+                            windowsByCountry.map((x, i) => (i === idx ? { ...x, days: val } : x)),
+                          );
+                        }}
+                        style={{
+                          width: 80,
+                          padding: "6px 10px",
+                          borderRadius: 6,
+                          border: "1px solid #e1e3e5",
+                          fontSize: 13,
+                          textAlign: "right",
+                          background: "#fff",
+                        }}
+                      />
+                      <span style={{ fontSize: 12, color: "#6d7175" }}>days</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setWindowsByCountry(windowsByCountry.filter((_, i) => i !== idx))
+                        }
+                        style={{
+                          padding: "4px 10px",
+                          borderRadius: 6,
+                          border: "1px solid #FECACA",
+                          background: "#fff",
+                          color: "#DC2626",
+                          fontSize: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() =>
+                  setWindowsByCountry([...windowsByCountry, { country: "", days: 30 }])
+                }
+                style={{
+                  padding: "10px 16px",
+                  borderRadius: "var(--rpm-radius-sm, 8px)",
+                  border: "1px dashed var(--rpm-border-color, #e1e3e5)",
+                  background: "var(--rpm-surface, #fff)",
+                  color: "var(--rpm-text-muted, #6d7175)",
+                  fontSize: 14,
+                  cursor: "pointer",
+                  width: "100%",
+                  transition: "var(--rpm-transition, all 0.15s)",
+                }}
+              >
+                + Add country
+              </button>
+            </s-section>
+          </div>
+
+          <div className="app-actions">
+            <s-button type="submit" loading={fetcher.state !== "idle"}>
+              Save
+            </s-button>
+            <Link to="/app/settings">
+              <s-button variant="secondary" type="button">
+                Discard
+              </s-button>
+            </Link>
+          </div>
+        </fetcher.Form>
       </div>
     </AppPage>
   );

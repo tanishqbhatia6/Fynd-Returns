@@ -63,9 +63,7 @@ vi.mock("../../lib/encryption.server", () => ({
 const fetcherStatesRef: { current: Array<unknown> } = { current: [] };
 let fetcherCallIndex = 0;
 vi.mock("react-router", async () => {
-  const actual = await vi.importActual<typeof import("react-router")>(
-    "react-router",
-  );
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return {
     ...actual,
     useFetcher: () => {
@@ -151,29 +149,28 @@ beforeEach(() => {
   fetcherStatesRef.current = [];
   fetcherCallIndex = 0;
   // Stub AudioContext for any code path that touches the sound preview.
-  (globalThis as unknown as { AudioContext: unknown }).AudioContext =
-    class FakeAudioContext {
-      currentTime = 0;
-      destination = {};
-      createOscillator() {
-        return {
-          connect: () => {},
-          type: "",
-          frequency: { setValueAtTime: () => {} },
-          start: () => {},
-          stop: () => {},
-        };
-      }
-      createGain() {
-        return {
-          connect: () => {},
-          gain: {
-            setValueAtTime: () => {},
-            exponentialRampToValueAtTime: () => {},
-          },
-        };
-      }
-    };
+  (globalThis as unknown as { AudioContext: unknown }).AudioContext = class FakeAudioContext {
+    currentTime = 0;
+    destination = {};
+    createOscillator() {
+      return {
+        connect: () => {},
+        type: "",
+        frequency: { setValueAtTime: () => {} },
+        start: () => {},
+        stop: () => {},
+      };
+    }
+    createGain() {
+      return {
+        connect: () => {},
+        gain: {
+          setValueAtTime: () => {},
+          exponentialRampToValueAtTime: () => {},
+        },
+      };
+    }
+  };
 });
 
 function renderBase(loaderData: unknown = baseLoaderData) {
@@ -229,9 +226,7 @@ function openCustomizeEditor(container: HTMLElement, label: string) {
 describe("notifications action — save_email_templates DB error", () => {
   it("returns success:false with the Error message when upsert throws", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-x", settings: null });
-    prismaMock.shopSettings.upsert.mockRejectedValueOnce(
-      new Error("db down"),
-    );
+    prismaMock.shopSettings.upsert.mockRejectedValueOnce(new Error("db down"));
     const res = await action({
       request: formReq({
         intent: "save_email_templates",
@@ -299,9 +294,7 @@ describe("notifications component — Test connection with smtpSecure on", () =>
   it("clicking Test connection when smtpSecure is checked does not throw", async () => {
     const { container } = renderBase();
     await waitForRender(container);
-    const secureCb = container.querySelector(
-      "input[name='smtpSecure']",
-    ) as HTMLInputElement;
+    const secureCb = container.querySelector("input[name='smtpSecure']") as HTMLInputElement;
     expect(secureCb.checked).toBe(true);
     const btn = Array.from(container.querySelectorAll("button")).find((b) =>
       b.textContent?.includes("Test connection"),
@@ -328,17 +321,13 @@ describe("notifications component — editor Preview toggle", () => {
     const previewBtn = allButtons.find((b) => {
       if (b.textContent?.trim() !== "Preview") return false;
       // Must be after the textarea in DOM order.
-      return (
-        ta.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING
-      );
+      return ta.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING;
     }) as HTMLButtonElement | undefined;
     expect(previewBtn).toBeTruthy();
     fireEvent.click(previewBtn!);
     // After the toggle, the iframe replaces the textarea inside the editor.
     await waitFor(() => {
-      const iframe = container.querySelector(
-        "iframe[title='Template preview']",
-      );
+      const iframe = container.querySelector("iframe[title='Template preview']");
       expect(iframe).toBeTruthy();
     });
   });
@@ -351,19 +340,14 @@ describe("notifications component — editor Preview toggle", () => {
     const findEditorPreviewBtn = () => {
       const refNode =
         (container.querySelector("textarea") as HTMLElement | null) ??
-        (container.querySelector(
-          "iframe[title='Template preview']",
-        ) as HTMLElement | null);
+        (container.querySelector("iframe[title='Template preview']") as HTMLElement | null);
       if (!refNode) return null;
       const all = Array.from(container.querySelectorAll("button"));
       return (
         all.find((b) => {
           const t = b.textContent?.trim();
           if (t !== "Preview" && t !== "Edit") return false;
-          return (
-            refNode.compareDocumentPosition(b) &
-            Node.DOCUMENT_POSITION_FOLLOWING
-          );
+          return refNode.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING;
         }) ?? null
       );
     };
@@ -371,16 +355,12 @@ describe("notifications component — editor Preview toggle", () => {
     const first = findEditorPreviewBtn() as HTMLButtonElement;
     fireEvent.click(first); // → Preview mode (iframe)
     await waitFor(() =>
-      expect(
-        container.querySelector("iframe[title='Template preview']"),
-      ).toBeTruthy(),
+      expect(container.querySelector("iframe[title='Template preview']")).toBeTruthy(),
     );
     const second = findEditorPreviewBtn() as HTMLButtonElement;
     expect(second.textContent?.trim()).toBe("Edit");
     fireEvent.click(second); // → back to Edit (textarea)
-    await waitFor(() =>
-      expect(container.querySelector("textarea")).toBeTruthy(),
-    );
+    await waitFor(() => expect(container.querySelector("textarea")).toBeTruthy());
   });
 });
 
@@ -393,15 +373,11 @@ describe("notifications component — fetcher-driven render branches", () => {
     ];
     const { container } = renderBase();
     await waitForRender(container);
-    expect(container.textContent).toContain(
-      "Notification settings saved successfully.",
-    );
+    expect(container.textContent).toContain("Notification settings saved successfully.");
   });
 
   it("renders the error alert when saveFetcher.data.success === false", async () => {
-    fetcherStatesRef.current = [
-      stubFetcher({ success: false, error: "boom!" }),
-    ];
+    fetcherStatesRef.current = [stubFetcher({ success: false, error: "boom!" })];
     const { container } = renderBase();
     await waitForRender(container);
     expect(container.textContent).toContain("boom!");
@@ -437,9 +413,7 @@ describe("notifications component — fetcher-driven render branches", () => {
     ];
     const { container } = renderBase();
     await waitForRender(container);
-    expect(container.textContent).toContain(
-      "Failed to save notification settings.",
-    );
+    expect(container.textContent).toContain("Failed to save notification settings.");
   });
 
   it("renders the test-result success and failure variants", async () => {
@@ -478,9 +452,7 @@ describe("notifications component — insertVariable when ref is unmounted", () 
     ) as HTMLButtonElement;
     fireEvent.click(previewBtn);
     await waitFor(() =>
-      expect(
-        container.querySelector("iframe[title='Template preview']"),
-      ).toBeTruthy(),
+      expect(container.querySelector("iframe[title='Template preview']")).toBeTruthy(),
     );
     // Now click an insert-variable chip — textarea ref is null, so the
     // else-branch runs `setTemplateBody((prev) => prev + tag)`.
@@ -492,9 +464,7 @@ describe("notifications component — insertVariable when ref is unmounted", () 
       fireEvent.click(chip);
     });
     // Toggle back to Edit so we can read the textarea body.
-    const iframe = container.querySelector(
-      "iframe[title='Template preview']",
-    ) as HTMLElement;
+    const iframe = container.querySelector("iframe[title='Template preview']") as HTMLElement;
     const editBtn = Array.from(container.querySelectorAll("button")).find(
       (b) =>
         b.textContent?.trim() === "Edit" &&

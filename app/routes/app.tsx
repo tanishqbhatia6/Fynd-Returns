@@ -1,5 +1,13 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Link, Outlet, redirect, useLoaderData, useLocation, useNavigation, useRouteError } from "react-router";
+import {
+  Link,
+  Outlet,
+  redirect,
+  useLoaderData,
+  useLocation,
+  useNavigation,
+  useRouteError,
+} from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import React, { useEffect, useRef, useCallback } from "react";
@@ -12,10 +20,10 @@ import { getBillingStatus } from "../lib/billing.server";
 declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
-      's-app-nav': any;
-      's-page': any;
-      's-section': any;
-      's-button': any;
+      "s-app-nav": any;
+      "s-page": any;
+      "s-section": any;
+      "s-button": any;
     }
   }
 }
@@ -35,8 +43,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // redirect loop — if a superadmin with no subscription tries to open
   // /app/settings/billing-override, they still need to get there.
   const url = new URL(request.url);
-  const onBillingRoute = url.pathname === "/app/billing"
-    || url.pathname.startsWith("/app/settings/billing-override");
+  const onBillingRoute =
+    url.pathname === "/app/billing" || url.pathname.startsWith("/app/settings/billing-override");
   if (!onBillingRoute) {
     const billing = await getBillingStatus(shopDomain, admin);
     if (!billing.hasAccess) {
@@ -50,7 +58,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   try {
     // Sync shop locale/currency/timezone from Shopify (only writes if changed)
     await syncShopLocaleAndCurrency(admin, shopDomain).catch(() => {});
-    const shop = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
+    const shop = await prisma.shop.findUnique({
+      where: { shopDomain },
+      include: { settings: true },
+    });
     if (shop?.settings) {
       appMode = getAppMode(shop.settings);
       adminSoundEnabled = shop.settings.adminSoundEnabled ?? true;
@@ -79,16 +90,52 @@ const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; labe
   "/app/reports": { parent: "/app", parentLabel: "Dashboard", label: "Analytics" },
   "/app/settings": { parent: "/app", parentLabel: "Dashboard", label: "Settings" },
   "/app/portal": { parent: "/app", parentLabel: "Dashboard", label: "Customer Portal" },
-  "/app/settings/integrations": { parent: "/app/settings", parentLabel: "Settings", label: "Integrations" },
-  "/app/settings/notifications": { parent: "/app/settings", parentLabel: "Settings", label: "Notifications" },
+  "/app/settings/integrations": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Integrations",
+  },
+  "/app/settings/notifications": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Notifications",
+  },
   "/app/settings/setup": { parent: "/app/settings", parentLabel: "Settings", label: "Setup Guide" },
-  "/app/settings/return-settings": { parent: "/app/settings", parentLabel: "Settings", label: "Return Settings" },
-  "/app/settings/rules": { parent: "/app/settings", parentLabel: "Settings", label: "Policy Rules" },
-  "/app/settings/widget": { parent: "/app/settings", parentLabel: "Settings", label: "Portal Widget" },
-  "/app/settings/permissions": { parent: "/app/settings", parentLabel: "Settings", label: "Permissions" },
-  "/app/settings/blocklist": { parent: "/app/settings", parentLabel: "Settings", label: "Customer Blocklist" },
-  "/app/settings/auto-rules": { parent: "/app/settings", parentLabel: "Settings", label: "Auto-Approve Rules" },
-  "/app/settings/webhook-logs": { parent: "/app/settings", parentLabel: "Settings", label: "Fynd Webhook Logs" },
+  "/app/settings/return-settings": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Return Settings",
+  },
+  "/app/settings/rules": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Policy Rules",
+  },
+  "/app/settings/widget": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Portal Widget",
+  },
+  "/app/settings/permissions": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Permissions",
+  },
+  "/app/settings/blocklist": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Customer Blocklist",
+  },
+  "/app/settings/auto-rules": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Auto-Approve Rules",
+  },
+  "/app/settings/webhook-logs": {
+    parent: "/app/settings",
+    parentLabel: "Settings",
+    label: "Fynd Webhook Logs",
+  },
   "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Documentation" },
 };
 
@@ -120,7 +167,9 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
       gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
       osc.start(ctx.currentTime);
       osc.stop(ctx.currentTime + 0.5);
-    } catch { /* AudioContext unavailable */ }
+    } catch {
+      /* AudioContext unavailable */
+    }
   }, []);
 
   useEffect(() => {
@@ -149,13 +198,19 @@ export default function App() {
     <AppProvider embedded apiKey={apiKey}>
       {/* Navigation loading bar — shows immediately when any page transition starts */}
       {isNavigating && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, right: 0, height: 3,
-          background: "linear-gradient(90deg, #4f46e5, #818cf8, #4f46e5)",
-          backgroundSize: "200% 100%",
-          zIndex: 9999,
-          animation: "rpm-load-bar 1.2s ease-in-out infinite",
-        }} />
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 3,
+            background: "linear-gradient(90deg, #4f46e5, #818cf8, #4f46e5)",
+            backgroundSize: "200% 100%",
+            zIndex: 9999,
+            animation: "rpm-load-bar 1.2s ease-in-out infinite",
+          }}
+        />
       )}
       {appMode === "dev" && (
         <div
@@ -171,7 +226,18 @@ export default function App() {
             borderBottom: "1px solid #fcd34d",
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+          >
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
           <span>Dev mode — Test data only.</span>
           <Link
             to="/app/settings/integrations"
@@ -183,9 +249,7 @@ export default function App() {
       )}
       <s-app-nav>
         <s-link href="/app">Dashboard</s-link>
-        <s-link href="/app/returns">
-          Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}
-        </s-link>
+        <s-link href="/app/returns">Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}</s-link>
         <s-link href="/app/customers">Customers</s-link>
         <s-link href="/app/reports">Analytics</s-link>
         <s-link href="/app/settings">Settings</s-link>
@@ -215,8 +279,20 @@ export default function App() {
             {breadcrumb.parentLabel}
           </Link>
           <span style={{ color: "var(--rpm-text-subtle, #94a3b8)", fontSize: 11 }}>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ display: "block" }}>
-              <path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              style={{ display: "block" }}
+            >
+              <path
+                d="M4.5 2.5L8 6L4.5 9.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </span>
           <span style={{ color: "var(--rpm-text-muted, #64748b)", fontWeight: 600 }}>

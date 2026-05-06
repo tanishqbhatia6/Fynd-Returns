@@ -78,14 +78,24 @@ describe("observability/metrics.server — counters", () => {
 
   it("counter.add() does not throw with a numeric value", () => {
     for (const name of COUNTERS) {
-      const inst = (metricsModule as unknown as Record<string, { add: (n: number, attrs?: Record<string, unknown>) => void }>)[name];
+      const inst = (
+        metricsModule as unknown as Record<
+          string,
+          { add: (n: number, attrs?: Record<string, unknown>) => void }
+        >
+      )[name];
       expect(() => inst.add(0)).not.toThrow();
     }
   });
 
   it("counter.add() accepts attribute maps", () => {
     for (const name of COUNTERS) {
-      const inst = (metricsModule as unknown as Record<string, { add: (n: number, attrs?: Record<string, unknown>) => void }>)[name];
+      const inst = (
+        metricsModule as unknown as Record<
+          string,
+          { add: (n: number, attrs?: Record<string, unknown>) => void }
+        >
+      )[name];
       expect(() => inst.add(1, { test: "smoke" })).not.toThrow();
     }
   });
@@ -109,7 +119,12 @@ describe("observability/metrics.server — histograms", () => {
 
   it("histogram.record() does not throw with a numeric value + attrs", () => {
     for (const name of HISTOGRAMS) {
-      const inst = (metricsModule as unknown as Record<string, { record: (n: number, attrs?: Record<string, unknown>) => void }>)[name];
+      const inst = (
+        metricsModule as unknown as Record<
+          string,
+          { record: (n: number, attrs?: Record<string, unknown>) => void }
+        >
+      )[name];
       expect(() => inst.record(123, { kind: "smoke" })).not.toThrow();
     }
   });

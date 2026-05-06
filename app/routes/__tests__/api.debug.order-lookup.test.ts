@@ -38,20 +38,28 @@ describe("GET /api/debug/order-lookup", () => {
     const graphqlMock = vi.fn();
     // 7 GraphQL search queries + 1 pagination scan + 1 metafield search = 9 calls
     for (let i = 0; i < 7; i++) {
-      graphqlMock.mockResolvedValueOnce({ json: async () => ({ data: { orders: { nodes: [] } } }) });
+      graphqlMock.mockResolvedValueOnce({
+        json: async () => ({ data: { orders: { nodes: [] } } }),
+      });
     }
     // Pagination scan returns some orders
     graphqlMock.mockResolvedValueOnce({
       json: async () => ({
-        data: { orders: { nodes: [
-          { id: "gid://shopify/Order/1", name: "#1001" },
-          { id: "gid://shopify/Order/2", name: "#CLEANED" },
-        ] } },
+        data: {
+          orders: {
+            nodes: [
+              { id: "gid://shopify/Order/1", name: "#1001" },
+              { id: "gid://shopify/Order/2", name: "#CLEANED" },
+            ],
+          },
+        },
       }),
     });
     // Metafield search hits
     graphqlMock.mockResolvedValueOnce({
-      json: async () => ({ data: { orders: { nodes: [{ id: "gid://shopify/Order/MF", name: "#MF" }] } } }),
+      json: async () => ({
+        data: { orders: { nodes: [{ id: "gid://shopify/Order/MF", name: "#MF" }] } },
+      }),
     });
 
     authenticateMock.mockResolvedValueOnce({
@@ -72,26 +80,40 @@ describe("GET /api/debug/order-lookup", () => {
     expect(body.diagnostics.hasAccessToken).toBe(true);
     expect(body.diagnostics.cleanedName).toBe("CLEANED");
     // Pagination scan should have found the #CLEANED match
-    const paginationResult = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
+    const paginationResult = body.results.find(
+      (r: { strategy: string }) => r.strategy === "Pagination scan",
+    );
     expect(paginationResult.success).toBe(true);
     // Metafield search should also have succeeded
-    const metafieldResult = body.results.find((r: { strategy: string }) => r.strategy === "Metafield search");
+    const metafieldResult = body.results.find(
+      (r: { strategy: string }) => r.strategy === "Metafield search",
+    );
     expect(metafieldResult.success).toBe(true);
   });
 
   it("includes DB return case when returnCaseId provided", async () => {
-    const graphqlMock = vi.fn().mockResolvedValue({ json: async () => ({ data: { orders: { nodes: [] } } }) });
+    const graphqlMock = vi
+      .fn()
+      .mockResolvedValue({ json: async () => ({ data: { orders: { nodes: [] } } }) });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
       admin: { graphql: graphqlMock },
     });
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ orders: [] }) }) as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ orders: [] }) }) as typeof fetch;
     prismaMock.returnCase.findUnique.mockResolvedValueOnce({
-      id: "rc-1", shopifyOrderId: "gid://shopify/Order/9",
-      shopifyOrderName: "#1001", returnRequestNo: "R-1",
+      id: "rc-1",
+      shopifyOrderId: "gid://shopify/Order/9",
+      shopifyOrderName: "#1001",
+      returnRequestNo: "R-1",
     });
 
-    const res = await loader({ request: mkReq("name=1001&returnCaseId=rc-1"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("name=1001&returnCaseId=rc-1"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.diagnostics.returnCase).toEqual(expect.objectContaining({ id: "rc-1" }));
   });
@@ -104,16 +126,22 @@ describe("GET /api/debug/order-lookup", () => {
       session: { shop: "store.myshopify.com", accessToken: "tok" },
       admin: { graphql: graphqlMock },
     });
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ orders: [] }) }) as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ orders: [] }) }) as typeof fetch;
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
     const body = await res.json();
-    const graphqlResults = body.results.filter((r: { strategy: string }) => r.strategy === "GraphQL search");
+    const graphqlResults = body.results.filter(
+      (r: { strategy: string }) => r.strategy === "GraphQL search",
+    );
     expect(graphqlResults.length).toBeGreaterThan(0);
     expect(graphqlResults[0].error).toMatch(/throttled/);
   });
 
   it("captures REST non-200 responses", async () => {
-    const graphqlMock = vi.fn().mockResolvedValue({ json: async () => ({ data: { orders: { nodes: [] } } }) });
+    const graphqlMock = vi
+      .fn()
+      .mockResolvedValue({ json: async () => ({ data: { orders: { nodes: [] } } }) });
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
       admin: { graphql: graphqlMock },
@@ -136,7 +164,9 @@ describe("GET /api/debug/order-lookup", () => {
       session: { shop: "store.myshopify.com", accessToken: "tok" },
       admin: { graphql: graphqlMock },
     });
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ orders: [] }) }) as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ orders: [] }) }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
     const body = await res.json();

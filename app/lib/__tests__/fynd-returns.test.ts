@@ -41,7 +41,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 0,
@@ -71,24 +71,25 @@ type MockClientOverrides = {
 };
 
 function makeClient(o: MockClientOverrides = {}) {
-  const search = o.searchImpl
-    ?? vi.fn().mockResolvedValue(
+  const search =
+    o.searchImpl ??
+    vi.fn().mockResolvedValue(
       o.search ?? {
         items: [{ id: "FYSHIP001", order_id: "FYMP698CC0", shipment_id: "FYSHIP001" }],
         orderId: "FYMP698CC0",
         shipmentId: "FYSHIP001",
       },
     );
-  const getShipments = o.getShipmentsImpl
-    ?? vi.fn().mockResolvedValue(
+  const getShipments =
+    o.getShipmentsImpl ??
+    vi.fn().mockResolvedValue(
       o.getShipments ?? {
         shipments: [{ id: "FYSHIP001", identifier: "FYSHIP001", order_id: "FYMP698CC0" }],
       },
     );
-  const update = o.updateImpl
-    ?? vi.fn().mockResolvedValue(
-      o.update ?? { return_id: "FYRET001", return_no: "R-001" },
-    );
+  const update =
+    o.updateImpl ??
+    vi.fn().mockResolvedValue(o.update ?? { return_id: "FYRET001", return_no: "R-001" });
 
   const client: Record<string, unknown> = {
     getShipments,
@@ -197,7 +198,9 @@ describe("createReturnOnFynd — fast path (known shipment ID)", () => {
 
   it("returns alreadyExists=true on Invalid State Transition in fast path", async () => {
     const client = makeClient({
-      updateImpl: vi.fn().mockRejectedValue(new Error("Invalid State Transition to return_initiated")),
+      updateImpl: vi
+        .fn()
+        .mockRejectedValue(new Error("Invalid State Transition to return_initiated")),
     });
     const rc = makeCase();
     const res = await createReturnOnFynd(client, rc, { targetShipmentId: "FYSHIP777" });
@@ -562,9 +565,7 @@ describe("createReturnOnFynd — already-exists nested status", () => {
       update: {
         statuses: [
           {
-            shipments: [
-              { status: 422, message: "Quantity exceeds available", identifier: "FYS1" },
-            ],
+            shipments: [{ status: 422, message: "Quantity exceeds available", identifier: "FYS1" }],
           },
         ],
       },

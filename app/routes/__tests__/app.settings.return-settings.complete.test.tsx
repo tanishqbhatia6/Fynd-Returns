@@ -24,17 +24,14 @@ import * as React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  authenticateMock,
-  findOrCreateShopMock,
-  fetchAllLocationsMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  findOrCreateShopMock: vi.fn(),
-  fetchAllLocationsMock: vi.fn(),
-}));
+const { prismaMock, authenticateMock, findOrCreateShopMock, fetchAllLocationsMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    findOrCreateShopMock: vi.fn(),
+    fetchAllLocationsMock: vi.fn(),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../shopify.server", () => ({
@@ -163,9 +160,7 @@ describe("return-settings — final-mile coverage", () => {
     const { container } = renderForm({
       refundLocationMode: "manual",
       refundLocationId: "gid://shopify/Location/1",
-      shopLocations: [
-        { id: "gid://shopify/Location/1", name: "Main", isActive: true },
-      ],
+      shopLocations: [{ id: "gid://shopify/Location/1", name: "Main", isActive: true }],
     });
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), {
       timeout: 5000,
@@ -175,8 +170,12 @@ describe("return-settings — final-mile coverage", () => {
     ) as HTMLInputElement | null;
     expect(autoRadio).toBeTruthy();
     expect(autoRadio?.checked).toBe(false);
-    await act(async () => { fireEvent.click(autoRadio!); });
-    await waitFor(() => { expect(autoRadio?.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(autoRadio!);
+    });
+    await waitFor(() => {
+      expect(autoRadio?.checked).toBe(true);
+    });
   });
 
   it("toggles Fynd Return-Gate ON from OFF when initial statuses array is empty (line 1116 truthy arm)", async () => {
@@ -202,8 +201,12 @@ describe("return-settings — final-mile coverage", () => {
     fireEvent.click(cb!); // ON — entered branch where setter runs with truthy
     expect(cb!.checked).toBe(true);
     // Toggle OFF again — exercises the `if (!e.target.checked) setAllowedFyndReturnStatuses([])` branch
-    await act(async () => { fireEvent.click(cb!); });
-    await waitFor(() => { expect(cb!.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(cb!);
+    });
+    await waitFor(() => {
+      expect(cb!.checked).toBe(false);
+    });
   });
 
   it("renders gift / scheduled / donate toggles ON via loader and submits to exercise true-state branches", async () => {
@@ -227,11 +230,7 @@ describe("return-settings — final-mile coverage", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({
-        allowedFyndStatusesForReturn: [
-          "  Return_Initiated  ",
-          "RETURN_DELIVERED",
-          "",
-        ],
+        allowedFyndStatusesForReturn: ["  Return_Initiated  ", "RETURN_DELIVERED", ""],
       }),
       params: {},
       context: {},
@@ -243,9 +242,7 @@ describe("return-settings — final-mile coverage", () => {
       "return_initiated",
       "return_delivered",
     ]);
-    expect(args.update.allowedFyndStatusesForReturn).toBe(
-      args.create.allowedFyndStatusesForReturn,
-    );
+    expect(args.update.allowedFyndStatusesForReturn).toBe(args.create.allowedFyndStatusesForReturn);
   });
 
   it("action: returns generic error message when DB throws a non-Error value (line 252 false branch)", async () => {
@@ -410,11 +407,19 @@ describe("return-settings — final-mile coverage", () => {
     expect(cb).toBeTruthy();
     // gate is currently ON (preset is non-none) — toggle OFF (truthy if-branch)
     expect(cb!.checked).toBe(true);
-    await act(async () => { fireEvent.click(cb!); });
-    await waitFor(() => { expect(cb!.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(cb!);
+    });
+    await waitFor(() => {
+      expect(cb!.checked).toBe(false);
+    });
     // Toggle back ON — preset state in component is now "none" (cleared by the OFF click),
     // so the else-if `refundGatePreset === "none"` branch fires and seeds after_delivery.
-    await act(async () => { fireEvent.click(cb!); });
-    await waitFor(() => { expect(cb!.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(cb!);
+    });
+    await waitFor(() => {
+      expect(cb!.checked).toBe(true);
+    });
   });
 });

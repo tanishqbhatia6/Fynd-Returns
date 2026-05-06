@@ -21,9 +21,10 @@ import { createPrismaMock, resetPrismaMock } from "../../../test/prisma-mock";
 
 const { prismaMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
-    async () => ({ ok: false, error: "disabled" }),
-  ),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -80,9 +81,7 @@ const ACTION_BODY = { action: "refresh_fynd_details" } as ReturnActionBody;
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  createFyndClientOrErrorMock
-    .mockReset()
-    .mockResolvedValue({ ok: false, error: "disabled" });
+  createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
 });
 
 describe("handleRefreshFyndDetails — full vs search payload preference", () => {
@@ -360,9 +359,7 @@ describe("handleRefreshFyndDetails — returnLogisticsData backfill fallbacks", 
   it("does NOT write returnLabelJson when no carrier/awb/track/label info is found on the return shipment", async () => {
     const search = vi.fn(async () => ({
       orderId: "FY-EMPTY",
-      items: [
-        { shipment_id: "R-1", journey_type: "return", status: "return_initiated" },
-      ],
+      items: [{ shipment_id: "R-1", journey_type: "return", status: "return_initiated" }],
     }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,

@@ -6,11 +6,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { ShopSettings } from "@prisma/client";
-import {
-  checkReturnEligibility,
-  getReturnFee,
-  isPhotoRequired,
-} from "../return-rules.server";
+import { checkReturnEligibility, getReturnFee, isPhotoRequired } from "../return-rules.server";
 
 /** Build a ShopSettings stub. Only the fields used by tests need values. */
 function makeSettings(overrides: Partial<ShopSettings> = {}): ShopSettings {
@@ -176,9 +172,9 @@ describe("checkReturnEligibility — country-specific window", () => {
   it("filters out country window entries with wrong shape", () => {
     const settings = makeSettings({
       returnWindowByCountryJson: JSON.stringify([
-        { country: 5, days: 7 },             // bad: country not string
-        { country: "US", days: "14" },        // bad: days not number
-        { country: "US", days: 7 },           // good
+        { country: 5, days: 7 }, // bad: country not string
+        { country: "US", days: "14" }, // bad: days not number
+        { country: "US", days: 7 }, // good
       ]),
     } as Partial<ShopSettings>);
     const result = checkReturnEligibility(settings, {
@@ -229,7 +225,13 @@ describe("checkReturnEligibility — product policies", () => {
   it("matches product_type policy case-insensitively", () => {
     const settings = makeSettings({
       productPoliciesJson: JSON.stringify([
-        { id: "p1", matchType: "product_type", matchValue: "Underwear", windowDays: 0, returnable: false },
+        {
+          id: "p1",
+          matchType: "product_type",
+          matchValue: "Underwear",
+          windowDays: 0,
+          returnable: false,
+        },
       ]),
     } as Partial<ShopSettings>);
     const result = checkReturnEligibility(settings, { productType: "underwear" });
@@ -239,7 +241,13 @@ describe("checkReturnEligibility — product policies", () => {
   it("matches collection (handle stored in productTags) policy", () => {
     const settings = makeSettings({
       productPoliciesJson: JSON.stringify([
-        { id: "p1", matchType: "collection", matchValue: "clearance", windowDays: 0, returnable: false },
+        {
+          id: "p1",
+          matchType: "collection",
+          matchValue: "clearance",
+          windowDays: 0,
+          returnable: false,
+        },
       ]),
     } as Partial<ShopSettings>);
     const result = checkReturnEligibility(settings, { productTags: ["Clearance"] });
@@ -643,10 +651,10 @@ describe("getReturnFee", () => {
     const settings = makeSettings({
       returnFeeAmount: 5 as unknown as never,
       returnFeesByReasonJson: JSON.stringify([
-        { reason: "Damaged" },             // missing feeAmount
-        { feeAmount: 1 },                  // missing reason
+        { reason: "Damaged" }, // missing feeAmount
+        { feeAmount: 1 }, // missing reason
         { reason: "Wrong", feeAmount: "2" }, // bad type
-        { reason: "Wrong", feeAmount: 2 },   // good
+        { reason: "Wrong", feeAmount: 2 }, // good
       ]),
     } as Partial<ShopSettings>);
     expect(getReturnFee(settings, "Wrong").amount).toBe(2);
@@ -680,7 +688,11 @@ describe("isPhotoRequired", () => {
   });
 
   it("returns false (default) when photoRequired is null/undefined", () => {
-    expect(isPhotoRequired(makeSettings({ photoRequired: null as unknown as boolean }))).toBe(false);
-    expect(isPhotoRequired(makeSettings({ photoRequired: undefined as unknown as boolean }))).toBe(false);
+    expect(isPhotoRequired(makeSettings({ photoRequired: null as unknown as boolean }))).toBe(
+      false,
+    );
+    expect(isPhotoRequired(makeSettings({ photoRequired: undefined as unknown as boolean }))).toBe(
+      false,
+    );
   });
 });

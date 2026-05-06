@@ -22,10 +22,26 @@ describe("classifyFyndError — parametric", () => {
   const cases: Array<{ input: string; expected: Category; note: string }> = [
     // --- config_error ---
     { input: "Fynd is not configured", expected: "config_error", note: "exact 'not configured'" },
-    { input: "Please configure Platform API credentials", expected: "config_error", note: "'configure' verb" },
-    { input: "Platform API rejected request", expected: "config_error", note: "'Platform API' substring" },
-    { input: "Visit Settings → Integrations to fix", expected: "config_error", note: "'Settings → Integrations'" },
-    { input: "Settings and Integrations missing", expected: "config_error", note: "'Settings.*Integrations' regex" },
+    {
+      input: "Please configure Platform API credentials",
+      expected: "config_error",
+      note: "'configure' verb",
+    },
+    {
+      input: "Platform API rejected request",
+      expected: "config_error",
+      note: "'Platform API' substring",
+    },
+    {
+      input: "Visit Settings → Integrations to fix",
+      expected: "config_error",
+      note: "'Settings → Integrations'",
+    },
+    {
+      input: "Settings and Integrations missing",
+      expected: "config_error",
+      note: "'Settings.*Integrations' regex",
+    },
     { input: "Client ID is invalid", expected: "config_error", note: "'Client ID' marker" },
     { input: "client id missing", expected: "config_error", note: "case-insensitive Client ID" },
     { input: "Company ID required", expected: "config_error", note: "'Company ID' marker" },
@@ -36,7 +52,11 @@ describe("classifyFyndError — parametric", () => {
     { input: "ENOTFOUND fynd-api.example.com", expected: "network_error", note: "ENOTFOUND" },
     { input: "EHOSTUNREACH on upstream", expected: "network_error", note: "EHOSTUNREACH" },
     { input: "network unreachable", expected: "network_error", note: "literal 'network'" },
-    { input: "socket hang up while talking to Fynd", expected: "network_error", note: "socket hang up" },
+    {
+      input: "socket hang up while talking to Fynd",
+      expected: "network_error",
+      note: "socket hang up",
+    },
     { input: "DNS resolution failed", expected: "network_error", note: "DNS literal" },
     { input: "dns lookup error", expected: "network_error", note: "lowercase dns" },
 
@@ -114,7 +134,11 @@ describe("enrichFyndError — parametric", () => {
     },
     { input: "403 missing scopes for write endpoint", enriched: false, note: "mentions scopes" },
     { input: "403 from Fynd Partners dashboard", enriched: false, note: "mentions Fynd Partners" },
-    { input: "403 — Test Platform succeeded but write failed", enriched: false, note: "mentions Test Platform" },
+    {
+      input: "403 — Test Platform succeeded but write failed",
+      enriched: false,
+      note: "mentions Test Platform",
+    },
     {
       input: "403 — visit Settings → Integrations",
       enriched: false,

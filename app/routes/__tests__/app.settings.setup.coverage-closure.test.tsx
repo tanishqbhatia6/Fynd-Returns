@@ -90,9 +90,7 @@ const mockFetcher: MockFetcherState = {
   Form: ({ children, ...props }) => <form {...props}>{children}</form>,
 };
 vi.mock("react-router", async () => {
-  const actual = await vi.importActual<typeof import("react-router")>(
-    "react-router",
-  );
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return {
     ...actual,
     useLoaderData: () => mockLoaderState.value,
@@ -130,16 +128,12 @@ const origAppUrl = process.env.SHOPIFY_APP_URL;
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   prismaMock.shop.findUnique.mockReset().mockResolvedValue(null);
-  prismaMock.shop.create
-    .mockReset()
-    .mockImplementation(async ({ data }) => ({
-      id: "shop-newly-created",
-      ...data,
-      settings: null,
-    }));
-  authenticateMock
-    .mockReset()
-    .mockResolvedValue({ session: { shop: "store.myshopify.com" } });
+  prismaMock.shop.create.mockReset().mockImplementation(async ({ data }) => ({
+    id: "shop-newly-created",
+    ...data,
+    settings: null,
+  }));
+  authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   getNormalizedCredentialsFromRawMock.mockReset().mockReturnValue(null);
   testPlatformConnectionRawMock.mockReset();
   createFyndLoggerMock.mockReset().mockReturnValue({ logs: [], log: vi.fn() });

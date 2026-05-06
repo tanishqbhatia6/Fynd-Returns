@@ -10,12 +10,20 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { withRestCredentials, fetchOrderByGid, type AdminGraphQL } from "../lib/shopify-admin.server";
+import {
+  withRestCredentials,
+  fetchOrderByGid,
+  type AdminGraphQL,
+} from "../lib/shopify-admin.server";
 
 const API_VERSION = "2026-01";
 const SHOPIFY_FETCH_TIMEOUT_MS = 15_000;
 
-async function shopifyFetch(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+async function shopifyFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -36,23 +44,29 @@ type StrategyResult = {
 };
 
 /** Run a GraphQL orders search and return raw results */
-async function testGraphQLSearch(admin: AdminGraphQL, query: string): Promise<{ nodes: Array<{ id: string; name: string }>; error?: string }> {
-  const res = await admin.graphql(`#graphql
+async function testGraphQLSearch(
+  admin: AdminGraphQL,
+  query: string,
+): Promise<{ nodes: Array<{ id: string; name: string }>; error?: string }> {
+  const res = await admin.graphql(
+    `#graphql
     query testSearch($query: String!) {
       orders(first: 10, query: $query, sortKey: CREATED_AT, reverse: true) {
         nodes { id name }
       }
     }
-  `, { variables: { query } });
-  const json = await res.json() as {
+  `,
+    { variables: { query } },
+  );
+  const json = (await res.json()) as {
     data?: { orders?: { nodes?: Array<{ id?: string; name?: string }> } };
     errors?: Array<{ message?: string }>;
   };
   if (json.errors?.length) {
-    return { nodes: [], error: json.errors.map(e => e.message).join("; ") };
+    return { nodes: [], error: json.errors.map((e) => e.message).join("; ") };
   }
   return {
-    nodes: (json.data?.orders?.nodes ?? []).map(n => ({
+    nodes: (json.data?.orders?.nodes ?? []).map((n) => ({
       id: n.id ?? "",
       name: n.name ?? "",
     })),
@@ -63,7 +77,7 @@ async function testGraphQLSearch(admin: AdminGraphQL, query: string): Promise<{ 
 async function testRestLookup(
   shopDomain: string,
   accessToken: string,
-  nameQuery: string
+  nameQuery: string,
 ): Promise<{ orders: Array<{ id: number; name: string }>; error?: string; statusCode?: number }> {
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
   const url = `https://${shop}/admin/api/${API_VERSION}/orders.json?status=any&name=${encodeURIComponent(nameQuery)}&fields=id,name&limit=5`;
@@ -72,11 +86,15 @@ async function testRestLookup(
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    return { orders: [], error: `HTTP ${res.status}: ${body.slice(0, 200)}`, statusCode: res.status };
+    return {
+      orders: [],
+      error: `HTTP ${res.status}: ${body.slice(0, 200)}`,
+      statusCode: res.status,
+    };
   }
-  const data = await res.json() as { orders?: Array<{ id?: number; name?: string }> };
+  const data = (await res.json()) as { orders?: Array<{ id?: number; name?: string }> };
   return {
-    orders: (data?.orders ?? []).map(o => ({ id: o.id ?? 0, name: o.name ?? "" })),
+    orders: (data?.orders ?? []).map((o) => ({ id: o.id ?? 0, name: o.name ?? "" })),
     statusCode: res.status,
   };
 }
@@ -92,7 +110,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const results: StrategyResult[] = [];
   const diagnostics: Record<string, unknown> = {
     shopDomain: session.shop,
-    hasAccessToken: !!(session.accessToken),
+    hasAccessToken: !!session.accessToken,
     accessTokenLength: session.accessToken?.length ?? 0,
     orderNameInput: orderName,
     cleanedName: clean,
@@ -184,15 +202,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           }
         }
       `);
-      const json = await res.json() as {
+      const json = (await res.json()) as {
         data?: { orders?: { nodes?: Array<{ id?: string; name?: string }> } };
         errors?: Array<{ message?: string }>;
       };
       const nodes = json.data?.orders?.nodes ?? [];
       const norm = clean.toLowerCase();
-      const match = nodes.find(n => (n.name ?? "").replace(/^#/, "").toLowerCase() === norm);
+      const match = nodes.find((n) => (n.name ?? "").replace(/^#/, "").toLowerCase() === norm);
       // Also list first 10 order names for context
-      diagnostics.recentOrderNames = nodes.slice(0, 10).map(n => n.name);
+      diagnostics.recentOrderNames = nodes.slice(0, 10).map((n) => n.name);
       results.push({
         strategy: "Pagination scan",
         query: `orders(first: 50) — scanning ${nodes.length} orders`,
@@ -240,7 +258,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // Summary
-  const successful = results.filter(r => r.success);
+  const successful = results.filter((r) => r.success);
   const summary = {
     totalStrategies: results.length,
     successful: successful.length,
@@ -248,7 +266,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     firstSuccessful: successful[0] ?? null,
   };
 
-  return Response.json({ summary, diagnostics, results }, {
-    headers: { "Content-Type": "application/json" },
-  });
+  return Response.json(
+    { summary, diagnostics, results },
+    {
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 };

@@ -253,9 +253,7 @@ describe("App default export — uncovered render branches", () => {
     await waitFor(() => {
       expect(container.textContent).toMatch(/Dev mode/i);
     });
-    const switchLink = container.querySelector(
-      "a[href='/app/settings/integrations']",
-    );
+    const switchLink = container.querySelector("a[href='/app/settings/integrations']");
     expect(switchLink?.textContent).toMatch(/Switch to Prod/i);
   });
 
@@ -282,9 +280,7 @@ describe("App default export — uncovered render branches", () => {
       const anchors = Array.from(container.querySelectorAll("a"));
       expect(
         anchors.find(
-          (a) =>
-            a.getAttribute("href") === "/app/returns" &&
-            a.textContent?.trim() === "Returns",
+          (a) => a.getAttribute("href") === "/app/returns" && a.textContent?.trim() === "Returns",
         ),
       ).toBeTruthy();
     });
@@ -335,8 +331,7 @@ describe("App default export — uncovered render branches", () => {
     }
     // AudioContext is referenced via the global identifier — patch
     // globalThis so the `new AudioContext()` inside playSound resolves.
-    (globalThis as unknown as { AudioContext: unknown }).AudioContext =
-      AudioContextCtor;
+    (globalThis as unknown as { AudioContext: unknown }).AudioContext = AudioContextCtor;
 
     // Build a router with two routes that share the App element but
     // resolve different loader data (pendingCount 0 → 1).
@@ -420,10 +415,9 @@ describe("App default export — uncovered render branches", () => {
     // browsers without WebAudio (or autoplay-restricted contexts) don't
     // crash the layout. Force the constructor to throw and ensure the
     // layout still mounts.
-    (globalThis as unknown as { AudioContext: unknown }).AudioContext =
-      function () {
-        throw new Error("WebAudio unavailable");
-      };
+    (globalThis as unknown as { AudioContext: unknown }).AudioContext = function () {
+      throw new Error("WebAudio unavailable");
+    };
     const { container } = renderWithRouter(App, {
       initialEntries: ["/app"],
       loaderData: { ...baseLoaderData, pendingCount: 1 },

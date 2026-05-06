@@ -31,15 +31,28 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   createRefundMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
-    success: true, refundId: "gid://shopify/Refund/1", refundAmount: "0.00", refundCurrency: "USD",
+    success: true,
+    refundId: "gid://shopify/Refund/1",
+    refundAmount: "0.00",
+    refundCurrency: "USD",
   })),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(async () => new Map()),
+  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(
+    async () => new Map(),
+  ),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  sendDraftOrderInvoiceMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, invoiceUrl: "https://shop/invoice" })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendDraftOrderInvoiceMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    invoiceUrl: "https://shop/invoice",
+  })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -65,11 +78,13 @@ import type { ReturnHandlerContext, ReturnActionBody } from "../types";
 
 type AdminLike = ReturnHandlerContext["admin"];
 
-function mkAdmin(opts: {
-  createOverride?: () => Promise<unknown>;
-  completeOverride?: () => Promise<unknown>;
-  createThrow?: boolean;
-} = {}): AdminLike {
+function mkAdmin(
+  opts: {
+    createOverride?: () => Promise<unknown>;
+    completeOverride?: () => Promise<unknown>;
+    createThrow?: boolean;
+  } = {},
+): AdminLike {
   const admin = {
     graphql: vi.fn(async (q: string) => {
       if (q.includes("draftOrderCreate")) {
@@ -96,7 +111,11 @@ function mkAdmin(opts: {
           json: async () => ({
             data: {
               draftOrderComplete: {
-                draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", order: { id: "gid://shopify/Order/2", name: "#1002" } },
+                draftOrder: {
+                  id: "gid://shopify/DraftOrder/1",
+                  name: "D1",
+                  order: { id: "gid://shopify/Order/2", name: "#1002" },
+                },
                 userErrors: [],
               },
             },
@@ -124,17 +143,33 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       currency: "USD",
       refundStatus: null,
       cancellationRequestedAt: null,
-      fyndOrderId: null, fyndShipmentId: null, fyndReturnId: null, fyndPayloadJson: null,
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndPayloadJson: null,
       fyndCurrentStatus: null,
       shopifyReturnId: null,
       exchangeOrderId: null,
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: mkAdmin(),
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -148,13 +183,18 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   createRefundMock.mockReset().mockResolvedValue({
-    success: true, refundId: "gid://shopify/Refund/1", refundAmount: "3.00", refundCurrency: "USD",
+    success: true,
+    refundId: "gid://shopify/Refund/1",
+    refundAmount: "3.00",
+    refundCurrency: "USD",
   });
   fetchOrderMock.mockReset().mockResolvedValue(null);
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
   fetchVariantInfoMock.mockReset().mockResolvedValue(new Map());
   closeShopifyReturnBestEffortMock.mockReset().mockResolvedValue({ ok: true });
-  sendDraftOrderInvoiceMock.mockReset().mockResolvedValue({ success: true, invoiceUrl: "https://shop/invoice" });
+  sendDraftOrderInvoiceMock
+    .mockReset()
+    .mockResolvedValue({ success: true, invoiceUrl: "https://shop/invoice" });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   sendApprovalNotificationMock.mockReset().mockResolvedValue(undefined);
 });
@@ -165,7 +205,9 @@ describe("handleProcessExchange — early guards", () => {
     const ctx = mkCtx({
       returnCase: { ...mkCtx().returnCase, status: "pending" } as never,
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/approved/i);
@@ -175,7 +217,9 @@ describe("handleProcessExchange — early guards", () => {
     const ctx = mkCtx({
       returnCase: { ...mkCtx().returnCase, exchangeOrderId: "gid://shopify/DraftOrder/X" } as never,
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/already/i);
@@ -185,7 +229,9 @@ describe("handleProcessExchange — early guards", () => {
     const ctx = mkCtx({
       returnCase: { ...mkCtx().returnCase, shopifyOrderId: "manual:abc" } as never,
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/manual/i);
@@ -193,8 +239,12 @@ describe("handleProcessExchange — early guards", () => {
 
   it("accepts status 'completed' (case-insensitive)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: { ...mkCtx().returnCase, status: "COMPLETED" } as never,
@@ -210,7 +260,9 @@ describe("handleProcessExchange — early guards", () => {
   it("returns 400 when order fetch resolves null (no order found)", async () => {
     fetchOrderMock.mockResolvedValueOnce(null);
     const ctx = mkCtx();
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/Could not fetch original order/i);
@@ -218,11 +270,17 @@ describe("handleProcessExchange — early guards", () => {
 
   it("returns 400 when fetched order has no email", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: null, currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: null,
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx();
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/no customer email/i);
@@ -230,18 +288,33 @@ describe("handleProcessExchange — early guards", () => {
 
   it("returns 400 when no eligible items for exchange", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "li-1", shopifyLineItemId: "manual", qty: 1, sku: null, price: "10.00", reasonCode: null, notes: null, title: "Manual Item" },
+          {
+            id: "li-1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: "Manual Item",
+          },
         ],
       } as never,
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/No line items available/i);
@@ -258,7 +331,9 @@ describe("handleProcessExchange — Fynd status gating", () => {
         fyndPayloadJson: JSON.stringify({ status: "return_initiated" }),
       } as never,
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/return bag is received/i);
@@ -274,7 +349,9 @@ describe("handleProcessExchange — Fynd status gating", () => {
         fyndCurrentStatus: "blocked_status_xyz",
       } as never,
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/blocked_status_xyz/);
@@ -282,8 +359,12 @@ describe("handleProcessExchange — Fynd status gating", () => {
 
   it("allows when Fynd payload status is in allowed set (e.g. return_bag_delivered)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
@@ -302,8 +383,12 @@ describe("handleProcessExchange — Fynd status gating", () => {
 
   it("allows when both payload status absent and fyndCurrentStatus is null (no gating)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
@@ -326,8 +411,12 @@ describe("handleProcessExchange — Fynd status gating", () => {
 describe("handleProcessExchange — order fetch fallback", () => {
   it("uses fetchOrderByOrderNumber when shopifyOrderId is missing", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/X", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/X",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
@@ -353,7 +442,9 @@ describe("handleProcessExchange — order fetch fallback", () => {
         shopifyOrderName: null,
       } as never,
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 });
@@ -362,24 +453,38 @@ describe("handleProcessExchange — order fetch fallback", () => {
 describe("handleProcessExchange — stockout", () => {
   it("returns 409 with stockoutLines when inventory < required", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 2 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 2 },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map([
-      ["gid://shopify/ProductVariant/LOW", {
-        id: "gid://shopify/ProductVariant/LOW",
-        price: "10.00",
-        inventoryAvailable: 1, // < returnedQty=2
-        productTitle: "Low Stock",
-        variantTitle: "L",
-        sku: "LOW",
-      }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map([
+        [
+          "gid://shopify/ProductVariant/LOW",
+          {
+            id: "gid://shopify/ProductVariant/LOW",
+            price: "10.00",
+            inventoryAvailable: 1, // < returnedQty=2
+            productTitle: "Low Stock",
+            variantTitle: "L",
+            sku: "LOW",
+          },
+        ],
+      ]),
+    );
     prismaMock.returnEvent.findMany.mockResolvedValueOnce([
       {
         id: "ev-1",
         payloadJson: JSON.stringify({
-          exchangeVariants: [{ lineItemId: "gid://shopify/LineItem/1", variantId: "gid://shopify/ProductVariant/LOW" }],
+          exchangeVariants: [
+            {
+              lineItemId: "gid://shopify/LineItem/1",
+              variantId: "gid://shopify/ProductVariant/LOW",
+            },
+          ],
         }),
         happenedAt: new Date(),
       },
@@ -388,12 +493,23 @@ describe("handleProcessExchange — stockout", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 2, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "I" },
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 2,
+            sku: "SKU-1",
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: "I",
+          },
         ],
       } as never,
     });
     ctx.admin = mkAdmin();
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toMatch(/out of stock/);
@@ -401,37 +517,55 @@ describe("handleProcessExchange — stockout", () => {
     expect(body.stockoutLines[0]).toMatchObject({ required: 2, available: 1 });
 
     // exchange_inventory_blocked event should be logged
-    const events = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const events = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(events).toContain("exchange_inventory_blocked");
   });
 
   it("clamps negative inventory to 0 in stockoutLines", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map([
-      ["gid://shopify/ProductVariant/NEG", {
-        id: "gid://shopify/ProductVariant/NEG",
-        price: "10.00",
-        inventoryAvailable: -3,
-        productTitle: "Neg",
-        variantTitle: "L",
-        sku: "NEG",
-      }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map([
+        [
+          "gid://shopify/ProductVariant/NEG",
+          {
+            id: "gid://shopify/ProductVariant/NEG",
+            price: "10.00",
+            inventoryAvailable: -3,
+            productTitle: "Neg",
+            variantTitle: "L",
+            sku: "NEG",
+          },
+        ],
+      ]),
+    );
     prismaMock.returnEvent.findMany.mockResolvedValueOnce([
       {
         id: "ev-1",
         payloadJson: JSON.stringify({
-          exchangeVariants: [{ lineItemId: "gid://shopify/LineItem/1", variantId: "gid://shopify/ProductVariant/NEG" }],
+          exchangeVariants: [
+            {
+              lineItemId: "gid://shopify/LineItem/1",
+              variantId: "gid://shopify/ProductVariant/NEG",
+            },
+          ],
         }),
         happenedAt: new Date(),
       },
     ] as never);
     const ctx = mkCtx();
     ctx.admin = mkAdmin();
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.stockoutLines[0].available).toBe(0);
@@ -442,8 +576,12 @@ describe("handleProcessExchange — stockout", () => {
 describe("handleProcessExchange — draftOrderCreate errors", () => {
   function setupOrder() {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
   }
 
@@ -451,9 +589,13 @@ describe("handleProcessExchange — draftOrderCreate errors", () => {
     setupOrder();
     const ctx = mkCtx();
     ctx.admin = mkAdmin({
-      createOverride: async () => ({ errors: [{ message: "access scope write_draft_orders is required" }] }),
+      createOverride: async () => ({
+        errors: [{ message: "access scope write_draft_orders is required" }],
+      }),
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.error).toMatch(/write_draft_orders/);
@@ -465,7 +607,9 @@ describe("handleProcessExchange — draftOrderCreate errors", () => {
     ctx.admin = mkAdmin({
       createOverride: async () => ({ errors: [{ message: "Bad input" }, { message: "Other" }] }),
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/Bad input/);
@@ -485,7 +629,9 @@ describe("handleProcessExchange — draftOrderCreate errors", () => {
         },
       }),
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/write_draft_orders/);
@@ -504,7 +650,9 @@ describe("handleProcessExchange — draftOrderCreate errors", () => {
         },
       }),
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/Email is invalid/);
@@ -518,7 +666,9 @@ describe("handleProcessExchange — draftOrderCreate errors", () => {
         data: { draftOrderCreate: { draftOrder: null, userErrors: [] } },
       }),
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toMatch(/no order returned/i);
@@ -529,24 +679,38 @@ describe("handleProcessExchange — draftOrderCreate errors", () => {
 describe("handleProcessExchange — invoice send failure", () => {
   it("logs warning when sendDraftOrderInvoice returns success:false (still redirects)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map([
-      ["gid://shopify/ProductVariant/UP", {
-        id: "gid://shopify/ProductVariant/UP",
-        price: "20.00",
-        inventoryAvailable: 5,
-        productTitle: "Up",
-        variantTitle: "L",
-        sku: "U1",
-      }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map([
+        [
+          "gid://shopify/ProductVariant/UP",
+          {
+            id: "gid://shopify/ProductVariant/UP",
+            price: "20.00",
+            inventoryAvailable: 5,
+            productTitle: "Up",
+            variantTitle: "L",
+            sku: "U1",
+          },
+        ],
+      ]),
+    );
     prismaMock.returnEvent.findMany.mockResolvedValueOnce([
       {
         id: "ev-1",
         payloadJson: JSON.stringify({
-          exchangeVariants: [{ lineItemId: "gid://shopify/LineItem/1", variantId: "gid://shopify/ProductVariant/UP" }],
+          exchangeVariants: [
+            {
+              lineItemId: "gid://shopify/LineItem/1",
+              variantId: "gid://shopify/ProductVariant/UP",
+            },
+          ],
         }),
         happenedAt: new Date(),
       },
@@ -570,37 +734,55 @@ describe("handleProcessExchange — invoice send failure", () => {
 describe("handleProcessExchange — unexpected error catch-all", () => {
   it("returns 500 with default message when an unexpected throw occurs", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx();
     ctx.admin = mkAdmin({ createThrow: true });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toMatch(/network down|Exchange could not be processed/);
     // exchange_failed event should be logged
-    const events = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const events = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(events).toContain("exchange_failed");
   });
 
   it("survives when prisma.returnEvent.create itself throws inside the catch handler", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     // First create call (the catch handler) rejects
     prismaMock.returnEvent.create.mockRejectedValueOnce(new Error("db fire"));
     const ctx = mkCtx();
     ctx.admin = mkAdmin({ createThrow: true });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
   });
 
   it("falls back to default error message when error has no message", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com", currencyCode: "USD",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      currencyCode: "USD",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx();
     ctx.admin = {
@@ -612,7 +794,9 @@ describe("handleProcessExchange — unexpected error catch-all", () => {
         return { json: async () => ({}) };
       }),
     } as unknown as AdminLike;
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody);
+    const res = await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toMatch(/Exchange could not be processed/);

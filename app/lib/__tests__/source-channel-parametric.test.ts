@@ -8,9 +8,7 @@ describe("normalizeSourceChannel — parametric", () => {
       [undefined, null],
       ["", null],
     ])("normalizeSourceChannel(%p) === %p", (input, expected) => {
-      expect(
-        normalizeSourceChannel(input as string | null | undefined)
-      ).toBe(expected);
+      expect(normalizeSourceChannel(input as string | null | undefined)).toBe(expected);
     });
   });
 

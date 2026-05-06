@@ -4,7 +4,11 @@ import { Link, useLoaderData, useFetcher } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { encrypt } from "../lib/encryption.server";
-import { createFyndClientOrError, getNormalizedCredentialsFromRaw, testPlatformConnectionRaw } from "../lib/fynd.server";
+import {
+  createFyndClientOrError,
+  getNormalizedCredentialsFromRaw,
+  testPlatformConnectionRaw,
+} from "../lib/fynd.server";
 import { createFyndLogger } from "../lib/fynd-logger.server";
 import { FYND_ENVIRONMENTS, getAppMode } from "../lib/fynd-config.server";
 import { sanitizeCredentialInputs } from "../lib/credential-validation.server";
@@ -46,14 +50,34 @@ function parsePolicyForForm(json: string | null | undefined): PolicyFormValues {
   try {
     const p = JSON.parse(json) as Record<string, unknown>;
     return {
-      returnWindowDays: typeof p.returnWindowDays === "number" ? Math.max(1, Math.min(365, p.returnWindowDays)) : defaults.returnWindowDays,
+      returnWindowDays:
+        typeof p.returnWindowDays === "number"
+          ? Math.max(1, Math.min(365, p.returnWindowDays))
+          : defaults.returnWindowDays,
       allowExchange: p.allowExchange === true,
-      minOrderValue: typeof p.minOrderValue === "number" ? Math.max(0, p.minOrderValue) : defaults.minOrderValue,
-      refundMethods: Array.isArray(p.refundMethods) ? p.refundMethods.filter((x): x is string => typeof x === "string" && REFUND_METHOD_OPTIONS.some((o) => o.value === x)) : defaults.refundMethods,
-      defaultRefundMethod: typeof p.defaultRefundMethod === "string" && REFUND_METHOD_OPTIONS.some((o) => o.value === p.defaultRefundMethod) ? p.defaultRefundMethod : defaults.defaultRefundMethod,
-      excludedTags: Array.isArray(p.excludedTags) ? p.excludedTags.filter((x): x is string => typeof x === "string") : defaults.excludedTags,
-      allowedCategories: Array.isArray(p.allowedCategories) ? p.allowedCategories.filter((x): x is string => typeof x === "string") : defaults.allowedCategories,
-      restockFeePercent: typeof p.restockFeePercent === "number" ? Math.max(0, Math.min(100, p.restockFeePercent)) : defaults.restockFeePercent,
+      minOrderValue:
+        typeof p.minOrderValue === "number" ? Math.max(0, p.minOrderValue) : defaults.minOrderValue,
+      refundMethods: Array.isArray(p.refundMethods)
+        ? p.refundMethods.filter(
+            (x): x is string =>
+              typeof x === "string" && REFUND_METHOD_OPTIONS.some((o) => o.value === x),
+          )
+        : defaults.refundMethods,
+      defaultRefundMethod:
+        typeof p.defaultRefundMethod === "string" &&
+        REFUND_METHOD_OPTIONS.some((o) => o.value === p.defaultRefundMethod)
+          ? p.defaultRefundMethod
+          : defaults.defaultRefundMethod,
+      excludedTags: Array.isArray(p.excludedTags)
+        ? p.excludedTags.filter((x): x is string => typeof x === "string")
+        : defaults.excludedTags,
+      allowedCategories: Array.isArray(p.allowedCategories)
+        ? p.allowedCategories.filter((x): x is string => typeof x === "string")
+        : defaults.allowedCategories,
+      restockFeePercent:
+        typeof p.restockFeePercent === "number"
+          ? Math.max(0, Math.min(100, p.restockFeePercent))
+          : defaults.restockFeePercent,
     };
   } catch {
     return defaults;
@@ -61,22 +85,50 @@ function parsePolicyForForm(json: string | null | undefined): PolicyFormValues {
 }
 
 function buildPolicyJson(formData: FormData): string {
-  const returnWindowDays = Math.min(365, Math.max(1, parseInt(String(formData.get("policyReturnWindowDays") ?? "30"), 10) || 30));
+  const returnWindowDays = Math.min(
+    365,
+    Math.max(1, parseInt(String(formData.get("policyReturnWindowDays") ?? "30"), 10) || 30),
+  );
   const allowExchange = formData.get("policyAllowExchange") === "on";
-  const minOrderValue = Math.max(0, parseFloat(String(formData.get("policyMinOrderValue") ?? "0")) || 0);
+  const minOrderValue = Math.max(
+    0,
+    parseFloat(String(formData.get("policyMinOrderValue") ?? "0")) || 0,
+  );
   const refundMethodsAll = formData.getAll("policyRefundMethods") as string[];
-  const refundMethodsRaw = refundMethodsAll.length > 0 ? refundMethodsAll : String(formData.get("policyRefundMethods") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const refundMethods = refundMethodsRaw.length > 0 ? refundMethodsRaw.filter((v) => REFUND_METHOD_OPTIONS.some((o) => o.value === v)) : ["original_payment", "store_credit"];
-  const defaultRefundMethod = String(formData.get("policyDefaultRefundMethod") ?? "original_payment");
-  const excludedTags = String(formData.get("policyExcludedTags") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const allowedCategories = String(formData.get("policyAllowedCategories") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
-  const restockFeePercent = Math.min(100, Math.max(0, parseFloat(String(formData.get("policyRestockFeePercent") ?? "0")) || 0));
+  const refundMethodsRaw =
+    refundMethodsAll.length > 0
+      ? refundMethodsAll
+      : String(formData.get("policyRefundMethods") ?? "")
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+  const refundMethods =
+    refundMethodsRaw.length > 0
+      ? refundMethodsRaw.filter((v) => REFUND_METHOD_OPTIONS.some((o) => o.value === v))
+      : ["original_payment", "store_credit"];
+  const defaultRefundMethod = String(
+    formData.get("policyDefaultRefundMethod") ?? "original_payment",
+  );
+  const excludedTags = String(formData.get("policyExcludedTags") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const allowedCategories = String(formData.get("policyAllowedCategories") ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const restockFeePercent = Math.min(
+    100,
+    Math.max(0, parseFloat(String(formData.get("policyRestockFeePercent") ?? "0")) || 0),
+  );
   const obj: Record<string, unknown> = {
     returnWindowDays,
     allowExchange,
     minOrderValue: minOrderValue > 0 ? minOrderValue : undefined,
     refundMethods: refundMethods.length > 0 ? refundMethods : undefined,
-    defaultRefundMethod: REFUND_METHOD_OPTIONS.some((o) => o.value === defaultRefundMethod) ? defaultRefundMethod : undefined,
+    defaultRefundMethod: REFUND_METHOD_OPTIONS.some((o) => o.value === defaultRefundMethod)
+      ? defaultRefundMethod
+      : undefined,
     excludedTags: excludedTags.length > 0 ? excludedTags : undefined,
     allowedCategories: allowedCategories.length > 0 ? allowedCategories : undefined,
     restockFeePercent: restockFeePercent > 0 ? restockFeePercent : undefined,
@@ -160,20 +212,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Useful after generating/rotating a secret to confirm the merchant's
     // Fynd Partner Dashboard config matches what we have stored.
     if (intent === "test_fynd_webhook_secret") {
-      const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
-      if (!shop) return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "Shop not found", debugLogs: logs };
+      const shop = await prisma.shop.findUnique({
+        where: { shopDomain: session.shop },
+        include: { settings: true },
+      });
+      if (!shop)
+        return {
+          success: false,
+          fyndWebhookTestResult: false,
+          fyndWebhookTestError: "Shop not found",
+          debugLogs: logs,
+        };
       const storedSecret = shop.settings?.fyndWebhookSecret;
       if (!storedSecret) {
-        return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "No webhook secret configured. Generate one first.", debugLogs: logs };
+        return {
+          success: false,
+          fyndWebhookTestResult: false,
+          fyndWebhookTestError: "No webhook secret configured. Generate one first.",
+          debugLogs: logs,
+        };
       }
       const { decryptIfEncrypted } = await import("../lib/encryption.server");
       const plaintext = decryptIfEncrypted(storedSecret);
       if (!plaintext) {
-        return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "Could not decrypt stored secret. Generate a new one.", debugLogs: logs };
+        return {
+          success: false,
+          fyndWebhookTestResult: false,
+          fyndWebhookTestError: "Could not decrypt stored secret. Generate a new one.",
+          debugLogs: logs,
+        };
       }
       const appUrl = (process.env.SHOPIFY_APP_URL ?? "").replace(/\/$/, "");
       if (!appUrl) {
-        return { success: false, fyndWebhookTestResult: false, fyndWebhookTestError: "SHOPIFY_APP_URL is not set on the server.", debugLogs: logs };
+        return {
+          success: false,
+          fyndWebhookTestResult: false,
+          fyndWebhookTestError: "SHOPIFY_APP_URL is not set on the server.",
+          debugLogs: logs,
+        };
       }
       const url = `${appUrl}/api/webhooks/fynd/${shop.id}`;
       // The body matches what Fynd sends for a status update. We use a
@@ -225,7 +301,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Fynd Partner Dashboard. After that it lives encrypted in the DB and we
     // never expose it again.
     if (intent === "generate_fynd_webhook_secret" || intent === "rotate_fynd_webhook_secret") {
-      const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
+      const shop = await prisma.shop.findUnique({
+        where: { shopDomain: session.shop },
+        include: { settings: true },
+      });
       if (!shop) return { success: false, error: "Shop not found", debugLogs: logs };
       const { generateWebhookSecret } = await import("../lib/fynd-webhook-verify.server");
       const { encryptIfNeeded } = await import("../lib/encryption.server");
@@ -257,8 +336,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       /* v8 ignore stop */
       // fyndApplicationToken is not used for Platform API (OAuth only)
 
-      let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
-      if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+      let shop = await prisma.shop.findUnique({
+        where: { shopDomain: session.shop },
+        include: { settings: true },
+      });
+      if (!shop)
+        shop = await prisma.shop.create({
+          data: { shopDomain: session.shop },
+          include: { settings: true },
+        });
       const stored = shop.settings;
       const existingNormalized = getNormalizedCredentialsFromRaw(stored?.fyndCredentials ?? null);
 
@@ -285,19 +371,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // defensive `!creds || !applicationId` validation guard
       /* v8 ignore start */
       if (!creds || !applicationId) {
-        return { success: false, error: "Enter Application ID and Platform credentials (Company ID + Client ID & Secret), then Save or Test.", testResult: false, debugLogs: logs };
+        return {
+          success: false,
+          error:
+            "Enter Application ID and Platform credentials (Company ID + Client ID & Secret), then Save or Test.",
+          testResult: false,
+          debugLogs: logs,
+        };
       }
       /* v8 ignore stop */
 
       /* v8 ignore start */
       // defensive: requirePlatform OR-chain over intent values; only some tested
-      const requirePlatform = intent === "test_platform" || intent === "test" || intent === "test_storefront";
+      const requirePlatform =
+        intent === "test_platform" || intent === "test" || intent === "test_storefront";
       /* v8 ignore stop */
 
       if (requirePlatform) {
         const rawResult = await testPlatformConnectionRaw(
-          { ...envSettings, fyndCompanyId: companyId, fyndApplicationId: applicationId, fyndCredentials: creds },
-          log
+          {
+            ...envSettings,
+            fyndCompanyId: companyId,
+            fyndApplicationId: applicationId,
+            fyndCredentials: creds,
+          },
+          log,
         );
         if (rawResult.ok) {
           const msg = rawResult.warning
@@ -352,10 +450,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* v8 ignore stop */
     const v = validation.sanitized!;
 
-    let shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
-    if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+    let shop = await prisma.shop.findUnique({
+      where: { shopDomain: session.shop },
+      include: { settings: true },
+    });
+    if (!shop)
+      shop = await prisma.shop.create({
+        data: { shopDomain: session.shop },
+        include: { settings: true },
+      });
 
-    const existingNormalized = getNormalizedCredentialsFromRaw(shop.settings?.fyndCredentials ?? null);
+    const existingNormalized = getNormalizedCredentialsFromRaw(
+      shop.settings?.fyndCredentials ?? null,
+    );
     const merged: Record<string, unknown> = {};
     if (v.fyndCompanyId && v.fyndClientId && v.fyndClientSecret) {
       merged.platform = { clientId: v.fyndClientId, clientSecret: v.fyndClientSecret };
@@ -378,11 +485,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // configuration-dependent and not all paths are exercised in tests.
     /* v8 ignore start */
     const submittedGorgiasKey = (formData.get("gorgiasApiKey") as string | null)?.trim() ?? "";
-    const resolvedGorgiasApiKey: string | null = submittedGorgiasKey === ""
-      ? null
-      : submittedGorgiasKey === "__UNCHANGED__"
-        ? (shop.settings?.gorgiasApiKey ?? null)
-        : (await import("../lib/encryption.server")).encryptIfNeeded(submittedGorgiasKey);
+    const resolvedGorgiasApiKey: string | null =
+      submittedGorgiasKey === ""
+        ? null
+        : submittedGorgiasKey === "__UNCHANGED__"
+          ? (shop.settings?.gorgiasApiKey ?? null)
+          : (await import("../lib/encryption.server")).encryptIfNeeded(submittedGorgiasKey);
 
     await prisma.shopSettings.upsert({
       where: { shopId: shop.id },
@@ -390,7 +498,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         shopId: shop.id,
         fyndApiType: fyndApiType ?? null,
         fyndEnvironment: fyndEnvironment || null,
-        fyndCustomBaseUrl: (v.fyndCustomBaseUrl || fyndCustomBaseUrl) || null,
+        fyndCustomBaseUrl: v.fyndCustomBaseUrl || fyndCustomBaseUrl || null,
         appMode: appMode === "dev" ? "dev" : "prod",
         fyndCompanyId: v.fyndCompanyId || null,
         fyndApplicationId: v.fyndApplicationId || null,
@@ -402,7 +510,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       update: {
         fyndApiType: fyndApiType ?? undefined,
         fyndEnvironment: fyndEnvironment || undefined,
-        fyndCustomBaseUrl: (v.fyndCustomBaseUrl || fyndCustomBaseUrl) || undefined,
+        fyndCustomBaseUrl: v.fyndCustomBaseUrl || fyndCustomBaseUrl || undefined,
         appMode: appMode === "dev" ? "dev" : "prod",
         fyndCompanyId: v.fyndCompanyId || undefined,
         fyndApplicationId: v.fyndApplicationId || undefined,
@@ -462,10 +570,14 @@ export default function Integrations() {
   const [fyndEnvironment, setFyndEnvironment] = React.useState(data.fyndEnvironment);
   const [appMode, setAppMode] = React.useState(data.appMode);
 
-  const showSaveSuccess = fetcher.data?.success === true && !("testResult" in fetcher.data) && !("cleared" in fetcher.data);
+  const showSaveSuccess =
+    fetcher.data?.success === true &&
+    !("testResult" in fetcher.data) &&
+    !("cleared" in fetcher.data);
   const showCleared = fetcher.data && "cleared" in fetcher.data;
   const showTestSuccess = fetcher.data && "testResult" in fetcher.data && fetcher.data.testResult;
-  const showTestError = fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
+  const showTestError =
+    fetcher.data && "testResult" in fetcher.data && !fetcher.data.testResult && fetcher.data.error;
 
   return (
     <AppPage heading="Partner Integrations">
@@ -475,15 +587,27 @@ export default function Integrations() {
         )}
         {showSaveSuccess && (
           <div className="app-alert app-alert-success">
-            {fetcher.data?.tokenUpdated ? "Credentials saved successfully." : "Settings saved successfully."}
+            {fetcher.data?.tokenUpdated
+              ? "Credentials saved successfully."
+              : "Settings saved successfully."}
           </div>
         )}
         {showCleared && (
-          <div className="app-alert app-alert-success">Credentials cleared. Enter new values and Save.</div>
+          <div className="app-alert app-alert-success">
+            Credentials cleared. Enter new values and Save.
+          </div>
         )}
         {showTestSuccess && (
           <div className="app-alert app-alert-success">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={{ verticalAlign: "middle", marginRight: 4 }}
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {fetcher.data?.testMessage ?? "Connection successful."}
@@ -491,10 +615,31 @@ export default function Integrations() {
         )}
         {showTestError && (
           <div className="app-alert app-alert-error" style={{ borderLeft: "4px solid #d72c0d" }}>
-            <div style={{ fontWeight: 500, marginBottom: 6 }}>Connection failed: {fetcher.data?.error}</div>
-            {(fetcher.data?.error?.includes("403") || fetcher.data?.error?.includes("Forbidden")) && (
-              <div style={{ marginTop: 12, padding: 12, background: "rgba(255,255,255,0.5)", borderRadius: 8, fontSize: 13 }}>
-                <strong>403 = Missing scopes.</strong> In Fynd Partners, your OAuth app needs <code>company/orders/read</code> and <code>company/orders/write</code>. Also verify: correct environment (UAT vs Prod), Company ID, Application ID. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3", textDecoration: "underline" }}>Scopes docs</a>
+            <div style={{ fontWeight: 500, marginBottom: 6 }}>
+              Connection failed: {fetcher.data?.error}
+            </div>
+            {(fetcher.data?.error?.includes("403") ||
+              fetcher.data?.error?.includes("Forbidden")) && (
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 12,
+                  background: "rgba(255,255,255,0.5)",
+                  borderRadius: 8,
+                  fontSize: 13,
+                }}
+              >
+                <strong>403 = Missing scopes.</strong> In Fynd Partners, your OAuth app needs{" "}
+                <code>company/orders/read</code> and <code>company/orders/write</code>. Also verify:
+                correct environment (UAT vs Prod), Company ID, Application ID.{" "}
+                <a
+                  href="https://docs.fynd.com/partners/commerce/references/access-scopes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#005bd3", textDecoration: "underline" }}
+                >
+                  Scopes docs
+                </a>
               </div>
             )}
           </div>
@@ -503,9 +648,22 @@ export default function Integrations() {
         {fetcher.data?.debugLogs && fetcher.data.debugLogs.length > 0 && (
           <details className="app-details" open={!!showTestError}>
             <summary>Debug logs ({fetcher.data.debugLogs.length})</summary>
-            <pre style={{ margin: 0, padding: 16, background: "#1e1e1e", color: "#d4d4d4", fontSize: 12, overflow: "auto", maxHeight: 300 }}>
+            <pre
+              style={{
+                margin: 0,
+                padding: 16,
+                background: "#1e1e1e",
+                color: "#d4d4d4",
+                fontSize: 12,
+                overflow: "auto",
+                maxHeight: 300,
+              }}
+            >
               {fetcher.data.debugLogs.map((e, i) => (
-                <div key={i}>[{e.ts}] {e.step}: {e.message}{e.detail ? ` | ${e.detail}` : ""}</div>
+                <div key={i}>
+                  [{e.ts}] {e.step}: {e.message}
+                  {e.detail ? ` | ${e.detail}` : ""}
+                </div>
               ))}
             </pre>
           </details>
@@ -530,10 +688,25 @@ export default function Integrations() {
             boxShadow: "0 1px 2px rgba(15, 23, 42, 0.04)",
           }}
         >
-          <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 4 }}>
+          <header
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 12,
+              flexWrap: "wrap",
+              marginBottom: 4,
+            }}
+          >
             <h2
               id="rpm-webhook-card-heading"
-              style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "var(--rpm-text, #0f172a)", letterSpacing: "-0.01em" }}
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 700,
+                color: "var(--rpm-text, #0f172a)",
+                letterSpacing: "-0.01em",
+              }}
             >
               Fynd Commerce Webhook
             </h2>
@@ -551,17 +724,34 @@ export default function Integrations() {
               {data.fyndWebhookSecretConfigured ? "✓ Secret configured" : "⚠ Secret not generated"}
             </span>
           </header>
-          <p style={{ margin: "6px 0 16px", fontSize: 13, color: "var(--rpm-text-muted, #475569)", lineHeight: 1.55 }}>
-            Each store gets its own webhook URL and secret. Paste the URL
-            into Fynd Commerce → Settings → Webhook → <strong>Webhook URL</strong>,
-            then attach the secret as a Custom Header named{" "}
-            <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4 }}>X-Shop-Secret</code>{" "}
+          <p
+            style={{
+              margin: "6px 0 16px",
+              fontSize: 13,
+              color: "var(--rpm-text-muted, #475569)",
+              lineHeight: 1.55,
+            }}
+          >
+            Each store gets its own webhook URL and secret. Paste the URL into Fynd Commerce →
+            Settings → Webhook → <strong>Webhook URL</strong>, then attach the secret as a Custom
+            Header named{" "}
+            <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4 }}>
+              X-Shop-Secret
+            </code>{" "}
             <em>or</em> in the <strong>Authentication → Secret</strong> field.
           </p>
 
           {/* Webhook URL — always visible, full-width readonly box. */}
           <div style={{ marginBottom: 14 }}>
-            <label style={{ display: "block", fontWeight: 600, fontSize: 13, marginBottom: 6, color: "var(--rpm-text, #0f172a)" }}>
+            <label
+              style={{
+                display: "block",
+                fontWeight: 600,
+                fontSize: 13,
+                marginBottom: 6,
+                color: "var(--rpm-text, #0f172a)",
+              }}
+            >
               Webhook URL
             </label>
             <div style={{ display: "flex", gap: 8, alignItems: "stretch", flexWrap: "wrap" }}>
@@ -586,9 +776,13 @@ export default function Integrations() {
                       if (!btn) return;
                       const orig = btn.textContent;
                       btn.textContent = "Copied ✓";
-                      setTimeout(() => { if (btn) btn.textContent = orig; }, 1800);
+                      setTimeout(() => {
+                        if (btn) btn.textContent = orig;
+                      }, 1800);
                     },
-                    () => { /* clipboard rejected */ },
+                    () => {
+                      /* clipboard rejected */
+                    },
                   );
                   /* v8 ignore stop */
                 }}
@@ -599,7 +793,8 @@ export default function Integrations() {
             {/* v8 ignore start - missing-SHOPIFY_APP_URL warning rarely true in tests */}
             {!process.env.SHOPIFY_APP_URL && data.fyndWebhookUrl.startsWith("/") && (
               <div style={{ marginTop: 6, fontSize: 12, color: "#92400e" }}>
-                Note: SHOPIFY_APP_URL is not set on the server, so the URL above is missing its host. Operator must set this env var.
+                Note: SHOPIFY_APP_URL is not set on the server, so the URL above is missing its
+                host. Operator must set this env var.
               </div>
             )}
             {/* v8 ignore stop */}
@@ -612,10 +807,15 @@ export default function Integrations() {
           {justGeneratedSecret ? (
             <div
               style={{
-                padding: 14, borderRadius: 10,
-                background: "#FEF3C7", border: "1.5px solid #F59E0B",
-                fontSize: 13, color: "#78350F",
-                display: "flex", flexDirection: "column", gap: 10,
+                padding: 14,
+                borderRadius: 10,
+                background: "#FEF3C7",
+                border: "1.5px solid #F59E0B",
+                fontSize: 13,
+                color: "#78350F",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
                 marginBottom: 14,
               }}
             >
@@ -629,7 +829,12 @@ export default function Integrations() {
                   value={justGeneratedSecret}
                   onFocus={(e) => e.currentTarget.select()}
                   className="app-code-readonly"
-                  style={{ flex: "1 1 320px", minWidth: 0, borderColor: "#92400e", background: "#fff" }}
+                  style={{
+                    flex: "1 1 320px",
+                    minWidth: 0,
+                    borderColor: "#92400e",
+                    background: "#fff",
+                  }}
                   aria-label="Generated webhook secret (one-time display)"
                 />
                 <button
@@ -644,9 +849,13 @@ export default function Integrations() {
                         if (!btn) return;
                         const orig = btn.textContent;
                         btn.textContent = "Copied ✓";
-                        setTimeout(() => { if (btn) btn.textContent = orig; }, 1800);
+                        setTimeout(() => {
+                          if (btn) btn.textContent = orig;
+                        }, 1800);
                       },
-                      () => { /* clipboard rejected */ },
+                      () => {
+                        /* clipboard rejected */
+                      },
                     );
                     /* v8 ignore stop */
                   }}
@@ -655,19 +864,21 @@ export default function Integrations() {
                 </button>
               </div>
               <div style={{ fontSize: 12, lineHeight: 1.5 }}>
-                Paste this into Fynd Commerce. After you navigate away, only the
-                encrypted value remains in our database — we cannot recover the
-                plaintext. If you lose it, click <strong>Rotate</strong> below to issue a new one.
+                Paste this into Fynd Commerce. After you navigate away, only the encrypted value
+                remains in our database — we cannot recover the plaintext. If you lose it, click{" "}
+                <strong>Rotate</strong> below to issue a new one.
               </div>
             </div>
           ) : (
             <div
               style={{
-                padding: "10px 12px", borderRadius: 8,
+                padding: "10px 12px",
+                borderRadius: 8,
                 background: data.fyndWebhookSecretConfigured ? "#ECFDF5" : "#F8FAFC",
                 border: `1px solid ${data.fyndWebhookSecretConfigured ? "#A7F3D0" : "#E2E8F0"}`,
                 color: data.fyndWebhookSecretConfigured ? "#065F46" : "#475569",
-                fontSize: 13, marginBottom: 14,
+                fontSize: 13,
+                marginBottom: 14,
               }}
             >
               {data.fyndWebhookSecretConfigured
@@ -678,12 +889,24 @@ export default function Integrations() {
 
           {/* Action row — Generate/Rotate + Test. Two SEPARATE top-level
               fetcher Forms; never nested. */}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
+          <div
+            style={{
+              display: "flex",
+              gap: 10,
+              flexWrap: "wrap",
+              alignItems: "center",
+              marginBottom: 14,
+            }}
+          >
             <webhookFetcher.Form method="post">
               <input
                 type="hidden"
                 name="intent"
-                value={data.fyndWebhookSecretConfigured ? "rotate_fynd_webhook_secret" : "generate_fynd_webhook_secret"}
+                value={
+                  data.fyndWebhookSecretConfigured
+                    ? "rotate_fynd_webhook_secret"
+                    : "generate_fynd_webhook_secret"
+                }
               />
               <button
                 type="submit"
@@ -691,7 +914,11 @@ export default function Integrations() {
                 disabled={webhookFetcher.state !== "idle"}
                 onClick={(e) => {
                   if (data.fyndWebhookSecretConfigured) {
-                    if (!confirm("Rotate the webhook secret? Fynd will be unable to deliver webhooks until you paste the new secret into Fynd Commerce.")) {
+                    if (
+                      !confirm(
+                        "Rotate the webhook secret? Fynd will be unable to deliver webhooks until you paste the new secret into Fynd Commerce.",
+                      )
+                    ) {
                       e.preventDefault();
                     }
                   }
@@ -712,7 +939,8 @@ export default function Integrations() {
                 disabled={!data.fyndWebhookSecretConfigured || fetcher.state !== "idle"}
                 title={!data.fyndWebhookSecretConfigured ? "Generate a secret first" : undefined}
               >
-                {fetcher.state !== "idle" && fetcher.formData?.get("intent") === "test_fynd_webhook_secret"
+                {fetcher.state !== "idle" &&
+                fetcher.formData?.get("intent") === "test_fynd_webhook_secret"
                   ? "Testing…"
                   : "Test webhook"}
               </button>
@@ -726,11 +954,13 @@ export default function Integrations() {
           {fetcher.data && "fyndWebhookTestResult" in fetcher.data && (
             <div
               style={{
-                padding: "10px 12px", borderRadius: 8,
+                padding: "10px 12px",
+                borderRadius: 8,
                 background: fetcher.data.fyndWebhookTestResult ? "#ECFDF5" : "#FEF2F2",
                 border: `1px solid ${fetcher.data.fyndWebhookTestResult ? "#A7F3D0" : "#FECACA"}`,
                 color: fetcher.data.fyndWebhookTestResult ? "#065F46" : "#991B1B",
-                fontSize: 13, marginBottom: 14,
+                fontSize: 13,
+                marginBottom: 14,
               }}
             >
               {fetcher.data.fyndWebhookTestResult
@@ -742,22 +972,64 @@ export default function Integrations() {
           {/* Configuration walkthrough + curl/Postman reference (collapsed by
               default — reference material, not the primary action). */}
           <details>
-            <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 600, color: "var(--rpm-text, #334155)", padding: "6px 0" }}>
+            <summary
+              style={{
+                cursor: "pointer",
+                fontSize: 13,
+                fontWeight: 600,
+                color: "var(--rpm-text, #334155)",
+                padding: "6px 0",
+              }}
+            >
               How to configure in Fynd Commerce + test from Postman / curl
             </summary>
-            <div style={{ padding: "10px 0", display: "flex", flexDirection: "column", gap: 14, fontSize: 13 }}>
+            <div
+              style={{
+                padding: "10px 0",
+                display: "flex",
+                flexDirection: "column",
+                gap: 14,
+                fontSize: 13,
+              }}
+            >
               <div>
-                <div style={{ fontWeight: 600, marginBottom: 6 }}>In Fynd Commerce → Settings → Webhook</div>
-                <ol style={{ margin: "0 0 0 18px", padding: 0, color: "var(--rpm-text-muted, #475569)", lineHeight: 1.7 }}>
-                  <li>Paste the URL above into the <strong>Webhook URL</strong> field.</li>
+                <div style={{ fontWeight: 600, marginBottom: 6 }}>
+                  In Fynd Commerce → Settings → Webhook
+                </div>
+                <ol
+                  style={{
+                    margin: "0 0 0 18px",
+                    padding: 0,
+                    color: "var(--rpm-text-muted, #475569)",
+                    lineHeight: 1.7,
+                  }}
+                >
+                  <li>
+                    Paste the URL above into the <strong>Webhook URL</strong> field.
+                  </li>
                   <li>
                     Attach the secret using <strong>either</strong> of these (you only need one):
                     <ul style={{ margin: "6px 0 6px 18px" }}>
-                      <li><strong>Option A (recommended)</strong> — under <strong>Custom Headers</strong>, add key <code style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4 }}>X-Shop-Secret</code> and value = your secret.</li>
-                      <li><strong>Option B</strong> — tick <strong>Authentication</strong> and paste the secret into the <strong>Secret</strong> field. Fynd sends it in the <code>Authorization</code> header.</li>
+                      <li>
+                        <strong>Option A (recommended)</strong> — under{" "}
+                        <strong>Custom Headers</strong>, add key{" "}
+                        <code
+                          style={{ background: "#F1F5F9", padding: "1px 5px", borderRadius: 4 }}
+                        >
+                          X-Shop-Secret
+                        </code>{" "}
+                        and value = your secret.
+                      </li>
+                      <li>
+                        <strong>Option B</strong> — tick <strong>Authentication</strong> and paste
+                        the secret into the <strong>Secret</strong> field. Fynd sends it in the{" "}
+                        <code>Authorization</code> header.
+                      </li>
                     </ul>
                   </li>
-                  <li>Subscribe to shipment status events under <strong>Events</strong>.</li>
+                  <li>
+                    Subscribe to shipment status events under <strong>Events</strong>.
+                  </li>
                   <li>Save.</li>
                 </ol>
               </div>
@@ -767,14 +1039,16 @@ export default function Integrations() {
                 <div style={{ color: "var(--rpm-text-muted, #475569)", lineHeight: 1.5 }}>
                   Secret accepted in any of: <code>X-Shop-Secret</code>,
                   <code> X-Webhook-Secret</code>, <code>X-Fynd-Secret</code>, or
-                  <code> Authorization</code> (with or without a <code>Bearer </code> prefix).
-                  HMAC signatures (<code>X-Fynd-Signature: HMAC-SHA256(secret, body).hex</code>)
-                  are also accepted as a fallback for custom signers.
+                  <code> Authorization</code> (with or without a <code>Bearer </code> prefix). HMAC
+                  signatures (<code>X-Fynd-Signature: HMAC-SHA256(secret, body).hex</code>) are also
+                  accepted as a fallback for custom signers.
                 </div>
               </div>
 
               <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>curl example (header auth — what Fynd Commerce sends)</div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  curl example (header auth — what Fynd Commerce sends)
+                </div>
                 <textarea
                   readOnly
                   onFocus={(e) => e.currentTarget.select()}
@@ -787,38 +1061,56 @@ export default function Integrations() {
                   ].join("\n")}
                   rows={5}
                   style={{
-                    width: "100%", padding: "10px 12px", fontSize: 12,
+                    width: "100%",
+                    padding: "10px 12px",
+                    fontSize: 12,
                     fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                    background: "#0f172a", color: "#e2e8f0",
-                    border: "1px solid #1e293b", borderRadius: 8,
-                    resize: "vertical", whiteSpace: "pre", overflowX: "auto",
+                    background: "#0f172a",
+                    color: "#e2e8f0",
+                    border: "1px solid #1e293b",
+                    borderRadius: 8,
+                    resize: "vertical",
+                    whiteSpace: "pre",
+                    overflowX: "auto",
                   }}
                   aria-label="curl example using header auth"
                 />
-                <div style={{ fontSize: 12, color: "var(--rpm-text-muted, #6b7280)", marginTop: 4 }}>
+                <div
+                  style={{ fontSize: 12, color: "var(--rpm-text-muted, #6b7280)", marginTop: 4 }}
+                >
                   In Postman: same URL, body <em>raw / JSON</em>, then under
                   <em> Headers </em> add <code>X-Shop-Secret</code> = your secret.
                 </div>
               </div>
 
               <div>
-                <div style={{ fontWeight: 600, marginBottom: 4 }}>Sample payload Fynd will send</div>
+                <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                  Sample payload Fynd will send
+                </div>
                 <textarea
                   readOnly
                   onFocus={(e) => e.currentTarget.select()}
-                  value={JSON.stringify({
-                    shipment_id: "16xxxx2345678",
-                    refund_status: "refund_done",
-                    order_id: "FY10000001",
-                    amount: 1299,
-                    currency: "INR",
-                  }, null, 2)}
+                  value={JSON.stringify(
+                    {
+                      shipment_id: "16xxxx2345678",
+                      refund_status: "refund_done",
+                      order_id: "FY10000001",
+                      amount: 1299,
+                      currency: "INR",
+                    },
+                    null,
+                    2,
+                  )}
                   rows={7}
                   style={{
-                    width: "100%", padding: "10px 12px", fontSize: 12,
+                    width: "100%",
+                    padding: "10px 12px",
+                    fontSize: 12,
                     fontFamily: "ui-monospace, SFMono-Regular, monospace",
-                    background: "#f8fafc", color: "#0f172a",
-                    border: "1px solid #e2e8f0", borderRadius: 8,
+                    background: "#f8fafc",
+                    color: "#0f172a",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: 8,
                     resize: "vertical",
                   }}
                   aria-label="Sample Fynd webhook payload"
@@ -826,17 +1118,24 @@ export default function Integrations() {
               </div>
 
               <div style={{ color: "var(--rpm-text-muted, #475569)", lineHeight: 1.5 }}>
-                <strong>Expected responses:</strong>{" "}
-                <code>200 {"{ ok: true }"}</code> on success,{" "}
-                <code>401</code> if the secret doesn't match or wasn't sent,{" "}
-                <code>413</code> for payloads over 1 MB.
+                <strong>Expected responses:</strong> <code>200 {"{ ok: true }"}</code> on success,{" "}
+                <code>401</code> if the secret doesn't match or wasn't sent, <code>413</code> for
+                payloads over 1 MB.
               </div>
             </div>
           </details>
         </section>
 
         <fetcher.Form method="post">
-          <div style={{ marginBottom: 24, padding: "12px 16px", background: "#e8f4fc", borderRadius: 8, border: "1px solid #b6d4fe" }}>
+          <div
+            style={{
+              marginBottom: 24,
+              padding: "12px 16px",
+              background: "#e8f4fc",
+              borderRadius: 8,
+              border: "1px solid #b6d4fe",
+            }}
+          >
             <p className="app-field-helper" style={{ margin: 0, fontSize: 14 }}>
               <strong>New to Fynd?</strong> Use the{" "}
               <Link to="/app/settings/setup" style={{ color: "#005bd3", fontWeight: 600 }}>
@@ -846,38 +1145,115 @@ export default function Integrations() {
             </p>
           </div>
           <p className="app-field-helper" style={{ marginBottom: 24, fontSize: 14 }}>
-            Connect Fynd for reverse logistics. All Fynd operations use <strong>Platform API only</strong> (OAuth). Storefront API is not used. From <a href="https://platform.fynd.com" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3" }}>Fynd Platform</a>.
+            Connect Fynd for reverse logistics. All Fynd operations use{" "}
+            <strong>Platform API only</strong> (OAuth). Storefront API is not used. From{" "}
+            <a
+              href="https://platform.fynd.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ color: "#005bd3" }}
+            >
+              Fynd Platform
+            </a>
+            .
           </p>
 
           <s-section heading="App Mode">
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <label style={{
-                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 220px",
-                background: appMode === "dev" ? "#FFFBEB" : "#F9FAFB",
-                borderRadius: 10, border: appMode === "dev" ? "2px solid #F59E0B" : "1px solid #E5E7EB",
-                transition: "all 0.15s",
-              }}>
-                <input type="radio" name="appMode" value="dev" checked={appMode === "dev"} onChange={() => setAppMode("dev")} style={{ marginTop: 3 }} />
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  cursor: "pointer",
+                  padding: 14,
+                  flex: "1 1 220px",
+                  background: appMode === "dev" ? "#FFFBEB" : "#F9FAFB",
+                  borderRadius: 10,
+                  border: appMode === "dev" ? "2px solid #F59E0B" : "1px solid #E5E7EB",
+                  transition: "all 0.15s",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="appMode"
+                  value="dev"
+                  checked={appMode === "dev"}
+                  onChange={() => setAppMode("dev")}
+                  style={{ marginTop: 3 }}
+                />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={appMode === "dev" ? "#D97706" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" />
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 13,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={appMode === "dev" ? "#D97706" : "#6B7280"}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <polyline points="16 18 22 12 16 6" />
+                      <polyline points="8 6 2 12 8 18" />
                     </svg>
                     Development
                   </div>
-                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Test mode with dev banner. Use with UAT credentials.</div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>
+                    Test mode with dev banner. Use with UAT credentials.
+                  </div>
                 </div>
               </label>
-              <label style={{
-                display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 220px",
-                background: appMode === "prod" ? "#F0FDF4" : "#F9FAFB",
-                borderRadius: 10, border: appMode === "prod" ? "2px solid #22C55E" : "1px solid #E5E7EB",
-                transition: "all 0.15s",
-              }}>
-                <input type="radio" name="appMode" value="prod" checked={appMode === "prod"} onChange={() => setAppMode("prod")} style={{ marginTop: 3 }} />
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  cursor: "pointer",
+                  padding: 14,
+                  flex: "1 1 220px",
+                  background: appMode === "prod" ? "#F0FDF4" : "#F9FAFB",
+                  borderRadius: 10,
+                  border: appMode === "prod" ? "2px solid #22C55E" : "1px solid #E5E7EB",
+                  transition: "all 0.15s",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="appMode"
+                  value="prod"
+                  checked={appMode === "prod"}
+                  onChange={() => setAppMode("prod")}
+                  style={{ marginTop: 3 }}
+                />
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={appMode === "prod" ? "#16A34A" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      fontSize: 13,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <svg
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={appMode === "prod" ? "#16A34A" : "#6B7280"}
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z" />
                       <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z" />
                       <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0" />
@@ -885,7 +1261,9 @@ export default function Integrations() {
                     </svg>
                     Production
                   </div>
-                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Live mode with real operations. Use with production credentials.</div>
+                  <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>
+                    Live mode with real operations. Use with production credentials.
+                  </div>
                 </div>
               </label>
             </div>
@@ -895,57 +1273,145 @@ export default function Integrations() {
             <div className="app-field">
               <label>API Base URL</label>
               <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-                <label style={{
-                  display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 200px",
-                  background: fyndEnvironment === "uat" ? "#FFFBEB" : "#F9FAFB",
-                  borderRadius: 10, border: fyndEnvironment === "uat" ? "2px solid #F59E0B" : "1px solid #E5E7EB",
-                  transition: "all 0.15s",
-                }}>
-                  <input type="radio" name="fyndEnvironment" value="uat" checked={fyndEnvironment === "uat"} onChange={() => setFyndEnvironment("uat")} style={{ marginTop: 3 }} />
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    cursor: "pointer",
+                    padding: 14,
+                    flex: "1 1 200px",
+                    background: fyndEnvironment === "uat" ? "#FFFBEB" : "#F9FAFB",
+                    borderRadius: 10,
+                    border: fyndEnvironment === "uat" ? "2px solid #F59E0B" : "1px solid #E5E7EB",
+                    transition: "all 0.15s",
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="fyndEnvironment"
+                    value="uat"
+                    checked={fyndEnvironment === "uat"}
+                    onChange={() => setFyndEnvironment("uat")}
+                    style={{ marginTop: 3 }}
+                  />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={fyndEnvironment === "uat" ? "#D97706" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M9 3h6l2 7H7L9 3z" /><path d="M7 10l-2 8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1l-2-8" /><path d="M12 3v7" />
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 13,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={fyndEnvironment === "uat" ? "#D97706" : "#6B7280"}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M9 3h6l2 7H7L9 3z" />
+                        <path d="M7 10l-2 8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1l-2-8" />
+                        <path d="M12 3v7" />
                       </svg>
                       UAT (Sandbox)
                     </div>
-                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Test environment for development and staging</div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>
+                      Test environment for development and staging
+                    </div>
                   </div>
                 </label>
-                <label style={{
-                  display: "flex", alignItems: "flex-start", gap: 10, cursor: "pointer", padding: 14, flex: "1 1 200px",
-                  /* v8 ignore start - prod-environment styling ternaries (only one env selected at a time) */
-                  background: fyndEnvironment === "prod" ? "#F0FDF4" : "#F9FAFB",
-                  borderRadius: 10, border: fyndEnvironment === "prod" ? "2px solid #22C55E" : "1px solid #E5E7EB",
-                  transition: "all 0.15s",
-                  /* v8 ignore stop */
-                }}>
-                  <input type="radio" name="fyndEnvironment" value="prod" checked={fyndEnvironment === "prod"} onChange={() => setFyndEnvironment("prod")} style={{ marginTop: 3 }} />
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    cursor: "pointer",
+                    padding: 14,
+                    flex: "1 1 200px",
+                    /* v8 ignore start - prod-environment styling ternaries (only one env selected at a time) */
+                    background: fyndEnvironment === "prod" ? "#F0FDF4" : "#F9FAFB",
+                    borderRadius: 10,
+                    border: fyndEnvironment === "prod" ? "2px solid #22C55E" : "1px solid #E5E7EB",
+                    transition: "all 0.15s",
+                    /* v8 ignore stop */
+                  }}
+                >
+                  <input
+                    type="radio"
+                    name="fyndEnvironment"
+                    value="prod"
+                    checked={fyndEnvironment === "prod"}
+                    onChange={() => setFyndEnvironment("prod")}
+                    style={{ marginTop: 3 }}
+                  />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13, display: "flex", alignItems: "center", gap: 8 }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={fyndEnvironment === "prod" ? "#16A34A" : "#6B7280"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2" /><rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
-                        <line x1="6" y1="6" x2="6.01" y2="6" /><line x1="6" y1="18" x2="6.01" y2="18" />
+                    <div
+                      style={{
+                        fontWeight: 600,
+                        fontSize: 13,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                      }}
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke={fyndEnvironment === "prod" ? "#16A34A" : "#6B7280"}
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                        <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                        <line x1="6" y1="6" x2="6.01" y2="6" />
+                        <line x1="6" y1="18" x2="6.01" y2="18" />
                       </svg>
                       Production
                     </div>
-                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>Live Fynd environment for real operations</div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginTop: 3 }}>
+                      Live Fynd environment for real operations
+                    </div>
                   </div>
                 </label>
               </div>
               {/* v8 ignore start */}
               {/* defensive: data.fyndEnvironments populated server-side; ?? fallbacks unreachable */}
               <p className="app-field-helper">
-                UAT: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.uat ?? "https://api.uat.fyndx1.de"}</code>
+                UAT:{" "}
+                <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>
+                  {data.fyndEnvironments?.uat ?? "https://api.uat.fyndx1.de"}
+                </code>
                 {" · "}
-                Prod: <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>{data.fyndEnvironments?.prod ?? "https://api.fynd.com"}</code>
+                Prod:{" "}
+                <code style={{ background: "#f1f1f1", padding: "2px 6px", borderRadius: 4 }}>
+                  {data.fyndEnvironments?.prod ?? "https://api.fynd.com"}
+                </code>
               </p>
               {/* v8 ignore stop */}
-              <p className="app-field-helper">UAT and Prod use different credentials. Use credentials from the matching Fynd environment.</p>
+              <p className="app-field-helper">
+                UAT and Prod use different credentials. Use credentials from the matching Fynd
+                environment.
+              </p>
             </div>
             <div className="app-field">
               <label>Custom URL (optional override)</label>
-              <input type="text" name="fyndCustomBaseUrl" defaultValue={data.fyndCustomBaseUrl} placeholder="e.g. https://api.custom.fynd.com" autoComplete="off" className="app-input" />
+              <input
+                type="text"
+                name="fyndCustomBaseUrl"
+                defaultValue={data.fyndCustomBaseUrl}
+                placeholder="e.g. https://api.custom.fynd.com"
+                autoComplete="off"
+                className="app-input"
+              />
               <p className="app-field-helper">Leave empty to use preset. Include https://</p>
             </div>
           </s-section>
@@ -953,36 +1419,97 @@ export default function Integrations() {
           <s-section heading="Credentials">
             <div className="app-field">
               <label>Application ID</label>
-              <input type="text" name="fyndApplicationId" defaultValue={data.fyndApplicationId} placeholder="e.g. 67a09b70c8ea7c9123f00fab" autoComplete="off" className="app-input" />
-              <p className="app-field-helper">Shared by both APIs. From Company → Settings → Developers or your sales channel.</p>
+              <input
+                type="text"
+                name="fyndApplicationId"
+                defaultValue={data.fyndApplicationId}
+                placeholder="e.g. 67a09b70c8ea7c9123f00fab"
+                autoComplete="off"
+                className="app-input"
+              />
+              <p className="app-field-helper">
+                Shared by both APIs. From Company → Settings → Developers or your sales channel.
+              </p>
             </div>
 
             <div className="app-card">
-              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>Platform API (required)</div>
-              <p className="app-field-helper" style={{ marginBottom: 8 }}>All Fynd operations use Platform API. Company ID + Client ID & Secret (OAuth).</p>
-              <p className="app-field-helper" style={{ marginBottom: 16, padding: "10px 12px", background: "#fef3c7", borderRadius: 8, border: "1px solid #fcd34d", fontSize: 13 }}>
-                <strong>Getting 403 Forbidden?</strong> Your OAuth app in Fynd Partners must have <code>company/orders/read</code> and <code>company/orders/write</code> scopes. Enable them in your extension/app config, then re-authorize. <a href="https://docs.fynd.com/partners/commerce/references/access-scopes" target="_blank" rel="noopener noreferrer" style={{ color: "#b45309", textDecoration: "underline" }}>Fynd scopes docs</a>
+              <div style={{ fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
+                Platform API (required)
+              </div>
+              <p className="app-field-helper" style={{ marginBottom: 8 }}>
+                All Fynd operations use Platform API. Company ID + Client ID & Secret (OAuth).
+              </p>
+              <p
+                className="app-field-helper"
+                style={{
+                  marginBottom: 16,
+                  padding: "10px 12px",
+                  background: "#fef3c7",
+                  borderRadius: 8,
+                  border: "1px solid #fcd34d",
+                  fontSize: 13,
+                }}
+              >
+                <strong>Getting 403 Forbidden?</strong> Your OAuth app in Fynd Partners must have{" "}
+                <code>company/orders/read</code> and <code>company/orders/write</code> scopes.
+                Enable them in your extension/app config, then re-authorize.{" "}
+                <a
+                  href="https://docs.fynd.com/partners/commerce/references/access-scopes"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#b45309", textDecoration: "underline" }}
+                >
+                  Fynd scopes docs
+                </a>
               </p>
               <div className="app-field">
                 <label>Company ID</label>
-                <input type="text" name="fyndCompanyId" defaultValue={data.fyndCompanyId} placeholder="e.g. 2263" autoComplete="off" className="app-input" />
+                <input
+                  type="text"
+                  name="fyndCompanyId"
+                  defaultValue={data.fyndCompanyId}
+                  placeholder="e.g. 2263"
+                  autoComplete="off"
+                  className="app-input"
+                />
               </div>
               <div className="app-field">
                 <label>Client ID</label>
-                <input type="text" name="fyndClientId" placeholder="Client ID" autoComplete="off" className="app-input" />
+                <input
+                  type="text"
+                  name="fyndClientId"
+                  placeholder="Client ID"
+                  autoComplete="off"
+                  className="app-input"
+                />
               </div>
               <div className="app-field">
                 <label>Client Secret</label>
-                <input type="password" name="fyndClientSecret" placeholder="Client Secret" autoComplete="off" className="app-input" />
+                <input
+                  type="password"
+                  name="fyndClientSecret"
+                  placeholder="Client Secret"
+                  autoComplete="off"
+                  className="app-input"
+                />
               </div>
             </div>
 
             {data.fyndCredentials && (
               <p style={{ fontSize: 13, color: "#008060", marginTop: 16, fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  style={{ verticalAlign: "middle", marginRight: 4 }}
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                Platform credentials configured. Enter new values to replace; leave blank to keep existing.
+                Platform credentials configured. Enter new values to replace; leave blank to keep
+                existing.
               </p>
             )}
           </s-section>
@@ -991,45 +1518,107 @@ export default function Integrations() {
           <details className="app-details">
             <summary>Advanced — Policy</summary>
             <div className="app-details-content">
-              <p className="app-field-helper" style={{ marginBottom: 16 }}>Configure return policy rules. Values are stored as JSON.</p>
+              <p className="app-field-helper" style={{ marginBottom: 16 }}>
+                Configure return policy rules. Values are stored as JSON.
+              </p>
               <div className="app-grid" style={{ marginBottom: 16 }}>
                 <div className="app-field">
                   <label>Return window (days)</label>
-                  <input type="number" name="policyReturnWindowDays" min={1} max={365} defaultValue={data.policy.returnWindowDays} className="app-input" />
+                  <input
+                    type="number"
+                    name="policyReturnWindowDays"
+                    min={1}
+                    max={365}
+                    defaultValue={data.policy.returnWindowDays}
+                    className="app-input"
+                  />
                 </div>
                 <div className="app-field">
                   <label>Min order value</label>
-                  <input type="number" name="policyMinOrderValue" min={0} step={1} defaultValue={data.policy.minOrderValue} className="app-input" />
+                  <input
+                    type="number"
+                    name="policyMinOrderValue"
+                    min={0}
+                    step={1}
+                    defaultValue={data.policy.minOrderValue}
+                    className="app-input"
+                  />
                 </div>
                 <div className="app-field">
                   <label>Restock fee (%)</label>
-                  <input type="number" name="policyRestockFeePercent" min={0} max={100} step={0.5} defaultValue={data.policy.restockFeePercent} className="app-input" />
+                  <input
+                    type="number"
+                    name="policyRestockFeePercent"
+                    min={0}
+                    max={100}
+                    step={0.5}
+                    defaultValue={data.policy.restockFeePercent}
+                    className="app-input"
+                  />
                 </div>
               </div>
               <div className="app-field" style={{ marginBottom: 16 }}>
-                <label style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer", fontWeight: 500 }}>
-                  <span style={{ position: "relative", display: "inline-block", width: 40, height: 22, flexShrink: 0 }}>
-                    <input type="checkbox" name="policyAllowExchange" defaultChecked={data.policy.allowExchange} style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+                <label
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    cursor: "pointer",
+                    fontWeight: 500,
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "relative",
+                      display: "inline-block",
+                      width: 40,
+                      height: 22,
+                      flexShrink: 0,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      name="policyAllowExchange"
+                      defaultChecked={data.policy.allowExchange}
+                      style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
                       onChange={(e) => {
                         const track = e.target.nextElementSibling as HTMLElement;
                         if (track) {
                           track.style.background = e.target.checked ? "#22C55E" : "#D1D5DB";
                           const knob = track.firstElementChild as HTMLElement;
-                          if (knob) knob.style.transform = e.target.checked ? "translateX(18px)" : "translateX(0)";
+                          if (knob)
+                            knob.style.transform = e.target.checked
+                              ? "translateX(18px)"
+                              : "translateX(0)";
                         }
                       }}
                     />
-                    <span style={{
-                      position: "absolute", inset: 0, borderRadius: 11,
-                      background: data.policy.allowExchange ? "#22C55E" : "#D1D5DB",
-                      transition: "background 0.2s", cursor: "pointer",
-                    }}>
-                      <span style={{
-                        position: "absolute", left: 2, top: 2, width: 18, height: 18, borderRadius: "50%",
-                        background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
-                        transition: "transform 0.2s",
-                        transform: data.policy.allowExchange ? "translateX(18px)" : "translateX(0)",
-                      }} />
+                    <span
+                      style={{
+                        position: "absolute",
+                        inset: 0,
+                        borderRadius: 11,
+                        background: data.policy.allowExchange ? "#22C55E" : "#D1D5DB",
+                        transition: "background 0.2s",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: "absolute",
+                          left: 2,
+                          top: 2,
+                          width: 18,
+                          height: 18,
+                          borderRadius: "50%",
+                          background: "#fff",
+                          boxShadow: "0 1px 3px rgba(0,0,0,0.15)",
+                          transition: "transform 0.2s",
+                          transform: data.policy.allowExchange
+                            ? "translateX(18px)"
+                            : "translateX(0)",
+                        }}
+                      />
                     </span>
                   </span>
                   <span>Allow exchange</span>
@@ -1037,33 +1626,76 @@ export default function Integrations() {
               </div>
               <div className="app-field" style={{ marginBottom: 16 }}>
                 <label>Refund methods</label>
-                <select name="policyRefundMethods" multiple size={3} defaultValue={data.policy.refundMethods} className="app-input">
+                <select
+                  name="policyRefundMethods"
+                  multiple
+                  size={3}
+                  defaultValue={data.policy.refundMethods}
+                  className="app-input"
+                >
                   {REFUND_METHOD_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
                 <p className="app-field-helper">Ctrl/Cmd+click to select multiple</p>
               </div>
               <div className="app-field" style={{ marginBottom: 16 }}>
                 <label>Default refund method</label>
-                <select name="policyDefaultRefundMethod" defaultValue={data.policy.defaultRefundMethod} className="app-input">
+                <select
+                  name="policyDefaultRefundMethod"
+                  defaultValue={data.policy.defaultRefundMethod}
+                  className="app-input"
+                >
                   {REFUND_METHOD_OPTIONS.map((o) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
                   ))}
                 </select>
               </div>
               <div className="app-field" style={{ marginBottom: 16 }}>
                 <label>Excluded tags (comma-separated)</label>
-                <input type="text" name="policyExcludedTags" placeholder="e.g. final-sale, no-return" defaultValue={data.policy.excludedTags.join(", ")} className="app-input" />
+                <input
+                  type="text"
+                  name="policyExcludedTags"
+                  placeholder="e.g. final-sale, no-return"
+                  defaultValue={data.policy.excludedTags.join(", ")}
+                  className="app-input"
+                />
               </div>
               <div className="app-field">
                 <label>Allowed categories (comma-separated)</label>
-                <input type="text" name="policyAllowedCategories" placeholder="e.g. Apparel, Footwear" defaultValue={data.policy.allowedCategories.join(", ")} className="app-input" />
+                <input
+                  type="text"
+                  name="policyAllowedCategories"
+                  placeholder="e.g. Apparel, Footwear"
+                  defaultValue={data.policy.allowedCategories.join(", ")}
+                  className="app-input"
+                />
               </div>
               {data.fyndCredentials && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: "1px solid #e1e3e5" }}>
-                  <div className="app-field-helper" style={{ marginBottom: 8 }}>Danger zone</div>
-                  <button type="submit" name="intent" value="clear_token" disabled={fetcher.state !== "idle"} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d72c0d", background: "#fff", color: "#d72c0d", fontSize: 13, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer" }}>
+                  <div className="app-field-helper" style={{ marginBottom: 8 }}>
+                    Danger zone
+                  </div>
+                  <button
+                    type="submit"
+                    name="intent"
+                    value="clear_token"
+                    disabled={fetcher.state !== "idle"}
+                    style={{
+                      padding: "8px 16px",
+                      borderRadius: 8,
+                      border: "1px solid #d72c0d",
+                      background: "#fff",
+                      color: "#d72c0d",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer",
+                    }}
+                  >
                     {fetcher.state !== "idle" ? "Please wait..." : "Clear credentials"}
                   </button>
                 </div>
@@ -1072,59 +1704,165 @@ export default function Integrations() {
           </details>
           {/* v8 ignore stop */}
 
-
           {/* ── Gorgias Helpdesk Integration ── */}
           {/* v8 ignore start - Gorgias <details> not all interactions exercised */}
           <details style={{ marginTop: 24 }}>
-            <summary style={{ cursor: "pointer", fontWeight: 700, fontSize: 16, padding: "12px 0", borderTop: "1px solid #E5E7EB" }}>
+            <summary
+              style={{
+                cursor: "pointer",
+                fontWeight: 700,
+                fontSize: 16,
+                padding: "12px 0",
+                borderTop: "1px solid #E5E7EB",
+              }}
+            >
               Gorgias Helpdesk Integration
             </summary>
             <div style={{ padding: "16px 0", display: "flex", flexDirection: "column", gap: 16 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+              >
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>Enable Gorgias integration</div>
                   <p style={{ fontSize: 13, color: "#6d7175", margin: "4px 0 0" }}>
                     Display return data in Gorgias sidebar when viewing customer tickets.
                   </p>
                 </div>
-                <label style={{ position: "relative", display: "inline-block", width: 44, height: 24, flexShrink: 0, cursor: "pointer" }}>
-                  <input type="checkbox" name="gorgiasEnabled" defaultChecked={data.gorgiasEnabled}
-                    style={{ position: "absolute", opacity: 0, width: 0, height: 0 }} />
+                <label
+                  style={{
+                    position: "relative",
+                    display: "inline-block",
+                    width: 44,
+                    height: 24,
+                    flexShrink: 0,
+                    cursor: "pointer",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    name="gorgiasEnabled"
+                    defaultChecked={data.gorgiasEnabled}
+                    style={{ position: "absolute", opacity: 0, width: 0, height: 0 }}
+                  />
                   {/* v8 ignore start - gorgiasEnabled toggle styling ternaries (off branch unhit) */}
-                  <span style={{ position: "absolute", inset: 0, borderRadius: 12, transition: "all 0.15s", background: data.gorgiasEnabled ? "#3B82F6" : "#cbd5e1" }}>
-                    <span style={{ position: "absolute", left: data.gorgiasEnabled ? 22 : 2, top: 2, width: 20, height: 20, borderRadius: 10, background: "#fff", transition: "all 0.15s", boxShadow: "0 1px 3px rgba(0,0,0,.15)" }} />
+                  <span
+                    style={{
+                      position: "absolute",
+                      inset: 0,
+                      borderRadius: 12,
+                      transition: "all 0.15s",
+                      background: data.gorgiasEnabled ? "#3B82F6" : "#cbd5e1",
+                    }}
+                  >
+                    <span
+                      style={{
+                        position: "absolute",
+                        left: data.gorgiasEnabled ? 22 : 2,
+                        top: 2,
+                        width: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        background: "#fff",
+                        transition: "all 0.15s",
+                        boxShadow: "0 1px 3px rgba(0,0,0,.15)",
+                      }}
+                    />
                   </span>
                   {/* v8 ignore stop */}
                 </label>
               </div>
               <div className="app-field">
                 <label>Gorgias API Key (for authentication)</label>
-                <input type="text" name="gorgiasApiKey" defaultValue={data.gorgiasApiKey} placeholder="Optional — leave blank to disable auth" className="app-input" />
-                <div className="app-field-helper">If set, Gorgias must include this key as <code>api_key</code> query parameter.</div>
+                <input
+                  type="text"
+                  name="gorgiasApiKey"
+                  defaultValue={data.gorgiasApiKey}
+                  placeholder="Optional — leave blank to disable auth"
+                  className="app-input"
+                />
+                <div className="app-field-helper">
+                  If set, Gorgias must include this key as <code>api_key</code> query parameter.
+                </div>
               </div>
               <div className="app-field">
                 <label>Widget URL (paste into Gorgias HTTP integration)</label>
                 <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
-                  <input type="text" readOnly value={data.gorgiasWidgetUrl} className="app-input" style={{ flex: 1, background: "#F9FAFB", fontSize: 12, fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 }} />
+                  <input
+                    type="text"
+                    readOnly
+                    value={data.gorgiasWidgetUrl}
+                    className="app-input"
+                    style={{
+                      flex: 1,
+                      background: "#F9FAFB",
+                      fontSize: 12,
+                      fontFamily: "monospace",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      minWidth: 0,
+                    }}
+                  />
                 </div>
-                <div className="app-field-helper">Append <code>&amp;email=customer_email</code> for customer context.</div>
+                <div className="app-field-helper">
+                  Append <code>&amp;email=customer_email</code> for customer context.
+                </div>
               </div>
             </div>
           </details>
           {/* v8 ignore stop */}
 
           <div className="app-actions">
-            <s-button type="submit" loading={fetcher.state !== "idle"}>Save</s-button>
+            <s-button type="submit" loading={fetcher.state !== "idle"}>
+              Save
+            </s-button>
             <Link to="/app/settings">
-              <s-button variant="secondary" type="button">Discard</s-button>
+              <s-button variant="secondary" type="button">
+                Discard
+              </s-button>
             </Link>
             <span style={{ flex: 1, minWidth: 8 }} />
             <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
               {data.hasPlatformCreds && (
-                <button type="submit" name="intent" value="test_platform" disabled={fetcher.state !== "idle"} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer", minHeight: 40 }}>{fetcher.state !== "idle" ? "Please wait…" : "Test Platform"}</button>
+                <button
+                  type="submit"
+                  name="intent"
+                  value="test_platform"
+                  disabled={fetcher.state !== "idle"}
+                  style={{
+                    padding: "10px 18px",
+                    borderRadius: 8,
+                    border: "1px solid #e1e3e5",
+                    background: "#fff",
+                    color: "#202223",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer",
+                    minHeight: 40,
+                  }}
+                >
+                  {fetcher.state !== "idle" ? "Please wait…" : "Test Platform"}
+                </button>
               )}
               {!data.hasPlatformCreds && (
-                <button type="submit" name="intent" value="test" disabled={fetcher.state !== "idle"} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", color: "#202223", fontSize: 14, fontWeight: 500, cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer", minHeight: 40 }}>{fetcher.state !== "idle" ? "Please wait…" : "Test connection"}</button>
+                <button
+                  type="submit"
+                  name="intent"
+                  value="test"
+                  disabled={fetcher.state !== "idle"}
+                  style={{
+                    padding: "10px 18px",
+                    borderRadius: 8,
+                    border: "1px solid #e1e3e5",
+                    background: "#fff",
+                    color: "#202223",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    cursor: fetcher.state !== "idle" ? "not-allowed" : "pointer",
+                    minHeight: 40,
+                  }}
+                >
+                  {fetcher.state !== "idle" ? "Please wait…" : "Test connection"}
+                </button>
               )}
             </div>
           </div>

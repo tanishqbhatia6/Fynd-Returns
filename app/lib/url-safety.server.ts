@@ -10,11 +10,7 @@ import dns from "node:dns/promises";
 
 export type UrlSafetyResult = { ok: true } | { ok: false; reason: string };
 
-const PRIVATE_HOSTNAMES = new Set([
-  "localhost",
-  "ip6-localhost",
-  "ip6-loopback",
-]);
+const PRIVATE_HOSTNAMES = new Set(["localhost", "ip6-localhost", "ip6-loopback"]);
 
 // IPv4 ranges defined as [start, end] inclusive, packed as 32-bit ints.
 function ipv4ToInt(ip: string): number | null {
@@ -30,20 +26,20 @@ function ipv4ToInt(ip: string): number | null {
 }
 
 const PRIVATE_IPV4_RANGES: Array<[number, number]> = [
-  [ipv4ToInt("0.0.0.0")!,         ipv4ToInt("0.255.255.255")!],     // unspecified / current network
-  [ipv4ToInt("10.0.0.0")!,        ipv4ToInt("10.255.255.255")!],    // RFC 1918
-  [ipv4ToInt("100.64.0.0")!,      ipv4ToInt("100.127.255.255")!],   // CGNAT (RFC 6598)
-  [ipv4ToInt("127.0.0.0")!,       ipv4ToInt("127.255.255.255")!],   // loopback
-  [ipv4ToInt("169.254.0.0")!,     ipv4ToInt("169.254.255.255")!],   // link-local + AWS/GCP IMDS
-  [ipv4ToInt("172.16.0.0")!,      ipv4ToInt("172.31.255.255")!],    // RFC 1918
-  [ipv4ToInt("192.0.0.0")!,       ipv4ToInt("192.0.0.255")!],       // IETF protocol assignments
-  [ipv4ToInt("192.0.2.0")!,       ipv4ToInt("192.0.2.255")!],       // TEST-NET-1
-  [ipv4ToInt("192.168.0.0")!,     ipv4ToInt("192.168.255.255")!],   // RFC 1918
-  [ipv4ToInt("198.18.0.0")!,      ipv4ToInt("198.19.255.255")!],    // benchmark
-  [ipv4ToInt("198.51.100.0")!,    ipv4ToInt("198.51.100.255")!],    // TEST-NET-2
-  [ipv4ToInt("203.0.113.0")!,     ipv4ToInt("203.0.113.255")!],     // TEST-NET-3
-  [ipv4ToInt("224.0.0.0")!,       ipv4ToInt("239.255.255.255")!],   // multicast
-  [ipv4ToInt("240.0.0.0")!,       ipv4ToInt("255.255.255.255")!],   // reserved
+  [ipv4ToInt("0.0.0.0")!, ipv4ToInt("0.255.255.255")!], // unspecified / current network
+  [ipv4ToInt("10.0.0.0")!, ipv4ToInt("10.255.255.255")!], // RFC 1918
+  [ipv4ToInt("100.64.0.0")!, ipv4ToInt("100.127.255.255")!], // CGNAT (RFC 6598)
+  [ipv4ToInt("127.0.0.0")!, ipv4ToInt("127.255.255.255")!], // loopback
+  [ipv4ToInt("169.254.0.0")!, ipv4ToInt("169.254.255.255")!], // link-local + AWS/GCP IMDS
+  [ipv4ToInt("172.16.0.0")!, ipv4ToInt("172.31.255.255")!], // RFC 1918
+  [ipv4ToInt("192.0.0.0")!, ipv4ToInt("192.0.0.255")!], // IETF protocol assignments
+  [ipv4ToInt("192.0.2.0")!, ipv4ToInt("192.0.2.255")!], // TEST-NET-1
+  [ipv4ToInt("192.168.0.0")!, ipv4ToInt("192.168.255.255")!], // RFC 1918
+  [ipv4ToInt("198.18.0.0")!, ipv4ToInt("198.19.255.255")!], // benchmark
+  [ipv4ToInt("198.51.100.0")!, ipv4ToInt("198.51.100.255")!], // TEST-NET-2
+  [ipv4ToInt("203.0.113.0")!, ipv4ToInt("203.0.113.255")!], // TEST-NET-3
+  [ipv4ToInt("224.0.0.0")!, ipv4ToInt("239.255.255.255")!], // multicast
+  [ipv4ToInt("240.0.0.0")!, ipv4ToInt("255.255.255.255")!], // reserved
 ];
 
 export function isPrivateIPv4(ip: string): boolean {
@@ -53,12 +49,12 @@ export function isPrivateIPv4(ip: string): boolean {
 }
 
 const PRIVATE_IPV6_PREFIXES = [
-  "::1",      // loopback
-  "fc",       // unique local
-  "fd",       // unique local
-  "fe80:",    // link-local
-  "ff",       // multicast
-  "::",       // unspecified
+  "::1", // loopback
+  "fc", // unique local
+  "fd", // unique local
+  "fe80:", // link-local
+  "ff", // multicast
+  "::", // unspecified
 ];
 
 export function isPrivateIPv6(ip: string): boolean {
@@ -79,7 +75,10 @@ export function isPrivateIPv6(ip: string): boolean {
  * cloud metadata addresses like 169.254.169.254). Returns `{ ok: false, reason }`
  * with a non-PII reason; callers should NOT echo the URL back to the user.
  */
-export async function isSafeOutboundUrl(rawUrl: string, opts?: { allowHttp?: boolean }): Promise<UrlSafetyResult> {
+export async function isSafeOutboundUrl(
+  rawUrl: string,
+  opts?: { allowHttp?: boolean },
+): Promise<UrlSafetyResult> {
   let parsed: URL;
   try {
     parsed = new URL(rawUrl);
@@ -115,8 +114,10 @@ export async function isSafeOutboundUrl(rawUrl: string, opts?: { allowHttp?: boo
   try {
     const records = await dns.lookup(host, { all: true, verbatim: true });
     for (const r of records) {
-      if (r.family === 4 && isPrivateIPv4(r.address)) return { ok: false, reason: "resolves_to_private_ipv4" };
-      if (r.family === 6 && isPrivateIPv6(r.address)) return { ok: false, reason: "resolves_to_private_ipv6" };
+      if (r.family === 4 && isPrivateIPv4(r.address))
+        return { ok: false, reason: "resolves_to_private_ipv4" };
+      if (r.family === 6 && isPrivateIPv6(r.address))
+        return { ok: false, reason: "resolves_to_private_ipv6" };
     }
     if (records.length === 0) return { ok: false, reason: "dns_empty" };
     return { ok: true };

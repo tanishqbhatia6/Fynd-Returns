@@ -32,17 +32,15 @@ describe("webhooks.app.uninstalled", () => {
   it("re-throws HMAC 401 Response from authenticate.webhook", async () => {
     const resp401 = new Response(null, { status: 401 });
     authenticateWebhookMock.mockRejectedValueOnce(resp401);
-    await expect(
-      action({ request: mkReq(), params: {}, context: {} } as never),
-    ).rejects.toBe(resp401);
+    await expect(action({ request: mkReq(), params: {}, context: {} } as never)).rejects.toBe(
+      resp401,
+    );
   });
 
   it("propagates non-Response auth errors (no try/catch in source)", async () => {
     const err = new Error("auth backend down");
     authenticateWebhookMock.mockRejectedValueOnce(err);
-    await expect(
-      action({ request: mkReq(), params: {}, context: {} } as never),
-    ).rejects.toBe(err);
+    await expect(action({ request: mkReq(), params: {}, context: {} } as never)).rejects.toBe(err);
   });
 
   it("returns 200 with no session — does not touch DB", async () => {

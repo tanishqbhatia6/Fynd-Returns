@@ -66,9 +66,7 @@ describe("Permissions page (default export)", () => {
     });
     await waitFor(() => {
       expect(
-        container.querySelector(
-          "input[type='checkbox'][name='readAllOrdersEnabled']",
-        ),
+        container.querySelector("input[type='checkbox'][name='readAllOrdersEnabled']"),
       ).toBeTruthy();
     });
     const toggle = container.querySelector(
@@ -84,9 +82,7 @@ describe("Permissions page (default export)", () => {
     });
     await waitFor(() => {
       expect(
-        container.querySelector(
-          "input[type='checkbox'][name='readAllOrdersEnabled']",
-        ),
+        container.querySelector("input[type='checkbox'][name='readAllOrdersEnabled']"),
       ).toBeTruthy();
     });
     const toggle = container.querySelector(
@@ -101,9 +97,7 @@ describe("Permissions page (default export)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(container.textContent).toMatch(
-        /Scope is configured in your app environment/i,
-      );
+      expect(container.textContent).toMatch(/Scope is configured in your app environment/i);
     });
     expect(container.textContent).not.toMatch(
       /Add .*read_all_orders.* to your SCOPES environment variable/i,
@@ -120,9 +114,7 @@ describe("Permissions page (default export)", () => {
         /Add .*read_all_orders.* to your SCOPES environment variable/i,
       );
     });
-    expect(container.textContent).not.toMatch(
-      /Scope is configured in your app environment/i,
-    );
+    expect(container.textContent).not.toMatch(/Scope is configured in your app environment/i);
   });
 
   it("renders the explanatory copy describing why broader access is needed", async () => {

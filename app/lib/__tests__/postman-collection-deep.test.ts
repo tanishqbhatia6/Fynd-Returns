@@ -20,19 +20,27 @@ describe("generatePostmanCollection", () => {
   });
 
   it("defines the collection-level {{base_url}} variable from input", () => {
-    const baseVar = collection.variable.find((v: { key: string; value: string }) => v.key === "base_url");
+    const baseVar = collection.variable.find(
+      (v: { key: string; value: string }) => v.key === "base_url",
+    );
     expect(baseVar?.value).toBe("https://returnpromax.app");
   });
 
   it("defines an {{api_key}} variable with an intentionally-obvious placeholder", () => {
-    const keyVar = collection.variable.find((v: { key: string; value: string }) => v.key === "api_key");
+    const keyVar = collection.variable.find(
+      (v: { key: string; value: string }) => v.key === "api_key",
+    );
     expect(keyVar?.value).toBe("rpm_YOUR_API_KEY_HERE");
   });
 
   it("configures apikey auth in the X-API-Key header", () => {
     expect(collection.auth.type).toBe("apikey");
-    const keyField = collection.auth.apikey.find((f: { key: string; value: string }) => f.key === "key");
-    const placement = collection.auth.apikey.find((f: { key: string; value: string }) => f.key === "in");
+    const keyField = collection.auth.apikey.find(
+      (f: { key: string; value: string }) => f.key === "key",
+    );
+    const placement = collection.auth.apikey.find(
+      (f: { key: string; value: string }) => f.key === "in",
+    );
     expect(keyField?.value).toBe("X-API-Key");
     expect(placement?.value).toBe("header");
   });

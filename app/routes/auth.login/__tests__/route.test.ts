@@ -37,9 +37,7 @@ describe("auth.login loader — ?shop redirect", () => {
     // Hyphenated subdomain — still matches the regex, must be encoded safely.
     let thrown: unknown;
     try {
-      await loader(
-        mkLoaderArgs("https://app.example/auth/login?shop=my-cool-store.myshopify.com"),
-      );
+      await loader(mkLoaderArgs("https://app.example/auth/login?shop=my-cool-store.myshopify.com"));
     } catch (e) {
       thrown = e;
     }
@@ -56,9 +54,7 @@ describe("auth.login loader — ?shop redirect", () => {
       thrown = e;
     }
     expect(thrown).toBeInstanceOf(Response);
-    expect((thrown as Response).headers.get("location")).toBe(
-      "/auth?shop=ACME.myshopify.com",
-    );
+    expect((thrown as Response).headers.get("location")).toBe("/auth?shop=ACME.myshopify.com");
   });
 });
 
@@ -70,9 +66,7 @@ describe("auth.login loader — no redirect cases", () => {
 
   it("does NOT redirect when the shop value is malformed (no .myshopify.com)", async () => {
     // Critical: prevents open-redirect via attacker-supplied ?shop=evil.com.
-    const result = await loader(
-      mkLoaderArgs("https://app.example/auth/login?shop=evil.com"),
-    );
+    const result = await loader(mkLoaderArgs("https://app.example/auth/login?shop=evil.com"));
     expect(result).toEqual({});
   });
 

@@ -83,10 +83,10 @@ describe("handleCancelOrder — gap coverage", () => {
   describe("cancelReason validation", () => {
     it("returns 400 when cancelReason is not in VALID_CANCEL_REASONS", async () => {
       const adminMock = mkAdminGraphql();
-      const res = await handleCancelOrder(
-        mkCtx({ admin: adminMock as never }),
-        { action: "cancel_order", cancelReason: "BOGUS" } as never,
-      );
+      const res = await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+        action: "cancel_order",
+        cancelReason: "BOGUS",
+      } as never);
       expect(res.status).toBe(400);
       const body = (await res.json()) as { error: string };
       expect(body.error).toContain("Invalid cancel reason");
@@ -298,7 +298,9 @@ describe("handleCancelOrder — gap coverage", () => {
     });
 
     it("returns 400 when fetchOrderByOrderNumber resolves a value with no id", async () => {
-      fetchOrderByOrderNumberMock.mockResolvedValueOnce({ /* no id */ });
+      fetchOrderByOrderNumberMock.mockResolvedValueOnce({
+        /* no id */
+      });
       const adminMock = mkAdminGraphql();
       const res = await handleCancelOrder(
         mkCtx({
@@ -350,10 +352,11 @@ describe("handleCancelOrder — gap coverage", () => {
     it("forwards note from body to returnCase.update + event payload", async () => {
       const adminMock = mkAdminGraphql();
       try {
-        await handleCancelOrder(
-          mkCtx({ admin: adminMock as never }),
-          { action: "cancel_order", cancelReason: "CUSTOMER", note: "fraudulent order" } as never,
-        );
+        await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+          action: "cancel_order",
+          cancelReason: "CUSTOMER",
+          note: "fraudulent order",
+        } as never);
         throw new Error("expected redirect");
       } catch (err) {
         expect(err).toBeInstanceOf(Response);
@@ -436,10 +439,10 @@ describe("handleCancelOrder — gap coverage", () => {
         })),
       };
       try {
-        await handleCancelOrder(
-          mkCtx({ admin: adminMock as never }),
-          { action: "cancel_order", cancelReason: "OTHER" } as never,
-        );
+        await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+          action: "cancel_order",
+          cancelReason: "OTHER",
+        } as never);
         throw new Error("expected redirect");
       } catch (err) {
         expect(err).toBeInstanceOf(Response);
@@ -456,10 +459,10 @@ describe("handleCancelOrder — gap coverage", () => {
         })),
       };
       try {
-        await handleCancelOrder(
-          mkCtx({ admin: adminMock as never }),
-          { action: "cancel_order", cancelReason: "OTHER" } as never,
-        );
+        await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+          action: "cancel_order",
+          cancelReason: "OTHER",
+        } as never);
         throw new Error("expected redirect");
       } catch (err) {
         expect(err).toBeInstanceOf(Response);
@@ -475,10 +478,10 @@ describe("handleCancelOrder — gap coverage", () => {
           throw new Error("boom internal");
         }),
       };
-      const res = await handleCancelOrder(
-        mkCtx({ admin: adminMock as never }),
-        { action: "cancel_order", cancelReason: "OTHER" } as never,
-      );
+      const res = await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+        action: "cancel_order",
+        cancelReason: "OTHER",
+      } as never);
       expect(res.status).toBe(500);
       const body = (await res.json()) as { error: string };
       expect(body.error).toContain("boom internal");
@@ -491,10 +494,10 @@ describe("handleCancelOrder — gap coverage", () => {
           throw new Error("connect ECONNREFUSED 127.0.0.1:80");
         }),
       };
-      const res = await handleCancelOrder(
-        mkCtx({ admin: adminMock as never }),
-        { action: "cancel_order", cancelReason: "OTHER" } as never,
-      );
+      const res = await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+        action: "cancel_order",
+        cancelReason: "OTHER",
+      } as never);
       expect(res.status).toBe(500);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBe("Unable to connect to external service. Please try again later.");
@@ -504,14 +507,13 @@ describe("handleCancelOrder — gap coverage", () => {
       // throw a non-Error, non-Response value with empty string coercion -> default.
       const adminMock = {
         graphql: vi.fn(async () => {
-           
           throw "";
         }),
       };
-      const res = await handleCancelOrder(
-        mkCtx({ admin: adminMock as never }),
-        { action: "cancel_order", cancelReason: "OTHER" } as never,
-      );
+      const res = await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+        action: "cancel_order",
+        cancelReason: "OTHER",
+      } as never);
       expect(res.status).toBe(500);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBe(
@@ -526,10 +528,10 @@ describe("handleCancelOrder — gap coverage", () => {
       });
       const adminMock = mkAdminGraphql();
       try {
-        await handleCancelOrder(
-          mkCtx({ admin: adminMock as never }),
-          { action: "cancel_order", cancelReason: "OTHER" } as never,
-        );
+        await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+          action: "cancel_order",
+          cancelReason: "OTHER",
+        } as never);
         throw new Error("expected the Response to be re-thrown");
       } catch (err) {
         expect(err).toBe(customResponse);

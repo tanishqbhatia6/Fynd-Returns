@@ -27,8 +27,8 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
-    fn({ setAttribute: () => { }, end: () => { } }),
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
+    fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 0,
 }));
@@ -58,14 +58,18 @@ type ClientOverrides = {
 };
 
 function makeClient(o: ClientOverrides = {}) {
-  const search = o.searchImpl ?? vi.fn().mockResolvedValue({
-    items: [{ id: "FY1", order_id: "FYMP1234567890", shipment_id: "FY1" }],
-    orderId: "FYMP1234567890",
-    shipmentId: "FY1",
-  });
-  const getShipments = o.getShipmentsImpl ?? vi.fn().mockResolvedValue({
-    shipments: [{ id: "FY1", identifier: "FY1", order_id: "FYMP1234567890" }],
-  });
+  const search =
+    o.searchImpl ??
+    vi.fn().mockResolvedValue({
+      items: [{ id: "FY1", order_id: "FYMP1234567890", shipment_id: "FY1" }],
+      orderId: "FYMP1234567890",
+      shipmentId: "FY1",
+    });
+  const getShipments =
+    o.getShipmentsImpl ??
+    vi.fn().mockResolvedValue({
+      shipments: [{ id: "FY1", identifier: "FY1", order_id: "FYMP1234567890" }],
+    });
   const update = o.updateImpl ?? vi.fn().mockResolvedValue({ return_id: "RID1" });
   const client: Record<string, unknown> = {
     searchShipmentsByExternalOrderId: search,
@@ -234,9 +238,7 @@ describe("parseFyndOrderDetailsForTab — package.items single object branch", (
   it("captures pkg.items when it is a plain object (not array)", () => {
     const json = JSON.stringify({
       shipment_id: "S-PKG-OBJ",
-      packages: [
-        { items: { item_id: "PKG-1", name: "Package Article", quantity: 2 } },
-      ],
+      packages: [{ items: { item_id: "PKG-1", name: "Package Article", quantity: 2 } }],
     });
     const tab = parseFyndOrderDetailsForTab(json);
     expect(tab).not.toBeNull();
@@ -280,7 +282,6 @@ describe("createReturnOnFynd — could not determine shipment ID", () => {
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/Could not determine Fynd shipment ID/i);
   });
-
 });
 
 /* ── createReturnOnFynd — retry inner-throw (line 399) ──────────────── */
@@ -292,7 +293,8 @@ describe("createReturnOnFynd — 404 retry inner throw", () => {
     // First update call fails with 404 → enters retry branch.
     // Retry call also fails → inner catch at line 398-400 throws original updateErr.
     // Outer catch at 320-325 returns failure with original message.
-    const update = vi.fn()
+    const update = vi
+      .fn()
       .mockRejectedValueOnce(new Error("404 Not Found - first call"))
       .mockRejectedValueOnce(new Error("retry also failed"));
     const client = makeClient({ updateImpl: update });
@@ -325,7 +327,6 @@ describe("createReturnOnFynd — 404 retry inner throw", () => {
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/404/);
   });
-
 });
 
 /* ── createReturnOnFynd — non-404 update error in search path (401) ── */
@@ -367,9 +368,7 @@ describe("createReturnOnFynd — fast path failure outcome metric", () => {
     const update = vi.fn().mockResolvedValue({
       statuses: [
         {
-          shipments: [
-            { status: 422, message: "Some other error", identifier: "FYS-FAST" },
-          ],
+          shipments: [{ status: 422, message: "Some other error", identifier: "FYS-FAST" }],
         },
       ],
     });
@@ -391,7 +390,8 @@ describe("createReturnOnFynd — alternate search retry with fyndOrderId", () =>
   it("retries search with fyndOrderId when first search returns no items", async () => {
     // First search call returns empty items but resolves an orderId,
     // so the code retries with the resolved orderId.
-    const search = vi.fn()
+    const search = vi
+      .fn()
       .mockResolvedValueOnce({
         items: [],
         orderId: "FYMP-RESOLVED-1234",
@@ -412,7 +412,6 @@ describe("createReturnOnFynd — alternate search retry with fyndOrderId", () =>
     expect(search).toHaveBeenCalledTimes(2);
     expect(res.fyndOrderId).toBe("FYMP-ALT-9999");
   });
-
 });
 
 /* ── createReturnOnFynd — getShipments 404 + targetShipId fallback (264-265) ── */
@@ -526,7 +525,6 @@ describe("getFyndShipmentDisplayFields — collectFields branches", () => {
     });
     expect(fields.find((f) => f.key === "status")?.value).toBe("Delivered");
   });
-
 });
 
 /* ── getPickupAddressFromFyndPayload — null addr branch (line 304) ──── */
@@ -536,7 +534,6 @@ describe("getPickupAddressFromFyndPayload — invalid addr fallback", () => {
     const json = JSON.stringify({ shipment_id: "S-NO-ADDR" });
     expect(getPickupAddressFromFyndPayload(json)).toBeNull();
   });
-
 });
 
 /* ── extractCustomerFromFyndPayload — no addr/no useful fields (line 777) ── */
@@ -603,12 +600,9 @@ describe("parseFyndOrderDetailsForTab — tracking URL from bag fallback", () =>
   it("picks up tracking_url from bag when shipment-level URL absent", () => {
     const json = JSON.stringify({
       shipment_id: "S-BAG-TRACK",
-      bags: [
-        { tracking_url: "https://example.com/track/BAG1" },
-      ],
+      bags: [{ tracking_url: "https://example.com/track/BAG1" }],
     });
     const tab = parseFyndOrderDetailsForTab(json);
     expect(tab!.shipments[0].trackingUrl).toBe("https://example.com/track/BAG1");
   });
-
 });

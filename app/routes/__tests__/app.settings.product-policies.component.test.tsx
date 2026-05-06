@@ -41,9 +41,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 
 import { renderWithRouter } from "../../test/component-helpers";
 import { act, waitFor, fireEvent } from "@testing-library/react";
-import ProductPoliciesSettings, {
-  type ProductPolicyRule,
-} from "../app.settings.product-policies";
+import ProductPoliciesSettings, { type ProductPolicyRule } from "../app.settings.product-policies";
 
 const emptyLoaderData: { rules: ProductPolicyRule[] } = { rules: [] };
 
@@ -85,16 +83,14 @@ describe("ProductPoliciesSettings (default export)", () => {
       loaderData: emptyLoaderData,
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "No product policies defined yet.",
-      );
+      expect(container.textContent).toContain("No product policies defined yet.");
     }, WAIT);
     expect(container.textContent).toContain(
       "All products will use the global return window from Return Settings.",
     );
-    const addButtons = Array.from(
-      container.querySelectorAll("s-button"),
-    ).filter((b) => b.textContent?.trim() === "Add first rule");
+    const addButtons = Array.from(container.querySelectorAll("s-button")).filter(
+      (b) => b.textContent?.trim() === "Add first rule",
+    );
     expect(addButtons.length).toBe(1);
   });
 
@@ -104,9 +100,7 @@ describe("ProductPoliciesSettings (default export)", () => {
       loaderData: emptyLoaderData,
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "No product policies defined yet.",
-      );
+      expect(container.textContent).toContain("No product policies defined yet.");
     }, WAIT);
     const addBtn = Array.from(container.querySelectorAll("s-button")).find(
       (b) => b.textContent?.trim() === "Add first rule",
@@ -115,9 +109,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     fireEvent.click(addBtn!);
 
     await waitFor(() => {
-      expect(container.textContent).not.toContain(
-        "No product policies defined yet.",
-      );
+      expect(container.textContent).not.toContain("No product policies defined yet.");
     }, WAIT);
     expect(container.querySelector("select")).toBeTruthy();
     const footerAdd = Array.from(container.querySelectorAll("s-button")).find(
@@ -144,9 +136,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     expect(values).toContain("Electronics");
     expect(values).toContain("Final sale items cannot be returned");
 
-    expect(container.textContent).not.toContain(
-      "No product policies defined yet.",
-    );
+    expect(container.textContent).not.toContain("No product policies defined yet.");
   });
 
   it("shows the 'Returnable' / 'Not returnable' badge per rule and hides the window-days input for non-returnable rules", async () => {
@@ -170,28 +160,22 @@ describe("ProductPoliciesSettings (default export)", () => {
       loaderData: populatedLoaderData,
     });
     await waitFor(() => {
-      const removes = container.querySelectorAll(
-        "button[aria-label='Remove rule']",
-      );
+      const removes = container.querySelectorAll("button[aria-label='Remove rule']");
       expect(removes.length).toBe(2);
     }, WAIT);
 
     const removeButtons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(
-        "button[aria-label='Remove rule']",
-      ),
+      container.querySelectorAll<HTMLButtonElement>("button[aria-label='Remove rule']"),
     );
-    await act(async () => { fireEvent.click(removeButtons[0]); });
+    await act(async () => {
+      fireEvent.click(removeButtons[0]);
+    });
 
     await waitFor(() => {
-      const remaining = container.querySelectorAll(
-        "button[aria-label='Remove rule']",
-      );
+      const remaining = container.querySelectorAll("button[aria-label='Remove rule']");
       expect(remaining.length).toBe(1);
     }, WAIT);
-    expect(container.textContent).not.toContain(
-      "Final sale items cannot be returned",
-    );
+    expect(container.textContent).not.toContain("Final sale items cannot be returned");
     const surviving = Array.from(
       container.querySelectorAll<HTMLInputElement>("input[type='text']"),
     ).map((i) => i.value);
@@ -230,9 +214,9 @@ describe("ProductPoliciesSettings (default export)", () => {
     await waitFor(() => {
       expect(container.querySelector(".app-actions")).toBeTruthy();
     }, WAIT);
-    const actionButtons = Array.from(
-      container.querySelectorAll(".app-actions s-button"),
-    ).map((b) => b.textContent?.trim());
+    const actionButtons = Array.from(container.querySelectorAll(".app-actions s-button")).map((b) =>
+      b.textContent?.trim(),
+    );
     expect(actionButtons).toContain("Save");
     expect(actionButtons).toContain("Discard");
 
@@ -254,9 +238,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     expect(container.textContent).toContain("Tag (comma-separated)");
     expect(container.textContent).toContain("Product type");
 
-    const selects = Array.from(
-      container.querySelectorAll<HTMLSelectElement>("select"),
-    );
+    const selects = Array.from(container.querySelectorAll<HTMLSelectElement>("select"));
     fireEvent.change(selects[0], { target: { value: "collection" } });
 
     await waitFor(() => {
@@ -278,19 +260,13 @@ describe("ProductPoliciesSettings (default export)", () => {
       expect(container.querySelectorAll("select").length).toBe(2);
     }, WAIT);
 
-    const selects = Array.from(
-      container.querySelectorAll<HTMLSelectElement>("select"),
-    );
+    const selects = Array.from(container.querySelectorAll<HTMLSelectElement>("select"));
     fireEvent.change(selects[0], { target: { value: "product_type" } });
 
     await waitFor(() => {
-      const inputs = Array.from(
-        container.querySelectorAll<HTMLInputElement>("input[type='text']"),
-      );
+      const inputs = Array.from(container.querySelectorAll<HTMLInputElement>("input[type='text']"));
       const placeholders = inputs.map((i) => i.getAttribute("placeholder"));
-      expect(placeholders.filter((p) => p === "e.g. Electronics").length).toBe(
-        2,
-      );
+      expect(placeholders.filter((p) => p === "e.g. Electronics").length).toBe(2);
     }, WAIT);
   });
 
@@ -300,9 +276,7 @@ describe("ProductPoliciesSettings (default export)", () => {
       loaderData: populatedLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelectorAll("input[type='text']").length,
-      ).toBeGreaterThanOrEqual(4);
+      expect(container.querySelectorAll("input[type='text']").length).toBeGreaterThanOrEqual(4);
     }, WAIT);
 
     const textInputs = Array.from(
@@ -333,43 +307,34 @@ describe("ProductPoliciesSettings (default export)", () => {
       expect(container.querySelectorAll("input[type='number']").length).toBe(1);
     }, WAIT);
 
-    const numberInput = container.querySelector(
-      "input[type='number']",
-    ) as HTMLInputElement;
+    const numberInput = container.querySelector("input[type='number']") as HTMLInputElement;
     expect(numberInput.value).toBe("14");
 
-    await act(async () => { fireEvent.change(numberInput, { target: { value: "60" } }); });
+    await act(async () => {
+      fireEvent.change(numberInput, { target: { value: "60" } });
+    });
     await waitFor(() => {
-      expect(
-        (container.querySelector("input[type='number']") as HTMLInputElement)
-          .value,
-      ).toBe("60");
+      expect((container.querySelector("input[type='number']") as HTMLInputElement).value).toBe(
+        "60",
+      );
     }, WAIT);
 
     await act(async () => {
-      fireEvent.change(
-        container.querySelector("input[type='number']") as HTMLInputElement,
-        { target: { value: "abc" } },
-      );
+      fireEvent.change(container.querySelector("input[type='number']") as HTMLInputElement, {
+        target: { value: "abc" },
+      });
     });
     await waitFor(() => {
-      expect(
-        (container.querySelector("input[type='number']") as HTMLInputElement)
-          .value,
-      ).toBe("0");
+      expect((container.querySelector("input[type='number']") as HTMLInputElement).value).toBe("0");
     }, WAIT);
 
     await act(async () => {
-      fireEvent.change(
-        container.querySelector("input[type='number']") as HTMLInputElement,
-        { target: { value: "-5" } },
-      );
+      fireEvent.change(container.querySelector("input[type='number']") as HTMLInputElement, {
+        target: { value: "-5" },
+      });
     });
     await waitFor(() => {
-      expect(
-        (container.querySelector("input[type='number']") as HTMLInputElement)
-          .value,
-      ).toBe("0");
+      expect((container.querySelector("input[type='number']") as HTMLInputElement).value).toBe("0");
     }, WAIT);
   });
 
@@ -379,9 +344,7 @@ describe("ProductPoliciesSettings (default export)", () => {
       loaderData: populatedLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelectorAll("input[type='text']").length,
-      ).toBeGreaterThanOrEqual(4);
+      expect(container.querySelectorAll("input[type='text']").length).toBeGreaterThanOrEqual(4);
     }, WAIT);
 
     const textInputs = Array.from(
@@ -390,8 +353,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     const emptyPolicyText = textInputs.find(
       (i) =>
         i.value === "" &&
-        i.getAttribute("placeholder") ===
-          "e.g. Final sale items cannot be returned",
+        i.getAttribute("placeholder") === "e.g. Final sale items cannot be returned",
     );
     expect(emptyPolicyText).toBeTruthy();
 
@@ -415,9 +377,7 @@ describe("ProductPoliciesSettings (default export)", () => {
       loaderData: populatedLoaderData,
     });
     await waitFor(() => {
-      expect(container.querySelectorAll("input[type='checkbox']").length).toBe(
-        2,
-      );
+      expect(container.querySelectorAll("input[type='checkbox']").length).toBe(2);
     }, WAIT);
 
     expect(container.querySelectorAll("input[type='number']").length).toBe(1);
@@ -444,9 +404,9 @@ describe("ProductPoliciesSettings (default export)", () => {
       expect(container.querySelectorAll("select").length).toBe(2);
     }, WAIT);
 
-    const footerAdd = Array.from(
-      container.querySelectorAll("s-button"),
-    ).find((b) => b.textContent?.trim() === "+ Add rule");
+    const footerAdd = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => b.textContent?.trim() === "+ Add rule",
+    );
     expect(footerAdd).toBeTruthy();
 
     fireEvent.click(footerAdd!);
@@ -454,9 +414,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     await waitFor(() => {
       expect(container.querySelectorAll("select").length).toBe(3);
     }, WAIT);
-    expect(
-      container.querySelectorAll("button[aria-label='Remove rule']").length,
-    ).toBe(3);
+    expect(container.querySelectorAll("button[aria-label='Remove rule']").length).toBe(3);
   });
 
   it("Move-up / Move-down buttons reorder rules, with disabled boundary controls", async () => {
@@ -469,14 +427,10 @@ describe("ProductPoliciesSettings (default export)", () => {
     }, WAIT);
 
     const moveUpButtons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(
-        "button[aria-label='Move up']",
-      ),
+      container.querySelectorAll<HTMLButtonElement>("button[aria-label='Move up']"),
     );
     const moveDownButtons = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(
-        "button[aria-label='Move down']",
-      ),
+      container.querySelectorAll<HTMLButtonElement>("button[aria-label='Move down']"),
     );
     expect(moveUpButtons[0].disabled).toBe(true);
     expect(moveDownButtons[1].disabled).toBe(true);
@@ -494,9 +448,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     }, WAIT);
 
     const downAfter = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(
-        "button[aria-label='Move down']",
-      ),
+      container.querySelectorAll<HTMLButtonElement>("button[aria-label='Move down']"),
     );
     fireEvent.click(downAfter[0]);
 

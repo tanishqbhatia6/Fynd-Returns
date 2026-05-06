@@ -63,12 +63,22 @@ vi.mock("../../lib/fynd-returns.server", () => ({
   createReturnOnFynd: vi.fn(),
 }));
 vi.mock("../../lib/notification.server", () => ({
-  sendRejectionNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendApprovalNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRejectionNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendApprovalNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   sendRefundNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../../lib/webhook-dispatch.server", () => ({
   dispatchWebhookEvent: vi.fn(),
@@ -207,7 +217,11 @@ describe("405 method not allowed — exhaustive verb coverage", () => {
 
 describe("400 missing id param", () => {
   it("400 when params.id is undefined explicitly", async () => {
-    const req = new Request("https://app.example/api/returns//actions", { method: "POST", body: JSON.stringify({ action: "add_note" }), headers: { "Content-Type": "application/json" } });
+    const req = new Request("https://app.example/api/returns//actions", {
+      method: "POST",
+      body: JSON.stringify({ action: "add_note" }),
+      headers: { "Content-Type": "application/json" },
+    });
     const res = await callActionRaw(req, { id: undefined });
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -215,7 +229,11 @@ describe("400 missing id param", () => {
   });
 
   it("400 missing id short-circuits before authenticate", async () => {
-    const req = new Request("https://app.example/api/returns//actions", { method: "POST", body: "{}", headers: { "Content-Type": "application/json" } });
+    const req = new Request("https://app.example/api/returns//actions", {
+      method: "POST",
+      body: "{}",
+      headers: { "Content-Type": "application/json" },
+    });
     await callAction(req, null);
     expect(authenticateMock).not.toHaveBeenCalled();
   });
@@ -233,7 +251,11 @@ describe("400 missing id param", () => {
 
 describe("formData body parsing — non-JSON variants", () => {
   beforeEach(() => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
     prismaMock.returnCase.findFirst.mockResolvedValue(mkReturnCase());
   });
 
@@ -247,9 +269,11 @@ describe("formData body parsing — non-JSON variants", () => {
       body: params.toString(),
     });
     await callAction(req);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ adminNotes: "urlencoded note" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ adminNotes: "urlencoded note" }),
+      }),
+    );
   });
 
   it("falls back to action field when json field has malformed JSON", async () => {
@@ -257,17 +281,25 @@ describe("formData body parsing — non-JSON variants", () => {
     fd.set("json", "{not-valid-json");
     fd.set("action", "add_note");
     fd.set("note", "fallback note");
-    const req = new Request("https://app.example/api/returns/rc-1/actions", { method: "POST", body: fd });
+    const req = new Request("https://app.example/api/returns/rc-1/actions", {
+      method: "POST",
+      body: fd,
+    });
     await callAction(req);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ adminNotes: "fallback note" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ adminNotes: "fallback note" }),
+      }),
+    );
   });
 
   it("returns 400 unknown when formData has no action and no json fields", async () => {
     const fd = new FormData();
     fd.set("note", "orphan");
-    const req = new Request("https://app.example/api/returns/rc-1/actions", { method: "POST", body: fd });
+    const req = new Request("https://app.example/api/returns/rc-1/actions", {
+      method: "POST",
+      body: fd,
+    });
     const res = await callAction(req);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -281,7 +313,10 @@ describe("formData body parsing — non-JSON variants", () => {
     fd.set("customerCity", "Anytown");
     fd.set("customerZip", "12345");
     fd.set("customerCountry", "US");
-    const req = new Request("https://app.example/api/returns/rc-1/actions", { method: "POST", body: fd });
+    const req = new Request("https://app.example/api/returns/rc-1/actions", {
+      method: "POST",
+      body: fd,
+    });
     await callAction(req);
     const data = prismaMock.returnCase.update.mock.calls[0][0].data;
     expect(data.customerAddress1).toBe("100 Main St");
@@ -294,18 +329,26 @@ describe("formData body parsing — non-JSON variants", () => {
     const fd = new FormData();
     fd.set("action", "save_notes_for_customer");
     fd.set("notesForCustomer", "form-supplied note");
-    const req = new Request("https://app.example/api/returns/rc-1/actions", { method: "POST", body: fd });
+    const req = new Request("https://app.example/api/returns/rc-1/actions", {
+      method: "POST",
+      body: fd,
+    });
     await callAction(req);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: { notesForCustomer: "form-supplied note" },
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { notesForCustomer: "form-supplied note" },
+      }),
+    );
   });
 
   it("formData rejectionReason field propagates to reject action", async () => {
     const fd = new FormData();
     fd.set("action", "reject");
     fd.set("rejectionReason", "outside policy window");
-    const req = new Request("https://app.example/api/returns/rc-1/actions", { method: "POST", body: fd });
+    const req = new Request("https://app.example/api/returns/rc-1/actions", {
+      method: "POST",
+      body: fd,
+    });
     await callAction(req);
     // reject handler should have been invoked — verify by ensuring an update occurred
     // (handler implementation may vary; minimally confirm we did not 400 with unknown)
@@ -317,7 +360,11 @@ describe("formData body parsing — non-JSON variants", () => {
 
 describe("invalid JSON parsing", () => {
   beforeEach(() => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
     prismaMock.returnCase.findFirst.mockResolvedValue(mkReturnCase());
   });
 
@@ -372,7 +419,11 @@ describe("invalid JSON parsing", () => {
 
 describe("unknown action type fallback", () => {
   beforeEach(() => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
     prismaMock.returnCase.findFirst.mockResolvedValue(mkReturnCase());
   });
 

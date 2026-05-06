@@ -484,9 +484,7 @@ describe("app.returns.$id — coverage closure round 3", () => {
           invoiceA3Url: null,
           ewaybillUrl: null,
           // Forward tracking history — invalid time triggers L1766 catch
-          trackingDetails: [
-            { status: "in_transit", time: "not-a-date", message: "x" },
-          ],
+          trackingDetails: [{ status: "in_transit", time: "not-a-date", message: "x" }],
           items: [],
         },
         {
@@ -517,9 +515,7 @@ describe("app.returns.$id — coverage closure round 3", () => {
           invoiceA3Url: null,
           ewaybillUrl: null,
           // Return tracking history — invalid time triggers L1820 catch
-          trackingDetails: [
-            { status: "picked_up", time: "not-a-date", message: "y" },
-          ],
+          trackingDetails: [{ status: "picked_up", time: "not-a-date", message: "y" }],
           items: [],
         },
       ],
@@ -562,8 +558,9 @@ describe("app.returns.$id — coverage closure round 3", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Process Refund");
     });
-    const processBtn = Array.from(container.querySelectorAll("s-button"))
-      .find((b) => (b.textContent || "").trim() === "Process Refund");
+    const processBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => (b.textContent || "").trim() === "Process Refund",
+    );
     if (processBtn) fireEvent.click(processBtn);
     // The bonus-credit IIFE returns null when total is zero — no "Bonus Credit" UI text
     // We don't assert presence/absence directly to keep the test resilient — the IIFE

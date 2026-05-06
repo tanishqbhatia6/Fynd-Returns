@@ -1,8 +1,17 @@
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
-import { parseFyndOrderDetailsForTab, extractFyndJourney, getTrackingInfoFromFyndPayload, getPickupAddressFromFyndPayload } from "../lib/fynd-payload.server";
-import { createFyndClientOrError, type FyndClientResult, type ShipmentsListingSearchType } from "../lib/fynd.server";
+import {
+  parseFyndOrderDetailsForTab,
+  extractFyndJourney,
+  getTrackingInfoFromFyndPayload,
+  getPickupAddressFromFyndPayload,
+} from "../lib/fynd-payload.server";
+import {
+  createFyndClientOrError,
+  type FyndClientResult,
+  type ShipmentsListingSearchType,
+} from "../lib/fynd.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 
 type FyndClient = Extract<FyndClientResult, { ok: true }>["client"];
@@ -29,12 +38,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const shopDomain = shop.includes(".") ? shop : `${shop}.myshopify.com`;
-    const shopRecord = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
+    const shopRecord = await prisma.shop.findUnique({
+      where: { shopDomain },
+      include: { settings: true },
+    });
     if (!shopRecord) {
       return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
     }
 
-    const settingsForFynd = shopRecord.settings as Parameters<typeof createFyndClientOrError>[0] | null;
+    const settingsForFynd = shopRecord.settings as
+      | Parameters<typeof createFyndClientOrError>[0]
+      | null;
     let fyndClient: FyndClient | null = null;
     if (settingsForFynd) {
       const fyndResult = await createFyndClientOrError(settingsForFynd, { requirePlatform: true });
@@ -46,8 +60,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     const extractSearchItems = (res: Record<string, unknown>): unknown[] => {
-      const candidates = [res?.items, res?.shipments, (res?.data as Record<string, unknown>)?.items, res?.results];
-      for (const c of candidates) { if (Array.isArray(c) && c.length > 0) return c; }
+      const candidates = [
+        res?.items,
+        res?.shipments,
+        (res?.data as Record<string, unknown>)?.items,
+        res?.results,
+      ];
+      for (const c of candidates) {
+        if (Array.isArray(c) && c.length > 0) return c;
+      }
       return [];
     };
 
@@ -71,9 +92,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // can use it, but it is no longer READ as a search fallback.
       // If neither direct search finds the order → fyndData = null → Shopify data shown.
 
-      const searchCandidates: Array<{ value: string; type: ShipmentsListingSearchType; strategy: string }> = [
-        { value: orderNumber, type: "external_order_id", strategy: "external_order_id" },
-      ];
+      const searchCandidates: Array<{
+        value: string;
+        type: ShipmentsListingSearchType;
+        strategy: string;
+      }> = [{ value: orderNumber, type: "external_order_id", strategy: "external_order_id" }];
 
       for (const candidate of searchCandidates) {
         if (!candidate.value) continue;
@@ -91,39 +114,60 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             // defensive: typeof guard + alternative-shape ?? fallbacks rarely hit in fixtures
             /* v8 ignore start */
             const forwardItems = (items as Record<string, unknown>[]).filter((item) => {
-              const jt = (typeof item.journey_type === "string" ? item.journey_type : "").toLowerCase();
+              const jt = (
+                typeof item.journey_type === "string" ? item.journey_type : ""
+              ).toLowerCase();
               return jt !== "return";
             });
             const effectiveItems = forwardItems.length > 0 ? forwardItems : items;
 
-            const payloadJson = JSON.stringify({ ...searchResult as Record<string, unknown>, items: effectiveItems });
+            const payloadJson = JSON.stringify({
+              ...(searchResult as Record<string, unknown>),
+              items: effectiveItems,
+            });
             const parsed = parseFyndOrderDetailsForTab(payloadJson);
             if (parsed) {
-              (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+              (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(
+                payloadJson,
+                "forward",
+              );
             }
 
             // Cache ALL forward shipment IDs (comma-separated), not just the first one.
             const firstItem = effectiveItems[0] as Record<string, unknown>;
-            const mappedFyndOrderId = String(firstItem?.order_id ?? firstItem?.fynd_order_id ?? candidate.value ?? "");
+            const mappedFyndOrderId = String(
+              firstItem?.order_id ?? firstItem?.fynd_order_id ?? candidate.value ?? "",
+            );
             const allShipmentIds = (effectiveItems as Record<string, unknown>[])
-              .map(s => String(s.shipment_id ?? s.id ?? "")).filter(Boolean);
-            const mappedFyndShipmentId = allShipmentIds.length > 0 ? allShipmentIds.join(",") : String(firstItem?.shipment_id ?? firstItem?.id ?? "");
+              .map((s) => String(s.shipment_id ?? s.id ?? ""))
+              .filter(Boolean);
+            const mappedFyndShipmentId =
+              allShipmentIds.length > 0
+                ? allShipmentIds.join(",")
+                : String(firstItem?.shipment_id ?? firstItem?.id ?? "");
             if (mappedFyndOrderId || mappedFyndShipmentId) {
-              prisma.fyndOrderMapping.upsert({
-                where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: String(orderName) } },
-                create: {
-                  shopId: shopRecord.id,
-                  shopifyOrderName: String(orderName),
-                  fyndOrderId: mappedFyndOrderId || null,
-                  fyndShipmentId: mappedFyndShipmentId || null,
-                  searchStrategy: candidate.strategy,
-                },
-                update: {
-                  fyndOrderId: mappedFyndOrderId || undefined,
-                  fyndShipmentId: mappedFyndShipmentId || undefined,
-                  searchStrategy: candidate.strategy,
-                },
-              }).catch(() => {});
+              prisma.fyndOrderMapping
+                .upsert({
+                  where: {
+                    shopId_shopifyOrderName: {
+                      shopId: shopRecord.id,
+                      shopifyOrderName: String(orderName),
+                    },
+                  },
+                  create: {
+                    shopId: shopRecord.id,
+                    shopifyOrderName: String(orderName),
+                    fyndOrderId: mappedFyndOrderId || null,
+                    fyndShipmentId: mappedFyndShipmentId || null,
+                    searchStrategy: candidate.strategy,
+                  },
+                  update: {
+                    fyndOrderId: mappedFyndOrderId || undefined,
+                    fyndShipmentId: mappedFyndShipmentId || undefined,
+                    searchStrategy: candidate.strategy,
+                  },
+                })
+                .catch(() => {});
             }
             /* v8 ignore stop */
 
@@ -164,27 +208,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             // Try exact match by stored fyndShipmentId first.
             // Fall back to the first return-type shipment when the stored ID is stale/wrong (e.g. bag ID).
             const exactMatch = (candidateItems as Record<string, unknown>[]).find(
-              (s) => String(s.shipment_id || s.id) === String(r.fyndShipmentId)
+              (s) => String(s.shipment_id || s.id) === String(r.fyndShipmentId),
             );
-            const matched = exactMatch ?? (candidateItems.length > 0 ? candidateItems[0] as Record<string, unknown> : null);
+            const matched =
+              exactMatch ??
+              (candidateItems.length > 0 ? (candidateItems[0] as Record<string, unknown>) : null);
             if (matched) {
               const payload = JSON.stringify([matched]);
               const trackingInfo = getTrackingInfoFromFyndPayload(payload);
               const returnJourney = extractFyndJourney(payload, "return");
               const pickupAddress = getPickupAddressFromFyndPayload(payload);
               // Always use the live shipment_id from Fynd — overrides any stale bag ID in DB.
-              const liveShipmentId = String(
-                (matched as Record<string, unknown>).shipment_id ??
-                (matched as Record<string, unknown>).shipmentId ??
-                ""
-              ) || undefined;
-              returnEnrichments[r.id] = { trackingInfo, returnJourney, pickupAddress, fyndShipmentId: liveShipmentId };
+              const liveShipmentId =
+                String(
+                  (matched as Record<string, unknown>).shipment_id ??
+                    (matched as Record<string, unknown>).shipmentId ??
+                    "",
+                ) || undefined;
+              returnEnrichments[r.id] = {
+                trackingInfo,
+                returnJourney,
+                pickupAddress,
+                fyndShipmentId: liveShipmentId,
+              };
             }
             /* v8 ignore stop */
           } catch {
             // Non-fatal: return will show cached data
           }
-        })
+        }),
       );
     }
 

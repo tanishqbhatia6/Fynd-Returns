@@ -43,9 +43,7 @@ function adminSession(email: string | null) {
   return {
     session: {
       shop: "store.myshopify.com",
-      onlineAccessInfo: email
-        ? { associated_user: { email } }
-        : undefined,
+      onlineAccessInfo: email ? { associated_user: { email } } : undefined,
     },
   };
 }
@@ -232,8 +230,7 @@ describe("action", () => {
     } as never);
 
     expect(res).toEqual({
-      error:
-        "Provide a short reason (min 4 chars) — shows up in the audit log",
+      error: "Provide a short reason (min 4 chars) — shows up in the audit log",
     });
     expect(setBillingPlanOverrideMock).not.toHaveBeenCalled();
   });
@@ -252,8 +249,7 @@ describe("action", () => {
     } as never);
 
     expect(res).toEqual({
-      error:
-        "Provide a short reason (min 4 chars) — shows up in the audit log",
+      error: "Provide a short reason (min 4 chars) — shows up in the audit log",
     });
     expect(setBillingPlanOverrideMock).not.toHaveBeenCalled();
   });

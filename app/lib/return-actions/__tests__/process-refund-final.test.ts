@@ -34,12 +34,19 @@ const {
   })),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
+  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
+    async () => null,
+  ),
   fetchOrderLineItemsOnlyMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderLineItemsByNameMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -88,10 +95,23 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: {
       graphql: vi.fn(async () => ({
         json: async () => ({ data: {} }),
@@ -139,7 +159,16 @@ describe("handleProcessRefund — Strategy 2 rejection swallow path", () => {
         shopifyOrderName: null,
         fyndPayloadJson: null,
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -163,7 +192,16 @@ describe("handleProcessRefund — Strategy 2 rejection swallow path", () => {
         shopifyOrderName: null,
         fyndPayloadJson: null,
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -185,7 +223,16 @@ describe("handleProcessRefund — Strategy 2 rejection swallow path", () => {
         shopifyOrderName: "#1001",
         fyndPayloadJson: null,
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -212,17 +259,28 @@ describe("handleProcessRefund — orderIdForRefund missing fallback", () => {
         shopifyOrderId: null,
         shopifyOrderName: null,
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
-    const res = await handleProcessRefund(
-      ctx,
-      { action: "process_refund", note: "missing order" } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(ctx, {
+      action: "process_refund",
+      note: "missing order",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toBe("Could not determine Shopify order. Check that the return has a valid order.");
+    expect(body.error).toBe(
+      "Could not determine Shopify order. Check that the return has a valid order.",
+    );
     // refund_failed event recorded with the missing-order error message
     const events = prismaMock.returnEvent.create.mock.calls.map(
       (c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data,

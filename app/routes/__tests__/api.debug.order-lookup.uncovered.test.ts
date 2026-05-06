@@ -55,7 +55,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     // First variant rejects with a non-Error value (a plain string), the rest
     // resolve normally. Pagination and metafield each consume one call.
     const graphqlMock = vi.fn();
-     
+
     graphqlMock.mockRejectedValueOnce("plain-string-rejection");
     for (let i = 0; i < 6; i++) {
       graphqlMock.mockResolvedValueOnce({ json: async () => EMPTY_GQL });
@@ -70,11 +70,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const gql = body.results.filter((r: { strategy: string }) => r.strategy === "GraphQL search");
@@ -101,11 +104,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const gql = body.results.filter((r: { strategy: string }) => r.strategy === "GraphQL search");
@@ -124,14 +130,16 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       call++;
       if (call === 1) {
         // Throw a non-Error rejection — exercises String(err) branch.
-         
+
         throw "rest-string-fail";
       }
       return { ok: true, json: async () => ({ orders: [] }) };
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
@@ -153,7 +161,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
         data: {
           orders: {
             nodes: [
-              { id: "gid://shopify/Order/X" },             // no name
+              { id: "gid://shopify/Order/X" }, // no name
               { id: "gid://shopify/Order/Y", name: undefined },
               { id: "gid://shopify/Order/Z", name: "#NOTME" },
             ],
@@ -168,11 +176,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=TARGET"), params: {}, context: {},
+      request: mkReq("name=TARGET"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const scan = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
@@ -201,11 +212,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const scan = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
@@ -227,11 +241,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const scan = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
@@ -254,11 +271,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=ABC"), params: {}, context: {},
+      request: mkReq("name=ABC"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const mf = body.results.find((r: { strategy: string }) => r.strategy === "Metafield search");
@@ -285,11 +305,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=ABC"), params: {}, context: {},
+      request: mkReq("name=ABC"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const gql = body.results.filter((r: { strategy: string }) => r.strategy === "GraphQL search");
@@ -313,7 +336,9 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     })) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
@@ -336,7 +361,9 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
@@ -369,11 +396,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const gql = body.results.filter((r: { strategy: string }) => r.strategy === "GraphQL search");
@@ -397,11 +427,14 @@ describe("api.debug.order-lookup — uncovered branches", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const scan = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
@@ -424,7 +457,7 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     // so the abort callback (line 20) firing causes immediate rejection.
     globalThis.fetch = vi.fn().mockImplementation((_url, init) => {
       return new Promise((_resolve, reject) => {
-        const sig = (init?.signal as AbortSignal | undefined);
+        const sig = init?.signal as AbortSignal | undefined;
         if (!sig) return;
         if (sig.aborted) {
           reject(new DOMException("Aborted", "AbortError"));
@@ -440,19 +473,20 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     // call). We restore the original after the loader completes.
     const realSetTimeout = globalThis.setTimeout;
     const realClearTimeout = globalThis.clearTimeout;
-    (globalThis as { setTimeout: typeof setTimeout }).setTimeout = ((
-      fn: () => void,
-    ) => {
+    (globalThis as { setTimeout: typeof setTimeout }).setTimeout = ((fn: () => void) => {
       // Fire on next microtask so the fetch() Promise has been created and
       // its abort listener is wired up before we abort.
       Promise.resolve().then(fn);
       return 0 as unknown as ReturnType<typeof setTimeout>;
     }) as typeof setTimeout;
-    (globalThis as { clearTimeout: typeof clearTimeout }).clearTimeout = (() => undefined) as typeof clearTimeout;
+    (globalThis as { clearTimeout: typeof clearTimeout }).clearTimeout = (() =>
+      undefined) as typeof clearTimeout;
 
     try {
       const res = await loader({
-        request: mkReq("name=1001"), params: {}, context: {},
+        request: mkReq("name=1001"),
+        params: {},
+        context: {},
       } as never);
       const body = await res.json();
       const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");
@@ -476,11 +510,15 @@ describe("api.debug.order-lookup — uncovered branches", () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 503,
-      text: async () => { throw new Error("body-read-failed"); },
+      text: async () => {
+        throw new Error("body-read-failed");
+      },
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=1001"), params: {}, context: {},
+      request: mkReq("name=1001"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const rest = body.results.filter((r: { strategy: string }) => r.strategy === "REST API");

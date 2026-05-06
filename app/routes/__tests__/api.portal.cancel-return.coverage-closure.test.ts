@@ -21,7 +21,9 @@ const {
   verifyPortalCsrfTokenMock: vi.fn(() => true),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   parsePortalConfigMock: vi.fn(() => ({ allowReturnCancellation: true })),
-  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   dispatchWebhookEventMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -63,7 +65,9 @@ beforeEach(() => {
   resetPrismaMock(prismaMock);
   verifyPortalTokenMock.mockReset().mockReturnValue({ sessionId: "sess-1", shopId: "shop-1" });
   verifyPortalCsrfTokenMock.mockReset().mockReturnValue(true);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   parsePortalConfigMock.mockReset().mockReturnValue({ allowReturnCancellation: true });
 });
 

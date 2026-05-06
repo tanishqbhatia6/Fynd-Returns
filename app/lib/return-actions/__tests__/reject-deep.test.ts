@@ -25,7 +25,9 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   auditReturnActionMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -33,8 +35,12 @@ Object.assign(prismaMock, createPrismaMock());
 vi.mock("../../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../notification.server", () => ({
   sendRejectionNotification: sendRejectionNotificationMock,
-  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../../shopify-admin.server", () => ({
   closeShopifyReturnBestEffort: closeShopifyReturnBestEffortMock,
@@ -93,10 +99,10 @@ beforeEach(() => {
 describe("handleReject — shopName extraction from shopDomain", () => {
   it("strips '.myshopify.com' suffix when sending rejection email", async () => {
     await expectRedirect(
-      handleReject(
-        mkCtx({ shopDomain: "acme-store.myshopify.com" }),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      ),
+      handleReject(mkCtx({ shopDomain: "acme-store.myshopify.com" }), {
+        action: "reject",
+        rejectionReason: "Damaged",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(sendRejectionNotificationMock).toHaveBeenCalledWith(
@@ -109,10 +115,10 @@ describe("handleReject — shopName extraction from shopDomain", () => {
 
   it("leaves a custom (non-myshopify) domain untouched as shopName", async () => {
     await expectRedirect(
-      handleReject(
-        mkCtx({ shopDomain: "shop.brand.com" }),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      ),
+      handleReject(mkCtx({ shopDomain: "shop.brand.com" }), {
+        action: "reject",
+        rejectionReason: "Damaged",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     // No `.myshopify.com` to strip — entire host is forwarded as shopName.
@@ -127,10 +133,10 @@ describe("handleReject — shopName extraction from shopDomain", () => {
   it("only strips the first occurrence of '.myshopify.com'", async () => {
     // edge: subdomain literally containing the suffix prefix
     await expectRedirect(
-      handleReject(
-        mkCtx({ shopDomain: "weird.myshopify.com.myshopify.com" }),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      ),
+      handleReject(mkCtx({ shopDomain: "weird.myshopify.com.myshopify.com" }), {
+        action: "reject",
+        rejectionReason: "Damaged",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     // String#replace with a string pattern only replaces the first match.
@@ -141,10 +147,10 @@ describe("handleReject — shopName extraction from shopDomain", () => {
 
   it("forwards undefined shopName when shopDomain is undefined", async () => {
     await expectRedirect(
-      handleReject(
-        mkCtx({ shopDomain: undefined as unknown as string }),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      ),
+      handleReject(mkCtx({ shopDomain: undefined as unknown as string }), {
+        action: "reject",
+        rejectionReason: "Damaged",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(sendRejectionNotificationMock).toHaveBeenCalledWith(
@@ -171,10 +177,10 @@ describe("handleReject — audit log", () => {
 
   it("falls back to identity='shop-admin' when sessionEmail is missing", async () => {
     await expectRedirect(
-      handleReject(
-        mkCtx({ sessionEmail: undefined as unknown as string }),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      ),
+      handleReject(mkCtx({ sessionEmail: undefined as unknown as string }), {
+        action: "reject",
+        rejectionReason: "Damaged",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(auditReturnActionMock).toHaveBeenCalledWith(
@@ -208,10 +214,10 @@ describe("handleReject — audit log", () => {
   });
 
   it("does NOT call audit when validation fails (empty reason)", async () => {
-    const res = await handleReject(
-      mkCtx(),
-      { action: "reject", rejectionReason: "" } as ReturnActionBody,
-    );
+    const res = await handleReject(mkCtx(), {
+      action: "reject",
+      rejectionReason: "",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     expect(auditReturnActionMock).not.toHaveBeenCalled();
   });
@@ -228,10 +234,10 @@ describe("handleReject — audit log", () => {
 describe("handleReject — additional edge cases", () => {
   it("trims surrounding whitespace from the rejection reason before storing", async () => {
     await expectRedirect(
-      handleReject(
-        mkCtx(),
-        { action: "reject", rejectionReason: "   Damaged in transit   " } as ReturnActionBody,
-      ),
+      handleReject(mkCtx(), {
+        action: "reject",
+        rejectionReason: "   Damaged in transit   ",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
@@ -242,20 +248,20 @@ describe("handleReject — additional edge cases", () => {
   });
 
   it("treats a whitespace-only reason as empty (400)", async () => {
-    const res = await handleReject(
-      mkCtx(),
-      { action: "reject", rejectionReason: "   \t \n " } as ReturnActionBody,
-    );
+    const res = await handleReject(mkCtx(), {
+      action: "reject",
+      rejectionReason: "   \t \n ",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     expect(prismaMock.returnCase.update).not.toHaveBeenCalled();
   });
 
   it("accepts a reason exactly 500 chars long (boundary)", async () => {
     await expectRedirect(
-      handleReject(
-        mkCtx(),
-        { action: "reject", rejectionReason: "x".repeat(500) } as ReturnActionBody,
-      ),
+      handleReject(mkCtx(), {
+        action: "reject",
+        rejectionReason: "x".repeat(500),
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
   });

@@ -103,13 +103,20 @@ type ReturnCaseFixture = {
   customerName: string | null;
   customerEmailNorm: string | null;
   returnLabelJson: string | null;
-  items: Array<{ shopifyLineItemId: string; qty: number; sku?: string | null; title?: string | null }>;
+  items: Array<{
+    shopifyLineItemId: string;
+    qty: number;
+    sku?: string | null;
+    title?: string | null;
+  }>;
   shop: { id: string; shopDomain: string };
 };
 
 function mkReturnCase(over: Partial<ReturnCaseFixture> = {}): ReturnCaseFixture {
-  const pick = <K extends keyof ReturnCaseFixture>(k: K, dflt: ReturnCaseFixture[K]): ReturnCaseFixture[K] =>
-    (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
+  const pick = <K extends keyof ReturnCaseFixture>(
+    k: K,
+    dflt: ReturnCaseFixture[K],
+  ): ReturnCaseFixture[K] => (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
   return {
     id: pick("id", "rc-1"),
     shopId: pick("shopId", "shop-1"),
@@ -251,7 +258,9 @@ describe("fynd-webhook closure — uncov anon fns", () => {
     // The malformed-JSON branch creates an event then catches its rejection.
     // Force the very next returnEvent.create to reject so the catch at line
     // 1343 fires. (Subsequent creates after that resolve normally.)
-    prismaMock.returnEvent.create.mockRejectedValueOnce(new Error("blocked-by-config-error create boom"));
+    prismaMock.returnEvent.create.mockRejectedValueOnce(
+      new Error("blocked-by-config-error create boom"),
+    );
     const r = await processFyndWebhook(mkPayload({ refund_status: "credit_note_generated" }));
     expect(r).toBeDefined();
     expect(createRefundMock).not.toHaveBeenCalled();

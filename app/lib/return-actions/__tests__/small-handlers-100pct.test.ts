@@ -14,15 +14,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../../test/prisma-mock";
 
-const {
-  prismaMock,
-  sendCustomerNoteNotificationMock,
-  sendCancellationDeclinedNotificationMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  sendCustomerNoteNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-}));
+const { prismaMock, sendCustomerNoteNotificationMock, sendCancellationDeclinedNotificationMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    sendCustomerNoteNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    ),
+    sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    ),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../../db.server", () => ({ default: prismaMock }));
@@ -73,10 +74,10 @@ describe("handleUpdateInstructions — error path", () => {
   it("propagates DB error from upsert (catch block runs counters + rethrows)", async () => {
     prismaMock.shopSettings.upsert.mockRejectedValueOnce(new Error("db unavailable"));
     await expect(
-      handleUpdateInstructions(
-        mkCtx(),
-        { action: "update_instructions", returnInstructions: "x" } as ReturnActionBody,
-      ),
+      handleUpdateInstructions(mkCtx(), {
+        action: "update_instructions",
+        returnInstructions: "x",
+      } as ReturnActionBody),
     ).rejects.toThrow("db unavailable");
   });
 });
@@ -89,7 +90,9 @@ describe("handleDeclineCancellation — guards + edge branches", () => {
         status: "pending",
       } as never,
     });
-    const res = await handleDeclineCancellation(ctx, { action: "decline_cancellation" } as ReturnActionBody);
+    const res = await handleDeclineCancellation(ctx, {
+      action: "decline_cancellation",
+    } as ReturnActionBody);
     expect((res as Response).status).toBe(400);
   });
 
@@ -101,7 +104,9 @@ describe("handleDeclineCancellation — guards + edge branches", () => {
         cancellationRequestedAt: null,
       } as never,
     });
-    const res = await handleDeclineCancellation(ctx, { action: "decline_cancellation" } as ReturnActionBody);
+    const res = await handleDeclineCancellation(ctx, {
+      action: "decline_cancellation",
+    } as ReturnActionBody);
     expect((res as Response).status).toBe(400);
   });
 
@@ -199,10 +204,10 @@ describe("handleSaveNotesForCustomer — branch coverage", () => {
 
   it("does NOT notify when val is null/empty even if email is present", async () => {
     await expect(
-      handleSaveNotesForCustomer(
-        mkCtx(),
-        { action: "save_notes_for_customer", notesForCustomer: "" } as ReturnActionBody,
-      ),
+      handleSaveNotesForCustomer(mkCtx(), {
+        action: "save_notes_for_customer",
+        notesForCustomer: "",
+      } as ReturnActionBody),
     ).rejects.toBeInstanceOf(Response);
     expect(sendCustomerNoteNotificationMock).not.toHaveBeenCalled();
   });

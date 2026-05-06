@@ -31,9 +31,8 @@ function makeStubLogger(level = "info"): Record<string, unknown> {
     debug: vi.fn(),
     trace: vi.fn(),
     fatal: vi.fn(),
-    child: vi.fn(
-      (_bindings: Record<string, unknown>, opts?: { level?: string }) =>
-        makeStubLogger(opts?.level ?? level),
+    child: vi.fn((_bindings: Record<string, unknown>, opts?: { level?: string }) =>
+      makeStubLogger(opts?.level ?? level),
     ),
   };
   return stub;
@@ -233,14 +232,10 @@ describe("named module loggers", () => {
   });
 
   it("does not throw when logging payloads with sensitive fields", async () => {
-    const { default: logger, securityLogger } = await import(
-      "../observability/logger.server"
-    );
+    const { default: logger, securityLogger } = await import("../observability/logger.server");
     expect(() =>
       logger.info({ password: "p", token: "t", customerEmail: "a@b" }, "ok"),
     ).not.toThrow();
-    expect(() =>
-      securityLogger.warn({ apiKey: "x", otp: "123456" }, "auth event"),
-    ).not.toThrow();
+    expect(() => securityLogger.warn({ apiKey: "x", otp: "123456" }, "auth event")).not.toThrow();
   });
 });

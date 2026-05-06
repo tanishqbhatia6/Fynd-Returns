@@ -52,9 +52,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
 async function runRetryCron() {
   const prisma = (await import("../db.server")).default;
-  const { processFyndWebhook, unwrapFyndWebhookPayload } = await import(
-    "../lib/fynd-webhook.server"
-  );
+  const { processFyndWebhook, unwrapFyndWebhookPayload } =
+    await import("../lib/fynd-webhook.server");
 
   const now = new Date();
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60_000);
@@ -66,10 +65,7 @@ async function runRetryCron() {
       rawPayload: { not: null },
       retryCount: { lt: MAX_RETRIES },
       createdAt: { gte: sevenDaysAgo },
-      OR: [
-        { retryAfter: null },
-        { retryAfter: { lte: now } },
-      ],
+      OR: [{ retryAfter: null }, { retryAfter: { lte: now } }],
     },
     orderBy: { createdAt: "asc" },
     take: BATCH_SIZE,
@@ -99,7 +95,11 @@ async function runRetryCron() {
         if (newCount >= MAX_RETRIES) {
           await prisma.fyndWebhookLog.update({
             where: { id: log.id },
-            data: { retryCount: newCount, retryAfter: null, error: `Exhausted ${MAX_RETRIES} auto-retries. Manual retry still available.` },
+            data: {
+              retryCount: newCount,
+              retryAfter: null,
+              error: `Exhausted ${MAX_RETRIES} auto-retries. Manual retry still available.`,
+            },
           });
           exhausted++;
         } else {
@@ -115,20 +115,26 @@ async function runRetryCron() {
       // Parse/processing error — increment retry count with backoff
       const newCount = log.retryCount + 1;
       const delayMin = BACKOFF_MINUTES[Math.min(newCount, BACKOFF_MINUTES.length - 1)];
-      await prisma.fyndWebhookLog.update({
-        where: { id: log.id },
-        data: {
-          retryCount: newCount,
-          retryAfter: newCount >= MAX_RETRIES ? null : new Date(Date.now() + delayMin * 60_000),
-          ...(newCount >= MAX_RETRIES ? { error: `Exhausted ${MAX_RETRIES} auto-retries after processing error.` } : {}),
-        },
-      }).catch(() => {});
+      await prisma.fyndWebhookLog
+        .update({
+          where: { id: log.id },
+          data: {
+            retryCount: newCount,
+            retryAfter: newCount >= MAX_RETRIES ? null : new Date(Date.now() + delayMin * 60_000),
+            ...(newCount >= MAX_RETRIES
+              ? { error: `Exhausted ${MAX_RETRIES} auto-retries after processing error.` }
+              : {}),
+          },
+        })
+        .catch(() => {});
       if (newCount >= MAX_RETRIES) exhausted++;
       else rescheduled++;
     }
   }
 
-  console.log(`[Fynd webhook retry cron] Processed ${eligible.length}: ${succeeded} succeeded, ${rescheduled} rescheduled, ${exhausted} exhausted`);
+  console.log(
+    `[Fynd webhook retry cron] Processed ${eligible.length}: ${succeeded} succeeded, ${rescheduled} rescheduled, ${exhausted} exhausted`,
+  );
 
   return Response.json({
     ok: true,

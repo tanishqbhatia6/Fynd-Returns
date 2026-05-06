@@ -88,13 +88,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 // AppPage uses Link internally — render a passthrough so the heading still
 // shows up but we don't depend on the real Polaris/AppPage tree.
 vi.mock("../../components/AppPage", () => ({
-  AppPage: ({
-    heading,
-    children,
-  }: {
-    heading: React.ReactNode;
-    children: React.ReactNode;
-  }) => (
+  AppPage: ({ heading, children }: { heading: React.ReactNode; children: React.ReactNode }) => (
     <div data-testid="app-page">
       <h1 data-testid="app-page-heading">{heading}</h1>
       {children}
@@ -227,8 +221,8 @@ describe("app.settings.integrations — base render", () => {
   it("shows 'Secret configured' chip + Rotate button when secret already exists", () => {
     const { container } = renderWith();
     expect(container.textContent).toContain("Secret configured");
-    const rotateBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Rotate webhook secret"),
+    const rotateBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Rotate webhook secret"),
     );
     expect(rotateBtn).toBeTruthy();
   });
@@ -237,13 +231,13 @@ describe("app.settings.integrations — base render", () => {
     loaderHolder.current = { ...baseLoaderData, fyndWebhookSecretConfigured: false };
     const { container } = renderWith();
     expect(container.textContent).toContain("Secret not generated");
-    const genBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Generate webhook secret"),
+    const genBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Generate webhook secret"),
     );
     expect(genBtn).toBeTruthy();
     // Test webhook button must be disabled when no secret is configured.
-    const testBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Test webhook"),
+    const testBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Test webhook"),
     );
     expect(testBtn).toBeTruthy();
     expect((testBtn as HTMLButtonElement).disabled).toBe(true);
@@ -269,14 +263,18 @@ describe("app.settings.integrations — base render", () => {
   it("renders App Mode and Fynd Environment radio groups with the loader-selected values", () => {
     const { container } = renderWith();
     expect(
-      (container.querySelector(
-        "input[type='radio'][name='appMode'][value='prod']",
-      ) as HTMLInputElement | null)?.checked,
+      (
+        container.querySelector(
+          "input[type='radio'][name='appMode'][value='prod']",
+        ) as HTMLInputElement | null
+      )?.checked,
     ).toBe(true);
     expect(
-      (container.querySelector(
-        "input[type='radio'][name='fyndEnvironment'][value='uat']",
-      ) as HTMLInputElement | null)?.checked,
+      (
+        container.querySelector(
+          "input[type='radio'][name='fyndEnvironment'][value='uat']",
+        ) as HTMLInputElement | null
+      )?.checked,
     ).toBe(true);
   });
 
@@ -297,8 +295,8 @@ describe("app.settings.integrations — base render", () => {
 
   it("shows the 'Test Platform' button when hasPlatformCreds=true", () => {
     const { container } = renderWith();
-    const tp = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Test Platform"),
+    const tp = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Test Platform"),
     );
     expect(tp).toBeTruthy();
   });
@@ -315,8 +313,8 @@ describe("app.settings.integrations — base render", () => {
   it("hides the 'Clear credentials' danger-zone button when no Fynd creds are configured", () => {
     loaderHolder.current = { ...baseLoaderData, fyndCredentials: "" };
     const { container } = renderWith();
-    const clear = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Clear credentials"),
+    const clear = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Clear credentials"),
     );
     expect(clear).toBeFalsy();
   });
@@ -523,9 +521,9 @@ describe("app.settings.integrations — interactive handlers", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(
-      (navigator.clipboard.writeText as ReturnType<typeof vi.fn>),
-    ).toHaveBeenCalledWith(baseLoaderData.fyndWebhookUrl);
+    expect(navigator.clipboard.writeText as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      baseLoaderData.fyndWebhookUrl,
+    );
     // The post-resolve .then() reads e.currentTarget which React nulls out
     // after the synthetic event handler returns; the early-return there is
     // expected, so we don't assert on textContent. The writeText spy +
@@ -547,9 +545,9 @@ describe("app.settings.integrations — interactive handlers", () => {
       await Promise.resolve();
       await Promise.resolve();
     });
-    expect(
-      (navigator.clipboard.writeText as ReturnType<typeof vi.fn>),
-    ).toHaveBeenCalledWith("the-plain-secret");
+    expect(navigator.clipboard.writeText as ReturnType<typeof vi.fn>).toHaveBeenCalledWith(
+      "the-plain-secret",
+    );
   });
 
   it("falls through silently when clipboard.writeText rejects (Copy URL)", async () => {
@@ -595,8 +593,12 @@ describe("app.settings.integrations — interactive handlers", () => {
     const dev = container.querySelector(
       "input[type='radio'][name='appMode'][value='dev']",
     ) as HTMLInputElement;
-    await act(async () => { fireEvent.click(dev); });
-    await waitFor(() => { expect(dev.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(dev);
+    });
+    await waitFor(() => {
+      expect(dev.checked).toBe(true);
+    });
   });
 
   it("Fynd Environment 'prod' radio onChange flips the controlled state", async () => {
@@ -604,8 +606,12 @@ describe("app.settings.integrations — interactive handlers", () => {
     const prod = container.querySelector(
       "input[type='radio'][name='fyndEnvironment'][value='prod']",
     ) as HTMLInputElement;
-    await act(async () => { fireEvent.click(prod); });
-    await waitFor(() => { expect(prod.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(prod);
+    });
+    await waitFor(() => {
+      expect(prod.checked).toBe(true);
+    });
   });
 
   it("allowExchange toggle onChange mutates the track + knob style", () => {
@@ -626,22 +632,30 @@ describe("app.settings.integrations — interactive handlers", () => {
   it("Rotate button confirm() returning true allows submission (no preventDefault)", async () => {
     const confirmSpy = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
     const { container } = renderWith();
-    const rotateBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Rotate webhook secret"),
+    const rotateBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Rotate webhook secret"),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(rotateBtn); });
-    await waitFor(() => { expect(confirmSpy).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(rotateBtn);
+    });
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalled();
+    });
     confirmSpy.mockRestore();
   });
 
   it("Rotate button confirm() returning false invokes preventDefault", async () => {
     const confirmSpy = vi.spyOn(globalThis, "confirm").mockReturnValue(false);
     const { container } = renderWith();
-    const rotateBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Rotate webhook secret"),
+    const rotateBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Rotate webhook secret"),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(rotateBtn); });
-    await waitFor(() => { expect(confirmSpy).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(rotateBtn);
+    });
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalled();
+    });
     confirmSpy.mockRestore();
   });
 
@@ -649,11 +663,15 @@ describe("app.settings.integrations — interactive handlers", () => {
     loaderHolder.current = { ...baseLoaderData, fyndWebhookSecretConfigured: false };
     const confirmSpy = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
     const { container } = renderWith();
-    const genBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Generate webhook secret"),
+    const genBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Generate webhook secret"),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(genBtn); });
-    await waitFor(() => { expect(confirmSpy).not.toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(genBtn);
+    });
+    await waitFor(() => {
+      expect(confirmSpy).not.toHaveBeenCalled();
+    });
     confirmSpy.mockRestore();
   });
 
@@ -667,29 +685,45 @@ describe("app.settings.integrations — interactive handlers", () => {
       "input[aria-label='Per-shop Fynd webhook URL']",
     ) as HTMLInputElement;
     const selectSpy = vi.spyOn(url, "select");
-    await act(async () => { fireEvent.focus(url); });
-    await waitFor(() => { expect(selectSpy).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.focus(url);
+    });
+    await waitFor(() => {
+      expect(selectSpy).toHaveBeenCalled();
+    });
 
     const secret = container.querySelector(
       "input[aria-label='Generated webhook secret (one-time display)']",
     ) as HTMLInputElement;
     const selectSpy2 = vi.spyOn(secret, "select");
-    await act(async () => { fireEvent.focus(secret); });
-    await waitFor(() => { expect(selectSpy2).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.focus(secret);
+    });
+    await waitFor(() => {
+      expect(selectSpy2).toHaveBeenCalled();
+    });
 
     const curl = container.querySelector(
       "textarea[aria-label='curl example using header auth']",
     ) as HTMLTextAreaElement;
     const selectSpy3 = vi.spyOn(curl, "select");
-    await act(async () => { fireEvent.focus(curl); });
-    await waitFor(() => { expect(selectSpy3).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.focus(curl);
+    });
+    await waitFor(() => {
+      expect(selectSpy3).toHaveBeenCalled();
+    });
 
     const sample = container.querySelector(
       "textarea[aria-label='Sample Fynd webhook payload']",
     ) as HTMLTextAreaElement;
     const selectSpy4 = vi.spyOn(sample, "select");
-    await act(async () => { fireEvent.focus(sample); });
-    await waitFor(() => { expect(selectSpy4).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.focus(sample);
+    });
+    await waitFor(() => {
+      expect(selectSpy4).toHaveBeenCalled();
+    });
   });
 });
 

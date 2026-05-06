@@ -7,7 +7,7 @@ vi.mock("../observability/logger.server", () => ({
   fyndLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -17,7 +17,7 @@ vi.mock("../observability/metrics.server", () => ({
   fyndSyncCounter: { add: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  fyndCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  fyndCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
   recordTimeout: vi.fn(),
   recordFallback: vi.fn(),
 }));
@@ -30,7 +30,8 @@ afterAll(() => server.close());
 
 const BASE = "https://api-test.fynd.example";
 const COMPANY = `co${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-const TOKEN_URL = (companyId: string) => `${BASE}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
+const TOKEN_URL = (companyId: string) =>
+  `${BASE}/service/panel/authentication/v1.0/company/${companyId}/oauth/token`;
 
 function uniqueCompany() {
   return `co${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
@@ -41,7 +42,7 @@ describe("fetchFyndPlatformToken", () => {
     const companyId = uniqueCompany();
     server.use(
       http.post(TOKEN_URL(companyId), () =>
-        HttpResponse.json({ access_token: "tok_abc", expires_in: 3600 })
+        HttpResponse.json({ access_token: "tok_abc", expires_in: 3600 }),
       ),
     );
     const token = await fetchFyndPlatformToken(BASE, companyId, "cid", "csec");
@@ -97,51 +98,50 @@ describe("fetchFyndPlatformToken", () => {
     const companyId = uniqueCompany();
     server.use(
       http.post(TOKEN_URL(companyId), () =>
-        HttpResponse.json({ message: "Unauthorized" }, { status: 401 })
+        HttpResponse.json({ message: "Unauthorized" }, { status: 401 }),
       ),
     );
-    await expect(
-      fetchFyndPlatformToken(BASE, companyId, "cid", "csec"),
-    ).rejects.toThrow(/401/);
-    await expect(
-      fetchFyndPlatformToken(BASE, companyId, "cid", "csec"),
-    ).rejects.toThrow(/Check Company ID/);
+    await expect(fetchFyndPlatformToken(BASE, companyId, "cid", "csec")).rejects.toThrow(/401/);
+    await expect(fetchFyndPlatformToken(BASE, companyId, "cid", "csec")).rejects.toThrow(
+      /Check Company ID/,
+    );
   });
 
   it("throws a 'Fynd server error' message on 500+", async () => {
     const companyId = uniqueCompany();
     server.use(
       http.post(TOKEN_URL(companyId), () =>
-        HttpResponse.json({ message: "boom" }, { status: 503 })
+        HttpResponse.json({ message: "boom" }, { status: 503 }),
       ),
     );
-    await expect(
-      fetchFyndPlatformToken(BASE, companyId, "cid", "csec"),
-    ).rejects.toThrow(/Fynd server error/);
+    await expect(fetchFyndPlatformToken(BASE, companyId, "cid", "csec")).rejects.toThrow(
+      /Fynd server error/,
+    );
   });
 
   it("throws 'invalid JSON' when response body isn't JSON", async () => {
     const companyId = uniqueCompany();
     server.use(
-      http.post(TOKEN_URL(companyId), () =>
-        new HttpResponse("not json at all", { status: 200, headers: { "Content-Type": "text/plain" } })
+      http.post(
+        TOKEN_URL(companyId),
+        () =>
+          new HttpResponse("not json at all", {
+            status: 200,
+            headers: { "Content-Type": "text/plain" },
+          }),
       ),
     );
-    await expect(
-      fetchFyndPlatformToken(BASE, companyId, "cid", "csec"),
-    ).rejects.toThrow(/invalid JSON/);
+    await expect(fetchFyndPlatformToken(BASE, companyId, "cid", "csec")).rejects.toThrow(
+      /invalid JSON/,
+    );
   });
 
   it("throws when access_token is missing from response", async () => {
     const companyId = uniqueCompany();
-    server.use(
-      http.post(TOKEN_URL(companyId), () =>
-        HttpResponse.json({ expires_in: 3600 })
-      ),
+    server.use(http.post(TOKEN_URL(companyId), () => HttpResponse.json({ expires_in: 3600 })));
+    await expect(fetchFyndPlatformToken(BASE, companyId, "cid", "csec")).rejects.toThrow(
+      /No access_token/,
     );
-    await expect(
-      fetchFyndPlatformToken(BASE, companyId, "cid", "csec"),
-    ).rejects.toThrow(/No access_token/);
   });
 
   it("caps the cache TTL at the module's max (50 minutes) even if expires_in is larger", async () => {

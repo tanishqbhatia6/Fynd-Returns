@@ -4,7 +4,9 @@
  */
 
 let counter = 0;
-function uid() { return `test-${++counter}`; }
+function uid() {
+  return `test-${++counter}`;
+}
 
 export function createShop(overrides?: Record<string, unknown>) {
   return {
@@ -189,7 +191,12 @@ export function createApiKey(overrides?: Record<string, unknown>) {
     name: "Test Key",
     keyHash: "$2a$10$fakehashfortest",
     keyPrefix: "rpm_test",
-    permissions: JSON.stringify(["read_returns", "write_returns", "read_settings", "manage_webhooks"]),
+    permissions: JSON.stringify([
+      "read_returns",
+      "write_returns",
+      "read_settings",
+      "manage_webhooks",
+    ]),
     isActive: true,
     lastUsedAt: null,
     revokedAt: null,

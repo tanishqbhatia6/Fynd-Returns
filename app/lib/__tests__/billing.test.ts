@@ -152,9 +152,7 @@ describe("fetchSubscriptionSnapshot", () => {
     const admin = makeAdmin({
       data: {
         currentAppInstallation: {
-          activeSubscriptions: [
-            { id: "gid://1", name: "Monthly", status: "ACTIVE", test: false },
-          ],
+          activeSubscriptions: [{ id: "gid://1", name: "Monthly", status: "ACTIVE", test: false }],
         },
       },
     });
@@ -166,9 +164,7 @@ describe("fetchSubscriptionSnapshot", () => {
     const admin = makeAdmin({
       data: {
         currentAppInstallation: {
-          activeSubscriptions: [
-            { id: "gid://1", name: "Dev Plan", status: "ACTIVE", test: true },
-          ],
+          activeSubscriptions: [{ id: "gid://1", name: "Dev Plan", status: "ACTIVE", test: true }],
         },
       },
     });
@@ -335,13 +331,15 @@ describe("getBillingStatus", () => {
         },
       });
       await getBillingStatus("my-shop.myshopify.com", admin);
-      expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: "settings-1" },
-        data: expect.objectContaining({
-          subscriptionStatus: "active",
-          subscriptionName: "Pro",
+      expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "settings-1" },
+          data: expect.objectContaining({
+            subscriptionStatus: "active",
+            subscriptionName: "Pro",
+          }),
         }),
-      }));
+      );
     });
   });
 
@@ -352,9 +350,11 @@ describe("getBillingStatus", () => {
       settings: { id: "s1", billingPlanOverride: null },
     });
     await getBillingStatus("new.myshopify.com", null);
-    expect(prismaMock.shop.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopDomain: "new.myshopify.com" },
-    }));
+    expect(prismaMock.shop.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopDomain: "new.myshopify.com" },
+      }),
+    );
   });
 });
 
@@ -394,8 +394,10 @@ describe("setBillingPlanOverride", () => {
       settings: { id: "s1" },
     });
     await setBillingPlanOverride("x.myshopify.com", null, "revert", "a@b.com");
-    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ billingPlanOverride: null }),
-    }));
+    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ billingPlanOverride: null }),
+      }),
+    );
   });
 });

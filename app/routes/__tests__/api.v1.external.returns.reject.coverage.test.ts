@@ -29,7 +29,9 @@ const {
   checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   dispatchWebhookEventMock: vi.fn(),
   createAdminClientMock: vi.fn(() => ({ admin: true })),
-  closeShopifyReturnBestEffortMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  closeShopifyReturnBestEffortMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -61,11 +63,13 @@ const ACTION_CONTEXT = {
   unstable_pattern: "/api/v1/external/returns/:id/reject",
 } as const;
 
-function makeRequest(opts: {
-  method?: string;
-  body?: unknown;
-  rawBody?: string;
-} = {}) {
+function makeRequest(
+  opts: {
+    method?: string;
+    body?: unknown;
+    rawBody?: string;
+  } = {},
+) {
   const method = opts.method ?? "POST";
   const init: RequestInit = {
     method,
@@ -185,29 +189,27 @@ describe("api.v1.external.returns.$id.reject — extra coverage", () => {
     });
   });
 
-  it.each([
-    ["approved"],
-    ["rejected"],
-    ["completed"],
-    ["cancelled"],
-  ])("blocks rejection when return is in terminal status %s (INVALID_STATE)", async (status) => {
-    prismaMock.returnCase.findFirst.mockResolvedValue(pendingReturnCase({ status }));
+  it.each([["approved"], ["rejected"], ["completed"], ["cancelled"]])(
+    "blocks rejection when return is in terminal status %s (INVALID_STATE)",
+    async (status) => {
+      prismaMock.returnCase.findFirst.mockResolvedValue(pendingReturnCase({ status }));
 
-    const response = await action({
-      request: makeRequest({ body: { rejectionReason: "trying to reject" } }),
-      params: { id: "ret-1" },
-      ...ACTION_CONTEXT,
-    });
+      const response = await action({
+        request: makeRequest({ body: { rejectionReason: "trying to reject" } }),
+        params: { id: "ret-1" },
+        ...ACTION_CONTEXT,
+      });
 
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body.error.code).toBe("INVALID_STATE");
-    expect(body.error.message).toContain(`already ${status}`);
-    // Should not have updated or dispatched
-    expect(prismaMock.returnCase.update).not.toHaveBeenCalled();
-    expect(dispatchWebhookEventMock).not.toHaveBeenCalled();
-    expect(closeShopifyReturnBestEffortMock).not.toHaveBeenCalled();
-  });
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body.error.code).toBe("INVALID_STATE");
+      expect(body.error.message).toContain(`already ${status}`);
+      // Should not have updated or dispatched
+      expect(prismaMock.returnCase.update).not.toHaveBeenCalled();
+      expect(dispatchWebhookEventMock).not.toHaveBeenCalled();
+      expect(closeShopifyReturnBestEffortMock).not.toHaveBeenCalled();
+    },
+  );
 
   it("treats terminal-status check as case-insensitive (APPROVED is blocked)", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValue(pendingReturnCase({ status: "APPROVED" }));
@@ -295,7 +297,12 @@ describe("api.v1.external.returns.$id.reject — extra coverage", () => {
     expect(response.status).toBe(200);
     expect(createAdminClientMock).toHaveBeenCalledWith("test.myshopify.com", "shpat_token");
     expect(closeShopifyReturnBestEffortMock).toHaveBeenCalledTimes(1);
-    const [adminArg, returnCaseArg, optsArg] = closeShopifyReturnBestEffortMock.mock.calls[0] as unknown as [unknown, unknown, { action: string; declineReason: string; logEvent: unknown }];
+    const [adminArg, returnCaseArg, optsArg] = closeShopifyReturnBestEffortMock.mock
+      .calls[0] as unknown as [
+      unknown,
+      unknown,
+      { action: string; declineReason: string; logEvent: unknown },
+    ];
     expect(adminArg).toEqual({ admin: true });
     expect(returnCaseArg).toEqual(returnCase);
     expect(optsArg.action).toBe("decline");

@@ -43,7 +43,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   }
 
   // Lazy imports — keep cold-start cheap for non-webhook routes.
-  const { processFyndWebhook, unwrapFyndWebhookPayload } = await import("../lib/fynd-webhook.server");
+  const { processFyndWebhook, unwrapFyndWebhookPayload } =
+    await import("../lib/fynd-webhook.server");
   const { default: prisma } = await import("../db.server");
   const { decryptIfEncrypted } = await import("../lib/encryption.server");
 
@@ -79,8 +80,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
   // Optional replay protection — same window as the legacy endpoint.
   const webhookTimestamp =
-    request.headers.get("x-webhook-timestamp") ??
-    request.headers.get("x-fynd-timestamp");
+    request.headers.get("x-webhook-timestamp") ?? request.headers.get("x-fynd-timestamp");
   if (webhookTimestamp) {
     const ts = new Date(webhookTimestamp).getTime();
     if (!isNaN(ts) && Math.abs(Date.now() - ts) > 5 * 60_000) {
@@ -106,7 +106,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
           error: `JSON parse error: ${errMsg}`,
         },
       });
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
     return Response.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
@@ -130,7 +132,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       if (recentDup) {
         return Response.json({ ok: true, action: "duplicate_ignored" });
       }
-    } catch { /* non-fatal */ }
+    } catch {
+      /* non-fatal */
+    }
   }
 
   try {

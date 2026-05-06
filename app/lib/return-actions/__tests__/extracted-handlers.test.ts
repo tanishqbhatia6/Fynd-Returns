@@ -12,14 +12,31 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../../test/prisma-mock";
 
-const { prismaMock, sendCustomerNoteNotificationMock, closeShopifyReturnBestEffortMock, fetchOrderByOrderNumberMock, sendRejectionNotificationMock, sendCancellationDeclinedNotificationMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
+const {
+  prismaMock,
+  sendCustomerNoteNotificationMock,
+  closeShopifyReturnBestEffortMock,
+  fetchOrderByOrderNumberMock,
+  sendRejectionNotificationMock,
+  sendCancellationDeclinedNotificationMock,
+  createFyndClientOrErrorMock,
+} = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  sendCustomerNoteNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCustomerNoteNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -115,12 +132,14 @@ describe("handleAddNote", () => {
       where: { id: "rc-1" },
       data: { adminNotes: "hello" },
     });
-    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        eventType: "note_added",
-        source: "admin",
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "note_added",
+          source: "admin",
+        }),
       }),
-    }));
+    );
   });
 
   it("propagates non-redirect errors", async () => {
@@ -132,10 +151,9 @@ describe("handleAddNote", () => {
 
   it("falls back to existing adminNotes when note is undefined", async () => {
     await expectRedirect(
-      handleAddNote(
-        mkCtx({ returnCase: { ...mkCtx().returnCase, adminNotes: "prev" } as never }),
-        { action: "add_note" } as ReturnActionBody,
-      ),
+      handleAddNote(mkCtx({ returnCase: { ...mkCtx().returnCase, adminNotes: "prev" } as never }), {
+        action: "add_note",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(prismaMock.returnCase.update).toHaveBeenCalledWith({
@@ -158,12 +176,14 @@ describe("handleSaveNotesForCustomer", () => {
       where: { id: "rc-1" },
       data: { notesForCustomer: "Please ship via X" },
     });
-    expect(sendCustomerNoteNotificationMock).toHaveBeenCalledWith(expect.objectContaining({
-      shopDomain: "store.myshopify.com",
-      to: "user@example.com",
-      orderName: "#1001",
-      note: "Please ship via X",
-    }));
+    expect(sendCustomerNoteNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shopDomain: "store.myshopify.com",
+        to: "user@example.com",
+        orderName: "#1001",
+        note: "Please ship via X",
+      }),
+    );
   });
 
   it("does not notify when value is null", async () => {
@@ -213,7 +233,9 @@ describe("handleUpdateLabel", () => {
       handleUpdateLabel(mkCtx(), { action: "update_label", carrier: "" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const stored = JSON.parse(prismaMock.returnCase.update.mock.calls[0][0].data.returnLabelJson as string);
+    const stored = JSON.parse(
+      prismaMock.returnCase.update.mock.calls[0][0].data.returnLabelJson as string,
+    );
     expect(stored.carrier).toBeNull();
   });
 });
@@ -236,7 +258,10 @@ describe("handleUpdateInstructions", () => {
 
   it("stores null when instructions blank", async () => {
     await expectRedirect(
-      handleUpdateInstructions(mkCtx(), { action: "update_instructions", returnInstructions: "" } as ReturnActionBody),
+      handleUpdateInstructions(mkCtx(), {
+        action: "update_instructions",
+        returnInstructions: "",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const arg = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -251,27 +276,41 @@ describe("handleUpdateStatus", () => {
   });
 
   it("400 on invalid status", async () => {
-    const res = await handleUpdateStatus(mkCtx(), { action: "update_status", status: "bogus" } as ReturnActionBody);
+    const res = await handleUpdateStatus(mkCtx(), {
+      action: "update_status",
+      status: "bogus",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 
   it("updates returnCase + writes event on valid status", async () => {
     await expectRedirect(
-      handleUpdateStatus(mkCtx(), { action: "update_status", status: "processing", note: "hi" } as ReturnActionBody),
+      handleUpdateStatus(mkCtx(), {
+        action: "update_status",
+        status: "processing",
+        note: "hi",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "rc-1" },
-      data: expect.objectContaining({ status: "processing" }),
-    }));
-    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ eventType: "status_updated" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rc-1" },
+        data: expect.objectContaining({ status: "processing" }),
+      }),
+    );
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventType: "status_updated" }),
+      }),
+    );
   });
 
   it("calls close on terminal completed status", async () => {
     await expectRedirect(
-      handleUpdateStatus(mkCtx(), { action: "update_status", status: "completed" } as ReturnActionBody),
+      handleUpdateStatus(mkCtx(), {
+        action: "update_status",
+        status: "completed",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(closeShopifyReturnBestEffortMock).toHaveBeenCalledWith(
@@ -303,23 +342,26 @@ describe("handleUpdateStatus", () => {
 
 describe("handleReject", () => {
   it("400 when return is already terminal", async () => {
-    const res = await handleReject(
-      mkCtx({ isTerminal: true }),
-      { action: "reject", rejectionReason: "x" } as ReturnActionBody,
-    );
+    const res = await handleReject(mkCtx({ isTerminal: true }), {
+      action: "reject",
+      rejectionReason: "x",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 
   it("400 when rejection reason is empty", async () => {
-    const res = await handleReject(mkCtx(), { action: "reject", rejectionReason: "" } as ReturnActionBody);
+    const res = await handleReject(mkCtx(), {
+      action: "reject",
+      rejectionReason: "",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 
   it("400 when rejection reason exceeds 500 chars", async () => {
-    const res = await handleReject(
-      mkCtx(),
-      { action: "reject", rejectionReason: "x".repeat(501) } as ReturnActionBody,
-    );
+    const res = await handleReject(mkCtx(), {
+      action: "reject",
+      rejectionReason: "x".repeat(501),
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 
@@ -331,12 +373,14 @@ describe("handleReject", () => {
       } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        status: "rejected",
-        rejectionReason: "Damaged in customer photos",
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "rejected",
+          rejectionReason: "Damaged in customer photos",
+        }),
       }),
-    }));
+    );
     expect(closeShopifyReturnBestEffortMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.anything(),
@@ -378,13 +422,21 @@ describe("handleDeclineCancellation", () => {
   }
 
   it("400 when status is not 'approved'", async () => {
-    const res = await handleDeclineCancellation(mkCtx(), { action: "decline_cancellation" } as ReturnActionBody);
+    const res = await handleDeclineCancellation(mkCtx(), {
+      action: "decline_cancellation",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 
   it("400 when no cancellationRequestedAt set", async () => {
     const res = await handleDeclineCancellation(
-      mkCtx({ returnCase: { ...mkCtx().returnCase, status: "approved", cancellationRequestedAt: null } as never }),
+      mkCtx({
+        returnCase: {
+          ...mkCtx().returnCase,
+          status: "approved",
+          cancellationRequestedAt: null,
+        } as never,
+      }),
       { action: "decline_cancellation" } as ReturnActionBody,
     );
     expect(res.status).toBe(400);
@@ -392,21 +444,27 @@ describe("handleDeclineCancellation", () => {
 
   it("clears cancellationRequestedAt and writes declined event", async () => {
     await expectRedirect(
-      handleDeclineCancellation(ctxWithPendingCancel(), { action: "decline_cancellation" } as ReturnActionBody),
+      handleDeclineCancellation(ctxWithPendingCancel(), {
+        action: "decline_cancellation",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const update = prismaMock.returnCase.update.mock.calls[0][0];
     expect(update.data.cancellationRequestedAt).toBeNull();
     expect(update.data.cancellationDeclinedAt).toBeInstanceOf(Date);
     expect(update.data.cancellationDeclinedBy).toBe("admin@example.com");
-    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ eventType: "cancellation_declined" }),
-    }));
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventType: "cancellation_declined" }),
+      }),
+    );
   });
 
   it("dispatches notification when customer email present", async () => {
     await expectRedirect(
-      handleDeclineCancellation(ctxWithPendingCancel(), { action: "decline_cancellation" } as ReturnActionBody),
+      handleDeclineCancellation(ctxWithPendingCancel(), {
+        action: "decline_cancellation",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(sendCancellationDeclinedNotificationMock).toHaveBeenCalled();
@@ -511,18 +569,26 @@ describe("handleCancelOrder", () => {
       } as never),
       "/app/returns/rc-1",
     );
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "cancelled" }),
-    }));
-    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ eventType: "order_cancelled" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "cancelled" }),
+      }),
+    );
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ eventType: "order_cancelled" }),
+      }),
+    );
   });
 
   it("500 on unexpected thrown error from Shopify graphql", async () => {
     const ctx = mkCtx({
       returnCase: { ...mkCtx().returnCase, shopifyOrderId: "gid://shopify/Order/1" } as never,
-      admin: { graphql: vi.fn(async () => { throw new Error("network down"); }) } as never,
+      admin: {
+        graphql: vi.fn(async () => {
+          throw new Error("network down");
+        }),
+      } as never,
     });
     const res = await handleCancelOrder(ctx, { action: "cancel_order" } as ReturnActionBody);
     expect(res.status).toBe(500);
@@ -538,22 +604,36 @@ describe("handleRefreshFyndDetails", () => {
         shopifyOrderId: "gid://shopify/Order/1",
         ...overrides,
       } as never,
-      shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+      shop: {
+        id: "shop-1",
+        shopDomain: "store.myshopify.com",
+        settings: { fyndApiType: "platform" },
+      },
     });
   }
 
   it("redirects with fyndError when order has manual: prefix", async () => {
     const ctx = mkCtx({
-      returnCase: { ...mkCtx().returnCase, shopifyOrderId: "manual:abc", shopifyOrderName: "" } as never,
+      returnCase: {
+        ...mkCtx().returnCase,
+        shopifyOrderId: "manual:abc",
+        shopifyOrderName: "",
+      } as never,
     });
-    await expectRedirect(handleRefreshFyndDetails(ctx, { action: "refresh_fynd_details" } as ReturnActionBody), "fyndError=");
+    await expectRedirect(
+      handleRefreshFyndDetails(ctx, { action: "refresh_fynd_details" } as ReturnActionBody),
+      "fyndError=",
+    );
   });
 
   it("redirects with fyndError when no order number", async () => {
     const ctx = mkCtx({
       returnCase: { ...mkCtx().returnCase, shopifyOrderName: "" } as never,
     });
-    await expectRedirect(handleRefreshFyndDetails(ctx, { action: "refresh_fynd_details" } as ReturnActionBody), "fyndError=");
+    await expectRedirect(
+      handleRefreshFyndDetails(ctx, { action: "refresh_fynd_details" } as ReturnActionBody),
+      "fyndError=",
+    );
   });
 
   it("redirects with fyndError when shop has no settings", async () => {
@@ -561,17 +641,30 @@ describe("handleRefreshFyndDetails", () => {
       returnCase: { ...mkCtx().returnCase, shopifyOrderName: "#1001" } as never,
       shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: null },
     });
-    await expectRedirect(handleRefreshFyndDetails(ctx, { action: "refresh_fynd_details" } as ReturnActionBody), "fyndError=");
+    await expectRedirect(
+      handleRefreshFyndDetails(ctx, { action: "refresh_fynd_details" } as ReturnActionBody),
+      "fyndError=",
+    );
   });
 
   it("redirects with fyndError when Fynd client construction fails", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "no creds" });
-    await expectRedirect(handleRefreshFyndDetails(ctxWithOrder(), { action: "refresh_fynd_details" } as ReturnActionBody), "fyndError=");
+    await expectRedirect(
+      handleRefreshFyndDetails(ctxWithOrder(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
+      "fyndError=",
+    );
   });
 
   it("redirects with fyndError when Fynd client lacks searchShipmentsByExternalOrderId (storefront)", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: {} });
-    await expectRedirect(handleRefreshFyndDetails(ctxWithOrder(), { action: "refresh_fynd_details" } as ReturnActionBody), "fyndError=");
+    await expectRedirect(
+      handleRefreshFyndDetails(ctxWithOrder(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
+      "fyndError=",
+    );
   });
 
   it("redirects with fyndError when Fynd returns no shipments", async () => {
@@ -579,7 +672,12 @@ describe("handleRefreshFyndDetails", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: vi.fn(async () => ({ items: [] })) },
     });
-    await expectRedirect(handleRefreshFyndDetails(ctxWithOrder(), { action: "refresh_fynd_details" } as ReturnActionBody), "fyndError=");
+    await expectRedirect(
+      handleRefreshFyndDetails(ctxWithOrder(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
+      "fyndError=",
+    );
   });
 
   it("happy path: stores fyndPayloadJson on success and redirects with fyndRefresh=1", async () => {
@@ -591,10 +689,17 @@ describe("handleRefreshFyndDetails", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: search },
     });
-    await expectRedirect(handleRefreshFyndDetails(ctxWithOrder(), { action: "refresh_fynd_details" } as ReturnActionBody), "fyndRefresh=1");
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ fyndOrderId: "FY-1" }),
-    }));
+    await expectRedirect(
+      handleRefreshFyndDetails(ctxWithOrder(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
+      "fyndRefresh=1",
+    );
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fyndOrderId: "FY-1" }),
+      }),
+    );
   });
 
   it("backfills returnLabelJson + returnAwb when a return shipment carries DP details", async () => {
@@ -612,7 +717,12 @@ describe("handleRefreshFyndDetails", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: search },
     });
-    await expectRedirect(handleRefreshFyndDetails(ctxWithOrder(), { action: "refresh_fynd_details" } as ReturnActionBody), "fyndRefresh=1");
+    await expectRedirect(
+      handleRefreshFyndDetails(ctxWithOrder(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
+      "fyndRefresh=1",
+    );
     const update = prismaMock.returnCase.update.mock.calls[0][0];
     const stored = JSON.parse(update.data.returnLabelJson as string);
     expect(stored.carrier).toBe("BlueDart");
@@ -640,7 +750,10 @@ describe("handleEditDetails", () => {
 
   it("converts empty strings to null", async () => {
     await expectRedirect(
-      handleEditDetails(mkCtx(), { action: "edit_details", customerAddress1: "   " } as ReturnActionBody),
+      handleEditDetails(mkCtx(), {
+        action: "edit_details",
+        customerAddress1: "   ",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     expect(prismaMock.returnCase.update.mock.calls[0][0].data.customerAddress1).toBeNull();
@@ -648,7 +761,10 @@ describe("handleEditDetails", () => {
 
   it("only updates fields explicitly present in the body", async () => {
     await expectRedirect(
-      handleEditDetails(mkCtx(), { action: "edit_details", customerCity: "Paris" } as ReturnActionBody),
+      handleEditDetails(mkCtx(), {
+        action: "edit_details",
+        customerCity: "Paris",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const data = prismaMock.returnCase.update.mock.calls[0][0].data;

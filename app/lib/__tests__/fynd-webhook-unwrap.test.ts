@@ -174,17 +174,21 @@ describe("unwrapFyndWebhookPayload", () => {
       },
       shipment_id: "DEEP123",
       order_id: "DEEP_ORDER",
-      bags: [{
-        affiliate_bag_details: {
-          affiliate_order_id: "DEEP_AFF",
-        },
-        bag_status_history: [{
-          bag_state_mapper: {
-            journey_type: "return",
-            name: "return_bag_delivered",
+      bags: [
+        {
+          affiliate_bag_details: {
+            affiliate_order_id: "DEEP_AFF",
           },
-        }],
-      }],
+          bag_status_history: [
+            {
+              bag_state_mapper: {
+                journey_type: "return",
+                name: "return_bag_delivered",
+              },
+            },
+          ],
+        },
+      ],
     });
 
     const { payload } = unwrapFyndWebhookPayload(raw);

@@ -36,7 +36,10 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
   return Promise.race([
     promise,
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} health check timed out after ${timeoutMs}ms`)), timeoutMs),
+      setTimeout(
+        () => reject(new Error(`${label} health check timed out after ${timeoutMs}ms`)),
+        timeoutMs,
+      ),
     ),
   ]);
 }
@@ -47,11 +50,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: str
 export async function checkDatabase(): Promise<HealthCheckResult> {
   const start = performance.now();
   try {
-    await withTimeout(
-      prisma.$queryRaw`SELECT 1` as Promise<unknown>,
-      3000,
-      "database",
-    );
+    await withTimeout(prisma.$queryRaw`SELECT 1` as Promise<unknown>, 3000, "database");
     const latencyMs = Math.round(performance.now() - start);
     healthCheckDuration.record(latencyMs, { dependency: "database" });
     return { status: "ok", latencyMs };
@@ -109,10 +108,7 @@ export async function checkFyndApi(): Promise<HealthCheckResult> {
  * Run all readiness checks and return composite result.
  */
 export async function runReadinessChecks(): Promise<ReadinessResult> {
-  const [database, fyndApi] = await Promise.allSettled([
-    checkDatabase(),
-    checkFyndApi(),
-  ]);
+  const [database, fyndApi] = await Promise.allSettled([checkDatabase(), checkFyndApi()]);
 
   const checks: Record<string, HealthCheckResult> = {
     database:

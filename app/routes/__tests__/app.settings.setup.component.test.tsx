@@ -42,13 +42,7 @@ vi.mock("../../lib/fynd-webhook-api.server", () => ({
 }));
 
 vi.mock("../../components/AppPage", () => ({
-  AppPage: ({
-    heading,
-    children,
-  }: {
-    heading: string;
-    children: React.ReactNode;
-  }) => (
+  AppPage: ({ heading, children }: { heading: string; children: React.ReactNode }) => (
     <div data-testid="app-page">
       <h1 data-testid="app-page-heading">{heading}</h1>
       {children}
@@ -81,9 +75,7 @@ const baseLoaderData = {
 // Helper: find a button by visible text fragment.
 function findButtonByText(container: HTMLElement, text: string): HTMLButtonElement | null {
   const buttons = Array.from(container.querySelectorAll("button"));
-  return (
-    (buttons.find((b) => (b.textContent ?? "").includes(text)) as HTMLButtonElement) ?? null
-  );
+  return (buttons.find((b) => (b.textContent ?? "").includes(text)) as HTMLButtonElement) ?? null;
 }
 
 describe("FyndSetup (default export) — wrapper + step indicator", () => {
@@ -182,9 +174,7 @@ describe("Step 1 — Fynd credentials card", () => {
       loaderData: { ...baseLoaderData, hasPlatformCreds: true },
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Credentials configured. Continue to Step 2.",
-      );
+      expect(container.textContent).toContain("Credentials configured. Continue to Step 2.");
     });
   });
 
@@ -271,9 +261,7 @@ describe("Step 3 — Webhook setup card", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Step 3: Webhook setup");
     });
-    expect(container.textContent).toContain(
-      "https://example.com/api/webhooks/fynd/shop_123",
-    );
+    expect(container.textContent).toContain("https://example.com/api/webhooks/fynd/shop_123");
     const docsLink = container.querySelector(
       'a[href="https://docs.fynd.com/partners/commerce/sdk/latest/platform/company/webhook"]',
     );
@@ -299,9 +287,7 @@ describe("Step 3 — Webhook setup card", () => {
       loaderData: { ...baseLoaderData, hasPerShopWebhookSecret: true },
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "This shop has a webhook secret configured",
-      );
+      expect(container.textContent).toContain("This shop has a webhook secret configured");
     });
   });
 
@@ -316,13 +302,9 @@ describe("Step 3 — Webhook setup card", () => {
       },
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Set SHOPIFY_APP_URL in environment",
-      );
+      expect(container.textContent).toContain("Set SHOPIFY_APP_URL in environment");
     });
-    expect(container.textContent).toContain(
-      "SHOPIFY_APP_URL is not set",
-    );
+    expect(container.textContent).toContain("SHOPIFY_APP_URL is not set");
   });
 
   it("Copy button writes the webhook URL to navigator.clipboard (covers line 564)", async () => {
@@ -341,11 +323,11 @@ describe("Step 3 — Webhook setup card", () => {
     });
     const copy = findButtonByText(container, "Copy");
     expect(copy).not.toBeNull();
-    await act(async () => { fireEvent.click(copy!); });
+    await act(async () => {
+      fireEvent.click(copy!);
+    });
     await waitFor(() => {
-      expect(writeText).toHaveBeenCalledWith(
-        "https://example.com/api/webhooks/fynd/shop_123",
-      );
+      expect(writeText).toHaveBeenCalledWith("https://example.com/api/webhooks/fynd/shop_123");
     });
   });
 
@@ -357,9 +339,7 @@ describe("Step 3 — Webhook setup card", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Legacy global URL (deprecated)");
     });
-    expect(container.textContent).toContain(
-      "https://example.com/api/webhooks/fynd",
-    );
+    expect(container.textContent).toContain("https://example.com/api/webhooks/fynd");
   });
 
   it("surfaces existing webhook subscriber when one is detected", async () => {
@@ -391,9 +371,7 @@ describe("Step 3 — Webhook setup card", () => {
       },
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Could not check existing webhooks",
-      );
+      expect(container.textContent).toContain("Could not check existing webhooks");
     });
     expect(container.textContent).toContain("rate limit exceeded");
   });
@@ -553,7 +531,11 @@ describe("Step 5 — Setup complete (all-done banner)", () => {
 // `action` function under different mock conditions.)
 
 const auth = (shopifyServer.authenticate as unknown as { admin: ReturnType<typeof vi.fn> }).admin;
-const prisma = (db as unknown as { default: { shop: { findUnique: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> } } }).default;
+const prisma = (
+  db as unknown as {
+    default: { shop: { findUnique: ReturnType<typeof vi.fn>; create: ReturnType<typeof vi.fn> } };
+  }
+).default;
 const registerFyndWebhook = webhookApi.registerFyndWebhook as ReturnType<typeof vi.fn>;
 
 function formReq(form: Record<string, string>): Request {

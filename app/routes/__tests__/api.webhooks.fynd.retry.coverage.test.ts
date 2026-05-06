@@ -10,17 +10,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  authenticateMock,
-  processFyndWebhookMock,
-  unwrapFyndWebhookPayloadMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  processFyndWebhookMock: vi.fn(),
-  unwrapFyndWebhookPayloadMock: vi.fn(),
-}));
+const { prismaMock, authenticateMock, processFyndWebhookMock, unwrapFyndWebhookPayloadMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    processFyndWebhookMock: vi.fn(),
+    unwrapFyndWebhookPayloadMock: vi.fn(),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -51,9 +47,7 @@ const ctx: { params: Record<string, string>; context: unknown; unstable_pattern:
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  authenticateMock
-    .mockReset()
-    .mockResolvedValue({ session: { shop: "store.myshopify.com" } });
+  authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   processFyndWebhookMock.mockReset();
   unwrapFyndWebhookPayloadMock.mockReset().mockImplementation((raw: string) => ({
     payload: JSON.parse(raw),
@@ -113,9 +107,7 @@ describe("replay an ignored webhook (single retry edge cases)", () => {
       action: "created",
       returnCaseId: "rc-C",
     });
-    prismaMock.fyndWebhookLog.delete.mockRejectedValueOnce(
-      new Error("FK constraint"),
-    );
+    prismaMock.fyndWebhookLog.delete.mockRejectedValueOnce(new Error("FK constraint"));
     const res = await action({ request: jsonReq({ logId: "log-C" }), ...ctx } as never);
     const body = await res.json();
     expect(res.status).toBe(200);
@@ -261,9 +253,7 @@ describe("replay all (bulk retry branches)", () => {
       action: "created",
       returnCaseId: "rc-d1",
     });
-    prismaMock.fyndWebhookLog.delete.mockRejectedValueOnce(
-      new Error("locked row"),
-    );
+    prismaMock.fyndWebhookLog.delete.mockRejectedValueOnce(new Error("locked row"));
     const res = await action({
       request: jsonReq({ action: "retry_all_ignored" }),
       ...ctx,

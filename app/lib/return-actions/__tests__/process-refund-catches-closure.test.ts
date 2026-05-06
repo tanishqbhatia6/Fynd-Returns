@@ -33,12 +33,19 @@ const {
   })),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
+  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
+    async () => null,
+  ),
   fetchOrderLineItemsOnlyMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderLineItemsByNameMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -87,10 +94,23 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: {
       graphql: vi.fn(async () => ({
         json: async () => ({ data: {} }),
@@ -152,7 +172,16 @@ describe("process-refund closure — uncov anon fns", () => {
         // empty lineItemsForRefund (manual ids stripped) → triggers the
         // PCDA-safe fetch block at line 268+.
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 0, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 0,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -191,7 +220,16 @@ describe("process-refund closure — uncov anon fns", () => {
         shopifyOrderName: "#1001",
         items: [
           // empty lineItems triggers PCDA-safe fetch path at line 268+
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -223,7 +261,16 @@ describe("process-refund closure — uncov anon fns", () => {
         shopifyOrderId: "gid://shopify/Order/OLD",
         shopifyOrderName: "#1001",
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -257,7 +304,9 @@ describe("process-refund closure — uncov anon fns", () => {
         fyndCurrentStatus: "return_bag_delivered",
       } as never,
     });
-    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },

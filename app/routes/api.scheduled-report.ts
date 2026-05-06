@@ -90,8 +90,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         }),
       ]);
 
-      const statusMap = statusAgg.reduce((a, x) => ({ ...a, [x.status]: x._count }), {} as Record<string, number>);
-      const resMap = resAgg.reduce((a, x) => ({ ...a, [x.resolutionType]: x._count }), {} as Record<string, number>);
+      const statusMap = statusAgg.reduce(
+        (a, x) => ({ ...a, [x.status]: x._count }),
+        {} as Record<string, number>,
+      );
+      const resMap = resAgg.reduce(
+        (a, x) => ({ ...a, [x.resolutionType]: x._count }),
+        {} as Record<string, number>,
+      );
       const approvedCount = (statusMap.approved ?? 0) + (statusMap.completed ?? 0);
       const approvalRate = totalReturns > 0 ? Math.round((approvedCount / totalReturns) * 100) : 0;
 
@@ -108,25 +114,43 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               totalRefundAmt += amt;
             }
           }
-        } catch { /* skip */ }
+        } catch {
+          /* skip */
+        }
       }
 
-      const resolvedCount = (resMap.refund ?? 0) + (resMap.exchange ?? 0) + (resMap.store_credit ?? 0) + (resMap.replacement ?? 0);
-      const exchangeConv = resolvedCount > 0 ? Math.round(((resMap.exchange ?? 0) / resolvedCount) * 100) : 0;
+      const resolvedCount =
+        (resMap.refund ?? 0) +
+        (resMap.exchange ?? 0) +
+        (resMap.store_credit ?? 0) +
+        (resMap.replacement ?? 0);
+      const exchangeConv =
+        resolvedCount > 0 ? Math.round(((resMap.exchange ?? 0) / resolvedCount) * 100) : 0;
 
       const currency = s.shopCurrency || "USD";
       const locale = s.shopLocale || "en";
-      const fmt = (v: number) => new Intl.NumberFormat(locale, { style: "currency", currency, minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(v);
+      const fmt = (v: number) =>
+        new Intl.NumberFormat(locale, {
+          style: "currency",
+          currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(v);
 
       // Period label — could be made fully locale-aware via Intl.RelativeTimeFormat
       // but the current English strings are intentional (the email subject is also
       // in English; merchants in non-English locales currently expect this). Date
       // values inside the email already use `locale` for formatting.
-      const periodLabel = s.scheduledReportFrequency === "daily" ? "Yesterday"
-        : s.scheduledReportFrequency === "weekly" ? "Last 7 days" : "Last month";
+      const periodLabel =
+        s.scheduledReportFrequency === "daily"
+          ? "Yesterday"
+          : s.scheduledReportFrequency === "weekly"
+            ? "Last 7 days"
+            : "Last month";
       // Generated-at timestamp (footer) — formatted in the merchant's locale + tz.
       const generatedAtFmt = new Intl.DateTimeFormat(locale, {
-        dateStyle: "medium", timeStyle: "short",
+        dateStyle: "medium",
+        timeStyle: "short",
         ...(s.shopTimezone ? { timeZone: s.shopTimezone } : {}),
       });
       const generatedAtLabel = generatedAtFmt.format(new Date());
@@ -170,19 +194,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       <th style="text-align:left;padding:8px;font-size:11px;color:#64748b;text-transform:uppercase">Status</th>
       <th style="text-align:right;padding:8px;font-size:11px;color:#64748b;text-transform:uppercase">Count</th>
     </tr>
-    ${Object.entries(statusMap).sort(([,a],[,b]) => b - a).map(([status, count]) => `
+    ${Object.entries(statusMap)
+      .sort(([, a], [, b]) => b - a)
+      .map(
+        ([status, count]) => `
     <tr style="border-bottom:1px solid #f1f5f9">
       <td style="padding:8px;text-transform:capitalize">${status}</td>
       <td style="padding:8px;text-align:right;font-weight:700">${count}</td>
-    </tr>`).join("")}
+    </tr>`,
+      )
+      .join("")}
   </table>
   <h3 style="font-size:14px;margin:0 0 8px">Resolution Breakdown</h3>
   <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:24px">
-    ${Object.entries(resMap).sort(([,a],[,b]) => b - a).map(([res, count]) => `
+    ${Object.entries(resMap)
+      .sort(([, a], [, b]) => b - a)
+      .map(
+        ([res, count]) => `
     <tr style="border-bottom:1px solid #f1f5f9">
       <td style="padding:8px;text-transform:capitalize">${res.replace(/_/g, " ")}</td>
       <td style="padding:8px;text-align:right;font-weight:700">${count}</td>
-    </tr>`).join("")}
+    </tr>`,
+      )
+      .join("")}
   </table>
   <h3 style="font-size:14px;margin:0 0 8px">Revenue</h3>
   <table style="width:100%;border-collapse:collapse;font-size:13px">
@@ -219,7 +253,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       });
 
       await transporter.sendMail({
-        from: s.smtpFromEmail ? `${s.smtpFromName || "ReturnProMax"} <${s.smtpFromEmail}>` : s.smtpUser,
+        from: s.smtpFromEmail
+          ? `${s.smtpFromName || "ReturnProMax"} <${s.smtpFromEmail}>`
+          : s.smtpUser,
         to: recipients.join(", "),
         subject: `Returns Report — ${periodLabel} (${s.shop.shopDomain})`,
         html,

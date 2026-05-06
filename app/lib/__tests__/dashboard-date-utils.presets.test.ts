@@ -165,7 +165,7 @@ describe("DATE_RANGE_OPTIONS", () => {
     }
   });
   it("includes the common presets", () => {
-    const values = DATE_RANGE_OPTIONS.map(o => o.value);
+    const values = DATE_RANGE_OPTIONS.map((o) => o.value);
     expect(values).toContain("today");
     expect(values).toContain("last_30_days");
     expect(values).toContain("custom");

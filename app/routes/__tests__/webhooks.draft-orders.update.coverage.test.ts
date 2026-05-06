@@ -132,9 +132,7 @@ describe("webhooks.draft-orders.update — coverage", () => {
       id: "shop_4",
       shopDomain: "store.myshopify.com",
     });
-    prismaMock.fyndOrderMapping.updateMany.mockRejectedValueOnce(
-      new Error("fk violation"),
-    );
+    prismaMock.fyndOrderMapping.updateMany.mockRejectedValueOnce(new Error("fk violation"));
     const res = await action({
       request: mkReq(),
       params: {},
@@ -153,9 +151,7 @@ describe("webhooks.draft-orders.update — coverage", () => {
       id: "shop_5",
       shopDomain: "store.myshopify.com",
     });
-    prismaMock.returnCase.updateMany.mockRejectedValueOnce(
-      new Error("return backfill fail"),
-    );
+    prismaMock.returnCase.updateMany.mockRejectedValueOnce(new Error("return backfill fail"));
     const res = await action({
       request: mkReq(),
       params: {},
@@ -286,7 +282,6 @@ describe("webhooks.draft-orders.update — coverage", () => {
     });
     // Throw a plain string (non-Error) from inside the try block.
     prismaMock.shop.findUnique.mockImplementationOnce(async () => {
-       
       throw "string-thrown";
     });
     const res = await action({
@@ -295,10 +290,7 @@ describe("webhooks.draft-orders.update — coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:draft_orders/update]",
-      "string-thrown",
-    );
+    expect(errorSpy).toHaveBeenCalledWith("[webhook:draft_orders/update]", "string-thrown");
   });
 
   it("non-string non-Error thrown → console.error logs raw object", async () => {
@@ -323,18 +315,13 @@ describe("webhooks.draft-orders.update — coverage", () => {
       id: "shop_x",
       shopDomain: "store.myshopify.com",
     });
-    prismaMock.returnCase.findMany.mockRejectedValueOnce(
-      new Error("findMany boom"),
-    );
+    prismaMock.returnCase.findMany.mockRejectedValueOnce(new Error("findMany boom"));
     const res = await action({
       request: mkReq(),
       params: {},
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[webhook:draft_orders/update]",
-      "findMany boom",
-    );
+    expect(errorSpy).toHaveBeenCalledWith("[webhook:draft_orders/update]", "findMany boom");
   });
 });

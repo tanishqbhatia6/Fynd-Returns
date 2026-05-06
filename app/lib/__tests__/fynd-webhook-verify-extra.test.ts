@@ -97,8 +97,7 @@ describe("verifyWebhookSignature — HMAC edge cases", () => {
     // Spot-check first, middle, and last hex chars.
     const positions = [0, Math.floor(good.length / 2), good.length - 1];
     for (const i of positions) {
-      const flipped =
-        good.slice(0, i) + (good[i] === "0" ? "1" : "0") + good.slice(i + 1);
+      const flipped = good.slice(0, i) + (good[i] === "0" ? "1" : "0") + good.slice(i + 1);
       expect(verifyWebhookSignature(body, flipped, SECRET)).toBe(false);
     }
   });
@@ -112,11 +111,7 @@ describe("authenticateWebhook — missing / blank secret regressions", () => {
     // accept any inbound request — even one whose candidate is also blank.
     // extractSecretCandidates trims, so "" / "   " both produce no candidates.
     const empty = authenticateWebhook(makeReq({ "x-shop-secret": "" }), body, "");
-    const whitespace = authenticateWebhook(
-      makeReq({ "x-shop-secret": "   " }),
-      body,
-      "   ",
-    );
+    const whitespace = authenticateWebhook(makeReq({ "x-shop-secret": "   " }), body, "   ");
     expect(empty.ok).toBe(false);
     expect(whitespace.ok).toBe(false);
   });
@@ -192,9 +187,7 @@ describe("extractSecretCandidates — Bearer dual-push behaviour", () => {
     // With `Bearer mytoken`: stripped is `mytoken`, raw.trim() is the full
     // string — both should be present (defends the rare case where the
     // secret itself starts with `Bearer `).
-    const withPrefix = extractSecretCandidates(
-      makeReq({ authorization: "Bearer mytoken" }),
-    );
+    const withPrefix = extractSecretCandidates(makeReq({ authorization: "Bearer mytoken" }));
     expect(withPrefix).toContain("mytoken");
     expect(withPrefix).toContain("Bearer mytoken");
 

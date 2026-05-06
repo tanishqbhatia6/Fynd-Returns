@@ -32,7 +32,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const returnId = body.returnId || "";
 
   if (!shopDomain || !returnId || !actionType) {
-    return Response.json({ error: "Missing required fields: shop, returnId, action" }, { status: 400 });
+    return Response.json(
+      { error: "Missing required fields: shop, returnId, action" },
+      { status: 400 },
+    );
   }
 
   // Verify shop & auth
@@ -48,7 +51,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Require an API key — previously the absence of a configured key allowed open
   // access. With the multi-tenant fix, key auth is mandatory.
   if (!shop.settings.gorgiasApiKey) {
-    return Response.json({ error: "Gorgias API key not configured for this shop" }, { status: 403 });
+    return Response.json(
+      { error: "Gorgias API key not configured for this shop" },
+      { status: 403 },
+    );
   }
   // Timing-safe compare against the decrypted stored key.
   const storedPlain = decryptIfEncrypted(shop.settings.gorgiasApiKey) ?? "";
@@ -57,7 +63,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const a = Buffer.from(apiKey, "utf8");
     const b = Buffer.from(storedPlain, "utf8");
     keyOk = a.length === b.length && crypto.timingSafeEqual(a, b);
-  } catch { keyOk = false; }
+  } catch {
+    keyOk = false;
+  }
   if (!keyOk) {
     return Response.json({ error: "Invalid API key" }, { status: 401 });
   }
@@ -77,7 +85,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     switch (actionType) {
       case "approve": {
         if (!["initiated", "pending"].includes(returnCase.status)) {
-          return Response.json({ error: `Cannot approve return in "${returnCase.status}" status` }, { status: 400 });
+          return Response.json(
+            { error: `Cannot approve return in "${returnCase.status}" status` },
+            { status: 400 },
+          );
         }
         await prisma.$transaction([
           prisma.returnCase.update({
@@ -89,7 +100,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               returnCaseId: returnId,
               source: "gorgias",
               eventType: "status_changed",
-              payloadJson: JSON.stringify({ from: returnCase.status, to: "approved", by: "gorgias_agent" }),
+              payloadJson: JSON.stringify({
+                from: returnCase.status,
+                to: "approved",
+                by: "gorgias_agent",
+              }),
             },
           }),
         ]);
@@ -98,7 +113,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       case "reject": {
         if (!["initiated", "pending"].includes(returnCase.status)) {
-          return Response.json({ error: `Cannot reject return in "${returnCase.status}" status` }, { status: 400 });
+          return Response.json(
+            { error: `Cannot reject return in "${returnCase.status}" status` },
+            { status: 400 },
+          );
         }
         const rejectionReason = body.rejectionReason || "Rejected via Gorgias";
         await prisma.$transaction([
@@ -111,7 +129,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               returnCaseId: returnId,
               source: "gorgias",
               eventType: "status_changed",
-              payloadJson: JSON.stringify({ from: returnCase.status, to: "rejected", reason: rejectionReason, by: "gorgias_agent" }),
+              payloadJson: JSON.stringify({
+                from: returnCase.status,
+                to: "rejected",
+                reason: rejectionReason,
+                by: "gorgias_agent",
+              }),
             },
           }),
         ]);
@@ -154,7 +177,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         return Response.json({
           success: true,
-          timeline: events.map(e => ({
+          timeline: events.map((e) => ({
             type: e.eventType,
             source: e.source,
             timestamp: e.happenedAt.toISOString(),

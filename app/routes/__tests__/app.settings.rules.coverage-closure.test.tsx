@@ -48,16 +48,11 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import {
-  waitFor as rtlWaitFor,
-  fireEvent,
-  configure,
-} from "@testing-library/react";
+import { waitFor as rtlWaitFor, fireEvent, configure } from "@testing-library/react";
 import ReturnRules from "../app.settings.rules";
 
 configure({ asyncUtilTimeout: 8000 });
-const waitFor: typeof rtlWaitFor = (cb, opts) =>
-  rtlWaitFor(cb, { timeout: 8000, ...opts });
+const waitFor: typeof rtlWaitFor = (cb, opts) => rtlWaitFor(cb, { timeout: 8000, ...opts });
 
 const baseLoaderData = {
   returnWindowDays: 30,
@@ -96,9 +91,9 @@ describe("app.settings.rules — coverage closure", () => {
     });
 
     // Click the first category's "Remove" button.
-    const removeButtons = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "Remove");
+    const removeButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Remove",
+    );
     expect(removeButtons.length).toBeGreaterThanOrEqual(2);
     fireEvent.click(removeButtons[0]);
 
@@ -138,9 +133,7 @@ describe("app.settings.rules — coverage closure", () => {
     // Locate the row's days input — it's the number input whose name is NOT
     // "returnWindowDays" and is the first such within row 0.
     const daysInputs = Array.from(
-      container.querySelectorAll<HTMLInputElement>(
-        'input[type="number"][min="1"][max="365"]',
-      ),
+      container.querySelectorAll<HTMLInputElement>('input[type="number"][min="1"][max="365"]'),
     ).filter((i) => !i.getAttribute("name"));
     expect(daysInputs.length).toBeGreaterThanOrEqual(2);
     fireEvent.change(daysInputs[0], { target: { value: "60" } });
@@ -160,9 +153,9 @@ describe("app.settings.rules — coverage closure", () => {
       ).map((i) => i.parentElement!);
       expect(countryRows.length).toBe(2);
     });
-    const xBtnRow0 = Array.from(
-      countryRows[0].querySelectorAll("button"),
-    ).find((b) => b.textContent?.trim() === "×");
+    const xBtnRow0 = Array.from(countryRows[0].querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "×",
+    );
     expect(xBtnRow0).toBeTruthy();
     fireEvent.click(xBtnRow0!);
     await waitFor(() => {
@@ -175,9 +168,9 @@ describe("app.settings.rules — coverage closure", () => {
     });
 
     // line 663: + Add country dashed button.
-    const addCountryBtn = Array.from(
-      container.querySelectorAll("button"),
-    ).find((b) => b.textContent?.trim() === "+ Add country");
+    const addCountryBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => b.textContent?.trim() === "+ Add country",
+    );
     expect(addCountryBtn).toBeTruthy();
     fireEvent.click(addCountryBtn!);
     await waitFor(() => {
@@ -192,9 +185,9 @@ describe("app.settings.rules — coverage closure", () => {
     // line 582: remove the existing fee row via its "×" button. There is only
     // one fee row seeded ("Wrong size", 5). The fee row contains a <span>
     // showing the reason text — locate that, walk up to the row, then click.
-    const reasonSpans = Array.from(
-      container.querySelectorAll<HTMLSpanElement>("span"),
-    ).filter((s) => s.textContent?.trim() === "Wrong size");
+    const reasonSpans = Array.from(container.querySelectorAll<HTMLSpanElement>("span")).filter(
+      (s) => s.textContent?.trim() === "Wrong size",
+    );
     expect(reasonSpans.length).toBeGreaterThan(0);
     // The fee row's reason span sits inside a flex row that also contains the
     // fee-amount number input and the "×" button.
@@ -203,23 +196,17 @@ describe("app.settings.rules — coverage closure", () => {
       .find(
         (row) =>
           row.querySelector('input[type="number"][step="0.01"]') &&
-          Array.from(row.querySelectorAll("button")).some(
-            (b) => b.textContent?.trim() === "×",
-          ),
+          Array.from(row.querySelectorAll("button")).some((b) => b.textContent?.trim() === "×"),
       );
     expect(feeRow).toBeTruthy();
-    const feeRemoveBtn = Array.from(
-      feeRow!.querySelectorAll<HTMLButtonElement>("button"),
-    ).find((b) => b.textContent?.trim() === "×")!;
+    const feeRemoveBtn = Array.from(feeRow!.querySelectorAll<HTMLButtonElement>("button")).find(
+      (b) => b.textContent?.trim() === "×",
+    )!;
     expect(feeRemoveBtn).toBeTruthy();
-    const feeCountBefore = container.querySelectorAll(
-      'input[type="number"][step="0.01"]',
-    ).length;
+    const feeCountBefore = container.querySelectorAll('input[type="number"][step="0.01"]').length;
     fireEvent.click(feeRemoveBtn);
     await waitFor(() => {
-      const after = container.querySelectorAll(
-        'input[type="number"][step="0.01"]',
-      ).length;
+      const after = container.querySelectorAll('input[type="number"][step="0.01"]').length;
       expect(after).toBe(feeCountBefore - 1);
     });
   });

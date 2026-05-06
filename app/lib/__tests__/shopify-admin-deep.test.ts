@@ -6,7 +6,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
+  withSpan: async <T>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -15,7 +15,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -69,7 +69,9 @@ function makeAdmin(responses: Array<unknown | Error | { status: number; body: un
 
 /** Build a primary-location response (used by createRefund when restock=true). */
 const LOCATIONS_OK = {
-  data: { locations: { nodes: [{ id: "gid://shopify/Location/1", name: "Main", isActive: true }] } },
+  data: {
+    locations: { nodes: [{ id: "gid://shopify/Location/1", name: "Main", isActive: true }] },
+  },
 };
 
 /** Suggested-refund happy-path canned response. */
@@ -125,9 +127,9 @@ describe("createRefund", () => {
 
   it("performs a happy-path original-payment refund", async () => {
     const { admin, graphql } = makeAdmin([
-      LOCATIONS_OK,           // fetchPrimaryLocationId
-      suggestedRefund(),      // SUGGEST_REFUND_QUERY
-      refundCreateOk(),       // REFUND_MUTATION
+      LOCATIONS_OK, // fetchPrimaryLocationId
+      suggestedRefund(), // SUGGEST_REFUND_QUERY
+      refundCreateOk(), // REFUND_MUTATION
     ]);
     const r = await createRefund(admin, "1001", [{ id: "gid://shopify/LineItem/9", quantity: 1 }]);
     expect(r.success).toBe(true);
@@ -147,7 +149,9 @@ describe("createRefund", () => {
   it("normalizes string lineItem ids to {id, quantity:1}", async () => {
     const { admin, calls } = makeAdmin([LOCATIONS_OK, suggestedRefund(), refundCreateOk()]);
     await createRefund(admin, "1001", ["gid://shopify/LineItem/77"]);
-    const input = calls[2].variables?.input as { refundLineItems: Array<{ lineItemId: string; quantity: number }> };
+    const input = calls[2].variables?.input as {
+      refundLineItems: Array<{ lineItemId: string; quantity: number }>;
+    };
     expect(input.refundLineItems[0]).toMatchObject({
       lineItemId: "gid://shopify/LineItem/77",
       quantity: 1,
@@ -190,17 +194,16 @@ describe("createRefund", () => {
       suggestedRefund("250.00", "INR"),
       refundCreateOk("gid://shopify/Refund/2", "250.00", "INR"),
     ]);
-    const r = await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "store_credit" },
-    );
+    const r = await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "store_credit",
+    });
     expect(r.success).toBe(true);
     expect(r.refundMethod).toBe("store_credit");
-    const input = calls[2].variables?.input as { refundMethods: Array<{ storeCreditRefund: { amount: { amount: string; currencyCode: string } } }> };
+    const input = calls[2].variables?.input as {
+      refundMethods: Array<{
+        storeCreditRefund: { amount: { amount: string; currencyCode: string } };
+      }>;
+    };
     expect(input.refundMethods[0].storeCreditRefund.amount).toEqual({
       amount: "250.00",
       currencyCode: "INR",
@@ -222,7 +225,9 @@ describe("createRefund", () => {
       { method: "store_credit" },
       { bonusAmount: 10 },
     );
-    const input = calls[2].variables?.input as { refundMethods: Array<{ storeCreditRefund: { amount: { amount: string } } }> };
+    const input = calls[2].variables?.input as {
+      refundMethods: Array<{ storeCreditRefund: { amount: { amount: string } } }>;
+    };
     expect(input.refundMethods[0].storeCreditRefund.amount.amount).toBe("110.00");
   });
 
@@ -232,14 +237,11 @@ describe("createRefund", () => {
       suggestedRefund("100.00", "USD"),
       refundCreateOk(),
     ]);
-    await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "both", storeCreditAmount: 60, originalAmount: 40 },
-    );
+    await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "both",
+      storeCreditAmount: 60,
+      originalAmount: 40,
+    });
     const input = calls[2].variables?.input as {
       refundMethods?: Array<{ storeCreditRefund: { amount: { amount: string } } }>;
       transactions?: Array<{ amount: string }>;
@@ -249,18 +251,12 @@ describe("createRefund", () => {
   });
 
   it("rejects 'both' when split exceeds suggested refund total", async () => {
-    const { admin } = makeAdmin([
-      LOCATIONS_OK,
-      suggestedRefund("100.00", "USD"),
-    ]);
-    const r = await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "both", storeCreditAmount: 80, originalAmount: 80 },
-    );
+    const { admin } = makeAdmin([LOCATIONS_OK, suggestedRefund("100.00", "USD")]);
+    const r = await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "both",
+      storeCreditAmount: 80,
+      originalAmount: 80,
+    });
     expect(r.success).toBe(false);
     expect(r.error).toMatch(/exceeds Shopify's refundable amount/i);
   });
@@ -271,14 +267,10 @@ describe("createRefund", () => {
       suggestedRefund("100.00", "USD"),
       refundCreateOk(),
     ]);
-    await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "both", storeCreditPct: 70 },
-    );
+    await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "both",
+      storeCreditPct: 70,
+    });
     const input = calls[2].variables?.input as {
       refundMethods?: Array<{ storeCreditRefund: { amount: { amount: string } } }>;
       transactions?: Array<{ amount: string }>;
@@ -290,35 +282,30 @@ describe("createRefund", () => {
   it("returns clear error when store_credit suggested amount is 0", async () => {
     const { admin } = makeAdmin([
       LOCATIONS_OK,
-      { data: { order: { suggestedRefund: { amountSet: { shopMoney: { amount: "0", currencyCode: "USD" } }, suggestedTransactions: [] } } } },
+      {
+        data: {
+          order: {
+            suggestedRefund: {
+              amountSet: { shopMoney: { amount: "0", currencyCode: "USD" } },
+              suggestedTransactions: [],
+            },
+          },
+        },
+      },
     ]);
-    const r = await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "store_credit" },
-    );
+    const r = await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "store_credit",
+    });
     expect(r.success).toBe(false);
     expect(r.error).toMatch(/zero refundable amount/i);
   });
 
   it("uses transactionAmount override when provided (price-difference refund)", async () => {
     // isAmountOnly=true → skips fetchPrimaryLocationId.
-    const { admin, calls } = makeAdmin([
-      suggestedRefund("200.00", "USD"),
-      refundCreateOk(),
-    ]);
-    await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      undefined,
-      { transactionAmount: 25 },
-    );
+    const { admin, calls } = makeAdmin([suggestedRefund("200.00", "USD"), refundCreateOk()]);
+    await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, undefined, {
+      transactionAmount: 25,
+    });
     const input = calls[1].variables?.input as {
       transactions: Array<{ amount: string }>;
       refundLineItems: unknown[];
@@ -336,7 +323,12 @@ describe("createRefund", () => {
         data: {
           refundCreate: {
             refund: null,
-            userErrors: [{ field: ["input", "refundLineItems"], message: "Invalid restock location for line item." }],
+            userErrors: [
+              {
+                field: ["input", "refundLineItems"],
+                message: "Invalid restock location for line item.",
+              },
+            ],
           },
         },
       },
@@ -378,11 +370,7 @@ describe("createRefund", () => {
   });
 
   it("returns error message when graphql throws", async () => {
-    const { admin } = makeAdmin([
-      LOCATIONS_OK,
-      suggestedRefund(),
-      new Error("network down"),
-    ]);
+    const { admin } = makeAdmin([LOCATIONS_OK, suggestedRefund(), new Error("network down")]);
     const r = await createRefund(admin, "1001", [{ id: "9", quantity: 1 }]);
     expect(r.success).toBe(false);
     expect(r.error).toMatch(/network down/);
@@ -416,9 +404,11 @@ describe("closeShopifyReturnBestEffort", () => {
     );
     expect(r).toEqual({ ok: true, skipped: true });
     expect(graphql).not.toHaveBeenCalled();
-    expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: "shopify_return_close_skipped",
-    }));
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "shopify_return_close_skipped",
+      }),
+    );
   });
 
   it("skips manual returns (shopifyOrderId starts with 'manual:')", async () => {
@@ -434,7 +424,14 @@ describe("closeShopifyReturnBestEffort", () => {
 
   it("close branch: success when returnClose returns a status", async () => {
     const { admin } = makeAdmin([
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const r = await closeShopifyReturnBestEffort(admin, {
       id: "rc-1",
@@ -445,9 +442,7 @@ describe("closeShopifyReturnBestEffort", () => {
   });
 
   it("close branch: detects already-closed via top-level errors", async () => {
-    const { admin } = makeAdmin([
-      { errors: [{ message: "Return already closed" }] },
-    ]);
+    const { admin } = makeAdmin([{ errors: [{ message: "Return already closed" }] }]);
     const r = await closeShopifyReturnBestEffort(admin, {
       id: "rc-1",
       shopifyReturnId: "gid://shopify/Return/9",
@@ -458,7 +453,11 @@ describe("closeShopifyReturnBestEffort", () => {
 
   it("close branch: detects already-closed via userErrors", async () => {
     const { admin } = makeAdmin([
-      { data: { returnClose: { return: null, userErrors: [{ message: "Return is already CLOSED" }] } } },
+      {
+        data: {
+          returnClose: { return: null, userErrors: [{ message: "Return is already CLOSED" }] },
+        },
+      },
     ]);
     const r = await closeShopifyReturnBestEffort(admin, {
       id: "rc-1",
@@ -482,12 +481,23 @@ describe("closeShopifyReturnBestEffort", () => {
 
   it("decline branch: success path", async () => {
     const { admin, calls } = makeAdmin([
-      { data: { returnDecline: { return: { id: "gid://shopify/Return/9", status: "DECLINED" }, userErrors: [] } } },
+      {
+        data: {
+          returnDecline: {
+            return: { id: "gid://shopify/Return/9", status: "DECLINED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
-    const r = await closeShopifyReturnBestEffort(admin, {
-      id: "rc-1",
-      shopifyReturnId: "9",
-    }, { action: "decline", declineReason: "Customer change of mind" });
+    const r = await closeShopifyReturnBestEffort(
+      admin,
+      {
+        id: "rc-1",
+        shopifyReturnId: "9",
+      },
+      { action: "decline", declineReason: "Customer change of mind" },
+    );
     expect(r.ok).toBe(true);
     const vars = calls[0].variables as { input: { id: string; declineReason: string } };
     expect(vars.input.declineReason).toBe("Customer change of mind");
@@ -495,32 +505,65 @@ describe("closeShopifyReturnBestEffort", () => {
 
   it("decline branch: detects already-declined via userErrors", async () => {
     const { admin } = makeAdmin([
-      { data: { returnDecline: { return: null, userErrors: [{ message: "Cannot decline a return that is already DECLINED" }] } } },
+      {
+        data: {
+          returnDecline: {
+            return: null,
+            userErrors: [{ message: "Cannot decline a return that is already DECLINED" }],
+          },
+        },
+      },
     ]);
-    const r = await closeShopifyReturnBestEffort(admin, {
-      id: "rc-1",
-      shopifyReturnId: "9",
-    }, { action: "decline" });
+    const r = await closeShopifyReturnBestEffort(
+      admin,
+      {
+        id: "rc-1",
+        shopifyReturnId: "9",
+      },
+      { action: "decline" },
+    );
     expect(r.ok).toBe(true);
     expect(r.alreadyClosed).toBe(true);
   });
 
   it("emits 'shopify_return_closed' on success", async () => {
     const { admin } = makeAdmin([
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi.fn().mockResolvedValue(undefined);
     await closeShopifyReturnBestEffort(admin, { id: "rc-1", shopifyReturnId: "9" }, { logEvent });
-    expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "shopify_return_closed" }));
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "shopify_return_closed" }),
+    );
   });
 
   it("emits 'shopify_return_declined' on successful decline", async () => {
     const { admin } = makeAdmin([
-      { data: { returnDecline: { return: { id: "gid://shopify/Return/9", status: "DECLINED" }, userErrors: [] } } },
+      {
+        data: {
+          returnDecline: {
+            return: { id: "gid://shopify/Return/9", status: "DECLINED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi.fn().mockResolvedValue(undefined);
-    await closeShopifyReturnBestEffort(admin, { id: "rc-1", shopifyReturnId: "9" }, { action: "decline", logEvent });
-    expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "shopify_return_declined" }));
+    await closeShopifyReturnBestEffort(
+      admin,
+      { id: "rc-1", shopifyReturnId: "9" },
+      { action: "decline", logEvent },
+    );
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "shopify_return_declined" }),
+    );
   });
 
   it("emits 'shopify_return_close_failed' on hard failure", async () => {
@@ -529,15 +572,28 @@ describe("closeShopifyReturnBestEffort", () => {
     ]);
     const logEvent = vi.fn().mockResolvedValue(undefined);
     await closeShopifyReturnBestEffort(admin, { id: "rc-1", shopifyReturnId: "9" }, { logEvent });
-    expect(logEvent).toHaveBeenCalledWith(expect.objectContaining({ eventType: "shopify_return_close_failed" }));
+    expect(logEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ eventType: "shopify_return_close_failed" }),
+    );
   });
 
   it("never throws even when logEvent rejects", async () => {
     const { admin } = makeAdmin([
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi.fn().mockRejectedValue(new Error("kafka down"));
-    const r = await closeShopifyReturnBestEffort(admin, { id: "rc-1", shopifyReturnId: "9" }, { logEvent });
+    const r = await closeShopifyReturnBestEffort(
+      admin,
+      { id: "rc-1", shopifyReturnId: "9" },
+      { logEvent },
+    );
     expect(r.ok).toBe(true);
   });
 });
@@ -553,20 +609,22 @@ describe("fetchOrderByGid", () => {
   });
 
   it("returns parsed order on happy path", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        orderByIdentifier: {
-          id: "gid://shopify/Order/1001",
-          name: "#1001",
-          createdAt: "2026-04-01T00:00:00Z",
-          email: "buyer@example.com",
-          totalPriceSet: { shopMoney: { amount: "50.00", currencyCode: "USD" } },
-          customAttributes: [{ key: "affiliate_order_id", value: "FY-1" }],
-          lineItems: { nodes: [] },
-          fulfillments: [],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          orderByIdentifier: {
+            id: "gid://shopify/Order/1001",
+            name: "#1001",
+            createdAt: "2026-04-01T00:00:00Z",
+            email: "buyer@example.com",
+            totalPriceSet: { shopMoney: { amount: "50.00", currencyCode: "USD" } },
+            customAttributes: [{ key: "affiliate_order_id", value: "FY-1" }],
+            lineItems: { nodes: [] },
+            fulfillments: [],
+          },
         },
       },
-    }]);
+    ]);
     const order = await fetchOrderByGid(admin, "gid://shopify/Order/1001");
     expect(order).not.toBeNull();
     expect(order?.name).toBe("#1001");
@@ -575,7 +633,9 @@ describe("fetchOrderByGid", () => {
 
   it("throws OrderAccessError when error mentions 'protected'", async () => {
     const { admin } = makeAdmin([{ errors: [{ message: "Customer data is protected" }] }]);
-    await expect(fetchOrderByGid(admin, "gid://shopify/Order/1")).rejects.toBeInstanceOf(OrderAccessError);
+    await expect(fetchOrderByGid(admin, "gid://shopify/Order/1")).rejects.toBeInstanceOf(
+      OrderAccessError,
+    );
   });
 
   it("returns null on generic GraphQL errors (no PCDA keyword)", async () => {
@@ -604,19 +664,21 @@ describe("fetchOrderByOrderNumber", () => {
   });
 
   it("delegates to fetchOrderByGid for gid:// inputs", async () => {
-    const { admin, calls } = makeAdmin([{
-      data: {
-        orderByIdentifier: {
-          id: "gid://shopify/Order/1",
-          name: "#1",
-          createdAt: "2026-01-01T00:00:00Z",
-          totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
-          customAttributes: [],
-          lineItems: { nodes: [] },
-          fulfillments: [],
+    const { admin, calls } = makeAdmin([
+      {
+        data: {
+          orderByIdentifier: {
+            id: "gid://shopify/Order/1",
+            name: "#1",
+            createdAt: "2026-01-01T00:00:00Z",
+            totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
+            customAttributes: [],
+            lineItems: { nodes: [] },
+            fulfillments: [],
+          },
         },
       },
-    }]);
+    ]);
     const o = await fetchOrderByOrderNumber(admin, "gid://shopify/Order/1");
     expect(o?.id).toBe("gid://shopify/Order/1");
     expect(calls[0].variables).toMatchObject({ id: "gid://shopify/Order/1" });
@@ -625,15 +687,23 @@ describe("fetchOrderByOrderNumber", () => {
   it("falls back to SDK searchOrders when no REST credentials are attached", async () => {
     // Without _rest, only the SDK search path runs (two queries: name:#X and name:X).
     const { admin, graphql } = makeAdmin([
-      { data: { orders: { nodes: [{
-        id: "gid://shopify/Order/2",
-        name: "#1001",
-        createdAt: "2026-01-01T00:00:00Z",
-        totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
-        customAttributes: [],
-        lineItems: { nodes: [] },
-        fulfillments: [],
-      }] } } },
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/2",
+                name: "#1001",
+                createdAt: "2026-01-01T00:00:00Z",
+                totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
+                customAttributes: [],
+                lineItems: { nodes: [] },
+                fulfillments: [],
+              },
+            ],
+          },
+        },
+      },
     ]);
     const o = await fetchOrderByOrderNumber(admin, "1001");
     expect(o?.name).toBe("#1001");
@@ -654,15 +724,23 @@ describe("fetchOrderByOrderNumber", () => {
     const { admin, graphql } = makeAdmin([
       { data: { orders: { nodes: [] } } }, // name:#FYNDX
       { data: { orders: { nodes: [] } } }, // name:FYNDX
-      { data: { orders: { nodes: [{
-        id: "gid://shopify/Order/3",
-        name: "#1234",
-        createdAt: "2026-01-01T00:00:00Z",
-        totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
-        customAttributes: [],
-        lineItems: { nodes: [] },
-        fulfillments: [],
-      }] } } }, // metafield query
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/3",
+                name: "#1234",
+                createdAt: "2026-01-01T00:00:00Z",
+                totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
+                customAttributes: [],
+                lineItems: { nodes: [] },
+                fulfillments: [],
+              },
+            ],
+          },
+        },
+      }, // metafield query
     ]);
     const o = await fetchOrderByOrderNumber(admin, "FYNDX");
     expect(o).not.toBeNull();
@@ -695,15 +773,23 @@ describe("fetchOrderByFyndAffiliateId", () => {
     // Then 14126 path runs SDK search ×2 — purely numeric, no metafield. We make
     // the very first call return a hit so we only do one query.
     const { admin } = makeAdmin([
-      { data: { orders: { nodes: [{
-        id: "gid://shopify/Order/5",
-        name: "#FYNDSHOPIFYX14126",
-        createdAt: "2026-01-01T00:00:00Z",
-        totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
-        customAttributes: [],
-        lineItems: { nodes: [] },
-        fulfillments: [],
-      }] } } },
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/5",
+                name: "#FYNDSHOPIFYX14126",
+                createdAt: "2026-01-01T00:00:00Z",
+                totalPriceSet: { shopMoney: { amount: "1.00", currencyCode: "USD" } },
+                customAttributes: [],
+                lineItems: { nodes: [] },
+                fulfillments: [],
+              },
+            ],
+          },
+        },
+      },
     ]);
     const o = await fetchOrderByFyndAffiliateId(admin, "FYNDSHOPIFYX14126");
     expect(o?.name).toBe("#FYNDSHOPIFYX14126");
@@ -723,9 +809,9 @@ describe("fetchOrderByFyndAffiliateId", () => {
       // SDK search throws PCDA via top-level errors
       { errors: [{ message: "Order data not approved" }] },
     ]);
-    await expect(
-      fetchOrderByFyndAffiliateId(admin, "14126"),
-    ).rejects.toBeInstanceOf(OrderAccessError);
+    await expect(fetchOrderByFyndAffiliateId(admin, "14126")).rejects.toBeInstanceOf(
+      OrderAccessError,
+    );
   });
 });
 
@@ -754,22 +840,26 @@ describe("fetchVariantInfo", () => {
   });
 
   it("returns variant info on happy path with tracked inventory", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        nodes: [{
-          id: "gid://shopify/ProductVariant/100",
-          sku: "SKU-1",
-          title: "M / Blue",
-          availableForSale: true,
-          inventoryQuantity: 7,
-          inventoryItem: { tracked: true },
-          price: "19.99",
-          compareAtPrice: "29.99",
-          image: { url: "https://cdn.shop/v.jpg" },
-          product: { id: "gid://shopify/Product/9", title: "Tee", featuredImage: null },
-        }],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/ProductVariant/100",
+              sku: "SKU-1",
+              title: "M / Blue",
+              availableForSale: true,
+              inventoryQuantity: 7,
+              inventoryItem: { tracked: true },
+              price: "19.99",
+              compareAtPrice: "29.99",
+              image: { url: "https://cdn.shop/v.jpg" },
+              product: { id: "gid://shopify/Product/9", title: "Tee", featuredImage: null },
+            },
+          ],
+        },
       },
-    }]);
+    ]);
     const out = await fetchVariantInfo(admin, ["gid://shopify/ProductVariant/100"]);
     const v = out.get("gid://shopify/ProductVariant/100");
     expect(v).toBeDefined();
@@ -783,38 +873,50 @@ describe("fetchVariantInfo", () => {
   });
 
   it("returns null inventoryAvailable when tracked=false", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        nodes: [{
-          id: "gid://shopify/ProductVariant/200",
-          inventoryItem: { tracked: false },
-          inventoryQuantity: 0,
-          availableForSale: true,
-          price: "10.00",
-          product: null,
-          title: "Default",
-        }],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/ProductVariant/200",
+              inventoryItem: { tracked: false },
+              inventoryQuantity: 0,
+              availableForSale: true,
+              price: "10.00",
+              product: null,
+              title: "Default",
+            },
+          ],
+        },
       },
-    }]);
+    ]);
     const out = await fetchVariantInfo(admin, ["gid://shopify/ProductVariant/200"]);
     expect(out.get("gid://shopify/ProductVariant/200")?.inventoryAvailable).toBeNull();
   });
 
   it("falls back to product featured image when variant image is missing", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        nodes: [{
-          id: "gid://shopify/ProductVariant/300",
-          inventoryItem: { tracked: true },
-          inventoryQuantity: 5,
-          availableForSale: true,
-          price: "5.00",
-          image: null,
-          product: { id: "gid://shopify/Product/30", title: "P", featuredImage: { url: "https://cdn/p.jpg" } },
-          title: "Default",
-        }],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/ProductVariant/300",
+              inventoryItem: { tracked: true },
+              inventoryQuantity: 5,
+              availableForSale: true,
+              price: "5.00",
+              image: null,
+              product: {
+                id: "gid://shopify/Product/30",
+                title: "P",
+                featuredImage: { url: "https://cdn/p.jpg" },
+              },
+              title: "Default",
+            },
+          ],
+        },
       },
-    }]);
+    ]);
     const out = await fetchVariantInfo(admin, ["gid://shopify/ProductVariant/300"]);
     expect(out.get("gid://shopify/ProductVariant/300")?.imageUrl).toBe("https://cdn/p.jpg");
   });
@@ -838,20 +940,24 @@ describe("fetchVariantInfo", () => {
   });
 
   it("logs but still returns data when GraphQL errors are present", async () => {
-    const { admin } = makeAdmin([{
-      errors: [{ message: "Field deprecated" }],
-      data: {
-        nodes: [{
-          id: "gid://shopify/ProductVariant/400",
-          inventoryItem: { tracked: true },
-          inventoryQuantity: 1,
-          availableForSale: true,
-          price: "9.99",
-          product: { id: "gid://shopify/Product/4", title: "X", featuredImage: null },
-          title: "Default",
-        }],
+    const { admin } = makeAdmin([
+      {
+        errors: [{ message: "Field deprecated" }],
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/ProductVariant/400",
+              inventoryItem: { tracked: true },
+              inventoryQuantity: 1,
+              availableForSale: true,
+              price: "9.99",
+              product: { id: "gid://shopify/Product/4", title: "X", featuredImage: null },
+              title: "Default",
+            },
+          ],
+        },
       },
-    }]);
+    ]);
     const out = await fetchVariantInfo(admin, ["gid://shopify/ProductVariant/400"]);
     expect(out.size).toBe(1);
   });
@@ -861,23 +967,36 @@ describe("fetchVariantInfo", () => {
 
 describe("sendDraftOrderInvoice", () => {
   it("returns invoiceUrl on success", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        draftOrderInvoiceSend: {
-          draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", invoiceUrl: "https://shopify/invoice/abc" },
-          userErrors: [],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: {
+              id: "gid://shopify/DraftOrder/1",
+              name: "D1",
+              invoiceUrl: "https://shopify/invoice/abc",
+            },
+            userErrors: [],
+          },
         },
       },
-    }]);
+    ]);
     const r = await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/1", "buyer@example.com");
     expect(r.success).toBe(true);
     expect(r.invoiceUrl).toBe("https://shopify/invoice/abc");
   });
 
   it("passes default subject + customMessage when caller omits them", async () => {
-    const { admin, calls } = makeAdmin([{
-      data: { draftOrderInvoiceSend: { draftOrder: { id: "x", name: "x", invoiceUrl: null }, userErrors: [] } },
-    }]);
+    const { admin, calls } = makeAdmin([
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: { id: "x", name: "x", invoiceUrl: null },
+            userErrors: [],
+          },
+        },
+      },
+    ]);
     await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/1", "buyer@example.com");
     const vars = calls[0].variables as { email: { subject: string; customMessage: string } };
     expect(vars.email.subject).toBe("Complete your exchange");
@@ -885,19 +1004,39 @@ describe("sendDraftOrderInvoice", () => {
   });
 
   it("respects caller-provided subject and body", async () => {
-    const { admin, calls } = makeAdmin([{
-      data: { draftOrderInvoiceSend: { draftOrder: { id: "x", name: "x", invoiceUrl: null }, userErrors: [] } },
-    }]);
-    await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/1", "buyer@example.com", "Hi", "Body!");
+    const { admin, calls } = makeAdmin([
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: { id: "x", name: "x", invoiceUrl: null },
+            userErrors: [],
+          },
+        },
+      },
+    ]);
+    await sendDraftOrderInvoice(
+      admin,
+      "gid://shopify/DraftOrder/1",
+      "buyer@example.com",
+      "Hi",
+      "Body!",
+    );
     const vars = calls[0].variables as { email: { subject: string; customMessage: string } };
     expect(vars.email.subject).toBe("Hi");
     expect(vars.email.customMessage).toBe("Body!");
   });
 
   it("sends email=null when no customer email is provided", async () => {
-    const { admin, calls } = makeAdmin([{
-      data: { draftOrderInvoiceSend: { draftOrder: { id: "x", name: "x", invoiceUrl: null }, userErrors: [] } },
-    }]);
+    const { admin, calls } = makeAdmin([
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: { id: "x", name: "x", invoiceUrl: null },
+            userErrors: [],
+          },
+        },
+      },
+    ]);
     await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/1", null);
     const vars = calls[0].variables as { email: unknown };
     expect(vars.email).toBeNull();
@@ -911,14 +1050,16 @@ describe("sendDraftOrderInvoice", () => {
   });
 
   it("returns error joined from multiple userErrors", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        draftOrderInvoiceSend: {
-          draftOrder: null,
-          userErrors: [{ message: "no email" }, { message: "draft completed" }],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: null,
+            userErrors: [{ message: "no email" }, { message: "draft completed" }],
+          },
         },
       },
-    }]);
+    ]);
     const r = await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/1", null);
     expect(r.success).toBe(false);
     expect(r.error).toBe("no email; draft completed");
@@ -936,24 +1077,33 @@ describe("sendDraftOrderInvoice", () => {
 
 describe("fetchOrderLineItemsOnly", () => {
   it("returns parsed line items on success", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        nodes: [{
-          id: "gid://shopify/Order/1",
-          name: "#1",
-          lineItems: {
-            nodes: [
-              { id: "gid://shopify/LineItem/10", title: "Tee", sku: "T-1", quantity: 2 },
-              { id: "gid://shopify/LineItem/11", title: "Hat", sku: null, quantity: 1 },
-            ],
-          },
-        }],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          nodes: [
+            {
+              id: "gid://shopify/Order/1",
+              name: "#1",
+              lineItems: {
+                nodes: [
+                  { id: "gid://shopify/LineItem/10", title: "Tee", sku: "T-1", quantity: 2 },
+                  { id: "gid://shopify/LineItem/11", title: "Hat", sku: null, quantity: 1 },
+                ],
+              },
+            },
+          ],
+        },
       },
-    }]);
+    ]);
     const r = await fetchOrderLineItemsOnly(admin, "1");
     expect(r?.id).toBe("gid://shopify/Order/1");
     expect(r?.lineItems.length).toBe(2);
-    expect(r?.lineItems[0]).toEqual({ id: "gid://shopify/LineItem/10", title: "Tee", sku: "T-1", quantity: 2 });
+    expect(r?.lineItems[0]).toEqual({
+      id: "gid://shopify/LineItem/10",
+      title: "Tee",
+      sku: "T-1",
+      quantity: 2,
+    });
     expect(r?.lineItems[1].sku).toBeNull();
   });
 
@@ -990,16 +1140,26 @@ describe("fetchOrderLineItemsByName", () => {
   });
 
   it("returns matched order's line items (exact name match)", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        orders: {
-          nodes: [
-            { id: "gid://shopify/Order/2", name: "#2002", lineItems: { nodes: [{ id: "li-1", title: "X", sku: "X-1", quantity: 1 }] } },
-            { id: "gid://shopify/Order/1", name: "#1001", lineItems: { nodes: [{ id: "li-2", title: "Y", sku: null, quantity: 3 }] } },
-          ],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/2",
+                name: "#2002",
+                lineItems: { nodes: [{ id: "li-1", title: "X", sku: "X-1", quantity: 1 }] },
+              },
+              {
+                id: "gid://shopify/Order/1",
+                name: "#1001",
+                lineItems: { nodes: [{ id: "li-2", title: "Y", sku: null, quantity: 3 }] },
+              },
+            ],
+          },
         },
       },
-    }]);
+    ]);
     const r = await fetchOrderLineItemsByName(admin, "1001");
     expect(r?.name).toBe("#1001");
     expect(r?.lineItems[0].title).toBe("Y");
@@ -1008,7 +1168,19 @@ describe("fetchOrderLineItemsByName", () => {
 
   it("ignores fuzzy matches that don't normalize to the requested name", async () => {
     const { admin, graphql } = makeAdmin([
-      { data: { orders: { nodes: [{ id: "gid://shopify/Order/9", name: "#X-DIFFERENT", lineItems: { nodes: [{ id: "x", title: "x", sku: null, quantity: 1 }] } }] } } },
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/9",
+                name: "#X-DIFFERENT",
+                lineItems: { nodes: [{ id: "x", title: "x", sku: null, quantity: 1 }] },
+              },
+            ],
+          },
+        },
+      },
       { data: { orders: { nodes: [] } } },
     ]);
     expect(await fetchOrderLineItemsByName(admin, "1001")).toBeNull();
@@ -1045,16 +1217,18 @@ describe("fetchOrderLineItemsByName", () => {
 
 describe("fetchAllLocations", () => {
   it("returns parsed location list", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        locations: {
-          nodes: [
-            { id: "gid://shopify/Location/1", name: "Main", isActive: true },
-            { id: "gid://shopify/Location/2", name: "Warehouse", isActive: false },
-          ],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          locations: {
+            nodes: [
+              { id: "gid://shopify/Location/1", name: "Main", isActive: true },
+              { id: "gid://shopify/Location/2", name: "Warehouse", isActive: false },
+            ],
+          },
         },
       },
-    }]);
+    ]);
     const r = await fetchAllLocations(admin);
     expect(r.length).toBe(2);
     expect(r[0]).toEqual({ id: "gid://shopify/Location/1", name: "Main", isActive: true });
@@ -1062,9 +1236,11 @@ describe("fetchAllLocations", () => {
   });
 
   it("defaults isActive=true when missing on payload", async () => {
-    const { admin } = makeAdmin([{
-      data: { locations: { nodes: [{ id: "gid://shopify/Location/1", name: "X" }] } },
-    }]);
+    const { admin } = makeAdmin([
+      {
+        data: { locations: { nodes: [{ id: "gid://shopify/Location/1", name: "X" }] } },
+      },
+    ]);
     const r = await fetchAllLocations(admin);
     expect(r[0].isActive).toBe(true);
   });
@@ -1113,36 +1289,45 @@ describe("fetchOrdersForCustomer", () => {
   });
 
   it("maps customer info, refunds, and currency fallbacks", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        orders: {
-          nodes: [{
-            id: "gid://shopify/Order/1",
-            name: "#1",
-            email: "buyer@example.com",
-            phone: null,
-            createdAt: "2026-04-01T00:00:00Z",
-            totalPriceSet: { shopMoney: { amount: "100.00", currencyCode: "USD" } },
-            totalRefundedSet: { shopMoney: { amount: "10.00", currencyCode: "USD" } },
-            displayFinancialStatus: "PARTIALLY_REFUNDED",
-            customer: {
-              id: "gid://shopify/Customer/1",
-              firstName: "Alice",
-              lastName: "Doe",
-              email: null,
-              phone: "+15551234567",
-              numberOfOrders: "8",
-              amountSpent: { amount: "742.50", currencyCode: "USD" },
-              defaultAddress: { city: "Austin", country: "US", phone: null },
-            },
-            shippingAddress: { name: "Alice Doe", phone: "+1-shipping", city: "Houston" },
-            refunds: [
-              { id: "gid://shopify/Refund/9", createdAt: "2026-04-02T00:00:00Z", note: "size", totalRefundedSet: { shopMoney: { amount: "10.00", currencyCode: "USD" } } },
+    const { admin } = makeAdmin([
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/1",
+                name: "#1",
+                email: "buyer@example.com",
+                phone: null,
+                createdAt: "2026-04-01T00:00:00Z",
+                totalPriceSet: { shopMoney: { amount: "100.00", currencyCode: "USD" } },
+                totalRefundedSet: { shopMoney: { amount: "10.00", currencyCode: "USD" } },
+                displayFinancialStatus: "PARTIALLY_REFUNDED",
+                customer: {
+                  id: "gid://shopify/Customer/1",
+                  firstName: "Alice",
+                  lastName: "Doe",
+                  email: null,
+                  phone: "+15551234567",
+                  numberOfOrders: "8",
+                  amountSpent: { amount: "742.50", currencyCode: "USD" },
+                  defaultAddress: { city: "Austin", country: "US", phone: null },
+                },
+                shippingAddress: { name: "Alice Doe", phone: "+1-shipping", city: "Houston" },
+                refunds: [
+                  {
+                    id: "gid://shopify/Refund/9",
+                    createdAt: "2026-04-02T00:00:00Z",
+                    note: "size",
+                    totalRefundedSet: { shopMoney: { amount: "10.00", currencyCode: "USD" } },
+                  },
+                ],
+              },
             ],
-          }],
+          },
         },
       },
-    }]);
+    ]);
     const r = await fetchOrdersForCustomer(admin, "buyer@example.com");
     expect(r.length).toBe(1);
     expect(r[0]).toMatchObject({
@@ -1163,23 +1348,27 @@ describe("fetchOrdersForCustomer", () => {
   });
 
   it("falls back to shipping name when customer lacks first/last names", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        orders: {
-          nodes: [{
-            id: "gid://shopify/Order/2",
-            name: "#2",
-            email: null,
-            phone: null,
-            createdAt: "2026-04-02T00:00:00Z",
-            totalPriceSet: { shopMoney: { amount: "0", currencyCode: "USD" } },
-            customer: { firstName: null, lastName: null, defaultAddress: null },
-            shippingAddress: { name: "Bob from Shipping", country: "DE", phone: "+49" },
-            refunds: [],
-          }],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/2",
+                name: "#2",
+                email: null,
+                phone: null,
+                createdAt: "2026-04-02T00:00:00Z",
+                totalPriceSet: { shopMoney: { amount: "0", currencyCode: "USD" } },
+                customer: { firstName: null, lastName: null, defaultAddress: null },
+                shippingAddress: { name: "Bob from Shipping", country: "DE", phone: "+49" },
+                refunds: [],
+              },
+            ],
+          },
         },
       },
-    }]);
+    ]);
     const r = await fetchOrdersForCustomer(admin, "x@y.z");
     expect(r[0].customerName).toBe("Bob from Shipping");
     expect(r[0].customerCountry).toBe("DE");
@@ -1187,22 +1376,26 @@ describe("fetchOrdersForCustomer", () => {
   });
 
   it("returns sane defaults when both customer and shippingAddress are missing", async () => {
-    const { admin } = makeAdmin([{
-      data: {
-        orders: {
-          nodes: [{
-            id: "gid://shopify/Order/3",
-            name: "#3",
-            email: "anon@example.com",
-            createdAt: "2026-04-03T00:00:00Z",
-            totalPriceSet: { shopMoney: { amount: "5.00", currencyCode: "EUR" } },
-            customer: null,
-            shippingAddress: null,
-            refunds: [],
-          }],
+    const { admin } = makeAdmin([
+      {
+        data: {
+          orders: {
+            nodes: [
+              {
+                id: "gid://shopify/Order/3",
+                name: "#3",
+                email: "anon@example.com",
+                createdAt: "2026-04-03T00:00:00Z",
+                totalPriceSet: { shopMoney: { amount: "5.00", currencyCode: "EUR" } },
+                customer: null,
+                shippingAddress: null,
+                refunds: [],
+              },
+            ],
+          },
         },
       },
-    }]);
+    ]);
     const r = await fetchOrdersForCustomer(admin, "anon@example.com");
     expect(r[0]).toMatchObject({
       customerName: null,

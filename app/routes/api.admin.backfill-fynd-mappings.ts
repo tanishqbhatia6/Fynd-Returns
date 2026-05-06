@@ -53,7 +53,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const body = await request.json();
     maxPages = body?.maxPages ?? 0;
-  } catch { /* use default */ }
+  } catch {
+    /* use default */
+  }
 
   let cursor: string | null = null;
   let totalScanned = 0;
@@ -80,11 +82,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     };
 
     if (json.errors?.length) {
-      return Response.json({
-        error: "GraphQL error",
-        details: json.errors.map((e) => e.message),
-        progress: { totalScanned, totalMapped, metafieldsWritten, pages: page },
-      }, { status: 500 });
+      return Response.json(
+        {
+          error: "GraphQL error",
+          details: json.errors.map((e) => e.message),
+          progress: { totalScanned, totalMapped, metafieldsWritten, pages: page },
+        },
+        { status: 500 },
+      );
     }
 
     /* v8 ignore start */
@@ -95,7 +100,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     for (const node of nodes) {
       totalScanned++;
       const attrs = node.customAttributes ?? [];
-    /* v8 ignore stop */
+      /* v8 ignore stop */
       const fyndId = extractAffiliateOrderId(attrs);
       if (!fyndId) continue;
 
@@ -105,12 +110,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           variables: {
             input: {
               id: node.id,
-              metafields: [{
-                namespace: "$app",
-                key: "fynd_order_id",
-                value: fyndId,
-                type: "single_line_text_field",
-              }],
+              metafields: [
+                {
+                  namespace: "$app",
+                  key: "fynd_order_id",
+                  value: fyndId,
+                  type: "single_line_text_field",
+                },
+              ],
             },
           },
         });
@@ -118,7 +125,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } catch (err) {
         /* v8 ignore start */
         // defensive: caught err is always Error; non-Error fallback unreachable
-        console.error(`[backfill] metafield write failed for ${node.id}:`, err instanceof Error ? err.message : err);
+        console.error(
+          `[backfill] metafield write failed for ${node.id}:`,
+          err instanceof Error ? err.message : err,
+        );
         /* v8 ignore stop */
       }
 
@@ -144,7 +154,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           },
         });
         totalMapped++;
-      } catch { /* skip conflicts */ }
+      } catch {
+        /* skip conflicts */
+      }
     }
 
     if (!json.data?.orders?.pageInfo?.hasNextPage) break;

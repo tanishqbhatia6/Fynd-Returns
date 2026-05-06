@@ -27,9 +27,11 @@ describe("TermsOfService page", () => {
 describe("meta", () => {
   it("returns title + description meta entries", () => {
     const result = meta({} as never);
-    expect(result).toEqual(expect.arrayContaining([
-      expect.objectContaining({ title: expect.stringMatching(/Terms/i) }),
-      expect.objectContaining({ name: "description" }),
-    ]));
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: expect.stringMatching(/Terms/i) }),
+        expect.objectContaining({ name: "description" }),
+      ]),
+    );
   });
 });

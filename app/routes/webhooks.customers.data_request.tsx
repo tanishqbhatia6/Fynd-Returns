@@ -49,27 +49,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (customerEmail) conditions.push({ customerEmailNorm: customerEmail });
     if (customerId) conditions.push({ shopifyOrderId: { contains: customerId } });
 
-    const returnCases = conditions.length > 0
-      ? await prisma.returnCase.findMany({
-          where: {
-            shopId: shopRecord.id,
-            OR: conditions,
-          },
-          include: {
-            items: true,
-            events: true,
-          },
-        })
-      : [];
+    const returnCases =
+      conditions.length > 0
+        ? await prisma.returnCase.findMany({
+            where: {
+              shopId: shopRecord.id,
+              OR: conditions,
+            },
+            include: {
+              items: true,
+              events: true,
+            },
+          })
+        : [];
 
     console.log(
       `[webhooks.customers.data_request] Found ${returnCases.length} return case(s) for customer in shop=${shop}`,
     );
   } catch (err) {
-    console.error(
-      "[webhooks.customers.data_request] Error processing request:",
-      err,
-    );
+    console.error("[webhooks.customers.data_request] Error processing request:", err);
   }
 
   return new Response();

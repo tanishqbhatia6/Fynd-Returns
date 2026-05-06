@@ -34,10 +34,7 @@ vi.mock("../fynd-returns.server", () => ({
   createReturnOnFynd: createReturnOnFyndMock,
 }));
 
-import {
-  runConsolidationBatch,
-  runConsolidationForAllShops,
-} from "../fynd-consolidation.server";
+import { runConsolidationBatch, runConsolidationForAllShops } from "../fynd-consolidation.server";
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
@@ -54,17 +51,22 @@ describe("runConsolidationBatch — extra branches", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1001", items: [] },
+      {
+        id: "rc-1",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1001",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "R-1" });
 
     await runConsolidationBatch("shop-1");
 
-    expect(createFyndClientMock).toHaveBeenCalledWith(
-      expect.any(Object),
-      { requirePlatform: true },
-    );
+    expect(createFyndClientMock).toHaveBeenCalledWith(expect.any(Object), {
+      requirePlatform: true,
+    });
   });
 
   it("uses windowHours = 0 cutoff when configured to zero", async () => {
@@ -88,7 +90,13 @@ describe("runConsolidationBatch — extra branches", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-naked", fyndOrderId: null, fyndShipmentId: null, shopifyOrderName: null, items: [] },
+      {
+        id: "rc-naked",
+        fyndOrderId: null,
+        fyndShipmentId: null,
+        shopifyOrderName: null,
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     // Force a thrown error so the group key is exposed in the error message
@@ -104,7 +112,13 @@ describe("runConsolidationBatch — extra branches", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-ws", fyndOrderId: "   ", fyndShipmentId: "  ", shopifyOrderName: "#1009", items: [] },
+      {
+        id: "rc-ws",
+        fyndOrderId: "   ",
+        fyndShipmentId: "  ",
+        shopifyOrderName: "#1009",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockRejectedValueOnce(new Error("boom"));
@@ -154,7 +168,13 @@ describe("runConsolidationBatch — extra branches", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-already", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1", items: [] },
+      {
+        id: "rc-already",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, alreadyExists: true });
@@ -176,7 +196,13 @@ describe("runConsolidationBatch — extra branches", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-weird", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1", items: [] },
+      {
+        id: "rc-weird",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     // success:true but neither fyndReturnId nor alreadyExists — falls into else
@@ -196,7 +222,13 @@ describe("runConsolidationBatch — extra branches", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-noerr", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1", items: [] },
+      {
+        id: "rc-noerr",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: false });
@@ -278,7 +310,13 @@ describe("runConsolidationBatch — extra branches", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-str", fyndOrderId: "O-S", fyndShipmentId: "S-S", shopifyOrderName: "#1", items: [] },
+      {
+        id: "rc-str",
+        fyndOrderId: "O-S",
+        fyndShipmentId: "S-S",
+        shopifyOrderName: "#1",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockRejectedValueOnce("plain string failure");
@@ -343,7 +381,13 @@ describe("runConsolidationForAllShops — extra branches", () => {
 
     prismaMock.returnCase.findMany
       .mockResolvedValueOnce([
-        { id: "rc-1", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1", items: [] },
+        {
+          id: "rc-1",
+          fyndOrderId: "O-1",
+          fyndShipmentId: "S-1",
+          shopifyOrderName: "#1",
+          items: [],
+        },
       ])
       .mockResolvedValueOnce([]); // shop 2 has no pending
 
@@ -352,8 +396,12 @@ describe("runConsolidationForAllShops — extra branches", () => {
 
     const results = await runConsolidationForAllShops();
     expect(results).toHaveLength(2);
-    expect(results[0]).toEqual(expect.objectContaining({ shopId: "s-1", groupsProcessed: 1, casesUpdated: 1 }));
-    expect(results[1]).toEqual(expect.objectContaining({ shopId: "s-2", groupsProcessed: 0, casesUpdated: 0 }));
+    expect(results[0]).toEqual(
+      expect.objectContaining({ shopId: "s-1", groupsProcessed: 1, casesUpdated: 1 }),
+    );
+    expect(results[1]).toEqual(
+      expect.objectContaining({ shopId: "s-2", groupsProcessed: 0, casesUpdated: 0 }),
+    );
   });
 
   it("processes shops sequentially (later throw doesn't drop earlier successful results)", async () => {

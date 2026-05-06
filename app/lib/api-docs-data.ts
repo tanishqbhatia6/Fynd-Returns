@@ -22,19 +22,50 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
     method: "GET",
     path: "/api/v1/external/returns",
     name: "List Returns",
-    description: "Retrieve a paginated list of return cases for your shop. Supports filtering by status, date range, order name, and customer email.",
+    description:
+      "Retrieve a paginated list of return cases for your shop. Supports filtering by status, date range, order name, and customer email.",
     permission: "read_returns",
     folder: "Returns",
     queryParams: [
       { key: "page", description: "Page number (default: 1)", example: "1" },
       { key: "pageSize", description: "Items per page (default: 25, max: 100)", example: "25" },
-      { key: "status", description: "Filter by status: pending, approved, rejected, completed, cancelled, processing", example: "pending" },
-      { key: "resolutionType", description: "Filter by resolution: refund, exchange, store_credit, replacement", example: "exchange" },
-      { key: "query", description: "Search across order name, return ID, AWB, customer email/phone (case-insensitive)", example: "#1001" },
-      { key: "createdAfter", description: "ISO 8601 date — returns created after this date", example: "2026-01-01T00:00:00Z" },
-      { key: "createdBefore", description: "ISO 8601 date — returns created before this date", example: "2026-12-31T23:59:59Z" },
-      { key: "orderName", description: "Filter by Shopify order name (partial match, case-insensitive)", example: "#1001" },
-      { key: "customerEmail", description: "Filter by customer email (partial match)", example: "john@example.com" },
+      {
+        key: "status",
+        description:
+          "Filter by status: pending, approved, rejected, completed, cancelled, processing",
+        example: "pending",
+      },
+      {
+        key: "resolutionType",
+        description: "Filter by resolution: refund, exchange, store_credit, replacement",
+        example: "exchange",
+      },
+      {
+        key: "query",
+        description:
+          "Search across order name, return ID, AWB, customer email/phone (case-insensitive)",
+        example: "#1001",
+      },
+      {
+        key: "createdAfter",
+        description: "ISO 8601 date — returns created after this date",
+        example: "2026-01-01T00:00:00Z",
+      },
+      {
+        key: "createdBefore",
+        description: "ISO 8601 date — returns created before this date",
+        example: "2026-12-31T23:59:59Z",
+      },
+      {
+        key: "orderName",
+        description: "Filter by Shopify order name (partial match, case-insensitive)",
+        example: "#1001",
+      },
+      {
+        key: "customerEmail",
+        description: "Filter by customer email (partial match)",
+        example: "john@example.com",
+      },
     ],
     responseExample: {
       data: [
@@ -66,7 +97,8 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
     method: "GET",
     path: "/api/v1/external/returns/:id",
     name: "Get Return Detail",
-    description: "Retrieve full details for a single return case, including line items and event history.",
+    description:
+      "Retrieve full details for a single return case, including line items and event history.",
     permission: "read_returns",
     folder: "Returns",
     responseExample: {
@@ -95,7 +127,12 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
           },
         ],
         events: [
-          { id: "clevt123", source: "admin", eventType: "approved", happenedAt: "2026-03-10T15:00:00Z" },
+          {
+            id: "clevt123",
+            source: "admin",
+            eventType: "approved",
+            happenedAt: "2026-03-10T15:00:00Z",
+          },
         ],
         createdAt: "2026-03-10T14:30:00Z",
         updatedAt: "2026-03-10T15:00:00Z",
@@ -110,7 +147,8 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
     method: "POST",
     path: "/api/v1/external/returns/:id/approve",
     name: "Approve Return",
-    description: "Approve a pending return case. Optionally override the resolution type and add an admin note.",
+    description:
+      "Approve a pending return case. Optionally override the resolution type and add an admin note.",
     permission: "write_returns",
     folder: "Returns",
     requestBody: {
@@ -149,7 +187,8 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
     method: "POST",
     path: "/api/v1/external/returns/:id/refund",
     name: "Process Refund",
-    description: "Process a refund for an approved return. Defaults to shop's configured refund method.",
+    description:
+      "Process a refund for an approved return. Defaults to shop's configured refund method.",
     permission: "write_returns",
     folder: "Returns",
     requestBody: {
@@ -175,7 +214,8 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
     method: "GET",
     path: "/api/v1/external/settings",
     name: "Get Settings",
-    description: "Retrieve non-sensitive return settings for your shop (return window, refund methods, policies).",
+    description:
+      "Retrieve non-sensitive return settings for your shop (return window, refund methods, policies).",
     permission: "read_settings",
     folder: "Settings",
     responseExample: {
@@ -193,9 +233,7 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
         shopTimezone: "America/New_York",
       },
     },
-    errorCodes: [
-      { status: 401, code: "UNAUTHORIZED", when: "Missing or invalid API key" },
-    ],
+    errorCodes: [{ status: 401, code: "UNAUTHORIZED", when: "Missing or invalid API key" }],
   },
   // ── Webhooks ──
   {
@@ -216,15 +254,14 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
         },
       ],
     },
-    errorCodes: [
-      { status: 401, code: "UNAUTHORIZED", when: "Missing or invalid API key" },
-    ],
+    errorCodes: [{ status: 401, code: "UNAUTHORIZED", when: "Missing or invalid API key" }],
   },
   {
     method: "POST",
     path: "/api/v1/external/webhooks",
     name: "Register Webhook",
-    description: "Register a new webhook subscription. The HMAC secret is returned once on creation.",
+    description:
+      "Register a new webhook subscription. The HMAC secret is returned once on creation.",
     permission: "manage_webhooks",
     folder: "Webhooks",
     requestBody: {
@@ -244,9 +281,7 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
         createdAt: "2026-03-12T10:00:00Z",
       },
     },
-    errorCodes: [
-      { status: 400, code: "BAD_REQUEST", when: "Invalid URL or empty events array" },
-    ],
+    errorCodes: [{ status: 400, code: "BAD_REQUEST", when: "Invalid URL or empty events array" }],
   },
   {
     method: "DELETE",
@@ -258,9 +293,7 @@ export const EXTERNAL_API_ENDPOINTS: ApiEndpointDef[] = [
     responseExample: {
       data: { id: "clwh123", message: "Webhook subscription removed" },
     },
-    errorCodes: [
-      { status: 404, code: "NOT_FOUND", when: "Webhook subscription not found" },
-    ],
+    errorCodes: [{ status: 404, code: "NOT_FOUND", when: "Webhook subscription not found" }],
   },
 ];
 

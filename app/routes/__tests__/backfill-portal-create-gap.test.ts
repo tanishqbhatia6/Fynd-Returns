@@ -50,18 +50,14 @@ const H = vi.hoisted(() => ({
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
-  parseJsonArrayMock: vi.fn((s: string | null, fb: unknown[]) =>
-    s ? JSON.parse(s) : fb,
-  ),
-  evaluateAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown>(
-    () => "approve",
-  ),
+  parseJsonArrayMock: vi.fn((s: string | null, fb: unknown[]) => (s ? JSON.parse(s) : fb)),
+  evaluateAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown>(() => "approve"),
   parseAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
   createReturnOnFyndMock: vi.fn(),
   sendNewReturnNotificationMock: vi.fn().mockResolvedValue(undefined),
-  checkReturnEligibilityMock: vi.fn<
-    (...args: unknown[]) => { eligible: boolean; reason?: string }
-  >(() => ({ eligible: true })),
+  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(
+    () => ({ eligible: true }),
+  ),
   buildReturnRequestIdMock: vi.fn(() => "R-1001"),
   parseReturnIdConfigMock: vi.fn(() => ({ bodyMode: "id" })),
   formatReturnRequestIdMock: vi.fn((x: string) => `R-${x}`),
@@ -175,9 +171,7 @@ function portalBody(extra: Record<string, unknown> = {}) {
     shopifyOrderName: "1001",
     orderId: "gid://shopify/Order/1",
     customerEmail: "shopper@example.com",
-    items: [
-      { lineItemId: "gid://shopify/LineItem/100", qty: 1, reasonCode: "size" },
-    ],
+    items: [{ lineItemId: "gid://shopify/LineItem/100", qty: 1, reasonCode: "size" }],
     lineItemsWithPrice: [
       {
         id: "gid://shopify/LineItem/100",
@@ -232,9 +226,7 @@ beforeEach(() => {
   H.fetchOrderByFyndAffiliateIdMock.mockReset().mockResolvedValue(null);
   H.parseJsonArrayMock
     .mockReset()
-    .mockImplementation((s: string | null, fb: unknown[]) =>
-      s ? JSON.parse(s) : fb,
-    );
+    .mockImplementation((s: string | null, fb: unknown[]) => (s ? JSON.parse(s) : fb));
   H.evaluateAutoApproveRulesMock.mockReset().mockReturnValue("approve");
   H.parseAutoApproveRulesMock.mockReset().mockReturnValue([]);
   H.createReturnOnFyndMock.mockReset().mockResolvedValue({
@@ -246,13 +238,9 @@ beforeEach(() => {
   H.checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   H.buildReturnRequestIdMock.mockReset().mockReturnValue("R-1001");
   H.parseReturnIdConfigMock.mockReset().mockReturnValue({ bodyMode: "id" });
-  H.formatReturnRequestIdMock
-    .mockReset()
-    .mockImplementation((x: string) => `R-${x}`);
+  H.formatReturnRequestIdMock.mockReset().mockImplementation((x: string) => `R-${x}`);
   H.nextReturnIdCounterMock.mockReset().mockResolvedValue(1);
-  H.normalizeSourceChannelMock
-    .mockReset()
-    .mockImplementation((x: string) => x);
+  H.normalizeSourceChannelMock.mockReset().mockImplementation((x: string) => x);
 });
 
 afterEach(() => {
@@ -614,11 +602,7 @@ describe("backfill-fynd-items — gap coverage", () => {
     expect(body.updated).toBe(0);
     expect(body.skipped).toBe(1);
     expect(H.prismaMock.returnItem.update).not.toHaveBeenCalled();
-    expect(
-      body.results[0].details.some((d: string) =>
-        d.includes("no Fynd bag match"),
-      ),
-    ).toBe(true);
+    expect(body.results[0].details.some((d: string) => d.includes("no Fynd bag match"))).toBe(true);
   });
 
   it("title+price fuzzy: NaN-coerced item.price still allows match by title only (skips numeric guard)", async () => {
@@ -706,9 +690,7 @@ describe("portal.create-return — gap coverage", () => {
     H.prismaMock.session.findFirst.mockResolvedValueOnce({
       accessToken: "tok",
     });
-    H.parseAutoApproveRulesMock.mockReturnValueOnce([
-      { if: "true", then: "reject" },
-    ]);
+    H.parseAutoApproveRulesMock.mockReturnValueOnce([{ if: "true", then: "reject" }]);
     H.evaluateAutoApproveRulesMock.mockReturnValueOnce("reject");
 
     const created = {
@@ -717,9 +699,7 @@ describe("portal.create-return — gap coverage", () => {
       createdAt: new Date(),
       items: [],
     };
-    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      created,
-    );
+    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
 
     const res = await portalAction({
       request: portalJsonReq(portalBody()),
@@ -727,9 +707,7 @@ describe("portal.create-return — gap coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    const arg = (
-      H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>
-    ).mock.calls[0]?.[0];
+    const arg = (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(arg?.data?.status).toBe("approved");
     expect(H.evaluateAutoApproveRulesMock).toHaveBeenCalled();
   });
@@ -744,9 +722,7 @@ describe("portal.create-return — gap coverage", () => {
     H.prismaMock.session.findFirst.mockResolvedValueOnce({
       accessToken: "tok",
     });
-    H.parseAutoApproveRulesMock.mockReturnValueOnce([
-      { if: "true", then: "weird" },
-    ]);
+    H.parseAutoApproveRulesMock.mockReturnValueOnce([{ if: "true", then: "weird" }]);
     H.evaluateAutoApproveRulesMock.mockReturnValueOnce(null);
 
     const created = {
@@ -755,9 +731,7 @@ describe("portal.create-return — gap coverage", () => {
       createdAt: new Date(),
       items: [],
     };
-    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      created,
-    );
+    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
 
     const res = await portalAction({
       request: portalJsonReq(portalBody()),
@@ -765,9 +739,7 @@ describe("portal.create-return — gap coverage", () => {
       context: {},
     } as never);
     expect(res.status).toBe(200);
-    const arg = (
-      H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>
-    ).mock.calls[0]?.[0];
+    const arg = (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(arg?.data?.status).toBe("approved");
   });
 
@@ -780,9 +752,7 @@ describe("portal.create-return — gap coverage", () => {
       createdAt: new Date(),
       items: [],
     };
-    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      created,
-    );
+    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
 
     await portalAction({
       request: portalJsonReq(
@@ -803,9 +773,7 @@ describe("portal.create-return — gap coverage", () => {
       context: {},
     } as never);
 
-    const arg = (
-      H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>
-    ).mock.calls[0]?.[0];
+    const arg = (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     const items = arg?.data?.items?.create ?? [];
     expect(items[0]?.price).toBe("42.50");
   });
@@ -819,9 +787,7 @@ describe("portal.create-return — gap coverage", () => {
       createdAt: new Date(),
       items: [],
     };
-    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      created,
-    );
+    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
 
     await portalAction({
       request: portalJsonReq(
@@ -842,9 +808,7 @@ describe("portal.create-return — gap coverage", () => {
       context: {},
     } as never);
 
-    const arg = (
-      H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>
-    ).mock.calls[0]?.[0];
+    const arg = (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     const items = arg?.data?.items?.create ?? [];
     expect(items[0]?.price).toBe("12.34");
   });
@@ -858,9 +822,7 @@ describe("portal.create-return — gap coverage", () => {
       createdAt: new Date(),
       items: [],
     };
-    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      created,
-    );
+    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
 
     await portalAction({
       request: portalJsonReq(
@@ -881,9 +843,7 @@ describe("portal.create-return — gap coverage", () => {
       context: {},
     } as never);
 
-    const arg = (
-      H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>
-    ).mock.calls[0]?.[0];
+    const arg = (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     const items = arg?.data?.items?.create ?? [];
     expect(items[0]?.price).toBe("9.99");
   });
@@ -1001,9 +961,7 @@ describe("portal.create-return — gap coverage", () => {
       createdAt: new Date(),
       items: [],
     };
-    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      created,
-    );
+    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
 
     const body = portalBody({
       // non-GID, non-numeric, non-FYND: skips top-level Fynd-prefix
@@ -1044,9 +1002,7 @@ describe("portal.create-return — gap coverage", () => {
       createdAt: new Date(),
       items: [],
     };
-    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(
-      created,
-    );
+    (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(created);
 
     await portalAction({
       request: portalJsonReq(
@@ -1067,9 +1023,7 @@ describe("portal.create-return — gap coverage", () => {
       context: {},
     } as never);
 
-    const arg = (
-      H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>
-    ).mock.calls[0]?.[0];
+    const arg = (H.prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     const items = arg?.data?.items?.create ?? [];
     expect(items[0]?.price).toBeNull();
   });

@@ -32,13 +32,21 @@ function mkReq(opts: { method?: string; auth?: string; host?: string } = {}) {
 describe("POST /api/fynd-consolidation-cron (action)", () => {
   it("401 when CRON_SECRET set but auth header missing", async () => {
     process.env.CRON_SECRET = "topsecret";
-    const res = await action({ request: mkReq({ method: "POST" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ method: "POST" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(401);
   });
 
   it("401 when Bearer token doesn't match CRON_SECRET", async () => {
     process.env.CRON_SECRET = "topsecret";
-    const res = await action({ request: mkReq({ method: "POST", auth: "Bearer wrong" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ method: "POST", auth: "Bearer wrong" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(401);
   });
 
@@ -48,7 +56,11 @@ describe("POST /api/fynd-consolidation-cron (action)", () => {
       { shopId: "s-1", groupsProcessed: 2, casesUpdated: 3, errors: [] },
       { shopId: "s-2", groupsProcessed: 1, casesUpdated: 1, errors: ["err-x"] },
     ]);
-    const res = await action({ request: mkReq({ method: "POST", auth: "Bearer topsecret" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ method: "POST", auth: "Bearer topsecret" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
@@ -63,7 +75,11 @@ describe("POST /api/fynd-consolidation-cron (action)", () => {
     runConsolidationForAllShopsMock.mockResolvedValueOnce([
       { shopId: "s-1", groupsProcessed: 1, casesUpdated: 1, errors: [] },
     ]);
-    const res = await action({ request: mkReq({ method: "POST", auth: "Bearer topsecret" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ method: "POST", auth: "Bearer topsecret" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.errors).toBe(undefined);
   });
@@ -71,7 +87,11 @@ describe("POST /api/fynd-consolidation-cron (action)", () => {
   it("500 when consolidation throws", async () => {
     process.env.CRON_SECRET = "topsecret";
     runConsolidationForAllShopsMock.mockRejectedValueOnce(new Error("DB down"));
-    const res = await action({ request: mkReq({ method: "POST", auth: "Bearer topsecret" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ method: "POST", auth: "Bearer topsecret" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.ok).toBe(false);
@@ -81,13 +101,21 @@ describe("POST /api/fynd-consolidation-cron (action)", () => {
   it("allows localhost when CRON_SECRET unset (dev convenience)", async () => {
     delete process.env.CRON_SECRET;
     runConsolidationForAllShopsMock.mockResolvedValueOnce([]);
-    const res = await action({ request: mkReq({ method: "POST", host: "localhost:3000" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ method: "POST", host: "localhost:3000" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 
   it("denies non-localhost when CRON_SECRET unset", async () => {
     delete process.env.CRON_SECRET;
-    const res = await action({ request: mkReq({ method: "POST", host: "remote.example.com" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ method: "POST", host: "remote.example.com" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(401);
   });
 });
@@ -96,13 +124,21 @@ describe("GET /api/fynd-consolidation-cron (loader)", () => {
   it("GET with auth runs the cron", async () => {
     process.env.CRON_SECRET = "topsecret";
     runConsolidationForAllShopsMock.mockResolvedValueOnce([]);
-    const res = await loader({ request: mkReq({ method: "GET", auth: "Bearer topsecret" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq({ method: "GET", auth: "Bearer topsecret" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 
   it("GET without auth returns 405", async () => {
     process.env.CRON_SECRET = "topsecret";
-    const res = await loader({ request: mkReq({ method: "GET" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq({ method: "GET" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(405);
   });
 });

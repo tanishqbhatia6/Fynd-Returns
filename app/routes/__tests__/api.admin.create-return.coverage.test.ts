@@ -99,14 +99,15 @@ function happyBody(overrides: Record<string, unknown> = {}) {
 
 function wireTransactionAndCreate() {
   prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
-    if (typeof arg === "function") return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
+    if (typeof arg === "function")
+      return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
     return arg;
   });
   prismaMock.returnCase.create.mockImplementation(
     async ({ data }: { data: Record<string, unknown> }) => ({
       id: "rc-cov",
       items: Array.isArray((data.items as { create?: unknown[] } | undefined)?.create)
-        ? ((data.items as { create: unknown[] }).create)
+        ? (data.items as { create: unknown[] }).create
         : [],
       createdAt: new Date("2026-01-01T00:00:00Z"),
       ...data,
@@ -124,7 +125,9 @@ function wireTransactionAndCreate() {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   normalizeSourceChannelMock.mockReset().mockImplementation((s: string | null) => s);
   evaluateAutoApproveRulesMock.mockReset().mockReturnValue("approve");
@@ -157,13 +160,14 @@ describe("auto-approve full pipeline (auto-trigger)", () => {
     evaluateAutoApproveRulesMock.mockReturnValueOnce("approve");
 
     const res = await action({
-      request: jsonReq(happyBody({
-        items: [{ lineItemId: "li-1", qty: 1, reasonCode: "wrong_size" }],
-        lineItemsWithPrice: [
-          { id: "li-1", price: "20", productTags: ["sale", "final"] },
-        ],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          items: [{ lineItemId: "li-1", qty: 1, reasonCode: "wrong_size" }],
+          lineItemsWithPrice: [{ id: "li-1", price: "20", productTags: ["sale", "final"] }],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     expect(res.status).toBe(200);
@@ -196,7 +200,8 @@ describe("auto-approve full pipeline (auto-trigger)", () => {
 
     await action({
       request: jsonReq(happyBody({ customerEmail: undefined })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(prismaMock.returnCase.count).not.toHaveBeenCalled();
@@ -212,10 +217,13 @@ describe("auto-approve full pipeline (auto-trigger)", () => {
     parseAutoApproveRulesMock.mockReturnValueOnce([{ id: "r1" }]);
 
     await action({
-      request: jsonReq(happyBody({
-        lineItemsWithPrice: [{ id: "gid://shopify/LineItem/1", price: "5" }],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          lineItemsWithPrice: [{ id: "gid://shopify/LineItem/1", price: "5" }],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     const evalArgs = evaluateAutoApproveRulesMock.mock.calls[0] as unknown[];
@@ -245,7 +253,8 @@ describe("auto-approve full pipeline (auto-trigger)", () => {
 
     await action({
       request: jsonReq(happyBody({ createdByStaff: "agent@x.com", crmTicketId: "T-9" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     const evCall = prismaMock.returnEvent.create.mock.calls[0][0];
@@ -320,7 +329,8 @@ describe("manual mode (autoApprove disabled)", () => {
 
     await action({
       request: jsonReq(happyBody({ adminOverride: true })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(checkReturnEligibilityMock).not.toHaveBeenCalled();
@@ -338,21 +348,24 @@ describe("manual mode (autoApprove disabled)", () => {
     });
 
     await action({
-      request: jsonReq(happyBody({
-        customerName: "Alice",
-        customerCity: "NYC",
-        customerCountry: "US",
-        customerAddress1: "100 Main St",
-        customerAddress2: "Apt 5",
-        customerProvince: "NY",
-        customerZip: "10001",
-        customerLandmark: "Near park",
-        customerPhone: "+1 (555) 123-4567",
-        crmTicketId: "T-1",
-        crmNotes: "VIP customer",
-        currency: "usd",
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          customerName: "Alice",
+          customerCity: "NYC",
+          customerCountry: "US",
+          customerAddress1: "100 Main St",
+          customerAddress2: "Apt 5",
+          customerProvince: "NY",
+          customerZip: "10001",
+          customerLandmark: "Near park",
+          customerPhone: "+1 (555) 123-4567",
+          crmTicketId: "T-1",
+          crmNotes: "VIP customer",
+          currency: "usd",
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
@@ -411,22 +424,40 @@ describe("end-to-end: create + items + event + response shape", () => {
     });
 
     await action({
-      request: jsonReq(happyBody({
-        items: [{
-          lineItemId: "li-1", qty: 2, reasonCode: "defect",
-          notes: "torn", condition: "damaged",
-          fyndShipmentId: "ship-1", fyndBagId: "bag-1",
-          fyndArticleId: "art-1", fyndAffiliateLineId: "aff-1",
-          fyndSellerIdentifier: "sell-1", fyndItemId: "item-1",
-          fyndQuantityAvailable: 5, fyndPriceEffective: "199.00",
-          fyndSize: "M",
-        }],
-        lineItemsWithPrice: [{
-          id: "li-1", title: "Cotton Tee", variantTitle: "Red / M",
-          sku: "CT-RED-M", price: "29.99", imageUrl: "https://cdn/x.jpg",
-        }],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          items: [
+            {
+              lineItemId: "li-1",
+              qty: 2,
+              reasonCode: "defect",
+              notes: "torn",
+              condition: "damaged",
+              fyndShipmentId: "ship-1",
+              fyndBagId: "bag-1",
+              fyndArticleId: "art-1",
+              fyndAffiliateLineId: "aff-1",
+              fyndSellerIdentifier: "sell-1",
+              fyndItemId: "item-1",
+              fyndQuantityAvailable: 5,
+              fyndPriceEffective: "199.00",
+              fyndSize: "M",
+            },
+          ],
+          lineItemsWithPrice: [
+            {
+              id: "li-1",
+              title: "Cotton Tee",
+              variantTitle: "Red / M",
+              sku: "CT-RED-M",
+              price: "29.99",
+              imageUrl: "https://cdn/x.jpg",
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
@@ -465,7 +496,8 @@ describe("end-to-end: create + items + event + response shape", () => {
 
     await action({
       request: jsonReq(happyBody({ shopifyOrderName: "2050" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
@@ -479,11 +511,14 @@ describe("end-to-end: create + items + event + response shape", () => {
     });
 
     await action({
-      request: jsonReq(happyBody({
-        resolutionType: "exchange",
-        exchangePreference: "Send size L",
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          resolutionType: "exchange",
+          exchangePreference: "Send size L",
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(prismaMock.returnCase.create.mock.calls[0][0].data).toMatchObject({
       resolutionType: "exchange",
@@ -491,11 +526,14 @@ describe("end-to-end: create + items + event + response shape", () => {
     });
 
     await action({
-      request: jsonReq(happyBody({
-        resolutionType: "refund",
-        exchangePreference: "ignored",
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          resolutionType: "refund",
+          exchangePreference: "ignored",
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(prismaMock.returnCase.create.mock.calls[1][0].data).toMatchObject({
       resolutionType: "refund",
@@ -512,7 +550,8 @@ describe("end-to-end: create + items + event + response shape", () => {
 
     await action({
       request: jsonReq(happyBody({ sourceChannel: "GORGIAS" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(normalizeSourceChannelMock).toHaveBeenCalledWith("GORGIAS");
@@ -527,13 +566,16 @@ describe("end-to-end: create + items + event + response shape", () => {
     });
 
     await action({
-      request: jsonReq(happyBody({
-        items: [
-          { lineItemId: "li-1", qty: 1, fyndShipmentId: "ship-A" },
-          { lineItemId: "li-2", qty: 1, fyndShipmentId: "ship-B" },
-        ],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          items: [
+            { lineItemId: "li-1", qty: 1, fyndShipmentId: "ship-A" },
+            { lineItemId: "li-2", qty: 1, fyndShipmentId: "ship-B" },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
@@ -548,7 +590,8 @@ describe("end-to-end: create + items + event + response shape", () => {
 
     const res = await action({
       request: jsonReq(happyBody({ adminOverride: true })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(res.status).toBe(200);

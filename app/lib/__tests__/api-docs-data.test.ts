@@ -6,17 +6,9 @@
  * surfaces as broken docs / collection imports.
  */
 import { describe, it, expect } from "vitest";
-import {
-  EXTERNAL_API_ENDPOINTS,
-  WEBHOOK_EVENTS,
-  type ApiEndpointDef,
-} from "../api-docs-data";
+import { EXTERNAL_API_ENDPOINTS, WEBHOOK_EVENTS, type ApiEndpointDef } from "../api-docs-data";
 
-const ALLOWED_METHODS: ReadonlyArray<ApiEndpointDef["method"]> = [
-  "GET",
-  "POST",
-  "DELETE",
-];
+const ALLOWED_METHODS: ReadonlyArray<ApiEndpointDef["method"]> = ["GET", "POST", "DELETE"];
 
 describe("EXTERNAL_API_ENDPOINTS", () => {
   it("is a non-empty array", () => {

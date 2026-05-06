@@ -17,7 +17,8 @@ describe("encrypt + decrypt", () => {
   });
 
   it("round-trips correctly for unicode and special characters", () => {
-    const plaintext = "Hello \u{1F600} \u00E9\u00E8\u00EA \u4F60\u597D <script>alert('xss')</script>";
+    const plaintext =
+      "Hello \u{1F600} \u00E9\u00E8\u00EA \u4F60\u597D <script>alert('xss')</script>";
     const ciphertext = encrypt(plaintext);
     const decrypted = decrypt(ciphertext);
     expect(decrypted).toBe(plaintext);
@@ -80,10 +81,7 @@ describe("decrypt error handling", () => {
     const parts = ct.split(":");
 
     // Tamper with the encrypted data portion
-    const tamperedData =
-      parts[2][0] === "a"
-        ? "b" + parts[2].slice(1)
-        : "a" + parts[2].slice(1);
+    const tamperedData = parts[2][0] === "a" ? "b" + parts[2].slice(1) : "a" + parts[2].slice(1);
     const tampered = `${parts[0]}:${parts[1]}:${tamperedData}`;
 
     expect(() => decrypt(tampered)).toThrow();
@@ -94,10 +92,7 @@ describe("decrypt error handling", () => {
     const parts = ct.split(":");
 
     // Tamper with the auth tag
-    const tamperedTag =
-      parts[1][0] === "a"
-        ? "b" + parts[1].slice(1)
-        : "a" + parts[1].slice(1);
+    const tamperedTag = parts[1][0] === "a" ? "b" + parts[1].slice(1) : "a" + parts[1].slice(1);
     const tampered = `${parts[0]}:${tamperedTag}:${parts[2]}`;
 
     expect(() => decrypt(tampered)).toThrow();
@@ -108,10 +103,7 @@ describe("decrypt error handling", () => {
     const parts = ct.split(":");
 
     // Tamper with the IV
-    const tamperedIv =
-      parts[0][0] === "a"
-        ? "b" + parts[0].slice(1)
-        : "a" + parts[0].slice(1);
+    const tamperedIv = parts[0][0] === "a" ? "b" + parts[0].slice(1) : "a" + parts[0].slice(1);
     const tampered = `${tamperedIv}:${parts[1]}:${parts[2]}`;
 
     expect(() => decrypt(tampered)).toThrow();

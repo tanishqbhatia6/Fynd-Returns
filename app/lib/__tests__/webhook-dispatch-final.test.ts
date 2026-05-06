@@ -79,7 +79,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -132,9 +132,7 @@ async function flushAll() {
 
 beforeEach(() => {
   prismaMock.webhookSubscription.findMany.mockReset().mockResolvedValue([]);
-  prismaMock.webhookSubscription.findFirst
-    .mockReset()
-    .mockResolvedValue({ id: "sub-active" });
+  prismaMock.webhookSubscription.findFirst.mockReset().mockResolvedValue({ id: "sub-active" });
   prismaMock.webhookDeliveryFailure.create.mockReset().mockResolvedValue({});
   fetchSpy.mockReset();
   isSafeOutboundUrlMock.mockReset().mockResolvedValue({ ok: true });
@@ -161,9 +159,7 @@ describe("enqueueForSubscription — finally cleanup branches", () => {
     const firstBlocker = new Promise<{ ok: true }>((r) => {
       firstResolve = () => r({ ok: true });
     });
-    fetchSpy
-      .mockReturnValueOnce(firstBlocker)
-      .mockResolvedValueOnce({ ok: true });
+    fetchSpy.mockReturnValueOnce(firstBlocker).mockResolvedValueOnce({ ok: true });
 
     dispatchWebhookEvent("shop-final", "return.approved", { i: 1 });
     dispatchWebhookEvent("shop-final", "return.approved", { i: 2 });
@@ -217,9 +213,7 @@ describe("dispatchWebhookEvent — call-site .catch swallow", () => {
       .mockRejectedValueOnce(new Error("net-down")) // B network error initial
       .mockResolvedValue({ ok: true }); // any subsequent retry succeeds
 
-    expect(() =>
-      dispatchWebhookEvent("shop-final", "return.approved", { x: 1 }),
-    ).not.toThrow();
+    expect(() => dispatchWebhookEvent("shop-final", "return.approved", { x: 1 })).not.toThrow();
 
     await flushAll();
     // Both subs got at least the initial attempt.
@@ -282,13 +276,15 @@ describe("deliverWebhook — header shape regression", () => {
     const init = fetchSpy.mock.calls[0][1] as { headers: Record<string, string> };
     const keys = Object.keys(init.headers).sort();
     // Exactly these six. A future addition should require updating this assertion.
-    expect(keys).toEqual([
-      "Content-Type",
-      "X-RPM-Event",
-      "X-RPM-Signature",
-      "X-Webhook-Event",
-      "X-Webhook-Signature",
-    ].sort());
+    expect(keys).toEqual(
+      [
+        "Content-Type",
+        "X-RPM-Event",
+        "X-RPM-Signature",
+        "X-Webhook-Event",
+        "X-Webhook-Signature",
+      ].sort(),
+    );
   });
 
   it("X-RPM-Signature equals X-Webhook-Signature byte-for-byte", async () => {
@@ -344,15 +340,8 @@ describe("deliverWebhook — request shape", () => {
     dispatchWebhookEvent("shop-final", "return.approved", { foo: "bar" });
     await flushAll();
 
-    const body = JSON.parse(
-      (fetchSpy.mock.calls[0][1] as { body: string }).body,
-    );
-    expect(Object.keys(body).sort()).toEqual([
-      "data",
-      "event",
-      "idempotencyKey",
-      "timestamp",
-    ]);
+    const body = JSON.parse((fetchSpy.mock.calls[0][1] as { body: string }).body);
+    expect(Object.keys(body).sort()).toEqual(["data", "event", "idempotencyKey", "timestamp"]);
   });
 });
 
@@ -369,12 +358,16 @@ describe("dispatchWebhookEvent — multi-subscription invariants", () => {
     await flushAll();
 
     expect(fetchSpy).toHaveBeenCalledTimes(2);
-    const sigA = (fetchSpy.mock.calls.find((c) => c[0] === subA.url)![1] as {
-      headers: Record<string, string>;
-    }).headers["X-Webhook-Signature"];
-    const sigB = (fetchSpy.mock.calls.find((c) => c[0] === subB.url)![1] as {
-      headers: Record<string, string>;
-    }).headers["X-Webhook-Signature"];
+    const sigA = (
+      fetchSpy.mock.calls.find((c) => c[0] === subA.url)![1] as {
+        headers: Record<string, string>;
+      }
+    ).headers["X-Webhook-Signature"];
+    const sigB = (
+      fetchSpy.mock.calls.find((c) => c[0] === subB.url)![1] as {
+        headers: Record<string, string>;
+      }
+    ).headers["X-Webhook-Signature"];
     expect(sigA).not.toBe(sigB);
     expect(sigA.startsWith("sha256=")).toBe(true);
     expect(sigB.startsWith("sha256=")).toBe(true);

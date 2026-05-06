@@ -11,11 +11,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const { authenticateMock, fetchOrderByOrderNumberMock, checkReturnEligibilityMock } = vi.hoisted(() => ({
-  authenticateMock: vi.fn(),
-  fetchOrderByOrderNumberMock: vi.fn(),
-  checkReturnEligibilityMock: vi.fn(() => ({ eligible: true })),
-}));
+const { authenticateMock, fetchOrderByOrderNumberMock, checkReturnEligibilityMock } = vi.hoisted(
+  () => ({
+    authenticateMock: vi.fn(),
+    fetchOrderByOrderNumberMock: vi.fn(),
+    checkReturnEligibilityMock: vi.fn(() => ({ eligible: true })),
+  }),
+);
 
 vi.mock("../../shopify.server", () => ({
   authenticate: { admin: authenticateMock },
@@ -66,9 +68,9 @@ describe("app.returns.create loader", () => {
   it("propagates authentication failures (e.g. redirect Response)", async () => {
     const redirect = new Response(null, { status: 302, headers: { Location: "/auth" } });
     authenticateMock.mockRejectedValueOnce(redirect);
-    await expect(
-      loader({ request: makeRequest(), params: {}, context: {} } as never),
-    ).rejects.toBe(redirect);
+    await expect(loader({ request: makeRequest(), params: {}, context: {} } as never)).rejects.toBe(
+      redirect,
+    );
   });
 
   it("propagates thrown Errors from authenticate.admin", async () => {

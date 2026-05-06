@@ -49,7 +49,9 @@ const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
 });
 
 afterEach(() => {
@@ -67,7 +69,11 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       otpSentAt: new Date(),
       lookupValueNorm: "u@example.com",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(429);
     const body = await res.json();
     // Math.ceil((60000 - tinyDelta)/1000) → 60
@@ -84,7 +90,11 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       otpSentAt: new Date(Date.now() - (OTP_COOLDOWN_MS - 500)),
       lookupValueNorm: "u@example.com",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error).toMatch(/wait 1s before requesting another OTP/);
@@ -102,7 +112,11 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       otpSentAt: new Date(Date.now() - OTP_COOLDOWN_MS - 5),
       lookupValueNorm: "+14155551212",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(prismaMock.lookupSession.update).toHaveBeenCalledTimes(1);
   });
@@ -116,7 +130,11 @@ describe("api.portal.otp.send — cooldown enforcement", () => {
       otpSentAt: null,
       lookupValueNorm: "+14155551212",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(prismaMock.lookupSession.update).toHaveBeenCalledTimes(1);
   });
@@ -132,7 +150,11 @@ describe("api.portal.otp.send — max attempts cap", () => {
       otpSentAt: null,
       lookupValueNorm: "u@example.com",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(429);
     const body = await res.json();
     expect(body.error).toMatch(/Too many OTP attempts/i);
@@ -148,7 +170,11 @@ describe("api.portal.otp.send — max attempts cap", () => {
       otpSentAt: null,
       lookupValueNorm: "u@example.com",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(429);
     expect(sendOtpEmailMock).not.toHaveBeenCalled();
   });
@@ -162,7 +188,11 @@ describe("api.portal.otp.send — max attempts cap", () => {
       otpSentAt: null,
       lookupValueNorm: "+14155551212",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(prismaMock.lookupSession.update).toHaveBeenCalledTimes(1);
     const updateArgs = prismaMock.lookupSession.update.mock.calls[0][0];
@@ -178,7 +208,11 @@ describe("api.portal.otp.send — max attempts cap", () => {
       otpSentAt: null,
       lookupValueNorm: "+14155551212",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const updateArgs = prismaMock.lookupSession.update.mock.calls[0][0];
     expect(updateArgs.where).toEqual({ id: "s-1" });
@@ -202,7 +236,11 @@ describe("api.portal.otp.send — dev-mode console.log path", () => {
       otpSentAt: null,
       lookupValueNorm: "+14155551212",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(sendOtpEmailMock).not.toHaveBeenCalled();
     expect(logSpy).toHaveBeenCalledWith("[OTP] Dev mode code:", expect.stringMatching(/^\d{6}$/));
@@ -219,7 +257,11 @@ describe("api.portal.otp.send — dev-mode console.log path", () => {
       otpSentAt: null,
       lookupValueNorm: "+14155551212",
     });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(sendOtpEmailMock).not.toHaveBeenCalled();
     const otpLog = logSpy.mock.calls.find((c) => c[0] === "[OTP] Dev mode code:");
@@ -238,7 +280,11 @@ describe("api.portal.otp.send — dev-mode console.log path", () => {
       lookupValueNorm: "user@example.com",
     });
     prismaMock.shop.findUnique.mockResolvedValueOnce({ shopDomain: "store.myshopify.com" });
-    const res = await action({ request: jsonReq({ sessionId: "s-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ sessionId: "s-1" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(sendOtpEmailMock).toHaveBeenCalledTimes(1);
     const otpLog = logSpy.mock.calls.find((c) => c[0] === "[OTP] Dev mode code:");

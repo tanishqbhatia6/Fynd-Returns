@@ -1,12 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock, isSafeOutboundUrlMock } = vi.hoisted(() => ({
+const {
+  prismaMock,
+  authenticateApiKeyMock,
+  checkRateLimitMock,
+  checkPerKeyRateLimitMock,
+  isSafeOutboundUrlMock,
+} = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateApiKeyMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
   checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  isSafeOutboundUrlMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true })),
+  isSafeOutboundUrlMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: true,
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -38,7 +46,9 @@ function mkReq(method: string = "GET", body?: unknown) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
   isSafeOutboundUrlMock.mockReset().mockResolvedValue({ ok: true });
 });
@@ -53,7 +63,13 @@ describe("GET /api/v1/external/webhooks (loader)", () => {
   it("returns active subscriptions for the shop", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
     prismaMock.webhookSubscription.findMany.mockResolvedValueOnce([
-      { id: "sub-1", url: "https://hook.example", events: JSON.stringify(["return.created"]), isActive: true, createdAt: new Date() },
+      {
+        id: "sub-1",
+        url: "https://hook.example",
+        events: JSON.stringify(["return.created"]),
+        isActive: true,
+        createdAt: new Date(),
+      },
     ]);
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
@@ -90,14 +106,22 @@ describe("POST /api/v1/external/webhooks (action)", () => {
 
   it("400 when url missing", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    const res = await action({ request: mkReq("POST", { events: ["return.created"] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq("POST", { events: ["return.created"] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 on SSRF-unsafe URL", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
     isSafeOutboundUrlMock.mockResolvedValueOnce({ ok: false, reason: "private_ip" });
-    const res = await action({ request: mkReq("POST", { url: "http://169.254.169.254/", events: ["return.created"] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq("POST", { url: "http://169.254.169.254/", events: ["return.created"] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.message).toMatch(/public HTTPS/);
@@ -107,13 +131,24 @@ describe("POST /api/v1/external/webhooks (action)", () => {
 
   it("400 when events missing/empty", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    const res = await action({ request: mkReq("POST", { url: "https://ok.example", events: [] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq("POST", { url: "https://ok.example", events: [] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when events contain invalid values", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    const res = await action({ request: mkReq("POST", { url: "https://ok.example", events: ["return.created", "return.explode"] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq("POST", {
+        url: "https://ok.example",
+        events: ["return.created", "return.explode"],
+      }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.message).toMatch(/return\.explode/);
@@ -129,7 +164,11 @@ describe("POST /api/v1/external/webhooks (action)", () => {
   it("201 on happy path with generated secret", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
     prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce(null);
-    prismaMock.webhookSubscription.create.mockResolvedValueOnce({ id: "sub-new", url: happy.url, createdAt: new Date() });
+    prismaMock.webhookSubscription.create.mockResolvedValueOnce({
+      id: "sub-new",
+      url: happy.url,
+      createdAt: new Date(),
+    });
     const res = await action({ request: mkReq("POST", happy), params: {}, context: {} } as never);
     expect(res.status).toBe(201);
     const body = await res.json();

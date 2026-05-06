@@ -23,7 +23,10 @@ beforeEach(() => {
   auditInfoMock.mockClear();
   setAttributeMock.mockClear();
   getSpanMock.mockClear();
-  getSpanMock.mockReturnValue({ setAttribute: setAttributeMock, spanContext: () => ({ traceId: "t1" }) });
+  getSpanMock.mockReturnValue({
+    setAttribute: setAttributeMock,
+    spanContext: () => ({ traceId: "t1" }),
+  });
 });
 
 describe("auditLog", () => {
@@ -70,10 +73,15 @@ describe("auditLog", () => {
       resource: { type: "WebhookSubscription", id: "sub-1" },
       shopDomain: "s.myshopify.com",
     });
-    const names = setAttributeMock.mock.calls.map(c => c[0]);
-    expect(names).toEqual(expect.arrayContaining([
-      "audit.action", "audit.actor_type", "audit.resource_type", "audit.resource_id",
-    ]));
+    const names = setAttributeMock.mock.calls.map((c) => c[0]);
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "audit.action",
+        "audit.actor_type",
+        "audit.resource_type",
+        "audit.resource_id",
+      ]),
+    );
   });
 
   it("works with no active span (no span annotation path)", () => {

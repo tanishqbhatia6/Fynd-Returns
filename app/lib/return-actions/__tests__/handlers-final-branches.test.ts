@@ -10,7 +10,6 @@
  * blocks so the module-level import binds to the right mock.
  */
 
- 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../../test/prisma-mock";
 
@@ -44,9 +43,14 @@ const {
   fetchOrderByFyndAffiliateIdMock: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderLineItemsOnlyMock: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderLineItemsByNameMock: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => null),
-  fetchVariantInfoMock: vi.fn<(...a: unknown[]) => Promise<Map<string, unknown>>>(async () => new Map()),
+  fetchVariantInfoMock: vi.fn<(...a: unknown[]) => Promise<Map<string, unknown>>>(
+    async () => new Map(),
+  ),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createShopifyReturnMock: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({ success: true, shopifyReturnId: "gid://shopify/Return/1" })),
+  createShopifyReturnMock: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    shopifyReturnId: "gid://shopify/Return/1",
+  })),
   createRefundMock: vi.fn<(...a: unknown[]) => Promise<any>>(async () => ({
     success: true,
     refundId: "gid://shopify/Refund/1",
@@ -55,12 +59,25 @@ const {
     refundCreatedAt: new Date().toISOString(),
     refundMethod: "original",
   })),
-  sendDraftOrderInvoiceMock: vi.fn<(...a: unknown[]) => Promise<any>>(async () => ({ success: true, invoiceUrl: "https://invoice/x" })),
-  createFyndClientOrErrorMock: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  createReturnOnFyndMock: vi.fn<(...a: unknown[]) => Promise<any>>(async () => ({ success: true, fyndReturnId: "FYR-1" })),
-  sendApprovalNotificationMock: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendDraftOrderInvoiceMock: vi.fn<(...a: unknown[]) => Promise<any>>(async () => ({
+    success: true,
+    invoiceUrl: "https://invoice/x",
+  })),
+  createFyndClientOrErrorMock: vi.fn<(...a: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  createReturnOnFyndMock: vi.fn<(...a: unknown[]) => Promise<any>>(async () => ({
+    success: true,
+    fyndReturnId: "FYR-1",
+  })),
+  sendApprovalNotificationMock: vi.fn<(...a: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   sendRefundNotificationMock: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendRejectionNotificationMock: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRejectionNotificationMock: vi.fn<(...a: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -99,10 +116,29 @@ import { handleRetryFyndSync } from "../retry-fynd-sync.server";
 import type { ReturnHandlerContext, ReturnActionBody } from "../types";
 
 const DRAFT_OK = {
-  data: { draftOrderCreate: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", invoiceUrl: null, totalPrice: "0" }, userErrors: [] } },
+  data: {
+    draftOrderCreate: {
+      draftOrder: {
+        id: "gid://shopify/DraftOrder/1",
+        name: "D1",
+        invoiceUrl: null,
+        totalPrice: "0",
+      },
+      userErrors: [],
+    },
+  },
 };
 const COMPLETE_OK = {
-  data: { draftOrderComplete: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", order: { id: "gid://shopify/Order/9", name: "#9" } }, userErrors: [] } },
+  data: {
+    draftOrderComplete: {
+      draftOrder: {
+        id: "gid://shopify/DraftOrder/1",
+        name: "D1",
+        order: { id: "gid://shopify/Order/9", name: "#9" },
+      },
+      userErrors: [],
+    },
+  },
 };
 
 function mkAdmin(createRes: unknown, completeRes: unknown): ReturnHandlerContext["admin"] {
@@ -151,7 +187,16 @@ function baseRC(extra: Record<string, unknown> = {}) {
     resolutionType: null,
     isGreenReturn: false,
     items: [
-      { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+      {
+        id: "li-1",
+        shopifyLineItemId: "gid://shopify/LineItem/1",
+        qty: 1,
+        sku: "SKU-1",
+        price: "10.00",
+        reasonCode: null,
+        notes: null,
+        title: "Item 1",
+      },
     ],
     createdAt: new Date("2026-01-01T00:00:00Z"),
     customerAddress1: null,
@@ -166,11 +211,18 @@ function baseRC(extra: Record<string, unknown> = {}) {
   };
 }
 
-function mkCtx(rc: Record<string, unknown> = {}, ctxOverrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerContext {
+function mkCtx(
+  rc: Record<string, unknown> = {},
+  ctxOverrides: Partial<ReturnHandlerContext> = {},
+): ReturnHandlerContext {
   return {
     id: "rc-1",
     returnCase: baseRC(rc) as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn(async () => ({ json: async () => DRAFT_OK })) } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -190,7 +242,9 @@ beforeEach(() => {
   fetchOrderLineItemsByNameMock.mockReset().mockResolvedValue(null);
   fetchVariantInfoMock.mockReset().mockResolvedValue(new Map());
   closeShopifyReturnBestEffortMock.mockReset().mockResolvedValue({ ok: true });
-  createShopifyReturnMock.mockReset().mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1" });
+  createShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1" });
   createRefundMock.mockReset().mockResolvedValue({
     success: true,
     refundId: "gid://shopify/Refund/1",
@@ -199,7 +253,9 @@ beforeEach(() => {
     refundCreatedAt: new Date().toISOString(),
     refundMethod: "original",
   });
-  sendDraftOrderInvoiceMock.mockReset().mockResolvedValue({ success: true, invoiceUrl: "https://invoice/x" });
+  sendDraftOrderInvoiceMock
+    .mockReset()
+    .mockResolvedValue({ success: true, invoiceUrl: "https://invoice/x" });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   createReturnOnFyndMock.mockReset().mockResolvedValue({ success: true, fyndReturnId: "FYR-1" });
   sendApprovalNotificationMock.mockReset().mockResolvedValue(undefined);
@@ -213,8 +269,11 @@ beforeEach(() => {
 describe("process-replacement final branches", () => {
   it("falls back to fetchOrderByOrderNumber when shopifyOrderId is null (line 82-84)", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({ shopifyOrderId: null }, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
@@ -226,35 +285,53 @@ describe("process-replacement final branches", () => {
 
   it("returns 400 when both shopifyOrderId and shopifyOrderName are null (line 82-84 false:false)", async () => {
     const ctx = mkCtx({ shopifyOrderId: null, shopifyOrderName: null });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody) as Response;
+    const res = (await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("Could not fetch original order");
   });
 
   it("returns 400 when fetched order has no email (line 91-95)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: null,
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: null,
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
-    const res = await handleProcessReplacement(
-      mkCtx(),
-      { action: "process_replacement" } as ReturnActionBody,
-    ) as Response;
+    const res = (await handleProcessReplacement(mkCtx(), {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("no customer email");
   });
 
   it("returns 400 when no line items remain after filter (manual-only items)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       items: [
-        { id: "li-m", shopifyLineItemId: "manual", qty: 1, sku: "M", price: "5", reasonCode: null, notes: null, title: "M" },
+        {
+          id: "li-m",
+          shopifyLineItemId: "manual",
+          qty: 1,
+          sku: "M",
+          price: "5",
+          reasonCode: null,
+          notes: null,
+          title: "M",
+        },
       ],
     });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody) as Response;
+    const res = (await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("No line items available");
   });
@@ -266,8 +343,11 @@ describe("process-replacement final branches", () => {
 describe("process-exchange final branches", () => {
   it("uses fetchOrderByOrderNumber when shopifyOrderId is null (line 105)", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({ shopifyOrderId: null }, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
@@ -279,49 +359,99 @@ describe("process-exchange final branches", () => {
 
   it("returns 400 when no usable line items (manual-only) (line 138-143)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
-      items: [{ id: "li-m", shopifyLineItemId: "manual", qty: 1, sku: "M", price: "5", reasonCode: null, notes: null, title: "M" }],
+      items: [
+        {
+          id: "li-m",
+          shopifyLineItemId: "manual",
+          qty: 1,
+          sku: "M",
+          price: "5",
+          reasonCode: null,
+          notes: null,
+          title: "M",
+        },
+      ],
     });
-    const res = await handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody) as Response;
+    const res = (await handleProcessExchange(ctx, {
+      action: "process_exchange",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("No line items available");
   });
 
   it("falls back to item.sku for title when shopifyItem.title and item.title absent (line 157-158, 171)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       // No matching shopify item — so shopifyItem is undefined
       lineItems: [],
     });
-    const ctx = mkCtx({
-      items: [{ id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/X", qty: 1, sku: "SKUONLY", price: null, reasonCode: null, notes: null, title: null }],
-    }, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
+    const ctx = mkCtx(
+      {
+        items: [
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/X",
+            qty: 1,
+            sku: "SKUONLY",
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
+        ],
+      },
+      { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) },
+    );
     await expectRedirect(
       handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     // Confirm exchangeItemsJson contains SKUONLY as title fallback
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items[0].returnedTitle).toBe("SKUONLY");
   });
 
   it("ultimate title fallback to 'Item' when no title/sku at all", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       lineItems: [],
     });
-    const ctx = mkCtx({
-      items: [{ id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/X", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null }],
-    }, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
+    const ctx = mkCtx(
+      {
+        items: [
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/X",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
+        ],
+      },
+      { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) },
+    );
     await expectRedirect(
       handleProcessExchange(ctx, { action: "process_exchange" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items[0].returnedTitle).toBe("Item");
   });
@@ -334,7 +464,8 @@ describe("process-refund final branches", () => {
   it("applyResolvedOrder: matched-by-SKU branch when shopifyOrder.lineItems exist (line 124-140)", async () => {
     // orderIdForRefund is non-GID/non-numeric so resolution flow runs
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/A", name: "#A",
+      id: "gid://shopify/Order/A",
+      name: "#A",
       lineItems: [
         { id: "gid://shopify/LineItem/100", sku: "SKU-1", quantity: 2 },
         { id: "gid://shopify/LineItem/101", sku: "OTHER", quantity: 1 },
@@ -353,7 +484,8 @@ describe("process-refund final branches", () => {
 
   it("applyResolvedOrder: SKU match falls through to capped fallback when zero matches (line 141-144)", async () => {
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/A", name: "#A",
+      id: "gid://shopify/Order/A",
+      name: "#A",
       lineItems: [
         { id: "gid://shopify/LineItem/100", sku: "DIFF-1", quantity: 2 },
         { id: "gid://shopify/LineItem/101", sku: "DIFF-2", quantity: 1 },
@@ -376,12 +508,24 @@ describe("process-refund final branches", () => {
 
   it("applyResolvedOrder: no item.sku → uses all shopify lineItems (line 145-147)", async () => {
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/A", name: "#A",
+      id: "gid://shopify/Order/A",
+      name: "#A",
       lineItems: [{ id: "gid://shopify/LineItem/100", sku: "X", quantity: 1 }],
     });
     const ctx = mkCtx({
       shopifyOrderId: "FYND-AFF-3",
-      items: [{ id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/Y", qty: 1, sku: null, price: "10", reasonCode: null, notes: null, title: "I" }],
+      items: [
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/Y",
+          qty: 1,
+          sku: null,
+          price: "10",
+          reasonCode: null,
+          notes: null,
+          title: "I",
+        },
+      ],
     });
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
@@ -395,12 +539,24 @@ describe("process-refund final branches", () => {
   it("PCDA-safe: minimalOrder via fetchOrderLineItemsByName when fetchOrderLineItemsOnly null (line 253-266)", async () => {
     fetchOrderLineItemsOnlyMock.mockResolvedValueOnce(null);
     fetchOrderLineItemsByNameMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/X", name: "#X",
+      id: "gid://shopify/Order/X",
+      name: "#X",
       lineItems: [{ id: "gid://shopify/LineItem/77", title: "T", sku: "SKU-1", quantity: 1 }],
     });
     // Force lineItemsForRefund.length === 0 by giving items without GID-shaped ids
     const ctx = mkCtx({
-      items: [{ id: "li-1", shopifyLineItemId: "non-gid-99", qty: 1, sku: "SKU-1", price: "10", reasonCode: null, notes: null, title: "I" }],
+      items: [
+        {
+          id: "li-1",
+          shopifyLineItemId: "non-gid-99",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10",
+          reasonCode: null,
+          notes: null,
+          title: "I",
+        },
+      ],
     });
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
@@ -416,15 +572,21 @@ describe("process-refund final branches", () => {
       paymentGatewayNames: ["Cash on Delivery"],
       displayFinancialStatus: "PAID",
     });
-    const ctx = mkCtx({}, {
-      shop: {
-        id: "shop-1",
-        shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", refundPaymentMethod: "original" },
-      } as never,
-    });
+    const ctx = mkCtx(
+      {},
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: { fyndApiType: "platform", refundPaymentMethod: "original" },
+        } as never,
+      },
+    );
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", refundMethod: undefined } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: undefined,
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     // createRefund called with method "store_credit" because COD downgrade
@@ -434,12 +596,20 @@ describe("process-refund final branches", () => {
   });
 
   it("bonus credit: bodyBonusAmount overrides settings calc when bonusCreditEnabled (line 379-380)", async () => {
-    const ctx = mkCtx({}, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", bonusCreditEnabled: true, refundPaymentMethod: "store_credit" },
-      } as never,
-    });
+    const ctx = mkCtx(
+      {},
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: {
+            fyndApiType: "platform",
+            bonusCreditEnabled: true,
+            refundPaymentMethod: "store_credit",
+          },
+        } as never,
+      },
+    );
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund", bonusAmount: 5.5 } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -455,27 +625,41 @@ describe("process-refund final branches", () => {
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
     });
-    const ctx = mkCtx({ fyndShipmentId: "SH-1", fyndOrderId: "FY-O-1", fyndCurrentStatus: "return_bag_delivered" });
+    const ctx = mkCtx({
+      fyndShipmentId: "SH-1",
+      fyndOrderId: "FY-O-1",
+      fyndCurrentStatus: "return_bag_delivered",
+    });
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const eventTypes = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as any).data.eventType);
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as any).data.eventType,
+    );
     expect(eventTypes).toContain("fynd_refund_synced");
   });
 
   it("Fynd refund sync: per-transition error captured in failedTransitions (line 491-495, 512-523)", async () => {
-    const updateShipmentStatus = vi.fn(async () => { throw new Error("transition rejected"); });
+    const updateShipmentStatus = vi.fn(async () => {
+      throw new Error("transition rejected");
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
     });
-    const ctx = mkCtx({ fyndShipmentId: "SH-2", fyndOrderId: "FY-O-2", fyndCurrentStatus: "return_bag_delivered" });
+    const ctx = mkCtx({
+      fyndShipmentId: "SH-2",
+      fyndOrderId: "FY-O-2",
+      fyndCurrentStatus: "return_bag_delivered",
+    });
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const eventTypes = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as any).data.eventType);
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as any).data.eventType,
+    );
     expect(eventTypes).toContain("fynd_refund_sync_failed");
   });
 
@@ -485,7 +669,9 @@ describe("process-refund final branches", () => {
     // Secondary: refund_failed write also throws
     prismaMock.returnEvent.create.mockRejectedValueOnce(new Error("secondary"));
     const ctx = mkCtx();
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(500);
     expect((await res.json()).error).toContain("primary");
   });
@@ -496,7 +682,10 @@ describe("process-refund final branches", () => {
 // ─────────────────────────────────────────────
 describe("approve final branches", () => {
   it("uses 'shop-admin' fallback identity when sessionEmail is null (line 290)", async () => {
-    fetchOrderMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: "AFF-1" });
+    fetchOrderMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/1",
+      affiliateOrderId: "AFF-1",
+    });
     const ctx = mkCtx({ status: "pending" }, { sessionEmail: null });
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 1 });
     await expectRedirect(
@@ -520,7 +709,10 @@ describe("approve final branches", () => {
   });
 
   it("uses fetchOrderByOrderNumber when shopifyOrderId is null (line 154-155)", async () => {
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: "AFF-Z" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/1",
+      affiliateOrderId: "AFF-Z",
+    });
     // Need Fynd client with getShipments to enter the affiliateOrderId-fetch block
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -564,19 +756,35 @@ describe("approve final branches", () => {
 // ─────────────────────────────────────────────
 describe("cancel-order final branches", () => {
   it("returns 400 when orderId is non-numeric/non-GID and shopifyOrderName is null (line 49-55)", async () => {
-    const ctx = mkCtx({ shopifyOrderId: "not-a-gid", shopifyOrderName: null }, {
-      admin: { graphql: vi.fn(async () => ({ json: async () => ({ data: { orderCancel: { orderCancelUserErrors: [] } } }) })) } as never,
-    });
-    const res = await handleCancelOrder(ctx, { action: "cancel_order" } as ReturnActionBody) as Response;
+    const ctx = mkCtx(
+      { shopifyOrderId: "not-a-gid", shopifyOrderName: null },
+      {
+        admin: {
+          graphql: vi.fn(async () => ({
+            json: async () => ({ data: { orderCancel: { orderCancelUserErrors: [] } } }),
+          })),
+        } as never,
+      },
+    );
+    const res = (await handleCancelOrder(ctx, {
+      action: "cancel_order",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("Could not resolve");
   });
 
   it("resolves shopifyOrderId via fetchOrderByOrderNumber when not GID/numeric (line 49-57)", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "gid://shopify/Order/55" });
-    const ctx = mkCtx({ shopifyOrderId: "fynd-aff-x" }, {
-      admin: { graphql: vi.fn(async () => ({ json: async () => ({ data: { orderCancel: { orderCancelUserErrors: [] } } }) })) } as never,
-    });
+    const ctx = mkCtx(
+      { shopifyOrderId: "fynd-aff-x" },
+      {
+        admin: {
+          graphql: vi.fn(async () => ({
+            json: async () => ({ data: { orderCancel: { orderCancelUserErrors: [] } } }),
+          })),
+        } as never,
+      },
+    );
     await expectRedirect(
       handleCancelOrder(ctx, { action: "cancel_order" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -625,12 +833,14 @@ describe("refresh-fynd-details final branches", () => {
 
   it("returnShipment with carrier+awb populates returnLogisticsData (line 80-101)", async () => {
     const searchShipmentsByExternalOrderId = vi.fn(async () => ({
-      items: [{
-        journey_type: "return",
-        delivery_partner_details: { display_name: "BlueDart", awb_no: "AWB-1" },
-        invoice: { label_url: "https://lbl", invoice_url: "https://inv" },
-        tracking_url: "https://tr",
-      }],
+      items: [
+        {
+          journey_type: "return",
+          delivery_partner_details: { display_name: "BlueDart", awb_no: "AWB-1" },
+          invoice: { label_url: "https://lbl", invoice_url: "https://inv" },
+          tracking_url: "https://tr",
+        },
+      ],
       orderId: "FY-O-3",
     }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -653,13 +863,20 @@ describe("refresh-fynd-details final branches", () => {
 // ─────────────────────────────────────────────
 describe("retry-fynd-sync final branches", () => {
   it("uses fetchOrderByOrderNumber when shopifyOrderId is null (line 60-62)", async () => {
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: "AFF-X" });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/1",
+      affiliateOrderId: "AFF-X",
+    });
     const getShipments = vi.fn();
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments } as any,
     });
-    createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-2", fyndShipmentId: "FSH-2" });
+    createReturnOnFyndMock.mockResolvedValueOnce({
+      success: true,
+      fyndReturnId: "FYR-2",
+      fyndShipmentId: "FSH-2",
+    });
     const ctx = mkCtx({ shopifyOrderId: null });
     await expectRedirect(
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
@@ -692,7 +909,11 @@ describe("retry-fynd-sync final branches", () => {
       ok: true,
       client: { getShipments } as any,
     });
-    createReturnOnFyndMock.mockResolvedValueOnce({ success: true, alreadyExists: true, fyndReturnId: "FYR-EX" });
+    createReturnOnFyndMock.mockResolvedValueOnce({
+      success: true,
+      alreadyExists: true,
+      fyndReturnId: "FYR-EX",
+    });
     const ctx = mkCtx();
     await expectRedirect(
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
@@ -713,7 +934,9 @@ describe("retry-fynd-sync final branches", () => {
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
       "fyndError=",
     );
-    const eventTypes = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as any).data.eventType);
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as any).data.eventType,
+    );
     expect(eventTypes).toContain("fynd_sync_failed");
   });
 
@@ -723,7 +946,11 @@ describe("retry-fynd-sync final branches", () => {
       ok: true,
       client: { getShipments } as any,
     });
-    createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-7", fyndShipmentId: "FSH-7" });
+    createReturnOnFyndMock.mockResolvedValueOnce({
+      success: true,
+      fyndReturnId: "FYR-7",
+      fyndShipmentId: "FSH-7",
+    });
     createShopifyReturnMock.mockRejectedValueOnce(new Error("shopify create burned"));
     // shopifyReturnId null → goes into createShopifyReturn block
     const ctx = mkCtx({ shopifyReturnId: null });
@@ -740,18 +967,31 @@ describe("retry-fynd-sync final branches", () => {
 describe("process-replacement extra branches", () => {
   it("stockout: blocks when inventory below required quantity (line 130-152)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        id: "gid://shopify/LineItem/1", title: "Item 1", sku: "SKU-1",
-        price: "10.00", quantity: 1,
-        variantId: "gid://shopify/ProductVariant/V1",
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map<string, any>([
-      ["gid://shopify/ProductVariant/V1", { id: "gid://shopify/ProductVariant/V1", inventoryAvailable: 0 }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map<string, any>([
+        [
+          "gid://shopify/ProductVariant/V1",
+          { id: "gid://shopify/ProductVariant/V1", inventoryAvailable: 0 },
+        ],
+      ]),
+    );
     const ctx = mkCtx({}, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody) as Response;
+    const res = (await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.error).toContain("out of stock");
@@ -759,14 +999,29 @@ describe("process-replacement extra branches", () => {
 
   it("matches shopify lineItem by SKU lowercase fallback (line 100-103)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       lineItems: [
         { id: "gid://shopify/LineItem/Z", title: "Z", sku: "sku-1", price: "10.00", quantity: 1 },
       ],
     });
-    const ctx = mkCtx({
-      items: [{ id: "li-1", shopifyLineItemId: "DIFFERENT", qty: 1, sku: "SKU-1", price: "10", reasonCode: null, notes: null, title: "I" }],
-    }, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
+    const ctx = mkCtx(
+      {
+        items: [
+          {
+            id: "li-1",
+            shopifyLineItemId: "DIFFERENT",
+            qty: 1,
+            sku: "SKU-1",
+            price: "10",
+            reasonCode: null,
+            notes: null,
+            title: "I",
+          },
+        ],
+      },
+      { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) },
+    );
     await expectRedirect(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -775,41 +1030,62 @@ describe("process-replacement extra branches", () => {
 
   it("draftOrderCreate userErrors with scope error returns 403", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const errorAdmin = {
-      graphql: vi.fn(async () => ({ json: async () => ({
-        errors: [{ message: "access scope write_draft_orders is required" }],
-      }) })),
+      graphql: vi.fn(async () => ({
+        json: async () => ({
+          errors: [{ message: "access scope write_draft_orders is required" }],
+        }),
+      })),
     } as never;
     const ctx = mkCtx({}, { admin: errorAdmin });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody) as Response;
+    const res = (await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(403);
   });
 
   it("draftOrderCreate userErrors path (non-scope) returns 400", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const errorAdmin = {
-      graphql: vi.fn(async () => ({ json: async () => ({
-        data: { draftOrderCreate: { draftOrder: null, userErrors: [{ message: "Invalid input" }] } },
-      }) })),
+      graphql: vi.fn(async () => ({
+        json: async () => ({
+          data: {
+            draftOrderCreate: { draftOrder: null, userErrors: [{ message: "Invalid input" }] },
+          },
+        }),
+      })),
     } as never;
     const ctx = mkCtx({}, { admin: errorAdmin });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody) as Response;
+    const res = (await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
   });
 
   it("draftOrderComplete error captured (line 254-256)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const completeErrorRes = {
-      data: { draftOrderComplete: { draftOrder: null, userErrors: [{ message: "Cannot complete" }] } },
+      data: {
+        draftOrderComplete: { draftOrder: null, userErrors: [{ message: "Cannot complete" }] },
+      },
     };
     const ctx = mkCtx({}, { admin: mkAdmin(DRAFT_OK, completeErrorRes) });
     await expectRedirect(
@@ -823,7 +1099,9 @@ describe("process-replacement extra branches", () => {
       fyndReturnId: "FYR",
       fyndPayloadJson: JSON.stringify({ status: "shipment_created" }),
     });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody) as Response;
+    const res = (await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("Replacement order can only");
   });
@@ -832,65 +1110,100 @@ describe("process-replacement extra branches", () => {
 describe("process-refund extra branches", () => {
   it("returns 400 when refundStatus already 'refunded' (line 53-55)", async () => {
     const ctx = mkCtx({ refundStatus: "refunded" });
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("already been processed");
   });
 
   it("manual: order returns helpful error (line 57-63)", async () => {
     const ctx = mkCtx({ shopifyOrderId: "manual:#42", shopifyOrderName: "#42" });
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("manual return");
   });
 
   it("Fynd allowed-statuses: blocks when current status not allowed (line 85-99)", async () => {
-    const ctx = mkCtx({
-      fyndOrderId: "FY-1",
-      fyndCurrentStatus: "pending",
-    }, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", allowedFyndStatusesForRefund: JSON.stringify(["return_completed"]) },
-      } as never,
-    });
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const ctx = mkCtx(
+      {
+        fyndOrderId: "FY-1",
+        fyndCurrentStatus: "pending",
+      },
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: {
+            fyndApiType: "platform",
+            allowedFyndStatusesForRefund: JSON.stringify(["return_completed"]),
+          },
+        } as never,
+      },
+    );
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("not in the allowed list");
   });
 
   it("Fynd allowed-statuses: blocks when status missing (line 87-91)", async () => {
-    const ctx = mkCtx({
-      fyndOrderId: "FY-1",
-      fyndCurrentStatus: null,
-    }, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", allowedFyndStatusesForRefund: JSON.stringify(["return_completed"]) },
-      } as never,
-    });
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const ctx = mkCtx(
+      {
+        fyndOrderId: "FY-1",
+        fyndCurrentStatus: null,
+      },
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: {
+            fyndApiType: "platform",
+            allowedFyndStatusesForRefund: JSON.stringify(["return_completed"]),
+          },
+        } as never,
+      },
+    );
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("status has not been received");
   });
 
   it("body refundMethod=both with invalid pct returns 400 (line 328-333)", async () => {
     const ctx = mkCtx();
-    const res = await handleProcessRefund(ctx, { action: "process_refund", refundMethod: "both", storeCreditPct: 1 } as any) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+      refundMethod: "both",
+      storeCreditPct: 1,
+    } as any)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("Store credit percentage");
   });
 
   it("body refundMethod=both with split amount=0/0 returns 400 (line 343-345)", async () => {
     const ctx = mkCtx();
-    const res = await handleProcessRefund(ctx, { action: "process_refund", refundMethod: "both", splitMode: "amount", splitScAmount: 0, splitOrigAmount: 0 } as any) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+      refundMethod: "both",
+      splitMode: "amount",
+      splitScAmount: 0,
+      splitOrigAmount: 0,
+    } as any)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("greater than zero");
   });
 
   it("body refundMethod=discount_code returns 400", async () => {
     const ctx = mkCtx();
-    const res = await handleProcessRefund(ctx, { action: "process_refund", refundMethod: "discount_code" } as any) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+      refundMethod: "discount_code",
+    } as any)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("no longer supported");
   });
@@ -898,7 +1211,9 @@ describe("process-refund extra branches", () => {
   it("createRefund failure returns enriched error (line 399-407)", async () => {
     createRefundMock.mockResolvedValueOnce({ success: false, error: "Shopify rejected" });
     const ctx = mkCtx();
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("Shopify rejected");
   });
@@ -909,7 +1224,9 @@ describe("process-refund extra branches", () => {
       shopifyOrderId: "fynd-aff-no-match",
       fyndPayloadJson: JSON.stringify({ items: [{ affiliate_order_id: "candidate" }] }),
     });
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("could not be found in Shopify");
   });
@@ -925,16 +1242,34 @@ describe("process-refund extra branches", () => {
   });
 
   it("bonus credit: settings-driven calculation when no body bonus (line 381-388)", async () => {
-    const ctx = mkCtx({
-      items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 2, sku: "SKU-1", price: "20.00", reasonCode: null, notes: null, title: "I1" },
-      ],
-    }, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", bonusCreditEnabled: true, bonusCreditPct: 10, refundPaymentMethod: "store_credit" },
-      } as never,
-    });
+    const ctx = mkCtx(
+      {
+        items: [
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 2,
+            sku: "SKU-1",
+            price: "20.00",
+            reasonCode: null,
+            notes: null,
+            title: "I1",
+          },
+        ],
+      },
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: {
+            fyndApiType: "platform",
+            bonusCreditEnabled: true,
+            bonusCreditPct: 10,
+            refundPaymentMethod: "store_credit",
+          },
+        } as never,
+      },
+    );
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -945,12 +1280,16 @@ describe("process-refund extra branches", () => {
   });
 
   it("malformed allowedFyndStatusesForRefund json is treated as disabled (line 76-82 catch)", async () => {
-    const ctx = mkCtx({ fyndOrderId: "FY-1" }, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", allowedFyndStatusesForRefund: "{not-json" },
-      } as never,
-    });
+    const ctx = mkCtx(
+      { fyndOrderId: "FY-1" },
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: { fyndApiType: "platform", allowedFyndStatusesForRefund: "{not-json" },
+        } as never,
+      },
+    );
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -1002,7 +1341,9 @@ describe("refresh-fynd extra branches", () => {
   });
 
   it("getShipments throws — falls through gracefully (line 67-69)", async () => {
-    const getShipments = vi.fn(async () => { throw new Error("boom"); });
+    const getShipments = vi.fn(async () => {
+      throw new Error("boom");
+    });
     const searchShipmentsByExternalOrderId = vi.fn(async () => ({
       items: [{ shipment_id: "S1", journey_type: "forward" }],
       orderId: "FY-O-99",
@@ -1022,7 +1363,9 @@ describe("refresh-fynd extra branches", () => {
 describe("retry-fynd-sync extra branches", () => {
   it("returns 400 when status not approved/completed (line 22-24)", async () => {
     const ctx = mkCtx({ status: "pending" });
-    const res = await handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody) as Response;
+    const res = (await handleRetryFyndSync(ctx, {
+      action: "retry_fynd_sync",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
   });
 
@@ -1044,7 +1387,10 @@ describe("retry-fynd-sync extra branches", () => {
   });
 
   it("returns redirect when client missing getShipments (line 47-52)", async () => {
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { foo: vi.fn() } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { foo: vi.fn() } as any,
+    });
     const ctx = mkCtx();
     await expectRedirect(
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
@@ -1054,20 +1400,28 @@ describe("retry-fynd-sync extra branches", () => {
 
   it("createReturnOnFynd throws — caught and reported as crash (line 82-110)", async () => {
     const getShipments = vi.fn();
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments } as any,
+    });
     createReturnOnFyndMock.mockRejectedValueOnce(new Error("network down"));
     const ctx = mkCtx();
     await expectRedirect(
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
       "fyndError=",
     );
-    const eventTypes = prismaMock.returnEvent.create.mock.calls.map((c) => (c[0] as any).data.eventType);
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as any).data.eventType,
+    );
     expect(eventTypes).toContain("fynd_sync_failed");
   });
 
   it("manual: order skips fetchOrder block (line 59-64)", async () => {
     const getShipments = vi.fn();
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments } as any,
+    });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-M" });
     const ctx = mkCtx({ shopifyOrderId: "manual:#1" });
     await expectRedirect(
@@ -1081,7 +1435,7 @@ describe("retry-fynd-sync extra branches", () => {
 describe("approve extra branches", () => {
   it("isTerminal returns 400 (line 37-39)", async () => {
     const ctx = mkCtx({ status: "completed" }, { isTerminal: true });
-    const res = await handleApprove(ctx, { action: "approve" } as ReturnActionBody) as Response;
+    const res = (await handleApprove(ctx, { action: "approve" } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
   });
 
@@ -1089,7 +1443,7 @@ describe("approve extra branches", () => {
     fetchOrderMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: "AFF" });
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 0 });
     const ctx = mkCtx({ status: "pending" });
-    const res = await handleApprove(ctx, { action: "approve" } as ReturnActionBody) as Response;
+    const res = (await handleApprove(ctx, { action: "approve" } as ReturnActionBody)) as Response;
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.idempotent).toBe(true);
@@ -1097,12 +1451,16 @@ describe("approve extra branches", () => {
 
   it("consolidation flow: redirects with consolidationQueued=1 (line 58-134)", async () => {
     prismaMock.returnCase.update.mockResolvedValueOnce({ id: "rc-1" });
-    const ctx = mkCtx({ status: "pending" }, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", fyndConsolidateReturns: true },
-      } as never,
-    });
+    const ctx = mkCtx(
+      { status: "pending" },
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: { fyndApiType: "platform", fyndConsolidateReturns: true },
+        } as never,
+      },
+    );
     await expectRedirect(
       handleApprove(ctx, { action: "approve" } as ReturnActionBody),
       "consolidationQueued=1",
@@ -1121,7 +1479,10 @@ describe("approve extra branches", () => {
 
   it("fynd sync error: createReturnOnFynd returns error (line 191-196)", async () => {
     fetchOrderMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: "AFF" });
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments: vi.fn() } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments: vi.fn() } as any,
+    });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: false, error: "Fynd rejected" });
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 1 });
     const ctx = mkCtx({ status: "pending" });
@@ -1132,7 +1493,10 @@ describe("approve extra branches", () => {
   });
 
   it("fynd client lacks getShipments: surface platform-required error (line 204-208)", async () => {
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { foo: vi.fn() } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { foo: vi.fn() } as any,
+    });
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 1 });
     const ctx = mkCtx({ status: "pending" });
     await expectRedirect(
@@ -1150,13 +1514,21 @@ describe("approve extra branches", () => {
 describe("nullish/OR fallback branches", () => {
   it("approve: returnRequestNo='', items=null, customerName=null hits fallback branches", async () => {
     fetchOrderMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: null });
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments: vi.fn() } as any });
-    createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-A", fyndReturnNo: null, fyndPayload: null });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments: vi.fn() } as any,
+    });
+    createReturnOnFyndMock.mockResolvedValueOnce({
+      success: true,
+      fyndReturnId: "FYR-A",
+      fyndReturnNo: null,
+      fyndPayload: null,
+    });
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 1 });
     const ctx = mkCtx({
       status: "pending",
       returnRequestNo: "", // empty triggers || fallback
-      items: null,         // null triggers ?? [] fallback
+      items: null, // null triggers ?? [] fallback
       shopifyOrderName: null, // empty triggers || "your order"
       customerEmailNorm: null, // skips notification block
       customerName: null,
@@ -1176,8 +1548,14 @@ describe("nullish/OR fallback branches", () => {
   });
 
   it("approve: fyndReturnId truthy + sessionEmail null → 'shop-admin' fallback (line 290 etc)", async () => {
-    fetchOrderMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: "AFF-X" });
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments: vi.fn() } as any });
+    fetchOrderMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/1",
+      affiliateOrderId: "AFF-X",
+    });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments: vi.fn() } as any,
+    });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-B" });
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 1 });
     const ctx = mkCtx({ status: "pending" }, { sessionEmail: null });
@@ -1189,28 +1567,43 @@ describe("nullish/OR fallback branches", () => {
 
   it("cancel-order: shopifyOrderName=null fallback path inside non-numeric resolution (line 49-50)", async () => {
     // shopifyOrderId is non-GID/non-numeric AND name is null → triggers null branch on `replace` and resolution fails
-    const ctx = mkCtx({ shopifyOrderId: "fy-aff", shopifyOrderName: null }, {
-      admin: { graphql: vi.fn(async () => ({ json: async () => ({ data: { orderCancel: { orderCancelUserErrors: [] } } }) })) } as never,
-    });
-    const res = await handleCancelOrder(ctx, { action: "cancel_order" } as ReturnActionBody) as Response;
+    const ctx = mkCtx(
+      { shopifyOrderId: "fy-aff", shopifyOrderName: null },
+      {
+        admin: {
+          graphql: vi.fn(async () => ({
+            json: async () => ({ data: { orderCancel: { orderCancelUserErrors: [] } } }),
+          })),
+        } as never,
+      },
+    );
+    const res = (await handleCancelOrder(ctx, {
+      action: "cancel_order",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
   });
 
   it("process-replacement: items=null hits ?? [] fallback (line 97)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       lineItems: [],
     });
     const ctx = mkCtx({ items: null });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody) as Response;
+    const res = (await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(400);
     expect((await res.json()).error).toContain("No line items");
   });
 
   it("process-replacement: shopifyOrderName=null when shopifyOrderId set hits replace-fallback (line 159)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({ shopifyOrderName: null }, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
@@ -1221,10 +1614,16 @@ describe("nullish/OR fallback branches", () => {
 
   it("process-replacement: empty fyndPayloadJson with parse error covered (line 69)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
-    const ctx = mkCtx({ fyndReturnId: "FYR", fyndPayloadJson: "{not-json" }, { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
+    const ctx = mkCtx(
+      { fyndReturnId: "FYR", fyndPayloadJson: "{not-json" },
+      { admin: mkAdmin(DRAFT_OK, COMPLETE_OK) },
+    );
     await expectRedirect(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -1233,9 +1632,15 @@ describe("nullish/OR fallback branches", () => {
 
   it("retry-fynd-sync: shopifyOrderName=null fallback (line 62)", async () => {
     const getShipments = vi.fn();
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments } as any,
+    });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-N" });
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", affiliateOrderId: null });
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/1",
+      affiliateOrderId: null,
+    });
     const ctx = mkCtx({ shopifyOrderId: null, shopifyOrderName: null });
     await expectRedirect(
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
@@ -1245,7 +1650,10 @@ describe("nullish/OR fallback branches", () => {
 
   it("retry-fynd-sync: pickupAddress includes nullable fields on fallback (line 72-79)", async () => {
     const getShipments = vi.fn();
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments } as any,
+    });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-AD" });
     const ctx = mkCtx({
       customerAddress1: null,
@@ -1266,7 +1674,10 @@ describe("nullish/OR fallback branches", () => {
 
   it("retry-fynd-sync: success without fyndReturnId but alreadyExists+payload error (line 124-126, 143)", async () => {
     const getShipments = vi.fn();
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments } as any,
+    });
     // alreadyExists path with no fyndReturnId/fyndShipmentId
     createReturnOnFyndMock.mockResolvedValueOnce({
       success: true,
@@ -1320,10 +1731,12 @@ describe("nullish/OR fallback branches", () => {
 
   it("refresh-fynd: returnShipment with only invoice_url filled (line 90)", async () => {
     const searchShipmentsByExternalOrderId = vi.fn(async () => ({
-      items: [{
-        journey_type: "return",
-        invoice: { invoice_url: "https://invoice", links: { invoice_a4: "" } },
-      }],
+      items: [
+        {
+          journey_type: "return",
+          invoice: { invoice_url: "https://invoice", links: { invoice_a4: "" } },
+        },
+      ],
       orderId: "FY-O-Z",
     }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -1338,16 +1751,34 @@ describe("nullish/OR fallback branches", () => {
   });
 
   it("process-refund: lineItem reduce with no price hits || 0 (line 382)", async () => {
-    const ctx = mkCtx({
-      items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: null, reasonCode: null, notes: null, title: "I" },
-      ],
-    }, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", bonusCreditEnabled: true, bonusCreditPct: 10, refundPaymentMethod: "store_credit" },
-      } as never,
-    });
+    const ctx = mkCtx(
+      {
+        items: [
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "SKU-1",
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: "I",
+          },
+        ],
+      },
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: {
+            fyndApiType: "platform",
+            bonusCreditEnabled: true,
+            bonusCreditPct: 10,
+            refundPaymentMethod: "store_credit",
+          },
+        } as never,
+      },
+    );
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -1358,10 +1789,10 @@ describe("nullish/OR fallback branches", () => {
     createRefundMock.mockResolvedValueOnce({
       success: true,
       refundId: null,
-      refundAmount: null,    // line 551 falsy
+      refundAmount: null, // line 551 falsy
       refundCurrency: null,
       refundCreatedAt: null, // line 418 fallback
-      refundMethod: null,    // line 547 fallback
+      refundMethod: null, // line 547 fallback
     });
     const ctx = mkCtx();
     await expectRedirect(
@@ -1374,7 +1805,9 @@ describe("nullish/OR fallback branches", () => {
     // Force an inner failure that produces empty extracted message
     prismaMock.returnCase.update.mockRejectedValueOnce(""); // string '' → extractErrorMessage returns ''
     const ctx = mkCtx();
-    const res = await handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody) as Response;
+    const res = (await handleProcessRefund(ctx, {
+      action: "process_refund",
+    } as ReturnActionBody)) as Response;
     expect(res.status).toBe(500);
     expect((await res.json()).error).toContain("could not be processed");
   });
@@ -1385,12 +1818,16 @@ describe("nullish/OR fallback branches", () => {
       paymentGatewayNames: ["Stripe"],
       displayFinancialStatus: "PAID",
     });
-    const ctx = mkCtx({}, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", refundPaymentMethod: "original" },
-      } as never,
-    });
+    const ctx = mkCtx(
+      {},
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: { fyndApiType: "platform", refundPaymentMethod: "original" },
+        } as never,
+      },
+    );
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -1401,12 +1838,16 @@ describe("nullish/OR fallback branches", () => {
   });
 
   it("process-refund: settings refundPaymentMethod 'invalid' is not used (line 362)", async () => {
-    const ctx = mkCtx({}, {
-      shop: {
-        id: "shop-1", shopDomain: "store.myshopify.com",
-        settings: { fyndApiType: "platform", refundPaymentMethod: "garbage_method" },
-      } as never,
-    });
+    const ctx = mkCtx(
+      {},
+      {
+        shop: {
+          id: "shop-1",
+          shopDomain: "store.myshopify.com",
+          settings: { fyndApiType: "platform", refundPaymentMethod: "garbage_method" },
+        } as never,
+      },
+    );
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -1428,23 +1869,40 @@ describe("nullish/OR fallback branches", () => {
 
   it("process-replacement: empty returnRequestNo + empty shopifyOrderName fallbacks (line 159, 220)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     // userErrors=undefined → ?? [] fallback (line 220)
     const customAdmin = {
       graphql: vi.fn(async (q: string) => {
         if (q.includes("draftOrderCreate")) {
-          return { json: async () => ({ data: { draftOrderCreate: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" } /* userErrors absent */ } } }) };
+          return {
+            json: async () => ({
+              data: {
+                draftOrderCreate: {
+                  draftOrder: {
+                    id: "gid://shopify/DraftOrder/1",
+                    name: "D1",
+                  } /* userErrors absent */,
+                },
+              },
+            }),
+          };
         }
         return { json: async () => COMPLETE_OK };
       }),
     } as never;
-    const ctx = mkCtx({
-      returnRequestNo: "",
-      shopifyOrderName: "",
-      customerEmailNorm: null,
-    }, { admin: customAdmin });
+    const ctx = mkCtx(
+      {
+        returnRequestNo: "",
+        shopifyOrderName: "",
+        customerEmailNorm: null,
+      },
+      { admin: customAdmin },
+    );
     await expectRedirect(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
@@ -1453,8 +1911,11 @@ describe("nullish/OR fallback branches", () => {
 
   it("process-replacement: realOrderId set → success email uses realOrderName (line 350-351)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "T", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     // sendApprovalNotification will receive notes referring to realOrderName
     sendApprovalNotificationMock.mockResolvedValueOnce(undefined);
@@ -1469,7 +1930,10 @@ describe("nullish/OR fallback branches", () => {
 
   it("retry-fynd-sync: empty returnRequestNo + neither orderId nor name (line 17, 62)", async () => {
     const getShipments = vi.fn();
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { getShipments } as any });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments } as any,
+    });
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FYR-NN" });
     const ctx = mkCtx({ returnRequestNo: "", shopifyOrderId: null, shopifyOrderName: null });

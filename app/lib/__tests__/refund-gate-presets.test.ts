@@ -102,7 +102,13 @@ describe("inferPresetFromStatuses", () => {
 });
 
 describe("PRESET_LABELS", () => {
-  const presets: RefundGatePreset[] = ["none", "after_pickup", "after_delivery", "after_qc", "custom"];
+  const presets: RefundGatePreset[] = [
+    "none",
+    "after_pickup",
+    "after_delivery",
+    "after_qc",
+    "custom",
+  ];
 
   it("has a label + description for every preset", () => {
     for (const p of presets) {

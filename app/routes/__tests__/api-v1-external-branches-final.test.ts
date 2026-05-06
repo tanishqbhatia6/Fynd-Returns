@@ -34,14 +34,19 @@ const {
   authenticateApiKeyMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 100, retryAfterMs: 0 })),
   rateLimitResponseMock: vi.fn((ms: number) =>
-    Response.json({ error: { code: "RATE_LIMITED" } }, { status: 429, headers: { "Retry-After": String(Math.ceil(ms / 1000)) } }),
+    Response.json(
+      { error: { code: "RATE_LIMITED" } },
+      { status: 429, headers: { "Retry-After": String(Math.ceil(ms / 1000)) } },
+    ),
   ),
   checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   dispatchWebhookEventMock: vi.fn(),
   createAdminClientMock: vi.fn(() => ({ admin: true })),
   closeShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
   createRefundMock: vi.fn(),
-  isSafeOutboundUrlMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true })),
+  isSafeOutboundUrlMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: true,
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -71,7 +76,10 @@ import { action as approveAction } from "../api.v1.external.returns.$id.approve"
 import { action as rejectAction } from "../api.v1.external.returns.$id.reject";
 import { action as refundAction } from "../api.v1.external.returns.$id.refund";
 import { loader as listReturnsLoader } from "../api.v1.external.returns";
-import { loader as listWebhooksLoader, action as createWebhookAction } from "../api.v1.external.webhooks";
+import {
+  loader as listWebhooksLoader,
+  action as createWebhookAction,
+} from "../api.v1.external.webhooks";
 import { action as deleteWebhookAction } from "../api.v1.external.webhooks.$id";
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -102,7 +110,9 @@ function approvedRC(o: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 100, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 100, retryAfterMs: 0 });
   rateLimitResponseMock.mockClear();
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
   dispatchWebhookEventMock.mockClear();
@@ -130,7 +140,10 @@ describe("approve.ts residual branches", () => {
 
   it("falls back to 'anon' for per-key bucket when auth.keyId is missing AND returns the per-key 429", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({
-      ok: true, shopId: "shop-1", shopDomain: "s.myshopify.com", keyId: undefined,
+      ok: true,
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+      keyId: undefined,
     });
     const perKeyResp = Response.json({ error: { code: "TOO_MANY" } }, { status: 429 });
     checkPerKeyRateLimitMock.mockResolvedValueOnce(perKeyResp);
@@ -174,7 +187,10 @@ describe("reject.ts residual branches", () => {
 
   it("rejects rejectionReason longer than 500 chars (boundary +1)", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({
-      ok: true, shopId: "shop-1", shopDomain: "s.myshopify.com", keyId: "k1",
+      ok: true,
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+      keyId: "k1",
     });
     const res = await rejectAction({
       request: postReq("https://x/api/v1/external/returns/rc-1/reject", {
@@ -197,13 +213,19 @@ describe("reject.ts residual branches", () => {
 describe("refund.ts residual branches", () => {
   it("uses 'anon' for per-key bucket when auth.keyId is missing", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({
-      ok: true, shopId: "shop-1", shopDomain: "s.myshopify.com", keyId: undefined,
+      ok: true,
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+      keyId: undefined,
     });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedRC());
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce(null);
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "1.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "1.00",
+      refundCurrency: "USD",
     });
 
     const res = await refundAction({
@@ -221,7 +243,10 @@ describe("refund.ts residual branches", () => {
 
   it("falls back to 'Refund failed' when result.success=false AND result.error is undefined", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({
-      ok: true, shopId: "shop-1", shopDomain: "s.myshopify.com", keyId: "k1",
+      ok: true,
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+      keyId: "k1",
     });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedRC());
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
@@ -242,13 +267,21 @@ describe("refund.ts residual branches", () => {
 
   it("legacy 'discount_code' settings value is coerced to 'original' before reaching createRefund", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({
-      ok: true, shopId: "shop-1", shopDomain: "s.myshopify.com", keyId: "k1",
+      ok: true,
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+      keyId: "k1",
     });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedRC());
-    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "discount_code" });
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
+      refundPaymentMethod: "discount_code",
+    });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "1.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "1.00",
+      refundCurrency: "USD",
     });
 
     const res = await refundAction({
@@ -375,7 +408,8 @@ describe("webhooks.$id.ts residual branches", () => {
   it("uses 'anon' for per-key when auth.keyId is missing on DELETE", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, shopId: "shop-1", keyId: undefined });
     prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({
-      id: "sub-1", shopId: "shop-1",
+      id: "sub-1",
+      shopId: "shop-1",
     });
     const res = await deleteWebhookAction({
       request: new Request("https://x/api/v1/external/webhooks/sub-1", { method: "DELETE" }),

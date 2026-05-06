@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
-}));
+const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateApiKeyMock: vi.fn(),
+    checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+    checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
+      async () => null,
+    ),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -30,7 +33,9 @@ const okAuth = { ok: true, keyId: "k-1", shopId: "shop-1" } as const;
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset().mockResolvedValue(okAuth);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
 });
 
@@ -38,7 +43,11 @@ describe("GET /api/v1/external/returns/:id - coverage", () => {
   // ── not-found ──
   it("returns 404 with NOT_FOUND error code when prisma yields null", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(null);
-    const res = await loader({ request: mkReq(), params: { id: "missing-id" }, context: {} } as never);
+    const res = await loader({
+      request: mkReq(),
+      params: { id: "missing-id" },
+      context: {},
+    } as never);
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error.code).toBe("NOT_FOUND");
@@ -48,7 +57,11 @@ describe("GET /api/v1/external/returns/:id - coverage", () => {
   it("scopes findFirst to the authenticated shopId so cross-tenant lookups 404", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-9", shopId: "shop-XYZ" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(null);
-    const res = await loader({ request: mkReq(), params: { id: "rc-other-tenant" }, context: {} } as never);
+    const res = await loader({
+      request: mkReq(),
+      params: { id: "rc-other-tenant" },
+      context: {},
+    } as never);
     expect(res.status).toBe(404);
     const callArg = prismaMock.returnCase.findFirst.mock.calls[0][0];
     expect(callArg.where).toEqual({ id: "rc-other-tenant", shopId: "shop-XYZ" });
@@ -153,7 +166,18 @@ describe("GET /api/v1/external/returns/:id - coverage", () => {
     const body = await res.json();
     expect(body.data.items).toHaveLength(1);
     expect(Object.keys(body.data.items[0]).sort()).toEqual(
-      ["condition", "id", "notes", "price", "qty", "reasonCode", "sku", "shopifyLineItemId", "title", "variantTitle"].sort(),
+      [
+        "condition",
+        "id",
+        "notes",
+        "price",
+        "qty",
+        "reasonCode",
+        "sku",
+        "shopifyLineItemId",
+        "title",
+        "variantTitle",
+      ].sort(),
     );
   });
 
@@ -230,7 +254,9 @@ describe("GET /api/v1/external/returns/:id - coverage", () => {
     const body = await res.json();
     const ids = body.data.events.map((e: { id: string }) => e.id);
     expect(ids).toEqual(["ev-a", "ev-b", "ev-c"]);
-    const ts = body.data.events.map((e: { happenedAt: string }) => new Date(e.happenedAt).getTime());
+    const ts = body.data.events.map((e: { happenedAt: string }) =>
+      new Date(e.happenedAt).getTime(),
+    );
     // Verify chronological monotonicity (ascending), which is the loader's contract.
     expect(ts[0]).toBeLessThan(ts[1]);
     expect(ts[1]).toBeLessThan(ts[2]);

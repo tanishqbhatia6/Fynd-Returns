@@ -29,17 +29,30 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  closeShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; error?: string }>>(async () => ({ ok: true })),
+  closeShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean; error?: string }>>(
+    async () => ({ ok: true }),
+  ),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
-  createShopifyReturnMock: vi.fn(async () => ({ success: true, shopifyReturnId: "gid://shopify/Return/1" })),
+  createShopifyReturnMock: vi.fn(async () => ({
+    success: true,
+    shopifyReturnId: "gid://shopify/Return/1",
+  })),
   createFyndClientOrErrorMock: vi.fn(),
   createReturnOnFyndMock: vi.fn(),
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationDeclinedNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   refundLoggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -148,8 +161,13 @@ function mkReturnCase(overrides: Record<string, unknown> = {}) {
     customerEmailNorm: "u@example.com",
     customerPhoneNorm: null as string | null,
     customerName: null as string | null,
-    customerAddress1: null, customerAddress2: null, customerCity: null,
-    customerProvince: null, customerZip: null, customerCountry: null, customerLandmark: null,
+    customerAddress1: null,
+    customerAddress2: null,
+    customerCity: null,
+    customerProvince: null,
+    customerZip: null,
+    customerCountry: null,
+    customerLandmark: null,
     adminNotes: null as string | null,
     rejectionReason: null as string | null,
     currency: "USD",
@@ -190,7 +208,9 @@ beforeEach(() => {
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset();
   fetchOrderByOrderNumberMock.mockReset();
-  createShopifyReturnMock.mockReset().mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1" });
+  createShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1" });
   createFyndClientOrErrorMock.mockReset();
   createReturnOnFyndMock.mockReset();
   sendApprovalNotificationMock.mockReset().mockResolvedValue(undefined);
@@ -228,11 +248,14 @@ describe('action: "reject"', () => {
   it("happy path: updates status + calls Shopify decline + notifies customer", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase());
     await callAction(mkJsonReq({ action: "reject", rejectionReason: "duplicate" }));
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "rejected", rejectionReason: "duplicate" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "rejected", rejectionReason: "duplicate" }),
+      }),
+    );
     expect(closeShopifyReturnMock).toHaveBeenCalledWith(
-      expect.anything(), expect.anything(),
+      expect.anything(),
+      expect.anything(),
       expect.objectContaining({ action: "decline", declineReason: "duplicate" }),
     );
     expect(sendRejectionNotificationMock).toHaveBeenCalled();
@@ -247,7 +270,9 @@ describe('action: "reject"', () => {
   });
 
   it("skips notification when customer has no email", async () => {
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ customerEmailNorm: null }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ customerEmailNorm: null }),
+    );
     await callAction(mkJsonReq({ action: "reject", rejectionReason: "dup" }));
     expect(sendRejectionNotificationMock).not.toHaveBeenCalled();
   });
@@ -269,21 +294,25 @@ describe('action: "approve"', () => {
       settings: { ...defaultShop.settings, fyndConsolidateReturns: true },
     };
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithConsolidation);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      items: [{ shopifyLineItemId: "li-1", qty: 2, reasonCode: "size", notes: null, sku: null }],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        items: [{ shopifyLineItemId: "li-1", qty: 2, reasonCode: "size", notes: null, sku: null }],
+      }),
+    );
     const res = await callAction(mkJsonReq({ action: "approve", resolutionType: "exchange" }));
     expect(res.status).toBe(302);
     // The URL should include consolidationQueued=1
     expect(res.headers.get("Location")).toContain("consolidationQueued=1");
     // Should have written fyndSyncStatus: pending_consolidation
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        status: "approved",
-        resolutionType: "exchange",
-        fyndSyncStatus: "pending_consolidation",
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: "approved",
+          resolutionType: "exchange",
+          fyndSyncStatus: "pending_consolidation",
+        }),
       }),
-    }));
+    );
     expect(createShopifyReturnMock).toHaveBeenCalled();
     expect(sendApprovalNotificationMock).toHaveBeenCalled();
   });
@@ -296,9 +325,11 @@ describe('action: "approve"', () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithConsolidation);
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase());
     await callAction(mkJsonReq({ action: "approve", resolutionType: "unknown_thing" }));
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ resolutionType: "refund" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ resolutionType: "refund" }),
+      }),
+    );
   });
 
   it("consolidation mode: skips Shopify Return create for manual: orders", async () => {
@@ -307,7 +338,9 @@ describe('action: "approve"', () => {
       settings: { ...defaultShop.settings, fyndConsolidateReturns: true },
     };
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithConsolidation);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ shopifyOrderId: "manual:abc" }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ shopifyOrderId: "manual:abc" }),
+    );
     await callAction(mkJsonReq({ action: "approve" }));
     expect(createShopifyReturnMock).not.toHaveBeenCalled();
   });
@@ -327,9 +360,13 @@ describe('action: "retry_fynd_sync"', () => {
   });
 
   it("short-circuits (redirect) when already synced with no retry-eligible state", async () => {
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      status: "approved", fyndReturnId: "FR-1", fyndSyncStatus: "synced",
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        status: "approved",
+        fyndReturnId: "FR-1",
+        fyndSyncStatus: "synced",
+      }),
+    );
     const res = await callAction(mkJsonReq({ action: "retry_fynd_sync" }));
     expect(res.status).toBe(302);
     expect(res.headers.get("Location")).toContain("already_synced");
@@ -346,7 +383,12 @@ describe('action: "retry_fynd_sync"', () => {
 
   it("redirects with error when client lacks Platform API", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ status: "approved" }));
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { /* no getShipments */ } });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: {
+        /* no getShipments */
+      },
+    });
     const res = await callAction(mkJsonReq({ action: "retry_fynd_sync" }));
     expect(res.status).toBe(302);
     expect(decodeURIComponent(res.headers.get("Location") || "")).toMatch(/Platform API/);
@@ -362,9 +404,11 @@ describe('action: "retry_fynd_sync"', () => {
 
     const res = await callAction(mkJsonReq({ action: "retry_fynd_sync" }));
     expect(res.status).toBe(302);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ fyndSyncStatus: "failed" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fyndSyncStatus: "failed" }),
+      }),
+    );
   });
 });
 
@@ -373,23 +417,30 @@ describe('action: "retry_fynd_sync"', () => {
 describe('action: "approve_cancellation"', () => {
   it("400 when status not 'approved'", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ status: "pending", cancellationRequestedAt: new Date() }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ status: "pending", cancellationRequestedAt: new Date() }),
+    );
     const res = await callAction(mkJsonReq({ action: "approve_cancellation" }));
     expect(res.status).toBe(400);
   });
 
   it("400 when no cancellation request pending", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ status: "approved", cancellationRequestedAt: null }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ status: "approved", cancellationRequestedAt: null }),
+    );
     const res = await callAction(mkJsonReq({ action: "approve_cancellation" }));
     expect(res.status).toBe(400);
   });
 
   it("502 with local state intact when Shopify close fails (invariant: close-before-cancel)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      status: "approved", cancellationRequestedAt: new Date(),
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        status: "approved",
+        cancellationRequestedAt: new Date(),
+      }),
+    );
     closeShopifyReturnMock.mockResolvedValueOnce({ ok: false, error: "still fulfilled" });
 
     const res = await callAction(mkJsonReq({ action: "approve_cancellation" }));
@@ -403,15 +454,20 @@ describe('action: "approve_cancellation"', () => {
 
   it("happy path: closes on Shopify, marks cancelled, sends customer notification", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      status: "approved", cancellationRequestedAt: new Date(),
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        status: "approved",
+        cancellationRequestedAt: new Date(),
+      }),
+    );
 
     const res = await callAction(mkJsonReq({ action: "approve_cancellation" }));
     expect(res.status).toBe(302);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: { status: "cancelled" },
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: "cancelled" },
+      }),
+    );
     // Customer notification is fire-and-forget — give it a tick
     await new Promise((r) => setImmediate(r));
     expect(sendCancellationNotificationMock).toHaveBeenCalled();
@@ -419,10 +475,14 @@ describe('action: "approve_cancellation"', () => {
 
   it("best-effort Fynd cancel: continues even if Fynd cancel throws", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      status: "approved", cancellationRequestedAt: new Date(),
-      fyndReturnId: "FR-1", fyndShipmentId: "SH-1",
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        status: "approved",
+        cancellationRequestedAt: new Date(),
+        fyndReturnId: "FR-1",
+        fyndShipmentId: "SH-1",
+      }),
+    );
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: {
@@ -442,16 +502,21 @@ describe('action: "approve_cancellation"', () => {
 describe('action: "decline_cancellation"', () => {
   it("400 when no pending cancellation to decline", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ status: "approved", cancellationRequestedAt: null }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ status: "approved", cancellationRequestedAt: null }),
+    );
     const res = await callAction(mkJsonReq({ action: "decline_cancellation" }));
     expect(res.status).toBe(400);
   });
 
   it("happy path: clears cancellationRequestedAt + records declined timestamp", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      status: "approved", cancellationRequestedAt: new Date(),
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        status: "approved",
+        cancellationRequestedAt: new Date(),
+      }),
+    );
 
     const res = await callAction(mkJsonReq({ action: "decline_cancellation" }));
     expect(res.status).toBe(302);
@@ -466,9 +531,13 @@ describe('action: "decline_cancellation"', () => {
 
   it("skips notification when customer has no email", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(defaultShop);
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      status: "approved", cancellationRequestedAt: new Date(), customerEmailNorm: null,
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        status: "approved",
+        cancellationRequestedAt: new Date(),
+        customerEmailNorm: null,
+      }),
+    );
     await callAction(mkJsonReq({ action: "decline_cancellation" }));
     await new Promise((r) => setImmediate(r));
     expect(sendCancellationDeclinedNotificationMock).not.toHaveBeenCalled();

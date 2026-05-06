@@ -98,12 +98,8 @@ describe("app.settings.widget component (default export)", () => {
       expect(primary?.defaultValue).toBe(DEFAULT_PORTAL_THEME.primaryColor);
     });
     // Background + surface color pickers should also exist
-    expect(
-      container.querySelector('input[type="color"][name="backgroundColor"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('input[type="color"][name="surfaceColor"]'),
-    ).toBeTruthy();
+    expect(container.querySelector('input[type="color"][name="backgroundColor"]')).toBeTruthy();
+    expect(container.querySelector('input[type="color"][name="surfaceColor"]')).toBeTruthy();
   });
 
   it("renders the language selector with all supported languages", async () => {
@@ -117,15 +113,11 @@ describe("app.settings.widget component (default export)", () => {
       ) as HTMLSelectElement | null;
       expect(select).toBeTruthy();
     });
-    const select = container.querySelector(
-      'select[name="portalLanguage"]',
-    ) as HTMLSelectElement;
+    const select = container.querySelector('select[name="portalLanguage"]') as HTMLSelectElement;
     const options = Array.from(select.querySelectorAll("option"));
     expect(options.length).toBe(SUPPORTED_LANGUAGES.length);
     const codes = options.map((o) => o.value);
-    expect(codes).toEqual(
-      expect.arrayContaining(["en", "es", "fr", "de", "hi", "ja"]),
-    );
+    expect(codes).toEqual(expect.arrayContaining(["en", "es", "fr", "de", "hi", "ja"]));
   });
 
   it("renders the font-family selector populated from FONT_OPTIONS", async () => {
@@ -139,9 +131,7 @@ describe("app.settings.widget component (default export)", () => {
       ) as HTMLSelectElement | null;
       expect(select).toBeTruthy();
     });
-    const select = container.querySelector(
-      'select[name="fontFamily"]',
-    ) as HTMLSelectElement;
+    const select = container.querySelector('select[name="fontFamily"]') as HTMLSelectElement;
     const options = Array.from(select.querySelectorAll("option"));
     expect(options.length).toBe(FONT_OPTIONS.length);
   });
@@ -160,9 +150,7 @@ describe("app.settings.widget component (default export)", () => {
       ) as HTMLSelectElement | null;
       expect(select).toBeTruthy();
     });
-    const select = container.querySelector(
-      'select[name="defaultTab"]',
-    ) as HTMLSelectElement;
+    const select = container.querySelector('select[name="defaultTab"]') as HTMLSelectElement;
     expect(select.querySelectorAll("option").length).toBe(3);
     // Component renders defaultValue, which jsdom reflects via .value
     expect(select.value).toBe("create");
@@ -196,14 +184,10 @@ describe("app.settings.widget component (default export)", () => {
     // Editor not yet rendered — no inputs with placeholder = a default label
     const firstKey = Object.keys(DEFAULT_LABELS)[0];
     const firstDefault = DEFAULT_LABELS[firstKey];
-    expect(
-      container.querySelector(`input[placeholder="${cssEscape(firstDefault)}"]`),
-    ).toBeFalsy();
+    expect(container.querySelector(`input[placeholder="${cssEscape(firstDefault)}"]`)).toBeFalsy();
     fireEvent.click(trigger);
     await waitFor(() => {
-      const inputs = container.querySelectorAll(
-        'input[type="text"].app-input',
-      );
+      const inputs = container.querySelectorAll('input[type="text"].app-input');
       expect(inputs.length).toBeGreaterThan(0);
     });
   });

@@ -83,7 +83,6 @@ import { waitFor, fireEvent, act } from "@testing-library/react";
 import WebhookLogsPage, { loader } from "../app.settings.webhook-logs";
 import prismaMod from "../../db.server";
 
- 
 const prisma: any = prismaMod;
 
 const baseLoaderData = {
@@ -112,9 +111,7 @@ const baseLoaderData = {
     { value: "error", label: "Error" },
     { value: "ignored", label: "Ignored" },
   ],
-  statusOptions: [
-    { value: "", label: "All statuses" },
-  ],
+  statusOptions: [{ value: "", label: "All statuses" }],
   loaderError: null,
 };
 
@@ -315,8 +312,12 @@ describe("WebhookLogsPage gap — bulk retry Refresh onClick (line 506)", () => 
     const buttons = Array.from(container.querySelectorAll("button"));
     const refreshBtn = buttons.find((b) => b.textContent?.trim() === "Refresh");
     expect(refreshBtn).toBeTruthy();
-    await act(async () => { fireEvent.click(refreshBtn!); });
-    await waitFor(() => { expect(revalidate).toHaveBeenCalledTimes(1); });
+    await act(async () => {
+      fireEvent.click(refreshBtn!);
+    });
+    await waitFor(() => {
+      expect(revalidate).toHaveBeenCalledTimes(1);
+    });
   });
 
   it("renders the 'still ignored' yellow background variant when no successes and Refresh fires revalidate", async () => {
@@ -345,8 +346,12 @@ describe("WebhookLogsPage gap — bulk retry Refresh onClick (line 506)", () => 
     expect(container.textContent).toContain("2 still ignored");
     const buttons = Array.from(container.querySelectorAll("button"));
     const refreshBtn = buttons.find((b) => b.textContent?.trim() === "Refresh");
-    await act(async () => { fireEvent.click(refreshBtn!); });
-    await waitFor(() => { expect(revalidate).toHaveBeenCalledTimes(1); });
+    await act(async () => {
+      fireEvent.click(refreshBtn!);
+    });
+    await waitFor(() => {
+      expect(revalidate).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

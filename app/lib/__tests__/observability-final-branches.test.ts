@@ -48,9 +48,8 @@ function makeStubLogger(level = "info"): Record<string, unknown> {
     debug: vi.fn(),
     trace: vi.fn(),
     fatal: vi.fn(),
-    child: vi.fn(
-      (_b: Record<string, unknown>, opts?: { level?: string }) =>
-        makeStubLogger(opts?.level ?? level),
+    child: vi.fn((_b: Record<string, unknown>, opts?: { level?: string }) =>
+      makeStubLogger(opts?.level ?? level),
     ),
   };
   return stub;
@@ -125,9 +124,8 @@ function makeNoopInstrument(): Record<string, ReturnType<typeof vi.fn>> {
 }
 
 vi.mock("@opentelemetry/api", () => {
-  const tracerStartActive = vi.fn(
-    (_n: string, _o: unknown, fn: (s: OtelSpan) => unknown) =>
-      fn(otelState.span ?? makeSpan()),
+  const tracerStartActive = vi.fn((_n: string, _o: unknown, fn: (s: OtelSpan) => unknown) =>
+    fn(otelState.span ?? makeSpan()),
   );
   const meter = {
     createCounter: () => makeNoopInstrument(),
@@ -251,9 +249,7 @@ describe("logger.server.ts — final branches", () => {
     process.env.LOG_LEVEL_FYND = "trace";
     const mod = await import("../observability/logger.server");
     expect(mod.fyndLogger).toBeDefined();
-    expect(typeof (mod.fyndLogger as unknown as { info: unknown }).info).toBe(
-      "function",
-    );
+    expect(typeof (mod.fyndLogger as unknown as { info: unknown }).info).toBe("function");
   });
 });
 
@@ -318,9 +314,7 @@ describe("request-context.server.ts — span-active extras", () => {
   it("sets every extra attribute on the active span (lines 47-51)", async () => {
     const span = makeSpan();
     otelState.span = span;
-    const { setRequestContext } = await import(
-      "../observability/request-context.server"
-    );
+    const { setRequestContext } = await import("../observability/request-context.server");
     const req = new Request("https://example.com/", {
       headers: { "x-request-id": "req-final" },
     });
@@ -332,10 +326,7 @@ describe("request-context.server.ts — span-active extras", () => {
       returnRequestNo: "RR-100",
     });
     expect(span.setAttribute).toHaveBeenCalledWith("request.id", "req-final");
-    expect(span.setAttribute).toHaveBeenCalledWith(
-      "shop.domain",
-      "demo.myshopify.com",
-    );
+    expect(span.setAttribute).toHaveBeenCalledWith("shop.domain", "demo.myshopify.com");
     expect(span.setAttribute).toHaveBeenCalledWith("shop.id", "gid://shopify/Shop/1");
     expect(span.setAttribute).toHaveBeenCalledWith("user.type", "admin");
     expect(span.setAttribute).toHaveBeenCalledWith("return.id", "ret-1");
@@ -344,9 +335,7 @@ describe("request-context.server.ts — span-active extras", () => {
 
   it("getCorrelationHeaders includes X-Trace-Id when span is active", async () => {
     otelState.span = makeSpan();
-    const { getCorrelationHeaders } = await import(
-      "../observability/request-context.server"
-    );
+    const { getCorrelationHeaders } = await import("../observability/request-context.server");
     const headers = getCorrelationHeaders("rid-1");
     expect(headers["X-Request-Id"]).toBe("rid-1");
     expect(headers["X-Trace-Id"]).toBe("t-final");
@@ -427,9 +416,7 @@ describe("slo.server.ts — boundary branches", () => {
 
 describe("resilience.server.ts — timeout/fallback recording", () => {
   it("recordTimeout and recordFallback are side-effect-only and don't throw", async () => {
-    const { recordTimeout, recordFallback } = await import(
-      "../observability/resilience.server"
-    );
+    const { recordTimeout, recordFallback } = await import("../observability/resilience.server");
     expect(() => recordTimeout("svc", "op", 1000)).not.toThrow();
     expect(() => recordFallback("svc", "cache")).not.toThrow();
     // With optional metadata
@@ -467,9 +454,7 @@ describe("errors.server.ts — uncovered fingerprint methods", () => {
   });
 
   it("toAppError returns null for non-AppError values; isOperationalError returns false", async () => {
-    const { toAppError, isOperationalError } = await import(
-      "../observability/errors.server"
-    );
+    const { toAppError, isOperationalError } = await import("../observability/errors.server");
     expect(toAppError(new Error("plain"))).toBeNull();
     expect(toAppError("string")).toBeNull();
     expect(toAppError(null)).toBeNull();

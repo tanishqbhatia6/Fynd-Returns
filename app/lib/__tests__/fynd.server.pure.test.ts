@@ -31,12 +31,16 @@ describe("parseShipmentInternalIds", () => {
     expect(parseShipmentInternalIds({})).toEqual({ orderId: null, shipmentId: null });
   });
   it("prefers FY-prefixed order_id", () => {
-    expect(parseShipmentInternalIds({ order_id: "FY1234567890ABC" }))
-      .toEqual({ orderId: "FY1234567890ABC", shipmentId: null });
+    expect(parseShipmentInternalIds({ order_id: "FY1234567890ABC" })).toEqual({
+      orderId: "FY1234567890ABC",
+      shipmentId: null,
+    });
   });
   it("falls back to numeric order_id", () => {
-    expect(parseShipmentInternalIds({ order_id: "1001" }))
-      .toEqual({ orderId: "1001", shipmentId: null });
+    expect(parseShipmentInternalIds({ order_id: "1001" })).toEqual({
+      orderId: "1001",
+      shipmentId: null,
+    });
   });
   it("extracts shipment_id from id field", () => {
     expect(parseShipmentInternalIds({ id: "FY9876543210XYZ" }).shipmentId).toBe("FY9876543210XYZ");
@@ -71,8 +75,9 @@ describe("isFyndPrivateUrl", () => {
     expect(isFyndPrivateUrl("")).toBe(false);
   });
   it("recognises storage.googleapis.com private URLs", () => {
-    expect(isFyndPrivateUrl("https://storage.googleapis.com/fynd-assets-private-prod/x/y.jpg"))
-      .toBe(true);
+    expect(
+      isFyndPrivateUrl("https://storage.googleapis.com/fynd-assets-private-prod/x/y.jpg"),
+    ).toBe(true);
   });
   it("recognises cdn.fynd.com private URLs", () => {
     expect(isFyndPrivateUrl("https://cdn.fynd.com/private/foo.jpg")).toBe(true);

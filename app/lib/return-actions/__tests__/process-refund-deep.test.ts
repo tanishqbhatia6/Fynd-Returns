@@ -37,12 +37,19 @@ const {
   })),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
+  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
+    async () => null,
+  ),
   fetchOrderLineItemsOnlyMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderLineItemsByNameMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -91,10 +98,23 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: {
       graphql: vi.fn(async () => ({
         json: async () => ({ data: {} }),
@@ -153,15 +173,18 @@ describe("handleProcessRefund — bonus credit", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(
-        ctx,
-        { action: "process_refund", refundMethod: "store_credit", bonusAmount: 7.5 } as ReturnActionBody,
-      ),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "store_credit",
+        bonusAmount: 7.5,
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const opts = createRefundMock.mock.calls[0][6] as unknown as { bonusAmount: number };
     expect(opts.bonusAmount).toBe(7.5);
-    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as { data: { bonusCreditAmount?: string } };
+    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as {
+      data: { bonusCreditAmount?: string };
+    };
     expect(finalUpdate.data.bonusCreditAmount).toBe("7.50");
   });
 
@@ -170,7 +193,16 @@ describe("handleProcessRefund — bonus credit", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 2, sku: "S", price: "25.00", reasonCode: null, notes: null, title: "T" },
+          {
+            id: "i1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 2,
+            sku: "S",
+            price: "25.00",
+            reasonCode: null,
+            notes: null,
+            title: "T",
+          },
         ],
       } as never,
       shop: {
@@ -180,7 +212,10 @@ describe("handleProcessRefund — bonus credit", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", refundMethod: "store_credit" } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "store_credit",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     // 2 * 25 = 50; 20% = 10.00
@@ -193,7 +228,16 @@ describe("handleProcessRefund — bonus credit", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "S", price: "100.00", reasonCode: null, notes: null, title: "T" },
+          {
+            id: "i1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "S",
+            price: "100.00",
+            reasonCode: null,
+            notes: null,
+            title: "T",
+          },
         ],
       } as never,
       shop: {
@@ -203,10 +247,11 @@ describe("handleProcessRefund — bonus credit", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(
-        ctx,
-        { action: "process_refund", refundMethod: "both", storeCreditPct: 50 } as ReturnActionBody,
-      ),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "both",
+        storeCreditPct: 50,
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const opts = createRefundMock.mock.calls[0][6] as unknown as { bonusAmount: number };
@@ -222,7 +267,10 @@ describe("handleProcessRefund — bonus credit", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", refundMethod: "original" } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "original",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const opts = createRefundMock.mock.calls[0][6] as unknown as { bonusAmount: number };
@@ -238,7 +286,10 @@ describe("handleProcessRefund — bonus credit", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", refundMethod: "store_credit" } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "store_credit",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const opts = createRefundMock.mock.calls[0][6] as unknown as { bonusAmount: number };
@@ -250,7 +301,16 @@ describe("handleProcessRefund — bonus credit", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "S", price: null, reasonCode: null, notes: null, title: "T" },
+          {
+            id: "i1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "S",
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: "T",
+          },
         ],
       } as never,
       shop: {
@@ -260,13 +320,18 @@ describe("handleProcessRefund — bonus credit", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", refundMethod: "store_credit" } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "store_credit",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const opts = createRefundMock.mock.calls[0][6] as unknown as { bonusAmount: number };
     expect(opts.bonusAmount).toBe(0);
     // bonusCreditAmount NOT included in update payload when 0
-    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as { data: Record<string, unknown> };
+    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as {
+      data: Record<string, unknown>;
+    };
     expect(finalUpdate.data.bonusCreditAmount).toBeUndefined();
   });
 
@@ -275,7 +340,16 @@ describe("handleProcessRefund — bonus credit", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "S", price: "50.00", reasonCode: null, notes: null, title: "T" },
+          {
+            id: "i1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "S",
+            price: "50.00",
+            reasonCode: null,
+            notes: null,
+            title: "T",
+          },
         ],
       } as never,
       shop: {
@@ -285,7 +359,10 @@ describe("handleProcessRefund — bonus credit", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", refundMethod: "store_credit" } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "store_credit",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     // 50 * 0.10 = 5.00
@@ -298,31 +375,38 @@ describe("handleProcessRefund — bonus credit", () => {
 describe("handleProcessRefund — refund method 'both' splits", () => {
   it("percentage mode: passes storeCreditPct to refund cfg", async () => {
     await expectRedirect(
-      handleProcessRefund(
-        mkCtx(),
-        { action: "process_refund", refundMethod: "both", storeCreditPct: 60 } as ReturnActionBody,
-      ),
+      handleProcessRefund(mkCtx(), {
+        action: "process_refund",
+        refundMethod: "both",
+        storeCreditPct: 60,
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const cfg = createRefundMock.mock.calls[0][5] as unknown as { method: string; storeCreditPct?: number; storeCreditAmount?: number };
+    const cfg = createRefundMock.mock.calls[0][5] as unknown as {
+      method: string;
+      storeCreditPct?: number;
+      storeCreditAmount?: number;
+    };
     expect(cfg.method).toBe("both");
     expect(cfg.storeCreditPct).toBe(60);
     expect(cfg.storeCreditAmount).toBeUndefined();
   });
 
   it("percentage mode: rejects storeCreditPct < 5", async () => {
-    const res = await handleProcessRefund(
-      mkCtx(),
-      { action: "process_refund", refundMethod: "both", storeCreditPct: 4 } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+      refundMethod: "both",
+      storeCreditPct: 4,
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 
   it("percentage mode: rejects NaN storeCreditPct", async () => {
-    const res = await handleProcessRefund(
-      mkCtx(),
-      { action: "process_refund", refundMethod: "both", storeCreditPct: NaN } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+      refundMethod: "both",
+      storeCreditPct: NaN,
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 
@@ -335,26 +419,30 @@ describe("handleProcessRefund — refund method 'both' splits", () => {
       },
     });
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", refundMethod: "both" } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        refundMethod: "both",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
   });
 
   it("amount mode: passes both numeric amounts to refund cfg", async () => {
     await expectRedirect(
-      handleProcessRefund(
-        mkCtx(),
-        {
-          action: "process_refund",
-          refundMethod: "both",
-          splitMode: "amount",
-          splitScAmount: 6,
-          splitOrigAmount: 4,
-        } as ReturnActionBody,
-      ),
+      handleProcessRefund(mkCtx(), {
+        action: "process_refund",
+        refundMethod: "both",
+        splitMode: "amount",
+        splitScAmount: 6,
+        splitOrigAmount: 4,
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const cfg = createRefundMock.mock.calls[0][5] as unknown as { method: string; storeCreditAmount?: number; originalAmount?: number };
+    const cfg = createRefundMock.mock.calls[0][5] as unknown as {
+      method: string;
+      storeCreditAmount?: number;
+      originalAmount?: number;
+    };
     expect(cfg.method).toBe("both");
     expect(cfg.storeCreditAmount).toBe(6);
     expect(cfg.originalAmount).toBe(4);
@@ -362,34 +450,31 @@ describe("handleProcessRefund — refund method 'both' splits", () => {
 
   it("amount mode: accepts one zero amount (only one greater than zero)", async () => {
     await expectRedirect(
-      handleProcessRefund(
-        mkCtx(),
-        {
-          action: "process_refund",
-          refundMethod: "both",
-          splitMode: "amount",
-          splitScAmount: 10,
-          splitOrigAmount: 0,
-        } as ReturnActionBody,
-      ),
+      handleProcessRefund(mkCtx(), {
+        action: "process_refund",
+        refundMethod: "both",
+        splitMode: "amount",
+        splitScAmount: 10,
+        splitOrigAmount: 0,
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const cfg = createRefundMock.mock.calls[0][5] as unknown as { storeCreditAmount?: number; originalAmount?: number };
+    const cfg = createRefundMock.mock.calls[0][5] as unknown as {
+      storeCreditAmount?: number;
+      originalAmount?: number;
+    };
     expect(cfg.storeCreditAmount).toBe(10);
     expect(cfg.originalAmount).toBe(0);
   });
 
   it("amount mode: rejects NaN amount", async () => {
-    const res = await handleProcessRefund(
-      mkCtx(),
-      {
-        action: "process_refund",
-        refundMethod: "both",
-        splitMode: "amount",
-        splitScAmount: "abc" as unknown as number,
-        splitOrigAmount: 5,
-      } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+      refundMethod: "both",
+      splitMode: "amount",
+      splitScAmount: "abc" as unknown as number,
+      splitOrigAmount: 5,
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
   });
 });
@@ -398,10 +483,10 @@ describe("handleProcessRefund — refund method 'both' splits", () => {
 describe("handleProcessRefund — location handling", () => {
   it("passes locationId when supplied and not green-return", async () => {
     await expectRedirect(
-      handleProcessRefund(
-        mkCtx(),
-        { action: "process_refund", locationId: "gid://shopify/Location/42" } as ReturnActionBody,
-      ),
+      handleProcessRefund(mkCtx(), {
+        action: "process_refund",
+        locationId: "gid://shopify/Location/42",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const locArg = createRefundMock.mock.calls[0][4];
@@ -415,10 +500,10 @@ describe("handleProcessRefund — location handling", () => {
       returnCase: { ...mkCtx().returnCase, isGreenReturn: true } as never,
     });
     await expectRedirect(
-      handleProcessRefund(
-        ctx,
-        { action: "process_refund", locationId: "gid://shopify/Location/42" } as ReturnActionBody,
-      ),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        locationId: "gid://shopify/Location/42",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
     const locArg = createRefundMock.mock.calls[0][4];
@@ -426,7 +511,9 @@ describe("handleProcessRefund — location handling", () => {
     const opts = createRefundMock.mock.calls[0][6] as unknown as { skipLocation: boolean };
     expect(opts.skipLocation).toBe(true);
     // refund payload should mark greenReturn: true
-    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as { data: { refundJson: string } };
+    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as {
+      data: { refundJson: string };
+    };
     expect(JSON.parse(finalUpdate.data.refundJson).greenReturn).toBe(true);
   });
 
@@ -542,7 +629,16 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
         ...mkCtx().returnCase,
         items: [
           // bare numeric id forces lineItemsForRefund to start empty
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -556,7 +652,10 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       "/app/returns/rc-1",
     );
     expect(fetchOrderLineItemsOnlyMock).toHaveBeenCalled();
-    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
+    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{
+      id: string;
+      quantity: number;
+    }>;
     // Caps qty by total return-item qty (1) — never refunds the full ordered qty (2).
     expect(liArg).toEqual([{ id: "gid://shopify/LineItem/A", quantity: 1 }]);
   });
@@ -566,7 +665,16 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -582,7 +690,9 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
     );
     expect(fetchOrderLineItemsByNameMock).toHaveBeenCalledWith(expect.anything(), "1001");
     // Strategy 0b updated orderIdForRefund — verify update was called
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) => (c[0] as { data: Record<string, unknown> }).data);
+    const updates = prismaMock.returnCase.update.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
     const orderIdUpdate = updates.find((d) => d.shopifyOrderId === "gid://shopify/Order/2");
     expect(orderIdUpdate).toBeDefined();
   });
@@ -592,7 +702,16 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -607,7 +726,10 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       "/app/returns/rc-1",
     );
     expect(fetchOrderMock).toHaveBeenCalled();
-    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
+    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{
+      id: string;
+      quantity: number;
+    }>;
     // Caps qty at return-item qty (1) instead of full ordered qty (3).
     expect(liArg).toEqual([{ id: "gid://shopify/LineItem/C", quantity: 1 }]);
   });
@@ -617,7 +739,16 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 5, sku: "MATCH-ME", price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 5,
+            sku: "MATCH-ME",
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -633,7 +764,10 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
+    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{
+      id: string;
+      quantity: number;
+    }>;
     // Should match by SKU and use ri.qty (5), not Shopify quantity (99)
     expect(liArg).toEqual([{ id: "gid://shopify/LineItem/Y", quantity: 5 }]);
   });
@@ -643,7 +777,16 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: "DOES-NOT-EXIST", price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: "DOES-NOT-EXIST",
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -659,13 +802,14 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
+    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{
+      id: string;
+      quantity: number;
+    }>;
     // Total return qty is 1; fallback distributes across line items in order
     // (first line takes 1, remaining 0 → second line skipped). Never refunds
     // the full ordered qty across multiple lines.
-    expect(liArg).toEqual([
-      { id: "gid://shopify/LineItem/X", quantity: 1 },
-    ]);
+    expect(liArg).toEqual([{ id: "gid://shopify/LineItem/X", quantity: 1 }]);
   });
 
   it("caps refund qty at total return qty when no return items have SKU", async () => {
@@ -673,7 +817,16 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -686,7 +839,10 @@ describe("handleProcessRefund — line-item resolution fallbacks", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
+    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{
+      id: string;
+      quantity: number;
+    }>;
     // Caps at return-item qty (1), never refunds full ordered qty (4).
     expect(liArg).toEqual([{ id: "gid://shopify/LineItem/Q", quantity: 1 }]);
   });
@@ -723,7 +879,10 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
     );
     const synced = events.find((e) => e.eventType === "fynd_refund_synced");
     expect(synced).toBeDefined();
-    const payload = JSON.parse(synced!.payloadJson) as { transitions: string[]; partialFailures?: Array<{ status: string; error: string }> };
+    const payload = JSON.parse(synced!.payloadJson) as {
+      transitions: string[];
+      partialFailures?: Array<{ status: string; error: string }>;
+    };
     expect(payload.transitions).toHaveLength(1); // only first succeeded
     expect(payload.partialFailures).toBeDefined();
     expect(payload.partialFailures).toHaveLength(1);
@@ -740,7 +899,9 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
         fyndCurrentStatus: "return_accepted",
       } as never,
     });
-    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
@@ -751,7 +912,9 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
     );
     // Only credit_note_generated should be pushed (return_accepted skipped)
     expect(updateShipmentStatus).toHaveBeenCalledTimes(1);
-    const callArg = updateShipmentStatus.mock.calls[0][1] as unknown as { statuses: Array<{ status: string }> };
+    const callArg = updateShipmentStatus.mock.calls[0][1] as unknown as {
+      statuses: Array<{ status: string }>;
+    };
     expect(callArg.statuses[0].status).toBe("credit_note_generated");
   });
 
@@ -764,7 +927,9 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
         fyndCurrentStatus: "return_accepted",
       } as never,
     });
-    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },

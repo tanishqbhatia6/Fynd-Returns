@@ -82,7 +82,8 @@ describe("app.reports loader", () => {
   it("honours an explicit from/to custom range", async () => {
     await loader({
       request: mkReq("?range=custom&from=2025-01-01&to=2025-01-31"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const firstCountCall = prismaMock.returnCase.count.mock.calls[0][0];
     const gte = firstCountCall.where.createdAt.gte as Date;
@@ -119,8 +120,8 @@ describe("app.reports loader", () => {
         return [
           { reasonCode: "size", _count: 8 },
           { reasonCode: "defect", _count: 3 },
-          { reasonCode: "", _count: 2 },     // ignored
-          { reasonCode: null, _count: 99 },   // ignored
+          { reasonCode: "", _count: 2 }, // ignored
+          { reasonCode: null, _count: 99 }, // ignored
         ] as any;
       }
       return [];
@@ -167,15 +168,16 @@ describe("app.reports loader", () => {
         return [
           { refundJson: JSON.stringify({ amount: "30.00", method: "card" }), currency: "USD" },
           { refundJson: JSON.stringify({ amount: "60.00", method: "card" }), currency: "USD" },
-          { refundJson: JSON.stringify({ amount: "10.00", method: "store_credit" }), currency: "USD" },
+          {
+            refundJson: JSON.stringify({ amount: "10.00", method: "store_credit" }),
+            currency: "USD",
+          },
           { refundJson: "{not-json", currency: "USD" }, // ignored
         ] as any;
       }
       // retained cases (exchange / store_credit with refundJson)
       if (w.resolutionType?.in?.includes("exchange")) {
-        return [
-          { refundJson: JSON.stringify({ amount: "100.00" }) },
-        ] as any;
+        return [{ refundJson: JSON.stringify({ amount: "100.00" }) }] as any;
       }
       return [];
     });
@@ -218,9 +220,7 @@ describe("app.reports loader", () => {
         ] as any;
       }
       if (args.by?.includes("sku")) {
-        return [
-          { sku: "ABC", _count: { sku: 5 } },
-        ] as any;
+        return [{ sku: "ABC", _count: { sku: 5 } }] as any;
       }
       return [];
     });
@@ -284,7 +284,9 @@ describe("app.reports loader", () => {
 
   it("tolerates fraud-risk column failure and returns 0 fraudAlertCount", async () => {
     // Throw on the fraud-specific count() calls (those with fraudRiskLevel in where)
-    const realCount = prismaMock.returnCase.count.getMockImplementation() as ((args: unknown) => unknown) | undefined;
+    const realCount = prismaMock.returnCase.count.getMockImplementation() as
+      | ((args: unknown) => unknown)
+      | undefined;
     prismaMock.returnCase.count.mockImplementation(async (args: any) => {
       if (args?.where?.fraudRiskLevel) throw new Error("column does not exist");
       return realCount ? await realCount(args) : 0;

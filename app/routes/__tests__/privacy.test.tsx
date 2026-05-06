@@ -31,9 +31,11 @@ describe("meta", () => {
   it("returns title + description meta tags", () => {
     const result = meta({} as never);
     expect(Array.isArray(result)).toBe(true);
-    expect(result).toEqual(expect.arrayContaining([
-      expect.objectContaining({ title: expect.stringContaining("Privacy") }),
-      expect.objectContaining({ name: "description" }),
-    ]));
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ title: expect.stringContaining("Privacy") }),
+        expect.objectContaining({ name: "description" }),
+      ]),
+    );
   });
 });

@@ -10,14 +10,14 @@
  */
 
 export const STATUS_COLORS: Record<string, string> = {
-  pending: "#b45309",      // amber-700 — was amber-600 (failed AA on amber-50 bg)
-  processing: "#1d4ed8",   // blue-700  — was blue-500 (marginal)
+  pending: "#b45309", // amber-700 — was amber-600 (failed AA on amber-50 bg)
+  processing: "#1d4ed8", // blue-700  — was blue-500 (marginal)
   "in progress": "#1d4ed8",
-  approved: "#047857",     // emerald-700 — was emerald-600 (failed AA)
+  approved: "#047857", // emerald-700 — was emerald-600 (failed AA)
   completed: "#1d4ed8",
-  rejected: "#b91c1c",     // red-700 — was red-600 (marginally above 4.5:1; bump for safety)
-  cancelled: "#475569",    // slate-600 — was slate-500
-  initiated: "#b45309",    // same as pending — was amber-500 (failed AA)
+  rejected: "#b91c1c", // red-700 — was red-600 (marginally above 4.5:1; bump for safety)
+  cancelled: "#475569", // slate-600 — was slate-500
+  initiated: "#b45309", // same as pending — was amber-500 (failed AA)
 };
 
 export const STATUS_BG: Record<string, string> = {

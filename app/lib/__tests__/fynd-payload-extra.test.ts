@@ -40,16 +40,19 @@ describe("isLikelyFyndId — additional cases", () => {
 
 describe("buildTrackingUrlFromCourierAndAwb — additional cases", () => {
   it("is case-insensitive (uppercase courier)", () => {
-    expect(buildTrackingUrlFromCourierAndAwb("DELHIVERY", "DL1"))
-      .toBe("https://www.delhivery.com/track/package/DL1");
+    expect(buildTrackingUrlFromCourierAndAwb("DELHIVERY", "DL1")).toBe(
+      "https://www.delhivery.com/track/package/DL1",
+    );
   });
   it("ignores spaces inside courier name", () => {
-    expect(buildTrackingUrlFromCourierAndAwb("D T D C", "DT1"))
-      .toBe("https://www.dtdc.in/tracking.asp?ref=DT1");
+    expect(buildTrackingUrlFromCourierAndAwb("D T D C", "DT1")).toBe(
+      "https://www.dtdc.in/tracking.asp?ref=DT1",
+    );
   });
   it("trims AWB whitespace", () => {
-    expect(buildTrackingUrlFromCourierAndAwb("Delhivery", "  DL2  "))
-      .toBe("https://www.delhivery.com/track/package/DL2");
+    expect(buildTrackingUrlFromCourierAndAwb("Delhivery", "  DL2  ")).toBe(
+      "https://www.delhivery.com/track/package/DL2",
+    );
   });
   it("returns null for whitespace-only AWB", () => {
     expect(buildTrackingUrlFromCourierAndAwb("Delhivery", "   ")).toBe(null);
@@ -58,12 +61,14 @@ describe("buildTrackingUrlFromCourierAndAwb — additional cases", () => {
     expect(buildTrackingUrlFromCourierAndAwb(null as unknown as string, "X1")).toBe(null);
   });
   it("Dunzo is intentionally aliased to Delhivery URL", () => {
-    expect(buildTrackingUrlFromCourierAndAwb("Dunzo Direct", "DZ1"))
-      .toBe("https://www.delhivery.com/track/package/DZ1");
+    expect(buildTrackingUrlFromCourierAndAwb("Dunzo Direct", "DZ1")).toBe(
+      "https://www.delhivery.com/track/package/DZ1",
+    );
   });
   it("ekartlogistics single-token also matches", () => {
-    expect(buildTrackingUrlFromCourierAndAwb("ekartlogistics", "EK1"))
-      .toBe("https://ekartlogistics.com/track/EK1");
+    expect(buildTrackingUrlFromCourierAndAwb("ekartlogistics", "EK1")).toBe(
+      "https://ekartlogistics.com/track/EK1",
+    );
   });
 });
 
@@ -75,7 +80,11 @@ describe("getTrackingInfoFromFyndPayload — additional cases", () => {
   });
   it("uses delivery_partner_details over dp_details when both exist", () => {
     const json = JSON.stringify({
-      delivery_partner_details: { display_name: "Bluedart", awb_no: "BD1", track_url: "https://bd/1" },
+      delivery_partner_details: {
+        display_name: "Bluedart",
+        awb_no: "BD1",
+        track_url: "https://bd/1",
+      },
       dp_details: { display_name: "Delhivery", awb_no: "DL1" },
     });
     const info = getTrackingInfoFromFyndPayload(json)!;
@@ -180,10 +189,12 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("captures invoice URL from invoice.links.invoice_a4", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        invoice: { links: { invoice_a4: "https://inv/a4.pdf", label: "https://inv/lab.pdf" } },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          invoice: { links: { invoice_a4: "https://inv/a4.pdf", label: "https://inv/lab.pdf" } },
+        },
+      ],
     });
     const r = parseFyndOrderDetailsForTab(p)!;
     expect(r.shipments[0].invoiceUrl).toBe("https://inv/a4.pdf");
@@ -191,21 +202,25 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("falls back to building tracking URL when courier known + AWB present", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        dp_details: { display_name: "Delhivery", awb_no: "DL2" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          dp_details: { display_name: "Delhivery", awb_no: "DL2" },
+        },
+      ],
     });
     const r = parseFyndOrderDetailsForTab(p)!;
     expect(r.shipments[0].trackingUrl).toBe("https://www.delhivery.com/track/package/DL2");
   });
   it("routes AWB to returnAwb when journey_type is 'return'", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        journey_type: "return",
-        dp_details: { display_name: "Delhivery", awb_no: "DL3" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          journey_type: "return",
+          dp_details: { display_name: "Delhivery", awb_no: "DL3" },
+        },
+      ],
     });
     const r = parseFyndOrderDetailsForTab(p)!;
     expect(r.shipments[0].forwardAwb).toBe(null);
@@ -236,10 +251,12 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("parses items from bags.articles when no top-level items", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        bags: [{ articles: [{ name: "Shoes", quantity: 2, price: 1000 }] }],
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          bags: [{ articles: [{ name: "Shoes", quantity: 2, price: 1000 }] }],
+        },
+      ],
     });
     const r = parseFyndOrderDetailsForTab(p)!;
     expect(r.shipments[0].items).toHaveLength(1);
@@ -248,10 +265,12 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("parses items from packages[].items as last-resort fallback", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        packages: [{ items: [{ name: "Hat" }] }],
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          packages: [{ items: [{ name: "Hat" }] }],
+        },
+      ],
     });
     const r = parseFyndOrderDetailsForTab(p)!;
     expect(r.shipments[0].items).toHaveLength(1);
@@ -259,25 +278,37 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("extracts shipmentStatus from object-shaped status field", () => {
     const p = JSON.stringify({
-      shipments: [{ shipment_id: "S1", shipment_status: { title: "Delivered", status: "delivered" } }],
+      shipments: [
+        { shipment_id: "S1", shipment_status: { title: "Delivered", status: "delivered" } },
+      ],
     });
     expect(parseFyndOrderDetailsForTab(p)!.shipments[0].shipmentStatus).toBe("Delivered");
   });
   it("composes fulfillmentStore as 'name, city' when both present", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        fulfilling_store: { store_name: "Store A", city: "Mumbai" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          fulfilling_store: { store_name: "Store A", city: "Mumbai" },
+        },
+      ],
     });
     expect(parseFyndOrderDetailsForTab(p)!.shipments[0].fulfillmentStore).toBe("Store A, Mumbai");
   });
   it("captures pricing fields from orderPrice", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        orderPrice: { subtotal: 1000, orderTotalAmount: 1100, currency: "INR", discount: 100, deliveryCharges: 50 },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          orderPrice: {
+            subtotal: 1000,
+            orderTotalAmount: 1100,
+            currency: "INR",
+            discount: 100,
+            deliveryCharges: 50,
+          },
+        },
+      ],
     });
     const pr = parseFyndOrderDetailsForTab(p)!.shipments[0].pricing!;
     expect(pr.subtotal).toBe("1000");
@@ -288,14 +319,16 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("captures pricing from breakup array when orderPrice absent", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        breakup: [
-          { type: "subtotal", value: 500 },
-          { type: "total", value: 600 },
-          { type: "discount", value: 50 },
-        ],
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          breakup: [
+            { type: "subtotal", value: 500 },
+            { type: "total", value: 600 },
+            { type: "discount", value: 50 },
+          ],
+        },
+      ],
     });
     const pr = parseFyndOrderDetailsForTab(p)!.shipments[0].pricing!;
     expect(pr.subtotal).toBe("500");
@@ -304,11 +337,13 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("captures order-level paymentMethod and supportUrl", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        payment_mode: "COD",
-        need_help_url: "https://help.example",
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          payment_mode: "COD",
+          need_help_url: "https://help.example",
+        },
+      ],
     });
     const r = parseFyndOrderDetailsForTab(p)!;
     expect(r.paymentMethod).toBe("COD");
@@ -316,13 +351,15 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("extracts trackingDetails timeline", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        tracking_details: [
-          { status: "Picked", time: "2026-01-01T10:00:00Z", message: "Picked up" },
-          { status: "Delivered", time: "2026-01-02T10:00:00Z" },
-        ],
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          tracking_details: [
+            { status: "Picked", time: "2026-01-01T10:00:00Z", message: "Picked up" },
+            { status: "Delivered", time: "2026-01-02T10:00:00Z" },
+          ],
+        },
+      ],
     });
     const td = parseFyndOrderDetailsForTab(p)!.shipments[0].trackingDetails!;
     expect(td).toHaveLength(2);
@@ -331,10 +368,12 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("extracts dimensions when length/width/height all present", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        size_info: { length: 10, width: 5, height: 3, unit_of_measurement: "cm" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          size_info: { length: 10, width: 5, height: 3, unit_of_measurement: "cm" },
+        },
+      ],
     });
     expect(parseFyndOrderDetailsForTab(p)!.shipments[0].dimensions).toBe("10 × 5 × 3 cm");
   });
@@ -350,10 +389,12 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("captures returnPickupAddress from return_address", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        return_address: { name: "WH", address1: "1 Road", city: "Delhi" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          return_address: { name: "WH", address1: "1 Road", city: "Delhi" },
+        },
+      ],
     });
     const a = parseFyndOrderDetailsForTab(p)!.shipments[0].returnPickupAddress!;
     expect(a.city).toBe("Delhi");
@@ -361,10 +402,12 @@ describe("parseFyndOrderDetailsForTab — additional cases", () => {
   });
   it("captures deliveryAddress when shipping_address present", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "S1",
-        shipping_address: { name: "Cust", address1: "Foo St", city: "Mumbai" },
-      }],
+      shipments: [
+        {
+          shipment_id: "S1",
+          shipping_address: { name: "Cust", address1: "Foo St", city: "Mumbai" },
+        },
+      ],
     });
     const a = parseFyndOrderDetailsForTab(p)!.shipments[0].deliveryAddress!;
     expect(a.city).toBe("Mumbai");
@@ -380,13 +423,21 @@ describe("extractFyndJourney — additional cases", () => {
   });
   it("uses status_updates when bag_status missing", () => {
     const p = JSON.stringify({
-      shipments: [{
-        bags: [{
-          status_updates: [
-            { status: "ready", state_mapper: { display_name: "Ready", journey_type: "forward" }, updated_at: "2026-03-01T10:00:00Z" },
+      shipments: [
+        {
+          bags: [
+            {
+              status_updates: [
+                {
+                  status: "ready",
+                  state_mapper: { display_name: "Ready", journey_type: "forward" },
+                  updated_at: "2026-03-01T10:00:00Z",
+                },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
     const steps = extractFyndJourney(p, "forward");
     expect(steps).toHaveLength(1);
@@ -394,25 +445,40 @@ describe("extractFyndJourney — additional cases", () => {
   });
   it("falls back to status when displayName/name absent", () => {
     const p = JSON.stringify({
-      shipments: [{
-        bags: [{
-          bag_status: [
-            { status: "shipped", bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-04-01T10:00:00Z" },
+      shipments: [
+        {
+          bags: [
+            {
+              bag_status: [
+                {
+                  status: "shipped",
+                  bag_state_mapper: { journey_type: "forward" },
+                  updated_at: "2026-04-01T10:00:00Z",
+                },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
     expect(extractFyndJourney(p, "forward")[0].displayName).toBe("shipped");
   });
   it("'—' when both status and displayName missing", () => {
     const p = JSON.stringify({
-      shipments: [{
-        bags: [{
-          bag_status: [
-            { bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-04-01T10:00:00Z" },
+      shipments: [
+        {
+          bags: [
+            {
+              bag_status: [
+                {
+                  bag_state_mapper: { journey_type: "forward" },
+                  updated_at: "2026-04-01T10:00:00Z",
+                },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
     const s = extractFyndJourney(p, "forward");
     expect(s).toHaveLength(1);
@@ -420,25 +486,43 @@ describe("extractFyndJourney — additional cases", () => {
   });
   it("each step carries the journey type tag", () => {
     const p = JSON.stringify({
-      shipments: [{
-        bags: [{ bag_status: [{ status: "x", bag_state_mapper: { journey_type: "return" } }] }],
-      }],
+      shipments: [
+        {
+          bags: [{ bag_status: [{ status: "x", bag_state_mapper: { journey_type: "return" } }] }],
+        },
+      ],
     });
     expect(extractFyndJourney(p, "return")[0].journeyType).toBe("return");
   });
   it("sort is ascending by parsed time", () => {
     const p = JSON.stringify({
-      shipments: [{
-        bags: [{
-          bag_status: [
-            { status: "third", bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-03-01T00:00:00Z" },
-            { status: "first", bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-01-01T00:00:00Z" },
-            { status: "second", bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-02-01T00:00:00Z" },
+      shipments: [
+        {
+          bags: [
+            {
+              bag_status: [
+                {
+                  status: "third",
+                  bag_state_mapper: { journey_type: "forward" },
+                  updated_at: "2026-03-01T00:00:00Z",
+                },
+                {
+                  status: "first",
+                  bag_state_mapper: { journey_type: "forward" },
+                  updated_at: "2026-01-01T00:00:00Z",
+                },
+                {
+                  status: "second",
+                  bag_state_mapper: { journey_type: "forward" },
+                  updated_at: "2026-02-01T00:00:00Z",
+                },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
-    const ordered = extractFyndJourney(p, "forward").map(s => s.status);
+    const ordered = extractFyndJourney(p, "forward").map((s) => s.status);
     expect(ordered).toEqual(["first", "second", "third"]);
   });
 });
@@ -559,14 +643,14 @@ describe("extractAffiliateOrderIdFromFyndPayload — additional cases", () => {
     expect(extractAffiliateOrderIdFromFyndPayload(123 as unknown as string)).toBe(null);
   });
   it("reads channel_order_id from top-level when affiliate_order_id missing", () => {
-    expect(extractAffiliateOrderIdFromFyndPayload(
-      JSON.stringify({ channel_order_id: "1234" })
-    )).toBe("1234");
+    expect(
+      extractAffiliateOrderIdFromFyndPayload(JSON.stringify({ channel_order_id: "1234" })),
+    ).toBe("1234");
   });
   it("returns null when value is non-string number", () => {
-    expect(extractAffiliateOrderIdFromFyndPayload(
-      JSON.stringify({ affiliate_order_id: 1234 })
-    )).toBe(null);
+    expect(
+      extractAffiliateOrderIdFromFyndPayload(JSON.stringify({ affiliate_order_id: 1234 })),
+    ).toBe(null);
   });
   it("returns null when first list item isn't an object", () => {
     expect(extractAffiliateOrderIdFromFyndPayload(JSON.stringify(["x"]))).toBe(null);

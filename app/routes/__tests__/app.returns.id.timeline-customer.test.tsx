@@ -283,7 +283,10 @@ describe("app.returns.$id — activity timeline panel", () => {
         eventType: "address_edit",
         source: "admin",
         happenedAt: new Date("2026-05-01T10:00:00Z").toISOString(),
-        payloadJson: JSON.stringify({ adminEmail: "ops@example.com", changed: ["customerAddress1"] }),
+        payloadJson: JSON.stringify({
+          adminEmail: "ops@example.com",
+          changed: ["customerAddress1"],
+        }),
       },
       {
         id: "e4",
@@ -323,10 +326,30 @@ describe("app.returns.$id — activity timeline panel", () => {
 
   it("renders source pill labels (Portal / Admin / System / Shopify)", async () => {
     const events: EventInput[] = [
-      { id: "e1", eventType: "created", source: "portal", happenedAt: new Date("2026-05-01T08:00:00Z").toISOString() },
-      { id: "e2", eventType: "approved", source: "admin", happenedAt: new Date("2026-05-01T09:00:00Z").toISOString() },
-      { id: "e3", eventType: "auto_approved", source: "system", happenedAt: new Date("2026-05-01T10:00:00Z").toISOString() },
-      { id: "e4", eventType: "fulfilled", source: "shopify_webhook", happenedAt: new Date("2026-05-01T11:00:00Z").toISOString() },
+      {
+        id: "e1",
+        eventType: "created",
+        source: "portal",
+        happenedAt: new Date("2026-05-01T08:00:00Z").toISOString(),
+      },
+      {
+        id: "e2",
+        eventType: "approved",
+        source: "admin",
+        happenedAt: new Date("2026-05-01T09:00:00Z").toISOString(),
+      },
+      {
+        id: "e3",
+        eventType: "auto_approved",
+        source: "system",
+        happenedAt: new Date("2026-05-01T10:00:00Z").toISOString(),
+      },
+      {
+        id: "e4",
+        eventType: "fulfilled",
+        source: "shopify_webhook",
+        happenedAt: new Date("2026-05-01T11:00:00Z").toISOString(),
+      },
     ];
     const rc = makeReturnCase({ events });
     const { container } = renderWithRouter(Component, {
@@ -344,7 +367,12 @@ describe("app.returns.$id — activity timeline panel", () => {
 
   it("falls back to 'Admin' source label when source is unknown/missing", async () => {
     const events: EventInput[] = [
-      { id: "e1", eventType: "manual_action", source: "weirdo_source", happenedAt: new Date("2026-05-01T08:00:00Z").toISOString() },
+      {
+        id: "e1",
+        eventType: "manual_action",
+        source: "weirdo_source",
+        happenedAt: new Date("2026-05-01T08:00:00Z").toISOString(),
+      },
     ];
     const rc = makeReturnCase({ events });
     const { container } = renderWithRouter(Component, {
@@ -375,7 +403,12 @@ describe("app.returns.$id — activity timeline panel", () => {
 
   it("shows 'unknown' label when eventType is missing", async () => {
     const events: EventInput[] = [
-      { id: "e1", eventType: "", source: "system", happenedAt: new Date("2026-05-01T08:00:00Z").toISOString() },
+      {
+        id: "e1",
+        eventType: "",
+        source: "system",
+        happenedAt: new Date("2026-05-01T08:00:00Z").toISOString(),
+      },
     ];
     const rc = makeReturnCase({ events });
     const { container } = renderWithRouter(Component, {
@@ -524,7 +557,12 @@ describe("app.returns.$id — activity timeline panel", () => {
   it("skips null events in the events array without throwing", async () => {
     const events = [
       null,
-      { id: "e1", eventType: "created", source: "portal", happenedAt: new Date("2026-05-01T08:00:00Z").toISOString() },
+      {
+        id: "e1",
+        eventType: "created",
+        source: "portal",
+        happenedAt: new Date("2026-05-01T08:00:00Z").toISOString(),
+      },
     ] as unknown as EventInput[];
     const rc = makeReturnCase({ events });
     const { container } = renderWithRouter(Component, {
@@ -657,8 +695,12 @@ describe("app.returns.$id — customer info side panel", () => {
       expect(container.querySelector('input[name="customerAddress1"]')).toBeTruthy();
     });
     const addr1 = container.querySelector('input[name="customerAddress1"]') as HTMLInputElement;
-    await act(async () => { fireEvent.change(addr1, { target: { value: "999 Updated Ave" } }); });
-    await waitFor(() => { expect(addr1.value).toBe("999 Updated Ave"); });
+    await act(async () => {
+      fireEvent.change(addr1, { target: { value: "999 Updated Ave" } });
+    });
+    await waitFor(() => {
+      expect(addr1.value).toBe("999 Updated Ave");
+    });
     // Find form & submit
     const form = addr1.closest("form") as HTMLFormElement;
     expect(form).toBeTruthy();
@@ -666,9 +708,13 @@ describe("app.returns.$id — customer info side panel", () => {
       (b) => (b.textContent || "").trim() === "Save address",
     );
     expect(submitBtn).toBeTruthy();
-    await act(async () => { fireEvent.submit(form); });
+    await act(async () => {
+      fireEvent.submit(form);
+    });
     // After submit handler, form is hidden again — but at minimum no error
-    await waitFor(() => { expect(form).toBeTruthy(); });
+    await waitFor(() => {
+      expect(form).toBeTruthy();
+    });
   });
 
   it("toggles the edit-pickup-address form back closed (Cancel)", async () => {
@@ -722,8 +768,12 @@ describe("app.returns.$id — customer info side panel", () => {
       expect(container.textContent).toContain("Internal notes");
     });
     const ta = container.querySelector('textarea[name="note"]') as HTMLTextAreaElement;
-    await act(async () => { fireEvent.change(ta, { target: { value: "Updated note text" } }); });
-    await waitFor(() => { expect(ta.value).toBe("Updated note text"); });
+    await act(async () => {
+      fireEvent.change(ta, { target: { value: "Updated note text" } });
+    });
+    await waitFor(() => {
+      expect(ta.value).toBe("Updated note text");
+    });
   });
 
   it("renders the customer-facing notes textarea with Publish button", async () => {

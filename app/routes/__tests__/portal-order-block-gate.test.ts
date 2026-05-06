@@ -21,12 +21,18 @@ const { shouldBlockOrderForExistingReturn } = await import("../api.portal.order"
 
 describe("shouldBlockOrderForExistingReturn", () => {
   it("does NOT block when no items have been returned yet", () => {
-    const items = [{ id: "li_1", quantity: 1 }, { id: "li_2", quantity: 1 }];
+    const items = [
+      { id: "li_1", quantity: 1 },
+      { id: "li_2", quantity: 1 },
+    ];
     expect(shouldBlockOrderForExistingReturn(items, {})).toBe(false);
   });
 
   it("does NOT block when only some items have been returned (multi-item order)", () => {
-    const items = [{ id: "li_1", quantity: 1 }, { id: "li_2", quantity: 1 }];
+    const items = [
+      { id: "li_1", quantity: 1 },
+      { id: "li_2", quantity: 1 },
+    ];
     const returnedQtyMap = { li_1: 1 }; // li_2 still returnable
     expect(shouldBlockOrderForExistingReturn(items, returnedQtyMap)).toBe(false);
   });
@@ -38,7 +44,10 @@ describe("shouldBlockOrderForExistingReturn", () => {
   });
 
   it("BLOCKS only when every line item is fully returned", () => {
-    const items = [{ id: "li_1", quantity: 2 }, { id: "li_2", quantity: 1 }];
+    const items = [
+      { id: "li_1", quantity: 2 },
+      { id: "li_2", quantity: 1 },
+    ];
     const returnedQtyMap = { li_1: 2, li_2: 1 };
     expect(shouldBlockOrderForExistingReturn(items, returnedQtyMap)).toBe(true);
   });

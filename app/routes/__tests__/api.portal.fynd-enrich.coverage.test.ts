@@ -23,7 +23,10 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   parseFyndOrderDetailsMock: vi.fn(() => ({ orderInfo: { name: "#1001" } })),
   extractFyndJourneyMock: vi.fn(() => [{ status: "delivery_done" }]),
   getTrackingInfoMock: vi.fn(() => ({ awb: "AWB-1" })),
@@ -74,7 +77,9 @@ beforeEach(() => {
   const upsert = getMappingMock();
   upsert.mockReset();
   upsert.mockResolvedValue({});
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   parseFyndOrderDetailsMock.mockReset().mockReturnValue({ orderInfo: { name: "#1001" } });
   extractFyndJourneyMock.mockReset().mockReturnValue([{ status: "delivery_done" }]);
@@ -110,7 +115,7 @@ describe("action — shop domain handling", () => {
 
     expect(res.status).toBe(200);
     expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { shopDomain: "store.myshopify.com" } })
+      expect.objectContaining({ where: { shopDomain: "store.myshopify.com" } }),
     );
   });
 
@@ -129,7 +134,7 @@ describe("action — shop domain handling", () => {
     } as never);
 
     expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { shopDomain: "store.myshopify.com" } })
+      expect.objectContaining({ where: { shopDomain: "store.myshopify.com" } }),
     );
   });
 });
@@ -281,7 +286,7 @@ describe("action — type=order branch and search variations", () => {
         fulfillmentType: "FULFILLMENT",
         parentViewSlug: "all",
         childViewSlug: "all",
-      })
+      }),
     );
   });
 
@@ -398,7 +403,7 @@ describe("action — type=returns branch", () => {
 
     expect(searchMock).toHaveBeenCalledWith(
       "5001",
-      expect.objectContaining({ fulfillmentType: "RETURN" })
+      expect.objectContaining({ fulfillmentType: "RETURN" }),
     );
   });
 

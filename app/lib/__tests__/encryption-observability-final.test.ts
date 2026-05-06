@@ -211,9 +211,7 @@ describe("observability/resilience.server — recordSuccess no-op while open", (
   });
 
   it("execute() rejects with CircuitOpenError before invoking fn when open", async () => {
-    const { CircuitBreaker, CircuitOpenError } = await import(
-      "../observability/resilience.server"
-    );
+    const { CircuitBreaker, CircuitOpenError } = await import("../observability/resilience.server");
     const cb = new CircuitBreaker("test-execute-open", 1, 60_000);
     cb.recordFailure();
     const fn = vi.fn(async () => "should not run");

@@ -41,8 +41,7 @@ describe("classifyFyndError — uncovered alternatives", () => {
 
   it("prefers config_error over network_error when both phrases present", () => {
     // Order in the function: config_error tested first, so it wins.
-    expect(classifyFyndError("network error — please configure platform"))
-      .toBe("config_error");
+    expect(classifyFyndError("network error — please configure platform")).toBe("config_error");
   });
 
   it("prefers network_error over timeout when both phrases present", () => {
@@ -53,63 +52,63 @@ describe("classifyFyndError — uncovered alternatives", () => {
 
 describe("enrichRefundError — uncovered alternatives", () => {
   it("matches 'transactions cannot be empty' alternative for original method", () => {
-    const result = enrichRefundError(
-      "transactions cannot be empty",
-      { method: "original", orderName: "#42" },
-    );
+    const result = enrichRefundError("transactions cannot be empty", {
+      method: "original",
+      orderName: "#42",
+    });
     expect(result).toContain("COD or gift-card");
     expect(result).toContain("Store credit");
   });
 
   it("does not append COD hint when method is null even if message matches", () => {
-    const result = enrichRefundError(
-      "no transactions to refund",
-      { method: null, orderName: "#42" },
-    );
+    const result = enrichRefundError("no transactions to refund", {
+      method: null,
+      orderName: "#42",
+    });
     expect(result).not.toContain("COD or gift-card");
   });
 
   it("matches store_credit no-customer alternative", () => {
-    const result = enrichRefundError(
-      "store credit has no customer attached",
-      { method: "store_credit", orderName: "#1001" },
-    );
+    const result = enrichRefundError("store credit has no customer attached", {
+      method: "store_credit",
+      orderName: "#1001",
+    });
     expect(result).toContain("Shopify account");
     expect(result).toContain("Discount code");
   });
 
   it("matches 'customer ... not found' alternative regardless of method", () => {
-    const result = enrichRefundError(
-      "customer was not found in Shopify",
-      { method: "original", orderName: "#9" },
-    );
+    const result = enrichRefundError("customer was not found in Shopify", {
+      method: "original",
+      orderName: "#9",
+    });
     expect(result).toContain("Shopify account");
   });
 
   it("matches 'already refunded' without 'been' word", () => {
-    const result = enrichRefundError(
-      "Order is already refunded",
-      { method: "original", orderName: "#777" },
-    );
+    const result = enrichRefundError("Order is already refunded", {
+      method: "original",
+      orderName: "#777",
+    });
     expect(result).toContain("Check Shopify Admin");
     expect(result).toContain("#777");
   });
 
   it("renders empty string for orderName when null in already-refunded path", () => {
-    const result = enrichRefundError(
-      "already been refunded",
-      { method: "original", orderName: null },
-    );
+    const result = enrichRefundError("already been refunded", {
+      method: "original",
+      orderName: null,
+    });
     expect(result).toContain("Check Shopify Admin for order ");
     // "for order " followed by trailing punctuation only — no order id.
     expect(result).not.toMatch(/for order #/);
   });
 
   it("matches bare 'restock' word (no 'location')", () => {
-    const result = enrichRefundError(
-      "Cannot restock items at this time",
-      { method: "original", orderName: null },
-    );
+    const result = enrichRefundError("Cannot restock items at this time", {
+      method: "original",
+      orderName: null,
+    });
     expect(result).toContain("Settings → Return Settings");
   });
 
@@ -117,10 +116,10 @@ describe("enrichRefundError — uncovered alternatives", () => {
     // Note: 'gift card' regex matches before 'store_credit' fallback because
     // location/restock check comes first; here we ensure the gift-card
     // branch is reachable for messages with no 'location' / 'restock' / 'customer'.
-    const result = enrichRefundError(
-      "gift card refund not supported",
-      { method: "original", orderName: null },
-    );
+    const result = enrichRefundError("gift card refund not supported", {
+      method: "original",
+      orderName: null,
+    });
     expect(result).toContain("Discount code");
     expect(result).toContain("gift card");
   });
@@ -128,14 +127,14 @@ describe("enrichRefundError — uncovered alternatives", () => {
   it("returns first match when multiple rules could apply (order matters)", () => {
     // Message contains both 'no transactions' (original-method rule) and 'gift card'.
     // With method=original, the first rule wins and the gift-card hint is not appended.
-    const result = enrichRefundError(
-      "no transactions for gift card order",
-      { method: "original", orderName: "#5" },
-    );
+    const result = enrichRefundError("no transactions for gift card order", {
+      method: "original",
+      orderName: "#5",
+    });
     expect(result).toContain("COD or gift-card");
     // The store-credit/discount-code suffix from the gift-card branch should NOT appear
     // because the first match short-circuits.
-    expect(result).not.toContain("Use \"Discount code\" refund method for gift card");
+    expect(result).not.toContain('Use "Discount code" refund method for gift card');
   });
 });
 

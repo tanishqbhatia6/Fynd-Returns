@@ -19,9 +19,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const { processFyndWebhook, unwrapFyndWebhookPayload } = await import(
-    "../lib/fynd-webhook.server"
-  );
+  const { processFyndWebhook, unwrapFyndWebhookPayload } =
+    await import("../lib/fynd-webhook.server");
 
   const body = (await request.json()) as Record<string, unknown>;
 
@@ -34,19 +33,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       return Response.json({ error: "Log not found" }, { status: 404 });
     }
     if (!log.rawPayload) {
-      return Response.json(
-        { error: "No rawPayload stored — cannot retry" },
-        { status: 400 },
-      );
+      return Response.json({ error: "No rawPayload stored — cannot retry" }, { status: 400 });
     }
 
     try {
       const { payload, eventType } = unwrapFyndWebhookPayload(log.rawPayload);
-      const result = await processFyndWebhook(
-        payload,
-        log.rawPayload,
-        eventType,
-      );
+      const result = await processFyndWebhook(payload, log.rawPayload, eventType);
       // If the reprocess produced a different result, delete the old "ignored" log
       if (result.ok && result.action !== "ignored" && result.action !== log.action) {
         try {
@@ -89,14 +81,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         continue;
       }
       try {
-        const { payload, eventType } = unwrapFyndWebhookPayload(
-          log.rawPayload,
-        );
-        const result = await processFyndWebhook(
-          payload,
-          log.rawPayload,
-          eventType,
-        );
+        const { payload, eventType } = unwrapFyndWebhookPayload(log.rawPayload);
+        const result = await processFyndWebhook(payload, log.rawPayload, eventType);
         if (result.ok && result.action !== "ignored") {
           succeeded++;
           try {

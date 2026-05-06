@@ -472,9 +472,12 @@ describe("app.returns.$id — edge-case branches", () => {
       initialEntries: ["/app/returns/ret_edge_001"],
       loaderData: makeLoaderData({ isBlocklisted: true }) as never,
     });
-    await waitFor(() => {
-      expect(container.textContent).toContain("Flagged customer");
-    }, { timeout: 5000 });
+    await waitFor(
+      () => {
+        expect(container.textContent).toContain("Flagged customer");
+      },
+      { timeout: 5000 },
+    );
   });
 
   it("fyndSyncStatus=failed => prominent 'Fynd sync failed' banner with retry button", async () => {

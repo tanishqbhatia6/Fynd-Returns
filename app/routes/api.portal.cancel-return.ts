@@ -55,13 +55,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // portalCsrfToken whenever it has one. Soft-enforced: if the token is
     // present we validate it; full enforcement is gated by the env flag so
     // existing portal sessions aren't broken on rollout.
-    const REQUIRE_CSRF = String(process.env.PORTAL_CSRF_REQUIRED ?? "true").toLowerCase() !== "false";
+    const REQUIRE_CSRF =
+      String(process.env.PORTAL_CSRF_REQUIRED ?? "true").toLowerCase() !== "false";
     const portalCsrfToken = body.portalCsrfToken as string | undefined;
     if (REQUIRE_CSRF || portalCsrfToken) {
       const expectedShop = shopRaw.includes(".") ? shopRaw : `${shopRaw}.myshopify.com`;
       if (!verifyPortalCsrfToken(portalCsrfToken, expectedShop)) {
         return withCors(
-          Response.json({ error: "Session expired. Refresh the page and try again." }, { status: 403 }),
+          Response.json(
+            { error: "Session expired. Refresh the page and try again." },
+            { status: 403 },
+          ),
           request,
         );
       }
@@ -88,7 +92,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
     if (session.expiresAt < new Date()) {
       return withCors(
-        Response.json({ error: "Session expired. Please look up your return again." }, { status: 401 }),
+        Response.json(
+          { error: "Session expired. Please look up your return again." },
+          { status: 401 },
+        ),
         request,
       );
     }
@@ -104,10 +111,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // ignore
     }
     if (!matchedReturnIds.includes(returnCaseId)) {
-      return withCors(
-        Response.json({ error: "Return not found" }, { status: 404 }),
-        request,
-      );
+      return withCors(Response.json({ error: "Return not found" }, { status: 404 }), request);
     }
 
     // Shop lookup
@@ -123,7 +127,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Cross-shop replay defence: the JWT carries the shop it was issued for. Reject
     // if a token from shop A is being used to act on shop B (P0 finding from QA audit).
     if (payload.shopId && payload.shopId !== shopRecord.id) {
-      return withCors(Response.json({ error: "Token does not belong to this shop" }, { status: 403 }), request);
+      return withCors(
+        Response.json({ error: "Token does not belong to this shop" }, { status: 403 }),
+        request,
+      );
     }
 
     // Check portal config: allowReturnCancellation
@@ -149,7 +156,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Terminal statuses cannot be cancelled
     if (TERMINAL_STATUSES.includes(statusLower)) {
       return withCors(
-        Response.json({ error: `Cannot cancel: return is already ${returnCase.status}` }, { status: 400 }),
+        Response.json(
+          { error: `Cannot cancel: return is already ${returnCase.status}` },
+          { status: 400 },
+        ),
         request,
       );
     }
@@ -201,10 +211,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         reason: reason || null,
       });
 
-      return withCors(
-        Response.json({ success: true, flow: "auto_cancelled" }),
-        request,
-      );
+      return withCors(Response.json({ success: true, flow: "auto_cancelled" }), request);
     }
 
     // ── Flow B: Cancellation request for approved returns ──
@@ -216,11 +223,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const refundStatusLower = (returnCase.refundStatus ?? "").toLowerCase();
       if (refundStatusLower === "refunded" || refundStatusLower === "in_progress") {
         return withCors(
-          Response.json({
-            error: refundStatusLower === "refunded"
-              ? "This return has already been refunded and cannot be cancelled. Contact support if you need to reverse the refund."
-              : "A refund is currently being processed. Cancellation is not available — please contact support.",
-          }, { status: 409 }),
+          Response.json(
+            {
+              error:
+                refundStatusLower === "refunded"
+                  ? "This return has already been refunded and cannot be cancelled. Contact support if you need to reverse the refund."
+                  : "A refund is currently being processed. Cancellation is not available — please contact support.",
+            },
+            { status: 409 },
+          ),
           request,
         );
       }
@@ -256,15 +267,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       });
 
-      return withCors(
-        Response.json({ success: true, flow: "cancellation_requested" }),
-        request,
-      );
+      return withCors(Response.json({ success: true, flow: "cancellation_requested" }), request);
     }
 
     // Fallback: status is not handled (shouldn't reach here)
     return withCors(
-      Response.json({ error: `Cannot cancel return with status "${returnCase.status}"` }, { status: 400 }),
+      Response.json(
+        { error: `Cannot cancel return with status "${returnCase.status}"` },
+        { status: 400 },
+      ),
       request,
     );
   } catch (err) {

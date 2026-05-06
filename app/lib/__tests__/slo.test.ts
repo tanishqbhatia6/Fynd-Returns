@@ -25,13 +25,15 @@ import {
 describe("SLO_DEFINITIONS", () => {
   it("covers the five core SLOs", () => {
     const names = SLO_DEFINITIONS.map((s) => s.name);
-    expect(names).toEqual(expect.arrayContaining([
-      "api_latency_p99",
-      "api_error_rate",
-      "fynd_sync_success",
-      "webhook_delivery",
-      "refund_processing",
-    ]));
+    expect(names).toEqual(
+      expect.arrayContaining([
+        "api_latency_p99",
+        "api_error_rate",
+        "fynd_sync_success",
+        "webhook_delivery",
+        "refund_processing",
+      ]),
+    );
   });
 
   it("each SLO has a sensible shape", () => {

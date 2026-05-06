@@ -264,9 +264,7 @@ describe("app.returns._index list rendering (simple)", () => {
     const fraudDots = container.querySelectorAll('[title$="fraud risk"]');
     expect(fraudDots.length).toBe(2);
     const titles = Array.from(fraudDots).map((el) => el.getAttribute("title"));
-    expect(titles).toEqual(
-      expect.arrayContaining(["high fraud risk", "critical fraud risk"]),
-    );
+    expect(titles).toEqual(expect.arrayContaining(["high fraud risk", "critical fraud risk"]));
   });
 
   it("renders channel tags for non-web rows (POS/DRAFT/B2B)", async () => {
@@ -278,9 +276,9 @@ describe("app.returns._index list rendering (simple)", () => {
       const tags = container.querySelectorAll(".returns-channel-tag");
       expect(tags.length).toBe(3);
     });
-    const tagTexts = Array.from(
-      container.querySelectorAll(".returns-channel-tag"),
-    ).map((el) => el.textContent);
+    const tagTexts = Array.from(container.querySelectorAll(".returns-channel-tag")).map(
+      (el) => el.textContent,
+    );
     expect(tagTexts).toEqual(expect.arrayContaining(["POS", "DRAFT", "B2B"]));
   });
 
@@ -348,14 +346,10 @@ describe("app.returns._index list rendering (simple)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      const sel = container.querySelector(
-        'select[name="status"]',
-      ) as HTMLSelectElement | null;
+      const sel = container.querySelector('select[name="status"]') as HTMLSelectElement | null;
       expect(sel).toBeTruthy();
     });
-    const sel = container.querySelector(
-      'select[name="status"]',
-    ) as HTMLSelectElement;
+    const sel = container.querySelector('select[name="status"]') as HTMLSelectElement;
     const optionValues = Array.from(sel.querySelectorAll("option")).map(
       (o) => (o as HTMLOptionElement).value,
     );
@@ -384,20 +378,12 @@ describe("app.returns._index list rendering (simple)", () => {
       ) as HTMLSelectElement | null;
       expect(sel).toBeTruthy();
     });
-    const sel = container.querySelector(
-      'select[name="resolutionType"]',
-    ) as HTMLSelectElement;
+    const sel = container.querySelector('select[name="resolutionType"]') as HTMLSelectElement;
     const optionValues = Array.from(sel.querySelectorAll("option")).map(
       (o) => (o as HTMLOptionElement).value,
     );
     expect(optionValues).toEqual(
-      expect.arrayContaining([
-        "",
-        "refund",
-        "exchange",
-        "store_credit",
-        "replacement",
-      ]),
+      expect.arrayContaining(["", "refund", "exchange", "store_credit", "replacement"]),
     );
   });
 
@@ -412,15 +398,11 @@ describe("app.returns._index list rendering (simple)", () => {
       ) as HTMLSelectElement | null;
       expect(sel).toBeTruthy();
     });
-    const sel = container.querySelector(
-      'select[name="sourceChannel"]',
-    ) as HTMLSelectElement;
+    const sel = container.querySelector('select[name="sourceChannel"]') as HTMLSelectElement;
     const optionValues = Array.from(sel.querySelectorAll("option")).map(
       (o) => (o as HTMLOptionElement).value,
     );
-    expect(optionValues).toEqual(
-      expect.arrayContaining(["", "web", "pos", "draft_order", "b2b"]),
-    );
+    expect(optionValues).toEqual(expect.arrayContaining(["", "web", "pos", "draft_order", "b2b"]));
   });
 
   it("renders the search query input with the right name", async () => {
@@ -429,9 +411,7 @@ describe("app.returns._index list rendering (simple)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      const input = container.querySelector(
-        'input[name="query"]',
-      ) as HTMLInputElement | null;
+      const input = container.querySelector('input[name="query"]') as HTMLInputElement | null;
       expect(input).toBeTruthy();
       expect(input?.type).toBe("text");
     });

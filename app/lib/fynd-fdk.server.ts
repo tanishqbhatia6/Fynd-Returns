@@ -2,7 +2,12 @@
  * Fynd FDK (Platform + Application/Storefront SDK) integration.
  * Uses @gofynd/fdk-client-javascript for Platform and ApplicationClient.
  */
-import { PlatformClient, ApplicationClient, PlatformConfig, ApplicationConfig } from "@gofynd/fdk-client-javascript";
+import {
+  PlatformClient,
+  ApplicationClient,
+  PlatformConfig,
+  ApplicationConfig,
+} from "@gofynd/fdk-client-javascript";
 import { getFyndBaseUrl } from "./fynd-config.server";
 import { parseShipmentInternalIds } from "./fynd.server";
 
@@ -55,7 +60,9 @@ export function createFyndPlatformClient(config: FyndFDKPlatformConfig): Platfor
 }
 
 /** Create Application (Storefront) SDK client */
-export function createFyndApplicationClient(config: FyndFDKApplicationConfig): ApplicationClientType {
+export function createFyndApplicationClient(
+  config: FyndFDKApplicationConfig,
+): ApplicationClientType {
   const domain = config.domain.replace(/\/$/, "");
   const appConfig = new ApplicationConfig({
     applicationID: config.applicationId,
@@ -69,8 +76,8 @@ export function createFyndApplicationClient(config: FyndFDKApplicationConfig): A
 export class FyndStorefrontClientFDK {
   constructor(
     private appClient: ApplicationClientType,
-    private log?: FyndLogFn
-  ) { }
+    private log?: FyndLogFn,
+  ) {}
 
   async getLanguages(): Promise<unknown> {
     this.log?.("fynd-fdk-storefront", "Request", "GET /languages");
@@ -115,14 +122,10 @@ export class FyndPlatformClientFDK {
     private fdk: PlatformClientType,
     private companyId: string,
     private applicationId: string,
-    private log?: FyndLogFn
-  ) { }
+    private log?: FyndLogFn,
+  ) {}
 
-  private async request(
-    method: string,
-    path: string,
-    body?: unknown
-  ): Promise<unknown> {
+  private async request(method: string, path: string, body?: unknown): Promise<unknown> {
     this.log?.("fynd-fdk", "Request", `${method} ${path}`);
     try {
       const res = await this.fdk.request({
@@ -137,11 +140,13 @@ export class FyndPlatformClientFDK {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       const status = (err as { response?: { status?: number } })?.response?.status;
-      const desc = (err as { response?: { data?: { message?: string; description?: string } } })?.response?.data;
+      const desc = (err as { response?: { data?: { message?: string; description?: string } } })
+        ?.response?.data;
       const apiMsg = desc?.message ?? desc?.description ?? msg;
       let fullMsg = status ? `Fynd Platform API error ${status}: ${apiMsg}` : msg;
       if (status === 403) {
-        fullMsg += " Fynd returned 403 Forbidden—your app may lack required scopes. In Fynd Platform, ensure the extension has company/orders/read and company/orders/write. Re-save credentials in Settings → Integrations.";
+        fullMsg +=
+          " Fynd returned 403 Forbidden—your app may lack required scopes. In Fynd Platform, ensure the extension has company/orders/read and company/orders/write. Re-save credentials in Settings → Integrations.";
       } else if (status === 401) {
         fullMsg += " Verify Company ID, Client ID and Secret in Settings → Integrations.";
       }
@@ -155,7 +160,10 @@ export class FyndPlatformClientFDK {
    * Validate connection via orders-listing; callers use admin-configured reasons.
    */
   async getReturnReasons(): Promise<unknown> {
-    await this.request("GET", `/service/platform/order/v1.0/company/${this.companyId}/orders-listing?page_no=1&page_size=1`);
+    await this.request(
+      "GET",
+      `/service/platform/order/v1.0/company/${this.companyId}/orders-listing?page_no=1&page_size=1`,
+    );
     return null;
   }
 
@@ -169,7 +177,11 @@ export class FyndPlatformClientFDK {
       const msg = err instanceof Error ? err.message : String(err);
       /* v8 ignore stop */
       if (msg.includes("404") || msg.includes("Not Found")) {
-        return { ok: true, warning: "Credentials valid. Return reasons endpoint not available in this Fynd environment—using admin-configured reasons." };
+        return {
+          ok: true,
+          warning:
+            "Credentials valid. Return reasons endpoint not available in this Fynd environment—using admin-configured reasons.",
+        };
       }
       throw err;
     }
@@ -177,15 +189,24 @@ export class FyndPlatformClientFDK {
 
   /** Platform Order API: GET order-details returns order + shipments */
   async getShipments(orderId: string): Promise<unknown> {
-    const res = await this.request("GET", `/service/platform/order/v1.0/company/${this.companyId}/order-details?order_id=${encodeURIComponent(orderId)}`) as { order?: unknown; shipments?: unknown[] };
+    const res = (await this.request(
+      "GET",
+      `/service/platform/order/v1.0/company/${this.companyId}/order-details?order_id=${encodeURIComponent(orderId)}`,
+    )) as { order?: unknown; shipments?: unknown[] };
     return res?.shipments ?? res?.order ?? res;
   }
 
   /** Platform Order API: GET shipments-listing (docs.fynd.com/partners/commerce/sdk/latest/platform/company/order) */
   async searchShipmentsByExternalOrderId(
     externalOrderId: string,
-    params?: Partial<ShipmentsListingParamsFDK>
-  ): Promise<{ items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; orderId?: string; shipmentId?: string }> {
+    params?: Partial<ShipmentsListingParamsFDK>,
+  ): Promise<{
+    items?: unknown[];
+    shipments?: unknown[];
+    data?: { items?: unknown[] };
+    orderId?: string;
+    shipmentId?: string;
+  }> {
     const searchParams = new URLSearchParams({
       group_entity: params?.groupEntity ?? "shipments",
       page_no: String(params?.pageNo ?? 1),
@@ -196,13 +217,18 @@ export class FyndPlatformClientFDK {
     });
     if (params?.orderStatus) searchParams.set("bag_status", params.orderStatus);
     const path = `/service/platform/order/v1.0/company/${this.companyId}/shipments-listing?${searchParams.toString()}`;
-    const res = await this.request("GET", path) as { items?: unknown[]; shipments?: unknown[]; data?: { items?: unknown[] }; results?: unknown[] };
+    const res = (await this.request("GET", path)) as {
+      items?: unknown[];
+      shipments?: unknown[];
+      data?: { items?: unknown[] };
+      results?: unknown[];
+    };
     /* v8 ignore start */
     // defensive: nullish-coalescing chain over response shape variants; only one shape per test
     const items = res?.items ?? res?.shipments ?? res?.data?.items ?? res?.results ?? [];
     const first = Array.isArray(items) ? items[0] : null;
     /* v8 ignore stop */
-    const firstObj = first && typeof first === "object" ? first as Record<string, unknown> : null;
+    const firstObj = first && typeof first === "object" ? (first as Record<string, unknown>) : null;
     const { orderId, shipmentId } = parseShipmentInternalIds(firstObj);
     return {
       ...res,
@@ -219,7 +245,12 @@ export class FyndPlatformClientFDK {
         shipments: Array<{
           identifier: string;
           products?: Array<{ line_number: number; quantity: number; identifier: string }>;
-          reasons?: { products?: Array<{ filters: Array<{ identifier: string; line_number: number; quantity: number }>; data: { reason_id?: number; reason_text?: string } }> };
+          reasons?: {
+            products?: Array<{
+              filters: Array<{ identifier: string; line_number: number; quantity: number }>;
+              data: { reason_id?: number; reason_text?: string };
+            }>;
+          };
         }>;
         status: string;
       }>;
@@ -227,7 +258,7 @@ export class FyndPlatformClientFDK {
       force_transition?: boolean;
       lock_after_transition?: boolean;
       unlock_before_transition?: boolean;
-    }
+    },
   ): Promise<unknown> {
     const path = `/service/platform/order-manage/v1.0/company/${this.companyId}/shipment/status-internal`;
     return this.request("PUT", path, payload);

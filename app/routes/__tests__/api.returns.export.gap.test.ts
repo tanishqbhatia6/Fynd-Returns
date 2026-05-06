@@ -17,18 +17,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, parseDateRangeMock, formatReturnRequestIdMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  parseDateRangeMock: vi.fn(() => ({ start: new Date("2025-01-01"), end: new Date("2025-02-01") })),
-  formatReturnRequestIdMock: vi.fn((id: string) => `R-${id.slice(0, 6)}`),
-}));
+const { prismaMock, authenticateMock, parseDateRangeMock, formatReturnRequestIdMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    parseDateRangeMock: vi.fn(() => ({
+      start: new Date("2025-01-01"),
+      end: new Date("2025-02-01"),
+    })),
+    formatReturnRequestIdMock: vi.fn((id: string) => `R-${id.slice(0, 6)}`),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock } }));
 vi.mock("../../lib/dashboard-date-utils", () => ({ parseDateRange: parseDateRangeMock }));
-vi.mock("../../lib/return-request-id", () => ({ formatReturnRequestId: formatReturnRequestIdMock }));
+vi.mock("../../lib/return-request-id", () => ({
+  formatReturnRequestId: formatReturnRequestIdMock,
+}));
 
 import { loader } from "../api.returns.export";
 
@@ -71,7 +78,9 @@ function mkReturnCase(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
-  parseDateRangeMock.mockReset().mockReturnValue({ start: new Date("2025-01-01"), end: new Date("2025-02-01") });
+  parseDateRangeMock
+    .mockReset()
+    .mockReturnValue({ start: new Date("2025-01-01"), end: new Date("2025-02-01") });
   formatReturnRequestIdMock.mockReset().mockImplementation((id: string) => `R-${id.slice(0, 6)}`);
 });
 
@@ -86,9 +95,7 @@ describe("api.returns.export — gap coverage", () => {
     //   amount:    j.amount != null ? ... : null → null
     //   currency:  j.currency ?? null          → null
     //   date:      j.createdAt ?? null         → null
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      mkReturnCase({ refundJson: "{}" }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([mkReturnCase({ refundJson: "{}" })]);
 
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
@@ -148,7 +155,11 @@ describe("api.returns.export — gap coverage", () => {
       }),
     ]);
 
-    const res = await loader({ request: mkReq("anonymize=true"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("anonymize=true"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const csv = await res.text();
     // No anon: token should be present since all PII inputs were null.

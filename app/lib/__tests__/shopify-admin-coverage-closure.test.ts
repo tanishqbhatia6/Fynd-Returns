@@ -21,7 +21,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -30,7 +30,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -95,17 +95,17 @@ describe("fetchOrderByOrderNumber — raw search throws (line 612 catch)", () =>
       .spyOn(globalThis, "fetch")
       // Strategy 1, attempt 1: raw GraphQL — malformed node → parseOrderNode throws
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ data: { orders: { nodes: [malformedNode("#X1")] } } }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
+        new Response(JSON.stringify({ data: { orders: { nodes: [malformedNode("#X1")] } } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       )
       // Strategy 1, attempt 2: same shape, throws again
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ data: { orders: { nodes: [malformedNode("X1")] } } }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
-        ),
+        new Response(JSON.stringify({ data: { orders: { nodes: [malformedNode("X1")] } } }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       )
       // REST lookup (#X1): empty → falls through
       .mockResolvedValueOnce(

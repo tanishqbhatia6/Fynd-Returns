@@ -10,11 +10,7 @@
  *   - malformed URL / missing shop param fallback to "global"
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import {
-  checkRateLimit,
-  rateLimitResponse,
-  __resetRateLimitForTests,
-} from "../rate-limit.server";
+import { checkRateLimit, rateLimitResponse, __resetRateLimitForTests } from "../rate-limit.server";
 
 let ipCounter = 5000;
 function uniqueIp(): string {
@@ -45,25 +41,16 @@ describe("rate-limit edges — window expiry / reset", () => {
     const endpoint = "portal.otp.send"; // 5 per 5min
 
     for (let i = 0; i < 5; i++) {
-      const r = await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ip }),
-        endpoint,
-      );
+      const r = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
       expect(r.allowed).toBe(true);
     }
-    const blocked = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const blocked = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(blocked.allowed).toBe(false);
 
     // Advance past the 5-minute window.
     vi.advanceTimersByTime(5 * 60_000 + 1);
 
-    const fresh = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const fresh = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(fresh.allowed).toBe(true);
     expect(fresh.remaining).toBe(4);
   });
@@ -74,25 +61,16 @@ describe("rate-limit edges — window expiry / reset", () => {
     const endpoint = "portal.otp.verify"; // 10/min
 
     for (let i = 0; i < 10; i++) {
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ip }),
-        endpoint,
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     }
-    const first = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const first = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(first.allowed).toBe(false);
     const firstRetry = first.retryAfterMs;
     expect(firstRetry).toBeGreaterThan(0);
 
     vi.advanceTimersByTime(20_000);
 
-    const second = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const second = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(second.allowed).toBe(false);
     expect(second.retryAfterMs).toBeLessThan(firstRetry);
   });
@@ -103,17 +81,11 @@ describe("rate-limit edges — window expiry / reset", () => {
     const endpoint = "portal.otp.send"; // 5 per 5min
 
     for (let i = 0; i < 5; i++) {
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ip }),
-        endpoint,
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     }
     // Just shy of the window boundary.
     vi.advanceTimersByTime(5 * 60_000 - 1);
-    const stillBlocked = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const stillBlocked = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(stillBlocked.allowed).toBe(false);
   });
 
@@ -123,24 +95,15 @@ describe("rate-limit edges — window expiry / reset", () => {
     const endpoint = "portal.otp.verify"; // 10/min, default window
 
     for (let i = 0; i < 10; i++) {
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ip }),
-        endpoint,
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     }
-    const blocked = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const blocked = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(blocked.allowed).toBe(false);
 
     // Cross the 60s default window boundary.
     vi.advanceTimersByTime(60_001);
 
-    const fresh = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const fresh = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(fresh.allowed).toBe(true);
     expect(fresh.remaining).toBe(9);
   });
@@ -155,10 +118,7 @@ describe("rate-limit edges — principal vs IP key isolation", () => {
     for (let i = 0; i < 5; i++) {
       await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     }
-    const blockedIp = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const blockedIp = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(blockedIp.allowed).toBe(false);
 
     // A principal key from the same IP should be untouched.
@@ -205,11 +165,7 @@ describe("rate-limit edges — principal vs IP key isolation", () => {
 
     // First IP — 3 hits.
     for (let i = 0; i < 3; i++) {
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": uniqueIp() }),
-        endpoint,
-        principal,
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": uniqueIp() }), endpoint, principal);
     }
     // Different IP, different shop — counter should continue to advance.
     const next = await checkRateLimit(
@@ -230,16 +186,9 @@ describe("rate-limit edges — principal vs IP key isolation", () => {
 
     for (let i = 0; i < 5; i++) {
       // Empty string is falsy in JS — the helper takes the IP path.
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ip }),
-        endpoint,
-        "",
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint, "");
     }
-    const blocked = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const blocked = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(blocked.allowed).toBe(false);
   });
 });
@@ -283,16 +232,10 @@ describe("rate-limit edges — x-forwarded-for parsing", () => {
 
     // Exhaust with a whitespace-padded XFF.
     for (let i = 0; i < 5; i++) {
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": `   ${ip}   , 10.0.0.5` }),
-        endpoint,
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": `   ${ip}   , 10.0.0.5` }), endpoint);
     }
     // Same IP, no whitespace, should hit the same bucket.
-    const blocked = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const blocked = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(blocked.allowed).toBe(false);
   });
 
@@ -313,10 +256,7 @@ describe("rate-limit edges — x-forwarded-for parsing", () => {
     const endpoint = "portal.otp.send";
 
     for (let i = 0; i < 5; i++) {
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": "" }),
-        endpoint,
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": "" }), endpoint);
     }
     // Missing header maps to the same `unknown` bucket — should be blocked.
     const blocked = await checkRateLimit(makeRequest({}), endpoint);
@@ -328,16 +268,10 @@ describe("rate-limit edges — x-forwarded-for parsing", () => {
     const ipv6 = "2001:db8::1";
 
     for (let i = 0; i < 5; i++) {
-      const r = await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ipv6 }),
-        endpoint,
-      );
+      const r = await checkRateLimit(makeRequest({ "x-forwarded-for": ipv6 }), endpoint);
       expect(r.allowed).toBe(true);
     }
-    const blocked = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ipv6 }),
-      endpoint,
-    );
+    const blocked = await checkRateLimit(makeRequest({ "x-forwarded-for": ipv6 }), endpoint);
     expect(blocked.allowed).toBe(false);
 
     // A different IPv6 must not be affected.
@@ -352,10 +286,7 @@ describe("rate-limit edges — x-forwarded-for parsing", () => {
     const endpoint = "portal.otp.send";
 
     for (let i = 0; i < 5; i++) {
-      await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ", 10.0.0.1" }),
-        endpoint,
-      );
+      await checkRateLimit(makeRequest({ "x-forwarded-for": ", 10.0.0.1" }), endpoint);
     }
     // Bucket key is "unknown" — a no-XFF request should land in same bucket.
     const blocked = await checkRateLimit(makeRequest({}), endpoint);
@@ -368,39 +299,24 @@ describe("rate-limit edges — unknown endpoint default", () => {
     const ip = uniqueIp();
     const endpoint = "totally.unmapped.endpoint";
 
-    const first = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const first = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(first.allowed).toBe(true);
     expect(first.remaining).toBe(59); // default maxRequests = 60
 
     // Burn through the remaining budget.
     for (let i = 0; i < 59; i++) {
-      const r = await checkRateLimit(
-        makeRequest({ "x-forwarded-for": ip }),
-        endpoint,
-      );
+      const r = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
       expect(r.allowed).toBe(true);
     }
-    const blocked = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      endpoint,
-    );
+    const blocked = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), endpoint);
     expect(blocked.allowed).toBe(false);
   });
 
   it("two distinct unknown endpoints use independent buckets despite sharing default config", async () => {
     const ip = uniqueIp();
 
-    const r1 = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      "unknown.endpoint.one",
-    );
-    const r2 = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      "unknown.endpoint.two",
-    );
+    const r1 = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), "unknown.endpoint.one");
+    const r2 = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), "unknown.endpoint.two");
     // Each endpoint sees its own first hit.
     expect(r1.remaining).toBe(59);
     expect(r2.remaining).toBe(59);
@@ -408,10 +324,7 @@ describe("rate-limit edges — unknown endpoint default", () => {
 
   it("explicit 'default' endpoint name resolves to the default config", async () => {
     const ip = uniqueIp();
-    const r = await checkRateLimit(
-      makeRequest({ "x-forwarded-for": ip }),
-      "default",
-    );
+    const r = await checkRateLimit(makeRequest({ "x-forwarded-for": ip }), "default");
     expect(r.allowed).toBe(true);
     expect(r.remaining).toBe(59);
   });

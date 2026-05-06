@@ -51,9 +51,7 @@ describe("checkDatabase", () => {
 
   it("returns error on timeout", async () => {
     // $queryRaw resolves after 5s — withTimeout's 3s limit should reject first.
-    prismaMock.$queryRaw.mockImplementation(
-      () => new Promise((r) => setTimeout(r, 5000)),
-    );
+    prismaMock.$queryRaw.mockImplementation(() => new Promise((r) => setTimeout(r, 5000)));
     vi.useFakeTimers();
     const promise = checkDatabase();
     vi.advanceTimersByTime(3500);

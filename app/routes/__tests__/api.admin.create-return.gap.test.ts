@@ -112,14 +112,15 @@ function happyBody(overrides: Record<string, unknown> = {}) {
 
 function wireTxAndCreate() {
   prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
-    if (typeof arg === "function") return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
+    if (typeof arg === "function")
+      return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
     return arg;
   });
   prismaMock.returnCase.create.mockImplementation(
     async ({ data }: { data: Record<string, unknown> }) => ({
       id: "rc-gap",
       items: Array.isArray((data.items as { create?: unknown[] } | undefined)?.create)
-        ? ((data.items as { create: unknown[] }).create)
+        ? (data.items as { create: unknown[] }).create
         : [],
       createdAt: new Date("2026-05-06T00:00:00Z"),
       ...data,
@@ -137,7 +138,9 @@ function wireTxAndCreate() {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   normalizeSourceChannelMock.mockReset().mockImplementation((s: string | null) => s);
   evaluateAutoApproveRulesMock.mockReset().mockReturnValue("approve");
@@ -156,17 +159,24 @@ describe("blocklist match variants", () => {
       id: "shop-1",
       settings: { id: "s-1", blocklistEnabled: true },
     });
-    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({ id: "b-2", type: "phone", value: "+15551112222" });
+    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({
+      id: "b-2",
+      type: "phone",
+      value: "+15551112222",
+    });
 
     const res = await action({
       request: jsonReq(happyBody({ customerEmail: undefined, customerPhone: "+1 (555) 111-2222" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(res.status).toBe(403);
-    const passedOR = (prismaMock.blocklistEntry.findFirst.mock.calls[0][0] as {
-      where: { OR: { type: string; value: string }[] };
-    }).where.OR;
+    const passedOR = (
+      prismaMock.blocklistEntry.findFirst.mock.calls[0][0] as {
+        where: { OR: { type: string; value: string }[] };
+      }
+    ).where.OR;
     // includes phone + order_name (no email)
     expect(passedOR.some((c) => c.type === "phone" && c.value === "+15551112222")).toBe(true);
     expect(passedOR.some((c) => c.type === "order_name" && c.value === "#7777")).toBe(true);
@@ -177,11 +187,16 @@ describe("blocklist match variants", () => {
       id: "shop-1",
       settings: { id: "s-1", blocklistEnabled: true },
     });
-    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({ id: "b-3", type: "order_name", value: "#7777" });
+    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({
+      id: "b-3",
+      type: "order_name",
+      value: "#7777",
+    });
 
     const res = await action({
       request: jsonReq(happyBody({ customerEmail: undefined })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
   });
@@ -207,7 +222,8 @@ describe("blocklist match variants", () => {
 
     const res = await action({
       request: jsonReq(happyBody({ customerPhone: "555-9999" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(prismaMock.blocklistEntry.findFirst).toHaveBeenCalledTimes(1);
@@ -237,7 +253,8 @@ describe("resolutionType variants", () => {
       });
       const res = await action({
         request: jsonReq(happyBody({ resolutionType: rt, exchangePreference: "Size L" })),
-        params: {}, context: {},
+        params: {},
+        context: {},
       } as never);
       expect(res.status).toBe(200);
       const data = prismaMock.returnCase.create.mock.calls[0][0].data;
@@ -252,7 +269,8 @@ describe("resolutionType variants", () => {
     async (rt) => {
       const res = await action({
         request: jsonReq(happyBody({ resolutionType: rt })),
-        params: {}, context: {},
+        params: {},
+        context: {},
       } as never);
       expect(res.status).toBe(400);
       const body = await res.json();
@@ -266,7 +284,8 @@ describe("validation edge cases", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1" } });
     const res = await action({
       request: jsonReq(happyBody({ items: [{ lineItemId: "li-1", qty: 1.5 }] })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -276,7 +295,8 @@ describe("validation edge cases", () => {
   it("400 when shopifyOrderName is whitespace-only", async () => {
     const res = await action({
       request: jsonReq({ shopifyOrderName: "   ", items: [{ lineItemId: "x", qty: 1 }] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
   });
@@ -289,7 +309,8 @@ describe("validation edge cases", () => {
     wireTxAndCreate();
     await action({
       request: jsonReq(happyBody({ shopifyOrderName: "#1234" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
     expect(data.shopifyOrderName).toBe("#1234");
@@ -312,7 +333,8 @@ describe("orderId resolution edge cases", () => {
 
     const res = await action({
       request: jsonReq(happyBody({ orderId: "RAW-XYZ" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
@@ -326,7 +348,8 @@ describe("orderId resolution edge cases", () => {
 
     await action({
       request: jsonReq(happyBody({ orderId: "1042" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
     expect(data.shopifyOrderId).toBe("1042");
@@ -338,7 +361,8 @@ describe("orderId resolution edge cases", () => {
 
     const res = await action({
       request: jsonReq(happyBody({ orderId: "1042" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
@@ -408,7 +432,8 @@ describe("transaction rollback paths", () => {
       settings: { id: "s-1", autoApproveEnabled: false },
     });
     prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
-      if (typeof arg === "function") return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
+      if (typeof arg === "function")
+        return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
       return arg;
     });
     prismaMock.returnCase.create.mockResolvedValueOnce({ id: "rc-1", items: [] });
@@ -426,7 +451,8 @@ describe("transaction rollback paths", () => {
       settings: { id: "s-1", autoApproveEnabled: false },
     });
     prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
-      if (typeof arg === "function") return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
+      if (typeof arg === "function")
+        return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
       return arg;
     });
     prismaMock.returnCase.create.mockResolvedValueOnce({ id: "rc-1", items: [] });
@@ -477,7 +503,8 @@ describe("string-slicing branches", () => {
     });
     await action({
       request: jsonReq(happyBody({ currency: "  abcdefghijklmnop  " })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
     expect(data.currency).toBe("ABCDEFGHIJ"); // 10 chars, upper
@@ -491,11 +518,14 @@ describe("string-slicing branches", () => {
     const longProvince = "A".repeat(150);
     const longAddress = "B".repeat(600);
     await action({
-      request: jsonReq(happyBody({
-        customerProvince: longProvince,
-        customerAddress1: longAddress,
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          customerProvince: longProvince,
+          customerAddress1: longAddress,
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
     expect((data.customerProvince as string).length).toBe(100);
@@ -509,7 +539,8 @@ describe("string-slicing branches", () => {
     });
     await action({
       request: jsonReq(happyBody({ orderCreatedAt: "2026-04-01T12:00:00Z" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
     expect(data.orderProcessedAt).toBeInstanceOf(Date);
@@ -522,13 +553,18 @@ describe("string-slicing branches", () => {
       settings: { id: "s-1", autoApproveEnabled: false },
     });
     await action({
-      request: jsonReq(happyBody({
-        items: [{ lineItemId: "li-9", qty: 1, sku: "FALLBACK-SKU" }],
-        lineItemsWithPrice: [{ id: "li-9", title: "T" }],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          items: [{ lineItemId: "li-9", qty: 1, sku: "FALLBACK-SKU" }],
+          lineItemsWithPrice: [{ id: "li-9", title: "T" }],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
-    const itemCreates = prismaMock.returnCase.create.mock.calls[0][0].data.items.create as Array<Record<string, unknown>>;
+    const itemCreates = prismaMock.returnCase.create.mock.calls[0][0].data.items.create as Array<
+      Record<string, unknown>
+    >;
     expect(itemCreates[0].sku).toBe("FALLBACK-SKU");
   });
 
@@ -538,13 +574,16 @@ describe("string-slicing branches", () => {
       settings: { id: "s-1", autoApproveEnabled: false },
     });
     await action({
-      request: jsonReq(happyBody({
-        items: [
-          { lineItemId: "li-1", qty: 1, fyndShipmentId: "ship-SAME" },
-          { lineItemId: "li-2", qty: 1, fyndShipmentId: "ship-SAME" },
-        ],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          items: [
+            { lineItemId: "li-1", qty: 1, fyndShipmentId: "ship-SAME" },
+            { lineItemId: "li-2", qty: 1, fyndShipmentId: "ship-SAME" },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     const data = prismaMock.returnCase.create.mock.calls[0][0].data;
     expect(data.fyndShipmentId).toBe("ship-SAME");

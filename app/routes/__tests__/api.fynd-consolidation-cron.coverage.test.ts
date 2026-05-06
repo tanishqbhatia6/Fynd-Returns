@@ -97,7 +97,6 @@ describe("safeCompare via timing-safe comparisons (length mismatches)", () => {
     } as never);
     expect(res.status).toBe(200);
   });
-
 });
 
 describe("localhost dev mode bypass (no CRON_SECRET)", () => {
@@ -143,7 +142,6 @@ describe("localhost dev mode bypass (no CRON_SECRET)", () => {
     } as never);
     expect(res.status).toBe(401);
   });
-
 });
 
 describe("error handling during runConsolidation", () => {
@@ -172,10 +170,7 @@ describe("error handling during runConsolidation", () => {
       context: {},
     } as never);
     expect(res.status).toBe(500);
-    expect(errSpy).toHaveBeenCalledWith(
-      "[FyndConsolidationCron] Fatal error:",
-      expect.any(Error),
-    );
+    expect(errSpy).toHaveBeenCalledWith("[FyndConsolidationCron] Fatal error:", expect.any(Error));
   });
 
   it("propagates synchronous throw from runConsolidationForAllShops as 500", async () => {

@@ -41,16 +41,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   try {
     const { sessionId, otp } = await request.json();
     if (!sessionId || !otp) {
-      return withCors(Response.json({ error: "sessionId and otp required" }, { status: 400 }), request);
+      return withCors(
+        Response.json({ error: "sessionId and otp required" }, { status: 400 }),
+        request,
+      );
     }
 
     const session = await prisma.lookupSession.findUnique({ where: { id: sessionId } });
     if (!session || session.expiresAt < new Date()) {
-      return withCors(Response.json({ error: "Invalid or expired session" }, { status: 400 }), request);
+      return withCors(
+        Response.json({ error: "Invalid or expired session" }, { status: 400 }),
+        request,
+      );
     }
 
     if (session.attemptsCount >= MAX_VERIFY_ATTEMPTS) {
-      return withCors(Response.json({ error: "Too many attempts. Please request a new code." }, { status: 429 }), request);
+      return withCors(
+        Response.json({ error: "Too many attempts. Please request a new code." }, { status: 429 }),
+        request,
+      );
     }
 
     // Account-level lockout — sum failed verification attempts across ALL sessions for
@@ -70,18 +79,34 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       .filter((s) => !s.verifiedAt) // exclude successfully-verified sessions
       .reduce((sum, s) => sum + (s.attemptsCount ?? 0), 0);
     if (totalRecentFailures >= ACCOUNT_LOCK_MAX_FAILURES) {
-      return withCors(Response.json({
-        error: "Too many failed verification attempts on this contact. Please try again in an hour.",
-        accountLocked: true,
-      }, { status: 429 }), request);
+      return withCors(
+        Response.json(
+          {
+            error:
+              "Too many failed verification attempts on this contact. Please try again in an hour.",
+            accountLocked: true,
+          },
+          { status: 429 },
+        ),
+        request,
+      );
     }
 
     if (!session.otpSentAt || Date.now() - session.otpSentAt.getTime() > OTP_TTL_MS) {
-      return withCors(Response.json({ error: "Code has expired. Please request a new one." }, { status: 400 }), request);
+      return withCors(
+        Response.json({ error: "Code has expired. Please request a new one." }, { status: 400 }),
+        request,
+      );
     }
 
     if (!session.otpTarget) {
-      return withCors(Response.json({ error: "No verification code found. Please request one first." }, { status: 400 }), request);
+      return withCors(
+        Response.json(
+          { error: "No verification code found. Please request one first." },
+          { status: 400 },
+        ),
+        request,
+      );
     }
 
     const submittedOtp = String(otp);
@@ -97,15 +122,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const a = Buffer.from(submittedSha, "hex");
         const b = Buffer.from(storedHash, "hex");
         isValid = a.length === b.length && crypto.timingSafeEqual(a, b);
-      // unreachable: Buffer.from(hex) + length-checked timingSafeEqual cannot throw
-      /* v8 ignore start */
-      } catch { isValid = false; }
+        // unreachable: Buffer.from(hex) + length-checked timingSafeEqual cannot throw
+        /* v8 ignore start */
+      } catch {
+        isValid = false;
+      }
       /* v8 ignore stop */
     } else {
       // bcrypt comparison — constant-time by design, slow enough to deter brute force.
       try {
         isValid = await bcrypt.compare(submittedOtp, storedHash);
-      } catch { isValid = false; }
+      } catch {
+        isValid = false;
+      }
     }
 
     if (!isValid) {
@@ -115,9 +144,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
       const attemptsRemaining = Math.max(0, MAX_VERIFY_ATTEMPTS - updatedSession.attemptsCount);
       if (attemptsRemaining === 0) {
-        return withCors(Response.json({ error: "Too many attempts. Please request a new code.", attemptsRemaining: 0, locked: true }, { status: 429 }), request);
+        return withCors(
+          Response.json(
+            {
+              error: "Too many attempts. Please request a new code.",
+              attemptsRemaining: 0,
+              locked: true,
+            },
+            { status: 429 },
+          ),
+          request,
+        );
       }
-      return withCors(Response.json({ error: "Invalid verification code", attemptsRemaining }, { status: 400 }), request);
+      return withCors(
+        Response.json({ error: "Invalid verification code", attemptsRemaining }, { status: 400 }),
+        request,
+      );
     }
 
     const portalToken = createPortalToken({

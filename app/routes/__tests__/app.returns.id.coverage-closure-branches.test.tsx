@@ -552,7 +552,9 @@ describe("app.returns.$id — final branch closure", () => {
   it("item sku-only match (no shopifyLineItemId match) covers li.sku branch", async () => {
     const rc = makeReturnCase({
       status: "approved",
-      items: [{ ...baseItem, shopifyLineItemId: "gid://shopify/LineItem/NO-MATCH", sku: "S-OTHER" }],
+      items: [
+        { ...baseItem, shopifyLineItemId: "gid://shopify/LineItem/NO-MATCH", sku: "S-OTHER" },
+      ],
     });
     const { container } = renderWithRouter(Component, {
       initialEntries: ["/app/returns/ret_br_001"],
@@ -754,20 +756,22 @@ describe("app.returns.$id — final branch closure", () => {
       exchangeOrderId: "gid://shopify/DraftOrder/9999",
       exchangeOrderName: "#D-9999",
       exchangeItemsJson: JSON.stringify([{ title: "ItemA", quantity: 1, price: "12.00" }]),
-      events: [{
-        id: "ev1",
-        eventType: "exchange_created",
-        type: "exchange_created",
-        actor: "system",
-        happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
-        payloadJson: JSON.stringify({
-          flow: "completed_with_refund",
-          priceDiff: -5.50,
-          currency: "USD",
-          invoiceUrl: null,
-          refund: { success: true, amount: "5.50", refundId: "gid://shopify/Refund/55" },
-        }),
-      }],
+      events: [
+        {
+          id: "ev1",
+          eventType: "exchange_created",
+          type: "exchange_created",
+          actor: "system",
+          happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
+          payloadJson: JSON.stringify({
+            flow: "completed_with_refund",
+            priceDiff: -5.5,
+            currency: "USD",
+            invoiceUrl: null,
+            refund: { success: true, amount: "5.50", refundId: "gid://shopify/Refund/55" },
+          }),
+        },
+      ],
     });
     const { container } = renderWithRouter(Component, {
       initialEntries: ["/app/returns/ret_br_001"],
@@ -786,20 +790,22 @@ describe("app.returns.$id — final branch closure", () => {
       exchangeOrderId: "gid://shopify/Order/8888",
       exchangeOrderName: "#R-8888",
       exchangeItemsJson: JSON.stringify([{ title: "Repl", quantity: 1, price: "20.00" }]),
-      events: [{
-        id: "ev2",
-        eventType: "replacement_created",
-        type: "replacement_created",
-        actor: "system",
-        happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
-        payloadJson: JSON.stringify({
-          flow: "invoice_pending",
-          priceDiff: 7.25,
-          currency: "USD",
-          invoiceUrl: "https://invoice.example/inv-8888",
-          refund: null,
-        }),
-      }],
+      events: [
+        {
+          id: "ev2",
+          eventType: "replacement_created",
+          type: "replacement_created",
+          actor: "system",
+          happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
+          payloadJson: JSON.stringify({
+            flow: "invoice_pending",
+            priceDiff: 7.25,
+            currency: "USD",
+            invoiceUrl: "https://invoice.example/inv-8888",
+            refund: null,
+          }),
+        },
+      ],
     });
     const { container } = renderWithRouter(Component, {
       initialEntries: ["/app/returns/ret_br_001"],
@@ -817,19 +823,21 @@ describe("app.returns.$id — final branch closure", () => {
       resolutionType: "exchange",
       exchangeOrderId: "gid://shopify/DraftOrder/7777",
       exchangeOrderName: "#D-7777",
-      events: [{
-        id: "ev3",
-        eventType: "exchange_created",
-        type: "exchange_created",
-        actor: "system",
-        happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
-        payloadJson: JSON.stringify({
-          flow: "completed_with_refund",
-          priceDiff: -3.0,
-          currency: "USD",
-          refund: { success: false },
-        }),
-      }],
+      events: [
+        {
+          id: "ev3",
+          eventType: "exchange_created",
+          type: "exchange_created",
+          actor: "system",
+          happenedAt: new Date("2026-05-02T00:00:00Z").toISOString(),
+          payloadJson: JSON.stringify({
+            flow: "completed_with_refund",
+            priceDiff: -3.0,
+            currency: "USD",
+            refund: { success: false },
+          }),
+        },
+      ],
     });
     const { container } = renderWithRouter(Component, {
       initialEntries: ["/app/returns/ret_br_001"],
@@ -960,7 +968,11 @@ describe("app.returns.$id — final branch closure", () => {
       loaderData: makeLoaderData({
         returnCase: rc,
         returnJourney: [
-          { status: "return_initiated", displayName: "Return Initiated", time: "2026-05-01T10:00:00Z" },
+          {
+            status: "return_initiated",
+            displayName: "Return Initiated",
+            time: "2026-05-01T10:00:00Z",
+          },
           { status: "in_transit", displayName: "In Transit", time: "2026-05-02T08:00:00Z" },
         ],
       }) as never,

@@ -98,9 +98,7 @@ describe("generatePostmanCollection — auth", () => {
     const c = JSON.parse(generatePostmanCollection("https://x.test"));
     for (const folder of c.item) {
       for (const req of folder.item) {
-        const h = req.request.header.find(
-          (x: { key: string }) => x.key === "X-API-Key",
-        );
+        const h = req.request.header.find((x: { key: string }) => x.key === "X-API-Key");
         expect(h?.value).toBe("{{api_key}}");
       }
     }
@@ -124,19 +122,16 @@ describe("generatePostmanCollection — item/folder counts", () => {
 
   it("flattened item count equals total endpoint count", () => {
     const c = JSON.parse(generatePostmanCollection("https://x.test"));
-    const total = c.item.reduce(
-      (sum: number, f: { item: unknown[] }) => sum + f.item.length,
-      0,
-    );
+    const total = c.item.reduce((sum: number, f: { item: unknown[] }) => sum + f.item.length, 0);
     expect(total).toBe(EXTERNAL_API_ENDPOINTS.length);
   });
 
   it("each folder contains only endpoints whose ep.folder matches the folder name", () => {
     const c = JSON.parse(generatePostmanCollection("https://x.test"));
     for (const folder of c.item) {
-      const expectedNames = EXTERNAL_API_ENDPOINTS.filter(
-        (e) => e.folder === folder.name,
-      ).map((e) => e.name);
+      const expectedNames = EXTERNAL_API_ENDPOINTS.filter((e) => e.folder === folder.name).map(
+        (e) => e.name,
+      );
       const gotNames = folder.item.map((r: { name: string }) => r.name);
       // Order within folder is insertion order from the source registry.
       expect(gotNames).toEqual(expectedNames);

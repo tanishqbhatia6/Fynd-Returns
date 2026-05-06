@@ -228,9 +228,7 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector(".returns-pagination")).toBeTruthy();
     });
-    const numbered = Array.from(
-      container.querySelectorAll(".app-pagination-btn"),
-    )
+    const numbered = Array.from(container.querySelectorAll(".app-pagination-btn"))
       .map((b) => b.textContent?.trim() || "")
       .filter((t) => /^\d+$/.test(t));
     // page<=4 branch: shows 1..7
@@ -250,15 +248,11 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector(".returns-pagination")).toBeTruthy();
     });
-    const numbered = Array.from(
-      container.querySelectorAll(".app-pagination-btn"),
-    )
+    const numbered = Array.from(container.querySelectorAll(".app-pagination-btn"))
       .map((b) => b.textContent?.trim() || "")
       .filter((t) => /^\d+$/.test(t));
     // page>=totalPages-3 branch: shows 14..20
-    expect(numbered).toEqual(
-      ["14", "15", "16", "17", "18", "19", "20"],
-    );
+    expect(numbered).toEqual(["14", "15", "16", "17", "18", "19", "20"]);
   });
 
   it("hides the pagination control entirely when totalPages <= 1", async () => {
@@ -317,9 +311,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector(".returns-stats-row")).toBeTruthy();
     });
-    const values = Array.from(
-      container.querySelectorAll(".returns-stats-row .stat-value"),
-    ).map((el) => el.textContent);
+    const values = Array.from(container.querySelectorAll(".returns-stats-row .stat-value")).map(
+      (el) => el.textContent,
+    );
     expect(values).toEqual(["99", "7", "13", "45", "4"]);
     const chip = container.querySelector(".returns-count-bar span:last-child");
     expect(chip?.textContent).toContain("pending");
@@ -331,9 +325,7 @@ describe("app.returns._index pagination + filters + bulk", () => {
       loaderData: { ...baseLoaderData, query: "foo123" },
     });
     await waitFor(() => {
-      const inp = container.querySelector(
-        'input[name="query"]',
-      ) as HTMLInputElement | null;
+      const inp = container.querySelector('input[name="query"]') as HTMLInputElement | null;
       expect(inp).toBeTruthy();
       expect(inp?.defaultValue).toBe("foo123");
     });
@@ -351,22 +343,12 @@ describe("app.returns._index pagination + filters + bulk", () => {
       },
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('select[name="resolutionType"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('select[name="resolutionType"]')).toBeTruthy();
     });
-    const resSel = container.querySelector(
-      'select[name="resolutionType"]',
-    ) as HTMLSelectElement;
-    const chSel = container.querySelector(
-      'select[name="sourceChannel"]',
-    ) as HTMLSelectElement;
-    const fromInp = container.querySelector(
-      'input[name="from"]',
-    ) as HTMLInputElement;
-    const toInp = container.querySelector(
-      'input[name="to"]',
-    ) as HTMLInputElement;
+    const resSel = container.querySelector('select[name="resolutionType"]') as HTMLSelectElement;
+    const chSel = container.querySelector('select[name="sourceChannel"]') as HTMLSelectElement;
+    const fromInp = container.querySelector('input[name="from"]') as HTMLInputElement;
+    const toInp = container.querySelector('input[name="to"]') as HTMLInputElement;
     expect(resSel.value).toBe("exchange");
     expect(chSel.value).toBe("pos");
     expect(fromInp.defaultValue).toBe("2026-01-01");
@@ -421,9 +403,7 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    const rowCheckboxes = container.querySelectorAll(
-      "tbody .checkbox-cell input[type='checkbox']",
-    );
+    const rowCheckboxes = container.querySelectorAll("tbody .checkbox-cell input[type='checkbox']");
     expect(rowCheckboxes.length).toBe(5);
     // ret-2 (approved) and ret-4 (approved) should be disabled (terminal states)
     const disabledCount = Array.from(rowCheckboxes).filter(
@@ -447,9 +427,7 @@ describe("app.returns._index pagination + filters + bulk", () => {
       const bar = container.querySelector(".returns-bulk-bar")!;
       expect(bar.className).toContain("returns-bulk-bar--visible");
     });
-    expect(container.querySelector(".returns-bulk-bar")?.textContent).toContain(
-      "1 selected",
-    );
+    expect(container.querySelector(".returns-bulk-bar")?.textContent).toContain("1 selected");
   });
 
   it("opens the rejection modal when the bulk Reject button is clicked", async () => {
@@ -468,9 +446,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
       fireEvent.click(cells[0]);
     });
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     const rejectBtn = container.querySelector(".bulk-btn--reject")!;
     await act(async () => {
@@ -500,9 +478,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
     });
     fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     const approveBtn = container.querySelector(".bulk-btn--approve")!;
     await act(async () => {
@@ -524,9 +502,7 @@ describe("app.returns._index pagination + filters + bulk", () => {
       json: async () => ({
         successCount: 0,
         errorCount: 1,
-        results: [
-          { id: "ret-1", success: false, error: "fynd not configured" },
-        ],
+        results: [{ id: "ret-1", success: false, error: "fynd not configured" }],
       }),
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -541,9 +517,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
       fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     });
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     await act(async () => {
       fireEvent.click(container.querySelector(".bulk-btn--approve")!);
@@ -569,9 +545,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
       fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     });
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     await act(async () => {
       fireEvent.click(container.querySelector(".bulk-btn--approve")!);
@@ -595,14 +571,12 @@ describe("app.returns._index pagination + filters + bulk", () => {
     ) as HTMLInputElement;
     fireEvent.click(headerCheckbox);
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     // Three of five rows are actionable (pending, processing, initiated)
-    expect(container.querySelector(".returns-bulk-bar")?.textContent).toContain(
-      "3 selected",
-    );
+    expect(container.querySelector(".returns-bulk-bar")?.textContent).toContain("3 selected");
   });
 
   it("clears the selection when the bulk-bar Clear button is clicked", async () => {
@@ -615,16 +589,16 @@ describe("app.returns._index pagination + filters + bulk", () => {
     });
     fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     const clearBtn = container.querySelector(".bulk-btn--clear")!;
     fireEvent.click(clearBtn);
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--hidden");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--hidden",
+      );
     });
   });
 
@@ -642,9 +616,7 @@ describe("app.returns._index pagination + filters + bulk", () => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
     fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
-    const select = container.querySelector(
-      ".returns-bulk-bar .bulk-select",
-    ) as HTMLSelectElement;
+    const select = container.querySelector(".returns-bulk-bar .bulk-select") as HTMLSelectElement;
     await act(async () => {
       fireEvent.change(select, { target: { value: "exchange" } });
     });
@@ -667,9 +639,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
     });
     fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     fireEvent.click(container.querySelector(".bulk-btn--reject")!);
     await waitFor(() => {
@@ -691,17 +663,17 @@ describe("app.returns._index pagination + filters + bulk", () => {
     });
     fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     fireEvent.click(container.querySelector(".bulk-btn--reject")!);
     await waitFor(() => {
       expect(container.querySelector(".returns-modal-overlay")).toBeTruthy();
     });
-    const rejectAllBtn = Array.from(
-      container.querySelectorAll(".returns-modal button"),
-    ).find((b) => b.textContent === "Reject All") as HTMLButtonElement;
+    const rejectAllBtn = Array.from(container.querySelectorAll(".returns-modal button")).find(
+      (b) => b.textContent === "Reject All",
+    ) as HTMLButtonElement;
     expect(rejectAllBtn.disabled).toBe(true);
   });
 
@@ -720,9 +692,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
     });
     fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     fireEvent.click(container.querySelector(".bulk-btn--reject")!);
     await waitFor(() => {
@@ -730,9 +702,9 @@ describe("app.returns._index pagination + filters + bulk", () => {
     });
     const ta = container.querySelector("textarea")!;
     fireEvent.change(ta, { target: { value: "out of policy" } });
-    const rejectAllBtn = Array.from(
-      container.querySelectorAll(".returns-modal button"),
-    ).find((b) => b.textContent === "Reject All") as HTMLButtonElement;
+    const rejectAllBtn = Array.from(container.querySelectorAll(".returns-modal button")).find(
+      (b) => b.textContent === "Reject All",
+    ) as HTMLButtonElement;
     await act(async () => {
       fireEvent.click(rejectAllBtn);
     });
@@ -798,18 +770,24 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    await act(async () => { fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]); });
-    await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+    await act(async () => {
+      fireEvent.click(container.querySelectorAll("tbody .checkbox-cell")[0]);
     });
-    await act(async () => { fireEvent.click(container.querySelector(".bulk-btn--reject")!); });
+    await waitFor(() => {
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
+    });
+    await act(async () => {
+      fireEvent.click(container.querySelector(".bulk-btn--reject")!);
+    });
     await waitFor(() => {
       expect(container.querySelector("textarea")).toBeTruthy();
     });
     const ta = container.querySelector("textarea")!;
-    await act(async () => { fireEvent.change(ta, { target: { value: "fraud" } }); });
+    await act(async () => {
+      fireEvent.change(ta, { target: { value: "fraud" } });
+    });
     await act(async () => {
       fireEvent.keyDown(ta, { key: "Enter", metaKey: true });
     });

@@ -122,9 +122,7 @@ const logger = pino({
       ...(baggage?.getEntry("shop.domain")
         ? { "shop.domain": baggage.getEntry("shop.domain")!.value }
         : {}),
-      ...(baggage?.getEntry("shop.id")
-        ? { "shop.id": baggage.getEntry("shop.id")!.value }
-        : {}),
+      ...(baggage?.getEntry("shop.id") ? { "shop.id": baggage.getEntry("shop.id")!.value } : {}),
     };
   },
   serializers: {

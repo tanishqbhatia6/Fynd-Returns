@@ -86,7 +86,9 @@ function happyBody(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   normalizeSourceChannelMock.mockReset().mockImplementation((s: string | null) => s);
   evaluateAutoApproveRulesMock.mockReset().mockReturnValue("approve");
@@ -106,21 +108,38 @@ describe("validation", () => {
   });
 
   it("400 when shopifyOrderName missing", async () => {
-    const res = await action({ request: jsonReq({ items: [{ lineItemId: "x", qty: 1 }] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ items: [{ lineItemId: "x", qty: 1 }] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when items missing or empty", async () => {
-    const res1 = await action({ request: jsonReq({ shopifyOrderName: "1001" }), params: {}, context: {} } as never);
+    const res1 = await action({
+      request: jsonReq({ shopifyOrderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res1.status).toBe(400);
-    const res2 = await action({ request: jsonReq({ shopifyOrderName: "1001", items: [] }), params: {}, context: {} } as never);
+    const res2 = await action({
+      request: jsonReq({ shopifyOrderName: "1001", items: [] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res2.status).toBe(400);
   });
 
   it("400 on invalid resolutionType", async () => {
     const res = await action({
-      request: jsonReq({ shopifyOrderName: "1001", items: [{ lineItemId: "x", qty: 1 }], resolutionType: "bogus" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shopifyOrderName: "1001",
+        items: [{ lineItemId: "x", qty: 1 }],
+        resolutionType: "bogus",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
   });
@@ -135,7 +154,8 @@ describe("validation", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1" } });
     const res = await action({
       request: jsonReq(happyBody({ items: [{ lineItemId: "x", qty: 0 }] })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
   });
@@ -143,11 +163,14 @@ describe("validation", () => {
   it("400 when return qty exceeds ordered qty", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1" } });
     const res = await action({
-      request: jsonReq(happyBody({
-        items: [{ lineItemId: "li-1", qty: 5 }],
-        lineItemsWithPrice: [{ id: "li-1", price: "10", quantity: 2 }],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          items: [{ lineItemId: "li-1", qty: 5 }],
+          lineItemsWithPrice: [{ id: "li-1", price: "10", quantity: 2 }],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -158,15 +181,23 @@ describe("validation", () => {
 describe("blocklist (when not adminOverride)", () => {
   it("403 when customer email is blocklisted", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", settings: { id: "s-1", blocklistEnabled: true },
+      id: "shop-1",
+      settings: { id: "s-1", blocklistEnabled: true },
     });
-    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({ id: "b-1", type: "email", value: "u@x.com" });
+    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({
+      id: "b-1",
+      type: "email",
+      value: "u@x.com",
+    });
     const res = await action({ request: jsonReq(happyBody()), params: {}, context: {} } as never);
     expect(res.status).toBe(403);
   });
 
   it("skips blocklist + eligibility checks when adminOverride=true", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", settings: { id: "s-1", blocklistEnabled: true } });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      settings: { id: "s-1", blocklistEnabled: true },
+    });
     prismaMock.blocklistEntry.findFirst.mockResolvedValue({ id: "b-1" });
     // Happy-path needs successful transaction
     prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
@@ -176,13 +207,20 @@ describe("blocklist (when not adminOverride)", () => {
       return arg;
     });
     prismaMock.returnCase.create.mockResolvedValueOnce({
-      id: "rc-new", items: [], createdAt: new Date(),
-      status: "pending", shopifyOrderName: "#1001", resolutionType: "refund",
-      createdByChannel: "admin", createdByStaff: null, crmTicketId: null,
+      id: "rc-new",
+      items: [],
+      createdAt: new Date(),
+      status: "pending",
+      shopifyOrderName: "#1001",
+      resolutionType: "refund",
+      createdByChannel: "admin",
+      createdByStaff: null,
+      crmTicketId: null,
     });
     const res = await action({
       request: jsonReq(happyBody({ adminOverride: true })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(prismaMock.blocklistEntry.findFirst).not.toHaveBeenCalled();
@@ -191,7 +229,10 @@ describe("blocklist (when not adminOverride)", () => {
 
   it("400 when eligibility check fails", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1" } });
-    checkReturnEligibilityMock.mockReturnValueOnce({ eligible: false, reason: "outside return window" });
+    checkReturnEligibilityMock.mockReturnValueOnce({
+      eligible: false,
+      reason: "outside return window",
+    });
     const res = await action({ request: jsonReq(happyBody()), params: {}, context: {} } as never);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -202,17 +243,34 @@ describe("blocklist (when not adminOverride)", () => {
 describe("auto-approve flow", () => {
   beforeEach(() => {
     prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
-      if (typeof arg === "function") return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
+      if (typeof arg === "function")
+        return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
       return arg;
     });
-    prismaMock.returnCase.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
-      id: "rc-new", items: [], createdAt: new Date(), ...data,
-    }));
-    prismaMock.returnCase.update.mockImplementation(async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => ({ ...where, ...data }));
+    prismaMock.returnCase.create.mockImplementation(
+      async ({ data }: { data: Record<string, unknown> }) => ({
+        id: "rc-new",
+        items: [],
+        createdAt: new Date(),
+        ...data,
+      }),
+    );
+    prismaMock.returnCase.update.mockImplementation(
+      async ({
+        where,
+        data,
+      }: {
+        where: Record<string, unknown>;
+        data: Record<string, unknown>;
+      }) => ({ ...where, ...data }),
+    );
   });
 
   it("uses 'pending' status when autoApprove disabled", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1", autoApproveEnabled: false } });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { id: "s-1", autoApproveEnabled: false },
+    });
     await action({ request: jsonReq(happyBody()), params: {}, context: {} } as never);
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
     expect(createCall.data.status).toBe("pending");
@@ -246,14 +304,23 @@ describe("orderId resolution", () => {
   beforeEach(() => {
     prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", settings: { id: "s-1" } });
     prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
-      if (typeof arg === "function") return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
+      if (typeof arg === "function")
+        return await (arg as (p: typeof prismaMock) => unknown)(prismaMock);
       return arg;
     });
-    prismaMock.returnCase.create.mockResolvedValue({ id: "rc-new", items: [], createdAt: new Date() });
+    prismaMock.returnCase.create.mockResolvedValue({
+      id: "rc-new",
+      items: [],
+      createdAt: new Date(),
+    });
   });
 
   it("keeps gid://-prefixed orderId unchanged", async () => {
-    await action({ request: jsonReq(happyBody({ orderId: "gid://shopify/Order/999" })), params: {}, context: {} } as never);
+    await action({
+      request: jsonReq(happyBody({ orderId: "gid://shopify/Order/999" })),
+      params: {},
+      context: {},
+    } as never);
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
     expect(createCall.data.shopifyOrderId).toBe("gid://shopify/Order/999");
   });
@@ -261,7 +328,11 @@ describe("orderId resolution", () => {
   it("resolves non-GID orderId via fetchOrderByFyndAffiliateId", async () => {
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({ id: "gid://shopify/Order/777" });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    await action({ request: jsonReq(happyBody({ orderId: "FYND-XYZ" })), params: {}, context: {} } as never);
+    await action({
+      request: jsonReq(happyBody({ orderId: "FYND-XYZ" })),
+      params: {},
+      context: {},
+    } as never);
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
     expect(createCall.data.shopifyOrderId).toBe("gid://shopify/Order/777");
   });
@@ -270,7 +341,11 @@ describe("orderId resolution", () => {
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce(null);
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "gid://shopify/Order/555" });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    await action({ request: jsonReq(happyBody({ orderId: "1001" })), params: {}, context: {} } as never);
+    await action({
+      request: jsonReq(happyBody({ orderId: "1001" })),
+      params: {},
+      context: {},
+    } as never);
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
     expect(createCall.data.shopifyOrderId).toBe("gid://shopify/Order/555");
   });

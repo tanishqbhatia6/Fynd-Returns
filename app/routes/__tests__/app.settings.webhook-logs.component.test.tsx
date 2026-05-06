@@ -107,7 +107,8 @@ const errorLog = {
   ...sampleLog,
   id: "log-2",
   action: "error",
-  error: "Failed to process webhook payload because the upstream service responded with a 500 status code and provided no payload",
+  error:
+    "Failed to process webhook payload because the upstream service responded with a 500 status code and provided no payload",
   fyndStatus: null,
   customerName: null,
   customerEmail: null,
@@ -124,7 +125,8 @@ const ignoredLog = {
   customerEmail: "fallback@example.com",
   carrier: null,
   awbNumber: null,
-  trackingUrl: "https://tracking.example.com/abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOP-tail",
+  trackingUrl:
+    "https://tracking.example.com/abcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOP-tail",
   refundStatus: "refund_pending",
   fyndStatus: null,
   returnCaseId: null,
@@ -186,9 +188,7 @@ describe("WebhookLogsPage — empty state & header", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("No webhook logs found");
     });
-    expect(container.textContent).toContain(
-      "Webhook logs appear when Fynd sends updates",
-    );
+    expect(container.textContent).toContain("Webhook logs appear when Fynd sends updates");
   });
 
   it("shows the filter-aware empty state copy when filters are active", async () => {
@@ -419,9 +419,13 @@ describe("WebhookLogsPage — populated rows + RetryButton states", () => {
     const link = Array.from(container.querySelectorAll("a")).find(
       (a) => a.getAttribute("href") === "/app/returns/rc-1",
     );
-    await act(async () => { fireEvent.click(link!); });
+    await act(async () => {
+      fireEvent.click(link!);
+    });
     // Row should not have expanded — payload viewer not mounted
-    await waitFor(() => { expect(container.querySelector("[data-testid='payload-viewer']")).toBeNull(); });
+    await waitFor(() => {
+      expect(container.querySelector("[data-testid='payload-viewer']")).toBeNull();
+    });
   });
 
   it("renders the error action row with the error preview and the Retry button", async () => {
@@ -632,8 +636,8 @@ describe("WebhookLogsPage — detail row open/close (modal-equivalent)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Tracking URL");
     });
-    const trackingLink = Array.from(container.querySelectorAll("a")).find(
-      (a) => a.getAttribute("href")?.startsWith("https://tracking.example.com"),
+    const trackingLink = Array.from(container.querySelectorAll("a")).find((a) =>
+      a.getAttribute("href")?.startsWith("https://tracking.example.com"),
     );
     expect(trackingLink).toBeTruthy();
     // Truncated to 50 chars + ellipsis
@@ -681,8 +685,12 @@ describe("WebhookLogsPage — filter interactions", () => {
     });
     const selects = container.querySelectorAll("select");
     const actionSelect = selects[0] as HTMLSelectElement;
-    await act(async () => { fireEvent.change(actionSelect, { target: { value: "error" } }); });
-    await waitFor(() => { expect(actionSelect.value).toBe("error"); });
+    await act(async () => {
+      fireEvent.change(actionSelect, { target: { value: "error" } });
+    });
+    await waitFor(() => {
+      expect(actionSelect.value).toBe("error");
+    });
   });
 
   it("changes the status filter dropdown selection", async () => {
@@ -695,8 +703,12 @@ describe("WebhookLogsPage — filter interactions", () => {
     });
     const selects = container.querySelectorAll("select");
     const statusSelect = selects[1] as HTMLSelectElement;
-    await act(async () => { fireEvent.change(statusSelect, { target: { value: "delivered" } }); });
-    await waitFor(() => { expect(statusSelect.value).toBe("delivered"); });
+    await act(async () => {
+      fireEvent.change(statusSelect, { target: { value: "delivered" } });
+    });
+    await waitFor(() => {
+      expect(statusSelect.value).toBe("delivered");
+    });
   });
 
   it("updates the search box value on user input", async () => {
@@ -708,8 +720,12 @@ describe("WebhookLogsPage — filter interactions", () => {
       expect(container.querySelector("input[type='text']")).toBeTruthy();
     });
     const search = container.querySelector("input[type='text']") as HTMLInputElement;
-    await act(async () => { fireEvent.change(search, { target: { value: "shp-123" } }); });
-    await waitFor(() => { expect(search.value).toBe("shp-123"); });
+    await act(async () => {
+      fireEvent.change(search, { target: { value: "shp-123" } });
+    });
+    await waitFor(() => {
+      expect(search.value).toBe("shp-123");
+    });
   });
 
   it("submits the search query when Enter is pressed in the search box", async () => {
@@ -721,8 +737,12 @@ describe("WebhookLogsPage — filter interactions", () => {
       expect(container.querySelector("input[type='text']")).toBeTruthy();
     });
     const search = container.querySelector("input[type='text']") as HTMLInputElement;
-    await act(async () => { fireEvent.change(search, { target: { value: "alice" } }); });
-    await waitFor(() => { expect(() => fireEvent.keyDown(search, { key: "Enter" })).not.toThrow(); });
+    await act(async () => {
+      fireEvent.change(search, { target: { value: "alice" } });
+    });
+    await waitFor(() => {
+      expect(() => fireEvent.keyDown(search, { key: "Enter" })).not.toThrow();
+    });
   });
 
   it("does not crash when a non-Enter key is pressed in the search box", async () => {
@@ -749,8 +769,12 @@ describe("WebhookLogsPage — filter interactions", () => {
     const from = dates[0] as HTMLInputElement;
     const to = dates[1] as HTMLInputElement;
     fireEvent.change(from, { target: { value: "2025-01-01" } });
-    await act(async () => { fireEvent.change(to, { target: { value: "2025-01-31" } }); });
-    await waitFor(() => { expect(from.value).toBe("2025-01-01"); });
+    await act(async () => {
+      fireEvent.change(to, { target: { value: "2025-01-31" } });
+    });
+    await waitFor(() => {
+      expect(from.value).toBe("2025-01-01");
+    });
     expect(to.value).toBe("2025-01-31");
   });
 
@@ -837,9 +861,7 @@ describe("WebhookLogsPage — bulk retry button", () => {
       expect(container.querySelector("table")).toBeTruthy();
     });
     const buttons = Array.from(container.querySelectorAll("button"));
-    const bulkBtn = buttons.find((b) =>
-      b.textContent?.includes("Retry All Ignored"),
-    );
+    const bulkBtn = buttons.find((b) => b.textContent?.includes("Retry All Ignored"));
     expect(bulkBtn).toBeTruthy();
     expect(() => fireEvent.click(bulkBtn!)).not.toThrow();
   });
@@ -853,9 +875,7 @@ describe("WebhookLogsPage — bulk retry button", () => {
       expect(container.querySelector("input[type='text']")).toBeTruthy();
     });
     const buttons = Array.from(container.querySelectorAll("button"));
-    expect(
-      buttons.find((b) => b.textContent?.includes("Retry All Ignored")),
-    ).toBeUndefined();
+    expect(buttons.find((b) => b.textContent?.includes("Retry All Ignored"))).toBeUndefined();
   });
 });
 

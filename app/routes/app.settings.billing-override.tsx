@@ -32,8 +32,8 @@ import {
 
 function sessionEmailFrom(session: unknown): string | null {
   return (
-    (session as { onlineAccessInfo?: { associated_user?: { email?: string } } })
-      .onlineAccessInfo?.associated_user?.email ?? null
+    (session as { onlineAccessInfo?: { associated_user?: { email?: string } } }).onlineAccessInfo
+      ?.associated_user?.email ?? null
   );
 }
 
@@ -103,47 +103,83 @@ export default function BillingOverridePage() {
   return (
     <AppPage heading="Billing override (superadmin)">
       <div className="app-content layout-wide" style={{ paddingBottom: 48 }}>
-
-        <div style={{
-          padding: "12px 16px",
-          background: "#FEF2F2",
-          border: "1px solid #FECACA",
-          borderRadius: 10,
-          fontSize: 13,
-          color: "#991B1B",
-          marginBottom: 20,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div
+          style={{
+            padding: "12px 16px",
+            background: "#FEF2F2",
+            border: "1px solid #FECACA",
+            borderRadius: 10,
+            fontSize: 13,
+            color: "#991B1B",
+            marginBottom: 20,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
           <span>
             <strong>Internal tool.</strong> Only users in <code>SUPERADMIN_EMAILS</code>
-            can see this page. Acting as <strong>{actingEmail}</strong>. Current env
-            mode: <strong>{mode}</strong>.
+            can see this page. Acting as <strong>{actingEmail}</strong>. Current env mode:{" "}
+            <strong>{mode}</strong>.
           </span>
         </div>
 
         {/* defensive action data conditionals */}
         {/* v8 ignore start */}
         {actionData && "error" in actionData && actionData.error && (
-          <div style={{ padding: "10px 14px", background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, fontSize: 13, color: "#991B1B", marginBottom: 16 }}>
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "#FEF2F2",
+              border: "1px solid #FECACA",
+              borderRadius: 8,
+              fontSize: 13,
+              color: "#991B1B",
+              marginBottom: 16,
+            }}
+          >
             {actionData.error}
           </div>
         )}
         {actionData && "success" in actionData && actionData.success && (
-          <div style={{ padding: "10px 14px", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 8, fontSize: 13, color: "#065F46", marginBottom: 16 }}>
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "#ECFDF5",
+              border: "1px solid #A7F3D0",
+              borderRadius: 8,
+              fontSize: 13,
+              color: "#065F46",
+              marginBottom: 16,
+            }}
+          >
             {actionData.success}
           </div>
         )}
         {/* v8 ignore stop */}
 
-        <div style={{
-          background: "#fff",
-          border: "1px solid #E2E8F0",
-          borderRadius: 12,
-          overflow: "hidden",
-        }}>
+        <div
+          style={{
+            background: "#fff",
+            border: "1px solid #E2E8F0",
+            borderRadius: 12,
+            overflow: "hidden",
+          }}
+        >
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: "#F8FAFC", borderBottom: "1px solid #E2E8F0" }}>
@@ -159,7 +195,13 @@ export default function BillingOverridePage() {
               {shops.map((s) => (
                 <tr key={s.shopDomain} style={{ borderBottom: "1px solid #F1F5F9" }}>
                   <td style={td}>
-                    <div style={{ fontFamily: "ui-monospace, monospace", fontSize: 12, color: "#0F172A" }}>
+                    <div
+                      style={{
+                        fontFamily: "ui-monospace, monospace",
+                        fontSize: 12,
+                        color: "#0F172A",
+                      }}
+                    >
                       {s.shopDomain}
                     </div>
                   </td>
@@ -178,7 +220,10 @@ export default function BillingOverridePage() {
                       <div>
                         <div style={{ fontSize: 12, color: "#475569" }}>{s.overrideReason}</div>
                         <div style={{ fontSize: 11, color: "#94A3B8", marginTop: 2 }}>
-                          by {s.overrideBy ?? "?"}{s.overrideAt ? ` on ${new Date(s.overrideAt).toISOString().slice(0, 10)}` : ""}
+                          by {s.overrideBy ?? "?"}
+                          {s.overrideAt
+                            ? ` on ${new Date(s.overrideAt).toISOString().slice(0, 10)}`
+                            : ""}
                         </div>
                       </div>
                     ) : (
@@ -190,7 +235,12 @@ export default function BillingOverridePage() {
                     <div style={{ fontSize: 12, color: "#475569" }}>
                       {s.subscriptionStatus ? (
                         <>
-                          <span style={{ fontWeight: 600, color: s.subscriptionStatus === "active" ? "#059669" : "#DC2626" }}>
+                          <span
+                            style={{
+                              fontWeight: 600,
+                              color: s.subscriptionStatus === "active" ? "#059669" : "#DC2626",
+                            }}
+                          >
                             {s.subscriptionStatus}
                           </span>
                           {s.subscriptionName ? <> · {s.subscriptionName}</> : null}
@@ -201,12 +251,20 @@ export default function BillingOverridePage() {
                     </div>
                   </td>
                   <td style={td}>
-                    <Form method="post" style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+                    <Form
+                      method="post"
+                      style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}
+                    >
                       <input type="hidden" name="shopDomain" value={s.shopDomain} />
                       <select
                         name="override"
                         defaultValue={s.override ?? ""}
-                        style={{ padding: "4px 8px", border: "1px solid #CBD5E1", borderRadius: 6, fontSize: 12 }}
+                        style={{
+                          padding: "4px 8px",
+                          border: "1px solid #CBD5E1",
+                          borderRadius: 6,
+                          fontSize: 12,
+                        }}
                       >
                         <option value="">Default (env)</option>
                         <option value="free">free</option>
@@ -217,14 +275,25 @@ export default function BillingOverridePage() {
                         placeholder="Reason (audit log)"
                         required
                         minLength={4}
-                        style={{ padding: "4px 8px", border: "1px solid #CBD5E1", borderRadius: 6, fontSize: 12, width: 180 }}
+                        style={{
+                          padding: "4px 8px",
+                          border: "1px solid #CBD5E1",
+                          borderRadius: 6,
+                          fontSize: 12,
+                          width: 180,
+                        }}
                       />
                       <button
                         type="submit"
                         style={{
-                          padding: "4px 10px", fontSize: 12, fontWeight: 600,
-                          background: "#4F46E5", color: "#fff",
-                          border: "none", borderRadius: 6, cursor: "pointer",
+                          padding: "4px 10px",
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background: "#4F46E5",
+                          color: "#fff",
+                          border: "none",
+                          borderRadius: 6,
+                          cursor: "pointer",
                         }}
                       >
                         Save
@@ -235,7 +304,10 @@ export default function BillingOverridePage() {
               ))}
               {shops.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ ...td, textAlign: "center", padding: "32px 12px", color: "#94A3B8" }}>
+                  <td
+                    colSpan={6}
+                    style={{ ...td, textAlign: "center", padding: "32px 12px", color: "#94A3B8" }}
+                  >
                     No shops installed yet.
                   </td>
                 </tr>
@@ -245,7 +317,10 @@ export default function BillingOverridePage() {
         </div>
 
         <div style={{ marginTop: 16 }}>
-          <Link to="/app/billing" style={{ fontSize: 13, color: "#4F46E5", fontWeight: 600, textDecoration: "none" }}>
+          <Link
+            to="/app/billing"
+            style={{ fontSize: 13, color: "#4F46E5", fontWeight: 600, textDecoration: "none" }}
+          >
             ← Back to billing status
           </Link>
         </div>
@@ -271,10 +346,38 @@ const td: React.CSSProperties = {
 
 function OverridePill({ value }: { value: "free" | "paid" | null }) {
   if (value === "free") {
-    return <span style={{ padding: "2px 8px", background: "#ECFDF5", color: "#065F46", border: "1px solid #A7F3D0", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>FREE</span>;
+    return (
+      <span
+        style={{
+          padding: "2px 8px",
+          background: "#ECFDF5",
+          color: "#065F46",
+          border: "1px solid #A7F3D0",
+          borderRadius: 999,
+          fontSize: 11,
+          fontWeight: 700,
+        }}
+      >
+        FREE
+      </span>
+    );
   }
   if (value === "paid") {
-    return <span style={{ padding: "2px 8px", background: "#FEF3C7", color: "#92400E", border: "1px solid #FDE68A", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>PAID</span>;
+    return (
+      <span
+        style={{
+          padding: "2px 8px",
+          background: "#FEF3C7",
+          color: "#92400E",
+          border: "1px solid #FDE68A",
+          borderRadius: 999,
+          fontSize: 11,
+          fontWeight: 700,
+        }}
+      >
+        PAID
+      </span>
+    );
   }
   return <span style={{ fontSize: 11, color: "#CBD5E1", fontStyle: "italic" }}>default (env)</span>;
 }

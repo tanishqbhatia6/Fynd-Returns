@@ -166,10 +166,14 @@ describe("POST /api/v1/external/returns/:id/approve", () => {
     });
 
     // Verify webhook dispatch
-    expect(mockDispatch).toHaveBeenCalledWith("shop-1", "return.approved", expect.objectContaining({
-      returnId: "ret-1",
-      status: "approved",
-    }));
+    expect(mockDispatch).toHaveBeenCalledWith(
+      "shop-1",
+      "return.approved",
+      expect.objectContaining({
+        returnId: "ret-1",
+        status: "approved",
+      }),
+    );
   });
 
   it("creates a ReturnEvent with source external_api", async () => {

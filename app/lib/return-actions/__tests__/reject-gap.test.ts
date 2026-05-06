@@ -22,7 +22,9 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRejectionNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   auditReturnActionMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -30,8 +32,12 @@ Object.assign(prismaMock, createPrismaMock());
 vi.mock("../../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../notification.server", () => ({
   sendRejectionNotification: sendRejectionNotificationMock,
-  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../../shopify-admin.server", () => ({
   closeShopifyReturnBestEffort: closeShopifyReturnBestEffortMock,
@@ -83,7 +89,10 @@ describe("handleReject — terminal short-circuit", () => {
         status: "approved",
       } as never,
     });
-    const res = await handleReject(ctx, { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody);
+    const res = await handleReject(ctx, {
+      action: "reject",
+      rejectionReason: "Damaged",
+    } as ReturnActionBody);
     expect(res).toBeInstanceOf(Response);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -109,10 +118,10 @@ describe("handleReject — terminal short-circuit", () => {
 
 describe("handleReject — reason length validation", () => {
   it("returns 400 when rejectionReason exceeds 500 characters", async () => {
-    const res = await handleReject(
-      mkCtx(),
-      { action: "reject", rejectionReason: "x".repeat(501) } as ReturnActionBody,
-    );
+    const res = await handleReject(mkCtx(), {
+      action: "reject",
+      rejectionReason: "x".repeat(501),
+    } as ReturnActionBody);
     expect(res).toBeInstanceOf(Response);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -127,10 +136,10 @@ describe("handleReject — notification side-effects", () => {
 
     let caught: unknown;
     try {
-      await handleReject(
-        mkCtx(),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      );
+      await handleReject(mkCtx(), {
+        action: "reject",
+        rejectionReason: "Damaged",
+      } as ReturnActionBody);
     } catch (err) {
       caught = err;
     }
@@ -196,10 +205,11 @@ describe("handleReject — notification side-effects", () => {
 
 describe("handleReject — adminNotes from body.note", () => {
   it("stores body.note as adminNotes when provided", async () => {
-    await handleReject(
-      mkCtx(),
-      { action: "reject", rejectionReason: "Damaged", note: "internal: photo missing" } as ReturnActionBody,
-    ).catch((err) => {
+    await handleReject(mkCtx(), {
+      action: "reject",
+      rejectionReason: "Damaged",
+      note: "internal: photo missing",
+    } as ReturnActionBody).catch((err) => {
       expect(err).toBeInstanceOf(Response);
     });
 
@@ -219,10 +229,10 @@ describe("handleReject — adminNotes from body.note", () => {
   });
 
   it("event payload uses null for note when none provided", async () => {
-    await handleReject(
-      mkCtx(),
-      { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-    ).catch((err) => {
+    await handleReject(mkCtx(), {
+      action: "reject",
+      rejectionReason: "Damaged",
+    } as ReturnActionBody).catch((err) => {
       expect(err).toBeInstanceOf(Response);
     });
 
@@ -251,10 +261,7 @@ describe("handleReject — nullish coalescing branches", () => {
   });
 
   it("treats undefined rejectionReason as empty (400)", async () => {
-    const res = await handleReject(
-      mkCtx(),
-      { action: "reject" } as ReturnActionBody,
-    );
+    const res = await handleReject(mkCtx(), { action: "reject" } as ReturnActionBody);
     expect(res).toBeInstanceOf(Response);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -270,10 +277,10 @@ describe("handleReject — error path", () => {
 
     let caught: unknown;
     try {
-      await handleReject(
-        mkCtx(),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      );
+      await handleReject(mkCtx(), {
+        action: "reject",
+        rejectionReason: "Damaged",
+      } as ReturnActionBody);
     } catch (err) {
       caught = err;
     }
@@ -285,10 +292,7 @@ describe("handleReject — error path", () => {
     closeShopifyReturnBestEffortMock.mockRejectedValueOnce(new Error("shopify down"));
 
     await expect(
-      handleReject(
-        mkCtx(),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      ),
+      handleReject(mkCtx(), { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody),
     ).rejects.toThrow("shopify down");
   });
 
@@ -296,10 +300,7 @@ describe("handleReject — error path", () => {
     prismaMock.returnEvent.create.mockRejectedValueOnce(new Error("event insert failed"));
 
     await expect(
-      handleReject(
-        mkCtx(),
-        { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody,
-      ),
+      handleReject(mkCtx(), { action: "reject", rejectionReason: "Damaged" } as ReturnActionBody),
     ).rejects.toThrow("event insert failed");
     // returnCase.update did happen (ordering check) but Shopify decline did not.
     expect(prismaMock.returnCase.update).toHaveBeenCalledTimes(1);

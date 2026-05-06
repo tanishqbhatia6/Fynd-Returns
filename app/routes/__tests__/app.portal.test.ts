@@ -12,17 +12,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  authenticateMock,
-  parsePortalThemeMock,
-  parsePortalConfigMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  parsePortalThemeMock: vi.fn(),
-  parsePortalConfigMock: vi.fn(),
-}));
+const { prismaMock, authenticateMock, parsePortalThemeMock, parsePortalConfigMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    parsePortalThemeMock: vi.fn(),
+    parsePortalConfigMock: vi.fn(),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -55,11 +52,12 @@ const DEFAULT_CONFIG = {
 
 import { loader } from "../app.portal";
 
-const ctx = (url = "https://example.com/app/portal") => ({
-  request: new Request(url),
-  params: {},
-  context: {},
-}) as never;
+const ctx = (url = "https://example.com/app/portal") =>
+  ({
+    request: new Request(url),
+    params: {},
+    context: {},
+  }) as never;
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
@@ -156,7 +154,7 @@ describe("app.portal loader", () => {
     });
     prismaMock.returnCase.count
       .mockResolvedValueOnce(42) // total
-      .mockResolvedValueOnce(7);  // active
+      .mockResolvedValueOnce(7); // active
     const data = await loader(ctx());
     expect(data.totalReturns).toBe(42);
     expect(data.activeReturns).toBe(7);

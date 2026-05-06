@@ -65,16 +65,22 @@ function mkReq(body: string, shopId = "shop-1", headers: Record<string, string> 
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  processFyndWebhookMock.mockReset().mockResolvedValue({ ok: true, action: "noop", returnCaseId: null });
+  processFyndWebhookMock
+    .mockReset()
+    .mockResolvedValue({ ok: true, action: "noop", returnCaseId: null });
   unwrapFyndWebhookPayloadMock.mockReset().mockImplementation((raw: string) => ({
     payload: JSON.parse(raw),
     eventType: "shipment.updated",
   }));
-  readBoundedBodyMock.mockReset().mockImplementation(async (req: Request) => ({ body: await req.text() }));
+  readBoundedBodyMock
+    .mockReset()
+    .mockImplementation(async (req: Request) => ({ body: await req.text() }));
   authenticateWebhookMock.mockReset().mockReturnValue({ ok: true });
-  decryptMock.mockReset().mockImplementation((v: string | null | undefined) =>
-    v ? String(v).replace(/^enc:/, "") : null,
-  );
+  decryptMock
+    .mockReset()
+    .mockImplementation((v: string | null | undefined) =>
+      v ? String(v).replace(/^enc:/, "") : null,
+    );
 });
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -157,7 +163,11 @@ describe("per-shop secret lookup", () => {
       shopDomain: "real-domain.myshopify.com",
       settings: { fyndWebhookSecret: "enc:k" },
     });
-    processFyndWebhookMock.mockResolvedValueOnce({ ok: true, action: "updated", returnCaseId: "rc" });
+    processFyndWebhookMock.mockResolvedValueOnce({
+      ok: true,
+      action: "updated",
+      returnCaseId: "rc",
+    });
 
     await action(mkReq(JSON.stringify({ shipment_id: "S-1", status: "delivered" }), "shop-xyz"));
 

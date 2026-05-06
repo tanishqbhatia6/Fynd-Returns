@@ -74,7 +74,11 @@ describe("CircuitBreaker — open state", () => {
   it("CircuitOpenError names the service", () => {
     const cb = new CircuitBreaker("fynd-api", 1, 1000);
     cb.recordFailure();
-    try { cb.canExecute(); /* rejects */ } catch { /* unreachable */ }
+    try {
+      cb.canExecute(); /* rejects */
+    } catch {
+      /* unreachable */
+    }
     expect(() => cb.canExecute()).not.toThrow();
     // The error constructor test itself.
     const err = new CircuitOpenError("fynd-api");
@@ -141,7 +145,9 @@ describe("CircuitBreaker.execute", () => {
   it("records failure and rethrows on fn error", async () => {
     const cb = new CircuitBreaker("test", 3, 1000);
     await expect(
-      cb.execute(async () => { throw new Error("boom"); }),
+      cb.execute(async () => {
+        throw new Error("boom");
+      }),
     ).rejects.toThrow("boom");
     // Failure was recorded.
     expect(cb.getStatus().failureCount).toBe(1);
@@ -149,8 +155,16 @@ describe("CircuitBreaker.execute", () => {
 
   it("success resets failure count", async () => {
     const cb = new CircuitBreaker("test", 3, 1000);
-    await expect(cb.execute(async () => { throw new Error("x"); })).rejects.toThrow();
-    await expect(cb.execute(async () => { throw new Error("x"); })).rejects.toThrow();
+    await expect(
+      cb.execute(async () => {
+        throw new Error("x");
+      }),
+    ).rejects.toThrow();
+    await expect(
+      cb.execute(async () => {
+        throw new Error("x");
+      }),
+    ).rejects.toThrow();
     await cb.execute(async () => "ok");
     expect(cb.getStatus().failureCount).toBe(0);
   });
@@ -204,7 +218,7 @@ describe("getAllCircuitBreakerStatuses", () => {
   it("returns a status for each pre-built breaker", () => {
     const all = getAllCircuitBreakerStatuses();
     expect(all).toHaveLength(4);
-    const names = all.map(s => s.name);
+    const names = all.map((s) => s.name);
     expect(names).toEqual(expect.arrayContaining(["fynd", "shopify", "smtp", "whatsapp"]));
   });
 });

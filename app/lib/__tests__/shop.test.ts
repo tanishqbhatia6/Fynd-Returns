@@ -315,8 +315,13 @@ describe("syncShopLocaleAndCurrency", () => {
 
   it("returns defaults when response.json() throws", async () => {
     const admin = {
-      graphql: vi.fn(async () =>
-        ({ json: async () => { throw new Error("bad json"); } } as unknown as Response),
+      graphql: vi.fn(
+        async () =>
+          ({
+            json: async () => {
+              throw new Error("bad json");
+            },
+          }) as unknown as Response,
       ),
     };
 

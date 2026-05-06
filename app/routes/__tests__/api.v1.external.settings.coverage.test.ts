@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
-}));
+const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateApiKeyMock: vi.fn(),
+    checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+    checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
+      async () => null,
+    ),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -45,8 +48,12 @@ const SANITIZED_KEYS = [
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  authenticateApiKeyMock.mockReset().mockResolvedValue({ ok: true, keyId: "k-1", shopId: "shop-1" });
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  authenticateApiKeyMock
+    .mockReset()
+    .mockResolvedValue({ ok: true, keyId: "k-1", shopId: "shop-1" });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
 });
 

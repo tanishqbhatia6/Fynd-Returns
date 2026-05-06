@@ -23,7 +23,9 @@ const {
   verifyPortalCsrfMock: vi.fn(() => true),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping = {
@@ -94,11 +96,15 @@ function jsonReq(body: unknown) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   shopifyModuleMock.unauthenticated.admin.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   verifyPortalCsrfMock.mockReset().mockReturnValue(true);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderByFyndAffiliateIdMock.mockReset();
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
 });
 
 describe("matchReturnOffers — closure branches", () => {

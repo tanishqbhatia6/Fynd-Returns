@@ -12,7 +12,10 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, authenticateMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -90,8 +93,13 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("does NOT call Fynd search when order name is empty/missing", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ shopifyOrderName: "", items: [] }));
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ shopifyOrderName: "", items: [] }),
+    );
     const searchMock = vi.fn();
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -107,8 +115,13 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("treats null shopifyOrderName as empty (no search call)", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ shopifyOrderName: null, items: [] }));
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ shopifyOrderName: null, items: [] }),
+    );
     const searchMock = vi.fn();
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -123,8 +136,13 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("strips leading '#' from order name before searching", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ shopifyOrderName: "#1042", items: [] }));
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({ shopifyOrderName: "#1042", items: [] }),
+    );
     const searchMock = vi.fn().mockResolvedValue({ items: [] });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -133,14 +151,20 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
 
     await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
 
-    expect(searchMock).toHaveBeenCalledWith("1042", expect.objectContaining({
-      searchType: "external_order_id",
-      pageSize: 50,
-    }));
+    expect(searchMock).toHaveBeenCalledWith(
+      "1042",
+      expect.objectContaining({
+        searchType: "external_order_id",
+        pageSize: 50,
+      }),
+    );
   });
 
   it("returns empty liveFyndData array when search returns no items/shipments key", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     const searchMock = vi.fn().mockResolvedValue({}); // no items / shipments
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -156,7 +180,10 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("falls back to 'shipments' key when 'items' key is absent", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     const searchMock = vi.fn().mockResolvedValue({
       shipments: [{ shipment_id: "SH-X", status: "pending", bags: [] }],
@@ -174,7 +201,10 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("ignores client without getShipments method (non-platform)", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "affiliate" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "affiliate" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -191,33 +221,42 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   // ───── Fynd item enrichment ─────
 
   it("enriches articles using shipment.id and bag.id fallbacks", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     const searchMock = vi.fn().mockResolvedValue({
-      items: [{
-        // no shipment_id, fall back to id
-        id: "SH-FALLBACK",
-        // no status, fall back to shipment_status
-        shipment_status: "in_transit",
-        bags: [{
-          // no bag_id, fall back to id
-          id: "BAG-FALLBACK",
-          quantity: 3,
-          // no affiliate_bag_details — should be {}
-          articles: [{
-            // article fallback to _id
-            _id: "ART-FALLBACK",
-            seller_identifier: "SELL-1",
-            // no .item — falls through to article-level
-            item_id: "ITM-1",
-            name: "Top",
-            size: "M",
-            quantity_available: 7,
-            // price_info on article (no bag.prices)
-            price_info: { price_effective: "11.00", transfer_price: "9.00" },
-          }],
-        }],
-      }],
+      items: [
+        {
+          // no shipment_id, fall back to id
+          id: "SH-FALLBACK",
+          // no status, fall back to shipment_status
+          shipment_status: "in_transit",
+          bags: [
+            {
+              // no bag_id, fall back to id
+              id: "BAG-FALLBACK",
+              quantity: 3,
+              // no affiliate_bag_details — should be {}
+              articles: [
+                {
+                  // article fallback to _id
+                  _id: "ART-FALLBACK",
+                  seller_identifier: "SELL-1",
+                  // no .item — falls through to article-level
+                  item_id: "ITM-1",
+                  name: "Top",
+                  size: "M",
+                  quantity_available: 7,
+                  // price_info on article (no bag.prices)
+                  price_info: { price_effective: "11.00", transfer_price: "9.00" },
+                },
+              ],
+            },
+          ],
+        },
+      ],
     });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -242,23 +281,32 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("resolves articles from bag.items array when bag.articles missing", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     const searchMock = vi.fn().mockResolvedValue({
-      items: [{
-        shipment_id: "SH-2",
-        status: "delivered",
-        bags: [{
-          bag_id: "BAG-2",
-          // articles missing → fall back to items
-          items: [{
-            article_id: "A-2",
-            seller_identifier: "S-2",
-            item: { item_id: "I-2", item_name: "Pants", size: "32" },
-          }],
-          price_info: { price_effective: "30", transfer_price: "25" },
-        }],
-      }],
+      items: [
+        {
+          shipment_id: "SH-2",
+          status: "delivered",
+          bags: [
+            {
+              bag_id: "BAG-2",
+              // articles missing → fall back to items
+              items: [
+                {
+                  article_id: "A-2",
+                  seller_identifier: "S-2",
+                  item: { item_id: "I-2", item_name: "Pants", size: "32" },
+                },
+              ],
+              price_info: { price_effective: "30", transfer_price: "25" },
+            },
+          ],
+        },
+      ],
     });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -277,21 +325,28 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("resolves single-article bag via bag.item fallback", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     const searchMock = vi.fn().mockResolvedValue({
-      items: [{
-        shipment_id: "SH-3",
-        bags: [{
-          bag_id: "BAG-3",
-          // no articles, no items — single .item
-          item: {
-            article_id: "A-3",
-            seller_identifier: "S-3",
-            item: { _id: "I-3", name: "Hat" },
-          },
-        }],
-      }],
+      items: [
+        {
+          shipment_id: "SH-3",
+          bags: [
+            {
+              bag_id: "BAG-3",
+              // no articles, no items — single .item
+              item: {
+                article_id: "A-3",
+                seller_identifier: "S-3",
+                item: { _id: "I-3", name: "Hat" },
+              },
+            },
+          ],
+        },
+      ],
     });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -308,13 +363,18 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("returns empty articles when bag has none of articles/items/item", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     const searchMock = vi.fn().mockResolvedValue({
-      items: [{
-        shipment_id: "SH-4",
-        bags: [{ bag_id: "BAG-4", quantity: 0 }],
-      }],
+      items: [
+        {
+          shipment_id: "SH-4",
+          bags: [{ bag_id: "BAG-4", quantity: 0 }],
+        },
+      ],
     });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -327,7 +387,10 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("treats non-array bags field as empty list", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
     const searchMock = vi.fn().mockResolvedValue({
       items: [{ shipment_id: "SH-5", bags: "not-an-array" }],
@@ -343,9 +406,14 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
   });
 
   it("captures non-Error thrown by Fynd client (string) in liveFyndError", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({ items: [] }));
-    const searchMock = vi.fn().mockImplementation(() => { throw "raw string failure"; });
+    const searchMock = vi.fn().mockImplementation(() => {
+      throw "raw string failure";
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock, getShipments: vi.fn() },
@@ -361,12 +429,14 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
 
   it("preserves order and per-item indexing in missingFields paths", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      items: [
-        mkItem({ id: "it-A", sku: null, fyndItemId: "FI-1" }),     // missing sku
-        mkItem({ id: "it-B", sku: "SKU-B", fyndShipmentId: "FS-2" }), // missing others
-      ],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        items: [
+          mkItem({ id: "it-A", sku: null, fyndItemId: "FI-1" }), // missing sku
+          mkItem({ id: "it-B", sku: "SKU-B", fyndShipmentId: "FS-2" }), // missing others
+        ],
+      }),
+    );
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();
@@ -414,15 +484,17 @@ describe("api.admin.return-items-data.$id — extra coverage", () => {
 
   it("returnCase metadata round-trips fynd-related identifiers", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(mkReturnCase({
-      fyndOrderId: "FO-1",
-      fyndShipmentId: "FSHP-1",
-      fyndReturnId: "FR-1",
-      fyndReturnNo: "RNO-1",
-      status: "approved",
-      createdByChannel: "fynd",
-      items: [],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      mkReturnCase({
+        fyndOrderId: "FO-1",
+        fyndShipmentId: "FSHP-1",
+        fyndReturnId: "FR-1",
+        fyndReturnNo: "RNO-1",
+        status: "approved",
+        createdByChannel: "fynd",
+        items: [],
+      }),
+    );
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();

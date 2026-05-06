@@ -39,11 +39,14 @@ rateLimiterKeysActive.addCallback((obs) => {
   obs.observe(memStore.size);
 });
 
-if (process.env.NODE_ENV === "production" && Number(process.env.WEB_CONCURRENCY ?? "1") > 1 && !process.env.REDIS_URL) {
-   
+if (
+  process.env.NODE_ENV === "production" &&
+  Number(process.env.WEB_CONCURRENCY ?? "1") > 1 &&
+  !process.env.REDIS_URL
+) {
   console.warn(
     "[rate-limit] WEB_CONCURRENCY>1 detected with no REDIS_URL. In-memory limiter is per-replica; " +
-    "effective per-IP limit is maxRequests × replica count. Set REDIS_URL for cluster-wide enforcement.",
+      "effective per-IP limit is maxRequests × replica count. Set REDIS_URL for cluster-wide enforcement.",
   );
 }
 
@@ -118,20 +121,15 @@ return { count, pttl }
 
 let redisFailureLogged = false;
 
-async function checkRedis(
-  key: string,
-  config: RateLimitConfig,
-): Promise<RateLimitResult | null> {
+async function checkRedis(key: string, config: RateLimitConfig): Promise<RateLimitResult | null> {
   const redis = getRedis();
   if (!redis) return null;
   const window = config.windowMs ?? DEFAULT_WINDOW_MS;
   try {
-    const result = (await redis.eval(
-      ATOMIC_INCR_LUA,
-      1,
-      `rl:${key}`,
-      String(window),
-    )) as [number, number];
+    const result = (await redis.eval(ATOMIC_INCR_LUA, 1, `rl:${key}`, String(window))) as [
+      number,
+      number,
+    ];
     const count = Number(result?.[0] ?? 0);
     const pttl = Number(result?.[1] ?? window);
     if (count > config.maxRequests) {
@@ -145,7 +143,7 @@ async function checkRedis(
   } catch (err) {
     if (!redisFailureLogged) {
       redisFailureLogged = true;
-       
+
       console.warn(
         "[rate-limit] Redis unavailable on this request; falling back to in-memory.",
         err instanceof Error ? err.message : err,

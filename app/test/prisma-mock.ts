@@ -117,7 +117,9 @@ export function createPrismaMock(
     const base = makeModelMock();
     const override = overrides[model];
     if (override) {
-      for (const [method, fn] of Object.entries(override) as Array<[JsMethod, ReturnType<typeof vi.fn>]>) {
+      for (const [method, fn] of Object.entries(override) as Array<
+        [JsMethod, ReturnType<typeof vi.fn>]
+      >) {
         base[method] = fn;
       }
     }
@@ -146,9 +148,7 @@ export function createPrismaMock(
 }
 
 /** Reset every vi.fn() on the mock — call in beforeEach to isolate tests. */
-export function resetPrismaMock(
-  mock: ReturnType<typeof createPrismaMock>,
-): void {
+export function resetPrismaMock(mock: ReturnType<typeof createPrismaMock>): void {
   for (const model of PRISMA_MODELS) {
     for (const fn of Object.values(mock[model])) {
       fn.mockClear();

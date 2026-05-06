@@ -70,10 +70,13 @@ async function runCron() {
     });
   } catch (err) {
     console.error("[FyndConsolidationCron] Fatal error:", err);
-    return Response.json({
-      ok: false,
-      startedAt,
-      error: err instanceof Error ? err.message : String(err),
-    }, { status: 500 });
+    return Response.json(
+      {
+        ok: false,
+        startedAt,
+        error: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    );
   }
 }

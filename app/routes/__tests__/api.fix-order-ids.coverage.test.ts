@@ -11,12 +11,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, extractAffiliateMock, extractCustomerMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  extractAffiliateMock: vi.fn(() => null as string | null),
-  extractCustomerMock: vi.fn(() => null as Record<string, string | undefined> | null),
-}));
+const { prismaMock, authenticateMock, extractAffiliateMock, extractCustomerMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    extractAffiliateMock: vi.fn(() => null as string | null),
+    extractCustomerMock: vi.fn(() => null as Record<string, string | undefined> | null),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -56,7 +58,10 @@ beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
   // Standard happy-path session lookups; tests can override.
   prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com" });
-  prismaMock.session.findFirst.mockResolvedValue({ shop: "store.myshopify.com", accessToken: "tok" });
+  prismaMock.session.findFirst.mockResolvedValue({
+    shop: "store.myshopify.com",
+    accessToken: "tok",
+  });
 });
 
 afterEach(() => {
@@ -81,9 +86,7 @@ describe("action fix path: resolveOrderByName", () => {
         ],
       },
     ]);
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({ orders: [{ id: 9999, name: "#1001" }] }),
-    );
+    fetchMock.mockResolvedValueOnce(jsonResponse({ orders: [{ id: 9999, name: "#1001" }] }));
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
@@ -146,7 +149,9 @@ describe("action fix path: resolveOrderByName", () => {
     // Each candidate triggers two REST calls (with `#` and bare). Variants
     // = [original, stripped, numeric]. We let the first resolution succeed
     // by returning the match on the very first call.
-    fetchMock.mockResolvedValueOnce(jsonResponse({ orders: [{ id: 1, name: "FYNDSHOPIFYX14126" }] }));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ orders: [{ id: 1, name: "FYNDSHOPIFYX14126" }] }),
+    );
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     const body = await res.json();
@@ -344,9 +349,7 @@ describe("action fix path: line item GID resolution", () => {
         shopifyOrderId: "gid://shopify/Order/1",
         shopifyOrderName: "#1",
         fyndPayloadJson: null,
-        items: [
-          { id: "i-tit", shopifyLineItemId: "bag-7", sku: null, title: "Hat" },
-        ],
+        items: [{ id: "i-tit", shopifyLineItemId: "bag-7", sku: null, title: "Hat" }],
       },
     ]);
     // Order is already valid → only the line items GraphQL call fires.
@@ -376,9 +379,7 @@ describe("action fix path: line item GID resolution", () => {
         shopifyOrderId: "gid://shopify/Order/1",
         shopifyOrderName: "#1",
         fyndPayloadJson: null,
-        items: [
-          { id: "i-only", shopifyLineItemId: "bag-only", sku: "NOPE", title: "NoMatch" },
-        ],
+        items: [{ id: "i-only", shopifyLineItemId: "bag-only", sku: "NOPE", title: "NoMatch" }],
       },
     ]);
     fetchMock.mockResolvedValueOnce(
@@ -386,7 +387,9 @@ describe("action fix path: line item GID resolution", () => {
         data: {
           node: {
             lineItems: {
-              edges: [{ node: { id: "gid://shopify/LineItem/single", title: "Solo", sku: "SOLO" } }],
+              edges: [
+                { node: { id: "gid://shopify/LineItem/single", title: "Solo", sku: "SOLO" } },
+              ],
             },
           },
         },
@@ -407,9 +410,7 @@ describe("action fix path: line item GID resolution", () => {
         shopifyOrderId: "gid://shopify/Order/1",
         shopifyOrderName: "#1",
         fyndPayloadJson: null,
-        items: [
-          { id: "i-fail", shopifyLineItemId: "bag-fail", sku: "S", title: "T" },
-        ],
+        items: [{ id: "i-fail", shopifyLineItemId: "bag-fail", sku: "S", title: "T" }],
       },
     ]);
     fetchMock.mockResolvedValueOnce(new Response("err", { status: 500 }));
@@ -502,8 +503,15 @@ describe("action enrich path: Fynd payload extraction", () => {
       },
     ]);
     extractCustomerMock.mockReturnValueOnce({
-      name: "New", email: "new@ex.com", phone: "111", city: "NewCity",
-      country: "IN", address1: "New 1", address2: "New 2", province: "MH", zip: "00001",
+      name: "New",
+      email: "new@ex.com",
+      phone: "111",
+      city: "NewCity",
+      country: "IN",
+      address1: "New 1",
+      address2: "New 2",
+      province: "MH",
+      zip: "00001",
     });
 
     const res = await action({
@@ -651,11 +659,17 @@ describe("loader: diagnostic flags", () => {
       },
     ]);
 
-    const res = await loader({ request: new Request("https://app.example/api/fix-order-ids"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: new Request("https://app.example/api/fix-order-ids"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.cases[0].lineItemsValid).toBe(false);
     // Numeric ids count as "looksNumeric" but not as valid LineItem GID for the loader's stricter check.
-    const numItem = body.cases[0].items.find((i: { shopifyLineItemId: string }) => i.shopifyLineItemId === "12345");
+    const numItem = body.cases[0].items.find(
+      (i: { shopifyLineItemId: string }) => i.shopifyLineItemId === "12345",
+    );
     expect(numItem.looksNumeric).toBe(true);
     expect(numItem.isValidShopifyLineItemId).toBe(false);
     // Counts the case as needing line-item fix.

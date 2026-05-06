@@ -41,7 +41,9 @@ afterEach(() => {
 describe("apps.returns — production cache fast-path (line 16)", () => {
   it("uses cached template on second loader call when NODE_ENV=production", async () => {
     const req1 = new Request("https://example.com/apps/returns?shop=acme");
-    const args1 = { request: req1, params: {}, context: {} } as unknown as Parameters<typeof loader>[0];
+    const args1 = { request: req1, params: {}, context: {} } as unknown as Parameters<
+      typeof loader
+    >[0];
     const res1 = (await loader(args1)) as Response;
     expect(res1.status).toBe(200);
 
@@ -50,7 +52,9 @@ describe("apps.returns — production cache fast-path (line 16)", () => {
 
     // Second call — should hit the cached fast-path on line 16.
     const req2 = new Request("https://example.com/apps/returns?shop=acme");
-    const args2 = { request: req2, params: {}, context: {} } as unknown as Parameters<typeof loader>[0];
+    const args2 = { request: req2, params: {}, context: {} } as unknown as Parameters<
+      typeof loader
+    >[0];
     const res2 = (await loader(args2)) as Response;
     expect(res2.status).toBe(200);
 

@@ -37,7 +37,9 @@ const {
   verifyPortalCsrfTokenMock: vi.fn(() => true),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   parsePortalConfigMock: vi.fn(() => ({ allowReturnCancellation: true })),
-  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   dispatchWebhookEventMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -92,12 +94,18 @@ beforeEach(() => {
   resetPrismaMock(prismaMock);
   verifyPortalTokenMock.mockReset().mockReturnValue({ sessionId: "sess-1", shopId: "shop-1" });
   verifyPortalCsrfTokenMock.mockReset().mockReturnValue(true);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   parsePortalConfigMock.mockReset().mockReturnValue({ allowReturnCancellation: true });
   sendCancellationNotificationMock.mockReset().mockResolvedValue(undefined);
   dispatchWebhookEventMock.mockClear();
   prismaMock.lookupSession.findUnique.mockResolvedValue(validSession());
-  prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
+  prismaMock.shop.findUnique.mockResolvedValue({
+    id: "shop-1",
+    shopDomain: "store.myshopify.com",
+    settings: {},
+  });
 });
 
 afterEach(() => {
@@ -167,11 +175,18 @@ describe("Flow A: auto-cancel non-approved statuses (extended)", () => {
   it("trims and caps the reason at 500 chars before persisting", async () => {
     const longReason = " ".repeat(5) + "x".repeat(800);
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "pending", refundStatus: null, items: [],
+      id: "rc-1",
+      status: "pending",
+      refundStatus: null,
+      items: [],
     });
     await action({
-      request: jsonReq({ shop: "store", returnCaseId: "rc-1", reason: longReason }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      request: jsonReq(
+        { shop: "store", returnCaseId: "rc-1", reason: longReason },
+        { auth: "Bearer t" },
+      ),
+      params: {},
+      context: {},
     } as never);
     const updateCall = prismaMock.returnCase.update.mock.calls[0][0];
     expect(updateCall.data.cancellationReason.length).toBeLessThanOrEqual(500);
@@ -181,13 +196,17 @@ describe("Flow A: auto-cancel non-approved statuses (extended)", () => {
 
   it("auto-cancel still returns 200 even when notification rejects (fire-and-forget)", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "pending", refundStatus: null,
-      customerEmailNorm: "u@x.com", items: [],
+      id: "rc-1",
+      status: "pending",
+      refundStatus: null,
+      customerEmailNorm: "u@x.com",
+      items: [],
     });
     sendCancellationNotificationMock.mockRejectedValueOnce(new Error("smtp down"));
     const res = await action({
       request: jsonReq({ shop: "store", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     // Let the rejection settle so vitest doesn't flag an unhandled rejection.
@@ -196,13 +215,21 @@ describe("Flow A: auto-cancel non-approved statuses (extended)", () => {
 
   it("dispatches return.cancelled webhook with previousStatus + portal source", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "in progress", refundStatus: null,
-      customerEmailNorm: null, returnRequestNo: "R-7",
-      shopifyOrderName: "#7", items: [],
+      id: "rc-1",
+      status: "in progress",
+      refundStatus: null,
+      customerEmailNorm: null,
+      returnRequestNo: "R-7",
+      shopifyOrderName: "#7",
+      items: [],
     });
     await action({
-      request: jsonReq({ shop: "store", returnCaseId: "rc-1", reason: "test" }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      request: jsonReq(
+        { shop: "store", returnCaseId: "rc-1", reason: "test" },
+        { auth: "Bearer t" },
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(dispatchWebhookEventMock).toHaveBeenCalledWith(
       "shop-1",
@@ -223,14 +250,18 @@ describe("Flow A: auto-cancel non-approved statuses (extended)", () => {
 describe("Flow B: approved-status request creation (extended)", () => {
   it("writes a cancellation_requested return event with reason in payload", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "approved", refundStatus: null, items: [],
+      id: "rc-1",
+      status: "approved",
+      refundStatus: null,
+      items: [],
     });
     const res = await action({
       request: jsonReq(
         { shop: "store", returnCaseId: "rc-1", reason: "ordered wrong color" },
         { auth: "Bearer t" },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
 
@@ -257,12 +288,16 @@ describe("Flow B: approved-status request creation (extended)", () => {
 
   it("approved flow does NOT dispatch webhook or send notification", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "approved", refundStatus: null,
-      customerEmailNorm: "u@x.com", items: [],
+      id: "rc-1",
+      status: "approved",
+      refundStatus: null,
+      customerEmailNorm: "u@x.com",
+      items: [],
     });
     await action({
       request: jsonReq({ shop: "store", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     await new Promise((r) => setImmediate(r));
     expect(dispatchWebhookEventMock).not.toHaveBeenCalled();
@@ -271,11 +306,15 @@ describe("Flow B: approved-status request creation (extended)", () => {
 
   it("payload.reason is null when caller omits reason", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "approved", refundStatus: null, items: [],
+      id: "rc-1",
+      status: "approved",
+      refundStatus: null,
+      items: [],
     });
     await action({
       request: jsonReq({ shop: "store", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const eventCall = prismaMock.returnEvent.create.mock.calls[0][0];
     const payload = JSON.parse(eventCall.data.payloadJson);
@@ -292,7 +331,8 @@ describe("Flow B: approved-status request creation (extended)", () => {
     });
     const res = await action({
       request: jsonReq({ shop: "store", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/already pending/i);
@@ -310,7 +350,8 @@ describe("CSRF gate", () => {
     verifyPortalCsrfTokenMock.mockReturnValueOnce(false);
     const res = await action({
       request: jsonReq({ shop: "store", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/Session expired/);
@@ -322,14 +363,18 @@ describe("CSRF gate", () => {
     delete process.env.PORTAL_CSRF_REQUIRED;
     verifyPortalCsrfTokenMock.mockReturnValueOnce(true);
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "pending", refundStatus: null, items: [],
+      id: "rc-1",
+      status: "pending",
+      refundStatus: null,
+      items: [],
     });
     const res = await action({
       request: jsonReq(
         { shop: "store", returnCaseId: "rc-1", portalCsrfToken: "good" },
         { auth: "Bearer t" },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(verifyPortalCsrfTokenMock).toHaveBeenCalledWith("good", "store.myshopify.com");
@@ -338,11 +383,15 @@ describe("CSRF gate", () => {
   it("soft mode (PORTAL_CSRF_REQUIRED=false) without token: skips CSRF check entirely", async () => {
     process.env.PORTAL_CSRF_REQUIRED = "false";
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "pending", refundStatus: null, items: [],
+      id: "rc-1",
+      status: "pending",
+      refundStatus: null,
+      items: [],
     });
     const res = await action({
       request: jsonReq({ shop: "store", returnCaseId: "rc-1" }, { auth: "Bearer t" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(verifyPortalCsrfTokenMock).not.toHaveBeenCalled();
@@ -358,7 +407,8 @@ describe("CSRF gate", () => {
         { shop: "store", returnCaseId: "rc-1", portalCsrfToken: "stale" },
         { auth: "Bearer t" },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
     expect(verifyPortalCsrfTokenMock).toHaveBeenCalledWith("stale", "store.myshopify.com");
@@ -368,14 +418,18 @@ describe("CSRF gate", () => {
     delete process.env.PORTAL_CSRF_REQUIRED;
     verifyPortalCsrfTokenMock.mockReturnValueOnce(true);
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "pending", refundStatus: null, items: [],
+      id: "rc-1",
+      status: "pending",
+      refundStatus: null,
+      items: [],
     });
     await action({
       request: jsonReq(
         { shop: "store", returnCaseId: "rc-1", portalCsrfToken: "tok" },
         { auth: "Bearer t" },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(verifyPortalCsrfTokenMock).toHaveBeenCalledWith("tok", "store.myshopify.com");
   });
@@ -384,14 +438,18 @@ describe("CSRF gate", () => {
     delete process.env.PORTAL_CSRF_REQUIRED;
     verifyPortalCsrfTokenMock.mockReturnValueOnce(true);
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", status: "pending", refundStatus: null, items: [],
+      id: "rc-1",
+      status: "pending",
+      refundStatus: null,
+      items: [],
     });
     await action({
       request: jsonReq(
         { shop: "store.myshopify.com", returnCaseId: "rc-1", portalCsrfToken: "tok" },
         { auth: "Bearer t" },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(verifyPortalCsrfTokenMock).toHaveBeenCalledWith("tok", "store.myshopify.com");
   });

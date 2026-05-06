@@ -115,19 +115,13 @@ describe("app.returns.create component (default export)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('input[placeholder="e.g. 1042, #1042"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('input[placeholder="e.g. 1042, #1042"]')).toBeTruthy();
     });
     const buttons = Array.from(container.querySelectorAll("button"));
-    const searchBtn = buttons.find((b) =>
-      /Search/i.test(b.textContent || ""),
-    ) as HTMLButtonElement;
+    const searchBtn = buttons.find((b) => /Search/i.test(b.textContent || "")) as HTMLButtonElement;
     fireEvent.click(searchBtn);
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Please enter an order number.",
-      );
+      expect(container.textContent).toContain("Please enter an order number.");
     });
   });
 
@@ -143,8 +137,12 @@ describe("app.returns.create component (default export)", () => {
       ) as HTMLInputElement | null;
       expect(input).toBeTruthy();
     });
-    await act(async () => { fireEvent.change(input!, { target: { value: "1042" } }); });
-    await waitFor(() => { expect(input!.value).toBe("1042"); });
+    await act(async () => {
+      fireEvent.change(input!, { target: { value: "1042" } });
+    });
+    await waitFor(() => {
+      expect(input!.value).toBe("1042");
+    });
   });
 
   it("does not render step 2/3/4 sections initially", async () => {

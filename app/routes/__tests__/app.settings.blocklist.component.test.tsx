@@ -104,13 +104,22 @@ type FetcherShape = {
   state?: string;
   data?: { success?: boolean; error?: string };
   formData?: FormData | null;
-  Form: React.ComponentType<{ children?: React.ReactNode; method?: string; style?: React.CSSProperties }>;
+  Form: React.ComponentType<{
+    children?: React.ReactNode;
+    method?: string;
+    style?: React.CSSProperties;
+  }>;
 };
 
 function makeFetcher(overrides: Partial<FetcherShape> = {}): FetcherShape {
-  const Form = ({ children, ...rest }: { children?: React.ReactNode; method?: string; style?: React.CSSProperties }) => (
-    <form {...rest}>{children}</form>
-  );
+  const Form = ({
+    children,
+    ...rest
+  }: {
+    children?: React.ReactNode;
+    method?: string;
+    style?: React.CSSProperties;
+  }) => <form {...rest}>{children}</form>;
   return {
     state: "idle",
     data: undefined,
@@ -247,8 +256,12 @@ describe("BlocklistSettings — add-entry modal", () => {
   it("reason input is controlled and reflects user-entered text", async () => {
     const { container } = render(<BlocklistSettings />);
     const reasonInput = container.querySelector("input[name='reason']") as HTMLInputElement;
-    await act(async () => { fireEvent.change(reasonInput, { target: { value: "Suspected fraud" } }); });
-    await waitFor(() => { expect(reasonInput.value).toBe("Suspected fraud"); });
+    await act(async () => {
+      fireEvent.change(reasonInput, { target: { value: "Suspected fraud" } });
+    });
+    await waitFor(() => {
+      expect(reasonInput.value).toBe("Suspected fraud");
+    });
   });
 
   it("clears value+reason inputs after successful add (success+intent=add effect)", async () => {
@@ -258,8 +271,12 @@ describe("BlocklistSettings — add-entry modal", () => {
     const valueInput = container.querySelector("input[name='value']") as HTMLInputElement;
     const reasonInput = container.querySelector("input[name='reason']") as HTMLInputElement;
     fireEvent.change(valueInput, { target: { value: "spam@example.com" } });
-    await act(async () => { fireEvent.change(reasonInput, { target: { value: "spam" } }); });
-    await waitFor(() => { expect(valueInput.value).toBe("spam@example.com"); });
+    await act(async () => {
+      fireEvent.change(reasonInput, { target: { value: "spam" } });
+    });
+    await waitFor(() => {
+      expect(valueInput.value).toBe("spam@example.com");
+    });
     expect(reasonInput.value).toBe("spam");
 
     // Re-render with fetcher now reporting success for an "add" intent — the
@@ -545,9 +562,7 @@ describe("BlocklistSettings — fetcher feedback banners", () => {
   });
 
   it("hides the success banner when fetcher.data.success is falsy", () => {
-    mockUseFetcher.mockReturnValue(
-      makeFetcher({ data: { success: false }, formData: null }),
-    );
+    mockUseFetcher.mockReturnValue(makeFetcher({ data: { success: false }, formData: null }));
     const { container } = render(<BlocklistSettings />);
     expect(container.querySelector(".app-alert-success")).toBeNull();
   });

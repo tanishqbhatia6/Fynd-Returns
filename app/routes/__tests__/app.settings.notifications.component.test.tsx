@@ -134,9 +134,7 @@ describe("Notifications settings (default export)", () => {
     await waitFor(() => {
       expect(container.querySelector("input[name='smtpPass']")).toBeTruthy();
     });
-    const passInput = container.querySelector(
-      "input[name='smtpPass']",
-    ) as HTMLInputElement | null;
+    const passInput = container.querySelector("input[name='smtpPass']") as HTMLInputElement | null;
     expect(passInput).toBeTruthy();
     expect(passInput?.getAttribute("type")).toBe("password");
     // The masked sentinel — never the real password — must populate the field
@@ -152,15 +150,9 @@ describe("Notifications settings (default export)", () => {
     await waitFor(() => {
       expect(container.querySelector("input[name='smtpHost']")).toBeTruthy();
     });
-    const host = container.querySelector(
-      "input[name='smtpHost']",
-    ) as HTMLInputElement | null;
-    const port = container.querySelector(
-      "input[name='smtpPort']",
-    ) as HTMLInputElement | null;
-    const user = container.querySelector(
-      "input[name='smtpUser']",
-    ) as HTMLInputElement | null;
+    const host = container.querySelector("input[name='smtpHost']") as HTMLInputElement | null;
+    const port = container.querySelector("input[name='smtpPort']") as HTMLInputElement | null;
+    const user = container.querySelector("input[name='smtpUser']") as HTMLInputElement | null;
     const fromEmail = container.querySelector(
       "input[name='smtpFromEmail']",
     ) as HTMLInputElement | null;
@@ -180,9 +172,7 @@ describe("Notifications settings (default export)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector("input[name='notificationNewReturn']"),
-      ).toBeTruthy();
+      expect(container.querySelector("input[name='notificationNewReturn']")).toBeTruthy();
     });
     const newReturn = container.querySelector(
       "input[name='notificationNewReturn']",
@@ -227,19 +217,15 @@ describe("Notifications settings (default export)", () => {
     const statusSelect = container.querySelector(
       "select[name='logStatus']",
     ) as HTMLSelectElement | null;
-    const searchInput = container.querySelector(
-      "input[name='logQ']",
-    ) as HTMLInputElement | null;
+    const searchInput = container.querySelector("input[name='logQ']") as HTMLInputElement | null;
     expect(channelSelect).toBeTruthy();
     expect(statusSelect).toBeTruthy();
     expect(searchInput).toBeTruthy();
     // Channel select includes the documented options.
-    const channelOptions = Array.from(
-      channelSelect?.querySelectorAll("option") ?? [],
-    ).map((o) => o.getAttribute("value"));
-    expect(channelOptions).toEqual(
-      expect.arrayContaining(["", "email", "whatsapp", "sms"]),
+    const channelOptions = Array.from(channelSelect?.querySelectorAll("option") ?? []).map((o) =>
+      o.getAttribute("value"),
     );
+    expect(channelOptions).toEqual(expect.arrayContaining(["", "email", "whatsapp", "sms"]));
   });
 
   it("renders the notification log rows from loader data", async () => {

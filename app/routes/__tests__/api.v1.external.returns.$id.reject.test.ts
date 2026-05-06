@@ -36,7 +36,9 @@ vi.mock("../../lib/webhook-dispatch.server", () => ({
 }));
 
 vi.mock("../../lib/external-api-helpers.server", async () => {
-  const actual = await vi.importActual<typeof import("../../lib/external-api-helpers.server")>("../../lib/external-api-helpers.server");
+  const actual = await vi.importActual<typeof import("../../lib/external-api-helpers.server")>(
+    "../../lib/external-api-helpers.server",
+  );
   return {
     ...actual,
     // Per-key rate-limit hits the DB in production. In tests we short-circuit

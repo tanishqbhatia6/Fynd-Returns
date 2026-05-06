@@ -2,7 +2,10 @@ import type { MetaFunction } from "react-router";
 
 export const meta: MetaFunction = () => [
   { title: "Privacy Policy — ReturnPro by Fynd" },
-  { name: "description", content: "Privacy policy for the ReturnPro (Fynd Returns) Shopify application." },
+  {
+    name: "description",
+    content: "Privacy policy for the ReturnPro (Fynd Returns) Shopify application.",
+  },
 ];
 
 export default function PrivacyPolicy() {
@@ -85,20 +88,32 @@ export default function PrivacyPolicy() {
         <p className="legal-date">Effective date: {effectiveDate}</p>
 
         <p>
-          This Privacy Policy describes how Shopsense Retail Technologies Ltd.
-          (&quot;Fynd&quot;, &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;)
-          collects, uses, and discloses information in connection with the
-          ReturnPro application (&quot;Fynd Returns&quot;, &quot;the App&quot;),
-          a Shopify application for managing product returns.
+          This Privacy Policy describes how Shopsense Retail Technologies Ltd. (&quot;Fynd&quot;,
+          &quot;we&quot;, &quot;us&quot;, or &quot;our&quot;) collects, uses, and discloses
+          information in connection with the ReturnPro application (&quot;Fynd Returns&quot;,
+          &quot;the App&quot;), a Shopify application for managing product returns.
         </p>
 
         <h2>1. Information We Collect</h2>
         <p>When a merchant installs the App, we collect and process:</p>
         <ul>
-          <li><strong>Store information:</strong> Shop domain, Shopify access tokens, store name, and locale settings — required to operate the App within Shopify.</li>
-          <li><strong>Order data:</strong> Order IDs, line item details, fulfillment information, and return reasons — accessed via Shopify APIs to facilitate return processing.</li>
-          <li><strong>Customer data:</strong> Customer name, email, phone (when provided), and shipping address — used solely to process and communicate about return requests.</li>
-          <li><strong>Fynd integration data:</strong> Fynd API credentials (encrypted at rest), order mappings, and shipment tracking information — used for logistics integration with Fynd OMS.</li>
+          <li>
+            <strong>Store information:</strong> Shop domain, Shopify access tokens, store name, and
+            locale settings — required to operate the App within Shopify.
+          </li>
+          <li>
+            <strong>Order data:</strong> Order IDs, line item details, fulfillment information, and
+            return reasons — accessed via Shopify APIs to facilitate return processing.
+          </li>
+          <li>
+            <strong>Customer data:</strong> Customer name, email, phone (when provided), and
+            shipping address — used solely to process and communicate about return requests.
+          </li>
+          <li>
+            <strong>Fynd integration data:</strong> Fynd API credentials (encrypted at rest), order
+            mappings, and shipment tracking information — used for logistics integration with Fynd
+            OMS.
+          </li>
         </ul>
 
         <h2>2. How We Use Information</h2>
@@ -107,7 +122,10 @@ export default function PrivacyPolicy() {
           <li>Process and manage return requests on behalf of the merchant.</li>
           <li>Provide the customer-facing return portal experience.</li>
           <li>Sync return and logistics data with Fynd OMS when configured.</li>
-          <li>Send email notifications about return status updates (when SMTP is configured by the merchant).</li>
+          <li>
+            Send email notifications about return status updates (when SMTP is configured by the
+            merchant).
+          </li>
           <li>Generate analytics and reports for the merchant.</li>
           <li>Maintain and improve the App.</li>
         </ul>
@@ -124,8 +142,14 @@ export default function PrivacyPolicy() {
         <h2>4. Data Sharing</h2>
         <p>We do not sell personal data. We share data only:</p>
         <ul>
-          <li>With <strong>Fynd OMS</strong> — when the merchant has configured Fynd integration, for logistics processing.</li>
-          <li>With <strong>email providers</strong> — when the merchant has configured SMTP, to send return status notifications.</li>
+          <li>
+            With <strong>Fynd OMS</strong> — when the merchant has configured Fynd integration, for
+            logistics processing.
+          </li>
+          <li>
+            With <strong>email providers</strong> — when the merchant has configured SMTP, to send
+            return status notifications.
+          </li>
           <li>As required by law or to comply with legal process.</li>
         </ul>
 
@@ -133,42 +157,58 @@ export default function PrivacyPolicy() {
         <ul>
           <li>Merchant and return data is retained while the App is installed.</li>
           <li>Upon uninstallation, Shopify sessions are deleted immediately.</li>
-          <li>Upon receiving a <code>shop/redact</code> webhook (48 hours after uninstall), all shop data — including return cases, customer information, API keys, and settings — is permanently deleted.</li>
-          <li>Customer personal data is deleted or anonymized upon receiving a <code>customers/redact</code> request.</li>
+          <li>
+            Upon receiving a <code>shop/redact</code> webhook (48 hours after uninstall), all shop
+            data — including return cases, customer information, API keys, and settings — is
+            permanently deleted.
+          </li>
+          <li>
+            Customer personal data is deleted or anonymized upon receiving a{" "}
+            <code>customers/redact</code> request.
+          </li>
         </ul>
 
         <h2>6. GDPR and Data Subject Rights</h2>
         <p>
-          If you are a customer of a store using the App, you may exercise your
-          rights under GDPR (or equivalent legislation) by contacting the store
-          directly. The store owner can initiate data access or deletion requests
-          through Shopify, which triggers our automated compliance webhooks.
+          If you are a customer of a store using the App, you may exercise your rights under GDPR
+          (or equivalent legislation) by contacting the store directly. The store owner can initiate
+          data access or deletion requests through Shopify, which triggers our automated compliance
+          webhooks.
         </p>
         <p>We support the following GDPR-mandated webhooks:</p>
         <ul>
-          <li><strong>Customer data request</strong> — We compile all stored data for the specified customer.</li>
-          <li><strong>Customer data erasure</strong> — We anonymize or delete all personal data for the specified customer.</li>
-          <li><strong>Shop data erasure</strong> — We delete all data associated with the merchant&apos;s store.</li>
+          <li>
+            <strong>Customer data request</strong> — We compile all stored data for the specified
+            customer.
+          </li>
+          <li>
+            <strong>Customer data erasure</strong> — We anonymize or delete all personal data for
+            the specified customer.
+          </li>
+          <li>
+            <strong>Shop data erasure</strong> — We delete all data associated with the
+            merchant&apos;s store.
+          </li>
         </ul>
 
         <h2>7. Cookies and Tracking</h2>
         <p>
-          The App does not use third-party cookies or tracking pixels. The
-          embedded Shopify admin interface uses Shopify session tokens for
-          authentication. The customer return portal uses short-lived JWT tokens.
+          The App does not use third-party cookies or tracking pixels. The embedded Shopify admin
+          interface uses Shopify session tokens for authentication. The customer return portal uses
+          short-lived JWT tokens.
         </p>
 
         <h2>8. Children&apos;s Privacy</h2>
         <p>
-          The App is a business tool for Shopify merchants and is not directed at
-          individuals under 16. We do not knowingly collect data from children.
+          The App is a business tool for Shopify merchants and is not directed at individuals under
+          16. We do not knowingly collect data from children.
         </p>
 
         <h2>9. Changes to This Policy</h2>
         <p>
-          We may update this Privacy Policy from time to time. The updated version
-          will be indicated by the &quot;Effective date&quot; at the top of this page.
-          Continued use of the App after changes constitutes acceptance.
+          We may update this Privacy Policy from time to time. The updated version will be indicated
+          by the &quot;Effective date&quot; at the top of this page. Continued use of the App after
+          changes constitutes acceptance.
         </p>
 
         <h2>10. Contact Us</h2>
@@ -177,9 +217,13 @@ export default function PrivacyPolicy() {
           <a href="mailto:privacy@fynd.com">privacy@fynd.com</a>
         </p>
         <p>
-          Shopsense Retail Technologies Ltd.<br />
-          Mumbai, India<br />
-          <a href="https://www.fynd.com" target="_blank" rel="noopener noreferrer">www.fynd.com</a>
+          Shopsense Retail Technologies Ltd.
+          <br />
+          Mumbai, India
+          <br />
+          <a href="https://www.fynd.com" target="_blank" rel="noopener noreferrer">
+            www.fynd.com
+          </a>
         </p>
       </div>
     </div>

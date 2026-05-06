@@ -35,7 +35,9 @@ const {
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
   evaluateAutoApproveRulesMock: vi.fn(() => "approve" as string),
   parseAutoApproveRulesMock: vi.fn(() => [] as unknown[]),
 }));
@@ -108,16 +110,24 @@ function jsonReq(body: unknown) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   shopifyModuleMock.unauthenticated.admin.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   verifyPortalCsrfMock.mockReset().mockReturnValue(true);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset();
   fetchOrderByOrderNumberMock.mockReset();
   fetchOrderByFyndAffiliateIdMock.mockReset();
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
   evaluateAutoApproveRulesMock.mockReset().mockReturnValue("approve");
   parseAutoApproveRulesMock.mockReset().mockReturnValue([]);
-  (prismaMock as unknown as { fyndOrderMapping: { upsert: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> } }).fyndOrderMapping = {
+  (
+    prismaMock as unknown as {
+      fyndOrderMapping: { upsert: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> };
+    }
+  ).fyndOrderMapping = {
     upsert: vi.fn().mockResolvedValue({}),
     findFirst: vi.fn().mockResolvedValue(null),
   };
@@ -282,7 +292,11 @@ describe("media filter branches (lines 900-901)", () => {
           // bad dataUrl: not a string
           { name: "wrong-type.jpg", mimeType: "image/jpeg", dataUrl: 12345 },
           // disallowed prefix
-          { name: "evil.exe", mimeType: "application/octet-stream", dataUrl: "data:application/octet-stream;base64,AAAA" },
+          {
+            name: "evil.exe",
+            mimeType: "application/octet-stream",
+            dataUrl: "data:application/octet-stream;base64,AAAA",
+          },
         ],
       }),
       params: {},
@@ -304,8 +318,9 @@ describe("late-resolve via Fynd affiliate ID during line item resolution (lines 
     // still need the late-resolve. Then later, fetchOrder returns null and the
     // late-resolve at L507-514 fires.
     fetchOrderByFyndAffiliateIdMock
-      .mockResolvedValueOnce({ id: "non-gid-id", lineItems: [] })  // early resolve (returns non-GID)
-      .mockResolvedValueOnce({                                       // late resolve at L507-514
+      .mockResolvedValueOnce({ id: "non-gid-id", lineItems: [] }) // early resolve (returns non-GID)
+      .mockResolvedValueOnce({
+        // late resolve at L507-514
         id: "gid://shopify/Order/99",
         lineItems: [{ id: "li-1", title: "T-Shirt", sku: "TSH-1", quantity: 1 }],
         sourceName: "web",
@@ -354,8 +369,18 @@ describe("gid:// prefix continue and SKU fallback (L547/L1107)", () => {
     prismaMock.returnItem = {
       findMany: vi.fn().mockResolvedValue([
         // Item with no SKU exercises L1107 continue
-        { sku: null, qty: 1, shopifyLineItemId: "gid://shopify/LineItem/9", returnCase: { fyndShipmentId: null } },
-        { sku: "TSH-2", qty: 1, shopifyLineItemId: "gid://shopify/LineItem/8", returnCase: { fyndShipmentId: null } },
+        {
+          sku: null,
+          qty: 1,
+          shopifyLineItemId: "gid://shopify/LineItem/9",
+          returnCase: { fyndShipmentId: null },
+        },
+        {
+          sku: "TSH-2",
+          qty: 1,
+          shopifyLineItemId: "gid://shopify/LineItem/8",
+          returnCase: { fyndShipmentId: null },
+        },
       ]),
     } as never;
     prismaMock.$transaction = vi.fn(async (cb: unknown) => {
@@ -419,7 +444,7 @@ describe("manual + non-manual mixed items continue branches (L547/647/864/1120)"
         shopifyOrderName: "1007",
         orderId: "gid://shopify/Order/1",
         items: [
-          { lineItemId: "manual", qty: 1 },          // exercises continue at L547/647/864/1120
+          { lineItemId: "manual", qty: 1 }, // exercises continue at L547/647/864/1120
           { lineItemId: "li-1", qty: 1 },
         ],
         lineItemsWithPrice: [

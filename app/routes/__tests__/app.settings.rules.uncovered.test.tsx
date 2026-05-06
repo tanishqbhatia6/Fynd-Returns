@@ -52,12 +52,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import {
-  act,
-  waitFor as rtlWaitFor,
-  fireEvent,
-  configure,
-} from "@testing-library/react";
+import { act, waitFor as rtlWaitFor, fireEvent, configure } from "@testing-library/react";
 import ReturnRules from "../app.settings.rules";
 
 // React Router 7's createMemoryRouter performs an async loader transition
@@ -65,16 +60,13 @@ import ReturnRules from "../app.settings.rules";
 // before the first paint. Bump the async helper timeouts so cold-start
 // renders aren't flaky.
 configure({ asyncUtilTimeout: 8000 });
-const waitFor: typeof rtlWaitFor = (cb, opts) =>
-  rtlWaitFor(cb, { timeout: 8000, ...opts });
+const waitFor: typeof rtlWaitFor = (cb, opts) => rtlWaitFor(cb, { timeout: 8000, ...opts });
 
 const baseLoaderData = {
   returnWindowDays: 30,
   minimumReturnPrice: "0",
   returnReasons: ["Wrong size", "Damaged item", "Late delivery"],
-  returnReasonsByCategory: [
-    { category: "Apparel", reasons: ["Too tight"] },
-  ],
+  returnReasonsByCategory: [{ category: "Apparel", reasons: ["Too tight"] }],
   restrictedRegions: [{ country: "Cuba" }, { province: "Quebec" }, {}],
   returnOffers: [
     {
@@ -98,10 +90,7 @@ const baseLoaderData = {
   shopCurrency: "USD",
 };
 
-function findInput(
-  container: HTMLElement,
-  selector: string,
-): HTMLInputElement {
+function findInput(container: HTMLElement, selector: string): HTMLInputElement {
   const el = container.querySelector(selector) as HTMLInputElement | null;
   if (!el) throw new Error(`Expected to find ${selector}`);
   return el;
@@ -114,18 +103,10 @@ describe("app.settings.rules — uncovered component branches", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('input[name="returnWindowDays"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('input[name="returnWindowDays"]')).toBeTruthy();
     });
-    const windowInput = findInput(
-      container,
-      'input[name="returnWindowDays"]',
-    );
-    const priceInput = findInput(
-      container,
-      'input[name="minimumReturnPrice"]',
-    );
+    const windowInput = findInput(container, 'input[name="returnWindowDays"]');
+    const priceInput = findInput(container, 'input[name="minimumReturnPrice"]');
     expect(windowInput.value).toBe("30");
     expect(priceInput.value).toBe("0");
     fireEvent.change(windowInput, { target: { value: "60" } });
@@ -154,9 +135,7 @@ describe("app.settings.rules — uncovered component branches", () => {
 
     // Click "+ Add category" — find by text content match.
     const buttons = Array.from(container.querySelectorAll("button"));
-    const addCategoryBtn = buttons.find(
-      (b) => b.textContent?.trim() === "+ Add category",
-    );
+    const addCategoryBtn = buttons.find((b) => b.textContent?.trim() === "+ Add category");
     expect(addCategoryBtn).toBeTruthy();
     fireEvent.click(addCategoryBtn!);
 
@@ -179,9 +158,7 @@ describe("app.settings.rules — uncovered component branches", () => {
     // Add a reason to the first ("Apparel") category via Enter key on its
     // "Add reason" input.
     const reasonAddInputs = Array.from(
-      container.querySelectorAll<HTMLInputElement>(
-        'input[placeholder="Add reason"]',
-      ),
+      container.querySelectorAll<HTMLInputElement>('input[placeholder="Add reason"]'),
     );
     expect(reasonAddInputs.length).toBeGreaterThanOrEqual(2);
     fireEvent.change(reasonAddInputs[0], { target: { value: "Stain" } });
@@ -197,9 +174,9 @@ describe("app.settings.rules — uncovered component branches", () => {
     // Add another reason via the per-category Add button (click handler).
     fireEvent.change(reasonAddInputs[0], { target: { value: "Faded" } });
     // Locate the Add button next to that input.
-    const addReasonButtons = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "Add");
+    const addReasonButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Add",
+    );
     expect(addReasonButtons.length).toBeGreaterThan(0);
     fireEvent.click(addReasonButtons[0]);
     await waitFor(() => {
@@ -221,9 +198,9 @@ describe("app.settings.rules — uncovered component branches", () => {
     });
 
     // Remove a category entirely via its Remove button.
-    const removeCategoryButtons = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "Remove");
+    const removeCategoryButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Remove",
+    );
     expect(removeCategoryButtons.length).toBeGreaterThan(0);
     fireEvent.click(removeCategoryButtons[0]);
   });
@@ -236,10 +213,7 @@ describe("app.settings.rules — uncovered component branches", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Cuba");
     });
-    const regionInput = findInput(
-      container,
-      'input[placeholder="Search country"]',
-    );
+    const regionInput = findInput(container, 'input[placeholder="Search country"]');
     fireEvent.change(regionInput, { target: { value: "Iran" } });
     fireEvent.keyDown(regionInput, { key: "Enter" });
     await waitFor(() => {
@@ -265,14 +239,10 @@ describe("app.settings.rules — uncovered component branches", () => {
 
     // Wait for the existing fee row.
     await waitFor(() => {
-      expect(
-        container.querySelector("#feeReasonSelect"),
-      ).toBeTruthy();
+      expect(container.querySelector("#feeReasonSelect")).toBeTruthy();
     });
 
-    const feeSelect = container.querySelector(
-      "#feeReasonSelect",
-    ) as HTMLSelectElement;
+    const feeSelect = container.querySelector("#feeReasonSelect") as HTMLSelectElement;
     expect(feeSelect).toBeTruthy();
 
     // Locate the matching Add s-button (sibling within the same flex row).
@@ -295,9 +265,7 @@ describe("app.settings.rules — uncovered component branches", () => {
 
     // Mutate fee amount on existing row (onChange handler).
     const feeAmountInputs = Array.from(
-      container.querySelectorAll<HTMLInputElement>(
-        'input[type="number"][step="0.01"]',
-      ),
+      container.querySelectorAll<HTMLInputElement>('input[type="number"][step="0.01"]'),
     );
     // Find a fee input (value matches one of our seeded amounts).
     const feeInput = feeAmountInputs.find((i) => i.value === "5");
@@ -308,9 +276,9 @@ describe("app.settings.rules — uncovered component branches", () => {
     fireEvent.change(feeInput!, { target: { value: "abc" } });
 
     // Remove the original fee row via its "×" button.
-    const removeFeeButtons = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "×");
+    const removeFeeButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "×",
+    );
     expect(removeFeeButtons.length).toBeGreaterThan(0);
     fireEvent.click(removeFeeButtons[0]);
   });
@@ -335,11 +303,11 @@ describe("app.settings.rules — uncovered component branches", () => {
 
     // Click the "+ Add country" dashed button.
     const allButtons = Array.from(container.querySelectorAll("button"));
-    const addCountryBtn = allButtons.find(
-      (b) => b.textContent?.trim() === "+ Add country",
-    );
+    const addCountryBtn = allButtons.find((b) => b.textContent?.trim() === "+ Add country");
     expect(addCountryBtn).toBeTruthy();
-    await act(async () => { fireEvent.click(addCountryBtn!); });
+    await act(async () => {
+      fireEvent.click(addCountryBtn!);
+    });
 
     // Now there should be 2 country inputs.
     await waitFor(() => {
@@ -360,9 +328,7 @@ describe("app.settings.rules — uncovered component branches", () => {
     // inside the country-windows section. Easiest path: locate by the value
     // ("30") on the days input we just rendered.
     const daysInputs = Array.from(
-      container.querySelectorAll<HTMLInputElement>(
-        'input[type="number"][min="1"][max="365"]',
-      ),
+      container.querySelectorAll<HTMLInputElement>('input[type="number"][min="1"][max="365"]'),
     );
     // returnWindowDays input also matches; filter to those without a name attr.
     const countryDaysInputs = daysInputs.filter((i) => !i.getAttribute("name"));
@@ -378,9 +344,9 @@ describe("app.settings.rules — uncovered component branches", () => {
     });
 
     // Remove the first country row.
-    const xButtons = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "×");
+    const xButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "×",
+    );
     // Find the one inside a country-windows row (look for a sibling with
     // "days" text).
     const countryRemove = xButtons.find((b) => {
@@ -416,9 +382,7 @@ describe("app.settings.rules — uncovered component branches", () => {
     });
     let checkbox: HTMLInputElement | null = null;
     await waitFor(() => {
-      checkbox = container.querySelector(
-        'input[type="checkbox"]',
-      ) as HTMLInputElement | null;
+      checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
       expect(checkbox).toBeTruthy();
       expect(checkbox!.checked).toBe(true);
     });
@@ -449,14 +413,12 @@ describe("app.settings.rules — uncovered component branches", () => {
     // Wait for the "Add New Offer" toggle button (s-button) to render.
     await waitFor(() => {
       const buttons = Array.from(container.querySelectorAll("s-button"));
-      expect(
-        buttons.some((b) => b.textContent?.trim() === "Add New Offer"),
-      ).toBe(true);
+      expect(buttons.some((b) => b.textContent?.trim() === "Add New Offer")).toBe(true);
     });
     const buttons = Array.from(container.querySelectorAll("s-button"));
-    const addNewOfferBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Add New Offer",
-    ) as HTMLElement | undefined;
+    const addNewOfferBtn = buttons.find((b) => b.textContent?.trim() === "Add New Offer") as
+      | HTMLElement
+      | undefined;
     expect(addNewOfferBtn).toBeTruthy();
     fireEvent.click(addNewOfferBtn!);
 
@@ -466,9 +428,7 @@ describe("app.settings.rules — uncovered component branches", () => {
     });
 
     // 1) Reason select — pick the existing "Wrong size" reason.
-    const reasonSelect = container.querySelector(
-      "select",
-    ) as HTMLSelectElement | null;
+    const reasonSelect = container.querySelector("select") as HTMLSelectElement | null;
     expect(reasonSelect).toBeTruthy();
     fireEvent.change(reasonSelect!, { target: { value: "Wrong size" } });
 
@@ -482,9 +442,7 @@ describe("app.settings.rules — uncovered component branches", () => {
     // 3) Offer-type select — switch to flat then back to pct.
     const selects = Array.from(container.querySelectorAll("select"));
     const typeSelect = selects.find((s) =>
-      Array.from(s.options).some(
-        (o) => o.value === "discount_pct" || o.value === "discount_flat",
-      ),
+      Array.from(s.options).some((o) => o.value === "discount_pct" || o.value === "discount_flat"),
     ) as HTMLSelectElement | undefined;
     expect(typeSelect).toBeTruthy();
     fireEvent.change(typeSelect!, { target: { value: "discount_flat" } });
@@ -492,9 +450,7 @@ describe("app.settings.rules — uncovered component branches", () => {
 
     // 4) Value input.
     const valueInput = Array.from(
-      container.querySelectorAll<HTMLInputElement>(
-        'input[type="number"][step="0.01"]',
-      ),
+      container.querySelectorAll<HTMLInputElement>('input[type="number"][step="0.01"]'),
     ).find((i) => i.placeholder?.startsWith("e.g. 15"));
     expect(valueInput).toBeTruthy();
 
@@ -507,11 +463,9 @@ describe("app.settings.rules — uncovered component branches", () => {
     // Invalid (zero) value → addOffer early-returns.
     fireEvent.change(valueInput!, { target: { value: "0" } });
     fireEvent.change(messageInput!, { target: { value: "Stay with us!" } });
-    const addOfferBtn = Array.from(
-      container.querySelectorAll("s-button"),
-    ).find((b) => b.textContent?.trim() === "Add Offer") as
-      | HTMLElement
-      | undefined;
+    const addOfferBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => b.textContent?.trim() === "Add Offer",
+    ) as HTMLElement | undefined;
     expect(addOfferBtn).toBeTruthy();
     fireEvent.click(addOfferBtn!);
     expect(container.textContent).toContain("New Offer");
@@ -534,28 +488,24 @@ describe("app.settings.rules — uncovered component branches", () => {
 
     // Reopen form then click Cancel (covers the secondary setShowOfferForm
     // path).
-    const addNewOfferBtn2 = Array.from(
-      container.querySelectorAll("s-button"),
-    ).find((b) => b.textContent?.trim() === "Add New Offer") as
-      | HTMLElement
-      | undefined;
+    const addNewOfferBtn2 = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => b.textContent?.trim() === "Add New Offer",
+    ) as HTMLElement | undefined;
     expect(addNewOfferBtn2).toBeTruthy();
     fireEvent.click(addNewOfferBtn2!);
     await waitFor(() => {
       expect(container.textContent).toContain("New Offer");
     });
-    const cancelBtn = Array.from(
-      container.querySelectorAll("s-button"),
-    ).find((b) => b.textContent?.trim() === "Cancel") as
-      | HTMLElement
-      | undefined;
+    const cancelBtn = Array.from(container.querySelectorAll("s-button")).find(
+      (b) => b.textContent?.trim() === "Cancel",
+    ) as HTMLElement | undefined;
     expect(cancelBtn).toBeTruthy();
     fireEvent.click(cancelBtn!);
 
     // Remove an offer via its "Remove" button (covers removeOffer).
-    const removeButtons = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "Remove");
+    const removeButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Remove",
+    );
     expect(removeButtons.length).toBeGreaterThan(0);
     fireEvent.click(removeButtons[0]);
   });

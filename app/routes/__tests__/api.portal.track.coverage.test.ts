@@ -69,9 +69,9 @@ beforeEach(() => {
   checkRateLimitMock
     .mockReset()
     .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
-  extractJourneyMock.mockReset().mockReturnValue([
-    { status: "return_initiated", at: "2026-02-15" },
-  ]);
+  extractJourneyMock
+    .mockReset()
+    .mockReturnValue([{ status: "return_initiated", at: "2026-02-15" }]);
 });
 
 describe("api.portal.track — coverage extras", () => {
@@ -87,9 +87,7 @@ describe("api.portal.track — coverage extras", () => {
         }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -120,9 +118,7 @@ describe("api.portal.track — coverage extras", () => {
       extractJourneyMock.mockReturnValueOnce(null as unknown as never);
 
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -138,9 +134,7 @@ describe("api.portal.track — coverage extras", () => {
         baseReturnCase({ fyndReturnNo: null, returnAwb: null }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -156,9 +150,7 @@ describe("api.portal.track — coverage extras", () => {
         baseReturnCase({ fyndReturnNo: undefined, returnAwb: undefined }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -178,9 +170,7 @@ describe("api.portal.track — coverage extras", () => {
         }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -202,9 +192,7 @@ describe("api.portal.track — coverage extras", () => {
         { status: "refunded", at: "2026-03-02" },
       ]);
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -224,9 +212,7 @@ describe("api.portal.track — coverage extras", () => {
       );
       extractJourneyMock.mockReturnValueOnce(null as unknown as never);
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -243,9 +229,7 @@ describe("api.portal.track — coverage extras", () => {
         }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -265,9 +249,7 @@ describe("api.portal.track — coverage extras", () => {
         }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -285,9 +267,7 @@ describe("api.portal.track — coverage extras", () => {
         }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -307,9 +287,7 @@ describe("api.portal.track — coverage extras", () => {
         }),
       );
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -326,9 +304,7 @@ describe("api.portal.track — coverage extras", () => {
       );
       // "(415) 555-1212" with country code → after non-[\d+] strip becomes "+14155551212"
       const res = await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=R-100&phone=%2B1%20(415)%20555-1212",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=R-100&phone=%2B1%20(415)%20555-1212"),
         params: {},
         context: {},
       } as never);
@@ -337,13 +313,9 @@ describe("api.portal.track — coverage extras", () => {
 
     it("accepts dotted shop param without re-appending myshopify.com", async () => {
       prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-      prismaMock.returnCase.findFirst.mockResolvedValueOnce(
-        baseReturnCase(),
-      );
+      prismaMock.returnCase.findFirst.mockResolvedValueOnce(baseReturnCase());
       await loader({
-        request: mkRequest(
-          "shop=demo.myshopify.com&returnRequestNo=R-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo.myshopify.com&returnRequestNo=R-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);
@@ -358,9 +330,7 @@ describe("api.portal.track — coverage extras", () => {
         baseReturnCase({ returnRequestNo: "R-100" }),
       );
       await loader({
-        request: mkRequest(
-          "shop=demo&returnRequestNo=r-100&email=buyer@example.com",
-        ),
+        request: mkRequest("shop=demo&returnRequestNo=r-100&email=buyer@example.com"),
         params: {},
         context: {},
       } as never);

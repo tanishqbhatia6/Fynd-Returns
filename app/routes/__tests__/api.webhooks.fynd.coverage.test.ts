@@ -95,48 +95,64 @@ describe("shipment_status / status path coverage", () => {
   it("uses top-level status string for dedup key (delivered)", async () => {
     await action({
       request: mkReq({ shipment_id: "SH-A", status: "delivered" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ shipmentId: "SH-A", refundStatus: "delivered" }),
-    }));
+    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ shipmentId: "SH-A", refundStatus: "delivered" }),
+      }),
+    );
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
   });
 
   it("prefers refund_status over status when both present", async () => {
     await action({
       request: mkReq({ shipment_id: "SH-B", status: "delivered", refund_status: "refund_done" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ shipmentId: "SH-B", refundStatus: "refund_done" }),
-    }));
+    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ shipmentId: "SH-B", refundStatus: "refund_done" }),
+      }),
+    );
   });
 
   it("falls back to shipmentId (camelCase) when shipment_id missing", async () => {
     await action({
       request: mkReq({ shipmentId: "SH-CAMEL", status: "out_for_delivery" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ shipmentId: "SH-CAMEL", refundStatus: "out_for_delivery" }),
-    }));
+    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          shipmentId: "SH-CAMEL",
+          refundStatus: "out_for_delivery",
+        }),
+      }),
+    );
   });
 
   it("falls back to top-level id when shipment_id and shipmentId both absent", async () => {
     await action({
       request: mkReq({ id: "SH-FALLBACK", status: "in_transit" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ shipmentId: "SH-FALLBACK", refundStatus: "in_transit" }),
-    }));
+    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ shipmentId: "SH-FALLBACK", refundStatus: "in_transit" }),
+      }),
+    );
   });
 
   it("skips dedup query entirely when no shipment id can be derived", async () => {
     await action({
       request: mkReq({ status: "delivered" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(prismaMock.fyndWebhookLog.findFirst).not.toHaveBeenCalled();
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
@@ -145,7 +161,8 @@ describe("shipment_status / status path coverage", () => {
   it("skips dedup query when no status can be derived", async () => {
     await action({
       request: mkReq({ shipment_id: "SH-NOSTATUS" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(prismaMock.fyndWebhookLog.findFirst).not.toHaveBeenCalled();
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
@@ -154,11 +171,14 @@ describe("shipment_status / status path coverage", () => {
   it("coerces numeric shipment ids to strings for the where clause", async () => {
     await action({
       request: mkReq({ shipment_id: 12345, status: "delivered" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ shipmentId: "12345", refundStatus: "delivered" }),
-    }));
+    expect(prismaMock.fyndWebhookLog.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ shipmentId: "12345", refundStatus: "delivered" }),
+      }),
+    );
   });
 
   it("handles refund_done shipment_status path → forwards to processor", async () => {
@@ -169,7 +189,8 @@ describe("shipment_status / status path coverage", () => {
     });
     const res = await action({
       request: mkReq({ shipment_id: "SH-REFUND", refund_status: "refund_done" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -184,7 +205,8 @@ describe("shipment_status / status path coverage", () => {
     });
     const res = await action({
       request: mkReq({ shipment_id: "SH-RET", status: "return_initiated" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
@@ -200,7 +222,8 @@ describe("shipment_status / status path coverage", () => {
     });
     const res = await action({
       request: mkReq({ shipment_id: "SH-UNK", status: "martian_pending" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
   });
@@ -218,7 +241,8 @@ describe("dedup-check error path", () => {
 
     const res = await action({
       request: mkReq({ shipment_id: "SH-DUPFAIL", status: "delivered" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(res.status).toBe(200);
@@ -241,7 +265,8 @@ describe("dedup-check error path", () => {
 
     const res = await action({
       request: mkReq({ shipment_id: "SH-STRERR", status: "in_transit" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
 
     expect(res.status).toBe(200);
@@ -256,7 +281,8 @@ describe("dedup-check error path", () => {
     prismaMock.fyndWebhookLog.findFirst.mockResolvedValueOnce({ id: "log-existing" });
     const res = await action({
       request: mkReq({ shipment_id: "SH-DUP", status: "delivered" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -273,7 +299,8 @@ describe("replay-attack detection (timestamp drift)", () => {
         { shipment_id: "SH-STALE", status: "delivered" },
         { "x-webhook-timestamp": stale },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(401);
     const body = await res.json();
@@ -288,7 +315,8 @@ describe("replay-attack detection (timestamp drift)", () => {
         { shipment_id: "SH-FUT", status: "delivered" },
         { "x-fynd-timestamp": future },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(401);
     expect(processFyndWebhookMock).not.toHaveBeenCalled();
@@ -301,7 +329,8 @@ describe("replay-attack detection (timestamp drift)", () => {
         { shipment_id: "SH-RECENT", status: "delivered" },
         { "x-fynd-timestamp": recent },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
@@ -317,7 +346,8 @@ describe("replay-attack detection (timestamp drift)", () => {
         { shipment_id: "SH-BOTH", status: "delivered" },
         { "x-webhook-timestamp": fresh, "x-fynd-timestamp": stale },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
@@ -329,7 +359,8 @@ describe("replay-attack detection (timestamp drift)", () => {
         { shipment_id: "SH-JUNK", status: "delivered" },
         { "x-webhook-timestamp": "definitely-not-a-date" },
       ),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();
@@ -338,7 +369,8 @@ describe("replay-attack detection (timestamp drift)", () => {
   it("skips replay check when no timestamp header present", async () => {
     const res = await action({
       request: mkReq({ shipment_id: "SH-NOHDR", status: "delivered" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(processFyndWebhookMock).toHaveBeenCalledOnce();

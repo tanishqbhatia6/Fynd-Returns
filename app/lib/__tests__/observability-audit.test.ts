@@ -87,15 +87,22 @@ describe("auditReturnAction — log shape", () => {
       status: { from: "pending", to: "approved" },
       refund_amount: { from: null, to: 4200 },
     };
-    auditReturnAction("approved", "rc-1", "s.myshopify.com",
-      { type: "admin", identity: "u" }, changes);
+    auditReturnAction(
+      "approved",
+      "rc-1",
+      "s.myshopify.com",
+      { type: "admin", identity: "u" },
+      changes,
+    );
     const [payload] = auditInfoMock.mock.calls[0];
     expect(payload.changes).toEqual(changes);
   });
 
   it("spreads metadata at the top level of the payload", () => {
     auditReturnAction(
-      "refunded", "rc-1", "s.myshopify.com",
+      "refunded",
+      "rc-1",
+      "s.myshopify.com",
       { type: "system", identity: "cron" },
       undefined,
       { reason: "auto-approval", batch: 7 },
@@ -166,16 +173,33 @@ describe("auditReturnAction — redaction (pino redact paths)", () => {
   // here intentionally to lock in the contract — if logger.server.ts removes
   // a path, this test fails and someone has to make a conscious decision.
   const REDACT_PATHS = [
-    "password", "secret", "token", "accessToken", "apiKey", "api_key",
-    "customerEmail", "customerPhone", "customerName", "email", "phone",
-    "*.password", "*.token", "*.apiKey", "*.customerEmail",
-    "*.customerPhone", "*.customerName",
+    "password",
+    "secret",
+    "token",
+    "accessToken",
+    "apiKey",
+    "api_key",
+    "customerEmail",
+    "customerPhone",
+    "customerName",
+    "email",
+    "phone",
+    "*.password",
+    "*.token",
+    "*.apiKey",
+    "*.customerEmail",
+    "*.customerPhone",
+    "*.customerName",
   ];
 
   async function captureWithRealPino(payload: Record<string, unknown>) {
     const pino = (await import("pino")).default;
     const lines: string[] = [];
-    const stream = { write(chunk: string) { lines.push(chunk); } };
+    const stream = {
+      write(chunk: string) {
+        lines.push(chunk);
+      },
+    };
     const log = pino({ redact: { paths: REDACT_PATHS, censor: "[REDACTED]" } }, stream);
     log.info(payload, "AUDIT");
     return JSON.parse(lines[0]);

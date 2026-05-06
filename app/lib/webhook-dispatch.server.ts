@@ -68,10 +68,15 @@ async function deliverWebhook(
     const { isSafeOutboundUrl } = await import("./url-safety.server");
     const safety = await isSafeOutboundUrl(url);
     if (!safety.ok) {
-      webhookLogger.warn({ url, eventType, reason: safety.reason }, "Webhook target failed SSRF re-check; not dispatching");
+      webhookLogger.warn(
+        { url, eventType, reason: safety.reason },
+        "Webhook target failed SSRF re-check; not dispatching",
+      );
       return false;
     }
-  } catch { /* if the safety check itself errors, fail closed */ return false; }
+  } catch {
+    /* if the safety check itself errors, fail closed */ return false;
+  }
 
   const controller = new AbortController();
   // unreachable: timer fires only on real network hangs
@@ -148,7 +153,7 @@ async function deliverWithRetry(
       // defensive: dlqContext always provided in retry loop callers; falsy branch unreachable
       /* v8 ignore start */
       if (dlqContext) {
-      /* v8 ignore stop */
+        /* v8 ignore stop */
         try {
           const stillActive = await prisma.webhookSubscription.findFirst({
             where: { id: dlqContext.subscriptionId, isActive: true },
@@ -161,7 +166,9 @@ async function deliverWithRetry(
             );
             return;
           }
-        } catch { /* best-effort — proceed to attempt */ }
+        } catch {
+          /* best-effort — proceed to attempt */
+        }
       }
       const retryOk = await deliverWebhook(url, body, signature, eventType);
       webhookDeliveryAttempts.add(1, {
@@ -227,66 +234,63 @@ export function dispatchWebhookEvent(
   // Fire-and-forget
   (async () => {
     try {
-      await withSpan(
-        "webhook.dispatch",
-        { "webhook.event_type": eventType },
-        async (span) => {
-          const subscriptions = await prisma.webhookSubscription.findMany({
-            where: { shopId, isActive: true },
-          });
+      await withSpan("webhook.dispatch", { "webhook.event_type": eventType }, async (span) => {
+        const subscriptions = await prisma.webhookSubscription.findMany({
+          where: { shopId, isActive: true },
+        });
 
-          const matchingSubs = subscriptions.filter((sub) => {
-            let events: string[] = [];
-            try { events = JSON.parse(sub.events); } catch { /* empty */ }
-            return events.includes(eventType);
-          });
-
-          span.setAttribute("webhook.subscriber_count", matchingSubs.length);
-
-          webhookLogger.info(
-            { eventType, shopId, subscriberCount: matchingSubs.length },
-            "Dispatching webhook event",
-          );
-
-          if (matchingSubs.length === 0) return;
-
-          // Idempotency key — merchants should dedupe on this if they receive a
-          // delivery twice (initial + DLQ replay, or network double-fire).
-          const { randomUUID } = await import("node:crypto");
-          const idempotencyKey = randomUUID();
-
-          const body = JSON.stringify({
-            event: eventType,
-            data: payload,
-            timestamp: new Date().toISOString(),
-            idempotencyKey,
-          });
-
-          addBusinessEvent("webhook.dispatch.started", {
-            "webhook.event_type": eventType,
-            "webhook.subscriber_count": matchingSubs.length,
-          });
-
-          for (const sub of matchingSubs) {
-            const signature = signPayload(body, sub.secret);
-            // Per-subscription FIFO — events for the same subscription dispatch
-            // serially so they arrive in causal order at the merchant. Different
-            // subscriptions still dispatch in parallel.
-            enqueueForSubscription(sub.id, () =>
-              deliverWithRetry(sub.url, body, signature, eventType, {
-                subscriptionId: sub.id,
-                shopId,
-                idempotencyKey,
-              }).catch(() => {}),
-            );
+        const matchingSubs = subscriptions.filter((sub) => {
+          let events: string[] = [];
+          try {
+            events = JSON.parse(sub.events);
+          } catch {
+            /* empty */
           }
-        },
-      );
+          return events.includes(eventType);
+        });
+
+        span.setAttribute("webhook.subscriber_count", matchingSubs.length);
+
+        webhookLogger.info(
+          { eventType, shopId, subscriberCount: matchingSubs.length },
+          "Dispatching webhook event",
+        );
+
+        if (matchingSubs.length === 0) return;
+
+        // Idempotency key — merchants should dedupe on this if they receive a
+        // delivery twice (initial + DLQ replay, or network double-fire).
+        const { randomUUID } = await import("node:crypto");
+        const idempotencyKey = randomUUID();
+
+        const body = JSON.stringify({
+          event: eventType,
+          data: payload,
+          timestamp: new Date().toISOString(),
+          idempotencyKey,
+        });
+
+        addBusinessEvent("webhook.dispatch.started", {
+          "webhook.event_type": eventType,
+          "webhook.subscriber_count": matchingSubs.length,
+        });
+
+        for (const sub of matchingSubs) {
+          const signature = signPayload(body, sub.secret);
+          // Per-subscription FIFO — events for the same subscription dispatch
+          // serially so they arrive in causal order at the merchant. Different
+          // subscriptions still dispatch in parallel.
+          enqueueForSubscription(sub.id, () =>
+            deliverWithRetry(sub.url, body, signature, eventType, {
+              subscriptionId: sub.id,
+              shopId,
+              idempotencyKey,
+            }).catch(() => {}),
+          );
+        }
+      });
     } catch (err) {
-      webhookLogger.error(
-        { err, eventType, shopId },
-        "Error dispatching webhook event",
-      );
+      webhookLogger.error({ err, eventType, shopId }, "Error dispatching webhook event");
     }
   })();
 }

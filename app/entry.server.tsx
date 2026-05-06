@@ -17,7 +17,10 @@ try {
   assertEncryptionConfigured();
   appLogger.info({ module: "encryption" }, "Encryption key validated at startup");
 } catch (err) {
-  appLogger.error({ err, module: "encryption" }, "Encryption key NOT configured — secrets cannot be read or written");
+  appLogger.error(
+    { err, module: "encryption" },
+    "Encryption key NOT configured — secrets cannot be read or written",
+  );
 }
 
 export const streamTimeout = 5000;
@@ -26,7 +29,7 @@ export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
   responseHeaders: Headers,
-  reactRouterContext: EntryContext
+  reactRouterContext: EntryContext,
 ) {
   try {
     addDocumentResponseHeaders(request, responseHeaders);
@@ -49,7 +52,7 @@ export default async function handleRequest(
             new Response(stream, {
               headers: responseHeaders,
               status: responseStatusCode,
-            })
+            }),
           );
           pipe(body);
         },
@@ -58,7 +61,7 @@ export default async function handleRequest(
           responseStatusCode = 500;
           appLogger.error({ err: error }, "SSR render error");
         },
-      }
+      },
     );
     setTimeout(abort, streamTimeout + 1000);
   });

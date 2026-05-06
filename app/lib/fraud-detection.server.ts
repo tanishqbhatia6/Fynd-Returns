@@ -76,8 +76,12 @@ export async function calculateFraudScore(
   // ── Factor 1: Return Frequency (25%) ──
   const FREQ_WEIGHT = 25;
   const now = new Date();
-  const returnsLast30 = returns.filter(r => (now.getTime() - r.createdAt.getTime()) < 30 * 24 * 60 * 60 * 1000).length;
-  const returnsLast90 = returns.filter(r => (now.getTime() - r.createdAt.getTime()) < 90 * 24 * 60 * 60 * 1000).length;
+  const returnsLast30 = returns.filter(
+    (r) => now.getTime() - r.createdAt.getTime() < 30 * 24 * 60 * 60 * 1000,
+  ).length;
+  const returnsLast90 = returns.filter(
+    (r) => now.getTime() - r.createdAt.getTime() < 90 * 24 * 60 * 60 * 1000,
+  ).length;
 
   let freqRaw = 0;
   if (returnsLast30 >= 5) freqRaw = 100;
@@ -87,7 +91,7 @@ export async function calculateFraudScore(
   else if (returnsLast90 >= 2) freqRaw = 25;
   else freqRaw = 0;
 
-  const freqScore = Math.round(freqRaw * FREQ_WEIGHT / 100);
+  const freqScore = Math.round((freqRaw * FREQ_WEIGHT) / 100);
   factors.push({
     name: "Return Frequency",
     description: `${returnsLast30} returns in 30 days, ${returnsLast90} in 90 days`,
@@ -106,7 +110,7 @@ export async function calculateFraudScore(
   else if (totalReturnCount >= 3) rateRaw = 30;
   else rateRaw = 0;
 
-  const rateScore = Math.round(rateRaw * RATE_WEIGHT / 100);
+  const rateScore = Math.round((rateRaw * RATE_WEIGHT) / 100);
   factors.push({
     name: "Total Returns (12 mo)",
     description: `${totalReturnCount} returns in the last 12 months`,
@@ -136,13 +140,15 @@ export async function calculateFraudScore(
   else if (topReasonCount >= 5) reasonRaw = 40;
   else reasonRaw = 0;
 
-  const reasonScore = Math.round(reasonRaw * REASON_WEIGHT / 100);
-  const topReason = Object.entries(reasonCounts).sort(([,a],[,b]) => b - a)[0];
+  const reasonScore = Math.round((reasonRaw * REASON_WEIGHT) / 100);
+  const topReason = Object.entries(reasonCounts).sort(([, a], [, b]) => b - a)[0];
   factors.push({
     name: "Reason Patterns",
     /* v8 ignore start */
     // defensive: topReason always present when reasonCounts is populated; "No patterns" branch unreached
-    description: topReason ? `"${topReason[0]}" used ${topReason[1]}x (${Math.round(reasonConcentration * 100)}% of all)` : "No patterns",
+    description: topReason
+      ? `"${topReason[0]}" used ${topReason[1]}x (${Math.round(reasonConcentration * 100)}% of all)`
+      : "No patterns",
     /* v8 ignore stop */
     score: reasonScore,
     weight: REASON_WEIGHT,
@@ -152,9 +158,11 @@ export async function calculateFraudScore(
   const VALUE_WEIGHT = 15;
   /* v8 ignore start */
   // defensive: i.price ?? "0" fallback rare; happy-path always populates price
-  const prices = returns.flatMap(r => r.items.map(i => parseFloat(i.price ?? "0")).filter(p => p > 0));
+  const prices = returns.flatMap((r) =>
+    r.items.map((i) => parseFloat(i.price ?? "0")).filter((p) => p > 0),
+  );
   /* v8 ignore stop */
-  const highValueItems = prices.filter(p => p >= 100);
+  const highValueItems = prices.filter((p) => p >= 100);
   const highValuePct = prices.length > 0 ? highValueItems.length / prices.length : 0;
 
   let valueRaw = 0;
@@ -163,7 +171,7 @@ export async function calculateFraudScore(
   else if (highValueItems.length >= 3) valueRaw = 30;
   else valueRaw = 0;
 
-  const valueScore = Math.round(valueRaw * VALUE_WEIGHT / 100);
+  const valueScore = Math.round((valueRaw * VALUE_WEIGHT) / 100);
   factors.push({
     name: "High-Value Returns",
     description: `${highValueItems.length} high-value items (${Math.round(highValuePct * 100)}% of returned items)`,
@@ -179,7 +187,8 @@ export async function calculateFraudScore(
     /* v8 ignore start */
     // defensive: orderProcessedAt always set in fixtures; falsy branch unreachable
     if (r.orderProcessedAt) {
-      const daysSinceOrder = (r.createdAt.getTime() - r.orderProcessedAt.getTime()) / (24 * 60 * 60 * 1000);
+      const daysSinceOrder =
+        (r.createdAt.getTime() - r.orderProcessedAt.getTime()) / (24 * 60 * 60 * 1000);
       const windowUsage = daysSinceOrder / returnWindowDays;
       if (windowUsage >= 0.85) lateTiming++;
     }
@@ -196,7 +205,7 @@ export async function calculateFraudScore(
   else if (lateTiming >= 2) timingRaw = 25;
   else timingRaw = 0;
 
-  const timingScore = Math.round(timingRaw * TIMING_WEIGHT / 100);
+  const timingScore = Math.round((timingRaw * TIMING_WEIGHT) / 100);
   factors.push({
     name: "Late Returns",
     description: `${lateTiming} of ${returns.length} returns submitted near window end (>85% used)`,
@@ -207,7 +216,7 @@ export async function calculateFraudScore(
   // ── Factor 6: Resolution Pattern (10%) ──
   // Always choosing refund over exchange = slightly suspicious
   const RESOLUTION_WEIGHT = 10;
-  const refundOnlyCount = returns.filter(r => r.resolutionType === "refund").length;
+  const refundOnlyCount = returns.filter((r) => r.resolutionType === "refund").length;
   /* v8 ignore start */
   // defensive: returns.length > 0 always true here (caller filters); else-branch unreachable
   const refundOnlyPct = returns.length > 0 ? refundOnlyCount / returns.length : 0;
@@ -218,7 +227,7 @@ export async function calculateFraudScore(
   else if (refundOnlyPct >= 0.8 && refundOnlyCount >= 3) resolutionRaw = 40;
   else resolutionRaw = 0;
 
-  const resolutionScore = Math.round(resolutionRaw * RESOLUTION_WEIGHT / 100);
+  const resolutionScore = Math.round((resolutionRaw * RESOLUTION_WEIGHT) / 100);
   factors.push({
     name: "Refund-Only Pattern",
     description: `${refundOnlyCount} of ${returns.length} returns chose refund (${Math.round(refundOnlyPct * 100)}%)`,
@@ -227,7 +236,10 @@ export async function calculateFraudScore(
   });
 
   // ── Total ──
-  const totalScore = Math.min(100, factors.reduce((a, f) => a + f.score, 0));
+  const totalScore = Math.min(
+    100,
+    factors.reduce((a, f) => a + f.score, 0),
+  );
 
   return {
     score: totalScore,
@@ -251,7 +263,11 @@ export async function batchCalculateFraudScores(
   for (let i = 0; i < customerEmails.length; i += batchSize) {
     const batch = customerEmails.slice(i, i + batchSize);
     const scores = await Promise.all(
-      batch.map(email => calculateFraudScore(shopId, email, returnWindowDays).then(score => [email, score] as const))
+      batch.map((email) =>
+        calculateFraudScore(shopId, email, returnWindowDays).then(
+          (score) => [email, score] as const,
+        ),
+      ),
     );
     for (const [email, score] of scores) {
       results.set(email, score);

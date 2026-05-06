@@ -17,10 +17,7 @@
  */
 import { describe, it, expect } from "vitest";
 import type { ShopSettings } from "@prisma/client";
-import {
-  checkReturnEligibility,
-  getReturnFee,
-} from "../return-rules.server";
+import { checkReturnEligibility, getReturnFee } from "../return-rules.server";
 
 function makeSettings(overrides: Partial<ShopSettings> = {}): ShopSettings {
   const base = {
@@ -167,9 +164,24 @@ describe("return-rules.server — country window resolution contract", () => {
     expectedDays: number;
     eligibleAfter5Days: boolean;
   }> = [
-    { label: "matched country uses override (3-day)", customer: "JP", expectedDays: 3, eligibleAfter5Days: false },
-    { label: "matched country uses override (90-day)", customer: "DE", expectedDays: 90, eligibleAfter5Days: true },
-    { label: "unmatched country falls back to global 30-day", customer: "ZZ", expectedDays: 30, eligibleAfter5Days: true },
+    {
+      label: "matched country uses override (3-day)",
+      customer: "JP",
+      expectedDays: 3,
+      eligibleAfter5Days: false,
+    },
+    {
+      label: "matched country uses override (90-day)",
+      customer: "DE",
+      expectedDays: 90,
+      eligibleAfter5Days: true,
+    },
+    {
+      label: "unmatched country falls back to global 30-day",
+      customer: "ZZ",
+      expectedDays: 30,
+      eligibleAfter5Days: true,
+    },
   ];
 
   for (const c of cases) {
@@ -227,9 +239,9 @@ describe("return-rules.server — region restriction matching contract", () => {
   const settings = makeSettings({
     returnWindowDays: 365,
     restrictedRegionsJson: JSON.stringify([
-      { country: "RU" },               // country-only block
+      { country: "RU" }, // country-only block
       { country: "US", province: "HI" }, // country+province block
-      { province: "ON" },              // province-only block
+      { province: "ON" }, // province-only block
     ]),
   } as Partial<ShopSettings>);
 
@@ -242,8 +254,18 @@ describe("return-rules.server — region restriction matching contract", () => {
     { label: "country-only match (RU)", country: "RU", eligible: false },
     { label: "country-only match case-insensitive (ru)", country: "ru", eligible: false },
     { label: "country+province exact match", country: "US", province: "HI", eligible: false },
-    { label: "country matches but province does not", country: "US", province: "CA", eligible: true },
-    { label: "province-only match across countries", country: "CA", province: "ON", eligible: false },
+    {
+      label: "country matches but province does not",
+      country: "US",
+      province: "CA",
+      eligible: true,
+    },
+    {
+      label: "province-only match across countries",
+      country: "CA",
+      province: "ON",
+      eligible: false,
+    },
     { label: "no restricted region matches", country: "FR", province: "75", eligible: true },
     { label: "no country/province in context = no match", eligible: true },
   ];

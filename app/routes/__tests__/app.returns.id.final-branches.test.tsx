@@ -591,7 +591,9 @@ describe("app.returns.$id — final branch coverage (orderId / channel / refund-
     await waitFor(() => {
       expect(container.querySelector('select[aria-label="Select restock location"]')).toBeTruthy();
     });
-    const sel = container.querySelector('select[aria-label="Select restock location"]') as HTMLSelectElement;
+    const sel = container.querySelector(
+      'select[aria-label="Select restock location"]',
+    ) as HTMLSelectElement;
     expect(sel.querySelectorAll("option").length).toBe(2);
   });
 
@@ -699,8 +701,18 @@ describe("app.returns.$id — final branch coverage (orderId / channel / refund-
 
   it("returns-from-customer history list: renders prior return links from history array", async () => {
     const history = [
-      { id: "ret_prev_001", returnRequestNo: "RMA-PREV-001", status: "completed", createdAt: new Date("2026-04-01T00:00:00Z").toISOString() },
-      { id: "ret_prev_002", returnRequestNo: "RMA-PREV-002", status: "rejected", createdAt: new Date("2026-04-15T00:00:00Z").toISOString() },
+      {
+        id: "ret_prev_001",
+        returnRequestNo: "RMA-PREV-001",
+        status: "completed",
+        createdAt: new Date("2026-04-01T00:00:00Z").toISOString(),
+      },
+      {
+        id: "ret_prev_002",
+        returnRequestNo: "RMA-PREV-002",
+        status: "rejected",
+        createdAt: new Date("2026-04-15T00:00:00Z").toISOString(),
+      },
     ];
     const { container } = renderWithRouter(Component, {
       initialEntries: ["/app/returns/ret_final_001"],

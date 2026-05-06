@@ -50,58 +50,105 @@ export default function BillingPage() {
   return (
     <AppPage heading="Billing">
       <div className="app-content layout-medium" style={{ paddingBottom: 48 }}>
-
         {/* Mode banner */}
-        <div style={{
-          padding: "12px 16px",
-          background: mode === "dev" ? "#FEF9C3" : "#EFF6FF",
-          border: `1px solid ${mode === "dev" ? "#FDE68A" : "#BFDBFE"}`,
-          borderRadius: 10,
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 20,
-          fontSize: 13,
-          color: mode === "dev" ? "#92400E" : "#1E40AF",
-        }}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div
+          style={{
+            padding: "12px 16px",
+            background: mode === "dev" ? "#FEF9C3" : "#EFF6FF",
+            border: `1px solid ${mode === "dev" ? "#FDE68A" : "#BFDBFE"}`,
+            borderRadius: 10,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            marginBottom: 20,
+            fontSize: 13,
+            color: mode === "dev" ? "#92400E" : "#1E40AF",
+          }}
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
           <span>
-            App is running in{" "}
-            <strong>{mode === "dev" ? "development" : "production"}</strong> mode.
+            App is running in <strong>{mode === "dev" ? "development" : "production"}</strong> mode.
             {mode === "dev" && " Billing is bypassed — all features are free on this build."}
             {mode === "prod" && " Subscription is required for app access."}
           </span>
         </div>
 
         {/* Status card */}
-        <div style={{
-          background: "#fff",
-          borderRadius: 14,
-          border: "1px solid #E2E8F0",
-          padding: "28px 28px 24px",
-          boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
-          marginBottom: 20,
-        }}>
+        <div
+          style={{
+            background: "#fff",
+            borderRadius: 14,
+            border: "1px solid #E2E8F0",
+            padding: "28px 28px 24px",
+            boxShadow: "0 1px 2px rgba(15,23,42,0.04)",
+            marginBottom: 20,
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: status.hasAccess ? "#ECFDF5" : "#FEF2F2",
-              display: "inline-flex", alignItems: "center", justifyContent: "center",
-            }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 12,
+                background: status.hasAccess ? "#ECFDF5" : "#FEF2F2",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
               {status.hasAccess ? (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="20 6 9 17 4 12"/>
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#059669"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : (
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <line x1="15" y1="9" x2="9" y2="15"/>
-                  <line x1="9" y1="9" x2="15" y2="15"/>
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#DC2626"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="15" y1="9" x2="9" y2="15" />
+                  <line x1="9" y1="9" x2="15" y2="15" />
                 </svg>
               )}
             </div>
             <div>
-              <h2 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 4px", letterSpacing: "-0.02em", color: "#0F172A" }}>
+              <h2
+                style={{
+                  fontSize: 18,
+                  fontWeight: 800,
+                  margin: "0 0 4px",
+                  letterSpacing: "-0.02em",
+                  color: "#0F172A",
+                }}
+              >
                 {status.hasAccess ? "Access granted" : "Subscription required"}
               </h2>
               <div style={{ fontSize: 13, color: "#64748B" }}>
@@ -114,32 +161,45 @@ export default function BillingPage() {
           {!status.hasAccess && (
             <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #F1F5F9" }}>
               <p style={{ fontSize: 14, color: "#475569", lineHeight: 1.6, margin: "0 0 16px" }}>
-                Fynd Returns uses Shopify Managed Pricing. Click the button below to
-                open the plan picker — Shopify handles the payment form, no credit
-                card is entered into this app.
+                Fynd Returns uses Shopify Managed Pricing. Click the button below to open the plan
+                picker — Shopify handles the payment form, no credit card is entered into this app.
               </p>
               <a
                 href={upgradeUrl}
                 target="_top"
                 style={{
-                  display: "inline-flex", alignItems: "center", gap: 8,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
                   padding: "12px 24px",
                   background: "linear-gradient(135deg, #4F46E5, #6366F1)",
-                  color: "#fff", fontSize: 15, fontWeight: 700,
-                  borderRadius: 10, textDecoration: "none",
+                  color: "#fff",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  borderRadius: 10,
+                  textDecoration: "none",
                   boxShadow: "0 2px 8px #6366F140",
                   letterSpacing: "-0.01em",
                 }}
               >
                 Choose a plan
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M7 17L17 7"/>
-                  <polyline points="7 7 17 7 17 17"/>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M7 17L17 7" />
+                  <polyline points="7 7 17 7 17 17" />
                 </svg>
               </a>
               <p style={{ fontSize: 12, color: "#94A3B8", marginTop: 12, lineHeight: 1.5 }}>
-                After selecting a plan and approving the charge in Shopify, you'll
-                be returned here automatically.
+                After selecting a plan and approving the charge in Shopify, you'll be returned here
+                automatically.
               </p>
             </div>
           )}
@@ -147,9 +207,25 @@ export default function BillingPage() {
           {/* Active subscription detail */}
           {status.hasAccess && status.subscriptionName && (
             <div style={{ marginTop: 20, paddingTop: 20, borderTop: "1px solid #F1F5F9" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                }}
+              >
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#64748B",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: 4,
+                    }}
+                  >
                     Current plan
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: "#0F172A" }}>
@@ -160,9 +236,13 @@ export default function BillingPage() {
                   href={upgradeUrl}
                   target="_top"
                   style={{
-                    fontSize: 13, fontWeight: 600, color: "#4F46E5",
-                    textDecoration: "none", padding: "6px 12px",
-                    border: "1px solid #C7D2FE", borderRadius: 8,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: "#4F46E5",
+                    textDecoration: "none",
+                    padding: "6px 12px",
+                    border: "1px solid #C7D2FE",
+                    borderRadius: 8,
                   }}
                 >
                   Manage plan
@@ -174,21 +254,37 @@ export default function BillingPage() {
 
         {/* Superadmin-only link to override UI */}
         {isSuperadmin && (
-          <div style={{
-            padding: "14px 16px",
-            background: "#F5F3FF",
-            border: "1px solid #DDD6FE",
-            borderRadius: 10,
-            fontSize: 13,
-            color: "#5B21B6",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <div
+            style={{
+              padding: "14px 16px",
+              background: "#F5F3FF",
+              border: "1px solid #DDD6FE",
+              borderRadius: 10,
+              fontSize: 13,
+              color: "#5B21B6",
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#7C3AED"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+            </svg>
             <span style={{ flex: 1 }}>
               Superadmin tools —{" "}
-              <Link to="/app/settings/billing-override" style={{ color: "#7C3AED", fontWeight: 700, textDecoration: "none" }}>
+              <Link
+                to="/app/settings/billing-override"
+                style={{ color: "#7C3AED", fontWeight: 700, textDecoration: "none" }}
+              >
                 override billing for specific shops
               </Link>
             </span>
@@ -199,7 +295,10 @@ export default function BillingPage() {
   );
 }
 
-function ReasonLabel({ reason, subscriptionName }: {
+function ReasonLabel({
+  reason,
+  subscriptionName,
+}: {
   reason: ReturnType<typeof mapReasonNever>;
   subscriptionName?: string | null;
 }) {
@@ -209,13 +308,19 @@ function ReasonLabel({ reason, subscriptionName }: {
     case "override_free":
       return <>Free access granted by a superadmin for this shop.</>;
     case "subscription_active":
-      return subscriptionName
-        ? <>Active subscription: <strong>{subscriptionName}</strong></>
-        : <>Active Shopify subscription.</>;
+      return subscriptionName ? (
+        <>
+          Active subscription: <strong>{subscriptionName}</strong>
+        </>
+      ) : (
+        <>Active Shopify subscription.</>
+      );
     case "subscription_missing":
       return <>No active Shopify subscription detected for this shop.</>;
     case "override_paid_no_sub":
-      return <>A superadmin forced billing for this shop, but no active subscription is on file yet.</>;
+      return (
+        <>A superadmin forced billing for this shop, but no active subscription is on file yet.</>
+      );
     default:
       return <>{reason}</>;
   }
@@ -224,7 +329,12 @@ function ReasonLabel({ reason, subscriptionName }: {
 // Helper for the switch's exhaustiveness check.
 // Never actually called — purely for TypeScript narrowing of the reason union.
 /* v8 ignore start */
-function mapReasonNever(): "dev_mode" | "override_free" | "subscription_active" | "subscription_missing" | "override_paid_no_sub" {
+function mapReasonNever():
+  | "dev_mode"
+  | "override_free"
+  | "subscription_active"
+  | "subscription_missing"
+  | "override_paid_no_sub" {
   throw new Error("unreachable");
 }
 /* v8 ignore stop */

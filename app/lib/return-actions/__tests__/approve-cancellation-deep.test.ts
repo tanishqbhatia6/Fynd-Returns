@@ -30,9 +30,16 @@ const {
   auditReturnActionMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  closeShopifyReturnBestEffortMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined),
+  closeShopifyReturnBestEffortMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: true,
+  })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendCancellationNotificationMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
+    async () => undefined,
+  ),
   dispatchWebhookEventMock: vi.fn(),
   auditReturnActionMock: vi.fn(),
 }));
@@ -166,7 +173,9 @@ describe("handleApproveCancellation: closeShopifyReturn failure", () => {
       }),
     );
     const call = prismaMock.returnEvent.create.mock.calls.find(
-      (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === "cancellation_blocked_by_shopify",
+      (c: unknown[]) =>
+        (c[0] as { data: { eventType: string } }).data.eventType ===
+        "cancellation_blocked_by_shopify",
     );
     expect(call).toBeTruthy();
     const payload = JSON.parse((call![0] as { data: { payloadJson: string } }).data.payloadJson);
@@ -193,10 +202,7 @@ describe("handleApproveCancellation: closeShopifyReturn failure", () => {
 
 describe("handleApproveCancellation: happy path", () => {
   it("flips status to 'cancelled' and writes 'cancellation_approved' event", async () => {
-    await expectRedirect(
-      handleApproveCancellation(mkCtx(), APPROVE_BODY),
-      "/app/returns/rc-1",
-    );
+    await expectRedirect(handleApproveCancellation(mkCtx(), APPROVE_BODY), "/app/returns/rc-1");
     expect(prismaMock.returnCase.update).toHaveBeenCalledWith({
       where: { id: "rc-1" },
       data: { status: "cancelled" },
@@ -212,10 +218,7 @@ describe("handleApproveCancellation: happy path", () => {
   });
 
   it("dispatches the 'return.cancelled' webhook with the expected payload", async () => {
-    await expectRedirect(
-      handleApproveCancellation(mkCtx(), APPROVE_BODY),
-      "/app/returns/rc-1",
-    );
+    await expectRedirect(handleApproveCancellation(mkCtx(), APPROVE_BODY), "/app/returns/rc-1");
     expect(dispatchWebhookEventMock).toHaveBeenCalledWith(
       "shop-1",
       "return.cancelled",
@@ -231,10 +234,7 @@ describe("handleApproveCancellation: happy path", () => {
   });
 
   it("audits the action with from/to status transition", async () => {
-    await expectRedirect(
-      handleApproveCancellation(mkCtx(), APPROVE_BODY),
-      "/app/returns/rc-1",
-    );
+    await expectRedirect(handleApproveCancellation(mkCtx(), APPROVE_BODY), "/app/returns/rc-1");
     expect(auditReturnActionMock).toHaveBeenCalledWith(
       "cancellation_approved",
       "rc-1",
@@ -247,10 +247,7 @@ describe("handleApproveCancellation: happy path", () => {
 
 describe("handleApproveCancellation: customer notification (fire-and-forget)", () => {
   it("invokes sendCancellationNotification when customer email present", async () => {
-    await expectRedirect(
-      handleApproveCancellation(mkCtx(), APPROVE_BODY),
-      "/app/returns/rc-1",
-    );
+    await expectRedirect(handleApproveCancellation(mkCtx(), APPROVE_BODY), "/app/returns/rc-1");
     expect(sendCancellationNotificationMock).toHaveBeenCalledWith(
       expect.objectContaining({
         shopDomain: "store.myshopify.com",
@@ -275,10 +272,7 @@ describe("handleApproveCancellation: customer notification (fire-and-forget)", (
 
   it("notification rejection does not abort the redirect (fire-and-forget)", async () => {
     sendCancellationNotificationMock.mockRejectedValueOnce(new Error("smtp boom"));
-    await expectRedirect(
-      handleApproveCancellation(mkCtx(), APPROVE_BODY),
-      "/app/returns/rc-1",
-    );
+    await expectRedirect(handleApproveCancellation(mkCtx(), APPROVE_BODY), "/app/returns/rc-1");
     // status flip + webhook still happened
     expect(prismaMock.returnCase.update).toHaveBeenCalledWith({
       where: { id: "rc-1" },
@@ -302,10 +296,7 @@ describe("handleApproveCancellation: Fynd best-effort cancel", () => {
   }
 
   it("skips Fynd entirely when no shipment id (and no synced flag)", async () => {
-    await expectRedirect(
-      handleApproveCancellation(mkCtx(), APPROVE_BODY),
-      "/app/returns/rc-1",
-    );
+    await expectRedirect(handleApproveCancellation(mkCtx(), APPROVE_BODY), "/app/returns/rc-1");
     expect(createFyndClientOrErrorMock).not.toHaveBeenCalled();
   });
 
@@ -359,10 +350,7 @@ describe("handleApproveCancellation: Fynd best-effort cancel", () => {
       client: { updateShipmentStatus },
     });
     await expectRedirect(
-      handleApproveCancellation(
-        ctxWithFynd({ fyndOrderId: null }),
-        APPROVE_BODY,
-      ),
+      handleApproveCancellation(ctxWithFynd({ fyndOrderId: null }), APPROVE_BODY),
       "/app/returns/rc-1",
     );
     expect(updateShipmentStatus).toHaveBeenCalledWith("FY-SH-1", expect.anything());
@@ -393,7 +381,9 @@ describe("handleApproveCancellation: Fynd best-effort cancel", () => {
   });
 
   it("Fynd thrown error is best-effort: redirect still happens, status still flipped", async () => {
-    const updateShipmentStatus = vi.fn(async () => { throw new Error("fynd 500"); });
+    const updateShipmentStatus = vi.fn(async () => {
+      throw new Error("fynd 500");
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus },
@@ -412,7 +402,9 @@ describe("handleApproveCancellation: Fynd best-effort cancel", () => {
   });
 
   it("logs a 'fynd_cancel_failed' event with the error message and shipmentId", async () => {
-    const updateShipmentStatus = vi.fn(async () => { throw new Error("fynd 500"); });
+    const updateShipmentStatus = vi.fn(async () => {
+      throw new Error("fynd 500");
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus },
@@ -422,10 +414,13 @@ describe("handleApproveCancellation: Fynd best-effort cancel", () => {
       "/app/returns/rc-1",
     );
     const failedEvent = prismaMock.returnEvent.create.mock.calls.find(
-      (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === "fynd_cancel_failed",
+      (c: unknown[]) =>
+        (c[0] as { data: { eventType: string } }).data.eventType === "fynd_cancel_failed",
     );
     expect(failedEvent).toBeTruthy();
-    const payload = JSON.parse((failedEvent![0] as { data: { payloadJson: string } }).data.payloadJson);
+    const payload = JSON.parse(
+      (failedEvent![0] as { data: { payloadJson: string } }).data.payloadJson,
+    );
     expect(payload.error).toContain("fynd 500");
     expect(payload.shipmentId).toBe("FY-SH-1");
   });
@@ -441,7 +436,8 @@ describe("handleApproveCancellation: Fynd best-effort cancel", () => {
     );
     // No fynd_cancel_failed event written (no error path entered)
     const failed = prismaMock.returnEvent.create.mock.calls.find(
-      (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === "fynd_cancel_failed",
+      (c: unknown[]) =>
+        (c[0] as { data: { eventType: string } }).data.eventType === "fynd_cancel_failed",
     );
     expect(failed).toBeFalsy();
   });
@@ -455,7 +451,8 @@ describe("handleApproveCancellation: Fynd best-effort cancel", () => {
     // Still flips status and dispatches webhook
     expect(dispatchWebhookEventMock).toHaveBeenCalled();
     const failed = prismaMock.returnEvent.create.mock.calls.find(
-      (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === "fynd_cancel_failed",
+      (c: unknown[]) =>
+        (c[0] as { data: { eventType: string } }).data.eventType === "fynd_cancel_failed",
     );
     expect(failed).toBeFalsy();
   });

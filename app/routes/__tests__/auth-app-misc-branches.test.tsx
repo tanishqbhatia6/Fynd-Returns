@@ -38,16 +38,16 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 // ────────────────────────────────────────────────────────────────────────
 const TEMPLATE_HTML = [
   '<html lang="en">',
-  '<head>',
-  '  <!-- %FAVICON% -->',
-  '  <title>Returns</title>',
-  '  <style>body{color:%TEXT_COLOR%;background:%BG_COLOR%;}</style>',
-  '</head>',
-  '<body>',
+  "<head>",
+  "  <!-- %FAVICON% -->",
+  "  <title>Returns</title>",
+  "  <style>body{color:%TEXT_COLOR%;background:%BG_COLOR%;}</style>",
+  "</head>",
+  "<body>",
   '  <input type="hidden" id="shop" value="%SHOP%">',
   '  <div class="policy">%RETURN_POLICY%</div>',
-  '</body>',
-  '</html>',
+  "</body>",
+  "</html>",
 ].join("\n");
 
 const {
@@ -86,9 +86,9 @@ vi.mock("../../lib/shop.server", () => ({
 // portalThemeJson is non-null. The real implementation handles arbitrary
 // JSON, so we delegate to it via importActual then track invocations.
 vi.mock("../../lib/portal-theme.server", async () => {
-  const actual = await vi.importActual<
-    typeof import("../../lib/portal-theme.server")
-  >("../../lib/portal-theme.server");
+  const actual = await vi.importActual<typeof import("../../lib/portal-theme.server")>(
+    "../../lib/portal-theme.server",
+  );
   parsePortalThemeMock.mockImplementation((json) =>
     actual.parsePortalTheme(json as Parameters<typeof actual.parsePortalTheme>[0]),
   );
@@ -203,7 +203,8 @@ describe("app.tsx — navigation loading bar branch", () => {
       // The loading bar is the only fixed-position div with height:3 inside
       // the layout; it appears during state==="loading".
       const bars = Array.from(container.querySelectorAll("div")).filter(
-        (d) => /position:\s*fixed/.test(d.getAttribute("style") || "") &&
+        (d) =>
+          /position:\s*fixed/.test(d.getAttribute("style") || "") &&
           /height:\s*3/.test(d.getAttribute("style") || ""),
       );
       expect(bars.length).toBeGreaterThan(0);
@@ -245,9 +246,7 @@ describe("apps.returns loader — uncovered branches", () => {
         channelPoliciesJson: "{}",
       },
     });
-    const res = (await appsReturnsLoader(
-      makeAppsReturnsArgs("?shop=acme"),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeAppsReturnsArgs("?shop=acme"))) as Response;
     expect(res.status).toBe(200);
     // parsePortalTheme should have been called with both the null default
     // (initial) AND the JSON string (line 79 branch) — assert the JSON one.
@@ -281,9 +280,7 @@ describe("apps.returns loader — uncovered branches", () => {
         channelPoliciesJson: "{}",
       },
     });
-    const res = (await appsReturnsLoader(
-      makeAppsReturnsArgs("?shop=acme"),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeAppsReturnsArgs("?shop=acme"))) as Response;
     const body = await res.text();
     // Parsed labels merge into the i18n bootstrap script.
     expect(body).toContain("__RPM_LABELS__");
@@ -316,9 +313,7 @@ describe("apps.returns loader — uncovered branches", () => {
         channelPoliciesJson: "{}",
       },
     });
-    const res = (await appsReturnsLoader(
-      makeAppsReturnsArgs("?shop=acme"),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeAppsReturnsArgs("?shop=acme"))) as Response;
     // Malformed JSON must NOT crash the loader; fallback empty overrides.
     expect(res.status).toBe(200);
     const body = await res.text();
@@ -351,9 +346,7 @@ describe("apps.returns loader — uncovered branches", () => {
         channelPoliciesJson: '{"web":{"window":30}}',
       },
     });
-    const res = (await appsReturnsLoader(
-      makeAppsReturnsArgs("?shop=acme"),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeAppsReturnsArgs("?shop=acme"))) as Response;
     const body = await res.text();
     expect(body).toMatch(/greenReturnsEnabled/);
     expect(body).toMatch(/greenReturnsDonateEnabled/);
@@ -390,9 +383,7 @@ describe("apps.returns loader — uncovered branches", () => {
         channelPoliciesJson: null,
       },
     });
-    const res = (await appsReturnsLoader(
-      makeAppsReturnsArgs("?shop=acme"),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeAppsReturnsArgs("?shop=acme"))) as Response;
     expect(res.status).toBe(200);
     const body = await res.text();
     // The defaults were applied: 30-day window, USD, en, etc.
@@ -428,9 +419,7 @@ describe("apps.returns loader — uncovered branches", () => {
         channelPoliciesJson: "{}",
       },
     });
-    const res = (await appsReturnsLoader(
-      makeAppsReturnsArgs("?shop=acme"),
-    )) as Response;
+    const res = (await appsReturnsLoader(makeAppsReturnsArgs("?shop=acme"))) as Response;
     const body = await res.text();
     expect(body).toContain('lang="de"');
     expect(body).toContain('window.__RPM_LOCALE__="de"');
@@ -462,9 +451,7 @@ describe("auth.login route — loader + render", () => {
     const r = thrown as Response;
     expect(r.status).toBeGreaterThanOrEqual(300);
     expect(r.status).toBeLessThan(400);
-    expect(r.headers.get("location")).toBe(
-      "/auth?shop=acme.myshopify.com",
-    );
+    expect(r.headers.get("location")).toBe("/auth?shop=acme.myshopify.com");
   });
 
   it("default export Auth() renders the install-from-App-Store info card", async () => {
@@ -473,15 +460,11 @@ describe("auth.login route — loader + render", () => {
     expect(container.textContent).toMatch(/Install Fynd Returns/i);
     expect(container.textContent).toMatch(/Shopify App Store/i);
     // The CTA link must point at the App Store listing URL.
-    const cta = container.querySelector(
-      'a[href="https://apps.shopify.com/"]',
-    );
+    const cta = container.querySelector('a[href="https://apps.shopify.com/"]');
     expect(cta).toBeTruthy();
     expect(cta?.getAttribute("target")).toBe("_blank");
     expect(cta?.getAttribute("rel")).toBe("noopener noreferrer");
     // Marketing fallback link.
-    expect(
-      container.querySelector('a[href="https://www.fynd.com/"]'),
-    ).toBeTruthy();
+    expect(container.querySelector('a[href="https://www.fynd.com/"]')).toBeTruthy();
   });
 });

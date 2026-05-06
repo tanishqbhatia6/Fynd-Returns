@@ -188,19 +188,13 @@ describe("db.server.ts", () => {
   it("warn handler forwards to prismaLogger.warn", async () => {
     await freshDbImport();
     handlers.warn({ target: "warn-target", message: "be careful" });
-    expect(loggerWarn).toHaveBeenCalledWith(
-      { target: "warn-target" },
-      "be careful",
-    );
+    expect(loggerWarn).toHaveBeenCalledWith({ target: "warn-target" }, "be careful");
   });
 
   it("error handler forwards to prismaLogger.error", async () => {
     await freshDbImport();
     handlers.error({ target: "err-target", message: "boom" });
-    expect(loggerError).toHaveBeenCalledWith(
-      { target: "err-target" },
-      "boom",
-    );
+    expect(loggerError).toHaveBeenCalledWith({ target: "err-target" }, "boom");
   });
 
   it("dbPoolActive/dbPoolIdle observer callbacks observe poolState values", async () => {
@@ -218,9 +212,7 @@ describe("db.server.ts", () => {
     await freshDbImport();
 
     // Find the interval handler that was installed for pollConnectionPool.
-    const installed = setIntervalSpy.mock.calls.find(
-      ([, ms]) => ms === 30_000,
-    );
+    const installed = setIntervalSpy.mock.calls.find(([, ms]) => ms === 30_000);
     expect(installed).toBeDefined();
     const fn = installed![0] as () => Promise<void>;
     await fn();
@@ -234,9 +226,7 @@ describe("db.server.ts", () => {
   it("pool-monitoring tolerates an empty result array (result[0] falsy branch)", async () => {
     queryRawImpl = async () => [];
     await freshDbImport();
-    const installed = setIntervalSpy.mock.calls.find(
-      ([, ms]) => ms === 30_000,
-    );
+    const installed = setIntervalSpy.mock.calls.find(([, ms]) => ms === 30_000);
     const fn = installed![0] as () => Promise<void>;
     await expect(fn()).resolves.toBeUndefined();
 
@@ -252,9 +242,7 @@ describe("db.server.ts", () => {
       throw new Error("db down");
     };
     await freshDbImport();
-    const installed = setIntervalSpy.mock.calls.find(
-      ([, ms]) => ms === 30_000,
-    );
+    const installed = setIntervalSpy.mock.calls.find(([, ms]) => ms === 30_000);
     const fn = installed![0] as () => Promise<void>;
     await expect(fn()).resolves.toBeUndefined(); // does not throw
   });
@@ -361,7 +349,10 @@ describe("shopify.server.ts", () => {
 
     expect(unauthenticatedAdminMock).toHaveBeenCalledWith("demo.myshopify.com");
     expect(graphqlMock).toHaveBeenCalledTimes(1);
-    const call = graphqlMock.mock.calls[0] as unknown as [string, { variables: { definition: any } }];
+    const call = graphqlMock.mock.calls[0] as unknown as [
+      string,
+      { variables: { definition: any } },
+    ];
     expect(call[0]).toContain("metafieldDefinitionCreate");
     expect(call[1].variables.definition).toMatchObject({
       key: "fynd_order_id",

@@ -37,9 +37,10 @@ const {
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   createPortalTokenMock: vi.fn(() => "jwt-token"),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
-    async () => ({ ok: false, error: "disabled" }),
-  ),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   parseFyndOrderDetailsMock: vi.fn(() => ({ orderInfo: { name: "#1001" } })),
   extractFyndJourneyMock: vi.fn(() => [{ status: "x" }]),
   getTrackingInfoMock: vi.fn(() => ({ awb: "AWB-1" })),
@@ -110,9 +111,15 @@ vi.mock("../../lib/notification.server", () => ({
   sendRejectionNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
   sendApprovalNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
   sendRefundNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCustomerNoteNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCustomerNoteNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationDeclinedNotification: vi.fn<(...a: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../../lib/webhook-dispatch.server", () => ({
   dispatchWebhookEvent: vi.fn(),
@@ -174,7 +181,9 @@ beforeEach(() => {
   const upsert = getMappingUpsertMock();
   upsert.mockReset().mockResolvedValue({});
   createPortalTokenMock.mockClear();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   parseFyndOrderDetailsMock.mockReset().mockReturnValue({ orderInfo: { name: "#1001" } });
   extractFyndJourneyMock.mockReset().mockReturnValue([{ status: "x" }]);
@@ -403,9 +412,7 @@ describe("api.portal.products — final gap", () => {
     }) as typeof fetch;
 
     await productsLoader({
-      request: new Request(
-        "https://app/api/portal/products?shop=already.has.dot.com",
-      ),
+      request: new Request("https://app/api/portal/products?shop=already.has.dot.com"),
       params: {},
       context: {},
     } as never);
@@ -427,9 +434,7 @@ describe("api.portal.products — final gap", () => {
     }) as typeof fetch;
 
     const res = await productsLoader({
-      request: new Request(
-        "https://app/api/portal/products?shop=store&productId=42",
-      ),
+      request: new Request("https://app/api/portal/products?shop=store&productId=42"),
       params: {},
       context: {},
     } as never);
@@ -551,8 +556,7 @@ describe("api.returns.$id.actions — final gap", () => {
       [{ data: { eventType: string; source: string } }]
     >;
     const helperCall = calls.find(
-      (c) =>
-        c[0]?.data?.source === "admin" && c[0]?.data?.eventType === "shopify.return.closed",
+      (c) => c[0]?.data?.source === "admin" && c[0]?.data?.eventType === "shopify.return.closed",
     );
     expect(helperCall).toBeDefined();
   });
@@ -598,7 +602,8 @@ describe("api.returns.$id.diagnose — final gap", () => {
   it("captures per-step error in trace when step 3 (shipment_id verify) throws", async () => {
     // Search by external_order_id -> success (no orderId so step 2 skipped).
     // Search by shipment_id -> throws -> hits the line 213 catch.
-    const searchMock = vi.fn()
+    const searchMock = vi
+      .fn()
       .mockResolvedValueOnce({ items: [] }) // step 1
       .mockRejectedValueOnce(new Error("503 ship lookup")); // step 3
     const getShipmentsMock = vi.fn().mockResolvedValue({ order: { id: "x" } });

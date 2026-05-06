@@ -460,9 +460,13 @@ describe("app.returns.$id — line-item table + Fynd-shipment rendering", () => 
     const summary = Array.from(container.querySelectorAll("summary")).find(
       (s) => (s.textContent || "").trim() === "Fynd IDs",
     ) as HTMLElement;
-    await act(async () => { fireEvent.click(summary); });
+    await act(async () => {
+      fireEvent.click(summary);
+    });
     // Still rendered after click — no crash + items still in DOM
-    await waitFor(() => { expect(container.textContent).toContain("Test Product Alpha"); });
+    await waitFor(() => {
+      expect(container.textContent).toContain("Test Product Alpha");
+    });
   });
 
   it("renders shopifyOrder details panel when shopifyOrder is provided", async () => {
@@ -600,8 +604,8 @@ describe("app.returns.$id — line-item table + Fynd-shipment rendering", () => 
     await waitFor(() => {
       expect(container.textContent).toContain("View raw payload");
     });
-    const btn = Array.from(container.querySelectorAll("button")).find(
-      (b) => (b.textContent || "").includes("View raw payload"),
+    const btn = Array.from(container.querySelectorAll("button")).find((b) =>
+      (b.textContent || "").includes("View raw payload"),
     ) as HTMLButtonElement;
     fireEvent.click(btn);
     await waitFor(() => {
@@ -626,7 +630,9 @@ describe("app.returns.$id — line-item table + Fynd-shipment rendering", () => 
     });
     await waitFor(() => {
       const summaries = Array.from(container.querySelectorAll("summary"));
-      const has = summaries.some((s) => (s.textContent || "").includes("Edit return shipping details"));
+      const has = summaries.some((s) =>
+        (s.textContent || "").includes("Edit return shipping details"),
+      );
       expect(has).toBe(true);
     });
   });

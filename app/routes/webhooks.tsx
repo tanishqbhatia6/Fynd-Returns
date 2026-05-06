@@ -18,8 +18,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   switch (topic) {
     case "CUSTOMERS_DATA_REQUEST": {
-      const customerEmail =
-        payload.customer?.email?.toLowerCase().trim() ?? "";
+      const customerEmail = payload.customer?.email?.toLowerCase().trim() ?? "";
       console.log(
         `[webhooks] customers/data_request shop=${shop} email=${customerEmail ? "[present]" : "[missing]"}`,
       );
@@ -30,8 +29,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         if (shopRecord) {
           const conditions = [];
-          if (customerEmail)
-            conditions.push({ customerEmailNorm: customerEmail });
+          if (customerEmail) conditions.push({ customerEmailNorm: customerEmail });
 
           const returnCases =
             conditions.length > 0
@@ -52,8 +50,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     case "CUSTOMERS_REDACT": {
-      const customerEmail =
-        payload.customer?.email?.toLowerCase().trim() ?? "";
+      const customerEmail = payload.customer?.email?.toLowerCase().trim() ?? "";
       console.log(
         `[webhooks] customers/redact shop=${shop} email=${customerEmail ? "[present]" : "[missing]"}`,
       );
@@ -68,8 +65,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           // positives (numeric customer IDs are short and substring-match
           // unrelated Order GIDs), redacting the wrong shoppers' records.
           const conditions = [];
-          if (customerEmail)
-            conditions.push({ customerEmailNorm: customerEmail });
+          if (customerEmail) conditions.push({ customerEmailNorm: customerEmail });
 
           if (conditions.length > 0) {
             const returnCases = await prisma.returnCase.findMany({
@@ -145,9 +141,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 });
               }
 
-              console.log(
-                `[webhooks] customers/redact redacted ${returnCases.length} case(s)`,
-              );
+              console.log(`[webhooks] customers/redact redacted ${returnCases.length} case(s)`);
             }
           }
         }
@@ -207,9 +201,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           await prisma.session.deleteMany({ where: { shop } });
           await prisma.shop.delete({ where: { id: shopRecord.id } });
 
-          console.log(
-            `[webhooks] shop/redact deleted all data for shop=${shop}`,
-          );
+          console.log(`[webhooks] shop/redact deleted all data for shop=${shop}`);
         }
       } catch (err) {
         console.error("[webhooks] shop/redact error:", err);

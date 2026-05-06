@@ -68,9 +68,7 @@ const sampleEndpoints: ApiEndpointDef[] = [
       example: { note: "Approved by ERP system" },
     },
     responseExample: { data: { id: "clxyz123", status: "approved" } },
-    errorCodes: [
-      { status: 403, code: "FORBIDDEN", when: "API key lacks write_returns" },
-    ],
+    errorCodes: [{ status: 403, code: "FORBIDDEN", when: "API key lacks write_returns" }],
   },
   {
     method: "DELETE",
@@ -109,17 +107,12 @@ describe("ApiDocs (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("/api/v1/external/returns");
     });
-    expect(container.textContent).toContain(
-      "/api/v1/external/returns/:id/approve",
-    );
+    expect(container.textContent).toContain("/api/v1/external/returns/:id/approve");
     expect(container.textContent).toContain("/api/v1/external/webhooks/:id");
 
     // Method badges visible in the collapsed header for each row.
     const methodBadges = Array.from(container.querySelectorAll("span")).filter(
-      (s) =>
-        s.textContent === "GET" ||
-        s.textContent === "POST" ||
-        s.textContent === "DELETE",
+      (s) => s.textContent === "GET" || s.textContent === "POST" || s.textContent === "DELETE",
     );
     expect(methodBadges.length).toBeGreaterThanOrEqual(3);
   });
@@ -158,9 +151,7 @@ describe("ApiDocs (default export)", () => {
 
     // Find the toggle button for "List Returns".
     const buttons = Array.from(container.querySelectorAll("button"));
-    const listBtn = buttons.find((b) =>
-      b.textContent?.includes("/api/v1/external/returns"),
-    );
+    const listBtn = buttons.find((b) => b.textContent?.includes("/api/v1/external/returns"));
     expect(listBtn).toBeTruthy();
 
     // Permission badge is hidden until expanded.
@@ -169,9 +160,7 @@ describe("ApiDocs (default export)", () => {
     fireEvent.click(listBtn!);
 
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Retrieve a paginated list of return cases.",
-      );
+      expect(container.textContent).toContain("Retrieve a paginated list of return cases.");
     });
     expect(container.textContent).toContain("Permission: read_returns");
     expect(container.textContent).toContain("Query Parameters");
@@ -187,9 +176,7 @@ describe("ApiDocs (default export)", () => {
     });
 
     const buttons = Array.from(container.querySelectorAll("button"));
-    const approveBtn = buttons.find((b) =>
-      b.textContent?.includes("/approve"),
-    );
+    const approveBtn = buttons.find((b) => b.textContent?.includes("/approve"));
     expect(approveBtn).toBeTruthy();
 
     fireEvent.click(approveBtn!);
@@ -211,9 +198,9 @@ describe("ApiDocs (default export)", () => {
     });
 
     const buttons = Array.from(container.querySelectorAll("button"));
-    const listBtn = buttons.find((b) =>
-      b.textContent?.includes("/api/v1/external/returns") &&
-      !b.textContent?.includes("/approve"),
+    const listBtn = buttons.find(
+      (b) =>
+        b.textContent?.includes("/api/v1/external/returns") && !b.textContent?.includes("/approve"),
     );
     fireEvent.click(listBtn!);
 
@@ -226,9 +213,7 @@ describe("ApiDocs (default export)", () => {
     // Now expand the DELETE endpoint, which has errorCodes: [] — no
     // "Error Codes" heading should appear inside that card. Easiest
     // assertion: the card text does not contain "Error Codes" twice.
-    const deleteBtn = buttons.find((b) =>
-      b.textContent?.includes("/api/v1/external/webhooks/:id"),
-    );
+    const deleteBtn = buttons.find((b) => b.textContent?.includes("/api/v1/external/webhooks/:id"));
     fireEvent.click(deleteBtn!);
 
     await waitFor(() => {
@@ -246,9 +231,7 @@ describe("ApiDocs (default export)", () => {
     });
     await waitFor(() => {
       expect(
-        container.querySelector(
-          "a[href='https://example.myshopify.com/api/v1/external/postman']",
-        ),
+        container.querySelector("a[href='https://example.myshopify.com/api/v1/external/postman']"),
       ).toBeTruthy();
     });
     // "Manage API Keys" navigation link is also present.

@@ -64,8 +64,6 @@ describe("unwrapFyndWebhookPayload — inner.shipment fallback promotion", () =>
     });
     const { payload } = unwrapFyndWebhookPayload(raw);
     expect(payload.affiliate_order_id).toBe("AFF-BAG-1");
-    expect((payload as Record<string, unknown>)._shop_domain).toBe(
-      "shop-from-bag.myshopify.com",
-    );
+    expect((payload as Record<string, unknown>)._shop_domain).toBe("shop-from-bag.myshopify.com");
   });
 });

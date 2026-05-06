@@ -373,9 +373,13 @@ describe("app.returns.$id — Fynd integration UI panel", () => {
     const form = syncBtn!.closest("form") as HTMLFormElement;
     expect(form).toBeTruthy();
     form.addEventListener("submit", (e) => e.preventDefault());
-    await act(async () => { fireEvent.click(syncBtn!); });
+    await act(async () => {
+      fireEvent.click(syncBtn!);
+    });
     // Survives the click without throwing
-    await waitFor(() => { expect(syncBtn).toBeTruthy(); });
+    await waitFor(() => {
+      expect(syncBtn).toBeTruthy();
+    });
   });
 
   it("renders the 'Refresh' Fynd details button bound to refresh_fynd_details action", async () => {
@@ -403,9 +407,7 @@ describe("app.returns.$id — Fynd integration UI panel", () => {
     refreshForm.addEventListener("submit", (e) => e.preventDefault());
     // The button label inside is "Refresh" (or "Refreshing..." when busy)
     const sButtons = Array.from(refreshForm.querySelectorAll("s-button"));
-    const refreshSBtn = sButtons.find(
-      (b) => (b.textContent || "").trim() === "Refresh",
-    );
+    const refreshSBtn = sButtons.find((b) => (b.textContent || "").trim() === "Refresh");
     expect(refreshSBtn).toBeTruthy();
   });
 

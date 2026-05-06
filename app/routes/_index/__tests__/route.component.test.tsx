@@ -129,16 +129,16 @@ describe("_index route component (marketing landing)", () => {
     expect(h1).toHaveTextContent(/Returns management, reimagined/i);
     expect(h1.className).toContain("chroma-text");
 
-    expect(
-      screen.getByText(/Automate returns, delight customers/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Automate returns, delight customers/i)).toBeInTheDocument();
 
-    expect(
-      screen.getByRole("link", { name: /Get started free/i }),
-    ).toHaveAttribute("href", "https://apps.shopify.com");
-    expect(
-      screen.getByRole("link", { name: /See how it works/i }),
-    ).toHaveAttribute("href", "#features");
+    expect(screen.getByRole("link", { name: /Get started free/i })).toHaveAttribute(
+      "href",
+      "https://apps.shopify.com",
+    );
+    expect(screen.getByRole("link", { name: /See how it works/i })).toHaveAttribute(
+      "href",
+      "#features",
+    );
   });
 
   it("renders the stats row with all four stat values", async () => {
@@ -146,9 +146,7 @@ describe("_index route component (marketing landing)", () => {
     const statValues = container.querySelectorAll(".stats-row .stat-value");
     expect(statValues.length).toBe(4);
     const text = Array.from(statValues).map((n) => n.textContent);
-    expect(text).toEqual(
-      expect.arrayContaining(["15", "3", "25+", "REST"]),
-    );
+    expect(text).toEqual(expect.arrayContaining(["15", "3", "25+", "REST"]));
     expect(screen.getByText("Languages supported")).toBeInTheDocument();
     expect(screen.getByText("Resolution types")).toBeInTheDocument();
     expect(screen.getByText("Portal settings")).toBeInTheDocument();
@@ -193,29 +191,23 @@ describe("_index route component (marketing landing)", () => {
     await mountIndex();
     const h2s = screen.getAllByRole("heading", { level: 2 });
     const text = h2s.map((h) => h.textContent || "");
+    expect(text.some((t) => /Everything you need to manage/i.test(t))).toBe(true);
+    expect(text.some((t) => /Three steps to effortless returns/i.test(t))).toBe(true);
     expect(
-      text.some((t) => /Everything you need to manage/i.test(t)),
-    ).toBe(true);
-    expect(
-      text.some((t) => /Three steps to effortless returns/i.test(t)),
-    ).toBe(true);
-    expect(
-      text.some(
-        (t) =>
-          /Ready to transform your/i.test(t) &&
-          /returns experience\?/i.test(t),
-      ),
+      text.some((t) => /Ready to transform your/i.test(t) && /returns experience\?/i.test(t)),
     ).toBe(true);
   });
 
   it("renders the install/CTA section with both call-to-action links", async () => {
     await mountIndex();
-    expect(
-      screen.getByRole("link", { name: /Install free on Shopify/i }),
-    ).toHaveAttribute("href", "https://apps.shopify.com");
-    expect(
-      screen.getByRole("link", { name: /Learn about Fynd/i }),
-    ).toHaveAttribute("href", "https://www.fynd.com");
+    expect(screen.getByRole("link", { name: /Install free on Shopify/i })).toHaveAttribute(
+      "href",
+      "https://apps.shopify.com",
+    );
+    expect(screen.getByRole("link", { name: /Learn about Fynd/i })).toHaveAttribute(
+      "href",
+      "https://www.fynd.com",
+    );
   });
 
   it("renders the install button in the nav", async () => {
@@ -236,15 +228,9 @@ describe("_index route component (marketing landing)", () => {
 
   it("renders the theme toggle with three buttons (Light / Dark / System)", async () => {
     await mountIndex();
-    expect(
-      screen.getByRole("button", { name: /Switch to Light theme/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Switch to Dark theme/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: /Switch to System theme/i }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Switch to Light theme/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Switch to Dark theme/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Switch to System theme/i })).toBeInTheDocument();
   });
 
   it("toggles to dark mode and writes data-theme=dark on <html>", async () => {
@@ -336,9 +322,7 @@ describe("_index route component (marketing landing)", () => {
     installMatchMedia(true);
     await mountIndex();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /Switch to System theme/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Switch to System theme/i }));
     expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
 
     // Simulate the OS flipping to light.
@@ -357,18 +341,9 @@ describe("_index route component (marketing landing)", () => {
     expect(brand).toBeTruthy();
     expect(within(nav).getAllByText("ReturnPro").length).toBeGreaterThanOrEqual(1);
 
-    expect(within(nav).getByText("Features")).toHaveAttribute(
-      "href",
-      "#features",
-    );
-    expect(within(nav).getByText("How it works")).toHaveAttribute(
-      "href",
-      "#how-it-works",
-    );
-    expect(within(nav).getByText("Fynd Platform")).toHaveAttribute(
-      "href",
-      "https://www.fynd.com",
-    );
+    expect(within(nav).getByText("Features")).toHaveAttribute("href", "#features");
+    expect(within(nav).getByText("How it works")).toHaveAttribute("href", "#how-it-works");
+    expect(within(nav).getByText("Fynd Platform")).toHaveAttribute("href", "https://www.fynd.com");
   });
 
   it("renders the 'Powered by Fynd' badge with a link to fynd.com", async () => {
@@ -383,9 +358,7 @@ describe("_index route component (marketing landing)", () => {
 
   it("renders the footer with all four columns and their links", async () => {
     const { container } = await mountIndex();
-    const footer = container.querySelector(
-      "footer.landing-footer",
-    ) as HTMLElement;
+    const footer = container.querySelector("footer.landing-footer") as HTMLElement;
     expect(footer).toBeTruthy();
     const utils = within(footer);
 
@@ -394,44 +367,24 @@ describe("_index route component (marketing landing)", () => {
     expect(utils.getByText("Legal")).toBeInTheDocument();
 
     expect(utils.getByText("Features")).toHaveAttribute("href", "#features");
-    expect(utils.getByText("How it works")).toHaveAttribute(
-      "href",
-      "#how-it-works",
-    );
+    expect(utils.getByText("How it works")).toHaveAttribute("href", "#how-it-works");
     expect(utils.getByText("Shopify App Store")).toHaveAttribute(
       "href",
       "https://apps.shopify.com",
     );
 
-    expect(utils.getByText("Fynd Commerce")).toHaveAttribute(
-      "href",
-      "https://www.fynd.com",
-    );
-    expect(utils.getByText("Fynd Platform")).toHaveAttribute(
-      "href",
-      "https://platform.fynd.com",
-    );
-    expect(utils.getByText("Careers")).toHaveAttribute(
-      "href",
-      "https://www.fynd.com/careers",
-    );
+    expect(utils.getByText("Fynd Commerce")).toHaveAttribute("href", "https://www.fynd.com");
+    expect(utils.getByText("Fynd Platform")).toHaveAttribute("href", "https://platform.fynd.com");
+    expect(utils.getByText("Careers")).toHaveAttribute("href", "https://www.fynd.com/careers");
 
-    expect(utils.getByText("Privacy Policy")).toHaveAttribute(
-      "href",
-      "/privacy",
-    );
-    expect(utils.getByText("Terms of Service")).toHaveAttribute(
-      "href",
-      "/terms",
-    );
+    expect(utils.getByText("Privacy Policy")).toHaveAttribute("href", "/privacy");
+    expect(utils.getByText("Terms of Service")).toHaveAttribute("href", "/terms");
     expect(utils.getByText("LinkedIn")).toHaveAttribute(
       "href",
       "https://www.linkedin.com/company/gofynd",
     );
 
-    expect(
-      utils.getByText(/ReturnPro by Shopsense Retail Technologies/),
-    ).toBeInTheDocument();
+    expect(utils.getByText(/ReturnPro by Shopsense Retail Technologies/)).toBeInTheDocument();
     expect(utils.getByText(/Invented in India/)).toBeInTheDocument();
   });
 

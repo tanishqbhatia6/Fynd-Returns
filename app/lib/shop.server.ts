@@ -23,7 +23,9 @@ export async function findOrCreateShop(shopDomain: string): Promise<ShopWithSett
   }
 }
 
-type AdminGraphQL = { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> };
+type AdminGraphQL = {
+  graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response>;
+};
 
 const SHOP_LOCALE_QUERY = `{
   shop {

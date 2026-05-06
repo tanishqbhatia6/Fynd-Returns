@@ -47,9 +47,11 @@ const fetchSpy = vi.fn();
 beforeEach(() => {
   fetchSpy.mockReset();
   fetchFyndPlatformTokenMock.mockReset().mockResolvedValue("tok_xyz");
-  decryptMock.mockReset().mockImplementation((s: string) =>
-    JSON.stringify({ platform: { clientId: "dec_id", clientSecret: "dec_secret" } })
-  );
+  decryptMock
+    .mockReset()
+    .mockImplementation((s: string) =>
+      JSON.stringify({ platform: { clientId: "dec_id", clientSecret: "dec_secret" } }),
+    );
   getFyndBaseUrlMock.mockReset().mockReturnValue("https://api.fynd.example");
   vi.stubGlobal("fetch", fetchSpy);
 });
@@ -115,7 +117,9 @@ describe("listFyndWebhookSubscribers (extra)", () => {
       log,
     );
     expect(r.ok).toBe(false);
-    expect(logged.some((l) => l[0] === "fynd-webhook-api" && /Parse credentials failed/.test(l[1]))).toBe(true);
+    expect(
+      logged.some((l) => l[0] === "fynd-webhook-api" && /Parse credentials failed/.test(l[1])),
+    ).toBe(true);
   });
 
   it("returns generic 5xx error without scope hint", async () => {
@@ -151,7 +155,7 @@ describe("listFyndWebhookSubscribers (extra)", () => {
     await listFyndWebhookSubscribers(baseSettings);
     const [url, init] = fetchSpy.mock.calls[0];
     expect(url).toBe(
-      "https://api.fynd.example/service/platform/webhook/v1.0/company/98765/subscriber/?page_no=1&page_size=50"
+      "https://api.fynd.example/service/platform/webhook/v1.0/company/98765/subscriber/?page_no=1&page_size=50",
     );
     expect((init as { method: string }).method).toBe("GET");
   });
@@ -215,9 +219,7 @@ describe("findSubscriberWithUrl (extra)", () => {
   });
 
   it("does not match when only the path differs", () => {
-    expect(
-      findSubscriberWithUrl(subs, "https://a.example.com/Different")
-    ).toBeUndefined();
+    expect(findSubscriberWithUrl(subs, "https://a.example.com/Different")).toBeUndefined();
   });
 });
 
@@ -362,12 +364,7 @@ describe("registerFyndWebhook (extra)", () => {
   });
 
   it("rejects non-https/http schemes such as javascript:", async () => {
-    const r = await registerFyndWebhook(
-      baseSettings,
-      "javascript:alert(1)",
-      good.name,
-      good.email,
-    );
+    const r = await registerFyndWebhook(baseSettings, "javascript:alert(1)", good.name, good.email);
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.error).toMatch(/https?:\/\//);
     expect(fetchSpy).not.toHaveBeenCalled();

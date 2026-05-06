@@ -27,7 +27,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return withCors(Response.json({ error: "Session not verified" }, { status: 401 }), request);
   }
   if (session.expiresAt < new Date()) {
-    return withCors(Response.json({ error: "Session expired. Please look up your return again." }, { status: 401 }), request);
+    return withCors(
+      Response.json(
+        { error: "Session expired. Please look up your return again." },
+        { status: 401 },
+      ),
+      request,
+    );
   }
 
   let returnIds: string[] = [];
@@ -55,22 +61,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const portalLanguage = shopSettings?.portalLanguage ?? "en";
   let portalLabelOverrides: Record<string, string> = {};
   try {
-    if (shopSettings?.portalLabelsJson) portalLabelOverrides = JSON.parse(shopSettings.portalLabelsJson);
-  } catch { /* ignore */ }
+    if (shopSettings?.portalLabelsJson)
+      portalLabelOverrides = JSON.parse(shopSettings.portalLabelsJson);
+  } catch {
+    /* ignore */
+  }
   const labels = getPortalLabels(portalLanguage, portalLabelOverrides);
 
   const defaultReturnInstructions = shopSettings?.defaultReturnInstructions ?? null;
 
   const enrichedReturns = returns.map((r) => {
-    let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null } | null = null;
+    let returnLabelInfo: {
+      carrier?: string | null;
+      trackingNumber?: string | null;
+      labelUrl?: string | null;
+      qrCodeUrl?: string | null;
+    } | null = null;
     try {
       if (r.returnLabelJson) returnLabelInfo = JSON.parse(r.returnLabelJson);
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     const isApprovedOrCompleted = ["approved", "completed"].includes(r.status.toLowerCase());
 
     // Extract Fynd journey for portal tracking display
-    const returnJourney = isApprovedOrCompleted ? extractFyndJourney((r as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return") : null;
+    const returnJourney = isApprovedOrCompleted
+      ? extractFyndJourney((r as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
+      : null;
 
     return {
       ...r,
@@ -89,9 +107,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
   });
 
-  return withCors(Response.json({
-    returns: enrichedReturns,
-    labels,
-    language: portalLanguage,
-  }), request);
+  return withCors(
+    Response.json({
+      returns: enrichedReturns,
+      labels,
+      language: portalLanguage,
+    }),
+    request,
+  );
 };

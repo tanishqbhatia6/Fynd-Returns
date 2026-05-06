@@ -10,7 +10,7 @@
  *  - per-principal vs per-IP key isolation (matches the in-memory test).
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
- 
+
 import RedisMock from "ioredis-mock";
 import { __setRedisForTests } from "../redis.server";
 import { checkRateLimit, __resetRateLimitForTests } from "../rate-limit.server";
@@ -63,7 +63,11 @@ describe("checkRateLimit (Redis backend)", () => {
     const endpoint = "portal.lookup"; // 30/min, window 60s
 
     await checkRateLimit(makeRequest(ip), endpoint);
-    const ttlAfter1 = await redis.pttl(`rl:${(redis as never as { keys: (p: string) => Promise<string[]> }).constructor.name === "Redis" ? "" : ""}${ip}:test.myshopify.com:${endpoint}`).catch(() => -2);
+    const ttlAfter1 = await redis
+      .pttl(
+        `rl:${(redis as never as { keys: (p: string) => Promise<string[]> }).constructor.name === "Redis" ? "" : ""}${ip}:test.myshopify.com:${endpoint}`,
+      )
+      .catch(() => -2);
     // ioredis-mock returns -2 for unknown keys; we expect the prefixed form
     const keys = await redis.keys("rl:*");
     expect(keys.length).toBe(1);

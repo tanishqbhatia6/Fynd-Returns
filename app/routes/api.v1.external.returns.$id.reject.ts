@@ -19,14 +19,22 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const auth = await authenticateApiKey(request, "write_returns");
   if (!auth.ok) return auth.response;
 
-  const perKey = await checkPerKeyRateLimit(request, "external.returns.reject", auth.keyId ?? "anon");
+  const perKey = await checkPerKeyRateLimit(
+    request,
+    "external.returns.reject",
+    auth.keyId ?? "anon",
+  );
   if (perKey) return perKey;
 
   const id = params.id;
   if (!id) return apiError(400, "BAD_REQUEST", "Return ID is required");
 
   let body: { rejectionReason?: string; note?: string } = {};
-  try { body = await request.json(); } catch { /* empty */ }
+  try {
+    body = await request.json();
+  } catch {
+    /* empty */
+  }
 
   if (!body.rejectionReason || !body.rejectionReason.trim()) {
     return apiError(400, "BAD_REQUEST", "rejectionReason is required");
@@ -49,7 +57,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
       status: "rejected",
       rejectionReason: body.rejectionReason.trim(),
     };
-    if (body.note) updateData.adminNotes = [returnCase.adminNotes, body.note].filter(Boolean).join("\n");
+    if (body.note)
+      updateData.adminNotes = [returnCase.adminNotes, body.note].filter(Boolean).join("\n");
 
     const updated = await prisma.returnCase.update({
       where: { id },
@@ -61,7 +70,10 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         returnCaseId: id,
         source: "external_api",
         eventType: "rejected",
-        payloadJson: JSON.stringify({ rejectionReason: body.rejectionReason, apiKeyId: auth.keyId }),
+        payloadJson: JSON.stringify({
+          rejectionReason: body.rejectionReason,
+          apiKeyId: auth.keyId,
+        }),
       },
     });
 
@@ -76,7 +88,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         action: "decline",
         declineReason: body.rejectionReason!.trim(),
         logEvent: async (evt) => {
-          await prisma.returnEvent.create({ data: { returnCaseId: id, source: "external_api", ...evt } }).catch(() => {});
+          await prisma.returnEvent
+            .create({ data: { returnCaseId: id, source: "external_api", ...evt } })
+            .catch(() => {});
         },
       });
     }

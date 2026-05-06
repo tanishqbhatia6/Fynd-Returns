@@ -85,41 +85,43 @@ describe("extractAffiliateOrderId", () => {
   });
 
   it("pulls from affiliate_order_id key", () => {
-    expect(extractAffiliateOrderId([
-      { key: "affiliate_order_id", value: "FY12345" },
-    ])).toBe("FY12345");
+    expect(extractAffiliateOrderId([{ key: "affiliate_order_id", value: "FY12345" }])).toBe(
+      "FY12345",
+    );
   });
 
   it("is case-insensitive on the key lookup", () => {
-    expect(extractAffiliateOrderId([
-      { key: "AFFILIATE_ORDER_ID", value: "FY12345" },
-    ])).toBe("FY12345");
+    expect(extractAffiliateOrderId([{ key: "AFFILIATE_ORDER_ID", value: "FY12345" }])).toBe(
+      "FY12345",
+    );
   });
 
   it("falls back through alternate keys in priority order", () => {
     // _fynd_order_id comes later in the list than affiliate_order_id.
-    expect(extractAffiliateOrderId([
-      { key: "_fynd_order_id", value: "FY_OLD" },
-      { key: "affiliate_order_id", value: "FY_NEW" },
-    ])).toBe("FY_NEW");
+    expect(
+      extractAffiliateOrderId([
+        { key: "_fynd_order_id", value: "FY_OLD" },
+        { key: "affiliate_order_id", value: "FY_NEW" },
+      ]),
+    ).toBe("FY_NEW");
   });
 
   it("skips empty / whitespace-only values", () => {
-    expect(extractAffiliateOrderId([
-      { key: "affiliate_order_id", value: "   " },
-      { key: "fyndOrderId", value: "FY12345" },
-    ])).toBe("FY12345");
+    expect(
+      extractAffiliateOrderId([
+        { key: "affiliate_order_id", value: "   " },
+        { key: "fyndOrderId", value: "FY12345" },
+      ]),
+    ).toBe("FY12345");
   });
 
   it("trims whitespace from returned value", () => {
-    expect(extractAffiliateOrderId([
-      { key: "affiliate_order_id", value: "  FY12345  " },
-    ])).toBe("FY12345");
+    expect(extractAffiliateOrderId([{ key: "affiliate_order_id", value: "  FY12345  " }])).toBe(
+      "FY12345",
+    );
   });
 
   it("returns null when none of the known keys match", () => {
-    expect(extractAffiliateOrderId([
-      { key: "some_other_key", value: "X" },
-    ])).toBe(null);
+    expect(extractAffiliateOrderId([{ key: "some_other_key", value: "X" }])).toBe(null);
   });
 });

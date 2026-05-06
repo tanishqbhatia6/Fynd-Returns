@@ -73,10 +73,12 @@ describe("buildTrackingUrlFromCourierAndAwb", () => {
   // narrowed to "xpressb" these assertions will fail, which is the signal
   // to update the test + review downstream tracking-URL correctness.
   it('"Express"-containing names currently route to Xpressbees', () => {
-    expect(buildTrackingUrlFromCourierAndAwb("BlueDart Express", "BD1"))
-      .toBe("https://www.xpressbees.com/track/BD1");
-    expect(buildTrackingUrlFromCourierAndAwb("Ecom Express", "EC1"))
-      .toBe("https://www.xpressbees.com/track/EC1");
+    expect(buildTrackingUrlFromCourierAndAwb("BlueDart Express", "BD1")).toBe(
+      "https://www.xpressbees.com/track/BD1",
+    );
+    expect(buildTrackingUrlFromCourierAndAwb("Ecom Express", "EC1")).toBe(
+      "https://www.xpressbees.com/track/EC1",
+    );
   });
 
   it("returns null for unknown couriers", () => {
@@ -195,21 +197,21 @@ describe("getFyndShipmentDisplayFields", () => {
       awb_no: "AB1234",
       dp_name: "Delhivery",
     });
-    const byLabel = Object.fromEntries(fields.map(f => [f.label, f.value]));
+    const byLabel = Object.fromEntries(fields.map((f) => [f.label, f.value]));
     expect(byLabel["Fynd Shipment ID"]).toBe("16834567890123456");
     expect(byLabel["Forward AWB / Tracking number"]).toBe("AB1234");
     expect(byLabel["Logistics Partner"]).toBe("Delhivery");
   });
   it("renders bags array as count", () => {
     const fields = getFyndShipmentDisplayFields({ bags: [{ a: 1 }, { a: 2 }, { a: 3 }] });
-    const bagField = fields.find(f => f.key === "bags");
+    const bagField = fields.find((f) => f.key === "bags");
     expect(bagField?.value).toBe("3 bag(s)");
   });
   it("flattens meta with awb/cp_name/invoice", () => {
     const fields = getFyndShipmentDisplayFields({
       meta: { cp_name: "Bluedart", awb_no: "BD1", invoice_id: "INV-1" },
     });
-    const labels = fields.map(f => f.label);
+    const labels = fields.map((f) => f.label);
     expect(labels).toContain("Logistics Partner");
     expect(labels).toContain("Forward AWB");
     expect(labels).toContain("Invoice ID");
@@ -218,7 +220,7 @@ describe("getFyndShipmentDisplayFields", () => {
     const fields = getFyndShipmentDisplayFields({
       nested: { courier_name: "DTDC" },
     });
-    const courierFields = fields.filter(f => f.label === "Logistics Partner");
+    const courierFields = fields.filter((f) => f.label === "Logistics Partner");
     expect(courierFields.length).toBe(1);
   });
 });
@@ -291,10 +293,12 @@ describe("parseFyndOrderDetailsForTab", () => {
   });
   it("extracts shipment_id + AWB + cp_name from a shipment", () => {
     const p = JSON.stringify({
-      shipments: [{
-        shipment_id: "SHIP1",
-        dp_details: { display_name: "Delhivery", awb_no: "AB1234" },
-      }],
+      shipments: [
+        {
+          shipment_id: "SHIP1",
+          dp_details: { display_name: "Delhivery", awb_no: "AB1234" },
+        },
+      ],
     });
     const res = parseFyndOrderDetailsForTab(p)!;
     expect(res.shipments).toHaveLength(1);
@@ -311,9 +315,13 @@ describe("extractCustomerFromFyndPayload", () => {
   it("pulls name/email/phone from delivery_address", () => {
     const p = JSON.stringify({
       delivery_address: {
-        first_name: "Alice", last_name: "Singh",
-        email: "a@x.com", phone: "9999",
-        city: "Mumbai", country: "India", pincode: "400001",
+        first_name: "Alice",
+        last_name: "Singh",
+        email: "a@x.com",
+        phone: "9999",
+        city: "Mumbai",
+        country: "India",
+        pincode: "400001",
       },
     });
     const c = extractCustomerFromFyndPayload(p)!;
@@ -368,8 +376,9 @@ describe("extractShippingDetailsFromFyndPayload", () => {
     const p = JSON.stringify({
       dp_details: { display_name: "Xpressbees", awb_no: "XB1" },
     });
-    expect(extractShippingDetailsFromFyndPayload(p)?.trackingUrl)
-      .toBe("https://www.xpressbees.com/track/XB1");
+    expect(extractShippingDetailsFromFyndPayload(p)?.trackingUrl).toBe(
+      "https://www.xpressbees.com/track/XB1",
+    );
   });
   it("filters out Fynd IDs from tracking number", () => {
     const p = JSON.stringify({
@@ -388,29 +397,33 @@ describe("extractAffiliateOrderIdFromFyndPayload", () => {
     expect(extractAffiliateOrderIdFromFyndPayload("bad")).toBe(null);
   });
   it("reads top-level affiliate_order_id", () => {
-    expect(extractAffiliateOrderIdFromFyndPayload(
-      JSON.stringify({ affiliate_order_id: "1001" }),
-    )).toBe("1001");
+    expect(
+      extractAffiliateOrderIdFromFyndPayload(JSON.stringify({ affiliate_order_id: "1001" })),
+    ).toBe("1001");
   });
   it("reads nested order.external_order_id", () => {
-    expect(extractAffiliateOrderIdFromFyndPayload(
-      JSON.stringify({ order: { external_order_id: "#1001" } }),
-    )).toBe("#1001");
+    expect(
+      extractAffiliateOrderIdFromFyndPayload(
+        JSON.stringify({ order: { external_order_id: "#1001" } }),
+      ),
+    ).toBe("#1001");
   });
   it("reads meta.channel_order_id as fallback", () => {
-    expect(extractAffiliateOrderIdFromFyndPayload(
-      JSON.stringify({ meta: { channel_order_id: "1001" } }),
-    )).toBe("1001");
+    expect(
+      extractAffiliateOrderIdFromFyndPayload(
+        JSON.stringify({ meta: { channel_order_id: "1001" } }),
+      ),
+    ).toBe("1001");
   });
   it("trims whitespace", () => {
-    expect(extractAffiliateOrderIdFromFyndPayload(
-      JSON.stringify({ affiliate_order_id: "  1001  " }),
-    )).toBe("1001");
+    expect(
+      extractAffiliateOrderIdFromFyndPayload(JSON.stringify({ affiliate_order_id: "  1001  " })),
+    ).toBe("1001");
   });
   it("returns null for empty string value", () => {
-    expect(extractAffiliateOrderIdFromFyndPayload(
-      JSON.stringify({ affiliate_order_id: "  " }),
-    )).toBe(null);
+    expect(
+      extractAffiliateOrderIdFromFyndPayload(JSON.stringify({ affiliate_order_id: "  " })),
+    ).toBe(null);
   });
 });
 
@@ -421,15 +434,31 @@ describe("extractFyndJourney", () => {
   });
   it("extracts forward-journey steps sorted by updated_at", () => {
     const p = JSON.stringify({
-      shipments: [{
-        bags: [{
-          bag_status: [
-            { status: "placed", bag_state_mapper: { display_name: "Placed", journey_type: "forward" }, updated_at: "2026-01-01T10:00:00Z" },
-            { status: "in_transit", bag_state_mapper: { display_name: "In Transit", journey_type: "forward" }, updated_at: "2026-01-02T10:00:00Z" },
-            { status: "return_initiated", bag_state_mapper: { display_name: "Return Initiated", journey_type: "return" }, updated_at: "2026-01-03T10:00:00Z" },
+      shipments: [
+        {
+          bags: [
+            {
+              bag_status: [
+                {
+                  status: "placed",
+                  bag_state_mapper: { display_name: "Placed", journey_type: "forward" },
+                  updated_at: "2026-01-01T10:00:00Z",
+                },
+                {
+                  status: "in_transit",
+                  bag_state_mapper: { display_name: "In Transit", journey_type: "forward" },
+                  updated_at: "2026-01-02T10:00:00Z",
+                },
+                {
+                  status: "return_initiated",
+                  bag_state_mapper: { display_name: "Return Initiated", journey_type: "return" },
+                  updated_at: "2026-01-03T10:00:00Z",
+                },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
     const forward = extractFyndJourney(p, "forward");
     expect(forward).toHaveLength(2);
@@ -447,23 +476,43 @@ describe("extractFyndJourney", () => {
   });
   it("dedupes identical status+time pairs", () => {
     const p = JSON.stringify({
-      shipments: [{
-        bags: [{
-          bag_status: [
-            { status: "placed", bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-01-01T10:00:00Z" },
-            { status: "placed", bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-01-01T10:00:00Z" },
+      shipments: [
+        {
+          bags: [
+            {
+              bag_status: [
+                {
+                  status: "placed",
+                  bag_state_mapper: { journey_type: "forward" },
+                  updated_at: "2026-01-01T10:00:00Z",
+                },
+                {
+                  status: "placed",
+                  bag_state_mapper: { journey_type: "forward" },
+                  updated_at: "2026-01-01T10:00:00Z",
+                },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
     expect(extractFyndJourney(p, "forward")).toHaveLength(1);
   });
   it("traverses order.bags path too", () => {
     const p = JSON.stringify({
       order: {
-        bags: [{
-          bag_status: [{ status: "created", bag_state_mapper: { journey_type: "forward" }, updated_at: "2026-01-01T10:00:00Z" }],
-        }],
+        bags: [
+          {
+            bag_status: [
+              {
+                status: "created",
+                bag_state_mapper: { journey_type: "forward" },
+                updated_at: "2026-01-01T10:00:00Z",
+              },
+            ],
+          },
+        ],
       },
     });
     expect(extractFyndJourney(p, "forward")).toHaveLength(1);

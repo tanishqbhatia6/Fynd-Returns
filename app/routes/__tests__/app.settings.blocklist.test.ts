@@ -28,7 +28,10 @@ function formReq(form: Record<string, string>): Request {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset().mockResolvedValue({
-    session: { shop: "store.myshopify.com", onlineAccessInfo: { associated_user: { email: "admin@x.com" } } },
+    session: {
+      shop: "store.myshopify.com",
+      onlineAccessInfo: { associated_user: { email: "admin@x.com" } },
+    },
   });
   findOrCreateShopMock.mockReset();
 });
@@ -36,7 +39,11 @@ beforeEach(() => {
 describe("loader", () => {
   it("returns empty entries when shop has no settings", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.entries).toEqual([]);
     expect(data.blocklistEnabled).toBe(false);
   });
@@ -47,9 +54,20 @@ describe("loader", () => {
       settings: { id: "s-1", blocklistEnabled: true, shopLocale: "en", shopTimezone: "UTC" },
     });
     prismaMock.blocklistEntry.findMany.mockResolvedValueOnce([
-      { id: "b-1", type: "email", value: "bad@x.com", reason: "fraud", blockedBy: "admin", createdAt: new Date("2025-01-01T00:00:00.000Z") },
+      {
+        id: "b-1",
+        type: "email",
+        value: "bad@x.com",
+        reason: "fraud",
+        blockedBy: "admin",
+        createdAt: new Date("2025-01-01T00:00:00.000Z"),
+      },
     ]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.blocklistEnabled).toBe(true);
     expect(data.entries).toHaveLength(1);
     expect(data.entries[0]).toMatchObject({
@@ -67,20 +85,28 @@ describe("action: toggle intent", () => {
   it("flips blocklistEnabled to true when checkbox is on", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
-    const res = await action({ request: formReq({ intent: "toggle", blocklistEnabled: "on" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ intent: "toggle", blocklistEnabled: "on" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ success: true });
-    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: { blocklistEnabled: true },
-    }));
+    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { blocklistEnabled: true },
+      }),
+    );
   });
 
   it("flips blocklistEnabled to false when checkbox absent", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
     await action({ request: formReq({ intent: "toggle" }), params: {}, context: {} } as never);
-    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: { blocklistEnabled: false },
-    }));
+    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { blocklistEnabled: false },
+      }),
+    );
   });
 });
 
@@ -88,21 +114,33 @@ describe("action: add intent", () => {
   it("rejects invalid entry type", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
-    const res = await action({ request: formReq({ intent: "add", type: "bogus", value: "x@y.com" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ intent: "add", type: "bogus", value: "x@y.com" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Invalid entry type" });
   });
 
   it("rejects empty value", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
-    const res = await action({ request: formReq({ intent: "add", type: "email", value: "" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ intent: "add", type: "email", value: "" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Value is required (max 256 characters)" });
   });
 
   it("rejects oversized value (>256 chars)", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
-    const res = await action({ request: formReq({ intent: "add", type: "email", value: "a".repeat(300) }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ intent: "add", type: "email", value: "a".repeat(300) }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Value is required (max 256 characters)" });
   });
 
@@ -110,7 +148,11 @@ describe("action: add intent", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
     prismaMock.blocklistEntry.findUnique.mockResolvedValueOnce({ id: "existing" });
-    const res = await action({ request: formReq({ intent: "add", type: "email", value: "x@y.com" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ intent: "add", type: "email", value: "x@y.com" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "This entry already exists in the blocklist" });
   });
 
@@ -119,17 +161,25 @@ describe("action: add intent", () => {
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
     prismaMock.blocklistEntry.findUnique.mockResolvedValueOnce(null);
     const res = await action({
-      request: formReq({ intent: "add", type: "email", value: "  Bad@Example.COM  ", reason: "fraud" }),
-      params: {}, context: {},
-    } as never);
-    expect(res).toEqual({ success: true });
-    expect(prismaMock.blocklistEntry.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
+      request: formReq({
+        intent: "add",
         type: "email",
-        value: "bad@example.com",
+        value: "  Bad@Example.COM  ",
         reason: "fraud",
       }),
-    }));
+      params: {},
+      context: {},
+    } as never);
+    expect(res).toEqual({ success: true });
+    expect(prismaMock.blocklistEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: "email",
+          value: "bad@example.com",
+          reason: "fraud",
+        }),
+      }),
+    );
   });
 
   it("accepts all 4 valid entry types", async () => {
@@ -140,7 +190,8 @@ describe("action: add intent", () => {
       prismaMock.blocklistEntry.findUnique.mockResolvedValueOnce(null);
       const res = await action({
         request: formReq({ intent: "add", type, value: "x" }),
-        params: {}, context: {},
+        params: {},
+        context: {},
       } as never);
       expect(res).toEqual({ success: true });
     }
@@ -153,7 +204,8 @@ describe("action: delete intent", () => {
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
     const res = await action({
       request: formReq({ intent: "delete", entryId: "b-target" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     expect(prismaMock.blocklistEntry.deleteMany).toHaveBeenCalledWith({
@@ -166,7 +218,8 @@ describe("action: delete intent", () => {
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
     const res = await action({
       request: formReq({ intent: "delete" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     expect(prismaMock.blocklistEntry.deleteMany).not.toHaveBeenCalled();
@@ -177,7 +230,11 @@ describe("action: unknown intent", () => {
   it("returns error", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.shopSettings.upsert.mockResolvedValueOnce({ id: "s-1" });
-    const res = await action({ request: formReq({ intent: "garbage" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ intent: "garbage" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Unknown action" });
   });
 });

@@ -82,7 +82,10 @@ vi.mock("../lib/return-id-counter.server", () => ({
 
 vi.mock("../lib/observability/logger.server", () => ({
   refundLogger: {
-    debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
   },
 }));
 
@@ -355,8 +358,9 @@ describe("app.returns.$id — coverage closure (component)", () => {
     });
     expect(container.textContent).toContain("Reason:");
     // Click "Approve Cancellation" → opens the modal
-    const approveBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Approve Cancellation");
+    const approveBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Approve Cancellation",
+    );
     expect(approveBtn).toBeTruthy();
     fireEvent.click(approveBtn!);
     await waitFor(() => {
@@ -394,14 +398,16 @@ describe("app.returns.$id — coverage closure (component)", () => {
       expect(container.textContent).toContain("COD order");
     });
     // Click the "Amount" toggle → exercises the setSplitMode("amount") closure
-    const amountBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Amount");
+    const amountBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Amount",
+    );
     if (amountBtn) {
       fireEvent.click(amountBtn);
     }
     // Click the "Percentage" toggle to come back too (defensive)
-    const pctBtn = Array.from(container.querySelectorAll("button"))
-      .find((b) => (b.textContent || "").trim() === "Percentage");
+    const pctBtn = Array.from(container.querySelectorAll("button")).find(
+      (b) => (b.textContent || "").trim() === "Percentage",
+    );
     if (pctBtn) fireEvent.click(pctBtn);
   });
 
@@ -554,7 +560,9 @@ describe("app.returns.$id — coverage closure (component)", () => {
     // and is not needed for branch coverage — just registering the effect
     // hits the lines). Verify render completes without crashing.
     const { container } = renderWithRouter(Component, {
-      initialEntries: ["/app/returns/ret_clo_001?fyndError=oops&fyndSuccess=ok&fyndRefresh=1&fyndProcessing=1&consolidationQueued=1"],
+      initialEntries: [
+        "/app/returns/ret_clo_001?fyndError=oops&fyndSuccess=ok&fyndRefresh=1&fyndProcessing=1&consolidationQueued=1",
+      ],
       loaderData: makeLoaderData() as never,
     });
     await waitFor(() => {

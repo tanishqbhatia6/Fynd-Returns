@@ -43,7 +43,9 @@ function createMockClient(overrides?: {
   } as unknown as FyndPlatformClient;
 }
 
-function createMockReturnCase(overrides?: Partial<ReturnCase & { items: ReturnItem[] }>): ReturnCase & { items: ReturnItem[] } {
+function createMockReturnCase(
+  overrides?: Partial<ReturnCase & { items: ReturnItem[] }>,
+): ReturnCase & { items: ReturnItem[] } {
   return {
     id: "rc-1",
     shopId: "shop-1",
@@ -80,7 +82,10 @@ describe("createReturnOnFynd E2E", () => {
 
   it("rejects when order ID is missing", async () => {
     const client = createMockClient();
-    const returnCase = createMockReturnCase({ shopifyOrderName: undefined as string | undefined | null, shopifyOrderId: undefined as string | undefined | null } as any);
+    const returnCase = createMockReturnCase({
+      shopifyOrderName: undefined as string | undefined | null,
+      shopifyOrderId: undefined as string | undefined | null,
+    } as any);
     const result = await createReturnOnFynd(client, returnCase, { affiliateOrderId: null });
     expect(result.success).toBe(false);
     expect(result.error).toContain("Invalid order ID");
@@ -149,7 +154,7 @@ describe("createReturnOnFynd E2E", () => {
     expect(result.success).toBe(true);
     expect(client.searchShipmentsByExternalOrderId).toHaveBeenCalledWith(
       "FYNDSHOPIFYX14083",
-      expect.objectContaining({ searchType: "external_order_id" })
+      expect.objectContaining({ searchType: "external_order_id" }),
     );
   });
 
@@ -185,7 +190,10 @@ describe("createReturnOnFynd E2E", () => {
             shipments: [
               {
                 status: 200,
-                final_state: { return_initiated: "return_initiated", shipment_id: "17718404850311580665" },
+                final_state: {
+                  return_initiated: "return_initiated",
+                  shipment_id: "17718404850311580665",
+                },
                 identifier: "17708318940301766054",
               },
             ],
@@ -218,7 +226,7 @@ describe("createReturnOnFynd E2E", () => {
             ],
           }),
         ],
-      })
+      }),
     );
   });
 });

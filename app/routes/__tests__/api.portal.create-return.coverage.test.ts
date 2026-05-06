@@ -55,13 +55,17 @@ const {
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
   evaluateAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown>(() => "approve"),
   parseAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown[]>(() => [] as unknown[]),
   createReturnOnFyndMock: vi.fn(),
   createFyndClientOrErrorMock: vi.fn(),
   sendNewReturnNotificationMock: vi.fn().mockResolvedValue(undefined),
-  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(() => ({ eligible: true })),
+  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(
+    () => ({ eligible: true }),
+  ),
   buildReturnRequestIdMock: vi.fn(() => "R-1001"),
   parseReturnIdConfigMock: vi.fn(() => ({ bodyMode: "id" })),
   formatReturnRequestIdMock: vi.fn((x: string) => `R-${x}`),
@@ -167,7 +171,14 @@ function happyBody(extra: Record<string, unknown> = {}) {
     customerEmail: "shopper@example.com",
     items: [{ lineItemId: "gid://shopify/LineItem/100", qty: 1, reasonCode: "size" }],
     lineItemsWithPrice: [
-      { id: "gid://shopify/LineItem/100", title: "Tee", price: "25.00", quantity: 1, productTags: ["sale"], sku: "TEE-1" },
+      {
+        id: "gid://shopify/LineItem/100",
+        title: "Tee",
+        price: "25.00",
+        quantity: 1,
+        productTags: ["sale"],
+        sku: "TEE-1",
+      },
     ],
     orderCreatedAt: new Date().toISOString(),
     ...extra,
@@ -177,13 +188,20 @@ function happyBody(extra: Record<string, unknown> = {}) {
 beforeEach(() => {
   process.env = { ...origEnv, PORTAL_CSRF_REQUIRED: "false" };
   resetPrismaMock(prismaMock);
-  const fynd = (prismaMock as unknown as Record<string, { upsert: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> }>).fyndOrderMapping;
+  const fynd = (
+    prismaMock as unknown as Record<
+      string,
+      { upsert: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> }
+    >
+  ).fyndOrderMapping;
   fynd.upsert.mockReset().mockResolvedValue({});
   fynd.findFirst.mockReset().mockResolvedValue(null);
   shopifyModuleMock.unauthenticated.admin.mockReset();
   // Default: Shopify admin returns a graphql function (not used in most tests)
   shopifyModuleMock.unauthenticated.admin.mockResolvedValue({ admin: { graphql: vi.fn() } });
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   verifyPortalCsrfMock.mockReset().mockReturnValue(true);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset().mockResolvedValue({
@@ -196,11 +214,17 @@ beforeEach(() => {
   });
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
   fetchOrderByFyndAffiliateIdMock.mockReset().mockResolvedValue(null);
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
   evaluateAutoApproveRulesMock.mockReset().mockReturnValue("approve");
   parseAutoApproveRulesMock.mockReset().mockReturnValue([]);
-  createReturnOnFyndMock.mockReset().mockResolvedValue({ success: true, fyndReturnId: "fr-1", fyndShipmentId: "fs-1" });
-  createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "Fynd not configured" });
+  createReturnOnFyndMock
+    .mockReset()
+    .mockResolvedValue({ success: true, fyndReturnId: "fr-1", fyndShipmentId: "fs-1" });
+  createFyndClientOrErrorMock
+    .mockReset()
+    .mockResolvedValue({ ok: false, error: "Fynd not configured" });
   sendNewReturnNotificationMock.mockReset().mockResolvedValue(undefined);
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   buildReturnRequestIdMock.mockReset().mockReturnValue("R-1001");
@@ -222,7 +246,8 @@ describe("line item validation (auto mode)", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
       request: jsonReq(happyBody({ items: [] })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/at least one item/i);
@@ -233,7 +258,8 @@ describe("line item validation (auto mode)", () => {
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
       request: jsonReq(happyBody({ items: [{ qty: 1 }] })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/lineItemId and qty/i);
@@ -243,8 +269,11 @@ describe("line item validation (auto mode)", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
-      request: jsonReq(happyBody({ items: [{ lineItemId: "gid://shopify/LineItem/100", qty: 0 }] })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({ items: [{ lineItemId: "gid://shopify/LineItem/100", qty: 0 }] }),
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/qty/i);
@@ -254,8 +283,11 @@ describe("line item validation (auto mode)", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
-      request: jsonReq(happyBody({ items: [{ lineItemId: "gid://shopify/LineItem/100", qty: 1000 }] })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({ items: [{ lineItemId: "gid://shopify/LineItem/100", qty: 1000 }] }),
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/quantity exceeds maximum/i);
@@ -270,7 +302,8 @@ describe("line item validation (auto mode)", () => {
     }));
     const res = await action({
       request: jsonReq(happyBody({ items })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/too many items/i);
@@ -280,13 +313,16 @@ describe("line item validation (auto mode)", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
-      request: jsonReq(happyBody({
-        items: [{ lineItemId: "gid://shopify/LineItem/UNKNOWN", qty: 1 }],
-        lineItemsWithPrice: [
-          { id: "gid://shopify/LineItem/100", title: "Tee", price: "25.00", quantity: 1 },
-        ],
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          items: [{ lineItemId: "gid://shopify/LineItem/UNKNOWN", qty: 1 }],
+          lineItemsWithPrice: [
+            { id: "gid://shopify/LineItem/100", title: "Tee", price: "25.00", quantity: 1 },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/invalid line item/i);
@@ -299,10 +335,15 @@ describe("blocklist additional matchers", () => {
   it("403 when phone matches a blocklist entry", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({ blocklistEnabled: true }));
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({ id: "b-1", type: "phone", value: "+15551234567" });
+    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({
+      id: "b-1",
+      type: "phone",
+      value: "+15551234567",
+    });
     const res = await action({
       request: jsonReq(happyBody({ customerPhone: "+1 (555) 123-4567" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/Unable to process/);
@@ -311,10 +352,15 @@ describe("blocklist additional matchers", () => {
   it("403 when order_name matches a blocklist entry", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({ blocklistEnabled: true }));
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({ id: "b-1", type: "order_name", value: "#1001" });
+    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({
+      id: "b-1",
+      type: "order_name",
+      value: "#1001",
+    });
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
   });
@@ -331,7 +377,8 @@ describe("blocklist additional matchers", () => {
         customerEmail: undefined,
         customerPhone: undefined,
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     // Either reaches creation (200) or fails downstream — must not be 403
     expect(res.status).not.toBe(403);
@@ -349,7 +396,8 @@ describe("return-window expiry", () => {
     longAgo.setDate(longAgo.getDate() - 60);
     const res = await action({
       request: jsonReq(happyBody({ orderCreatedAt: longAgo.toISOString() })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/Return window has expired/i);
@@ -364,7 +412,8 @@ describe("return-window expiry", () => {
     old.setDate(old.getDate() - 45);
     const res = await action({
       request: jsonReq(happyBody({ orderCreatedAt: old.toISOString() })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/within 30 days/);
@@ -380,7 +429,8 @@ describe("return eligibility", () => {
     checkReturnEligibilityMock.mockReturnValueOnce({ eligible: false, reason: "Final sale item" });
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/Final sale item|not eligible/i);
@@ -402,10 +452,14 @@ describe("full happy-path creation", () => {
     };
     // Patch create + update to return the case
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
-    (prismaMock.returnCase.update as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ...createdRc, returnRequestNo: "R-1001" });
+    (prismaMock.returnCase.update as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ...createdRc,
+      returnRequestNo: "R-1001",
+    });
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -424,7 +478,8 @@ describe("full happy-path creation", () => {
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody({ shopifyOrderName: "1001" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(callArg?.data?.shopifyOrderName).toBe("#1001");
@@ -435,17 +490,20 @@ describe("full happy-path creation", () => {
 
 describe("autoApprove rule evaluation", () => {
   it("status=approved when settings.autoApproveEnabled=true and no rules → approve", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: "[]",
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: "[]",
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     parseAutoApproveRulesMock.mockReturnValueOnce([]); // no rules → falls through to "approved"
     const createdRc = { id: "rc-aa-1", status: "approved", createdAt: new Date(), items: [] };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
@@ -453,10 +511,12 @@ describe("autoApprove rule evaluation", () => {
   });
 
   it("status=approved when rule evaluator returns 'approve'", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: '[{"if":"true","then":"approve"}]',
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: '[{"if":"true","then":"approve"}]',
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     parseAutoApproveRulesMock.mockReturnValueOnce([{ if: "true", then: "approve" }]);
     evaluateAutoApproveRulesMock.mockReturnValueOnce("approve");
@@ -464,7 +524,8 @@ describe("autoApprove rule evaluation", () => {
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
@@ -473,18 +534,23 @@ describe("autoApprove rule evaluation", () => {
   });
 
   it("status=initiated when rule evaluator returns 'manual_review'", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: '[{"if":"orderValue>1000","then":"manual_review"}]',
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: '[{"if":"orderValue>1000","then":"manual_review"}]',
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    parseAutoApproveRulesMock.mockReturnValueOnce([{ if: "orderValue>1000", then: "manual_review" }]);
+    parseAutoApproveRulesMock.mockReturnValueOnce([
+      { if: "orderValue>1000", then: "manual_review" },
+    ]);
     evaluateAutoApproveRulesMock.mockReturnValueOnce("manual_review");
     const createdRc = { id: "rc-aa-3", status: "initiated", createdAt: new Date(), items: [] };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
@@ -492,22 +558,29 @@ describe("autoApprove rule evaluation", () => {
   });
 
   it("queries customer return count when customerEmail provided", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: '[{"if":"customerReturnCount<3","then":"approve"}]',
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: '[{"if":"customerReturnCount<3","then":"approve"}]',
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    parseAutoApproveRulesMock.mockReturnValueOnce([{ if: "customerReturnCount<3", then: "approve" }]);
+    parseAutoApproveRulesMock.mockReturnValueOnce([
+      { if: "customerReturnCount<3", then: "approve" },
+    ]);
     (prismaMock.returnCase.count as ReturnType<typeof vi.fn>).mockResolvedValueOnce(2);
     const createdRc = { id: "rc-aa-4", status: "approved", createdAt: new Date(), items: [] };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.returnCase.count).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ customerEmailNorm: "shopper@example.com" }),
-    }));
+    expect(prismaMock.returnCase.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ customerEmailNorm: "shopper@example.com" }),
+      }),
+    );
     const ctx = (evaluateAutoApproveRulesMock.mock.calls[0]?.[1] ?? {}) as Record<string, unknown>;
     expect(ctx.customerReturnCount).toBe(2);
   });
@@ -519,7 +592,8 @@ describe("autoApprove rule evaluation", () => {
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(callArg?.data?.status).toBe("initiated");
@@ -531,10 +605,12 @@ describe("autoApprove rule evaluation", () => {
 
 describe("Fynd sync trigger", () => {
   it("calls createReturnOnFynd when status=approved AND fynd client ok", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: "[]",
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: "[]",
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     parseAutoApproveRulesMock.mockReturnValueOnce([]);
     const createdRc = {
@@ -566,7 +642,8 @@ describe("Fynd sync trigger", () => {
 
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(createFyndClientOrErrorMock).toHaveBeenCalled();
@@ -576,10 +653,12 @@ describe("Fynd sync trigger", () => {
       expect.objectContaining({ affiliateOrderId: "AFF-1" }),
     );
     // Confirm status update with synced flag
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "rc-fynd-1" },
-      data: expect.objectContaining({ fyndSyncStatus: "synced", fyndReturnId: "FR-99" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rc-fynd-1" },
+        data: expect.objectContaining({ fyndSyncStatus: "synced", fyndReturnId: "FR-99" }),
+      }),
+    );
   });
 
   it("does NOT call createReturnOnFynd when status=initiated", async () => {
@@ -589,17 +668,20 @@ describe("Fynd sync trigger", () => {
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(createFyndClientOrErrorMock).not.toHaveBeenCalled();
     expect(createReturnOnFyndMock).not.toHaveBeenCalled();
   });
 
   it("schedules retry when Fynd sync throws", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: "[]",
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: "[]",
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     parseAutoApproveRulesMock.mockReturnValueOnce([]);
     const createdRc = { id: "rc-fail-1", status: "approved", createdAt: new Date(), items: [] };
@@ -620,7 +702,8 @@ describe("Fynd sync trigger", () => {
 
     const res = await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     // The endpoint should still succeed even when Fynd sync fails; retry is fire-and-forget.
     expect(res.status).toBe(200);
@@ -628,37 +711,43 @@ describe("Fynd sync trigger", () => {
   });
 
   it("skips Fynd sync for green returns even when status=approved", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: "[]",
-      greenReturnsEnabled: true,
-      greenReturnsThreshold: "100",
-      greenReturnsProductTags: '["sale"]',
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: "[]",
+        greenReturnsEnabled: true,
+        greenReturnsThreshold: "100",
+        greenReturnsProductTags: '["sale"]',
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     parseAutoApproveRulesMock.mockReturnValueOnce([]);
     const createdRc = { id: "rc-green-1", status: "approved", createdAt: new Date(), items: [] };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     // The body has price 25 and tag "sale", so it qualifies as green → no Fynd sync
     expect(createReturnOnFyndMock).not.toHaveBeenCalled();
   });
 
   it("sets fyndSyncStatus=pending on returnCase when status=approved + non-green", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: "[]",
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: "[]",
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     parseAutoApproveRulesMock.mockReturnValueOnce([]);
     const createdRc = { id: "rc-pending-1", status: "approved", createdAt: new Date(), items: [] };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(callArg?.data?.fyndSyncStatus).toBe("pending");
@@ -674,11 +763,14 @@ describe("exchange / structured variants", () => {
     const createdRc = { id: "rc-ex-1", status: "initiated", createdAt: new Date(), items: [] };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
-      request: jsonReq(happyBody({
-        resolutionType: "exchange",
-        exchangePreference: "Size L instead",
-      })),
-      params: {}, context: {},
+      request: jsonReq(
+        happyBody({
+          resolutionType: "exchange",
+          exchangePreference: "Size L instead",
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(callArg?.data?.resolutionType).toBe("exchange");
@@ -692,7 +784,8 @@ describe("exchange / structured variants", () => {
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody({ resolutionType: "warranty_swap" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
     expect(callArg?.data?.resolutionType).toBe("refund");
@@ -705,17 +798,26 @@ describe("notification fire-and-forget", () => {
   it("calls sendNewReturnNotification on successful creation", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    const createdRc = { id: "rc-not-1", status: "initiated", createdAt: new Date(), items: [], returnRequestNo: "R-1001" };
+    const createdRc = {
+      id: "rc-not-1",
+      status: "initiated",
+      createdAt: new Date(),
+      items: [],
+      returnRequestNo: "R-1001",
+    };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
     await action({
       request: jsonReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(sendNewReturnNotificationMock).toHaveBeenCalledWith(expect.objectContaining({
-      shopDomain: "store.myshopify.com",
-      orderName: "#1001",
-      customerEmail: "shopper@example.com",
-      itemCount: 1,
-    }));
+    expect(sendNewReturnNotificationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        shopDomain: "store.myshopify.com",
+        orderName: "#1001",
+        customerEmail: "shopper@example.com",
+        itemCount: 1,
+      }),
+    );
   });
 });

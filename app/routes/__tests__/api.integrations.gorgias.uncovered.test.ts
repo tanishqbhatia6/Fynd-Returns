@@ -87,10 +87,16 @@ describe("Gorgias widget — uncovered-branch coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-cancel", returnRequestNo: "R-C", shopifyOrderName: "#1010",
-        status: "cancelled", resolutionType: "refund", createdAt: new Date("2025-03-03"),
-        customerName: "Cancel Customer", isGiftReturn: false,
-        fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-cancel",
+        returnRequestNo: "R-C",
+        shopifyOrderName: "#1010",
+        status: "cancelled",
+        resolutionType: "refund",
+        createdAt: new Date("2025-03-03"),
+        customerName: "Cancel Customer",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [{ title: "Hat", qty: 1 }],
       },
     ]);
@@ -119,10 +125,16 @@ describe("Gorgias widget — uncovered-branch coverage", () => {
     // through to the `default` branch (line 177).
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-unknown-risk", returnRequestNo: "R-UR", shopifyOrderName: "#1011",
-        status: "approved", resolutionType: "refund", createdAt: new Date("2025-03-04"),
-        customerName: "Risky", isGiftReturn: false,
-        fraudRiskLevel: "unspecified", fraudRiskScore: 42,
+        id: "rc-unknown-risk",
+        returnRequestNo: "R-UR",
+        shopifyOrderName: "#1011",
+        status: "approved",
+        resolutionType: "refund",
+        createdAt: new Date("2025-03-04"),
+        customerName: "Risky",
+        isGiftReturn: false,
+        fraudRiskLevel: "unspecified",
+        fraudRiskScore: 42,
         items: [{ title: "Mug", qty: 1 }],
       },
     ]);

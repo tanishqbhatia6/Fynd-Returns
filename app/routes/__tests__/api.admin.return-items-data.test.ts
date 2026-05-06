@@ -4,7 +4,10 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, authenticateMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -41,19 +44,38 @@ describe("GET /api/admin/return-items-data/:id", () => {
   it("returns item list + missing-fields summary", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", returnRequestNo: "R-1",
-      shopifyOrderName: "#1001", shopifyOrderId: "gid",
-      fyndOrderId: null, fyndShipmentId: null, fyndReturnId: null, fyndReturnNo: null,
-      status: "pending", createdByChannel: "portal", createdAt: new Date(),
-      items: [{
-        id: "it-1", shopifyLineItemId: "gid://shopify/LineItem/1",
-        title: "T-shirt", variantTitle: "L", sku: "SKU-1",
-        price: "20", qty: 1, reasonCode: "defective",
-        fyndShipmentId: null, fyndBagId: null, fyndArticleId: null,
-        fyndAffiliateLineId: null, fyndSellerIdentifier: null,
-        fyndItemId: null, fyndQuantityAvailable: null,
-        fyndPriceEffective: null, fyndSize: null,
-      }],
+      id: "rc-1",
+      returnRequestNo: "R-1",
+      shopifyOrderName: "#1001",
+      shopifyOrderId: "gid",
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndReturnNo: null,
+      status: "pending",
+      createdByChannel: "portal",
+      createdAt: new Date(),
+      items: [
+        {
+          id: "it-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          title: "T-shirt",
+          variantTitle: "L",
+          sku: "SKU-1",
+          price: "20",
+          qty: 1,
+          reasonCode: "defective",
+          fyndShipmentId: null,
+          fyndBagId: null,
+          fyndArticleId: null,
+          fyndAffiliateLineId: null,
+          fyndSellerIdentifier: null,
+          fyndItemId: null,
+          fyndQuantityAvailable: null,
+          fyndPriceEffective: null,
+          fyndSize: null,
+        },
+      ],
     });
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -66,12 +88,23 @@ describe("GET /api/admin/return-items-data/:id", () => {
   });
 
   it("captures error from Fynd client creation", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", shopifyOrderName: "#1001", items: [], createdAt: new Date(),
-      returnRequestNo: null, shopifyOrderId: null, fyndOrderId: null,
-      fyndShipmentId: null, fyndReturnId: null, fyndReturnNo: null,
-      status: "pending", createdByChannel: "portal",
+      id: "rc-1",
+      shopifyOrderName: "#1001",
+      items: [],
+      createdAt: new Date(),
+      returnRequestNo: null,
+      shopifyOrderId: null,
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndReturnNo: null,
+      status: "pending",
+      createdByChannel: "portal",
     });
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "no creds" });
 
@@ -81,28 +114,47 @@ describe("GET /api/admin/return-items-data/:id", () => {
   });
 
   it("extracts live Fynd data (shipment + bag + articles)", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", shopifyOrderName: "#1001", items: [], createdAt: new Date(),
-      returnRequestNo: null, shopifyOrderId: null, fyndOrderId: null,
-      fyndShipmentId: null, fyndReturnId: null, fyndReturnNo: null,
-      status: "pending", createdByChannel: "portal",
+      id: "rc-1",
+      shopifyOrderName: "#1001",
+      items: [],
+      createdAt: new Date(),
+      returnRequestNo: null,
+      shopifyOrderId: null,
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndReturnNo: null,
+      status: "pending",
+      createdByChannel: "portal",
     });
     const searchMock = vi.fn().mockResolvedValue({
-      items: [{
-        shipment_id: "SH-1",
-        status: "delivered",
-        bags: [{
-          bag_id: "BAG-1", quantity: 2,
-          affiliate_bag_details: { affiliate_line_id: "ALI-1" },
-          articles: [{
-            seller_identifier: "SI-1", article_id: "A-1",
-            item: { item_id: "I-1", name: "Shirt", size: "L" },
-            quantity_available: 5,
-          }],
-          prices: { price_effective: "20.00", transfer_price: "15.00" },
-        }],
-      }],
+      items: [
+        {
+          shipment_id: "SH-1",
+          status: "delivered",
+          bags: [
+            {
+              bag_id: "BAG-1",
+              quantity: 2,
+              affiliate_bag_details: { affiliate_line_id: "ALI-1" },
+              articles: [
+                {
+                  seller_identifier: "SI-1",
+                  article_id: "A-1",
+                  item: { item_id: "I-1", name: "Shirt", size: "L" },
+                  quantity_available: 5,
+                },
+              ],
+              prices: { price_effective: "20.00", transfer_price: "15.00" },
+            },
+          ],
+        },
+      ],
     });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -119,12 +171,23 @@ describe("GET /api/admin/return-items-data/:id", () => {
   });
 
   it("captures error thrown by Fynd search", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", shopifyOrderName: "#1001", items: [], createdAt: new Date(),
-      returnRequestNo: null, shopifyOrderId: null, fyndOrderId: null,
-      fyndShipmentId: null, fyndReturnId: null, fyndReturnNo: null,
-      status: "pending", createdByChannel: "portal",
+      id: "rc-1",
+      shopifyOrderName: "#1001",
+      items: [],
+      createdAt: new Date(),
+      returnRequestNo: null,
+      shopifyOrderId: null,
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndReturnNo: null,
+      status: "pending",
+      createdByChannel: "portal",
     });
     const searchMock = vi.fn().mockRejectedValue(new Error("Fynd down"));
     createFyndClientOrErrorMock.mockResolvedValueOnce({

@@ -122,7 +122,11 @@ function mkRetryCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandle
       createdAt: new Date("2024-01-01T00:00:00Z"),
       items: [],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -152,7 +156,9 @@ beforeEach(() => {
   createReturnOnFyndMock.mockReset();
   fetchOrderMock.mockReset().mockResolvedValue(null);
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
-  createShopifyReturnMock.mockReset().mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99" });
+  createShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99" });
   returnActionCounterAdd.mockReset();
   appErrorCounterAdd.mockReset();
   returnActionDurationRecord.mockReset();
@@ -194,10 +200,10 @@ describe("handleRefreshFyndDetails — gap coverage", () => {
     expect(loc).toContain("fyndError=");
     expect(loc).toContain("Fynd creds missing");
     // Error-outcome counter recorded for this branch
-    expect(returnActionCounterAdd).toHaveBeenCalledWith(
-      1,
-      { action: "refresh_fynd_details", outcome: "error" },
-    );
+    expect(returnActionCounterAdd).toHaveBeenCalledWith(1, {
+      action: "refresh_fynd_details",
+      outcome: "error",
+    });
     expect(prismaMock.returnCase.update).not.toHaveBeenCalled();
   });
 
@@ -205,7 +211,9 @@ describe("handleRefreshFyndDetails — gap coverage", () => {
     // ok client but no search method — exercises the storefront guard at lines 36-38
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
-      client: { /* no searchShipmentsByExternalOrderId */ },
+      client: {
+        /* no searchShipmentsByExternalOrderId */
+      },
     });
 
     let captured: Response | null = null;

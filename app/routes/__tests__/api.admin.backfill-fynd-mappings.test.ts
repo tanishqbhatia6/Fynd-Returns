@@ -53,7 +53,9 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
   });
 
   it("requires authentication (auth throw propagates)", async () => {
-    authenticateMock.mockRejectedValueOnce(new Response(null, { status: 302, headers: { Location: "/auth?shop=x" } }));
+    authenticateMock.mockRejectedValueOnce(
+      new Response(null, { status: 302, headers: { Location: "/auth?shop=x" } }),
+    );
     await expect(
       action({ request: mkReq(), params: {}, context: {} } as never),
     ).rejects.toBeInstanceOf(Response);
@@ -68,7 +70,10 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
       },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(500);
     const body = await res.json();
@@ -79,7 +84,9 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
 
   it("happy path: scans orders, writes mappings + metafields", async () => {
     const orderUpdateGraphql = vi.fn(async () => ({
-      json: async () => ({ data: { orderUpdate: { order: { id: "gid://shopify/Order/1" }, userErrors: [] } } }),
+      json: async () => ({
+        data: { orderUpdate: { order: { id: "gid://shopify/Order/1" }, userErrors: [] } },
+      }),
     }));
     let pageNum = 0;
     const graphql = vi.fn(async (query: string) => {
@@ -93,7 +100,11 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
             data: {
               orders: {
                 nodes: [
-                  { id: "gid://shopify/Order/1", name: "#1001", customAttributes: [{ key: "affiliate_order_id", value: "FYNDX1" }] },
+                  {
+                    id: "gid://shopify/Order/1",
+                    name: "#1001",
+                    customAttributes: [{ key: "affiliate_order_id", value: "FYNDX1" }],
+                  },
                 ],
                 pageInfo: { hasNextPage: false, endCursor: null },
               },
@@ -101,13 +112,18 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
           }),
         };
       }
-      return { json: async () => ({ data: { orders: { nodes: [], pageInfo: { hasNextPage: false } } } }) };
+      return {
+        json: async () => ({ data: { orders: { nodes: [], pageInfo: { hasNextPage: false } } } }),
+      };
     });
     authenticateMock.mockResolvedValueOnce({
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValueOnce("FYNDX1");
 
     const res = await action({ request: mkReq({ maxPages: 1 }), params: {}, context: {} } as never);
@@ -119,7 +135,9 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
 
   it("respects maxPages limit", async () => {
     const orderUpdateGraphql = vi.fn(async () => ({
-      json: async () => ({ data: { orderUpdate: { order: { id: "gid://shopify/Order/1" }, userErrors: [] } } }),
+      json: async () => ({
+        data: { orderUpdate: { order: { id: "gid://shopify/Order/1" }, userErrors: [] } },
+      }),
     }));
     let pageNum = 0;
     const graphql = vi.fn(async (query: string) => {
@@ -130,7 +148,13 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
         json: async () => ({
           data: {
             orders: {
-              nodes: [{ id: `gid://shopify/Order/${pageNum}`, name: `#100${pageNum}`, customAttributes: [{ key: "affiliate_order_id", value: `FX${pageNum}` }] }],
+              nodes: [
+                {
+                  id: `gid://shopify/Order/${pageNum}`,
+                  name: `#100${pageNum}`,
+                  customAttributes: [{ key: "affiliate_order_id", value: `FX${pageNum}` }],
+                },
+              ],
               pageInfo: { hasNextPage: true, endCursor: `c${pageNum}` },
             },
           },
@@ -141,7 +165,10 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
       admin: { graphql },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     extractAffiliateOrderIdMock.mockReturnValue("FXVAL");
 
     await action({ request: mkReq({ maxPages: 2 }), params: {}, context: {} } as never);
@@ -152,10 +179,17 @@ describe("POST /api/admin/backfill-fynd-mappings", () => {
 
   it("tolerates malformed JSON body", async () => {
     authenticateMock.mockResolvedValueOnce({
-      admin: { graphql: vi.fn(async () => ({ json: async () => ({ data: { orders: { nodes: [], pageInfo: { hasNextPage: false } } } }) })) },
+      admin: {
+        graphql: vi.fn(async () => ({
+          json: async () => ({ data: { orders: { nodes: [], pageInfo: { hasNextPage: false } } } }),
+        })),
+      },
       session: { shop: "store.myshopify.com" },
     });
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     const req = new Request("https://app.example/api/admin/backfill-fynd-mappings", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

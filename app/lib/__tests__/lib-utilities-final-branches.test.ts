@@ -37,9 +37,7 @@ describe("return-rules.server — findMatchingProductPolicy malformed JSON", () 
 describe("encryption.server — encryptIfNeeded / decryptIfEncrypted nil + idempotency", () => {
   it("encryptIfNeeded is idempotent (skips re-encrypt) and returns null for nil inputs", async () => {
     vi.resetModules();
-    const { encrypt, encryptIfNeeded, decryptIfEncrypted } = await import(
-      "../encryption.server"
-    );
+    const { encrypt, encryptIfNeeded, decryptIfEncrypted } = await import("../encryption.server");
     const ct = encrypt("hello");
     expect(encryptIfNeeded(ct)).toBe(ct);
     expect(encryptIfNeeded(null)).toBeNull();
@@ -54,16 +52,12 @@ describe("portal-auth.server — cleanupExpiredSessions", () => {
   it("calls deleteMany with a cutoff Date and returns the deleted count", async () => {
     const { cleanupExpiredSessions } = await import("../portal-auth.server");
     const deleteMany = vi.fn().mockResolvedValue({ count: 7 });
-    const result = await cleanupExpiredSessions(
-      { lookupSession: { deleteMany } },
-      30,
-    );
+    const result = await cleanupExpiredSessions({ lookupSession: { deleteMany } }, 30);
     expect(result).toBe(7);
     const callArg = deleteMany.mock.calls[0][0] as {
       where: { expiresAt: { lt: Date } };
     };
-    const ageDays =
-      (Date.now() - callArg.where.expiresAt.lt.getTime()) / 86_400_000;
+    const ageDays = (Date.now() - callArg.where.expiresAt.lt.getTime()) / 86_400_000;
     expect(ageDays).toBeGreaterThan(29);
     expect(ageDays).toBeLessThan(31);
   });
@@ -94,9 +88,7 @@ describe("return-id-counter.server — UPDATE result branches", () => {
       default: { $queryRawUnsafe: queryRaw },
     }));
     const { nextReturnIdCounter } = await import("../return-id-counter.server");
-    await expect(nextReturnIdCounter("missing")).rejects.toThrow(
-      /ShopSettings not found/,
-    );
+    await expect(nextReturnIdCounter("missing")).rejects.toThrow(/ShopSettings not found/);
     await expect(nextReturnIdCounter("settings-1")).resolves.toBe(42);
     vi.doUnmock("../../db.server");
   });
@@ -135,9 +127,7 @@ describe("rate-limit.server — principal/IP keying + 429 + limit-exceeded", () 
   });
 
   it("denies once the per-endpoint limit is exceeded", async () => {
-    const { checkRateLimit, __resetRateLimitForTests } = await import(
-      "../rate-limit.server"
-    );
+    const { checkRateLimit, __resetRateLimitForTests } = await import("../rate-limit.server");
     __resetRateLimitForTests();
     const req = new Request("https://example.com/p", {
       headers: { "x-forwarded-for": "1.2.3.4" },
@@ -166,9 +156,7 @@ describe("redis.server — uninitialised + test injector", () => {
 
   it("__setRedisForTests injects a fake client and closeRedis quits it", async () => {
     vi.resetModules();
-    const { __setRedisForTests, getRedis, closeRedis } = await import(
-      "../redis.server"
-    );
+    const { __setRedisForTests, getRedis, closeRedis } = await import("../redis.server");
     const fake = { quit: vi.fn().mockResolvedValue("OK") };
     __setRedisForTests(fake as never);
     expect(getRedis()).toBe(fake as unknown);
@@ -182,9 +170,7 @@ describe("redis.server — uninitialised + test injector", () => {
 /* 9. return-action-errors.server.ts — extractErrorMessage edge fallbacks */
 describe("return-action-errors.server — extractErrorMessage edges", () => {
   it("returns connection sentinel for ECONNREFUSED Errors and status fallback for Response w/o error field", async () => {
-    const { extractErrorMessage } = await import(
-      "../return-action-errors.server"
-    );
+    const { extractErrorMessage } = await import("../return-action-errors.server");
     expect(await extractErrorMessage(new Error("ECONNREFUSED 1.2.3.4:5432"))).toMatch(
       /Unable to connect/,
     );
@@ -198,9 +184,7 @@ describe("return-action-errors.server — extractErrorMessage edges", () => {
   });
 
   it("returns the generic Request-failed message for plain {} non-Error inputs", async () => {
-    const { extractErrorMessage } = await import(
-      "../return-action-errors.server"
-    );
+    const { extractErrorMessage } = await import("../return-action-errors.server");
     // Plain object stringifies to "[object Object]" → generic fallback.
     expect(await extractErrorMessage({})).toMatch(/Request failed/);
   });
@@ -209,9 +193,7 @@ describe("return-action-errors.server — extractErrorMessage edges", () => {
 /* 10. credential-validation.server.ts — customBaseUrl invalid + auto-prefix */
 describe("credential-validation.server — fyndCustomBaseUrl branches", () => {
   it("rejects an unparseable customBaseUrl and accepts a bare hostname (https auto-prefix)", async () => {
-    const { sanitizeCredentialInputs } = await import(
-      "../credential-validation.server"
-    );
+    const { sanitizeCredentialInputs } = await import("../credential-validation.server");
     const bad = sanitizeCredentialInputs({
       fyndCustomBaseUrl: "http://exa mple.com/path",
     });
@@ -245,9 +227,7 @@ describe("shop.server — syncShopLocaleAndCurrency error + missing-data fallbac
     });
 
     const adminEmpty = {
-      graphql: vi
-        .fn()
-        .mockResolvedValue({ json: async () => ({ data: {} }) }),
+      graphql: vi.fn().mockResolvedValue({ json: async () => ({ data: {} }) }),
     };
     expect(await syncShopLocaleAndCurrency(adminEmpty, "x.myshopify.com")).toEqual({
       locale: "en",
@@ -272,9 +252,7 @@ describe("parse-json — parseJsonObject branches", () => {
 /* 13. return-request-id.ts — buildReturnRequestId default branch */
 describe("return-request-id — buildReturnRequestId default arm + formatReturnRequestId short input", () => {
   it("falls through to hash mode for an unknown bodyMode and echoes short ids", async () => {
-    const { buildReturnRequestId, formatReturnRequestId } = await import(
-      "../return-request-id"
-    );
+    const { buildReturnRequestId, formatReturnRequestId } = await import("../return-request-id");
     const id = buildReturnRequestId(
       {
         prefix: "RPM",
@@ -309,9 +287,8 @@ describe("source-channel.server — parseChannelPolicies catch + label fallback"
 /* 15. refund-gate-presets.ts — inferPresetFromStatuses + getStatusesForPreset */
 describe("refund-gate-presets — preset inference + null returns", () => {
   it("infers 'none' / preset / 'custom' and returns null for none/custom", async () => {
-    const { inferPresetFromStatuses, getStatusesForPreset } = await import(
-      "../refund-gate-presets"
-    );
+    const { inferPresetFromStatuses, getStatusesForPreset } =
+      await import("../refund-gate-presets");
     expect(inferPresetFromStatuses([])).toBe("none");
     expect(getStatusesForPreset("none")).toBeNull();
     expect(getStatusesForPreset("custom")).toBeNull();
@@ -325,9 +302,8 @@ describe("refund-gate-presets — preset inference + null returns", () => {
 /* 16. url-safety.server.ts — IPv6 literal + scheme/host edge branches */
 describe("url-safety.server — IPv6 + scheme + host edges", () => {
   it("rejects loopback IPv6 literal, allows public IPv6, and rejects http when not allowed", async () => {
-    const { isSafeOutboundUrl, isPrivateIPv6, isPrivateIPv4 } = await import(
-      "../url-safety.server"
-    );
+    const { isSafeOutboundUrl, isPrivateIPv6, isPrivateIPv4 } =
+      await import("../url-safety.server");
     // Bracketed IPv6 literal — strips brackets, classifies private
     const loop = await isSafeOutboundUrl("https://[::1]/path");
     expect(loop).toEqual({ ok: false, reason: "private_ipv6" });
@@ -361,9 +337,8 @@ describe("url-safety.server — IPv6 + scheme + host edges", () => {
 /* 17. auto-approve.server.ts — productTag operators + numeric rule edge branches */
 describe("auto-approve.server — full operator + parse coverage", () => {
   it("hits every productTag operator branch and rejects bad numeric rules", async () => {
-    const { evaluateAutoApproveRules, parseAutoApproveRules } = await import(
-      "../auto-approve.server"
-    );
+    const { evaluateAutoApproveRules, parseAutoApproveRules } =
+      await import("../auto-approve.server");
     const ctx = { productTags: ["Sale", "FINAL"], orderValue: 100, customerReturnCount: 5 };
     // contains
     expect(
@@ -521,9 +496,7 @@ describe("portal-theme.server — apply + invalid JSON fallback", () => {
 /* 20. api-key-auth.server.ts — generate format */
 describe("api-key-auth.server — generateApiKey output shape", () => {
   it("returns rpm_-prefixed key, 8-char prefix, and a non-trivial bcrypt hash", async () => {
-    const { generateApiKey, ALL_PERMISSIONS } = await import(
-      "../api-key-auth.server"
-    );
+    const { generateApiKey, ALL_PERMISSIONS } = await import("../api-key-auth.server");
     const r = await generateApiKey();
     expect(r.fullKey.startsWith("rpm_")).toBe(true);
     expect(r.fullKey.length).toBe(4 + 40);

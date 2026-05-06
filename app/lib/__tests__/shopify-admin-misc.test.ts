@@ -5,7 +5,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
+  withSpan: async <T>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -14,7 +14,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -233,7 +233,11 @@ describe("fetchVariantInfo", () => {
               inventoryItem: { tracked: true },
               price: "10.00",
               image: null,
-              product: { id: "gid://shopify/Product/2", title: "P", featuredImage: { url: "https://cdn/p.jpg" } },
+              product: {
+                id: "gid://shopify/Product/2",
+                title: "P",
+                featuredImage: { url: "https://cdn/p.jpg" },
+              },
             },
           ],
         },
@@ -350,7 +354,10 @@ describe("sendDraftOrderInvoice", () => {
     );
     expect(out.success).toBe(true);
     expect(out.invoiceUrl).toBe("https://shop/invoice/abc");
-    const vars = calls[0].variables as { id: string; email: { to: string; subject: string; customMessage: string } | null };
+    const vars = calls[0].variables as {
+      id: string;
+      email: { to: string; subject: string; customMessage: string } | null;
+    };
     expect(vars.id).toBe("gid://shopify/DraftOrder/1");
     expect(vars.email?.to).toBe("buyer@example.com");
     expect(vars.email?.subject).toBe("Complete your exchange");

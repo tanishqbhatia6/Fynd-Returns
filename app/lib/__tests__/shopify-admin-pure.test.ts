@@ -107,22 +107,28 @@ describe("extractAffiliateOrderId", () => {
   });
 
   it("trims whitespace from the value", () => {
-    expect(extractAffiliateOrderId([{ key: "affiliate_order_id", value: "   AFF-1   " }])).toBe("AFF-1");
+    expect(extractAffiliateOrderId([{ key: "affiliate_order_id", value: "   AFF-1   " }])).toBe(
+      "AFF-1",
+    );
   });
 
   it("skips empty / whitespace-only values and checks the next attribute", () => {
-    expect(extractAffiliateOrderId([
-      { key: "affiliate_order_id", value: "" },
-      { key: "fynd_order_id", value: "fallback-ok" },
-    ])).toBe("fallback-ok");
+    expect(
+      extractAffiliateOrderId([
+        { key: "affiliate_order_id", value: "" },
+        { key: "fynd_order_id", value: "fallback-ok" },
+      ]),
+    ).toBe("fallback-ok");
   });
 
   it("prefers the first matching key from the priority list", () => {
     // affiliate_order_id appears first in AFFILIATE_ORDER_ID_KEYS → wins over fynd_order_id
-    expect(extractAffiliateOrderId([
-      { key: "fynd_order_id", value: "later" },
-      { key: "affiliate_order_id", value: "winner" },
-    ])).toBe("winner");
+    expect(
+      extractAffiliateOrderId([
+        { key: "fynd_order_id", value: "later" },
+        { key: "affiliate_order_id", value: "winner" },
+      ]),
+    ).toBe("winner");
   });
 
   it("returns null when no recognised key is present", () => {

@@ -54,7 +54,9 @@ const {
   fetchOrdersByFilterMock: vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByGidMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
+  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
+    async () => null,
+  ),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
   getPortalLabelsMock: vi.fn(() => ({ heading: "Your Returns" })),
@@ -62,7 +64,10 @@ const {
   extractJourneyMock: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
   getPickupAddressMock: vi.fn(() => null),
   parseFyndOrderDetailsForTabMock: vi.fn<(...args: unknown[]) => unknown>(() => null),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   searchShipmentsMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ items: [] })),
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -124,14 +129,18 @@ function shopWithSettings(extra: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
   fetchOrdersByFilterMock.mockReset().mockResolvedValue([]);
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
   fetchOrderByGidMock.mockReset().mockResolvedValue(null);
   fetchOrderByFyndAffiliateIdMock.mockReset().mockResolvedValue(null);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
   getPortalLabelsMock.mockReset().mockReturnValue({ heading: "Your Returns" });
   getTrackingInfoMock.mockReset().mockReturnValue(null);
   extractJourneyMock.mockReset().mockReturnValue([]);
@@ -163,7 +172,8 @@ describe("shopSettings + return record JSON parsing", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_id", lookupValue: "r-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(getPortalLabelsMock).toHaveBeenCalledWith("en", { heading: "Custom" });
@@ -180,7 +190,8 @@ describe("shopSettings + return record JSON parsing", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_id", lookupValue: "r-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(getPortalLabelsMock).toHaveBeenCalledWith("en", null);
@@ -207,11 +218,15 @@ describe("shopSettings + return record JSON parsing", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_id", lookupValue: "r-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.returns[0].returnLabelInfo).toEqual({ carrier: "BlueDart", trackingNumber: "AWB123" });
+    expect(body.returns[0].returnLabelInfo).toEqual({
+      carrier: "BlueDart",
+      trackingNumber: "AWB123",
+    });
     expect(body.returns[0].returnLabelUrl).toBe("https://label/url");
     expect(body.returns[0].returnInstructions).toBe("instr");
   });
@@ -231,7 +246,8 @@ describe("shopSettings + return record JSON parsing", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_id", lookupValue: "r-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -252,7 +268,8 @@ describe("Shopify orders fetch (email / phone)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "USER@x.COM" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(fetchOrdersByFilterMock).toHaveBeenCalledWith(expect.anything(), "email:user@x.com");
@@ -268,7 +285,8 @@ describe("Shopify orders fetch (email / phone)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "u@x.com" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -278,13 +296,12 @@ describe("Shopify orders fetch (email / phone)", () => {
   it("phone lookup queries Shopify with rawValue free-text", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(shopWithSettings());
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
-    fetchOrdersByFilterMock.mockResolvedValueOnce([
-      { id: "o-2", name: "#2002" },
-    ]);
+    fetchOrdersByFilterMock.mockResolvedValueOnce([{ id: "o-2", name: "#2002" }]);
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "phone", lookupValue: "+1 415 555 1212" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(fetchOrdersByFilterMock).toHaveBeenCalledWith(expect.anything(), "+1 415 555 1212");
@@ -297,7 +314,8 @@ describe("Shopify orders fetch (email / phone)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "phone", lookupValue: "555-1212" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
   });
@@ -315,7 +333,8 @@ describe("order_no / return_no Shopify direct fetch", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "#1001" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -334,7 +353,8 @@ describe("order_no / return_no Shopify direct fetch", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1001" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -360,7 +380,8 @@ describe("FyndOrderMapping fallback (after direct Shopify miss)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1234" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(fetchOrderByGidMock).toHaveBeenCalledWith(expect.anything(), "gid://shopify/Order/123");
@@ -381,7 +402,8 @@ describe("FyndOrderMapping fallback (after direct Shopify miss)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "5678" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(fetchOrderByOrderNumberMock).toHaveBeenCalledTimes(2);
@@ -397,7 +419,8 @@ describe("FyndOrderMapping fallback (after direct Shopify miss)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "9999" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
   });
@@ -424,7 +447,8 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_no", lookupValue: "FYND-9" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(fetchOrderByGidMock).toHaveBeenCalled();
@@ -455,7 +479,8 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "NAME-X" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -487,7 +512,8 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "SYN-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -520,7 +546,8 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "BROKEN-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -537,7 +564,8 @@ describe("ReturnCase fallback (Shopify GID + name + synthetic)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "ZZZ" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -568,11 +596,15 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
       ],
     });
     parseFyndOrderDetailsForTabMock.mockReturnValueOnce({ shipments: [] });
-    fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({ id: "shop-found", name: "#FYND-ABC-1" });
+    fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({
+      id: "shop-found",
+      name: "#FYND-ABC-1",
+    });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "FYND-ABC-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenCalled();
@@ -597,7 +629,18 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
           journey_type: "forward",
           affiliate_order_id: "AFFX-1",
           customer_details: { email: "fc@x.com", name: "Fynd Customer" },
-          bags: [{ delivery_address: { city: "BLR", state: "KA", country: "IN", pincode: "560001", name: "Fynd C" }, prices: { currency_code: "INR" } }],
+          bags: [
+            {
+              delivery_address: {
+                city: "BLR",
+                state: "KA",
+                country: "IN",
+                pincode: "560001",
+                name: "Fynd C",
+              },
+              prices: { currency_code: "INR" },
+            },
+          ],
         },
       ],
     });
@@ -618,7 +661,8 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "AFFX-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -654,7 +698,8 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "AFF-T" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -677,7 +722,8 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "EMPTY-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -702,7 +748,8 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "RET-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -718,7 +765,8 @@ describe("Fynd-based order discovery (Shopify-empty fallback)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "FYND-ERR" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -748,7 +796,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1001" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -769,7 +818,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1002" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -792,7 +842,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1003" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -815,7 +866,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1004" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -832,7 +884,8 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1005" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -845,12 +898,15 @@ describe("Fynd enrichment for existing Shopify order (lines 559-590)", () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({ id: "o-noclient", name: "#1006" });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
-      client: { /* missing search method */ },
+      client: {
+        /* missing search method */
+      },
     });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "order_no", lookupValue: "1006" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -868,14 +924,13 @@ describe("AWB lookup: Shopify fulfillments tracking-number cross-check", () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
       id: "o-awb",
       name: "#A-1",
-      fulfillments: [
-        { trackingInfo: [{ number: "AWB-MATCH-9" }] },
-      ],
+      fulfillments: [{ trackingInfo: [{ number: "AWB-MATCH-9" }] }],
     });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_awb", lookupValue: "AWB-MATCH-9" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -890,14 +945,13 @@ describe("AWB lookup: Shopify fulfillments tracking-number cross-check", () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
       id: "o-no-awb",
       name: "#A-2",
-      fulfillments: [
-        { trackingInfo: [{ number: "OTHER-XX" }] },
-      ],
+      fulfillments: [{ trackingInfo: [{ number: "OTHER-XX" }] }],
     });
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_awb", lookupValue: "AWB-NOMATCH" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -915,7 +969,8 @@ describe("AWB lookup: Shopify fulfillments tracking-number cross-check", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "forward_awb", lookupValue: "AWB-Q" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -929,7 +984,8 @@ describe("AWB lookup: Shopify fulfillments tracking-number cross-check", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "forward_awb", lookupValue: "AWB-Q-X" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -944,7 +1000,8 @@ describe("outer try/catch catch-all", () => {
     prismaMock.shop.findUnique.mockRejectedValueOnce(new Error("db dead"));
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_id", lookupValue: "rr" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(500);
   });

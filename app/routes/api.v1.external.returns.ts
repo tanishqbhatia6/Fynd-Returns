@@ -1,6 +1,13 @@
 import type { LoaderFunctionArgs } from "react-router";
 import { authenticateApiKey } from "../lib/api-key-auth.server";
-import { parsePagination, buildMeta, apiSuccess, apiError, sanitizeReturnSummary, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
+import {
+  parsePagination,
+  buildMeta,
+  apiSuccess,
+  apiError,
+  sanitizeReturnSummary,
+  checkPerKeyRateLimit,
+} from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import prisma from "../db.server";
 
@@ -16,7 +23,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Per-key fairness limit AFTER auth — gives each API key its own quota so
   // multiple keys from the same shop+IP don't share a single bucket (P2 finding).
   // The pre-auth IP limit above still guards against unauthenticated DDoS.
-  const perKeyResp = await checkPerKeyRateLimit(request, "external.returns.list", auth.keyId ?? "anon");
+  const perKeyResp = await checkPerKeyRateLimit(
+    request,
+    "external.returns.list",
+    auth.keyId ?? "anon",
+  );
   if (perKeyResp) return perKeyResp;
 
   const url = new URL(request.url);
@@ -27,11 +38,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Whitelist enum to prevent operator-style injection (`?status[gt]=foo`) and to
   // reject invalid values up-front rather than silently returning empty results.
-  const VALID_STATUSES = new Set(["initiated", "pending", "processing", "in progress", "approved", "rejected", "completed", "cancelled"]);
+  const VALID_STATUSES = new Set([
+    "initiated",
+    "pending",
+    "processing",
+    "in progress",
+    "approved",
+    "rejected",
+    "completed",
+    "cancelled",
+  ]);
   const status = url.searchParams.get("status");
   if (status) {
     if (!VALID_STATUSES.has(status)) {
-      return apiError(400, "BAD_REQUEST", `Invalid status. Must be one of: ${[...VALID_STATUSES].join(", ")}`);
+      return apiError(
+        400,
+        "BAD_REQUEST",
+        `Invalid status. Must be one of: ${[...VALID_STATUSES].join(", ")}`,
+      );
     }
     where.status = status;
   }
@@ -39,13 +63,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const createdAfter = url.searchParams.get("createdAfter");
   if (createdAfter) {
     const d = new Date(createdAfter);
-    if (!isNaN(d.getTime())) where.createdAt = { ...(where.createdAt as object || {}), gte: d };
+    if (!isNaN(d.getTime())) where.createdAt = { ...((where.createdAt as object) || {}), gte: d };
   }
 
   const createdBefore = url.searchParams.get("createdBefore");
   if (createdBefore) {
     const d = new Date(createdBefore);
-    if (!isNaN(d.getTime())) where.createdAt = { ...(where.createdAt as object || {}), lte: d };
+    if (!isNaN(d.getTime())) where.createdAt = { ...((where.createdAt as object) || {}), lte: d };
   }
 
   const orderName = url.searchParams.get("orderName");

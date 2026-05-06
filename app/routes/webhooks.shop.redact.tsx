@@ -23,9 +23,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
   const { shop, payload } = authed;
 
-  console.log(
-    `[webhooks.shop.redact] shop=${shop} shopId=${payload.shop_id}`,
-  );
+  console.log(`[webhooks.shop.redact] shop=${shop} shopId=${payload.shop_id}`);
 
   try {
     const shopRecord = await prisma.shop.findUnique({
@@ -33,9 +31,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     if (!shopRecord) {
-      console.log(
-        `[webhooks.shop.redact] Shop not found: ${shop}, nothing to redact`,
-      );
+      console.log(`[webhooks.shop.redact] Shop not found: ${shop}, nothing to redact`);
       return new Response();
     }
 
@@ -97,14 +93,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { id: shopRecord.id },
     });
 
-    console.log(
-      `[webhooks.shop.redact] Successfully deleted all data for shop=${shop}`,
-    );
+    console.log(`[webhooks.shop.redact] Successfully deleted all data for shop=${shop}`);
   } catch (err) {
-    console.error(
-      "[webhooks.shop.redact] Error processing shop redaction:",
-      err,
-    );
+    console.error("[webhooks.shop.redact] Error processing shop redaction:", err);
   }
 
   return new Response();

@@ -9,7 +9,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -18,7 +18,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -42,9 +42,10 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function makeAdmin(
-  responses: Array<unknown | Error | { status: number; body: unknown }>,
-): { admin: AdminGraphQL; graphql: ReturnType<typeof vi.fn> } {
+function makeAdmin(responses: Array<unknown | Error | { status: number; body: unknown }>): {
+  admin: AdminGraphQL;
+  graphql: ReturnType<typeof vi.fn>;
+} {
   let i = 0;
   const graphql = vi.fn(async () => {
     const r = responses[i++] ?? { data: {} };
@@ -102,10 +103,33 @@ describe("shopify-admin customer + variant + invoice helpers", () => {
         phone: "999",
         numberOfOrders: "5",
         amountSpent: { amount: "1000.00", currencyCode: "USD" },
-        defaultAddress: { address1: "1 Rd", city: "TO", province: "ON", country: "CA", zip: "M1", phone: "888" },
+        defaultAddress: {
+          address1: "1 Rd",
+          city: "TO",
+          province: "ON",
+          country: "CA",
+          zip: "M1",
+          phone: "888",
+        },
       },
-      shippingAddress: { firstName: "S", lastName: "H", name: "Ship Name", phone: "777", city: "Van", province: "BC", country: "CA", countryCode: "CA" },
-      refunds: [{ id: "r1", createdAt: "2026-02-01", note: "n", totalRefundedSet: { shopMoney: { amount: "20.50", currencyCode: "USD" } } }],
+      shippingAddress: {
+        firstName: "S",
+        lastName: "H",
+        name: "Ship Name",
+        phone: "777",
+        city: "Van",
+        province: "BC",
+        country: "CA",
+        countryCode: "CA",
+      },
+      refunds: [
+        {
+          id: "r1",
+          createdAt: "2026-02-01",
+          note: "n",
+          totalRefundedSet: { shopMoney: { amount: "20.50", currencyCode: "USD" } },
+        },
+      ],
     };
     const { admin } = makeAdmin([{ data: { orders: { nodes: [node] } } }]);
     const out = await fetchOrdersForCustomer(admin, "x@y.com");
@@ -212,7 +236,11 @@ describe("shopify-admin customer + variant + invoice helpers", () => {
       price: "29.99",
       compareAtPrice: "39.99",
       image: { url: "https://img.example/a.jpg" },
-      product: { id: "gid://shopify/Product/100", title: "Tee", featuredImage: { url: "https://img.example/p.jpg" } },
+      product: {
+        id: "gid://shopify/Product/100",
+        title: "Tee",
+        featuredImage: { url: "https://img.example/p.jpg" },
+      },
     };
     const untracked = {
       id: "gid://shopify/ProductVariant/2",
@@ -242,7 +270,18 @@ describe("shopify-admin customer + variant + invoice helpers", () => {
   // ── sendDraftOrderInvoice ───────────────────────────────────────────────
   it("sendDraftOrderInvoice succeeds and returns invoiceUrl", async () => {
     const { admin } = makeAdmin([
-      { data: { draftOrderInvoiceSend: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D-1", invoiceUrl: "https://invoice/u" }, userErrors: [] } } },
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: {
+              id: "gid://shopify/DraftOrder/1",
+              name: "D-1",
+              invoiceUrl: "https://invoice/u",
+            },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const out = await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/1", "buyer@e.com");
     expect(out.success).toBe(true);
@@ -251,9 +290,22 @@ describe("shopify-admin customer + variant + invoice helpers", () => {
 
   it("sendDraftOrderInvoice succeeds with null email + custom subject/body", async () => {
     const { admin, graphql } = makeAdmin([
-      { data: { draftOrderInvoiceSend: { draftOrder: { id: "x", name: "X", invoiceUrl: null }, userErrors: [] } } },
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: { id: "x", name: "X", invoiceUrl: null },
+            userErrors: [],
+          },
+        },
+      },
     ]);
-    const out = await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/2", null, "Hi", "Pay please");
+    const out = await sendDraftOrderInvoice(
+      admin,
+      "gid://shopify/DraftOrder/2",
+      null,
+      "Hi",
+      "Pay please",
+    );
     expect(out.success).toBe(true);
     expect(out.invoiceUrl).toBeNull();
     const vars = graphql.mock.calls[0]?.[1] as { variables?: { email?: unknown } } | undefined;
@@ -261,7 +313,9 @@ describe("shopify-admin customer + variant + invoice helpers", () => {
   });
 
   it("sendDraftOrderInvoice surfaces top-level GraphQL errors", async () => {
-    const { admin } = makeAdmin([{ data: {}, errors: [{ message: "throttled" }, { message: "again" }] }]);
+    const { admin } = makeAdmin([
+      { data: {}, errors: [{ message: "throttled" }, { message: "again" }] },
+    ]);
     const out = await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/3", "x@y.com");
     expect(out.success).toBe(false);
     expect(out.error).toContain("throttled");
@@ -270,7 +324,14 @@ describe("shopify-admin customer + variant + invoice helpers", () => {
 
   it("sendDraftOrderInvoice surfaces userErrors[]", async () => {
     const { admin } = makeAdmin([
-      { data: { draftOrderInvoiceSend: { draftOrder: null, userErrors: [{ field: ["email"], message: "Invalid email" }] } } },
+      {
+        data: {
+          draftOrderInvoiceSend: {
+            draftOrder: null,
+            userErrors: [{ field: ["email"], message: "Invalid email" }],
+          },
+        },
+      },
     ]);
     const out = await sendDraftOrderInvoice(admin, "gid://shopify/DraftOrder/4", "bogus");
     expect(out.success).toBe(false);

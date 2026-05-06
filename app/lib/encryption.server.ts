@@ -133,7 +133,10 @@ export function decrypt(encrypted: string): string {
  * key. Callers can use this to opportunistically re-encrypt with the active key
  * (lazy rotation — a save during normal operation upgrades the row).
  */
-export function decryptWithRotationInfo(encrypted: string): { plaintext: string; usedRetiredKey: boolean } {
+export function decryptWithRotationInfo(encrypted: string): {
+  plaintext: string;
+  usedRetiredKey: boolean;
+} {
   const parts = encrypted.split(":");
   if (parts.length !== 3) throw new Error("Invalid encrypted format");
   const [ivHex, tagHex, data] = parts;
@@ -149,7 +152,9 @@ export function decryptWithRotationInfo(encrypted: string): { plaintext: string;
       plaintext: decipher.update(data, "hex", "utf8") + decipher.final("utf8"),
       usedRetiredKey: false,
     };
-  } catch { /* fall through */ }
+  } catch {
+    /* fall through */
+  }
   // Try retired keys.
   for (const key of ring.retired) {
     try {
@@ -159,7 +164,9 @@ export function decryptWithRotationInfo(encrypted: string): { plaintext: string;
         plaintext: decipher.update(data, "hex", "utf8") + decipher.final("utf8"),
         usedRetiredKey: true,
       };
-    } catch { /* try next */ }
+    } catch {
+      /* try next */
+    }
   }
   throw new Error("Decryption failed with all keys");
 }

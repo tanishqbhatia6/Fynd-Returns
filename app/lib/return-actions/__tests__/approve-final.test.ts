@@ -22,12 +22,23 @@ const {
   createReturnOnFyndMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, shopifyReturnId: "gid://shopify/Return/1" })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true, client: { getShipments: vi.fn() } })),
-  createReturnOnFyndMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, fyndReturnId: "FYR-1" })),
+  createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    shopifyReturnId: "gid://shopify/Return/1",
+  })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: true,
+    client: { getShipments: vi.fn() },
+  })),
+  createReturnOnFyndMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    fyndReturnId: "FYR-1",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -83,7 +94,11 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       customerName: null,
       customerPhoneNorm: null,
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -113,8 +128,12 @@ beforeEach(() => {
   sendApprovalNotificationMock.mockReset().mockResolvedValue(undefined);
   fetchOrderMock.mockReset().mockResolvedValue(null);
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
-  createShopifyReturnMock.mockReset().mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1" });
-  createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: true, client: { getShipments: vi.fn() } });
+  createShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1" });
+  createFyndClientOrErrorMock
+    .mockReset()
+    .mockResolvedValue({ ok: true, client: { getShipments: vi.fn() } });
   createReturnOnFyndMock.mockReset().mockResolvedValue({ success: true, fyndReturnId: "FYR-1" });
 });
 
@@ -134,7 +153,15 @@ describe("handleApprove — final branch coverage gaps", () => {
     expect(createShopifyReturnMock).toHaveBeenCalledWith(
       expect.anything(),
       "gid://shopify/Order/12345",
-      [{ shopifyLineItemId: "gid://shopify/LineItem/9", qty: 2, reasonCode: null, notes: null, sku: null }],
+      [
+        {
+          shopifyLineItemId: "gid://shopify/LineItem/9",
+          qty: 2,
+          reasonCode: null,
+          notes: null,
+          sku: null,
+        },
+      ],
       expect.objectContaining({ requestedAt: expect.any(String) }),
     );
   });
@@ -148,10 +175,13 @@ describe("handleApprove — final branch coverage gaps", () => {
       "fyndSuccess=1",
     );
     const created = prismaMock.returnEvent.create.mock.calls.find(
-      (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === "shopify_return_created",
+      (c: unknown[]) =>
+        (c[0] as { data: { eventType: string } }).data.eventType === "shopify_return_created",
     );
     expect(created).toBeDefined();
-    const payload = JSON.parse(((created as unknown[])[0] as { data: { payloadJson: string } }).data.payloadJson);
+    const payload = JSON.parse(
+      ((created as unknown[])[0] as { data: { payloadJson: string } }).data.payloadJson,
+    );
     expect(payload.itemCount).toBe(0);
   });
 
@@ -230,7 +260,9 @@ describe("handleApprove — final branch coverage gaps", () => {
       handleApprove(ctx, { action: "approve" } as ReturnActionBody),
       "fyndSuccess=1",
     );
-    const callArgs = createReturnOnFyndMock.mock.calls[0][2] as { pickupAddress: Record<string, unknown> | null };
+    const callArgs = createReturnOnFyndMock.mock.calls[0][2] as {
+      pickupAddress: Record<string, unknown> | null;
+    };
     expect(callArgs.pickupAddress).not.toBeNull();
     expect(callArgs.pickupAddress?.city).toBe("Mumbai");
     expect(callArgs.pickupAddress?.address1).toBeNull();
@@ -292,7 +324,15 @@ describe("handleApprove — final branch coverage gaps", () => {
     expect(createShopifyReturnMock).toHaveBeenCalledWith(
       expect.anything(),
       "98765",
-      [{ shopifyLineItemId: "gid://shopify/LineItem/77", qty: 3, reasonCode: null, notes: null, sku: null }],
+      [
+        {
+          shopifyLineItemId: "gid://shopify/LineItem/77",
+          qty: 3,
+          reasonCode: null,
+          notes: null,
+          sku: null,
+        },
+      ],
       expect.objectContaining({ requestedAt: expect.any(String) }),
     );
   });
@@ -305,10 +345,13 @@ describe("handleApprove — final branch coverage gaps", () => {
       "fyndSuccess=1",
     );
     const failed = prismaMock.returnEvent.create.mock.calls.find(
-      (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === "shopify_return_failed",
+      (c: unknown[]) =>
+        (c[0] as { data: { eventType: string } }).data.eventType === "shopify_return_failed",
     );
     expect(failed).toBeDefined();
-    const payload = JSON.parse(((failed as unknown[])[0] as { data: { payloadJson: string } }).data.payloadJson);
+    const payload = JSON.parse(
+      ((failed as unknown[])[0] as { data: { payloadJson: string } }).data.payloadJson,
+    );
     expect(payload.orderId).toBe("gid://shopify/Order/12345");
     expect(payload.error).toBeUndefined();
   });
@@ -346,7 +389,9 @@ describe("handleApprove — final branch coverage gaps", () => {
       handleApprove(ctx, { action: "approve" } as ReturnActionBody),
       "fyndSuccess=1",
     );
-    const callArgs = createReturnOnFyndMock.mock.calls[0][2] as { pickupAddress: Record<string, unknown> };
+    const callArgs = createReturnOnFyndMock.mock.calls[0][2] as {
+      pickupAddress: Record<string, unknown>;
+    };
     expect(callArgs.pickupAddress).toMatchObject({
       address1: "1 Main St",
       address2: "Apt 5",

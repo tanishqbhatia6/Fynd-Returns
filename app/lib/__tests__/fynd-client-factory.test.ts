@@ -29,10 +29,13 @@ describe("createFyndClientOrError", () => {
     globalThis.fetch = vi.fn(async (url: string | URL | Request) => {
       const u = typeof url === "string" ? url : url.toString();
       if (u.includes("/service/panel/authentication/v1.0/company") || u.includes("/token")) {
-        return new Response(JSON.stringify({ access_token: "tok-123", token_type: "Bearer", expires_in: 3600 }), {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({ access_token: "tok-123", token_type: "Bearer", expires_in: 3600 }),
+          {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
       }
       return new Response("{}", { status: 200 });
     }) as typeof fetch;
@@ -81,32 +84,41 @@ describe("createFyndClientOrError", () => {
 
   it("errors on requirePlatform when platform creds missing", async () => {
     const { createFyndClientOrError } = await import("../fynd.server");
-    const res = await createFyndClientOrError({
-      fyndApplicationId: "app-1",
-      fyndCredentials: JSON.stringify({ storefront: { applicationToken: "tok" } }),
-    } as never, { requirePlatform: true });
+    const res = await createFyndClientOrError(
+      {
+        fyndApplicationId: "app-1",
+        fyndCredentials: JSON.stringify({ storefront: { applicationToken: "tok" } }),
+      } as never,
+      { requirePlatform: true },
+    );
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Platform API/);
   });
 
   it("errors on requirePlatform when fyndCompanyId missing", async () => {
     const { createFyndClientOrError } = await import("../fynd.server");
-    const res = await createFyndClientOrError({
-      fyndApplicationId: "app-1",
-      fyndCredentials: JSON.stringify({ platform: { clientId: "cid", clientSecret: "sec" } }),
-    } as never, { requirePlatform: true });
+    const res = await createFyndClientOrError(
+      {
+        fyndApplicationId: "app-1",
+        fyndCredentials: JSON.stringify({ platform: { clientId: "cid", clientSecret: "sec" } }),
+      } as never,
+      { requirePlatform: true },
+    );
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Company ID is missing/);
   });
 
   it("succeeds with platform creds + companyId + valid OAuth response", async () => {
     const { createFyndClientOrError } = await import("../fynd.server");
-    const res = await createFyndClientOrError({
-      fyndApplicationId: "app-1",
-      fyndCompanyId: "co-1",
-      fyndEnvironment: "uat",
-      fyndCredentials: JSON.stringify({ platform: { clientId: "cid", clientSecret: "sec" } }),
-    } as never, { requirePlatform: true });
+    const res = await createFyndClientOrError(
+      {
+        fyndApplicationId: "app-1",
+        fyndCompanyId: "co-1",
+        fyndEnvironment: "uat",
+        fyndCredentials: JSON.stringify({ platform: { clientId: "cid", clientSecret: "sec" } }),
+      } as never,
+      { requirePlatform: true },
+    );
     expect(res.ok).toBe(true);
     if (res.ok) {
       // Platform client has getShipments method
@@ -120,33 +132,44 @@ describe("createFyndClientOrError", () => {
     }) as typeof fetch;
     const { createFyndClientOrError } = await import("../fynd.server");
     // Use a unique companyId so fynd.server's internal tokenCache doesn't hit
-    const res = await createFyndClientOrError({
-      fyndApplicationId: "app-NET",
-      fyndCompanyId: "co-network-fail-uniq",
-      fyndEnvironment: "uat",
-      fyndCredentials: JSON.stringify({ platform: { clientId: "cid-net", clientSecret: "sec-net" } }),
-    } as never, { requirePlatform: true });
+    const res = await createFyndClientOrError(
+      {
+        fyndApplicationId: "app-NET",
+        fyndCompanyId: "co-network-fail-uniq",
+        fyndEnvironment: "uat",
+        fyndCredentials: JSON.stringify({
+          platform: { clientId: "cid-net", clientSecret: "sec-net" },
+        }),
+      } as never,
+      { requirePlatform: true },
+    );
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Fynd login failed/);
   });
 
   it("succeeds via requirePlatform=false branch when only platform creds available", async () => {
     const { createFyndClientOrError } = await import("../fynd.server");
-    const res = await createFyndClientOrError({
-      fyndApplicationId: "app-1",
-      fyndCompanyId: "co-1",
-      fyndEnvironment: "uat",
-      fyndCredentials: JSON.stringify({ platform: { clientId: "cid", clientSecret: "sec" } }),
-    } as never, { requirePlatform: false });
+    const res = await createFyndClientOrError(
+      {
+        fyndApplicationId: "app-1",
+        fyndCompanyId: "co-1",
+        fyndEnvironment: "uat",
+        fyndCredentials: JSON.stringify({ platform: { clientId: "cid", clientSecret: "sec" } }),
+      } as never,
+      { requirePlatform: false },
+    );
     expect(res.ok).toBe(true);
   });
 
   it("errors when requirePlatform=false and platform creds are missing", async () => {
     const { createFyndClientOrError } = await import("../fynd.server");
-    const res = await createFyndClientOrError({
-      fyndApplicationId: "app-1",
-      fyndCredentials: JSON.stringify({ storefront: { applicationToken: "tok" } }),
-    } as never, { requirePlatform: false });
+    const res = await createFyndClientOrError(
+      {
+        fyndApplicationId: "app-1",
+        fyndCredentials: JSON.stringify({ storefront: { applicationToken: "tok" } }),
+      } as never,
+      { requirePlatform: false },
+    );
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Platform credentials are required/);
   });
@@ -183,4 +206,3 @@ describe("createFyndClient (legacy wrapper)", () => {
     expect(client).toBe(null);
   });
 });
-

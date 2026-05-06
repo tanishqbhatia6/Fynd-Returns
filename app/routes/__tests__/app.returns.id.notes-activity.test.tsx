@@ -271,10 +271,18 @@ describe("app.returns.$id — internal & customer-facing notes UI", () => {
       { timeout: 5000 },
     );
     const ta = container.querySelector('textarea[name="note"]') as HTMLTextAreaElement;
-    await act(async () => { fireEvent.change(ta, { target: { value: "first edit" } }); });
-    await waitFor(() => { expect(ta.value).toBe("first edit"); });
-    await act(async () => { fireEvent.change(ta, { target: { value: "second edit with more detail" } }); });
-    await waitFor(() => { expect(ta.value).toBe("second edit with more detail"); });
+    await act(async () => {
+      fireEvent.change(ta, { target: { value: "first edit" } });
+    });
+    await waitFor(() => {
+      expect(ta.value).toBe("first edit");
+    });
+    await act(async () => {
+      fireEvent.change(ta, { target: { value: "second edit with more detail" } });
+    });
+    await waitFor(() => {
+      expect(ta.value).toBe("second edit with more detail");
+    });
   });
 
   it("internal notes textarea defaults to empty string when adminNotes is null", async () => {
@@ -450,8 +458,18 @@ describe("app.returns.$id — activity timeline events & detail expand/collapse"
 
   it("highlights the latest event with a colored dot (different from earlier events)", async () => {
     const events: EventInput[] = [
-      { id: "early", eventType: "created", source: "portal", happenedAt: new Date("2026-04-01T08:00:00Z").toISOString() },
-      { id: "late", eventType: "approved", source: "admin", happenedAt: new Date("2026-04-02T08:00:00Z").toISOString() },
+      {
+        id: "early",
+        eventType: "created",
+        source: "portal",
+        happenedAt: new Date("2026-04-01T08:00:00Z").toISOString(),
+      },
+      {
+        id: "late",
+        eventType: "approved",
+        source: "admin",
+        happenedAt: new Date("2026-04-02T08:00:00Z").toISOString(),
+      },
     ];
     const rc = makeReturnCase({ events });
     const { container } = renderWithRouter(Component, {
@@ -524,8 +542,7 @@ describe("app.returns.$id — activity timeline events & detail expand/collapse"
     // The attribution span lives in the metadata row directly under the title;
     // for a non-admin source it must NOT render the "by " label, even though
     // adminEmail still appears inside the raw <pre> JSON dump.
-    const headers = Array.from(container.querySelectorAll("span"))
-      .map((s) => s.textContent || "");
+    const headers = Array.from(container.querySelectorAll("span")).map((s) => s.textContent || "");
     expect(headers.some((t) => t.startsWith("by "))).toBe(false);
   });
 
@@ -663,14 +680,26 @@ describe("app.returns.$id — customer info card & edit-customer-address modal",
       { timeout: 5000 },
     );
     const addr1 = container.querySelector('input[name="customerAddress1"]') as HTMLInputElement;
-    await act(async () => { fireEvent.change(addr1, { target: { value: "777 New Lane" } }); });
-    await waitFor(() => { expect(addr1.value).toBe("777 New Lane"); });
+    await act(async () => {
+      fireEvent.change(addr1, { target: { value: "777 New Lane" } });
+    });
+    await waitFor(() => {
+      expect(addr1.value).toBe("777 New Lane");
+    });
     const country = container.querySelector('input[name="customerCountry"]') as HTMLInputElement;
-    await act(async () => { fireEvent.change(country, { target: { value: "Canada" } }); });
-    await waitFor(() => { expect(country.value).toBe("Canada"); });
+    await act(async () => {
+      fireEvent.change(country, { target: { value: "Canada" } });
+    });
+    await waitFor(() => {
+      expect(country.value).toBe("Canada");
+    });
     const landmark = container.querySelector('input[name="customerLandmark"]') as HTMLInputElement;
-    await act(async () => { fireEvent.change(landmark, { target: { value: "Near the park" } }); });
-    await waitFor(() => { expect(landmark.value).toBe("Near the park"); });
+    await act(async () => {
+      fireEvent.change(landmark, { target: { value: "Near the park" } });
+    });
+    await waitFor(() => {
+      expect(landmark.value).toBe("Near the park");
+    });
   });
 
   it("renders mailto / tel links for email & phone in the customer card", async () => {

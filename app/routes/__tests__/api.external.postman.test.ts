@@ -8,7 +8,9 @@ const {
 } = vi.hoisted(() => ({
   authenticateApiKeyMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
+  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
+    async () => null,
+  ),
   generatePostmanMock: vi.fn(() => JSON.stringify({ info: { name: "RPM" } })),
 }));
 
@@ -17,7 +19,11 @@ vi.mock("../../lib/api-key-auth.server", () => ({
 }));
 vi.mock("../../lib/rate-limit.server", () => ({
   checkRateLimit: checkRateLimitMock,
-  rateLimitResponse: (ms: number) => Response.json({ error: "rate limited" }, { status: 429, headers: { "Retry-After": String(ms) } }),
+  rateLimitResponse: (ms: number) =>
+    Response.json(
+      { error: "rate limited" },
+      { status: 429, headers: { "Retry-After": String(ms) } },
+    ),
 }));
 vi.mock("../../lib/external-api-helpers.server", () => ({
   checkPerKeyRateLimit: checkPerKeyRateLimitMock,
@@ -32,7 +38,9 @@ const origEnv = { ...process.env };
 beforeEach(() => {
   process.env = { ...origEnv };
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
   generatePostmanMock.mockClear();
 });
@@ -60,7 +68,10 @@ describe("GET /api/v1/external/postman", () => {
 
   it("falls through to read_settings when read_returns denied", async () => {
     authenticateApiKeyMock
-      .mockResolvedValueOnce({ ok: false, response: Response.json({ e: "denied" }, { status: 401 }) })
+      .mockResolvedValueOnce({
+        ok: false,
+        response: Response.json({ e: "denied" }, { status: 401 }),
+      })
       .mockResolvedValueOnce({ ok: true, keyId: "key-2" });
     const res = await loader({ request: req(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
@@ -90,7 +101,9 @@ describe("GET /api/v1/external/postman", () => {
 
   it("honours per-key rate limit when exceeded", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "key-1" });
-    checkPerKeyRateLimitMock.mockResolvedValueOnce(Response.json({ error: "per-key limited" }, { status: 429 }));
+    checkPerKeyRateLimitMock.mockResolvedValueOnce(
+      Response.json({ error: "per-key limited" }, { status: 429 }),
+    );
     const res = await loader({ request: req(), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
     expect(generatePostmanMock).not.toHaveBeenCalled();

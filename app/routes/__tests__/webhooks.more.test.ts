@@ -35,7 +35,12 @@ vi.mock("../../lib/shopify-admin.server", () => ({
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  const mapping = (prismaMock as unknown as Record<string, Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>>).fyndOrderMapping;
+  const mapping = (
+    prismaMock as unknown as Record<
+      string,
+      Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>
+    >
+  ).fyndOrderMapping;
   Object.values(mapping).forEach((fn) => {
     fn.mockReset();
     fn.mockResolvedValue(fn === mapping.findMany ? [] : {});
@@ -55,15 +60,24 @@ describe("webhooks.app-subscriptions.update", () => {
     const { action } = await import("../webhooks.app-subscriptions.update");
     authenticateWebhookMock.mockResolvedValueOnce({ shop: "store.myshopify.com" });
     shopifyModuleMock.unauthenticated.admin.mockResolvedValueOnce({ admin: {} });
-    fetchSubscriptionSnapshotMock.mockResolvedValueOnce({ status: "ACTIVE", name: "ReturnProMax Pro" });
+    fetchSubscriptionSnapshotMock.mockResolvedValueOnce({
+      status: "ACTIVE",
+      name: "ReturnProMax Pro",
+    });
     prismaMock.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", settings: { id: "s-1" },
+      id: "shop-1",
+      settings: { id: "s-1" },
     });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
-    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ subscriptionStatus: "ACTIVE", subscriptionName: "ReturnProMax Pro" }),
-    }));
+    expect(prismaMock.shopSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          subscriptionStatus: "ACTIVE",
+          subscriptionName: "ReturnProMax Pro",
+        }),
+      }),
+    );
   });
 
   it("swallows auth errors that aren't Response", async () => {
@@ -76,7 +90,9 @@ describe("webhooks.app-subscriptions.update", () => {
   it("re-throws Response auth errors", async () => {
     const { action } = await import("../webhooks.app-subscriptions.update");
     authenticateWebhookMock.mockRejectedValueOnce(new Response("unauth", { status: 401 }));
-    await expect(action({ request: mkReq(), params: {}, context: {} } as never)).rejects.toBeInstanceOf(Response);
+    await expect(
+      action({ request: mkReq(), params: {}, context: {} } as never),
+    ).rejects.toBeInstanceOf(Response);
   });
 
   it("no-op when shop has no settings row", async () => {
@@ -105,7 +121,8 @@ describe("webhooks.draft-orders.create", () => {
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "store.myshopify.com",
       payload: {
-        admin_graphql_api_id: "gid://shopify/DraftOrder/1", name: "#D1001",
+        admin_graphql_api_id: "gid://shopify/DraftOrder/1",
+        name: "#D1001",
         note_attributes: [{ name: "fynd_order_id", value: "F-1" }],
       },
     });
@@ -113,7 +130,9 @@ describe("webhooks.draft-orders.create", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
-    const mapping = (prismaMock as unknown as Record<string, Record<string, { mock: { calls: unknown[] } }>>).fyndOrderMapping;
+    const mapping = (
+      prismaMock as unknown as Record<string, Record<string, { mock: { calls: unknown[] } }>>
+    ).fyndOrderMapping;
     expect(mapping.upsert.mock.calls.length).toBeGreaterThan(0);
   });
 
@@ -122,7 +141,8 @@ describe("webhooks.draft-orders.create", () => {
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "s",
       payload: {
-        admin_graphql_api_id: "gid://x/1", name: "#D1001",
+        admin_graphql_api_id: "gid://x/1",
+        name: "#D1001",
         note_attributes: [],
       },
     });
@@ -144,7 +164,8 @@ describe("webhooks.draft-orders.create", () => {
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "s",
       payload: {
-        admin_graphql_api_id: "gid://x/1", name: "#D1001",
+        admin_graphql_api_id: "gid://x/1",
+        name: "#D1001",
         note_attributes: [{ name: "fynd_order_id", value: "F-1" }],
       },
     });

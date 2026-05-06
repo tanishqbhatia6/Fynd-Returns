@@ -31,10 +31,12 @@ describe("findOrCreateShop", () => {
     const shop = { id: "shop-1", shopDomain: "x.myshopify.com", settings: null };
     prismaMock.shop.upsert.mockResolvedValue(shop);
     expect(await findOrCreateShop("x.myshopify.com")).toEqual(shop);
-    expect(prismaMock.shop.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopDomain: "x.myshopify.com" },
-      include: { settings: true },
-    }));
+    expect(prismaMock.shop.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopDomain: "x.myshopify.com" },
+        include: { settings: true },
+      }),
+    );
   });
 
   it("falls back to findUniqueOrThrow when upsert races (race condition recovery)", async () => {
@@ -64,7 +66,10 @@ describe("syncShopLocaleAndCurrency", () => {
     const admin = {
       graphql: vi.fn().mockRejectedValue(new Error("network")),
     };
-    const res = await syncShopLocaleAndCurrency(admin as Parameters<typeof syncShopLocaleAndCurrency>[0], "x.myshopify.com");
+    const res = await syncShopLocaleAndCurrency(
+      admin as Parameters<typeof syncShopLocaleAndCurrency>[0],
+      "x.myshopify.com",
+    );
     expect(res).toEqual({ locale: "en", currency: "USD", timezone: "UTC" });
   });
 
@@ -131,7 +136,9 @@ describe("syncShopLocaleAndCurrency", () => {
   });
 
   it("falls back to defaults for each missing field", async () => {
-    const admin = makeAdmin({ data: { shop: { primaryLocale: null, currencyCode: null, ianaTimezone: null } } });
+    const admin = makeAdmin({
+      data: { shop: { primaryLocale: null, currencyCode: null, ianaTimezone: null } },
+    });
     prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", settings: null });
     const res = await syncShopLocaleAndCurrency(admin, "x.myshopify.com");
     expect(res).toEqual({ locale: "en", currency: "USD", timezone: "UTC" });
@@ -139,7 +146,13 @@ describe("syncShopLocaleAndCurrency", () => {
 
   it("returns parsed values even when shop record doesn't exist in our DB", async () => {
     const admin = makeAdmin({
-      data: { shop: { primaryLocale: { locale: "de" }, currencyCode: "EUR", ianaTimezone: "Europe/Berlin" } },
+      data: {
+        shop: {
+          primaryLocale: { locale: "de" },
+          currencyCode: "EUR",
+          ianaTimezone: "Europe/Berlin",
+        },
+      },
     });
     prismaMock.shop.findUnique.mockResolvedValue(null);
     const res = await syncShopLocaleAndCurrency(admin, "missing.myshopify.com");

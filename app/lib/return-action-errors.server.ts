@@ -18,21 +18,31 @@ function truncateAtBoundary(msg: string, limit = TRUNCATE_LIMIT): string {
 export function enrichFyndError(msg: string): string {
   if (!msg) return msg;
   const is403 = /403|forbidden/i.test(msg);
-  const hasGuidance = /company\/orders|scopes|Fynd Partners|Settings.*Integrations|Test Platform/i.test(msg);
+  const hasGuidance =
+    /company\/orders|scopes|Fynd Partners|Settings.*Integrations|Test Platform/i.test(msg);
   if (is403 && !hasGuidance) {
     return `${msg} — Sync uses the same OAuth flow as Test Platform. If Test Platform passes in Settings → Integrations but sync still fails, the write endpoint may require additional permissions—contact Fynd support.`;
   }
   return msg;
 }
 
-export function classifyFyndError(msg: string): "config_error" | "network_error" | "timeout" | "api_error" {
-  if (/not configured|configure|Platform API|Settings.*Integrations|Client ID|Company ID/i.test(msg)) return "config_error";
-  if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|network|socket hang up|DNS/i.test(msg)) return "network_error";
+export function classifyFyndError(
+  msg: string,
+): "config_error" | "network_error" | "timeout" | "api_error" {
+  if (
+    /not configured|configure|Platform API|Settings.*Integrations|Client ID|Company ID/i.test(msg)
+  )
+    return "config_error";
+  if (/ECONNREFUSED|ENOTFOUND|EHOSTUNREACH|network|socket hang up|DNS/i.test(msg))
+    return "network_error";
   if (/ETIMEDOUT|timeout|timed out|aborted/i.test(msg)) return "timeout";
   return "api_error";
 }
 
-export function enrichRefundError(msg: string, ctx: { method?: string | null; orderName?: string | null }): string {
+export function enrichRefundError(
+  msg: string,
+  ctx: { method?: string | null; orderName?: string | null },
+): string {
   if (!msg) return msg;
   if (/no transactions|transactions cannot be empty/i.test(msg) && ctx.method === "original")
     return `${msg} — This may be a COD or gift-card order. Try "Store credit" or "Discount code" refund method instead.`;
@@ -62,11 +72,18 @@ export async function extractErrorMessage(err: unknown): Promise<string> {
     }
     return truncateAtBoundary(msg);
   }
-  if (typeof err === "object" && err !== null && "ok" in err && typeof (err as Response).json === "function") {
+  if (
+    typeof err === "object" &&
+    err !== null &&
+    "ok" in err &&
+    typeof (err as Response).json === "function"
+  ) {
     const res = err as Response;
     try {
       const j = await res.json().catch(() => ({}));
-      const msg = (j as { error?: string; message?: string })?.error ?? (j as { error?: string; message?: string })?.message;
+      const msg =
+        (j as { error?: string; message?: string })?.error ??
+        (j as { error?: string; message?: string })?.message;
       if (typeof msg === "string" && msg.trim()) {
         return truncateAtBoundary(msg);
       }
@@ -76,6 +93,7 @@ export async function extractErrorMessage(err: unknown): Promise<string> {
     return `Request failed (${res.status}). Please check Fynd configuration and try again.`;
   }
   const s = String(err);
-  if (s === "[object Response]" || s === "[object Object]") return "Request failed. Please check Fynd configuration and try again.";
+  if (s === "[object Response]" || s === "[object Object]")
+    return "Request failed. Please check Fynd configuration and try again.";
   return truncateAtBoundary(s);
 }

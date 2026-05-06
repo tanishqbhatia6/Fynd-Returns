@@ -44,7 +44,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -79,14 +79,16 @@ function uniqueId(prefix: string) {
   return `${prefix}-${subCounter}-${Date.now()}`;
 }
 
-function makeSub(overrides: Partial<{
-  id: string;
-  shopId: string;
-  isActive: boolean;
-  url: string;
-  secret: string;
-  events: string;
-}> = {}) {
+function makeSub(
+  overrides: Partial<{
+    id: string;
+    shopId: string;
+    isActive: boolean;
+    url: string;
+    secret: string;
+    events: string;
+  }> = {},
+) {
   return {
     id: overrides.id ?? uniqueId("sub"),
     shopId: "shop-1",
@@ -118,8 +120,7 @@ afterEach(() => {
 describe("dispatchWebhookEvent — no subscriptions", () => {
   it("returns synchronously without throwing", () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([]);
-    expect(() => dispatchWebhookEvent("shop-1", "return.approved", { id: "r" }))
-      .not.toThrow();
+    expect(() => dispatchWebhookEvent("shop-1", "return.approved", { id: "r" })).not.toThrow();
   });
 
   it("does not call fetch when there are zero subscriptions for the shop", async () => {
@@ -139,9 +140,7 @@ describe("dispatchWebhookEvent — no subscriptions", () => {
   });
 
   it("filters out subscriptions whose events JSON is malformed", async () => {
-    prismaMock.webhookSubscription.findMany.mockResolvedValue([
-      makeSub({ events: "}}}garbage" }),
-    ]);
+    prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub({ events: "}}}garbage" })]);
     dispatchWebhookEvent("shop-1", "return.approved", { id: "r" });
     await flushAll();
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -194,8 +193,7 @@ describe("dispatchWebhookEvent — fire-and-forget + signing", () => {
       body: string;
     };
     const expected =
-      "sha256=" +
-      crypto.createHmac("sha256", sub.secret).update(init.body).digest("hex");
+      "sha256=" + crypto.createHmac("sha256", sub.secret).update(init.body).digest("hex");
     expect(init.headers["X-Webhook-Signature"]).toBe(expected);
   });
 
@@ -256,16 +254,12 @@ describe("dispatchWebhookEvent — fire-and-forget + signing", () => {
   it("does not throw synchronously when fetch rejects", () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
     fetchSpy.mockRejectedValue(new Error("ECONNREFUSED"));
-    expect(() =>
-      dispatchWebhookEvent("shop-1", "return.approved", { id: "r" }),
-    ).not.toThrow();
+    expect(() => dispatchWebhookEvent("shop-1", "return.approved", { id: "r" })).not.toThrow();
   });
 
   it("swallows Prisma findMany rejection without throwing", async () => {
     prismaMock.webhookSubscription.findMany.mockRejectedValue(new Error("db down"));
-    expect(() =>
-      dispatchWebhookEvent("shop-1", "return.approved", { id: "r" }),
-    ).not.toThrow();
+    expect(() => dispatchWebhookEvent("shop-1", "return.approved", { id: "r" })).not.toThrow();
     await flushAll();
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -378,9 +372,11 @@ describe("dispatchWebhookEvent — dead-letter queue", () => {
 
       expect(fetchSpy).toHaveBeenCalledTimes(3);
       expect(prismaMock.webhookDeliveryFailure.create).toHaveBeenCalledOnce();
-      const data = (prismaMock.webhookDeliveryFailure.create.mock.calls[0][0] as {
-        data: Record<string, unknown>;
-      }).data;
+      const data = (
+        prismaMock.webhookDeliveryFailure.create.mock.calls[0][0] as {
+          data: Record<string, unknown>;
+        }
+      ).data;
       expect(data.subscriptionId).toBe(sub.id);
       expect(data.shopId).toBe("shop-1");
       expect(data.eventType).toBe("return.approved");
@@ -423,9 +419,7 @@ describe("dispatchWebhookEvent — dead-letter queue", () => {
       fetchSpy.mockResolvedValue({ ok: false, status: 500 });
       prismaMock.webhookDeliveryFailure.create.mockRejectedValue(new Error("DLQ table missing"));
 
-      expect(() =>
-        dispatchWebhookEvent("shop-1", "return.approved", { x: 1 }),
-      ).not.toThrow();
+      expect(() => dispatchWebhookEvent("shop-1", "return.approved", { x: 1 })).not.toThrow();
 
       await vi.advanceTimersByTimeAsync(0);
       await vi.advanceTimersByTimeAsync(30_000);

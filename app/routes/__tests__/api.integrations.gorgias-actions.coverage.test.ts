@@ -48,7 +48,11 @@ beforeEach(() => {
 
 describe("gorgias-actions: coverage", () => {
   it("405 response carries an error JSON body", async () => {
-    const res = await action({ request: mkReq(undefined, "PUT"), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq(undefined, "PUT"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(405);
     const body = await res.json();
     expect(body.error).toMatch(/method not allowed/i);
@@ -67,9 +71,18 @@ describe("gorgias-actions: coverage", () => {
 
   it("normalises bare shop handle by appending `.myshopify.com`", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(configuredShop());
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce({ id: "rc-1", status: "pending", adminNotes: null });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
+      status: "pending",
+      adminNotes: null,
+    });
     await action({
-      request: mkReq({ shop: "demo-store", api_key: "secret", action: "approve", returnId: "rc-1" }),
+      request: mkReq({
+        shop: "demo-store",
+        api_key: "secret",
+        action: "approve",
+        returnId: "rc-1",
+      }),
       params: {},
       context: {},
     } as never);
@@ -79,9 +92,18 @@ describe("gorgias-actions: coverage", () => {
 
   it("uses shop domain verbatim when it already contains a dot", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(configuredShop());
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce({ id: "rc-1", status: "pending", adminNotes: null });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
+      status: "pending",
+      adminNotes: null,
+    });
     await action({
-      request: mkReq({ shop: "demo.myshopify.com", api_key: "secret", action: "approve", returnId: "rc-1" }),
+      request: mkReq({
+        shop: "demo.myshopify.com",
+        api_key: "secret",
+        action: "approve",
+        returnId: "rc-1",
+      }),
       params: {},
       context: {},
     } as never);
@@ -92,7 +114,12 @@ describe("gorgias-actions: coverage", () => {
   it("403 when shop record is missing entirely", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     const res = await action({
-      request: mkReq({ shop: "ghost.myshopify.com", api_key: "k", action: "approve", returnId: "rc-1" }),
+      request: mkReq({
+        shop: "ghost.myshopify.com",
+        api_key: "k",
+        action: "approve",
+        returnId: "rc-1",
+      }),
       params: {},
       context: {},
     } as never);
@@ -106,7 +133,11 @@ describe("gorgias-actions: coverage", () => {
     // but the shop should still authenticate? No — gorgiasApiKey present but decrypt nullish
     // means storedPlain = "" and submitted = "" so they match. Verify the route allows it
     // (defensive: in practice never happens; this documents behaviour).
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce({ id: "rc-1", status: "pending", adminNotes: null });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
+      status: "pending",
+      adminNotes: null,
+    });
     const res = await action({
       request: mkReq({ shop: "x", action: "approve", returnId: "rc-1" }),
       params: {},
@@ -144,7 +175,11 @@ describe("gorgias-actions: coverage", () => {
 
   it("approve handler accepts `initiated` status (pre-pending state)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(configuredShop());
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce({ id: "rc-1", status: "initiated", adminNotes: null });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
+      status: "initiated",
+      adminNotes: null,
+    });
     const res = await action({
       request: mkReq({ shop: "x", api_key: "secret", action: "approve", returnId: "rc-1" }),
       params: {},
@@ -179,7 +214,13 @@ describe("gorgias-actions: coverage", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(configuredShop());
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({ id: "rc-1", status: "approved" });
     const res = await action({
-      request: mkReq({ shop: "x", api_key: "secret", action: "reject", returnId: "rc-1", rejectionReason: "x" }),
+      request: mkReq({
+        shop: "x",
+        api_key: "secret",
+        action: "reject",
+        returnId: "rc-1",
+        rejectionReason: "x",
+      }),
       params: {},
       context: {},
     } as never);
@@ -190,15 +231,27 @@ describe("gorgias-actions: coverage", () => {
 
   it("add_note prepends timestamp + Gorgias marker when no prior notes exist", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(configuredShop());
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce({ id: "rc-1", status: "pending", adminNotes: null });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      id: "rc-1",
+      status: "pending",
+      adminNotes: null,
+    });
     const res = await action({
-      request: mkReq({ shop: "x", api_key: "secret", action: "add_note", returnId: "rc-1", note: "first contact" }),
+      request: mkReq({
+        shop: "x",
+        api_key: "secret",
+        action: "add_note",
+        returnId: "rc-1",
+        note: "first contact",
+      }),
       params: {},
       context: {},
     } as never);
     expect(res.status).toBe(200);
     const update = prismaMock.returnCase.update.mock.calls[0][0];
-    expect(update.data.adminNotes).toMatch(/\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} via Gorgias\] first contact/);
+    expect(update.data.adminNotes).toMatch(
+      /\[\d{4}-\d{2}-\d{2} \d{2}:\d{2} via Gorgias\] first contact/,
+    );
     expect(update.data.adminNotes).not.toContain("\n");
   });
 
@@ -210,7 +263,13 @@ describe("gorgias-actions: coverage", () => {
       adminNotes: "previous-history",
     });
     const res = await action({
-      request: mkReq({ shop: "x", api_key: "secret", action: "add_note", returnId: "rc-1", note: "follow-up" }),
+      request: mkReq({
+        shop: "x",
+        api_key: "secret",
+        action: "add_note",
+        returnId: "rc-1",
+        note: "follow-up",
+      }),
       params: {},
       context: {},
     } as never);

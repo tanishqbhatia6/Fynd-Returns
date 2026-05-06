@@ -112,16 +112,18 @@ describe("widget gap coverage — label overrides editor", () => {
     fireEvent.click(trigger);
 
     await waitFor(() => {
-      expect(
-        container.querySelectorAll('input[type="text"].app-input').length,
-      ).toBeGreaterThan(0);
+      expect(container.querySelectorAll('input[type="text"].app-input').length).toBeGreaterThan(0);
     });
 
     const inputs = container.querySelectorAll(
       'input[type="text"].app-input',
     ) as NodeListOf<HTMLInputElement>;
-    await act(async () => { fireEvent.change(inputs[0], { target: { value: "Custom heading" } }); });
-    await waitFor(() => { expect(inputs[0].value).toBe("Custom heading"); });
+    await act(async () => {
+      fireEvent.change(inputs[0], { target: { value: "Custom heading" } });
+    });
+    await waitFor(() => {
+      expect(inputs[0].value).toBe("Custom heading");
+    });
 
     // Hidden field that mirrors the override map should now contain the value
     const hidden = container.querySelector(
@@ -146,8 +148,12 @@ describe("widget gap coverage — label overrides editor", () => {
       'input[type="text"].app-input',
     ) as NodeListOf<HTMLInputElement>;
     expect(inputs[0].value).toBe("Existing override");
-    await act(async () => { fireEvent.change(inputs[0], { target: { value: "   " } }); });
-    await waitFor(() => { expect(inputs[0].value).toBe(""); });
+    await act(async () => {
+      fireEvent.change(inputs[0], { target: { value: "   " } });
+    });
+    await waitFor(() => {
+      expect(inputs[0].value).toBe("");
+    });
 
     const hidden = container.querySelector(
       'input[type="hidden"][name="portalLabelsJson"]',
@@ -165,9 +171,7 @@ describe("widget gap coverage — label overrides editor", () => {
     const close = await findByText(/Hide custom labels/i);
     fireEvent.click(close);
     await waitFor(() => {
-      expect(
-        container.querySelectorAll('input[type="text"].app-input').length,
-      ).toBe(0);
+      expect(container.querySelectorAll('input[type="text"].app-input').length).toBe(0);
     });
   });
 });
@@ -194,15 +198,11 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
       },
     });
     await waitFor(() => {
-      const img = container.querySelector(
-        'img[alt="Brand logo"]',
-      ) as HTMLImageElement | null;
+      const img = container.querySelector('img[alt="Brand logo"]') as HTMLImageElement | null;
       expect(img).toBeTruthy();
       expect(img?.src).toContain("LOGO");
     });
-    const fav = container.querySelector(
-      'img[alt="Favicon"]',
-    ) as HTMLImageElement;
+    const fav = container.querySelector('img[alt="Favicon"]') as HTMLImageElement;
     expect(fav.src).toContain("FAV");
   });
 
@@ -263,9 +263,7 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('input[type="file"][accept*="image/png"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('input[type="file"][accept*="image/png"]')).toBeTruthy();
     });
     const fileInput = container.querySelector(
       'input[type="file"][accept*="image/png"]',
@@ -284,17 +282,14 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
       }
     }
     const originalFileReader = globalThis.FileReader;
-    (globalThis as unknown as { FileReader: typeof StubReader }).FileReader =
-      StubReader;
+    (globalThis as unknown as { FileReader: typeof StubReader }).FileReader = StubReader;
 
     try {
       await act(async () => {
         fireEvent.change(fileInput, { target: { files: [file] } });
       });
       await waitFor(() => {
-        const img = container.querySelector(
-          'img[alt="Brand logo"]',
-        ) as HTMLImageElement | null;
+        const img = container.querySelector('img[alt="Brand logo"]') as HTMLImageElement | null;
         expect(img).toBeTruthy();
         expect(img?.src).toContain("UPLOADED");
       });
@@ -305,18 +300,14 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
   });
 
   it("rejects oversized image uploads and resets the input", async () => {
-    const alertSpy = vi
-      .spyOn(window, "alert")
-      .mockImplementation(() => undefined);
+    const alertSpy = vi.spyOn(window, "alert").mockImplementation(() => undefined);
 
     const { container } = renderWithRouter(Widget, {
       initialEntries: ["/app/settings/widget"],
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('input[type="file"][accept*="image/png"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('input[type="file"][accept*="image/png"]')).toBeTruthy();
     });
     const fileInput = container.querySelector(
       'input[type="file"][accept*="image/png"]',
@@ -324,9 +315,13 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
 
     // 1 MB > 512 KB max
     const huge = makeFile("big.png", "image/png", 1024 * 1024);
-    await act(async () => { fireEvent.change(fileInput, { target: { files: [huge] } }); });
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [huge] } });
+    });
 
-    await waitFor(() => { expect(alertSpy).toHaveBeenCalledTimes(1); });
+    await waitFor(() => {
+      expect(alertSpy).toHaveBeenCalledTimes(1);
+    });
     expect(alertSpy.mock.calls[0][0]).toMatch(/Image too large/i);
     // No image rendered after rejection
     expect(container.querySelector('img[alt="Brand logo"]')).toBeFalsy();
@@ -338,16 +333,18 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('input[type="file"][accept*="image/png"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('input[type="file"][accept*="image/png"]')).toBeTruthy();
     });
     const fileInput = container.querySelector(
       'input[type="file"][accept*="image/png"]',
     ) as HTMLInputElement;
-    await act(async () => { fireEvent.change(fileInput, { target: { files: [] } }); });
+    await act(async () => {
+      fireEvent.change(fileInput, { target: { files: [] } });
+    });
     // Component shouldn't crash, nothing rendered
-    await waitFor(() => { expect(container.querySelector('img[alt="Brand logo"]')).toBeFalsy(); });
+    await waitFor(() => {
+      expect(container.querySelector('img[alt="Brand logo"]')).toBeFalsy();
+    });
   });
 
   it("uploads a favicon via the favicon-specific file input", async () => {
@@ -356,9 +353,7 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelectorAll('input[type="file"]').length,
-      ).toBeGreaterThanOrEqual(2);
+      expect(container.querySelectorAll('input[type="file"]').length).toBeGreaterThanOrEqual(2);
     });
     // Favicon input is the one whose `accept` mentions `image/x-icon`
     const favInput = Array.from(
@@ -377,17 +372,14 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
       }
     }
     const originalFileReader = globalThis.FileReader;
-    (globalThis as unknown as { FileReader: typeof StubReader }).FileReader =
-      StubReader;
+    (globalThis as unknown as { FileReader: typeof StubReader }).FileReader = StubReader;
 
     try {
       await act(async () => {
         fireEvent.change(favInput!, { target: { files: [file] } });
       });
       await waitFor(() => {
-        const img = container.querySelector(
-          'img[alt="Favicon"]',
-        ) as HTMLImageElement | null;
+        const img = container.querySelector('img[alt="Favicon"]') as HTMLImageElement | null;
         expect(img).toBeTruthy();
         expect(img?.src).toContain("FAVUP");
       });
@@ -405,13 +397,9 @@ describe("widget gap coverage — theme controls", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('select[name="borderRadius"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('select[name="borderRadius"]')).toBeTruthy();
     });
-    const sel = container.querySelector(
-      'select[name="borderRadius"]',
-    ) as HTMLSelectElement;
+    const sel = container.querySelector('select[name="borderRadius"]') as HTMLSelectElement;
     const values = Array.from(sel.querySelectorAll("option")).map(
       (o) => (o as HTMLOptionElement).value,
     );
@@ -426,12 +414,14 @@ describe("widget gap coverage — theme controls", () => {
     await waitFor(() => {
       expect(container.querySelector('select[name="fontFamily"]')).toBeTruthy();
     });
-    const sel = container.querySelector(
-      'select[name="fontFamily"]',
-    ) as HTMLSelectElement;
+    const sel = container.querySelector('select[name="fontFamily"]') as HTMLSelectElement;
     const second = FONT_OPTIONS[1].value;
-    await act(async () => { fireEvent.change(sel, { target: { value: second } }); });
-    await waitFor(() => { expect(sel.value).toBe(second); });
+    await act(async () => {
+      fireEvent.change(sel, { target: { value: second } });
+    });
+    await waitFor(() => {
+      expect(sel.value).toBe(second);
+    });
   });
 
   it("changes the primary color value", async () => {
@@ -440,15 +430,17 @@ describe("widget gap coverage — theme controls", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('input[type="color"][name="primaryColor"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('input[type="color"][name="primaryColor"]')).toBeTruthy();
     });
     const input = container.querySelector(
       'input[type="color"][name="primaryColor"]',
     ) as HTMLInputElement;
-    await act(async () => { fireEvent.input(input, { target: { value: "#abcdef" } }); });
-    await waitFor(() => { expect(input.value).toBe("#abcdef"); });
+    await act(async () => {
+      fireEvent.input(input, { target: { value: "#abcdef" } });
+    });
+    await waitFor(() => {
+      expect(input.value).toBe("#abcdef");
+    });
   });
 
   it("renders hidden inputs for theme fields not exposed in the UI", async () => {
@@ -461,18 +453,10 @@ describe("widget gap coverage — theme controls", () => {
         container.querySelector('input[type="hidden"][name="primaryHoverColor"]'),
       ).toBeTruthy();
     });
-    expect(
-      container.querySelector('input[type="hidden"][name="textColor"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('input[type="hidden"][name="textMutedColor"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('input[type="hidden"][name="borderColor"]'),
-    ).toBeTruthy();
-    expect(
-      container.querySelector('input[type="hidden"][name="shadow"]'),
-    ).toBeTruthy();
+    expect(container.querySelector('input[type="hidden"][name="textColor"]')).toBeTruthy();
+    expect(container.querySelector('input[type="hidden"][name="textMutedColor"]')).toBeTruthy();
+    expect(container.querySelector('input[type="hidden"][name="borderColor"]')).toBeTruthy();
+    expect(container.querySelector('input[type="hidden"][name="shadow"]')).toBeTruthy();
   });
 });
 
@@ -488,14 +472,10 @@ describe("widget gap coverage — toggles + form submission", () => {
       ).toBeTruthy();
     });
     // First checkbox is "Order tracking"
-    const firstCheckbox = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
+    const firstCheckbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     fireEvent.click(firstCheckbox);
     await waitFor(() => {
-      expect(
-        container.querySelector('input[type="hidden"][name="showOrderTracking"]'),
-      ).toBeFalsy();
+      expect(container.querySelector('input[type="hidden"][name="showOrderTracking"]')).toBeFalsy();
     });
   });
 
@@ -505,21 +485,15 @@ describe("widget gap coverage — toggles + form submission", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      const checkboxes = container.querySelectorAll<HTMLInputElement>(
-        'input[type="checkbox"]',
-      );
+      const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
       expect(checkboxes.length).toBeGreaterThanOrEqual(5);
     });
-    const checkboxes = container.querySelectorAll<HTMLInputElement>(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = container.querySelectorAll<HTMLInputElement>('input[type="checkbox"]');
     // 5th toggle = "Return cancellation"
     fireEvent.click(checkboxes[4]);
     await waitFor(() => {
       expect(
-        container.querySelector(
-          'input[type="hidden"][name="allowReturnCancellation"]',
-        ),
+        container.querySelector('input[type="hidden"][name="allowReturnCancellation"]'),
       ).toBeTruthy();
     });
     const hidden = container.querySelector(
@@ -536,11 +510,13 @@ describe("widget gap coverage — toggles + form submission", () => {
     await waitFor(() => {
       expect(container.querySelector('select[name="defaultTab"]')).toBeTruthy();
     });
-    const sel = container.querySelector(
-      'select[name="defaultTab"]',
-    ) as HTMLSelectElement;
-    await act(async () => { fireEvent.change(sel, { target: { value: "order" } }); });
-    await waitFor(() => { expect(sel.value).toBe("order"); });
+    const sel = container.querySelector('select[name="defaultTab"]') as HTMLSelectElement;
+    await act(async () => {
+      fireEvent.change(sel, { target: { value: "order" } });
+    });
+    await waitFor(() => {
+      expect(sel.value).toBe("order");
+    });
   });
 
   it("changes the portal language selection", async () => {
@@ -549,17 +525,17 @@ describe("widget gap coverage — toggles + form submission", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('select[name="portalLanguage"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('select[name="portalLanguage"]')).toBeTruthy();
     });
-    const sel = container.querySelector(
-      'select[name="portalLanguage"]',
-    ) as HTMLSelectElement;
+    const sel = container.querySelector('select[name="portalLanguage"]') as HTMLSelectElement;
     const someOtherLang = SUPPORTED_LANGUAGES.find((l) => l.code !== "en")?.code;
     if (someOtherLang) {
-      await act(async () => { fireEvent.change(sel, { target: { value: someOtherLang } }); });
-      await waitFor(() => { expect(sel.value).toBe(someOtherLang); });
+      await act(async () => {
+        fireEvent.change(sel, { target: { value: someOtherLang } });
+      });
+      await waitFor(() => {
+        expect(sel.value).toBe(someOtherLang);
+      });
     }
   });
 
@@ -573,9 +549,7 @@ describe("widget gap coverage — toggles + form submission", () => {
       },
     });
     await waitFor(() => {
-      expect(
-        container.querySelector('input[type="hidden"][name="brandLogoUrl"]'),
-      ).toBeTruthy();
+      expect(container.querySelector('input[type="hidden"][name="brandLogoUrl"]')).toBeTruthy();
     });
     const logoHidden = container.querySelector(
       'input[type="hidden"][name="brandLogoUrl"]',
@@ -625,8 +599,6 @@ describe("widget gap coverage — toggles + form submission", () => {
       expect(actions).toBeTruthy();
     });
     // s-button is a custom element — just assert the Save text is rendered
-    expect(container.querySelector(".app-actions")?.textContent).toContain(
-      "Save",
-    );
+    expect(container.querySelector(".app-actions")?.textContent).toContain("Save");
   });
 });

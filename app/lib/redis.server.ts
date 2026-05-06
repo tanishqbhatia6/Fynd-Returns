@@ -52,19 +52,20 @@ export function getRedis(): RedisClient | null {
           lastFailureLogged = true;
           // First-error suppression: log once, then go quiet to avoid log
           // spam if Redis stays down. Reset on reconnect.
-           
-          console.warn("[redis] connection error (will retry):", err instanceof Error ? err.message : String(err));
+
+          console.warn(
+            "[redis] connection error (will retry):",
+            err instanceof Error ? err.message : String(err),
+          );
         }
       });
       client.on("ready", () => {
         if (lastFailureLogged) {
-           
           console.info("[redis] reconnected");
           lastFailureLogged = false;
         }
       });
     } catch (err) {
-       
       console.warn("[redis] failed to construct client; falling back to in-memory:", err);
       client = null;
     }

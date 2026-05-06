@@ -127,12 +127,8 @@ describe("ReturnSettings (default export)", () => {
     await waitFor(() => {
       expect(container.querySelector("h1")?.textContent).toBe("Return Settings");
     });
-    expect(
-      container.querySelector("input[name='noReturnPeriodStart']"),
-    ).toBeFalsy();
-    expect(
-      container.querySelector("input[name='noReturnPeriodEnd']"),
-    ).toBeFalsy();
+    expect(container.querySelector("input[name='noReturnPeriodStart']")).toBeFalsy();
+    expect(container.querySelector("input[name='noReturnPeriodEnd']")).toBeFalsy();
   });
 
   it("renders date inputs when the no-return period is enabled", async () => {
@@ -146,9 +142,7 @@ describe("ReturnSettings (default export)", () => {
       },
     });
     await waitFor(() => {
-      expect(
-        container.querySelector("input[name='noReturnPeriodStart']"),
-      ).toBeTruthy();
+      expect(container.querySelector("input[name='noReturnPeriodStart']")).toBeTruthy();
     });
     const start = container.querySelector(
       "input[name='noReturnPeriodStart']",
@@ -183,13 +177,9 @@ describe("ReturnSettings (default export)", () => {
       },
     });
     await waitFor(() => {
-      expect(
-        container.querySelector("button[aria-label='Remove final-sale']"),
-      ).toBeTruthy();
+      expect(container.querySelector("button[aria-label='Remove final-sale']")).toBeTruthy();
     });
-    expect(
-      container.querySelector("button[aria-label='Remove clearance']"),
-    ).toBeTruthy();
+    expect(container.querySelector("button[aria-label='Remove clearance']")).toBeTruthy();
   });
 
   it("seeds the return-ID body-mode radio from the loader's returnIdConfig", async () => {

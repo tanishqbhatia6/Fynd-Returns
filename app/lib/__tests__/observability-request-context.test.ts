@@ -7,11 +7,7 @@
  */
 import crypto from "crypto";
 import { describe, it, expect } from "vitest";
-import {
-  setRequestContext,
-  getSourceIp,
-  hashIp,
-} from "../observability/request-context.server";
+import { setRequestContext, getSourceIp, hashIp } from "../observability/request-context.server";
 
 describe("setRequestContext", () => {
   it("returns the x-request-id header value when present", () => {
@@ -34,9 +30,7 @@ describe("setRequestContext", () => {
     const req = new Request("https://example.com/");
     const id = setRequestContext(req);
     // crypto.randomUUID() shape: 8-4-4-4-12 hex
-    expect(id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
-    );
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
   });
 
   it("generates a unique ID per call when headers are absent", () => {
@@ -137,11 +131,7 @@ describe("hashIp", () => {
 
   it("matches the first 8 chars of a SHA-256 digest", () => {
     const ip = "198.51.100.42";
-    const expected = crypto
-      .createHash("sha256")
-      .update(ip)
-      .digest("hex")
-      .slice(0, 8);
+    const expected = crypto.createHash("sha256").update(ip).digest("hex").slice(0, 8);
     expect(hashIp(ip)).toBe(expected);
   });
 

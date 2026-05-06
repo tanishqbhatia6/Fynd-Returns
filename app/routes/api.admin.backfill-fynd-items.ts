@@ -126,8 +126,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       });
 
       /* v8 ignore start - defensive `??` cascade for unknown response shape */
-      const rawItems = (searchRes as Record<string, unknown>)?.items ??
-        (searchRes as Record<string, unknown>)?.shipments ?? [];
+      const rawItems =
+        (searchRes as Record<string, unknown>)?.items ??
+        (searchRes as Record<string, unknown>)?.shipments ??
+        [];
       const shipments = Array.isArray(rawItems) ? rawItems : [];
       /* v8 ignore stop */
 
@@ -164,53 +166,94 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       /* v8 ignore start - exhaustive defensive `??`/`||`/ternary chains for unknown Fynd payload shape */
       for (const shipment of shipments as Record<string, unknown>[]) {
         const shipmentId = String(shipment.shipment_id ?? shipment.id ?? "");
-        const bags = (Array.isArray(shipment.bags) ? shipment.bags : []) as Record<string, unknown>[];
+        const bags = (Array.isArray(shipment.bags) ? shipment.bags : []) as Record<
+          string,
+          unknown
+        >[];
 
         for (const bag of bags) {
           const bagId = String(bag.bag_id ?? bag.id ?? "");
-          const articles = Array.isArray(bag.articles) ? bag.articles
-            : Array.isArray(bag.items) ? bag.items
-            : bag.item ? [bag.item] : [];
+          const articles = Array.isArray(bag.articles)
+            ? bag.articles
+            : Array.isArray(bag.items)
+              ? bag.items
+              : bag.item
+                ? [bag.item]
+                : [];
 
           for (const article of articles as Record<string, unknown>[]) {
             const itemObj = (article.item ?? article) as Record<string, unknown>;
-            const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
-            const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
+            const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<
+              string,
+              unknown
+            >;
+            const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<
+              string,
+              unknown
+            >;
 
             const sellerIdentifier = String(article.seller_identifier ?? "").trim() || null;
-            const articleId = String(article.article_id ?? article._id ?? article.id ?? "").trim() || null;
-            const affiliateLineId = String(
-              affiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
-            ).trim() || null;
+            const articleId =
+              String(article.article_id ?? article._id ?? article.id ?? "").trim() || null;
+            const affiliateLineId =
+              String(
+                affiliateBagDetails.affiliate_line_id ??
+                  (bag as Record<string, unknown>).affiliate_line_id ??
+                  "",
+              ).trim() || null;
             const itemId = String(itemObj.item_id ?? itemObj._id ?? "").trim() || null;
-            const quantityAvailable = typeof article.quantity_available === "number"
-              ? article.quantity_available
-              : typeof bag.quantity === "number" ? bag.quantity : null;
+            const quantityAvailable =
+              typeof article.quantity_available === "number"
+                ? article.quantity_available
+                : typeof bag.quantity === "number"
+                  ? bag.quantity
+                  : null;
             const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
             const priceEffective = pe != null ? String(pe) : null;
             const size = String(article.size ?? bag.size ?? itemObj.size ?? "").trim() || null;
-            const title = String(itemObj.name ?? itemObj.item_name ?? itemObj.title ?? article.name ?? "").trim();
-            const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? null;
+            const title = String(
+              itemObj.name ?? itemObj.item_name ?? itemObj.title ?? article.name ?? "",
+            ).trim();
+            const rawPrice =
+              priceInfo.transfer_price ??
+              priceInfo.price_effective ??
+              priceInfo.amount_paid ??
+              null;
             const price = rawPrice != null ? String(rawPrice) : null;
 
             allBags.push({
-              shipmentId, bagId, sellerIdentifier, articleId, affiliateLineId,
-              itemId, quantityAvailable, priceEffective, size, title, price,
+              shipmentId,
+              bagId,
+              sellerIdentifier,
+              articleId,
+              affiliateLineId,
+              itemId,
+              quantityAvailable,
+              priceEffective,
+              size,
+              title,
+              price,
             });
           }
 
           // Bag-level fallback
-          if ((Array.isArray(bag.articles) ? bag.articles : []).length === 0 &&
-              (Array.isArray(bag.items) ? bag.items : []).length === 0 &&
-              !bag.item) {
+          if (
+            (Array.isArray(bag.articles) ? bag.articles : []).length === 0 &&
+            (Array.isArray(bag.items) ? bag.items : []).length === 0 &&
+            !bag.item
+          ) {
             const bagItem = (bag.item ?? {}) as Record<string, unknown>;
             const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<string, unknown>;
-            const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
+            const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<
+              string,
+              unknown
+            >;
 
             allBags.push({
               shipmentId,
               bagId: String(bag.bag_id ?? bag.id ?? ""),
-              sellerIdentifier: bag.seller_identifier != null ? String(bag.seller_identifier) : null,
+              sellerIdentifier:
+                bag.seller_identifier != null ? String(bag.seller_identifier) : null,
               articleId: bag.article_id != null ? String(bag.article_id) : null,
               affiliateLineId: String(affiliateBagDetails.affiliate_line_id ?? "").trim() || null,
               itemId: bagItem.item_id != null ? String(bagItem.item_id) : null,
@@ -242,39 +285,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         /* v8 ignore start - defensive `?? null`/multi-fallback match strategy chains */
         // 1. Exact match by existing fyndBagId
         if (returnItem.fyndBagId) {
-          matched = allBags.find(b => b.bagId === returnItem.fyndBagId) ?? null;
+          matched = allBags.find((b) => b.bagId === returnItem.fyndBagId) ?? null;
         }
 
         // 2. Match by sku / seller_identifier
         if (!matched && returnItem.sku) {
-          matched = allBags.find(b => b.sellerIdentifier === returnItem.sku) ?? null;
+          matched = allBags.find((b) => b.sellerIdentifier === returnItem.sku) ?? null;
         }
 
         // 3. Match by affiliateLineId → shopifyLineItemId
         if (!matched && returnItem.shopifyLineItemId) {
-          const numericId = returnItem.shopifyLineItemId.replace(/^gid:\/\/shopify\/LineItem\//, "");
-          matched = allBags.find(b => b.affiliateLineId === numericId) ?? null;
+          const numericId = returnItem.shopifyLineItemId.replace(
+            /^gid:\/\/shopify\/LineItem\//,
+            "",
+          );
+          matched = allBags.find((b) => b.affiliateLineId === numericId) ?? null;
         }
 
         // 4. Title + price fuzzy match as last resort
         if (!matched && returnItem.title) {
           const normalizedTitle = returnItem.title.toLowerCase().trim();
-          matched = allBags.find(b => {
-            const bagTitle = b.title.toLowerCase().trim();
-            if (!bagTitle || !normalizedTitle) return false;
-            // Check title contains or is contained
-            const titleMatch = bagTitle.includes(normalizedTitle) || normalizedTitle.includes(bagTitle);
-            if (!titleMatch) return false;
-            // Optionally check price proximity
-            if (returnItem.price && b.price) {
-              const itemPrice = parseFloat(returnItem.price);
-              const bagPrice = parseFloat(b.price);
-              if (!isNaN(itemPrice) && !isNaN(bagPrice)) {
-                return Math.abs(itemPrice - bagPrice) < 1;
+          matched =
+            allBags.find((b) => {
+              const bagTitle = b.title.toLowerCase().trim();
+              if (!bagTitle || !normalizedTitle) return false;
+              // Check title contains or is contained
+              const titleMatch =
+                bagTitle.includes(normalizedTitle) || normalizedTitle.includes(bagTitle);
+              if (!titleMatch) return false;
+              // Optionally check price proximity
+              if (returnItem.price && b.price) {
+                const itemPrice = parseFloat(returnItem.price);
+                const bagPrice = parseFloat(b.price);
+                if (!isNaN(itemPrice) && !isNaN(bagPrice)) {
+                  return Math.abs(itemPrice - bagPrice) < 1;
+                }
               }
-            }
-            return titleMatch;
-          }) ?? null;
+              return titleMatch;
+            }) ?? null;
         }
         /* v8 ignore stop */
 
@@ -285,19 +333,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         // Build update — ONLY set NULL fields
         const updates: Record<string, unknown> = {};
-        if (!returnItem.fyndShipmentId && matched.shipmentId) updates.fyndShipmentId = matched.shipmentId;
+        if (!returnItem.fyndShipmentId && matched.shipmentId)
+          updates.fyndShipmentId = matched.shipmentId;
         if (!returnItem.fyndBagId && matched.bagId) updates.fyndBagId = matched.bagId;
         if (!returnItem.sku && matched.sellerIdentifier) updates.sku = matched.sellerIdentifier;
-        if (!returnItem.fyndArticleId && matched.articleId) updates.fyndArticleId = matched.articleId;
-        if (!returnItem.fyndAffiliateLineId && matched.affiliateLineId) updates.fyndAffiliateLineId = matched.affiliateLineId;
-        if (!returnItem.fyndSellerIdentifier && matched.sellerIdentifier) updates.fyndSellerIdentifier = matched.sellerIdentifier;
+        if (!returnItem.fyndArticleId && matched.articleId)
+          updates.fyndArticleId = matched.articleId;
+        if (!returnItem.fyndAffiliateLineId && matched.affiliateLineId)
+          updates.fyndAffiliateLineId = matched.affiliateLineId;
+        if (!returnItem.fyndSellerIdentifier && matched.sellerIdentifier)
+          updates.fyndSellerIdentifier = matched.sellerIdentifier;
         if (!returnItem.fyndItemId && matched.itemId) updates.fyndItemId = matched.itemId;
-        if (returnItem.fyndQuantityAvailable == null && matched.quantityAvailable != null) updates.fyndQuantityAvailable = matched.quantityAvailable;
-        if (!returnItem.fyndPriceEffective && matched.priceEffective) updates.fyndPriceEffective = matched.priceEffective;
+        if (returnItem.fyndQuantityAvailable == null && matched.quantityAvailable != null)
+          updates.fyndQuantityAvailable = matched.quantityAvailable;
+        if (!returnItem.fyndPriceEffective && matched.priceEffective)
+          updates.fyndPriceEffective = matched.priceEffective;
         if (!returnItem.fyndSize && matched.size) updates.fyndSize = matched.size;
 
         if (Object.keys(updates).length === 0) {
-          details.push(`Item "${returnItem.title}" (${returnItem.id}): already complete, no updates needed`);
+          details.push(
+            `Item "${returnItem.title}" (${returnItem.id}): already complete, no updates needed`,
+          );
           continue;
         }
 
@@ -310,7 +366,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         itemsUpdated++;
         details.push(
-          `Item "${returnItem.title}" (${returnItem.id}): ${dryRun ? "would update" : "updated"} ${Object.keys(updates).join(", ")}`
+          `Item "${returnItem.title}" (${returnItem.id}): ${dryRun ? "would update" : "updated"} ${Object.keys(updates).join(", ")}`,
         );
       }
 

@@ -14,7 +14,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock } = vi.hoisted(() => ({ prismaMock: {} as ReturnType<typeof createPrismaMock> }));
+const { prismaMock } = vi.hoisted(() => ({
+  prismaMock: {} as ReturnType<typeof createPrismaMock>,
+}));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -66,7 +68,7 @@ describe("nextReturnIdCounter", () => {
     expect(sql).toMatch(/"updatedAt"\s*=\s*NOW\(\)/);
   });
 
-  it("scopes the UPDATE by id (WHERE \"id\" = $1)", async () => {
+  it('scopes the UPDATE by id (WHERE "id" = $1)', async () => {
     prismaMock.$queryRawUnsafe.mockResolvedValueOnce([{ returnIdCounter: 9 }]);
     await nextReturnIdCounter("settings-abc");
     const sql = prismaMock.$queryRawUnsafe.mock.calls[0][0] as string;

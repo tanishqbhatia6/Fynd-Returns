@@ -51,7 +51,9 @@ const {
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
-  fetchAllLocationsMock: vi.fn<(...args: unknown[]) => Promise<Array<{ id: string; name: string; isActive: boolean }>>>(async () => []),
+  fetchAllLocationsMock: vi.fn<
+    (...args: unknown[]) => Promise<Array<{ id: string; name: string; isActive: boolean }>>
+  >(async () => []),
   parseReturnIdConfigMock: vi.fn(() => ({ bodyMode: "hash", prefix: "RET" })),
   buildReturnRequestIdMock: vi.fn(() => "RET-ABC123"),
   formatReturnRequestIdMock: vi.fn((id: string) => id),
@@ -62,7 +64,9 @@ const {
   extractFyndJourneyMock: vi.fn(() => []),
   extractCustomerFromFyndPayloadMock: vi.fn(() => null),
   extractShippingDetailsFromFyndPayloadMock: vi.fn(() => null),
-  extractAffiliateOrderIdFromFyndPayloadMock: vi.fn<(...args: unknown[]) => string | null>(() => null),
+  extractAffiliateOrderIdFromFyndPayloadMock: vi.fn<(...args: unknown[]) => string | null>(
+    () => null,
+  ),
   isLikelyFyndIdMock: vi.fn(() => false),
   buildTrackingUrlFromCourierAndAwbMock: vi.fn(() => null),
   isFyndPrivateUrlMock: vi.fn(() => false),
@@ -171,7 +175,9 @@ beforeEach(() => {
   buildTrackingUrlFromCourierAndAwbMock.mockReset().mockReturnValue(null);
   isFyndPrivateUrlMock.mockReset().mockReturnValue(false);
   signFyndUrlMock.mockReset().mockResolvedValue(null);
-  createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, reason: "not_configured" });
+  createFyndClientOrErrorMock
+    .mockReset()
+    .mockResolvedValue({ ok: false, reason: "not_configured" });
 });
 
 describe("app.returns.$id loader", () => {
@@ -347,7 +353,9 @@ describe("app.returns.$id loader", () => {
 
     const updateCalls = prismaMock.returnCase.update.mock.calls;
     const persistedShopifyId = updateCalls.find(
-      (c: unknown[]) => (c[0] as { data?: Record<string, unknown> })?.data?.shopifyOrderId === "gid://shopify/Order/444",
+      (c: unknown[]) =>
+        (c[0] as { data?: Record<string, unknown> })?.data?.shopifyOrderId ===
+        "gid://shopify/Order/444",
     );
     expect(persistedShopifyId).toBeTruthy();
   });
@@ -468,7 +476,11 @@ describe("app.returns.$id loader", () => {
         isGreenReturn: true,
       }),
     );
-    fetchOrderMock.mockResolvedValueOnce({ id: "gid://shopify/Order/1", name: "#1", fulfillments: [] });
+    fetchOrderMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/1",
+      name: "#1",
+      fulfillments: [],
+    });
 
     await loader({ request: mkReq("rc-1"), params: { id: "rc-1" }, context: {} } as never);
 

@@ -66,11 +66,9 @@ describe("createPortalToken / verifyPortalToken round-trip", () => {
 
 describe("verifyPortalToken — failure modes", () => {
   it("returns null for an expired token", () => {
-    const expired = jwt.sign(
-      { userId: "u", iat: Math.floor(Date.now() / 1000) - 7200 },
-      SECRET,
-      { expiresIn: "1s" },
-    );
+    const expired = jwt.sign({ userId: "u", iat: Math.floor(Date.now() / 1000) - 7200 }, SECRET, {
+      expiresIn: "1s",
+    });
     expect(verifyPortalToken(expired)).toBeNull();
   });
 
@@ -199,9 +197,7 @@ describe("verifyPortalCsrfToken — failure modes", () => {
 
 describe("hashLookupValue", () => {
   it("normalises case and surrounding whitespace", () => {
-    expect(hashLookupValue("  Hello@Example.COM  ")).toBe(
-      hashLookupValue("hello@example.com"),
-    );
+    expect(hashLookupValue("  Hello@Example.COM  ")).toBe(hashLookupValue("hello@example.com"));
   });
 
   it("does not collapse internal whitespace (intentionally only trim)", () => {

@@ -9,17 +9,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  authenticateWebhookMock,
-  shopifyModuleMock,
-  extractAffiliateOrderIdMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateWebhookMock: vi.fn(),
-  shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
-  extractAffiliateOrderIdMock: vi.fn(),
-}));
+const { prismaMock, authenticateWebhookMock, shopifyModuleMock, extractAffiliateOrderIdMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateWebhookMock: vi.fn(),
+    shopifyModuleMock: { unauthenticated: { admin: vi.fn() } },
+    extractAffiliateOrderIdMock: vi.fn(),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -48,9 +44,9 @@ describe("webhooks.orders.create", () => {
   it("re-throws HMAC 401 Response from authenticate.webhook", async () => {
     const resp401 = new Response(null, { status: 401 });
     authenticateWebhookMock.mockRejectedValueOnce(resp401);
-    await expect(
-      action({ request: mkReq(), params: {}, context: {} } as never),
-    ).rejects.toBe(resp401);
+    await expect(action({ request: mkReq(), params: {}, context: {} } as never)).rejects.toBe(
+      resp401,
+    );
   });
 
   it("swallows non-Response auth errors and returns 200", async () => {

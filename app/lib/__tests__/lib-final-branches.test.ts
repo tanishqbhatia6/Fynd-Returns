@@ -119,10 +119,23 @@ function mkRefundCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandl
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -146,7 +159,11 @@ function mkRefreshCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHand
       status: "pending",
       items: [],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -177,7 +194,11 @@ function mkRetryCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandle
       createdAt: new Date("2024-01-01T00:00:00Z"),
       items: [],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -217,7 +238,9 @@ beforeEach(() => {
   fetchOrderLineItemsOnlyMock.mockReset().mockResolvedValue(null);
   fetchOrderLineItemsByNameMock.mockReset().mockResolvedValue(null);
   closeShopifyReturnBestEffortMock.mockReset().mockResolvedValue({ ok: true });
-  createShopifyReturnMock.mockReset().mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/Z" });
+  createShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/Z" });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   createReturnOnFyndMock.mockReset();
   sendRefundNotificationMock.mockReset().mockResolvedValue(undefined);
@@ -283,7 +306,8 @@ describe("handleProcessRefund — branch gaps", () => {
     // Force one transition to succeed and the next to fail. With current
     // status='delivered' (not in the skip list), TWO transitions are pushed:
     // return_accepted then credit_note_generated.
-    const updateShipmentStatus = vi.fn()
+    const updateShipmentStatus = vi
+      .fn()
       .mockResolvedValueOnce({ ok: true })
       .mockRejectedValueOnce(new Error("locked"));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -307,7 +331,10 @@ describe("handleProcessRefund — branch gaps", () => {
     );
     const synced = events.find((e) => e.eventType === "fynd_refund_synced");
     expect(synced).toBeDefined();
-    const syncedPayload = JSON.parse(synced!.payloadJson) as { transitions: string[]; partialFailures?: unknown[] };
+    const syncedPayload = JSON.parse(synced!.payloadJson) as {
+      transitions: string[];
+      partialFailures?: unknown[];
+    };
     expect(syncedPayload.transitions).toContain("return_accepted");
     expect(syncedPayload.partialFailures).toBeDefined();
     expect((syncedPayload.partialFailures as unknown[]).length).toBe(1);
@@ -353,7 +380,11 @@ describe("handleProcessRefund — branch gaps", () => {
         id: "shop-1",
         shopDomain: "store.myshopify.com",
         // Force settings-based path (no body refundMethod) and "original".
-        settings: { fyndApiType: "platform", refundPaymentMethod: "original", refundStoreCreditPct: 100 },
+        settings: {
+          fyndApiType: "platform",
+          refundPaymentMethod: "original",
+          refundStoreCreditPct: 100,
+        },
       },
     });
     await expect(
@@ -385,10 +416,11 @@ describe("handleProcessRefund — branch gaps", () => {
       success: false,
       error: "Insufficient funds",
     });
-    const res = await handleProcessRefund(
-      mkRefundCtx(),
-      { action: "process_refund", refundMethod: "original", note: "n1" } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(mkRefundCtx(), {
+      action: "process_refund",
+      refundMethod: "original",
+      note: "n1",
+    } as ReturnActionBody);
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(400);
     const body = await (res as Response).json();
@@ -406,10 +438,9 @@ describe("handleProcessRefund — branch gaps", () => {
     // continues to return Response 500.
     createRefundMock.mockRejectedValueOnce(new Error("generic refund crash"));
     prismaMock.returnEvent.create.mockRejectedValueOnce(new Error("event-write down"));
-    const res = await handleProcessRefund(
-      mkRefundCtx(),
-      { action: "process_refund" } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(mkRefundCtx(), {
+      action: "process_refund",
+    } as ReturnActionBody);
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(500);
   });
@@ -455,10 +486,14 @@ describe("handleRefreshFyndDetails — branch gaps", () => {
       client: { searchShipmentsByExternalOrderId: search },
     });
     await expectRedirect(
-      handleRefreshFyndDetails(mkRefreshCtx(), { action: "refresh_fynd_details" } as ReturnActionBody),
+      handleRefreshFyndDetails(mkRefreshCtx(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
       "fyndRefresh=1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as { data: { fyndOrderId?: string; fyndPayloadJson?: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as {
+      data: { fyndOrderId?: string; fyndPayloadJson?: string };
+    };
     expect(update.data.fyndOrderId).toBe("FY-S1");
   });
 
@@ -469,7 +504,13 @@ describe("handleRefreshFyndDetails — branch gaps", () => {
     }));
     const fullArr = [
       { shipment_id: "S-1", journey_type: "forward" },
-      { shipment_id: "S-2", journey_type: "return", status: "return_initiated", dp_name: "Delhivery", awb_no: "DEL-1" },
+      {
+        shipment_id: "S-2",
+        journey_type: "return",
+        status: "return_initiated",
+        dp_name: "Delhivery",
+        awb_no: "DEL-1",
+      },
     ];
     const getShipments = vi.fn(async () => fullArr);
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -477,10 +518,14 @@ describe("handleRefreshFyndDetails — branch gaps", () => {
       client: { searchShipmentsByExternalOrderId: search, getShipments },
     });
     await expectRedirect(
-      handleRefreshFyndDetails(mkRefreshCtx(), { action: "refresh_fynd_details" } as ReturnActionBody),
+      handleRefreshFyndDetails(mkRefreshCtx(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
       "fyndRefresh=1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as { data: { fyndPayloadJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as {
+      data: { fyndPayloadJson: string };
+    };
     const stored = JSON.parse(update.data.fyndPayloadJson);
     // Stored payload is the bare array (length=2) not the search obj.
     expect(Array.isArray(stored)).toBe(true);
@@ -499,10 +544,14 @@ describe("handleRefreshFyndDetails — branch gaps", () => {
       client: { searchShipmentsByExternalOrderId: search, getShipments },
     });
     await expectRedirect(
-      handleRefreshFyndDetails(mkRefreshCtx(), { action: "refresh_fynd_details" } as ReturnActionBody),
+      handleRefreshFyndDetails(mkRefreshCtx(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
       "fyndRefresh=1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as { data: { fyndPayloadJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as {
+      data: { fyndPayloadJson: string };
+    };
     const stored = JSON.parse(update.data.fyndPayloadJson);
     // Full object preferred — contains the .shipments key.
     expect(stored.shipments).toHaveLength(2);
@@ -573,10 +622,14 @@ describe("handleRefreshFyndDetails — branch gaps", () => {
       client: { searchShipmentsByExternalOrderId: search },
     });
     await expectRedirect(
-      handleRefreshFyndDetails(mkRefreshCtx(), { action: "refresh_fynd_details" } as ReturnActionBody),
+      handleRefreshFyndDetails(mkRefreshCtx(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
       "fyndRefresh=1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as { data: { returnLabelJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as {
+      data: { returnLabelJson: string };
+    };
     const stored = JSON.parse(update.data.returnLabelJson);
     expect(stored.labelUrl).toBe("https://x.com/L.pdf");
     expect(stored.invoiceUrl).toBe("https://x.com/I.pdf");
@@ -608,7 +661,9 @@ describe("handleRetryFyndSync — branch gaps", () => {
     // The synced update still ran. Because payloadJson===null after catch,
     // the conditional spread omits fyndPayloadJson from the data object.
     const updates = prismaMock.returnCase.update.mock.calls;
-    const synced = updates.find((c) => (c[0] as { data: { fyndSyncStatus?: string } }).data.fyndSyncStatus === "synced");
+    const synced = updates.find(
+      (c) => (c[0] as { data: { fyndSyncStatus?: string } }).data.fyndSyncStatus === "synced",
+    );
     expect(synced).toBeDefined();
     expect((synced![0] as { data: Record<string, unknown> }).data.fyndPayloadJson).toBeUndefined();
     expect((synced![0] as { data: Record<string, unknown> }).data.fyndReturnId).toBe("FY-CIRC");

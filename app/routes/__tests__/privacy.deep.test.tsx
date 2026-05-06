@@ -25,9 +25,7 @@ describe("PrivacyPolicy — deep coverage", () => {
 
   it("renders all 10 numbered section headings in order", () => {
     const { container } = render(<PrivacyPolicy />);
-    const headings = Array.from(container.querySelectorAll("h2")).map(
-      (h) => h.textContent || "",
-    );
+    const headings = Array.from(container.querySelectorAll("h2")).map((h) => h.textContent || "");
     const expected = [
       "1. Information We Collect",
       "2. How We Use Information",
@@ -87,9 +85,7 @@ describe("PrivacyPolicy — deep coverage", () => {
       cursor = cursor.nextElementSibling;
     }
     expect(webhookList).toBeTruthy();
-    const items = Array.from(webhookList!.querySelectorAll("li")).map(
-      (li) => li.textContent || "",
-    );
+    const items = Array.from(webhookList!.querySelectorAll("li")).map((li) => li.textContent || "");
     expect(items).toHaveLength(3);
     expect(items[0]).toMatch(/Customer data request/);
     expect(items[0]).toMatch(/compile all stored data/i);
@@ -101,19 +97,13 @@ describe("PrivacyPolicy — deep coverage", () => {
 
   it("references shop/redact and customers/redact webhook codes in retention section", () => {
     const { container } = render(<PrivacyPolicy />);
-    const codes = Array.from(container.querySelectorAll("code")).map(
-      (c) => c.textContent || "",
-    );
-    expect(codes).toEqual(
-      expect.arrayContaining(["shop/redact", "customers/redact"]),
-    );
+    const codes = Array.from(container.querySelectorAll("code")).map((c) => c.textContent || "");
+    expect(codes).toEqual(expect.arrayContaining(["shop/redact", "customers/redact"]));
   });
 
   it("renders the contact links — privacy email and external Fynd site", () => {
     const { container } = render(<PrivacyPolicy />);
-    const mailto = container.querySelector(
-      'a[href="mailto:privacy@fynd.com"]',
-    );
+    const mailto = container.querySelector('a[href="mailto:privacy@fynd.com"]');
     expect(mailto).toBeTruthy();
     expect(mailto?.textContent).toBe("privacy@fynd.com");
 

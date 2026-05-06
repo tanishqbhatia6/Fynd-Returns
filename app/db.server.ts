@@ -54,9 +54,7 @@ function createClient(): PrismaClient {
 }
 
 const prisma =
-  process.env.NODE_ENV !== "production"
-    ? (global.prismaGlobal ??= createClient())
-    : createClient();
+  process.env.NODE_ENV !== "production" ? (global.prismaGlobal ??= createClient()) : createClient();
 
 // ---------------------------------------------------------------------------
 // Connection pool monitoring via pg_stat_activity (every 30s)
@@ -70,9 +68,7 @@ dbPoolIdle.addCallback((observer) => observer.observe(poolState.idle));
 
 async function pollConnectionPool() {
   try {
-    const result = await prisma.$queryRaw<
-      Array<{ active: bigint; idle: bigint }>
-    >`
+    const result = await prisma.$queryRaw<Array<{ active: bigint; idle: bigint }>>`
       SELECT
         count(*) FILTER (WHERE state = 'active') AS active,
         count(*) FILTER (WHERE state = 'idle') AS idle

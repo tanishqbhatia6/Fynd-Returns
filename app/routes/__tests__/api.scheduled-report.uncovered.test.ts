@@ -14,12 +14,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  sendMailMock,
-  createTransportMock,
-  decryptMock,
-} = vi.hoisted(() => {
+const { prismaMock, sendMailMock, createTransportMock, decryptMock } = vi.hoisted(() => {
   const sendMail = vi.fn().mockResolvedValue({ messageId: "x" });
   const createTransport = vi.fn(() => ({ sendMail }));
   return {
@@ -231,9 +226,7 @@ describe("api.scheduled-report — recipient + SMTP fallback paths", () => {
   });
 
   it("returns 'SMTP not configured' when smtpUser is missing (lines 206-207)", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
-      baseSetting({ smtpUser: null }),
-    ]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({ smtpUser: null })]);
     prismaMock.returnCase.count.mockResolvedValueOnce(0);
     prismaMock.returnCase.groupBy.mockResolvedValue([]);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
@@ -253,9 +246,7 @@ describe("api.scheduled-report — zero-data report generation", () => {
   it("renders + sends email even when there are zero return cases", async () => {
     prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting()]);
     prismaMock.returnCase.count.mockResolvedValueOnce(0);
-    prismaMock.returnCase.groupBy
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
+    prismaMock.returnCase.groupBy.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
 
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);

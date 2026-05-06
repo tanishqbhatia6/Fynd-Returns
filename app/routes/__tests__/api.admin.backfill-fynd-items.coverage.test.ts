@@ -13,7 +13,10 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, authenticateMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -100,7 +103,11 @@ beforeEach(() => {
 
 describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   it("dryRun: matches items but does NOT call returnItem.update or returnCase.update", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn(async () => ({ items: [mkShipment()] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -108,7 +115,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([mkReturnCase()]);
 
-    const res = await action({ request: mkReq({ dryRun: true }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ dryRun: true }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
 
@@ -127,7 +138,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("populated path: writes returnItem.update + returnCase.update with NULL-only fields", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn(async () => ({ items: [mkShipment()] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -158,16 +173,24 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
       fyndPriceEffective: "120",
       fyndSize: "M",
     });
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "rc-1" },
-      data: { fyndShipmentId: "SHIP-1" },
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rc-1" },
+        data: { fyndShipmentId: "SHIP-1" },
+      }),
+    );
     expect(body.results[0].caseUpdated).toBe(true);
   });
 
   it("Fynd shipment fetch error: caught and surfaced as result with status=error (does not reject)", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
-    const search = vi.fn(async () => { throw new Error("Fynd 502 bad gateway"); });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
+    const search = vi.fn(async () => {
+      throw new Error("Fynd 502 bad gateway");
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn(), searchShipmentsByExternalOrderId: search },
@@ -193,8 +216,14 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("non-Error thrown from Fynd is stringified into result.error", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
-    const search = vi.fn(async () => { throw "raw string failure"; });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
+    const search = vi.fn(async () => {
+      throw "raw string failure";
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn(), searchShipmentsByExternalOrderId: search },
@@ -208,7 +237,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("skips manual: orders without calling Fynd", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn();
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -218,7 +251,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
       mkReturnCase({ shopifyOrderId: "manual:abc" }),
     ]);
 
-    const res = await action({ request: mkReq({ returnCaseId: "rc-1" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkReq({ returnCaseId: "rc-1" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.skipped).toBe(1);
     expect(body.results[0].status).toBe("skipped");
@@ -227,7 +264,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("skips when shopifyOrderName is missing", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn();
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -245,7 +286,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("skips when Fynd returns zero shipments for the order", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn(async () => ({ items: [] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -262,7 +307,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("already-complete item: matches but produces zero updates and no DB write", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn(async () => ({ items: [mkShipment()] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -299,7 +348,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("uses `shipments` payload key when `items` is absent", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn(async () => ({ shipments: [mkShipment()] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -314,20 +367,28 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("matches by shopifyLineItemId → affiliate_line_id when sku is unset", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     // Bag has no seller_identifier → SKU match fails; must fall through to LINE-1.
     const shipment = mkShipment({
-      bags: [{
-        bag_id: "BAG-1",
-        affiliate_bag_details: { affiliate_line_id: "LINE-1" },
-        prices: { transfer_price: "100" },
-        articles: [{
-          // no seller_identifier
-          article_id: "ART-1",
-          item_id: "ITM-1",
-          item: { item_id: "ITM-1", name: "Widget" },
-        }],
-      }],
+      bags: [
+        {
+          bag_id: "BAG-1",
+          affiliate_bag_details: { affiliate_line_id: "LINE-1" },
+          prices: { transfer_price: "100" },
+          articles: [
+            {
+              // no seller_identifier
+              article_id: "ART-1",
+              item_id: "ITM-1",
+              item: { item_id: "ITM-1", name: "Widget" },
+            },
+          ],
+        },
+      ],
     });
     const search = vi.fn(async () => ({ items: [shipment] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -336,10 +397,12 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       mkReturnCase({
-        items: [mkReturnItem({
-          sku: null,
-          shopifyLineItemId: "gid://shopify/LineItem/LINE-1",
-        })],
+        items: [
+          mkReturnItem({
+            sku: null,
+            shopifyLineItemId: "gid://shopify/LineItem/LINE-1",
+          }),
+        ],
       }),
     ]);
 
@@ -351,20 +414,28 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("no match for an item: produces 'no Fynd bag match found' detail and no write", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     // Shipment is unrelated — different bag/sku/title and no affiliate_line_id.
     const shipment = {
       shipment_id: "SHIP-X",
-      bags: [{
-        bag_id: "BAG-X",
-        affiliate_bag_details: {},
-        prices: {},
-        articles: [{
-          seller_identifier: "OTHER-SKU",
-          article_id: "OTHER-ART",
-          item: { name: "Unrelated Product" },
-        }],
-      }],
+      bags: [
+        {
+          bag_id: "BAG-X",
+          affiliate_bag_details: {},
+          prices: {},
+          articles: [
+            {
+              seller_identifier: "OTHER-SKU",
+              article_id: "OTHER-ART",
+              item: { name: "Unrelated Product" },
+            },
+          ],
+        },
+      ],
     };
     const search = vi.fn(async () => ({ items: [shipment] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -386,7 +457,11 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
   });
 
   it("strips leading '#' from shopifyOrderName before querying Fynd", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     const search = vi.fn(async () => ({ items: [] }));
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
@@ -397,9 +472,12 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
     ]);
 
     await action({ request: mkReq(), params: {}, context: {} } as never);
-    expect(search).toHaveBeenCalledWith("1234", expect.objectContaining({
-      searchType: "external_order_id",
-      pageSize: 50,
-    }));
+    expect(search).toHaveBeenCalledWith(
+      "1234",
+      expect.objectContaining({
+        searchType: "external_order_id",
+        pageSize: 50,
+      }),
+    );
   });
 });

@@ -73,7 +73,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
@@ -89,12 +90,14 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
       request: mkReq("name=" + encodeURIComponent("#  1234  ")),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.diagnostics.orderNameInput).toBe("#  1234  ");
@@ -106,16 +109,22 @@ describe("api.debug.order-lookup — extra coverage", () => {
     // Variant 1 (name:"#X") returns a hit; remaining return empty
     const graphqlMock = makeGraphql([
       { data: { orders: { nodes: [{ id: "gid://shopify/Order/100", name: "#1001" }] } } },
-      EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
       { data: { orders: { nodes: [] } } }, // pagination scan
-      EMPTY_GQL,                            // metafield
+      EMPTY_GQL, // metafield
     ]);
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
@@ -131,7 +140,10 @@ describe("api.debug.order-lookup — extra coverage", () => {
     // Other variants empty → success: false, no error (data present)
     expect(gql[1].success).toBe(false);
     expect(gql[1].error).toBeUndefined();
-    expect(body.summary.firstSuccessful).toMatchObject({ strategy: "GraphQL search", success: true });
+    expect(body.summary.firstSuccessful).toMatchObject({
+      strategy: "GraphQL search",
+      success: true,
+    });
   });
 
   it("REST API: first variant succeeds (#cleaned) → orderId is gid form", async () => {
@@ -179,10 +191,12 @@ describe("api.debug.order-lookup — extra coverage", () => {
       expect(r.error).toMatch(/ECONNRESET/);
     });
     // Other strategies still ran
-    expect(body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan"))
-      .toBeDefined();
-    expect(body.results.find((r: { strategy: string }) => r.strategy === "Metafield search"))
-      .toBeDefined();
+    expect(
+      body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan"),
+    ).toBeDefined();
+    expect(
+      body.results.find((r: { strategy: string }) => r.strategy === "Metafield search"),
+    ).toBeDefined();
   });
 
   it("REST API: non-string body for non-200 is gracefully truncated to <=200 chars", async () => {
@@ -193,7 +207,9 @@ describe("api.debug.order-lookup — extra coverage", () => {
     });
     const longBody = "x".repeat(500);
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: false, status: 500, text: async () => longBody,
+      ok: false,
+      status: 500,
+      text: async () => longBody,
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
@@ -209,7 +225,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     const fetchSpy = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     });
     globalThis.fetch = fetchSpy as typeof fetch;
 
@@ -227,20 +244,29 @@ describe("api.debug.order-lookup — extra coverage", () => {
       name: `#100${i}`,
     }));
     const graphqlMock = makeGraphql([
-      EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
       { data: { orders: { nodes } } }, // pagination scan
-      EMPTY_GQL,                        // metafield
+      EMPTY_GQL, // metafield
     ]);
     authenticateMock.mockResolvedValueOnce({
       session: { shop: "store.myshopify.com", accessToken: "tok" },
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=NOTPRESENT"), params: {}, context: {},
+      request: mkReq("name=NOTPRESENT"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const scan = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
@@ -252,11 +278,23 @@ describe("api.debug.order-lookup — extra coverage", () => {
 
   it("Pagination scan: case-insensitive match strips '#' from order names", async () => {
     const graphqlMock = makeGraphql([
-      EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL,
-      { data: { orders: { nodes: [
-        { id: "gid://shopify/Order/A", name: "#Other" },
-        { id: "gid://shopify/Order/B", name: "#abc-99" },
-      ] } } },
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      {
+        data: {
+          orders: {
+            nodes: [
+              { id: "gid://shopify/Order/A", name: "#Other" },
+              { id: "gid://shopify/Order/B", name: "#abc-99" },
+            ],
+          },
+        },
+      },
       EMPTY_GQL,
     ]);
     authenticateMock.mockResolvedValueOnce({
@@ -264,11 +302,14 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({
-      request: mkReq("name=ABC-99"), params: {}, context: {},
+      request: mkReq("name=ABC-99"),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const scan = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
@@ -279,7 +320,13 @@ describe("api.debug.order-lookup — extra coverage", () => {
 
   it("Pagination scan: GraphQL errors propagate as result.error and success=false", async () => {
     const graphqlMock = makeGraphql([
-      EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
       { data: { orders: { nodes: [] } }, errors: [{ message: "scope missing" }] },
       EMPTY_GQL,
     ]);
@@ -288,7 +335,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
@@ -299,7 +347,13 @@ describe("api.debug.order-lookup — extra coverage", () => {
 
   it("Pagination scan: throw in admin.graphql is captured", async () => {
     const seq = [
-      EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
       new Error("paginate boom"),
       EMPTY_GQL,
     ];
@@ -309,20 +363,29 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
     const body = await res.json();
     const scan = body.results.find((r: { strategy: string }) => r.strategy === "Pagination scan");
     expect(scan).toMatchObject({
-      success: false, error: "paginate boom", query: "orders(first: 50)",
+      success: false,
+      error: "paginate boom",
+      query: "orders(first: 50)",
     });
   });
 
   it("Metafield search: success populates orderId/orderName", async () => {
     const graphqlMock = makeGraphql([
-      EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
       EMPTY_GQL,
       { data: { orders: { nodes: [{ id: "gid://shopify/Order/MF1", name: "#MF-OK" }] } } },
     ]);
@@ -331,7 +394,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=ABC"), params: {}, context: {} } as never);
@@ -347,7 +411,13 @@ describe("api.debug.order-lookup — extra coverage", () => {
 
   it("Metafield search: throw recorded with rejection message", async () => {
     const seq = [
-      EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL, EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
+      EMPTY_GQL,
       EMPTY_GQL,
       new Error("mf boom"),
     ];
@@ -357,7 +427,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
@@ -373,7 +444,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
@@ -393,13 +465,15 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
     prismaMock.returnCase.findUnique.mockResolvedValueOnce(null);
 
     const res = await loader({
       request: mkReq("name=1001&returnCaseId=missing-rc"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.diagnostics.apiVersion).toBe("2026-01");
@@ -415,7 +489,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);
@@ -434,7 +509,8 @@ describe("api.debug.order-lookup — extra coverage", () => {
       admin: { graphql: graphqlMock },
     });
     globalThis.fetch = vi.fn().mockResolvedValue({
-      ok: true, json: async () => ({ orders: [] }),
+      ok: true,
+      json: async () => ({ orders: [] }),
     }) as typeof fetch;
 
     const res = await loader({ request: mkReq("name=1001"), params: {}, context: {} } as never);

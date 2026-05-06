@@ -23,7 +23,7 @@ vi.mock("../observability/logger.server", () => ({
   shopifyLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 0,
@@ -34,7 +34,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 /* ── SUT imports ────────────────────────────────────────────────────── */
@@ -86,7 +86,9 @@ function makeFyndClient() {
   };
 }
 
-function makeCase(overrides: Partial<ReturnCase & { items: ReturnItem[] }> = {}): ReturnCase & { items: ReturnItem[] } {
+function makeCase(
+  overrides: Partial<ReturnCase & { items: ReturnItem[] }> = {},
+): ReturnCase & { items: ReturnItem[] } {
   return {
     id: "rc-1",
     shopId: "shop-1",
@@ -219,10 +221,11 @@ describe("Bug #4 — closeShopifyReturnBestEffort sweep", () => {
       // sweep query — no other open returns on the order
       { data: { order: { returns: { edges: [] } } } },
     ]);
-    const r = await closeShopifyReturnBestEffort(
-      admin,
-      { id: "rc-1", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
-    );
+    const r = await closeShopifyReturnBestEffort(admin, {
+      id: "rc-1",
+      shopifyReturnId: "gid://shopify/Return/9",
+      shopifyOrderId: "gid://shopify/Order/1",
+    });
     expect(r.ok).toBe(true);
     // Two GraphQL calls: returnClose, then openReturns sweep query.
     expect(calls).toHaveLength(2);
@@ -234,7 +237,14 @@ describe("Bug #4 — closeShopifyReturnBestEffort sweep", () => {
   it("closes a sibling Return surfaced by the sweep (refund auto-created)", async () => {
     const { admin, calls } = makeAdmin([
       // returnClose for the tracked return
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
       // openReturns: surfaces a sibling auto-created Return
       {
         data: {
@@ -249,12 +259,23 @@ describe("Bug #4 — closeShopifyReturnBestEffort sweep", () => {
         },
       },
       // returnClose for the sibling
-      { data: { returnClose: { return: { id: "gid://shopify/Return/SIBLING", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/SIBLING", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi.fn(async (_e: { eventType: string; payloadJson: string }) => {});
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc-1", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc-1",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { logEvent },
     );
     expect(r.ok).toBe(true);
@@ -279,7 +300,14 @@ describe("Bug #4 — closeShopifyReturnBestEffort sweep", () => {
         },
       },
       // returnClose for the auto-created Return
-      { data: { returnClose: { return: { id: "gid://shopify/Return/AUTO", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/AUTO", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi.fn(async (_e: { eventType: string; payloadJson: string }) => {});
     const r = await closeShopifyReturnBestEffort(
@@ -298,11 +326,22 @@ describe("Bug #4 — closeShopifyReturnBestEffort sweep", () => {
 
   it("does NOT sweep when action is decline (decline stays narrowly scoped)", async () => {
     const { admin, calls } = makeAdmin([
-      { data: { returnDecline: { return: { id: "gid://shopify/Return/9", status: "DECLINED" }, userErrors: [] } } },
+      {
+        data: {
+          returnDecline: {
+            return: { id: "gid://shopify/Return/9", status: "DECLINED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc-1", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc-1",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { action: "decline", declineReason: "Past window" },
     );
     expect(r.ok).toBe(true);

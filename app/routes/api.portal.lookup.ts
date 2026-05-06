@@ -3,9 +3,21 @@ import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
-import { getTrackingInfoFromFyndPayload, extractFyndJourney, getPickupAddressFromFyndPayload, parseFyndOrderDetailsForTab, type FyndOrderDetailsTab } from "../lib/fynd-payload.server";
+import {
+  getTrackingInfoFromFyndPayload,
+  extractFyndJourney,
+  getPickupAddressFromFyndPayload,
+  parseFyndOrderDetailsForTab,
+  type FyndOrderDetailsTab,
+} from "../lib/fynd-payload.server";
 import { createFyndClientOrError, type ShipmentsListingSearchType } from "../lib/fynd.server";
-import { fetchOrdersByFilter, fetchOrderByOrderNumber, fetchOrderByGid, fetchOrderByFyndAffiliateId, withRestCredentials } from "../lib/shopify-admin.server";
+import {
+  fetchOrdersByFilter,
+  fetchOrderByOrderNumber,
+  fetchOrderByGid,
+  fetchOrderByFyndAffiliateId,
+  withRestCredentials,
+} from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { getPortalLabels } from "../lib/portal-i18n";
@@ -41,14 +53,32 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
-    const body = await request.json() as { shop?: string; lookupType?: string; lookupValue?: string; portalToken?: string; sessionId?: string };
+    const body = (await request.json()) as {
+      shop?: string;
+      lookupType?: string;
+      lookupValue?: string;
+      portalToken?: string;
+      sessionId?: string;
+    };
     const { shop, lookupType, lookupValue, portalToken, sessionId } = body;
     if (!shop || !lookupType || !lookupValue) {
-      return withCors(Response.json({ error: "shop, lookupType, lookupValue required" }, { status: 400 }), request);
+      return withCors(
+        Response.json({ error: "shop, lookupType, lookupValue required" }, { status: 400 }),
+        request,
+      );
     }
 
     // Input validation
-    const VALID_LOOKUP_TYPES = ["email", "phone", "mobile", "order_no", "return_no", "return_id", "forward_awb", "return_awb"];
+    const VALID_LOOKUP_TYPES = [
+      "email",
+      "phone",
+      "mobile",
+      "order_no",
+      "return_no",
+      "return_id",
+      "forward_awb",
+      "return_awb",
+    ];
     if (!VALID_LOOKUP_TYPES.includes(lookupType)) {
       return withCors(Response.json({ error: "Invalid lookup type" }, { status: 400 }), request);
     }
@@ -64,7 +94,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* v8 ignore start - defensive shop-domain normalization ternary */
     const shopDomain = shop.includes(".") ? shop : `${shop}.myshopify.com`;
     /* v8 ignore stop */
-    const shopRecord = await prisma.shop.findUnique({ where: { shopDomain }, include: { settings: true } });
+    const shopRecord = await prisma.shop.findUnique({
+      where: { shopDomain },
+      include: { settings: true },
+    });
     if (!shopRecord) {
       return withCors(Response.json({ error: "Shop not found" }, { status: 404 }), request);
     }
@@ -74,11 +107,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // gate results behind OTP verification.
     // First call (no portalToken): create session + send OTP → return { requiresOtp, sessionId }.
     // Second call (with portalToken): verify session token → proceed to return results.
-    const settingsAny = shopRecord.settings as (typeof shopRecord.settings & { portalOtpEmailEnabled?: boolean; portalOtpSmsEnabled?: boolean }) | null;
+    const settingsAny = shopRecord.settings as
+      | (typeof shopRecord.settings & {
+          portalOtpEmailEnabled?: boolean;
+          portalOtpSmsEnabled?: boolean;
+        })
+      | null;
     const otpEmailEnabled = settingsAny?.portalOtpEmailEnabled ?? false;
     const otpSmsEnabled = settingsAny?.portalOtpSmsEnabled ?? false;
-    const otpRequired = (otpEmailEnabled && normalizedLookupType === "email") ||
-                        (otpSmsEnabled && normalizedLookupType === "phone");
+    const otpRequired =
+      (otpEmailEnabled && normalizedLookupType === "email") ||
+      (otpSmsEnabled && normalizedLookupType === "phone");
 
     if (otpRequired) {
       const contactNorm = String(lookupValue).toLowerCase().trim();
@@ -91,23 +130,40 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           : null;
 
         // Reuse existing unexpired session if resend requested (sessionId provided)
-        if (existing && existing.expiresAt > new Date() && existing.attemptsCount < MAX_OTP_ATTEMPTS) {
+        if (
+          existing &&
+          existing.expiresAt > new Date() &&
+          existing.attemptsCount < MAX_OTP_ATTEMPTS
+        ) {
           const cooldownRemaining = existing.otpSentAt
             ? Math.max(0, OTP_COOLDOWN_MS - (Date.now() - existing.otpSentAt.getTime()))
             : 0;
           if (cooldownRemaining > 0) {
-            return withCors(Response.json({ requiresOtp: true, sessionId: existing.id, cooldownMs: cooldownRemaining }), request);
+            return withCors(
+              Response.json({
+                requiresOtp: true,
+                sessionId: existing.id,
+                cooldownMs: cooldownRemaining,
+              }),
+              request,
+            );
           }
           // Resend: generate new OTP
           const otp = String(crypto.randomInt(100000, 1000000));
           const otpHash = await hashOtp(otp);
           await prisma.lookupSession.update({
             where: { id: existing.id },
-            data: { otpTarget: otpHash, otpSentAt: new Date(), attemptsCount: existing.attemptsCount + 1 },
+            data: {
+              otpTarget: otpHash,
+              otpSentAt: new Date(),
+              attemptsCount: existing.attemptsCount + 1,
+            },
           });
           try {
             await sendOtpEmail({ shopDomain, to: contactNorm, otp });
-          } catch (e) { console.warn("[lookup OTP] email send failed:", e); }
+          } catch (e) {
+            console.warn("[lookup OTP] email send failed:", e);
+          }
           return withCors(Response.json({ requiresOtp: true, sessionId: existing.id }), request);
         }
 
@@ -128,10 +184,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           .reduce((sum, s) => sum + (s.attemptsCount ?? 0), 0);
         /* v8 ignore stop */
         if (totalRecentFailures >= 15) {
-          return withCors(Response.json({
-            error: "Too many failed verification attempts on this contact. Please try again in an hour.",
-            accountLocked: true,
-          }, { status: 429 }), request);
+          return withCors(
+            Response.json(
+              {
+                error:
+                  "Too many failed verification attempts on this contact. Please try again in an hour.",
+                accountLocked: true,
+              },
+              { status: 429 },
+            ),
+            request,
+          );
         }
 
         // Create new session
@@ -151,21 +214,43 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         try {
           await sendOtpEmail({ shopDomain, to: contactNorm, otp });
-        } catch (e) { console.warn("[lookup OTP] email send failed:", e); }
+        } catch (e) {
+          console.warn("[lookup OTP] email send failed:", e);
+        }
         return withCors(Response.json({ requiresOtp: true, sessionId: session.id }), request);
       }
 
       // Second call — portalToken provided: verify it against DB session
-      const session = sessionId ? await prisma.lookupSession.findUnique({ where: { id: sessionId } }) : null;
+      const session = sessionId
+        ? await prisma.lookupSession.findUnique({ where: { id: sessionId } })
+        : null;
       if (!session || session.expiresAt < new Date()) {
-        return withCors(Response.json({ error: "Session expired. Please search again.", sessionExpired: true }, { status: 401 }), request);
+        return withCors(
+          Response.json(
+            { error: "Session expired. Please search again.", sessionExpired: true },
+            { status: 401 },
+          ),
+          request,
+        );
       }
       if (!session.verifiedAt) {
-        return withCors(Response.json({ error: "OTP not verified", requiresOtp: true, sessionId: session.id }, { status: 401 }), request);
+        return withCors(
+          Response.json(
+            { error: "OTP not verified", requiresOtp: true, sessionId: session.id },
+            { status: 401 },
+          ),
+          request,
+        );
       }
       // Token must match what was stored at verify time
       if (session.portalToken !== portalToken) {
-        return withCors(Response.json({ error: "Invalid session token", requiresOtp: true, sessionId: session.id }, { status: 401 }), request);
+        return withCors(
+          Response.json(
+            { error: "Invalid session token", requiresOtp: true, sessionId: session.id },
+            { status: 401 },
+          ),
+          request,
+        );
       }
       // Verified — proceed to return results below
     }
@@ -196,9 +281,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       ];
     } else if (normalizedLookupType === "phone") {
       const phoneNorm = norm.replace(/[\s\-\+\(\)]/g, "");
-      where.OR = [
-        { customerPhoneNorm: { contains: phoneNorm, mode: "insensitive" } },
-      ];
+      where.OR = [{ customerPhoneNorm: { contains: phoneNorm, mode: "insensitive" } }];
     } else {
       where.OR = [
         { customerEmailNorm: { contains: norm, mode: "insensitive" } },
@@ -227,7 +310,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           where: { id: sessionId },
           data: { matchedReturnIds: JSON.stringify(matchedReturnIds) },
         });
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
     }
 
     // Load shop settings for labels, language, and default instructions
@@ -235,10 +320,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const portalLanguage = shopSettings?.portalLanguage ?? "en";
     let portalLabelOverrides: Record<string, string> | null = null;
     try {
-      if (shopSettings?.portalLabelsJson) portalLabelOverrides = JSON.parse(shopSettings.portalLabelsJson);
-    } catch { /* ignore */ }
+      if (shopSettings?.portalLabelsJson)
+        portalLabelOverrides = JSON.parse(shopSettings.portalLabelsJson);
+    } catch {
+      /* ignore */
+    }
     const labels = getPortalLabels(portalLanguage, portalLabelOverrides);
-    const defaultReturnInstructions = (shopSettings as { defaultReturnInstructions?: string | null } | null)?.defaultReturnInstructions ?? null;
+    const defaultReturnInstructions =
+      (shopSettings as { defaultReturnInstructions?: string | null } | null)
+        ?.defaultReturnInstructions ?? null;
 
     // Use cached Fynd payload from DB only — no live Fynd API calls here.
     // Live Fynd enrichment happens via separate /api/portal/fynd-enrich endpoint.
@@ -250,12 +340,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       /* v8 ignore stop */
       const pickupAddress = getPickupAddressFromFyndPayload(payload);
 
-      let returnLabelInfo: { carrier?: string | null; trackingNumber?: string | null; labelUrl?: string | null; qrCodeUrl?: string | null } | null = null;
+      let returnLabelInfo: {
+        carrier?: string | null;
+        trackingNumber?: string | null;
+        labelUrl?: string | null;
+        qrCodeUrl?: string | null;
+      } | null = null;
       try {
         if ((r as { returnLabelJson?: string | null }).returnLabelJson) {
           returnLabelInfo = JSON.parse((r as { returnLabelJson?: string | null }).returnLabelJson!);
         }
-      } catch { /* ignore */ }
+      } catch {
+        /* ignore */
+      }
 
       /* v8 ignore start - defensive `|| ""` for null status */
       const isApproved = ["approved", "completed"].includes((r.status || "").toLowerCase());
@@ -265,9 +362,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         trackingInfo: trackingInfo ?? undefined,
         returnJourney,
         pickupAddress: pickupAddress ?? undefined,
-        returnLabelUrl: isApproved ? (r as { returnLabelUrl?: string | null }).returnLabelUrl : undefined,
+        returnLabelUrl: isApproved
+          ? (r as { returnLabelUrl?: string | null }).returnLabelUrl
+          : undefined,
         returnLabelInfo: isApproved ? returnLabelInfo : undefined,
-        returnInstructions: isApproved ? (defaultReturnInstructions || undefined) : undefined,
+        returnInstructions: isApproved ? defaultReturnInstructions || undefined : undefined,
         /* v8 ignore start - defensive enrich-flag short-circuit on null fields */
         _needsFyndEnrich: !!(r.shopifyOrderName && r.fyndShipmentId),
         /* v8 ignore stop */
@@ -277,19 +376,45 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     returns.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     type PortalOrder = {
-      id: string; name: string; createdAt: string; email?: string | null;
-      processedAt?: string | null; closedAt?: string | null; cancelledAt?: string | null;
-      totalPrice?: string; subtotalPrice?: string; totalDiscounts?: string;
+      id: string;
+      name: string;
+      createdAt: string;
+      email?: string | null;
+      processedAt?: string | null;
+      closedAt?: string | null;
+      cancelledAt?: string | null;
+      totalPrice?: string;
+      subtotalPrice?: string;
+      totalDiscounts?: string;
       currencyCode?: string;
-      displayFinancialStatus?: string; displayFulfillmentStatus?: string;
-      lineItems?: Array<{ id: string; title: string; variantTitle?: string | null; sku?: string | null; quantity: number; price?: string | null; discountedPrice?: string | null; imageUrl?: string | null }>;
+      displayFinancialStatus?: string;
+      displayFulfillmentStatus?: string;
+      lineItems?: Array<{
+        id: string;
+        title: string;
+        variantTitle?: string | null;
+        sku?: string | null;
+        quantity: number;
+        price?: string | null;
+        discountedPrice?: string | null;
+        imageUrl?: string | null;
+      }>;
       shippingAddress?: Record<string, string | null | undefined> | null;
       fulfillments?: Array<{
-        id: string; status: string; createdAt: string;
-        updatedAt?: string | null; deliveredAt?: string | null;
-        displayStatus?: string | null; estimatedDeliveryAt?: string | null;
-        inTransitAt?: string | null; totalQuantity?: number | null;
-        trackingInfo: Array<{ number?: string | null; url?: string | null; company?: string | null }>;
+        id: string;
+        status: string;
+        createdAt: string;
+        updatedAt?: string | null;
+        deliveredAt?: string | null;
+        displayStatus?: string | null;
+        estimatedDeliveryAt?: string | null;
+        inTransitAt?: string | null;
+        totalQuantity?: number | null;
+        trackingInfo: Array<{
+          number?: string | null;
+          url?: string | null;
+          company?: string | null;
+        }>;
       }>;
       fyndData?: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null;
       _needsFyndEnrich?: boolean;
@@ -305,7 +430,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
-        orders = (await fetchOrdersByFilter(admin, `email:${norm}`)).map((o) => ({ ...o, fyndData: null, _needsFyndEnrich: true }));
+        orders = (await fetchOrdersByFilter(admin, `email:${norm}`)).map((o) => ({
+          ...o,
+          fyndData: null,
+          _needsFyndEnrich: true,
+        }));
       } catch (err) {
         console.error("Portal lookup orders by email:", err);
       }
@@ -314,7 +443,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
-        orders = (await fetchOrdersByFilter(admin, rawValue)).map((o) => ({ ...o, fyndData: null, _needsFyndEnrich: true }));
+        orders = (await fetchOrdersByFilter(admin, rawValue)).map((o) => ({
+          ...o,
+          fyndData: null,
+          _needsFyndEnrich: true,
+        }));
       } catch (err) {
         console.error("Portal lookup orders by phone:", err);
       }
@@ -354,7 +487,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               if (order) orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
             }
             if (orders.length === 0 && fyndMapping.shopifyOrderName) {
-              const order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
+              const order = await fetchOrderByOrderNumber(
+                admin,
+                fyndMapping.shopifyOrderName.replace(/^#/, ""),
+              );
               if (order) orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
             }
             /* v8 ignore stop */
@@ -401,7 +537,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               try {
                 const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
                 const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
-                const order = await fetchOrderByOrderNumber(admin, rc.shopifyOrderName.replace(/^#/, ""));
+                const order = await fetchOrderByOrderNumber(
+                  admin,
+                  rc.shopifyOrderName.replace(/^#/, ""),
+                );
                 if (order) {
                   orders.push({ ...order, fyndData: null, _needsFyndEnrich: true });
                 }
@@ -414,7 +553,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const payload = (rc as { fyndPayloadJson?: string | null }).fyndPayloadJson;
               let fyndData: FyndOrderDetailsTab | null = null;
               if (payload) {
-                try { fyndData = JSON.parse(payload) as FyndOrderDetailsTab; } catch { /* ignore */ }
+                try {
+                  fyndData = JSON.parse(payload) as FyndOrderDetailsTab;
+                } catch {
+                  /* ignore */
+                }
               }
               const syntheticOrder: PortalOrder = {
                 id: rc.shopifyOrderId || rc.id,
@@ -434,7 +577,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   imageUrl: null,
                 })),
                 fyndData,
-                _needsFyndEnrich: !!(rc.fyndShipmentId),
+                _needsFyndEnrich: !!rc.fyndShipmentId,
               };
               orders.push(syntheticOrder);
             }
@@ -453,12 +596,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // to retry Shopify, or build a synthetic order from Fynd data so Track Order can still show tracking.
     /* v8 ignore start */
     // defensive: Fynd fallback path with multi-OR conditional + empty searchVal short-circuit; tests don't exhaust all combos
-    if (orders.length === 0 && (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && shopRecord.settings) {
+    if (
+      orders.length === 0 &&
+      (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") &&
+      shopRecord.settings
+    ) {
       const searchVal = rawValue.replace(/^#/, "").trim();
       if (searchVal) {
-    /* v8 ignore stop */
+        /* v8 ignore stop */
         try {
-          const fyndResult = await createFyndClientOrError(shopRecord.settings as Parameters<typeof createFyndClientOrError>[0], { requirePlatform: true });
+          const fyndResult = await createFyndClientOrError(
+            shopRecord.settings as Parameters<typeof createFyndClientOrError>[0],
+            { requirePlatform: true },
+          );
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
             const res = await fyndResult.client.searchShipmentsByExternalOrderId(searchVal, {
               searchType: "external_order_id",
@@ -467,9 +617,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             });
             // defensive: res shape fallbacks (.shipments / .data.items / []) + typeof + external_order_id
             /* v8 ignore start */
-            const rawItems = ((res?.items ?? res?.shipments ?? (res as { data?: { items?: unknown[] } })?.data?.items ?? []) as Record<string, unknown>[]);
+            const rawItems = (res?.items ??
+              res?.shipments ??
+              (res as { data?: { items?: unknown[] } })?.data?.items ??
+              []) as Record<string, unknown>[];
             const forwardItems = rawItems.filter((item) => {
-              const jt = (typeof item.journey_type === "string" ? item.journey_type : "").toLowerCase();
+              const jt = (
+                typeof item.journey_type === "string" ? item.journey_type : ""
+              ).toLowerCase();
               return jt !== "return";
             });
             const items = forwardItems.length > 0 ? forwardItems : rawItems;
@@ -479,7 +634,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const parsed = parseFyndOrderDetailsForTab(payloadJson) as FyndOrderDetailsTab | null;
               let fyndData: (FyndOrderDetailsTab & { forwardJourney?: unknown }) | null = null;
               if (parsed) {
-                (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+                (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(
+                  payloadJson,
+                  "forward",
+                );
                 fyndData = parsed as FyndOrderDetailsTab & { forwardJourney?: unknown };
               }
               // Try to resolve the real Shopify order using Fynd's affiliate_order_id.
@@ -488,9 +646,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const first = items[0] as Record<string, unknown>;
               // defensive: external_order_id fallback rare in fixtures
               /* v8 ignore start */
-              const affiliateOrderId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
+              const affiliateOrderId = String(
+                first.affiliate_order_id ?? first.external_order_id ?? "",
+              )
+                .replace(/^#/, "")
+                .trim();
               if (affiliateOrderId) {
-              /* v8 ignore stop */
+                /* v8 ignore stop */
                 /* v8 ignore start - defensive Shopify-resolve-by-affiliate best-effort */
                 try {
                   const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
@@ -500,7 +662,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   if (shopifyOrder) {
                     orders.push({ ...shopifyOrder, fyndData, _needsFyndEnrich: false });
                   }
-                } catch { /* non-fatal */ }
+                } catch {
+                  /* non-fatal */
+                }
                 /* v8 ignore stop */
               }
               // Synthetic order fallback: Shopify still can't find it — build from Fynd data
@@ -510,28 +674,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 // defensive: nullish-coalescing fallbacks across alternative Fynd field shapes;
                 // fixtures only exercise the primary keys.
                 /* v8 ignore start */
-                const firstBag = Array.isArray(first.bags) ? (first.bags as Record<string, unknown>[])[0] : null;
-                const deliveryAddr = ((firstBag?.delivery_address ?? first.delivery_address ?? {}) as Record<string, unknown>);
-                const customerDet = ((first.customer_details ?? {}) as Record<string, unknown>);
-                const billingDet = ((first.billing_details ?? {}) as Record<string, unknown>);
-                const fyndEmail = String(customerDet.email ?? billingDet.email ?? "").trim() || null;
+                const firstBag = Array.isArray(first.bags)
+                  ? (first.bags as Record<string, unknown>[])[0]
+                  : null;
+                const deliveryAddr = (firstBag?.delivery_address ??
+                  first.delivery_address ??
+                  {}) as Record<string, unknown>;
+                const customerDet = (first.customer_details ?? {}) as Record<string, unknown>;
+                const billingDet = (first.billing_details ?? {}) as Record<string, unknown>;
+                const fyndEmail =
+                  String(customerDet.email ?? billingDet.email ?? "").trim() || null;
                 const fyndName = String(customerDet.name ?? deliveryAddr.name ?? "").trim() || null;
                 const fyndCity = String(deliveryAddr.city ?? "").trim() || null;
-                const fyndState = String(deliveryAddr.state ?? deliveryAddr.state_code ?? "").trim() || null;
+                const fyndState =
+                  String(deliveryAddr.state ?? deliveryAddr.state_code ?? "").trim() || null;
                 const fyndCountry = String(deliveryAddr.country ?? "").trim() || null;
-                const fyndPincode = String(deliveryAddr.pincode ?? deliveryAddr.zip ?? "").trim() || null;
+                const fyndPincode =
+                  String(deliveryAddr.pincode ?? deliveryAddr.zip ?? "").trim() || null;
                 const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
                 const fyndLast = fyndRestName.join(" ");
 
                 // shopifyOrderId must ONLY be a Shopify GID, legacyResourceId, or order name.
                 // affiliate_order_id IS the Shopify order name (e.g. FYNDSHOPIFYX14126).
                 // Never store a Fynd internal ID (e.g. FYMP699EB195013CB17C).
-                const affiliateId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
-                const orderName = String(first.affiliate_order_id ?? first.external_order_id ?? searchVal);
+                const affiliateId = String(
+                  first.affiliate_order_id ?? first.external_order_id ?? "",
+                )
+                  .replace(/^#/, "")
+                  .trim();
+                const orderName = String(
+                  first.affiliate_order_id ?? first.external_order_id ?? searchVal,
+                );
                 const syntheticOrderId = affiliateId || orderName;
                 // Extract currency from Fynd prices
-                const fyndPrices = (firstBag?.prices ?? first.prices ?? {}) as Record<string, unknown>;
-                const fyndCurrency = String(fyndPrices.currency_code ?? fyndPrices.currency ?? (first.order_value as Record<string, unknown> | undefined)?.currency ?? "INR").trim();
+                const fyndPrices = (firstBag?.prices ?? first.prices ?? {}) as Record<
+                  string,
+                  unknown
+                >;
+                const fyndCurrency = String(
+                  fyndPrices.currency_code ??
+                    fyndPrices.currency ??
+                    (first.order_value as Record<string, unknown> | undefined)?.currency ??
+                    "INR",
+                ).trim();
                 /* v8 ignore stop */
 
                 // Extract line items from Fynd shipment data so the portal can render them
@@ -565,22 +750,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 /* v8 ignore start - defensive `??`/`||` fallbacks on synthetic-order address fields */
                 const syntheticOrder: PortalOrder = {
                   id: syntheticOrderId,
-                  name: String(first.affiliate_order_id ?? first.external_order_id ?? `#${searchVal}`),
-                  createdAt: String(first.orderDate ?? first.shipment_created_at ?? new Date().toISOString()),
+                  name: String(
+                    first.affiliate_order_id ?? first.external_order_id ?? `#${searchVal}`,
+                  ),
+                  createdAt: String(
+                    first.orderDate ?? first.shipment_created_at ?? new Date().toISOString(),
+                  ),
                   email: fyndEmail,
                   displayFulfillmentStatus: "FULFILLED",
                   displayFinancialStatus: "PAID",
                   currencyCode: fyndCurrency,
                   lineItems: fyndLineItems,
-                  shippingAddress: (fyndName || fyndCity) ? {
-                    firstName: fyndFirst || undefined,
-                    lastName: fyndLast || undefined,
-                    city: fyndCity || undefined,
-                    province: fyndState || undefined,
-                    zip: fyndPincode || undefined,
-                    country: fyndCountry || undefined,
-                    countryCode: fyndCountry || undefined,
-                  } : undefined,
+                  shippingAddress:
+                    fyndName || fyndCity
+                      ? {
+                          firstName: fyndFirst || undefined,
+                          lastName: fyndLast || undefined,
+                          city: fyndCity || undefined,
+                          province: fyndState || undefined,
+                          zip: fyndPincode || undefined,
+                          country: fyndCountry || undefined,
+                          countryCode: fyndCountry || undefined,
+                        }
+                      : undefined,
                   fyndData,
                   _needsFyndEnrich: false,
                 };
@@ -601,31 +793,52 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Skip if _needsFyndEnrich is false (already enriched by the discovery block above).
     /* v8 ignore start */
     // defensive: Fynd enrichment guard chain — many OR/AND short-circuits not exhausted in tests
-    if ((normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && orders.length > 0 && shopRecord.settings && orders[0]._needsFyndEnrich === true) {
+    if (
+      (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") &&
+      orders.length > 0 &&
+      shopRecord.settings &&
+      orders[0]._needsFyndEnrich === true
+    ) {
       const orderNumberForFynd = rawValue.replace(/^#/, "").trim();
       if (orderNumberForFynd) {
-    /* v8 ignore stop */
+        /* v8 ignore stop */
         try {
-          const fyndResult = await createFyndClientOrError(shopRecord.settings as Parameters<typeof createFyndClientOrError>[0], { requirePlatform: true });
+          const fyndResult = await createFyndClientOrError(
+            shopRecord.settings as Parameters<typeof createFyndClientOrError>[0],
+            { requirePlatform: true },
+          );
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
             const searchTypes: ShipmentsListingSearchType[] = ["external_order_id"];
             for (const searchType of searchTypes) {
-              const res = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumberForFynd, { searchType, pageSize: 10, fulfillmentType: "FULFILLMENT" });
+              const res = await fyndResult.client.searchShipmentsByExternalOrderId(
+                orderNumberForFynd,
+                { searchType, pageSize: 10, fulfillmentType: "FULFILLMENT" },
+              );
               // defensive: res shape fallbacks (.shipments / .data.items / []) + typeof guard
               /* v8 ignore start */
-              const rawItems = (res?.items ?? res?.shipments ?? (res as { data?: { items?: unknown[] } })?.data?.items ?? []) as unknown[];
+              const rawItems = (res?.items ??
+                res?.shipments ??
+                (res as { data?: { items?: unknown[] } })?.data?.items ??
+                []) as unknown[];
               // Filter to forward shipments only (same guard as fynd-enrich route)
               const forwardItems = (rawItems as Record<string, unknown>[]).filter((item) => {
-                const jt = (typeof item.journey_type === "string" ? item.journey_type : "").toLowerCase();
+                const jt = (
+                  typeof item.journey_type === "string" ? item.journey_type : ""
+                ).toLowerCase();
                 return jt !== "return";
               });
               /* v8 ignore stop */
               const items = forwardItems.length > 0 ? forwardItems : rawItems;
               if (Array.isArray(items) && items.length > 0) {
                 const payloadJson = JSON.stringify({ ...(res as Record<string, unknown>), items });
-                const parsed = parseFyndOrderDetailsForTab(payloadJson) as FyndOrderDetailsTab | null;
+                const parsed = parseFyndOrderDetailsForTab(
+                  payloadJson,
+                ) as FyndOrderDetailsTab | null;
                 if (parsed) {
-                  (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(payloadJson, "forward");
+                  (parsed as { forwardJourney?: unknown }).forwardJourney = extractFyndJourney(
+                    payloadJson,
+                    "forward",
+                  );
                   orders[0] = { ...orders[0], fyndData: parsed, _needsFyndEnrich: false };
                 }
                 break;
@@ -639,26 +852,37 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // For AWB lookups, also search Shopify orders by fulfillment tracking number
-    if ((normalizedLookupType === "forward_awb" || normalizedLookupType === "return_awb") && orders.length === 0) {
+    if (
+      (normalizedLookupType === "forward_awb" || normalizedLookupType === "return_awb") &&
+      orders.length === 0
+    ) {
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
         const awbOrder = await fetchOrderByOrderNumber(admin, rawValue);
         if (awbOrder) {
           const hasTN = awbOrder.fulfillments?.some((f) =>
-            f.trackingInfo?.some((ti) => ti.number?.toLowerCase().includes(norm))
+            f.trackingInfo?.some((ti) => ti.number?.toLowerCase().includes(norm)),
           );
           if (hasTN) orders.push({ ...awbOrder, fyndData: null, _needsFyndEnrich: true });
         }
-      } catch { /* best-effort */ }
+      } catch {
+        /* best-effort */
+      }
     }
 
     // Issue a shop-bound CSRF token so subsequent state-changing portal calls
     // (cancel-return, etc.) can present it. Same token used by /api/portal/order.
     const portalCsrfToken = createPortalCsrfToken(shopDomain);
-    return withCors(Response.json({ orders, returns, labels, portalLanguage, portalCsrfToken }), request);
+    return withCors(
+      Response.json({ orders, returns, labels, portalLanguage, portalCsrfToken }),
+      request,
+    );
   } catch (err) {
     console.error("Portal lookup:", err);
-    return withCors(Response.json({ error: "Something went wrong. Please try again." }, { status: 500 }), request);
+    return withCors(
+      Response.json({ error: "Something went wrong. Please try again." }, { status: 500 }),
+      request,
+    );
   }
 };

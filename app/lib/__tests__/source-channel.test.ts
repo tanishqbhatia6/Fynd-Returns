@@ -106,7 +106,7 @@ describe("parseChannelPolicies", () => {
     expect(parseChannelPolicies("undefined")).toEqual({});
     expect(parseChannelPolicies("{")).toEqual({});
     expect(parseChannelPolicies("}}}")).toEqual({});
-    expect(parseChannelPolicies("{\"pos\": {")).toEqual({});
+    expect(parseChannelPolicies('{"pos": {')).toEqual({});
   });
 
   it("returns parsed value as-is for non-object JSON (caller-beware contract)", () => {

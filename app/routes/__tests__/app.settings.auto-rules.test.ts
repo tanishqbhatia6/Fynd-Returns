@@ -8,12 +8,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, findOrCreateShopMock, parseAutoApproveRulesMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  findOrCreateShopMock: vi.fn(),
-  parseAutoApproveRulesMock: vi.fn(),
-}));
+const { prismaMock, authenticateMock, findOrCreateShopMock, parseAutoApproveRulesMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    findOrCreateShopMock: vi.fn(),
+    parseAutoApproveRulesMock: vi.fn(),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -42,7 +43,11 @@ describe("loader", () => {
   it("returns empty rules + autoApproveEnabled=false when no settings", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
     parseAutoApproveRulesMock.mockReturnValueOnce([]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data).toEqual({ rules: [], autoApproveEnabled: false });
   });
 
@@ -54,7 +59,11 @@ describe("loader", () => {
     parseAutoApproveRulesMock.mockReturnValueOnce([
       { field: "orderValue", operator: "lte", value: "100", action: "approve" },
     ]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.rules).toHaveLength(1);
     expect(data.autoApproveEnabled).toBe(true);
     expect(parseAutoApproveRulesMock).toHaveBeenCalledWith('[{"field":"orderValue"}]');
@@ -74,9 +83,9 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const malformed = JSON.stringify([
       { field: "orderValue", operator: "lte", value: "100", action: "approve" },
-      { field: "orderValue" },                  // missing fields → dropped
-      "garbage",                                // wrong type → dropped
-      null,                                     // null → dropped
+      { field: "orderValue" }, // missing fields → dropped
+      "garbage", // wrong type → dropped
+      null, // null → dropped
     ]);
     await action({ request: formReq({ rulesJson: malformed }), params: {}, context: {} } as never);
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -89,7 +98,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ rulesJson: JSON.stringify({ field: "x" }) }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(JSON.parse(upsertArg.update.autoApproveRulesJson)).toEqual([]);
@@ -99,7 +109,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ rulesJson: "{not json" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ error: "Invalid rules format" });
   });
@@ -110,8 +121,10 @@ describe("action", () => {
       { field: "orderValue", operator: "lte", value: "100", action: "approve" },
     ]);
     await action({ request: formReq({ rulesJson: valid }), params: {}, context: {} } as never);
-    expect(prismaMock.shopSettings.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopId: "shop-1" },
-    }));
+    expect(prismaMock.shopSettings.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopId: "shop-1" },
+      }),
+    );
   });
 });

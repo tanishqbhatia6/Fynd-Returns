@@ -12,11 +12,7 @@
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 
 // Defensive mocks. The settings layout itself only imports react-router,
 // but other files in this directory's test suite mock these globally; we
@@ -38,9 +34,7 @@ import SettingsLayout from "../app.settings";
 
 describe("app.settings layout", () => {
   it("renders an <Outlet /> that mounts the matching child route", () => {
-    const ChildSentinel = () => (
-      <div data-testid="settings-child">child-rendered</div>
-    );
+    const ChildSentinel = () => <div data-testid="settings-child">child-rendered</div>;
     const routes: RouteObject[] = [
       {
         path: "/app/settings",

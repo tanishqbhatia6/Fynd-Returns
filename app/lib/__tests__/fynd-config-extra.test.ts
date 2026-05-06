@@ -22,9 +22,9 @@ describe("getFyndBaseUrl extra branches", () => {
   });
 
   it("strips path components from custom URL keeping only the origin", () => {
-    expect(
-      getFyndBaseUrl({ fyndCustomBaseUrl: "https://api.custom.example/v1/foo/bar" }),
-    ).toBe("https://api.custom.example");
+    expect(getFyndBaseUrl({ fyndCustomBaseUrl: "https://api.custom.example/v1/foo/bar" })).toBe(
+      "https://api.custom.example",
+    );
   });
 
   it("preserves explicit non-default ports in custom URL origin", () => {
@@ -75,9 +75,9 @@ describe("getFyndBaseUrl extra branches", () => {
 
   it("supports custom URL with userinfo by extracting bare origin", () => {
     // userinfo is dropped from origin
-    expect(
-      getFyndBaseUrl({ fyndCustomBaseUrl: "https://user:pass@api.custom.example/path" }),
-    ).toBe("https://api.custom.example");
+    expect(getFyndBaseUrl({ fyndCustomBaseUrl: "https://user:pass@api.custom.example/path" })).toBe(
+      "https://api.custom.example",
+    );
   });
 });
 

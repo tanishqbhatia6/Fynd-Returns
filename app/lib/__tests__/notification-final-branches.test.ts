@@ -27,7 +27,7 @@ vi.mock("nodemailer", () => ({
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 
 vi.mock("../portal-i18n", () => ({
-  getPortalLabels: () => ({} as Record<string, string>),
+  getPortalLabels: () => ({}) as Record<string, string>,
   t: (k: string) => k,
 }));
 
@@ -41,7 +41,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));

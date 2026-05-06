@@ -83,13 +83,11 @@ const navigateMock = vi.fn();
 let useFetcherCalls = 0;
 
 vi.mock("react-router", async () => {
-  const actual =
-    await vi.importActual<typeof import("react-router")>("react-router");
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return {
     ...actual,
     useFetcher: () => {
-      const fetcher =
-        useFetcherCalls % 2 === 0 ? orderFetcherShared : submitFetcherShared;
+      const fetcher = useFetcherCalls % 2 === 0 ? orderFetcherShared : submitFetcherShared;
       useFetcherCalls += 1;
       return fetcher;
     },
@@ -99,11 +97,7 @@ vi.mock("react-router", async () => {
 
 import { renderWithRouter } from "../../test/component-helpers";
 import { fireEvent, render, waitFor, act } from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import Dashboard, { ErrorBoundary } from "../app._index";
 import CreateReturn from "../app.returns.create";
 
@@ -465,37 +459,27 @@ describe("app.returns.create — branch gaps", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Select Items to Return");
     });
-    const checkbox = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     fireEvent.click(checkbox);
     const selects = container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     let buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer Information");
     });
     // Clear email → email-required validation branch
-    const emailInput = container.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
+    const emailInput = container.querySelector('input[type="email"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: "" } });
     buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer email is required");
     });
     // Click Back → returns to step 2 + clears validation error
     buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Back") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Back") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Select Items to Return");
     });
@@ -522,9 +506,7 @@ describe("app.returns.create — branch gaps", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Select Items to Return");
     });
-    const checkbox = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     fireEvent.click(checkbox);
     const selects = container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
@@ -536,16 +518,12 @@ describe("app.returns.create — branch gaps", () => {
     ) as HTMLInputElement;
     fireEvent.change(noteInput, { target: { value: "minor scratch" } });
     let buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer Information");
     });
     // Need to provide a customer email (validation requires it).
-    const emailInput = container.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
+    const emailInput = container.querySelector('input[type="email"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: "x@example.com" } });
     // Switch resolution to replacement (covers final ternary arm + radio
     // resolution-color branch).
@@ -558,9 +536,7 @@ describe("app.returns.create — branch gaps", () => {
       'input[placeholder="e.g. TICK-12345"]',
     ) as HTMLInputElement;
     fireEvent.change(ticket, { target: { value: "TIX-1" } });
-    const notesArea = container.querySelector(
-      "textarea",
-    ) as HTMLTextAreaElement;
+    const notesArea = container.querySelector("textarea") as HTMLTextAreaElement;
     fireEvent.change(notesArea, { target: { value: "internal note" } });
     const landmark = container.querySelector(
       'input[placeholder="Near landmark (optional)"]',
@@ -571,9 +547,7 @@ describe("app.returns.create — branch gaps", () => {
     const overrideBox = allBoxes[allBoxes.length - 1] as HTMLInputElement;
     fireEvent.click(overrideBox);
     buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Return Items");
     });
@@ -581,9 +555,7 @@ describe("app.returns.create — branch gaps", () => {
     expect(container.textContent).toContain("TIX-1");
     expect(container.textContent).toContain("internal note");
     expect(container.textContent).toContain("Mall");
-    expect(container.textContent).toContain(
-      "Eligibility gates will be overridden",
-    );
+    expect(container.textContent).toContain("Eligibility gates will be overridden");
     expect(container.textContent).toContain("Note: minor scratch");
     // Click Submit Return — this drives the submit body's `customer*.trim() ||
     // undefined` falsy branches (lines 651-657) because the order has no
@@ -593,8 +565,12 @@ describe("app.returns.create — branch gaps", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(submitBtn); });
-    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+    await waitFor(() => {
+      expect(submitFetcherShared.submit).toHaveBeenCalled();
+    });
     const [body] = submitFetcherShared.submit.mock.calls[0];
     const parsed = JSON.parse(body as string);
     // Empty customer city/province/etc. should be omitted (|| undefined branch)
@@ -619,17 +595,13 @@ describe("app.returns.create — branch gaps", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Select Items to Return");
     });
-    const checkbox = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     fireEvent.click(checkbox);
     const selects = container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     let buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer Information");
     });
@@ -644,9 +616,7 @@ describe("app.returns.create — branch gaps", () => {
     const textareas = container.querySelectorAll("textarea");
     fireEvent.change(textareas[1], { target: { value: "size M instead" } });
     buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Return Items");
     });
@@ -664,17 +634,13 @@ describe("app.returns.create — branch gaps", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Select Items to Return");
     });
-    const checkbox = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     fireEvent.click(checkbox);
     const selects = container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     let buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer Information");
     });
@@ -683,18 +649,14 @@ describe("app.returns.create — branch gaps", () => {
     ) as HTMLInputElement;
     fireEvent.click(scRadio);
     buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Return Items");
     });
     expect(container.textContent).toContain("Store Credit");
     // Back from step 4 → step 3
     buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Back") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Back") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer Information");
     });
@@ -768,8 +730,12 @@ describe("app.returns.create — branch gaps", () => {
     ) as NodeListOf<HTMLInputElement>;
     const disabled = Array.from(checkboxes).find((cb) => cb.disabled);
     expect(disabled).toBeTruthy();
-    await act(async () => { fireEvent.click(disabled!); });
-    await waitFor(() => { expect(container.textContent).toContain("0 items selected"); });
+    await act(async () => {
+      fireEvent.click(disabled!);
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("0 items selected");
+    });
   });
 
   it("multi-shipment item without 'quantity' field hits `?? 1` fallback (line 535) AND submit body's orderData.id/createdAt fallbacks (lines 647/666)", async () => {
@@ -826,9 +792,7 @@ describe("app.returns.create — branch gaps", () => {
     ) as NodeListOf<HTMLInputElement>;
     const enabled = Array.from(checkboxes).find((cb) => !cb.disabled)!;
     fireEvent.click(enabled);
-    const qtyInput = container.querySelector(
-      'input[type="number"]',
-    ) as HTMLInputElement;
+    const qtyInput = container.querySelector('input[type="number"]') as HTMLInputElement;
     expect(qtyInput.value).toBe("1");
     // Walk through to step 4 and submit to also exercise the falsy
     // `orderData.id || undefined` and `orderData.createdAt || undefined`
@@ -837,16 +801,12 @@ describe("app.returns.create — branch gaps", () => {
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     let buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer Information");
     });
     buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Return Items");
     });
@@ -895,24 +855,18 @@ describe("app.returns.create — branch gaps", () => {
     );
     // Expand the line item to show the editable fields, then advance to
     // step 3 where the (empty) prefilled fields render.
-    const checkbox = container.querySelector(
-      'input[type="checkbox"]',
-    ) as HTMLInputElement;
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     fireEvent.click(checkbox);
     const selects = container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     const buttons = Array.from(container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(container.textContent).toContain("Customer Information");
     });
     // Email field is empty (auto-fill set it to "")
-    const email = container.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
+    const email = container.querySelector('input[type="email"]') as HTMLInputElement;
     expect(email.value).toBe("");
   });
 });
@@ -938,31 +892,23 @@ const dbDefault = dbModule as unknown as {
 describe("app._index loader — singular suggestion + locale/timezone fallback branches", () => {
   beforeEach(() => {
     dbDefault.shop.findUnique.mockReset().mockResolvedValue(null);
-    dbDefault.shop.create
-      .mockReset()
-      .mockImplementation(async ({ data }: { data: unknown }) => ({
-        id: "shop-x",
-        ...(data as object),
-        settings: null,
-      }));
+    dbDefault.shop.create.mockReset().mockImplementation(async ({ data }: { data: unknown }) => ({
+      id: "shop-x",
+      ...(data as object),
+      settings: null,
+    }));
     dbDefault.returnCase.count.mockReset().mockResolvedValue(0);
     dbDefault.returnCase.groupBy.mockReset().mockResolvedValue([]);
     dbDefault.returnCase.findMany.mockReset().mockResolvedValue([]);
     dbDefault.returnItem.groupBy.mockReset().mockResolvedValue([]);
     dbDefault.blocklistEntry.count.mockReset().mockResolvedValue(0);
-    dbDefault.lookupSession.deleteMany
-      .mockReset()
-      .mockResolvedValue({ count: 0 });
-    dbDefault.fyndWebhookLog.deleteMany
-      .mockReset()
-      .mockResolvedValue({ count: 0 });
+    dbDefault.lookupSession.deleteMany.mockReset().mockResolvedValue({ count: 0 });
+    dbDefault.fyndWebhookLog.deleteMany.mockReset().mockResolvedValue({ count: 0 });
     dbDefault.$queryRaw.mockReset().mockResolvedValue([]);
-    (authMod.admin as unknown as ReturnType<typeof vi.fn>)
-      .mockReset()
-      .mockResolvedValue({
-        session: { shop: "store.myshopify.com" },
-        admin: { graphql: vi.fn() },
-      });
+    (authMod.admin as unknown as ReturnType<typeof vi.fn>).mockReset().mockResolvedValue({
+      session: { shop: "store.myshopify.com" },
+      admin: { graphql: vi.fn() },
+    });
   });
 
   it("emits singular pending-review suggestion when pendingCount === 1 (line 39 false branch); also covers shop-without-settings + settings?.shopLocale ?? 'en' fallback", async () => {
@@ -987,9 +933,7 @@ describe("app._index loader — singular suggestion + locale/timezone fallback b
       context: {},
     } as never);
 
-    const sugg = data.suggestions.find((s) =>
-      s.message.includes("pending review"),
-    );
+    const sugg = data.suggestions.find((s) => s.message.includes("pending review"));
     expect(sugg).toBeDefined();
     expect(sugg?.message).toMatch(/^1 return pending review/);
     expect(data.shopLocale).toBe("en");
@@ -1022,9 +966,7 @@ describe("app._index loader — singular suggestion + locale/timezone fallback b
       context: {},
     } as never);
 
-    const sugg = data.suggestions.find((s) =>
-      s.message.includes("not synced to Fynd"),
-    );
+    const sugg = data.suggestions.find((s) => s.message.includes("not synced to Fynd"));
     expect(sugg).toBeDefined();
     expect(sugg?.message).toMatch(/^1 approved return not synced/);
   });

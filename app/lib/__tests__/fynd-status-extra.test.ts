@@ -11,10 +11,7 @@
  * table here as STATUS_RANK and drive `it.each` from it.
  */
 import { describe, it, expect } from "vitest";
-import {
-  shouldAdvanceFyndStatus,
-  classifyFyndRefundStatus,
-} from "../fynd-webhook.server";
+import { shouldAdvanceFyndStatus, classifyFyndRefundStatus } from "../fynd-webhook.server";
 
 // Mirror of FYND_STATUS_PRECEDENCE in fynd-webhook.server.ts. If you change
 // that map, mirror the change here — these tests pin the contract.
@@ -107,8 +104,9 @@ for (let i = 0; i < ORDERED_CHAIN.length - 1; i += 1) {
 }
 
 // Adjacent reverse pairs: (n+1, n) — must always be refused.
-const ADJACENT_REVERSE_PAIRS: Array<[string, string]> = ADJACENT_FORWARD_PAIRS
-  .map(([a, b]) => [b, a] as [string, string]);
+const ADJACENT_REVERSE_PAIRS: Array<[string, string]> = ADJACENT_FORWARD_PAIRS.map(
+  ([a, b]) => [b, a] as [string, string],
+);
 
 // Long-jump forward pairs (skip several ranks).
 const LONG_FORWARD_PAIRS: Array<[string, string]> = [
@@ -121,8 +119,9 @@ const LONG_FORWARD_PAIRS: Array<[string, string]> = [
 ];
 
 // Long-jump reverse pairs (must be refused).
-const LONG_REVERSE_PAIRS: Array<[string, string]> = LONG_FORWARD_PAIRS
-  .map(([a, b]) => [b, a] as [string, string]);
+const LONG_REVERSE_PAIRS: Array<[string, string]> = LONG_FORWARD_PAIRS.map(
+  ([a, b]) => [b, a] as [string, string],
+);
 
 // Equal-rank pairs (different keys, same rank). incRank >= curRank ⇒ should advance.
 const EQUAL_RANK_PAIRS: Array<[string, string]> = [
@@ -200,12 +199,9 @@ describe("shouldAdvanceFyndStatus — boundary inputs", () => {
     [null, "rto_initiated"],
     [undefined, "completely_unknown_status"],
   ];
-  it.each(FIRST_TRANSITIONS)(
-    "allows first transition from %s -> %s",
-    (current, incoming) => {
-      expect(shouldAdvanceFyndStatus(current, incoming)).toBe(true);
-    },
-  );
+  it.each(FIRST_TRANSITIONS)("allows first transition from %s -> %s", (current, incoming) => {
+    expect(shouldAdvanceFyndStatus(current, incoming)).toBe(true);
+  });
 
   const REJECT_INCOMING_EMPTY: Array<[string, string | null | undefined]> = [
     ["bag_confirmed", null],
@@ -240,12 +236,9 @@ describe("shouldAdvanceFyndStatus — boundary inputs", () => {
     ["totally_unknown_a", "totally_unknown_b"],
     ["refund_done", "brand_new_terminal_state"],
   ];
-  it.each(UNKNOWN_PAIRS)(
-    "lets unknown statuses through: %s -> %s",
-    (current, incoming) => {
-      expect(shouldAdvanceFyndStatus(current, incoming)).toBe(true);
-    },
-  );
+  it.each(UNKNOWN_PAIRS)("lets unknown statuses through: %s -> %s", (current, incoming) => {
+    expect(shouldAdvanceFyndStatus(current, incoming)).toBe(true);
+  });
 
   const NORMALISATION_FORWARD: Array<[string, string]> = [
     ["BAG CONFIRMED", "bag_picked"],
@@ -287,15 +280,55 @@ describe("classifyFyndRefundStatus — extra parameterised coverage", () => {
 
   const CASES: ClassifyCase[] = [
     // In-progress canonical tokens
-    { label: "refund_initiated lowercase", input: "refund_initiated", isInProgress: true, isComplete: false },
-    { label: "refund_pending lowercase", input: "refund_pending", isInProgress: true, isComplete: false },
-    { label: "refund_processing lowercase", input: "refund_processing", isInProgress: true, isComplete: false },
-    { label: "refund_in_progress lowercase", input: "refund_in_progress", isInProgress: true, isComplete: false },
-    { label: "refund_under_process lowercase", input: "refund_under_process", isInProgress: true, isComplete: false },
+    {
+      label: "refund_initiated lowercase",
+      input: "refund_initiated",
+      isInProgress: true,
+      isComplete: false,
+    },
+    {
+      label: "refund_pending lowercase",
+      input: "refund_pending",
+      isInProgress: true,
+      isComplete: false,
+    },
+    {
+      label: "refund_processing lowercase",
+      input: "refund_processing",
+      isInProgress: true,
+      isComplete: false,
+    },
+    {
+      label: "refund_in_progress lowercase",
+      input: "refund_in_progress",
+      isInProgress: true,
+      isComplete: false,
+    },
+    {
+      label: "refund_under_process lowercase",
+      input: "refund_under_process",
+      isInProgress: true,
+      isComplete: false,
+    },
     // In-progress with whitespace / mixed case
-    { label: "Refund Initiated mixed case w/ space", input: "Refund Initiated", isInProgress: true, isComplete: false },
-    { label: "REFUND PENDING upper w/ space", input: "REFUND PENDING", isInProgress: true, isComplete: false },
-    { label: "refund processing space-separated", input: "refund processing", isInProgress: true, isComplete: false },
+    {
+      label: "Refund Initiated mixed case w/ space",
+      input: "Refund Initiated",
+      isInProgress: true,
+      isComplete: false,
+    },
+    {
+      label: "REFUND PENDING upper w/ space",
+      input: "REFUND PENDING",
+      isInProgress: true,
+      isComplete: false,
+    },
+    {
+      label: "refund processing space-separated",
+      input: "refund processing",
+      isInProgress: true,
+      isComplete: false,
+    },
     // Bare "in_progress"/"processing"/"under_process" (in REFUND_IN_PROGRESS list)
     { label: "in_progress bare", input: "in_progress", isInProgress: true, isComplete: false },
     { label: "processing bare", input: "processing", isInProgress: true, isComplete: false },
@@ -306,24 +339,94 @@ describe("classifyFyndRefundStatus — extra parameterised coverage", () => {
     { label: "refund_completed", input: "refund_completed", isInProgress: false, isComplete: true },
     { label: "refunded lowercase", input: "refunded", isInProgress: false, isComplete: true },
     { label: "REFUNDED upper", input: "REFUNDED", isInProgress: false, isComplete: true },
-    { label: "Refund Done mixed case w/ space", input: "Refund Done", isInProgress: false, isComplete: true },
+    {
+      label: "Refund Done mixed case w/ space",
+      input: "Refund Done",
+      isInProgress: false,
+      isComplete: true,
+    },
     { label: "completed bare", input: "completed", isInProgress: false, isComplete: true },
 
     // Logistics journey events — must be neutral
-    { label: "return_initiated logistics", input: "return_initiated", isInProgress: false, isComplete: false },
-    { label: "return_dp_assigned logistics", input: "return_dp_assigned", isInProgress: false, isComplete: false },
-    { label: "return_bag_picked logistics", input: "return_bag_picked", isInProgress: false, isComplete: false },
-    { label: "return_bag_in_transit logistics", input: "return_bag_in_transit", isInProgress: false, isComplete: false },
-    { label: "return_bag_delivered logistics", input: "return_bag_delivered", isInProgress: false, isComplete: false },
-    { label: "return_accepted logistics", input: "return_accepted", isInProgress: false, isComplete: false },
-    { label: "rto_initiated logistics", input: "rto_initiated", isInProgress: false, isComplete: false },
-    { label: "rto_dp_assigned logistics", input: "rto_dp_assigned", isInProgress: false, isComplete: false },
-    { label: "bag_confirmed logistics", input: "bag_confirmed", isInProgress: false, isComplete: false },
-    { label: "out_for_delivery logistics", input: "out_for_delivery", isInProgress: false, isComplete: false },
-    { label: "delivery_done logistics", input: "delivery_done", isInProgress: false, isComplete: false },
-    { label: "out_for_pickup logistics", input: "out_for_pickup", isInProgress: false, isComplete: false },
+    {
+      label: "return_initiated logistics",
+      input: "return_initiated",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "return_dp_assigned logistics",
+      input: "return_dp_assigned",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "return_bag_picked logistics",
+      input: "return_bag_picked",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "return_bag_in_transit logistics",
+      input: "return_bag_in_transit",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "return_bag_delivered logistics",
+      input: "return_bag_delivered",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "return_accepted logistics",
+      input: "return_accepted",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "rto_initiated logistics",
+      input: "rto_initiated",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "rto_dp_assigned logistics",
+      input: "rto_dp_assigned",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "bag_confirmed logistics",
+      input: "bag_confirmed",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "out_for_delivery logistics",
+      input: "out_for_delivery",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "delivery_done logistics",
+      input: "delivery_done",
+      isInProgress: false,
+      isComplete: false,
+    },
+    {
+      label: "out_for_pickup logistics",
+      input: "out_for_pickup",
+      isInProgress: false,
+      isComplete: false,
+    },
     { label: "deadstock logistics", input: "deadstock", isInProgress: false, isComplete: false },
-    { label: "credit_note_generated", input: "credit_note_generated", isInProgress: false, isComplete: false },
+    {
+      label: "credit_note_generated",
+      input: "credit_note_generated",
+      isInProgress: false,
+      isComplete: false,
+    },
 
     // Empty / null / undefined
     { label: "null", input: null, isInProgress: false, isComplete: false },
@@ -332,7 +435,12 @@ describe("classifyFyndRefundStatus — extra parameterised coverage", () => {
 
     // Unknown / unrelated
     { label: "garbage", input: "xyz_unknown", isInProgress: false, isComplete: false },
-    { label: "partial-match initiated (logistics) is NOT refund", input: "rto_initiated", isInProgress: false, isComplete: false },
+    {
+      label: "partial-match initiated (logistics) is NOT refund",
+      input: "rto_initiated",
+      isInProgress: false,
+      isComplete: false,
+    },
   ];
 
   it.each(CASES)(

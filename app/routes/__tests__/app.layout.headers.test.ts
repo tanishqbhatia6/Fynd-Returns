@@ -53,14 +53,18 @@ describe("app layout headers", () => {
       errorHeaders: undefined,
     };
     headers(args as never);
-    const received = (boundaryHeadersMock.mock.calls as unknown as unknown[][])[0][0] as unknown as typeof args;
+    const received = (
+      boundaryHeadersMock.mock.calls as unknown as unknown[][]
+    )[0][0] as unknown as typeof args;
     expect(received).toBe(args);
     expect(received.parentHeaders.get("x-parent")).toBe("p");
     expect(received.loaderHeaders.get("x-loader")).toBe("l");
   });
 
   it("returns whatever boundary.headers returns", () => {
-    const custom = new Headers({ "content-security-policy": "frame-ancestors https://*.myshopify.com" });
+    const custom = new Headers({
+      "content-security-policy": "frame-ancestors https://*.myshopify.com",
+    });
     boundaryHeadersMock.mockReturnValueOnce(custom);
     const out = headers({
       parentHeaders: new Headers(),

@@ -18,21 +18,17 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 // ────────────────────────────────────────────────────────────────────────────
 // scheduled-report mocks
 // ────────────────────────────────────────────────────────────────────────────
-const {
-  schedPrismaMock,
-  schedSendMailMock,
-  schedCreateTransportMock,
-  schedDecryptMock,
-} = vi.hoisted(() => {
-  const sendMail = vi.fn().mockResolvedValue({ messageId: "x" });
-  const createTransport = vi.fn(() => ({ sendMail }));
-  return {
-    schedPrismaMock: {} as ReturnType<typeof createPrismaMock>,
-    schedSendMailMock: sendMail,
-    schedCreateTransportMock: createTransport,
-    schedDecryptMock: vi.fn((v: string | null) => v),
-  };
-});
+const { schedPrismaMock, schedSendMailMock, schedCreateTransportMock, schedDecryptMock } =
+  vi.hoisted(() => {
+    const sendMail = vi.fn().mockResolvedValue({ messageId: "x" });
+    const createTransport = vi.fn(() => ({ sendMail }));
+    return {
+      schedPrismaMock: {} as ReturnType<typeof createPrismaMock>,
+      schedSendMailMock: sendMail,
+      schedCreateTransportMock: createTransport,
+      schedDecryptMock: vi.fn((v: string | null) => v),
+    };
+  });
 Object.assign(schedPrismaMock, createPrismaMock());
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -47,9 +43,10 @@ const {
 } = vi.hoisted(() => ({
   diagPrismaMock: {} as ReturnType<typeof createPrismaMock>,
   diagAuthMock: vi.fn(),
-  diagCreateFyndClientMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
-    async () => ({ ok: false, error: "disabled" }),
-  ),
+  diagCreateFyndClientMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   diagFetchOrderMock: vi.fn(),
   diagFetchOrderByOrderNumberMock: vi.fn(),
 }));
@@ -123,12 +120,22 @@ vi.mock("../../lib/shopify-admin.server", () => ({
 // actions-side mocks
 vi.mock("../../lib/fynd-returns.server", () => ({ createReturnOnFynd: vi.fn() }));
 vi.mock("../../lib/notification.server", () => ({
-  sendRejectionNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendApprovalNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendRejectionNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendApprovalNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   sendRefundNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendCustomerNoteNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
+  sendCancellationDeclinedNotification: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../../lib/webhook-dispatch.server", () => ({ dispatchWebhookEvent: vi.fn() }));
 vi.mock("../../lib/fynd-payload.server", () => ({
@@ -245,7 +252,8 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
     ]);
     const res = await scheduledReportLoader({
       request: new Request("https://app/api/scheduled-report"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].sent).toBe(true);
@@ -259,7 +267,8 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
     ]);
     const res = await scheduledReportLoader({
       request: new Request("https://app/api/scheduled-report"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].sent).toBe(true);
@@ -270,7 +279,8 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
     schedDecryptMock.mockReturnValueOnce(null as never);
     const res = await scheduledReportLoader({
       request: new Request("https://app/api/scheduled-report"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].sent).toBe(true);
@@ -286,7 +296,8 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
     ]);
     await scheduledReportLoader({
       request: new Request("https://app/api/scheduled-report"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(schedCreateTransportMock).toHaveBeenCalledWith(
       expect.objectContaining({ port: 587, secure: false }),
@@ -294,25 +305,21 @@ describe("api.scheduled-report — falsy/default branch closeout", () => {
   });
 
   it("uses smtpUser as `from` when smtpFromEmail is empty (line 222 cond-expr falsy)", async () => {
-    sharedPrisma.shopSettings.findMany.mockResolvedValueOnce([
-      schedSetting({ smtpFromEmail: "" }),
-    ]);
+    sharedPrisma.shopSettings.findMany.mockResolvedValueOnce([schedSetting({ smtpFromEmail: "" })]);
     await scheduledReportLoader({
       request: new Request("https://app/api/scheduled-report"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(schedSendMailMock).toHaveBeenCalledWith(
-      expect.objectContaining({ from: "smtp@x.com" }),
-    );
+    expect(schedSendMailMock).toHaveBeenCalledWith(expect.objectContaining({ from: "smtp@x.com" }));
   });
 
   it("uses 'ReturnProMax' when smtpFromName is empty (line 222 || fallback)", async () => {
-    sharedPrisma.shopSettings.findMany.mockResolvedValueOnce([
-      schedSetting({ smtpFromName: "" }),
-    ]);
+    sharedPrisma.shopSettings.findMany.mockResolvedValueOnce([schedSetting({ smtpFromName: "" })]);
     await scheduledReportLoader({
       request: new Request("https://app/api/scheduled-report"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(schedSendMailMock).toHaveBeenCalledWith(
       expect.objectContaining({ from: expect.stringContaining("ReturnProMax") }),
@@ -381,7 +388,8 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
       session: { shop: "store.myshopify.com" },
       admin: { graphql: vi.fn() },
     });
-    const searchMock = vi.fn()
+    const searchMock = vi
+      .fn()
       .mockResolvedValueOnce({ items: [], orderId: "111111111111111" })
       .mockRejectedValueOnce(new Error("ship-search failed"));
     const getShipmentsMock = vi.fn().mockResolvedValue({ order: {} });
@@ -403,7 +411,8 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
 
     const res = await diagnoseLoader({
       request: new Request("https://app/api/returns/rc-1/diagnose"),
-      params: { id: "rc-1" }, context: {},
+      params: { id: "rc-1" },
+      context: {},
     } as never);
     const body = await res.json();
     const step3 = body.apiTrace.find((s: { step: string }) => s.step.startsWith("3."));
@@ -417,7 +426,8 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
       session: { shop: "store.myshopify.com" },
       admin: { graphql: vi.fn() },
     });
-    const searchMock = vi.fn()
+    const searchMock = vi
+      .fn()
       .mockResolvedValueOnce({ items: [] })
       .mockRejectedValueOnce("plain-string-fail");
     diagCreateFyndClientMock.mockResolvedValueOnce({
@@ -438,7 +448,8 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
 
     const res = await diagnoseLoader({
       request: new Request("https://app/api/returns/rc-1/diagnose"),
-      params: { id: "rc-1" }, context: {},
+      params: { id: "rc-1" },
+      context: {},
     } as never);
     const body = await res.json();
     const step3 = body.apiTrace.find((s: { step: string }) => s.step.startsWith("3."));
@@ -451,9 +462,7 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
       admin: { graphql: vi.fn() },
     });
     const searchMock = vi.fn().mockResolvedValue({ items: [] });
-    const getShipmentsMock = vi
-      .fn()
-      .mockRejectedValueOnce(new Error("ext-order-fetch failed"));
+    const getShipmentsMock = vi.fn().mockRejectedValueOnce(new Error("ext-order-fetch failed"));
     diagCreateFyndClientMock.mockResolvedValueOnce({
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock, getShipments: getShipmentsMock },
@@ -472,7 +481,8 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
 
     const res = await diagnoseLoader({
       request: new Request("https://app/api/returns/rc-1/diagnose"),
-      params: { id: "rc-1" }, context: {},
+      params: { id: "rc-1" },
+      context: {},
     } as never);
     const body = await res.json();
     const step4 = body.apiTrace.find((s: { step: string }) => s.step.startsWith("4."));
@@ -503,7 +513,8 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
 
     const res = await diagnoseLoader({
       request: new Request("https://app/api/returns/rc-1/diagnose"),
-      params: { id: "rc-1" }, context: {},
+      params: { id: "rc-1" },
+      context: {},
     } as never);
     const body = await res.json();
     const step4 = body.apiTrace.find((s: { step: string }) => s.step.startsWith("4."));
@@ -531,7 +542,8 @@ describe("api.returns.$id.diagnose — step 3 + 4 catch branches", () => {
 
     const res = await diagnoseLoader({
       request: new Request("https://app/api/returns/rc-1/diagnose"),
-      params: { id: "rc-1" }, context: {},
+      params: { id: "rc-1" },
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.fastPathPayload).toBeDefined();
@@ -582,7 +594,9 @@ describe("api.returns.$id.actions — falsy session + content-type branches", ()
       admin: { graphql: vi.fn() },
     });
     sharedPrisma.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", shopDomain: "store.myshopify.com", settings: {},
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
     });
     sharedPrisma.returnCase.findFirst.mockResolvedValueOnce(actReturnCase());
     const req = new Request("https://app/api/returns/rc-1/actions", {
@@ -605,7 +619,9 @@ describe("api.returns.$id.actions — falsy session + content-type branches", ()
       admin: { graphql: vi.fn() },
     });
     sharedPrisma.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", shopDomain: "store.myshopify.com", settings: {},
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
     });
     sharedPrisma.returnCase.findFirst.mockResolvedValueOnce(actReturnCase());
     const req = new Request("https://app/api/returns/rc-1/actions", {
@@ -623,7 +639,9 @@ describe("api.returns.$id.actions — falsy session + content-type branches", ()
       admin: { graphql: vi.fn() },
     });
     sharedPrisma.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", shopDomain: "store.myshopify.com", settings: {},
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
     });
     sharedPrisma.returnCase.findFirst.mockResolvedValueOnce(actReturnCase());
     // FormData body with no explicit Content-Type override; Request will assign
@@ -650,11 +668,11 @@ describe("api.returns.$id.actions — retry_fynd_sync dispatch branch (line 137)
       admin: { graphql: vi.fn() },
     });
     sharedPrisma.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", shopDomain: "store.myshopify.com", settings: {},
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
     });
-    sharedPrisma.returnCase.findFirst.mockResolvedValueOnce(
-      actReturnCase({ status: "pending" }),
-    );
+    sharedPrisma.returnCase.findFirst.mockResolvedValueOnce(actReturnCase({ status: "pending" }));
     const req = new Request("https://app/api/returns/rc-1/actions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

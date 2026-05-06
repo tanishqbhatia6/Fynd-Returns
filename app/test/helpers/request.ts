@@ -9,7 +9,10 @@ export function createRequest(path: string, options?: RequestInit): Request {
 export function createJsonRequest(path: string, body: unknown, options?: RequestInit): Request {
   return new Request(`http://localhost${path}`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...(options?.headers as Record<string, string> || {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...((options?.headers as Record<string, string>) || {}),
+    },
     body: JSON.stringify(body),
     ...options,
   });
@@ -25,7 +28,7 @@ export function createPortalRequest(path: string, body: unknown, origin?: string
 
 export function createApiKeyRequest(path: string, apiKey: string, options?: RequestInit): Request {
   return new Request(`http://localhost${path}`, {
-    headers: { "X-API-Key": apiKey, ...(options?.headers as Record<string, string> || {}) },
+    headers: { "X-API-Key": apiKey, ...((options?.headers as Record<string, string>) || {}) },
     ...options,
   });
 }

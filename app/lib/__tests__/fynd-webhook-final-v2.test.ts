@@ -87,7 +87,11 @@ vi.mock("../fynd-payload.server", () => ({
   isLikelyFyndId: isLikelyFyndIdMock,
 }));
 
-import { processFyndWebhook, unwrapFyndWebhookPayload, type FyndWebhookPayload } from "../fynd-webhook.server";
+import {
+  processFyndWebhook,
+  unwrapFyndWebhookPayload,
+  type FyndWebhookPayload,
+} from "../fynd-webhook.server";
 
 type ReturnCaseFixture = {
   id: string;
@@ -103,13 +107,20 @@ type ReturnCaseFixture = {
   customerName: string | null;
   customerEmailNorm: string | null;
   returnLabelJson: string | null;
-  items: Array<{ shopifyLineItemId: string; qty: number; sku?: string | null; title?: string | null }>;
+  items: Array<{
+    shopifyLineItemId: string;
+    qty: number;
+    sku?: string | null;
+    title?: string | null;
+  }>;
   shop: { id: string; shopDomain: string };
 };
 
 function mkReturnCase(over: Partial<ReturnCaseFixture> = {}): ReturnCaseFixture {
-  const pick = <K extends keyof ReturnCaseFixture>(k: K, dflt: ReturnCaseFixture[K]): ReturnCaseFixture[K] =>
-    (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
+  const pick = <K extends keyof ReturnCaseFixture>(
+    k: K,
+    dflt: ReturnCaseFixture[K],
+  ): ReturnCaseFixture[K] => (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
   return {
     id: pick("id", "rc-auto-1"),
     shopId: pick("shopId", "shop-1"),
@@ -170,9 +181,7 @@ beforeEach(() => {
   fetchOrderMock.mockResolvedValue({
     id: "gid://shopify/Order/100",
     name: "#1001",
-    lineItems: [
-      { id: "gid://shopify/LineItem/1", quantity: 2, sku: "SKU1", title: "Widget" },
-    ],
+    lineItems: [{ id: "gid://shopify/LineItem/1", quantity: 2, sku: "SKU1", title: "Widget" }],
     fulfillments: [{ location: { id: "gid://shopify/Location/1" } }],
     paymentGatewayNames: ["shopify_payments"],
     displayFinancialStatus: "PAID",
@@ -258,7 +267,11 @@ describe("processFyndWebhook — auto-refund order resolution branches", () => {
       });
     const r = await processFyndWebhook(mkAutoRefundPayload());
     // 3rd call uses orderIdForRefund (line 1363) which rejects via .catch.
-    expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenNthCalledWith(3, expect.anything(), "FY-AFFILIATE-XYZ");
+    expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenNthCalledWith(
+      3,
+      expect.anything(),
+      "FY-AFFILIATE-XYZ",
+    );
     // Auto-refund still recovers via the affiliate fallback (line 1366).
     expect(r.ok).toBe(true);
   });
@@ -460,7 +473,11 @@ describe("processFyndWebhook — auto-refund order resolution branches", () => {
       });
     await processFyndWebhook(mkAutoRefundPayload());
     // 2nd call = orderIdForRefund, not the (null) order name.
-    expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenNthCalledWith(2, expect.anything(), "FY-AFFILIATE-XYZ");
+    expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenNthCalledWith(
+      2,
+      expect.anything(),
+      "FY-AFFILIATE-XYZ",
+    );
   });
 
   it("logs auto_refund_processed event when refund succeeds via resolved order", async () => {
@@ -488,7 +505,8 @@ describe("processFyndWebhook — auto-refund order resolution branches", () => {
     fetchOrderByFyndAffiliateIdMock
       .mockResolvedValueOnce(null) // backfill
       .mockRejectedValueOnce(new Error("name boom")) // line 1087 .catch path
-      .mockResolvedValueOnce({     // by orderIdForRefund (line 1091)
+      .mockResolvedValueOnce({
+        // by orderIdForRefund (line 1091)
         id: "gid://shopify/Order/2000",
         lineItems: [{ id: "gid://shopify/LineItem/X", quantity: 1 }],
       });
@@ -500,7 +518,11 @@ describe("processFyndWebhook — auto-refund order resolution branches", () => {
     } as FyndWebhookPayload);
     expect(r.ok).toBe(true);
     expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenNthCalledWith(2, expect.anything(), "#1001");
-    expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenNthCalledWith(3, expect.anything(), "FY-AFFILIATE-XYZ");
+    expect(fetchOrderByFyndAffiliateIdMock).toHaveBeenNthCalledWith(
+      3,
+      expect.anything(),
+      "FY-AFFILIATE-XYZ",
+    );
   });
 
   it("manual refund completion: orderIdForRefund + affiliate_order_id rejections both swallowed (lines 1091/1095)", async () => {

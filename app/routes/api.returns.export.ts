@@ -46,7 +46,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (count > MAX_EXPORT_ROWS) {
       return new Response(
         `Export limit exceeded. Found ${count} rows (max ${MAX_EXPORT_ROWS}). Please narrow your date range or filters.`,
-        { status: 400, headers: { "Content-Type": "text/plain" } }
+        { status: 400, headers: { "Content-Type": "text/plain" } },
       );
     }
 
@@ -75,8 +75,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
     const piiSafe = (v: string | null | undefined): string =>
       anonymize ? escape(hashToken(v)) : escape(v);
-    const addressSafe = (v: string | null | undefined): string =>
-      anonymize ? "" : escape(v);
+    const addressSafe = (v: string | null | undefined): string => (anonymize ? "" : escape(v));
 
     const formatId = (r: { returnRequestNo?: string | null; id: string }) =>
       r.returnRequestNo || formatReturnRequestId(r.id);
@@ -117,19 +116,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       "Item Reason Code",
     ];
 
-    type ReturnCaseWithRelations = typeof returns[0];
+    type ReturnCaseWithRelations = (typeof returns)[0];
 
     const parseRefundJson = (rc: ReturnCaseWithRelations) => {
       try {
         if (!rc.refundJson) return { method: null, amount: null, currency: null, date: null };
-        const j = JSON.parse(rc.refundJson) as { method?: string; amount?: string | number; currency?: string; createdAt?: string };
+        const j = JSON.parse(rc.refundJson) as {
+          method?: string;
+          amount?: string | number;
+          currency?: string;
+          createdAt?: string;
+        };
         return {
           method: j.method ?? null,
           amount: j.amount != null ? String(j.amount) : null,
           currency: j.currency ?? null,
           date: j.createdAt ?? null,
         };
-      } catch { return { method: null, amount: null, currency: null, date: null }; }
+      } catch {
+        return { method: null, amount: null, currency: null, date: null };
+      }
     };
 
     const getEventTimestamp = (rc: ReturnCaseWithRelations, eventType: string): string | null => {
@@ -210,7 +216,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     console.error("[api.returns.export] Loader error:", err);
     return new Response(
       JSON.stringify({ error: "Failed to export returns. Please try again later." }),
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }
 };

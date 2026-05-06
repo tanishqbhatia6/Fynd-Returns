@@ -62,7 +62,9 @@ describe("parsePortalTheme", () => {
 
   it("returns a mutable copy, not the frozen default", () => {
     const theme = parsePortalTheme(null);
-    expect(() => { theme.primaryColor = "#xxx"; }).not.toThrow();
+    expect(() => {
+      theme.primaryColor = "#xxx";
+    }).not.toThrow();
   });
 });
 
@@ -111,6 +113,6 @@ describe("FONT_OPTIONS", () => {
   });
 
   it("includes a default DM Sans option", () => {
-    expect(FONT_OPTIONS.some(o => o.label.includes("DM Sans"))).toBe(true);
+    expect(FONT_OPTIONS.some((o) => o.label.includes("DM Sans"))).toBe(true);
   });
 });

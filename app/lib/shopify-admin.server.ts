@@ -17,7 +17,11 @@ const API_VERSION = "2026-01";
  *  network failure. */
 const SHOPIFY_FETCH_TIMEOUT_MS = 15_000;
 
-async function shopifyFetch(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+async function shopifyFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -344,7 +348,7 @@ export type OrderForPortal = {
 export class OrderAccessError extends Error {
   constructor(
     message: string,
-    public readonly code: "PCDA" | "NOT_FOUND" = "PCDA"
+    public readonly code: "PCDA" | "NOT_FOUND" = "PCDA",
   ) {
     super(message);
     this.name = "OrderAccessError";
@@ -357,7 +361,7 @@ export class OrderAccessError extends Error {
  */
 export async function fetchOrderByGid(
   admin: AdminGraphQL,
-  gid: string
+  gid: string,
 ): Promise<OrderForPortal | null> {
   if (!gid || !gid.startsWith("gid://")) return null;
   try {
@@ -367,7 +371,11 @@ export async function fetchOrderByGid(
       errors?: Array<{ message?: string }>;
     };
     const errMsg = json.errors?.[0]?.message ?? "";
-    if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
+    if (
+      errMsg.includes("not approved") ||
+      errMsg.includes("Order object") ||
+      errMsg.includes("protected")
+    ) {
       throw new OrderAccessError(errMsg, "PCDA");
     }
     if (json.errors?.length) return null;
@@ -395,7 +403,7 @@ async function searchOrders(
   admin: AdminGraphQL,
   query: string,
   throwOnError = true,
-  exactName?: string
+  exactName?: string,
 ): Promise<unknown | null> {
   /* v8 ignore start */ // defensive: ternary fallback `1` is unused (only exactName-based callers); only one path hit per test
   const limit = exactName ? 50 : 1;
@@ -405,7 +413,10 @@ async function searchOrders(
     res = await admin.graphql(ORDERS_BY_NAME_QUERY, { variables: { query, first: limit } });
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing + unreachable throwOnError branch
-    refundLogger.warn({ query, error: err instanceof Error ? err.message : String(err) }, "searchOrders: GraphQL call failed");
+    refundLogger.warn(
+      { query, error: err instanceof Error ? err.message : String(err) },
+      "searchOrders: GraphQL call failed",
+    );
     if (throwOnError) throw err;
     return null;
     /* v8 ignore stop */
@@ -421,7 +432,10 @@ async function searchOrders(
     // Without this guard the function rejects with an unhandled error instead of
     // the controlled null/OrderAccessError path the rest of the function uses.
     /* v8 ignore start */ // defensive: error instanceof Error narrowing + unreachable throwOnError branch
-    refundLogger.warn({ query, error: err instanceof Error ? err.message : String(err) }, "searchOrders: response.json() failed");
+    refundLogger.warn(
+      { query, error: err instanceof Error ? err.message : String(err) },
+      "searchOrders: response.json() failed",
+    );
     if (throwOnError) throw err;
     return null;
     /* v8 ignore stop */
@@ -429,7 +443,11 @@ async function searchOrders(
   const errMsg = json.errors?.[0]?.message ?? "";
   /* v8 ignore start */
   // defensive: PCDA-specific error string matchers; only one tested with the actual error path
-  if (errMsg.includes("not approved") || errMsg.includes("Order object") || errMsg.includes("protected")) {
+  if (
+    errMsg.includes("not approved") ||
+    errMsg.includes("Order object") ||
+    errMsg.includes("protected")
+  ) {
     throw new OrderAccessError(errMsg, "PCDA");
   }
   /* v8 ignore stop */
@@ -449,8 +467,11 @@ async function searchOrders(
   if (exactName) {
     /* v8 ignore start */ // defensive: each `?? "?"|""|null` is fallback for optional .name field; only one path hit per fixture
     const norm = exactName.replace(/^#/, "").toLowerCase();
-    const candidateNames = nodes.map((n) => typeof n.name === "string" ? n.name : "?");
-    refundLogger.info({ query, exactName, candidateCount: nodes.length, candidates: candidateNames.slice(0, 10) }, "searchOrders: got candidates");
+    const candidateNames = nodes.map((n) => (typeof n.name === "string" ? n.name : "?"));
+    refundLogger.info(
+      { query, exactName, candidateCount: nodes.length, candidates: candidateNames.slice(0, 10) },
+      "searchOrders: got candidates",
+    );
     const match = nodes.find((n) => {
       const name = typeof n.name === "string" ? n.name.replace(/^#/, "").toLowerCase() : "";
       return name === norm;
@@ -465,7 +486,7 @@ async function searchOrders(
   const found = nodes[0];
   /* v8 ignore start */
   // defensive: nodes[0] from successful query always object with name; non-object fallback unreachable
-  return (found && typeof found === "object" && "name" in found) ? found : null;
+  return found && typeof found === "object" && "name" in found ? found : null;
   /* v8 ignore stop */
 }
 
@@ -492,7 +513,7 @@ async function searchOrders(
 async function restOrderLookupByName(
   shopDomain: string,
   accessToken: string,
-  orderName: string
+  orderName: string,
 ): Promise<string | null> {
   const clean = orderName.replace(/^#/, "").trim();
   // unreachable: only caller (fetchOrderByOrderNumber) already returns null at the same guard
@@ -509,7 +530,10 @@ async function restOrderLookupByName(
         headers: { "X-Shopify-Access-Token": accessToken },
       });
       if (!res.ok) {
-        refundLogger.warn({ statusCode: res.status, nameQuery }, "REST order lookup: non-OK status");
+        refundLogger.warn(
+          { statusCode: res.status, nameQuery },
+          "REST order lookup: non-OK status",
+        );
         continue;
       }
       const data = (await res.json()) as { orders?: Array<{ id?: number; name?: string }> };
@@ -523,12 +547,18 @@ async function restOrderLookupByName(
       });
       /* v8 ignore stop */
       if (match?.id) {
-        refundLogger.info({ orderName: match.name, orderId: match.id, nameQuery }, "REST order lookup: found order");
+        refundLogger.info(
+          { orderName: match.name, orderId: match.id, nameQuery },
+          "REST order lookup: found order",
+        );
         return `gid://shopify/Order/${match.id}`;
       }
     } catch (err) {
       /* v8 ignore start */ // defensive: error instanceof Error narrowing
-      refundLogger.warn({ nameQuery, error: err instanceof Error ? err.message : String(err) }, "REST order lookup: error");
+      refundLogger.warn(
+        { nameQuery, error: err instanceof Error ? err.message : String(err) },
+        "REST order lookup: error",
+      );
       /* v8 ignore stop */
     }
   }
@@ -536,7 +566,11 @@ async function restOrderLookupByName(
 }
 
 /** Attach REST credentials to an admin client so fetchOrderByOrderNumber can use REST fallback */
-export function withRestCredentials(admin: AdminGraphQL, shopDomain: string, accessToken: string): AdminGraphQL {
+export function withRestCredentials(
+  admin: AdminGraphQL,
+  shopDomain: string,
+  accessToken: string,
+): AdminGraphQL {
   return { ...admin, _rest: { shopDomain, accessToken } };
 }
 
@@ -550,7 +584,7 @@ async function rawGraphQLSearch(
   shopDomain: string,
   accessToken: string,
   queryString: string,
-  exactName?: string
+  exactName?: string,
 ): Promise<OrderForPortal | null> {
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
   const url = `https://${shop}/admin/api/${API_VERSION}/graphql.json`;
@@ -574,12 +608,18 @@ async function rawGraphQLSearch(
     });
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    refundLogger.warn({ error: err instanceof Error ? err.message : String(err), query: queryString }, "rawGraphQLSearch: fetch failed (network/timeout)");
+    refundLogger.warn(
+      { error: err instanceof Error ? err.message : String(err), query: queryString },
+      "rawGraphQLSearch: fetch failed (network/timeout)",
+    );
     return null;
     /* v8 ignore stop */
   }
   if (!res.ok) {
-    refundLogger.warn({ statusCode: res.status, query: queryString }, "rawGraphQLSearch: HTTP error");
+    refundLogger.warn(
+      { statusCode: res.status, query: queryString },
+      "rawGraphQLSearch: HTTP error",
+    );
     return null;
   }
   let json: {
@@ -590,12 +630,18 @@ async function rawGraphQLSearch(
     json = await res.json();
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    refundLogger.warn({ error: err instanceof Error ? err.message : String(err), query: queryString }, "rawGraphQLSearch: response.json() failed");
+    refundLogger.warn(
+      { error: err instanceof Error ? err.message : String(err), query: queryString },
+      "rawGraphQLSearch: response.json() failed",
+    );
     return null;
     /* v8 ignore stop */
   }
   if (json.errors?.length) {
-    refundLogger.warn({ query: queryString, error: json.errors[0]?.message }, "rawGraphQLSearch: GraphQL errors");
+    refundLogger.warn(
+      { query: queryString, error: json.errors[0]?.message },
+      "rawGraphQLSearch: GraphQL errors",
+    );
     return null;
   }
   /* v8 ignore start */ // defensive: each `?? []|""` is fallback for an optional GraphQL field; only one path hit per fixture
@@ -620,7 +666,7 @@ async function rawGraphQLSearch(
 
 export async function fetchOrderByOrderNumber(
   admin: AdminGraphQL,
-  orderNumber: string
+  orderNumber: string,
 ): Promise<OrderForPortal | null> {
   const clean = orderNumber.replace(/^#/, "").trim();
   if (!clean) return null;
@@ -631,8 +677,11 @@ export async function fetchOrderByOrderNumber(
   }
 
   // Strategy 1 (PRIMARY — raw fetch, bypasses SDK wrapping issues):
-  const hasRestCreds = !!(admin._rest?.accessToken);
-  refundLogger.info({ clean, hasRestCreds, shopDomain: admin._rest?.shopDomain ?? "none" }, "fetchOrderByOrderNumber: starting lookup");
+  const hasRestCreds = !!admin._rest?.accessToken;
+  refundLogger.info(
+    { clean, hasRestCreds, shopDomain: admin._rest?.shopDomain ?? "none" },
+    "fetchOrderByOrderNumber: starting lookup",
+  );
   if (hasRestCreds) {
     const { shopDomain, accessToken } = admin._rest!;
     // name:#ORDER is the proven working format; try it first, then without #
@@ -640,12 +689,18 @@ export async function fetchOrderByOrderNumber(
       try {
         const order = await rawGraphQLSearch(shopDomain, accessToken, q, clean);
         if (order) {
-          refundLogger.info({ query: q, orderId: order.id }, "fetchOrderByOrderNumber: found via raw fetch");
+          refundLogger.info(
+            { query: q, orderId: order.id },
+            "fetchOrderByOrderNumber: found via raw fetch",
+          );
           return order;
         }
       } catch (err) {
         /* v8 ignore start */ // defensive: error instanceof Error narrowing
-        refundLogger.warn({ query: q, error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: raw search failed");
+        refundLogger.warn(
+          { query: q, error: err instanceof Error ? err.message : String(err) },
+          "fetchOrderByOrderNumber: raw search failed",
+        );
         /* v8 ignore stop */
       }
     }
@@ -659,11 +714,17 @@ export async function fetchOrderByOrderNumber(
     } catch (err) {
       // unreachable: restOrderLookupByName wraps everything in try/catch and never throws
       /* v8 ignore start */
-      refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: REST lookup error");
+      refundLogger.warn(
+        { error: err instanceof Error ? err.message : String(err) },
+        "fetchOrderByOrderNumber: REST lookup error",
+      );
       /* v8 ignore stop */
     }
   } else {
-    refundLogger.warn({ hasAccessToken: !!admin._rest?.accessToken, hasRest: !!admin._rest }, "fetchOrderByOrderNumber: no REST credentials, skipping raw fetch");
+    refundLogger.warn(
+      { hasAccessToken: !!admin._rest?.accessToken, hasRest: !!admin._rest },
+      "fetchOrderByOrderNumber: no REST credentials, skipping raw fetch",
+    );
   }
 
   // Strategy 2 (FALLBACK — SDK's admin.graphql(), for cases without REST credentials):
@@ -678,7 +739,10 @@ export async function fetchOrderByOrderNumber(
     } catch (err) {
       if (err instanceof OrderAccessError) throw err;
       /* v8 ignore start */ // defensive: error instanceof Error narrowing
-      refundLogger.warn({ query: q, error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: Strategy 2 failed");
+      refundLogger.warn(
+        { query: q, error: err instanceof Error ? err.message : String(err) },
+        "fetchOrderByOrderNumber: Strategy 2 failed",
+      );
       /* v8 ignore stop */
     }
   }
@@ -710,7 +774,9 @@ export async function fetchOrderByOrderNumber(
  *
  * Returns an array of candidate order names to search, most specific first.
  */
-export function extractShopifyOrderNumberVariants(affiliateOrderId: string | null | undefined): string[] {
+export function extractShopifyOrderNumberVariants(
+  affiliateOrderId: string | null | undefined,
+): string[] {
   if (!affiliateOrderId) return [];
   const clean = affiliateOrderId.replace(/^#/, "").trim();
   if (!clean) return [];
@@ -720,11 +786,7 @@ export function extractShopifyOrderNumberVariants(affiliateOrderId: string | nul
   variants.push(clean);
 
   // Strip common Fynd prefixes: FYNDSHOPIFY, FYND_SHOPIFY_, FYND-SHOPIFY-, etc.
-  const prefixPatterns = [
-    /^FYNDSHOPIFY/i,
-    /^FYND[_-]?SHOPIFY[_-]?/i,
-    /^FYND[_-]?/i,
-  ];
+  const prefixPatterns = [/^FYNDSHOPIFY/i, /^FYND[_-]?SHOPIFY[_-]?/i, /^FYND[_-]?/i];
 
   for (const pattern of prefixPatterns) {
     if (pattern.test(clean)) {
@@ -738,7 +800,7 @@ export function extractShopifyOrderNumberVariants(affiliateOrderId: string | nul
         if (numMatch) {
           variants.push(numMatch[1]);
         }
-      /* v8 ignore stop */
+        /* v8 ignore stop */
       }
     }
   }
@@ -756,14 +818,17 @@ export function extractShopifyOrderNumberVariants(affiliateOrderId: string | nul
  */
 export async function fetchOrderByFyndAffiliateId(
   admin: AdminGraphQL,
-  affiliateOrderId: string
+  affiliateOrderId: string,
 ): Promise<OrderForPortal | null> {
   const variants = extractShopifyOrderNumberVariants(affiliateOrderId);
   const startTime = Date.now();
   const TIMEOUT_MS = 8000; // give up after 8 seconds
   for (const variant of variants) {
     if (Date.now() - startTime > TIMEOUT_MS) {
-      refundLogger.warn({ timeoutMs: TIMEOUT_MS, variants }, "fetchOrderByFyndAffiliateId: timed out");
+      refundLogger.warn(
+        { timeoutMs: TIMEOUT_MS, variants },
+        "fetchOrderByFyndAffiliateId: timed out",
+      );
       return null;
     }
     try {
@@ -941,7 +1006,7 @@ export type OrderSummaryForPortal = {
 export async function fetchOrdersByFilter(
   admin: AdminGraphQL,
   queryFilter: string,
-  limit = 50
+  limit = 50,
 ): Promise<OrderForPortal[]> {
   const q = queryFilter.trim();
   if (!q) return [];
@@ -961,7 +1026,10 @@ export async function fetchOrdersByFilter(
       errors?: Array<{ message?: string }>;
     };
     if (json.errors?.length) {
-      refundLogger.warn({ errors: json.errors.map((e) => e.message).join(", ") }, "fetchOrdersByFilter: GraphQL errors");
+      refundLogger.warn(
+        { errors: json.errors.map((e) => e.message).join(", ") },
+        "fetchOrdersByFilter: GraphQL errors",
+      );
       return [];
     }
     /* v8 ignore start */ // defensive: nodes ?? [] fallback for empty result; only one path hit per fixture
@@ -971,7 +1039,10 @@ export async function fetchOrdersByFilter(
     /* v8 ignore stop */
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "fetchOrdersByFilter: error");
+    refundLogger.error(
+      { error: err instanceof Error ? err.message : String(err) },
+      "fetchOrdersByFilter: error",
+    );
     return [];
     /* v8 ignore stop */
   }
@@ -979,7 +1050,7 @@ export async function fetchOrdersByFilter(
 
 export async function fetchOrdersByCustomer(
   admin: AdminGraphQL,
-  email: string
+  email: string,
 ): Promise<OrderSummaryForPortal[]> {
   const trimmed = email.trim().toLowerCase();
   if (!trimmed) return [];
@@ -998,7 +1069,7 @@ const AFFILIATE_ORDER_ID_KEYS = [
 ];
 
 export function extractAffiliateOrderId(
-  customAttributes: Array<{ key: string; value: string }> | null | undefined
+  customAttributes: Array<{ key: string; value: string }> | null | undefined,
 ): string | null {
   if (!customAttributes?.length) return null;
   const keyMap = new Map(customAttributes.map((a) => [a.key.toLowerCase(), a.value?.trim()]));
@@ -1011,7 +1082,7 @@ export function extractAffiliateOrderId(
 
 export async function fetchOrder(
   admin: AdminGraphQL,
-  orderId: string
+  orderId: string,
 ): Promise<OrderForPortal | null> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
   let res: Response;
@@ -1019,7 +1090,10 @@ export async function fetchOrder(
     res = await admin.graphql(ORDERS_QUERY, { variables: { ids: [gid] } });
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    refundLogger.warn({ gid, error: err instanceof Error ? err.message : String(err) }, "fetchOrder: GraphQL call failed");
+    refundLogger.warn(
+      { gid, error: err instanceof Error ? err.message : String(err) },
+      "fetchOrder: GraphQL call failed",
+    );
     return null;
     /* v8 ignore stop */
   }
@@ -1031,7 +1105,10 @@ export async function fetchOrder(
     return null;
   }
   if (json.errors?.length) {
-    refundLogger.warn({ gid, errors: json.errors.map(e => e.message).join("; ") }, "fetchOrder: GraphQL errors");
+    refundLogger.warn(
+      { gid, errors: json.errors.map((e) => e.message).join("; ") },
+      "fetchOrder: GraphQL errors",
+    );
   }
   const node = json.data?.nodes?.[0];
   if (!node || typeof node !== "object" || !("name" in node)) return null;
@@ -1149,28 +1226,54 @@ export async function fetchOrder(
  */
 export async function fetchOrderLineItemsOnly(
   admin: AdminGraphQL,
-  orderId: string
-): Promise<{ id: string; name: string; lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }> } | null> {
+  orderId: string,
+): Promise<{
+  id: string;
+  name: string;
+  lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }>;
+} | null> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
 
   // Strategy 1: Direct GID lookup via nodes()
   try {
     const res = await admin.graphql(ORDER_LINE_ITEMS_ONLY_QUERY, { variables: { ids: [gid] } });
-    const json = (await res.json()) as { data?: { nodes?: Array<Record<string, unknown>> }; errors?: Array<{ message?: string }> };
+    const json = (await res.json()) as {
+      data?: { nodes?: Array<Record<string, unknown>> };
+      errors?: Array<{ message?: string }>;
+    };
     if (json.errors?.length) {
-      refundLogger.warn({ error: json.errors[0]?.message }, "fetchOrderLineItemsOnly: GID query errors");
+      refundLogger.warn(
+        { error: json.errors[0]?.message },
+        "fetchOrderLineItemsOnly: GID query errors",
+      );
     }
-    const node = json.data?.nodes?.[0] as { id?: string; name?: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }> } } | undefined;
+    const node = json.data?.nodes?.[0] as
+      | {
+          id?: string;
+          name?: string;
+          lineItems?: {
+            nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }>;
+          };
+        }
+      | undefined;
     /* v8 ignore start */ // defensive: each `?? ""|null|String(err)` is fallback for an optional GraphQL field; only one path hit per fixture
     if (node?.id && node?.lineItems?.nodes?.length) {
       return {
         id: node.id,
         name: node.name ?? "",
-        lineItems: node.lineItems.nodes.map((li) => ({ id: li.id, title: li.title, sku: li.sku ?? null, quantity: li.quantity })),
+        lineItems: node.lineItems.nodes.map((li) => ({
+          id: li.id,
+          title: li.title,
+          sku: li.sku ?? null,
+          quantity: li.quantity,
+        })),
       };
     }
   } catch (err) {
-    refundLogger.warn({ gid, error: (err as Error)?.message ?? String(err) }, "fetchOrderLineItemsOnly: GID query failed");
+    refundLogger.warn(
+      { gid, error: (err as Error)?.message ?? String(err) },
+      "fetchOrderLineItemsOnly: GID query failed",
+    );
   }
   /* v8 ignore stop */
 
@@ -1183,20 +1286,39 @@ export async function fetchOrderLineItemsOnly(
  */
 export async function fetchOrderLineItemsByName(
   admin: AdminGraphQL,
-  orderName: string
-): Promise<{ id: string; name: string; lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }> } | null> {
+  orderName: string,
+): Promise<{
+  id: string;
+  name: string;
+  lineItems: Array<{ id: string; title: string; sku: string | null; quantity: number }>;
+} | null> {
   const clean = orderName.replace(/^#/, "").trim();
   if (!clean) return null;
 
   for (const q of [`name:#${clean}`, `name:${clean}`]) {
     try {
-      const res = await admin.graphql(ORDER_LINE_ITEMS_BY_NAME_QUERY, { variables: { query: q, first: 50 } });
+      const res = await admin.graphql(ORDER_LINE_ITEMS_BY_NAME_QUERY, {
+        variables: { query: q, first: 50 },
+      });
       const json = (await res.json()) as {
-        data?: { orders?: { nodes?: Array<{ id: string; name: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }> } }> } };
+        data?: {
+          orders?: {
+            nodes?: Array<{
+              id: string;
+              name: string;
+              lineItems?: {
+                nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }>;
+              };
+            }>;
+          };
+        };
         errors?: Array<{ message?: string }>;
       };
       if (json.errors?.length) {
-        refundLogger.warn({ query: q, error: json.errors[0]?.message }, "fetchOrderLineItemsByName: query errors");
+        refundLogger.warn(
+          { query: q, error: json.errors[0]?.message },
+          "fetchOrderLineItemsByName: query errors",
+        );
         continue;
       }
       /* v8 ignore start */ // defensive: each `?? []|null|String(err)` is fallback for an optional GraphQL field; only one path hit per fixture
@@ -1208,11 +1330,19 @@ export async function fetchOrderLineItemsByName(
         return {
           id: match.id,
           name: match.name,
-          lineItems: match.lineItems.nodes.map((li) => ({ id: li.id, title: li.title, sku: li.sku ?? null, quantity: li.quantity })),
+          lineItems: match.lineItems.nodes.map((li) => ({
+            id: li.id,
+            title: li.title,
+            sku: li.sku ?? null,
+            quantity: li.quantity,
+          })),
         };
       }
     } catch (err) {
-      refundLogger.warn({ query: q, error: (err as Error)?.message ?? String(err) }, "fetchOrderLineItemsByName: query failed");
+      refundLogger.warn(
+        { query: q, error: (err as Error)?.message ?? String(err) },
+        "fetchOrderLineItemsByName: query failed",
+      );
     }
     /* v8 ignore stop */
   }
@@ -1242,7 +1372,24 @@ export async function fetchOrderLineItemsByName(
         });
         if (!res.ok) continue;
         /* v8 ignore start */ // defensive: each `?? []|null|String(err)` is fallback for an optional GraphQL field; only one path hit per fixture
-        const json = (await res.json()) as { data?: { orders?: { nodes?: Array<{ id: string; name: string; lineItems?: { nodes?: Array<{ id: string; title: string; sku?: string | null; quantity: number }> } }> } } };
+        const json = (await res.json()) as {
+          data?: {
+            orders?: {
+              nodes?: Array<{
+                id: string;
+                name: string;
+                lineItems?: {
+                  nodes?: Array<{
+                    id: string;
+                    title: string;
+                    sku?: string | null;
+                    quantity: number;
+                  }>;
+                };
+              }>;
+            };
+          };
+        };
         const nodes = json.data?.orders?.nodes ?? [];
         const norm2 = clean.toLowerCase();
         const match = nodes.find((n) => n.name.replace(/^#/, "").toLowerCase() === norm2);
@@ -1250,11 +1397,19 @@ export async function fetchOrderLineItemsByName(
           return {
             id: match.id,
             name: match.name,
-            lineItems: match.lineItems.nodes.map((li) => ({ id: li.id, title: li.title, sku: li.sku ?? null, quantity: li.quantity })),
+            lineItems: match.lineItems.nodes.map((li) => ({
+              id: li.id,
+              title: li.title,
+              sku: li.sku ?? null,
+              quantity: li.quantity,
+            })),
           };
         }
       } catch (err) {
-        refundLogger.warn({ query: q, error: (err as Error)?.message ?? String(err) }, "fetchOrderLineItemsByName: raw fetch query failed");
+        refundLogger.warn(
+          { query: q, error: (err as Error)?.message ?? String(err) },
+          "fetchOrderLineItemsByName: raw fetch query failed",
+        );
       }
       /* v8 ignore stop */
     }
@@ -1281,11 +1436,16 @@ export async function fetchAllLocations(admin: AdminGraphQL): Promise<ShopLocati
       errors?: Array<{ message?: string }>;
     };
     if (json.errors?.length) {
-      refundLogger.error({ errors: json.errors.map(e => e.message).join(", ") }, "fetchAllLocations: GraphQL errors — ensure the app has the 'read_locations' scope");
+      refundLogger.error(
+        { errors: json.errors.map((e) => e.message).join(", ") },
+        "fetchAllLocations: GraphQL errors — ensure the app has the 'read_locations' scope",
+      );
     }
     const nodes = json.data?.locations?.nodes ?? [];
     if (nodes.length === 0) {
-      refundLogger.warn("fetchAllLocations: no locations returned — check 'read_locations' scope is granted");
+      refundLogger.warn(
+        "fetchAllLocations: no locations returned — check 'read_locations' scope is granted",
+      );
     }
     return nodes.map((l) => ({
       id: l.id,
@@ -1294,7 +1454,10 @@ export async function fetchAllLocations(admin: AdminGraphQL): Promise<ShopLocati
     }));
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "fetchAllLocations: failed");
+    refundLogger.error(
+      { error: err instanceof Error ? err.message : String(err) },
+      "fetchAllLocations: failed",
+    );
     return [];
     /* v8 ignore stop */
   }
@@ -1411,297 +1574,366 @@ export async function createRefund(
 ): Promise<RefundResult> {
   const gid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
   const method = refundMethodConfig?.method ?? "original";
-  return withSpan("shopify.refund.create", { "order.id": gid, "refund.method": method }, async () => {
-  const timer = startTimer();
-  try {
-    const normalized = lineItems.map((item) => {
-      if (typeof item === "string") return { id: item, quantity: 1 };
-      return item;
-    });
+  return withSpan(
+    "shopify.refund.create",
+    { "order.id": gid, "refund.method": method },
+    async () => {
+      const timer = startTimer();
+      try {
+        const normalized = lineItems.map((item) => {
+          if (typeof item === "string") return { id: item, quantity: 1 };
+          return item;
+        });
 
-    const isAmountOnly = options?.transactionAmount != null && options.transactionAmount > 0;
-    if (normalized.length === 0 && !isAmountOnly) {
-      return { success: false, error: "No line items specified for refund. Please select items to refund." };
-    }
-
-    const skipLocation = options?.skipLocation === true;
-    let restockLocationId = locationId;
-    if (!skipLocation && !restockLocationId && !isAmountOnly) {
-      restockLocationId = await fetchPrimaryLocationId(admin);
-    }
-
-    // Amount-only refunds (transactionAmount set) skip per-item refund — those
-    // restock + adjust the order, but here we just want to push money back.
-    const refundLineItems = isAmountOnly
-      ? []
-      : normalized
-          .filter((item) => item.quantity > 0)
-          .map((item) => ({
-            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
-            quantity: item.quantity,
-            restockType: skipLocation ? ("NO_RESTOCK" as string) : ("RETURN" as string),
-            ...(!skipLocation && restockLocationId ? { locationId: restockLocationId } : {}),
-          }));
-
-    const storeCreditPct = refundMethodConfig?.storeCreditPct ?? 100;
-
-    const refundInput: Record<string, unknown> = {
-      orderId: gid,
-      note: note || "Return processed via Fynd Returns",
-      refundLineItems,
-    };
-
-    if (method === "store_credit" || method === "both") {
-      const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
-        variables: {
-          orderId: gid,
-          refundLineItems: normalized.map((item) => ({
-            /* v8 ignore start */
-            // defensive: GID-prefix branch fallback (numeric IDs covered separately)
-            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
-            /* v8 ignore stop */
-            quantity: item.quantity,
-          })),
-        },
-      });
-      const suggestJson = (await suggestRes.json()) as {
-        data?: {
-          order?: {
-            suggestedRefund?: {
-              amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
-              suggestedTransactions?: Array<{
-                gateway?: string;
-                parentTransaction?: { id?: string };
-                amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
-                kind?: string;
-              }>;
-            };
-          };
-        };
-      };
-
-      const suggested = suggestJson.data?.order?.suggestedRefund;
-      /* v8 ignore start */ // defensive: each `?? "0"|"INR"` is fallback for an optional GraphQL field; only one path hit per fixture
-      const totalAmount = parseFloat(suggested?.amountSet?.shopMoney?.amount ?? "0");
-      const currency = suggested?.amountSet?.shopMoney?.currencyCode ?? "INR";
-      /* v8 ignore stop */
-
-      /* v8 ignore start */
-      // defensive: options?.bonusAmount ?? 0 — only one path tested for bonusAmount values
-      const bonusAmount = options?.bonusAmount ?? 0;
-      /* v8 ignore stop */
-
-      if (totalAmount > 0) {
-        if (method === "store_credit") {
-          const storeCreditTotal = Math.round((totalAmount + bonusAmount) * 100) / 100;
-          refundInput.transactions = [];
-          refundInput.refundMethods = [{
-            storeCreditRefund: {
-              amount: { amount: storeCreditTotal.toFixed(2), currencyCode: currency },
-            },
-          }];
-        /* v8 ignore start */
-        // defensive: else-if branch falsy unreachable when outer `||` already filtered methods
-        } else if (method === "both") {
-          /* v8 ignore stop */
-          let scAmount: number;
-          let origAmount: number;
-
-          if (refundMethodConfig?.storeCreditAmount != null && refundMethodConfig?.originalAmount != null) {
-            const requestedTotal = refundMethodConfig.storeCreditAmount + refundMethodConfig.originalAmount;
-            if (requestedTotal > totalAmount + 0.01) {
-              return {
-                success: false,
-                error: `Requested refund total (${requestedTotal.toFixed(2)}) exceeds Shopify's refundable amount (${totalAmount.toFixed(2)}). Please adjust the split amounts.`,
-              };
-            }
-            scAmount = Math.round((refundMethodConfig.storeCreditAmount + bonusAmount) * 100) / 100;
-            origAmount = Math.round(refundMethodConfig.originalAmount * 100) / 100;
-          } else {
-            scAmount = Math.round((totalAmount * (storeCreditPct / 100) + bonusAmount) * 100) / 100;
-            origAmount = Math.round((totalAmount - (totalAmount * (storeCreditPct / 100))) * 100) / 100;
-          }
-
-          if (origAmount > 0 && suggested?.suggestedTransactions?.length) {
-            /* v8 ignore start */ // defensive: txn.gateway ?? "manual" + optional parentId spread — only one path hit per fixture
-            const txn = suggested.suggestedTransactions[0];
-            refundInput.transactions = [{
-              orderId: gid,
-              kind: "REFUND",
-              gateway: txn.gateway ?? "manual",
-              amount: origAmount.toFixed(2),
-              ...(txn.parentTransaction?.id ? { parentId: txn.parentTransaction.id } : {}),
-            }];
-            /* v8 ignore stop */
-          } else {
-            /* v8 ignore start */
-            // defensive: split refund without txnAmount unreachable in tests; transactions reset path
-            refundInput.transactions = [];
-            /* v8 ignore stop */
-          }
-
-          if (scAmount > 0) {
-            refundInput.refundMethods = [{
-              storeCreditRefund: {
-                amount: { amount: scAmount.toFixed(2), currencyCode: currency },
-              },
-            }];
-          }
-        }
-      } else {
-        // totalAmount === 0: Shopify reports nothing to refund for this order.
-        // For store_credit/both this means we cannot issue a credit — surface a clear error.
-        /* v8 ignore start */
-        // defensive: || short-circuit between method values not exhausted
-        if (method === "store_credit" || method === "both") {
+        const isAmountOnly = options?.transactionAmount != null && options.transactionAmount > 0;
+        if (normalized.length === 0 && !isAmountOnly) {
           return {
             success: false,
-            error: "Shopify reports zero refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the \"Discount code\" refund method instead, or process manually in Shopify Admin.",
+            error: "No line items specified for refund. Please select items to refund.",
           };
         }
-        /* v8 ignore stop */
-        // unreachable: outer branch requires method=store_credit|both, which all return above when totalAmount=0
-        /* v8 ignore start */
-        if (suggested?.suggestedTransactions?.length) {
-          refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
-            orderId: gid,
-            kind: "REFUND",
-            gateway: t.gateway ?? "manual",
-            amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
-            ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
-          }));
+
+        const skipLocation = options?.skipLocation === true;
+        let restockLocationId = locationId;
+        if (!skipLocation && !restockLocationId && !isAmountOnly) {
+          restockLocationId = await fetchPrimaryLocationId(admin);
         }
-        /* v8 ignore stop */
-      }
-    } else {
-      const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
-        variables: {
+
+        // Amount-only refunds (transactionAmount set) skip per-item refund — those
+        // restock + adjust the order, but here we just want to push money back.
+        const refundLineItems = isAmountOnly
+          ? []
+          : normalized
+              .filter((item) => item.quantity > 0)
+              .map((item) => ({
+                lineItemId: item.id.startsWith("gid://")
+                  ? item.id
+                  : `gid://shopify/LineItem/${item.id}`,
+                quantity: item.quantity,
+                restockType: skipLocation ? ("NO_RESTOCK" as string) : ("RETURN" as string),
+                ...(!skipLocation && restockLocationId ? { locationId: restockLocationId } : {}),
+              }));
+
+        const storeCreditPct = refundMethodConfig?.storeCreditPct ?? 100;
+
+        const refundInput: Record<string, unknown> = {
           orderId: gid,
-          refundLineItems: normalized.map((item) => ({
-            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
-            quantity: item.quantity,
-          })),
-        },
-      });
-      const suggestJson = (await suggestRes.json()) as {
-        data?: {
-          order?: {
-            suggestedRefund?: {
-              suggestedTransactions?: Array<{
-                gateway?: string;
-                parentTransaction?: { id?: string };
-                amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
-                kind?: string;
-              }>;
+          note: note || "Return processed via Fynd Returns",
+          refundLineItems,
+        };
+
+        if (method === "store_credit" || method === "both") {
+          const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
+            variables: {
+              orderId: gid,
+              refundLineItems: normalized.map((item) => ({
+                /* v8 ignore start */
+                // defensive: GID-prefix branch fallback (numeric IDs covered separately)
+                lineItemId: item.id.startsWith("gid://")
+                  ? item.id
+                  : `gid://shopify/LineItem/${item.id}`,
+                /* v8 ignore stop */
+                quantity: item.quantity,
+              })),
+            },
+          });
+          const suggestJson = (await suggestRes.json()) as {
+            data?: {
+              order?: {
+                suggestedRefund?: {
+                  amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+                  suggestedTransactions?: Array<{
+                    gateway?: string;
+                    parentTransaction?: { id?: string };
+                    amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+                    kind?: string;
+                  }>;
+                };
+              };
             };
           };
-        };
-      };
-      const suggested = suggestJson.data?.order?.suggestedRefund;
-      if (suggested?.suggestedTransactions?.length) {
-        // When the caller supplied an explicit transactionAmount (e.g. an
-        // exchange price-difference refund), refund exactly that amount via the
-        // first suggested gateway/parentTransaction instead of the full suggested
-        // line-item totals. This lets us issue partial refunds without having
-        // to compute per-line-item splits.
-        if (options?.transactionAmount != null && options.transactionAmount > 0) {
-          /* v8 ignore start */ // defensive: txn.gateway ?? "manual" + optional parentId spread — only one path hit per fixture
-          const amt = Math.round(options.transactionAmount * 100) / 100;
-          const txn = suggested.suggestedTransactions[0];
-          refundInput.transactions = [{
-            orderId: gid,
-            kind: "REFUND",
-            gateway: txn.gateway ?? "manual",
-            amount: amt.toFixed(2),
-            ...(txn.parentTransaction?.id ? { parentId: txn.parentTransaction.id } : {}),
-          }];
-          // Don't restock — this is a price-adjustment refund, not a goods return.
-          refundInput.refundLineItems = [];
+
+          const suggested = suggestJson.data?.order?.suggestedRefund;
+          /* v8 ignore start */ // defensive: each `?? "0"|"INR"` is fallback for an optional GraphQL field; only one path hit per fixture
+          const totalAmount = parseFloat(suggested?.amountSet?.shopMoney?.amount ?? "0");
+          const currency = suggested?.amountSet?.shopMoney?.currencyCode ?? "INR";
           /* v8 ignore stop */
-        } else {
-          /* v8 ignore start */ // defensive: t.gateway ?? "manual" + amountSet?.shopMoney?.amount ?? "0" + optional parentId spread — only one path hit per fixture
-          refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
-            orderId: gid,
-            kind: "REFUND",
-            gateway: t.gateway ?? "manual",
-            amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
-            ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
-          }));
+
+          /* v8 ignore start */
+          // defensive: options?.bonusAmount ?? 0 — only one path tested for bonusAmount values
+          const bonusAmount = options?.bonusAmount ?? 0;
           /* v8 ignore stop */
-        }
-      }
-    }
 
-    // Guard: if no transactions and no refundMethods set for store_credit/both, Shopify will reject.
-    // This can happen when suggestedTransactions is empty for a $0 refund case.
-    if ((method === "store_credit" || method === "both") &&
-      refundInput.refundMethods == null &&
-      (!Array.isArray(refundInput.transactions) || (refundInput.transactions as unknown[]).length === 0)) {
-      return {
-        success: false,
-        error: "No refundable amount found for store credit. Use the \"Discount code\" refund method instead.",
-      };
-    }
+          if (totalAmount > 0) {
+            if (method === "store_credit") {
+              const storeCreditTotal = Math.round((totalAmount + bonusAmount) * 100) / 100;
+              refundInput.transactions = [];
+              refundInput.refundMethods = [
+                {
+                  storeCreditRefund: {
+                    amount: { amount: storeCreditTotal.toFixed(2), currencyCode: currency },
+                  },
+                },
+              ];
+              /* v8 ignore start */
+              // defensive: else-if branch falsy unreachable when outer `||` already filtered methods
+            } else if (method === "both") {
+              /* v8 ignore stop */
+              let scAmount: number;
+              let origAmount: number;
 
-    const res = await shopifyCircuitBreaker.execute(() => admin.graphql(REFUND_MUTATION, { variables: { input: refundInput } }));
-    let json: RefundJson;
-    try { json = (await res.json()) as RefundJson; } catch {
-      shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
-      return { success: false, error: "Invalid response from Shopify. Please try again." };
-    }
+              if (
+                refundMethodConfig?.storeCreditAmount != null &&
+                refundMethodConfig?.originalAmount != null
+              ) {
+                const requestedTotal =
+                  refundMethodConfig.storeCreditAmount + refundMethodConfig.originalAmount;
+                if (requestedTotal > totalAmount + 0.01) {
+                  return {
+                    success: false,
+                    error: `Requested refund total (${requestedTotal.toFixed(2)}) exceeds Shopify's refundable amount (${totalAmount.toFixed(2)}). Please adjust the split amounts.`,
+                  };
+                }
+                scAmount =
+                  Math.round((refundMethodConfig.storeCreditAmount + bonusAmount) * 100) / 100;
+                origAmount = Math.round(refundMethodConfig.originalAmount * 100) / 100;
+              } else {
+                scAmount =
+                  Math.round((totalAmount * (storeCreditPct / 100) + bonusAmount) * 100) / 100;
+                origAmount =
+                  Math.round((totalAmount - totalAmount * (storeCreditPct / 100)) * 100) / 100;
+              }
 
-    if (!res.ok) {
-      shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: String(res.status) });
-      return { success: false, error: `Shopify API error (${res.status}). Please try again or refund manually in Shopify Admin.` };
-    }
+              if (origAmount > 0 && suggested?.suggestedTransactions?.length) {
+                /* v8 ignore start */ // defensive: txn.gateway ?? "manual" + optional parentId spread — only one path hit per fixture
+                const txn = suggested.suggestedTransactions[0];
+                refundInput.transactions = [
+                  {
+                    orderId: gid,
+                    kind: "REFUND",
+                    gateway: txn.gateway ?? "manual",
+                    amount: origAmount.toFixed(2),
+                    ...(txn.parentTransaction?.id ? { parentId: txn.parentTransaction.id } : {}),
+                  },
+                ];
+                /* v8 ignore stop */
+              } else {
+                /* v8 ignore start */
+                // defensive: split refund without txnAmount unreachable in tests; transactions reset path
+                refundInput.transactions = [];
+                /* v8 ignore stop */
+              }
 
-    const result = parseRefundResponse(json);
-    /* v8 ignore start */ // defensive: each `?? ""` is fallback for an optional refund field; only one path hit per fixture
-    if (!result.success) {
-      const isLocationError = /location|restock/i.test(result.error ?? "");
-      if (isLocationError) {
-        const noRestockInput: Record<string, unknown> = {
-          ...refundInput,
-          refundLineItems: normalized.map((item) => ({
-            lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
-            quantity: item.quantity,
-            restockType: "NO_RESTOCK",
-          })),
-        };
-        const retryRes = await admin.graphql(REFUND_MUTATION, { variables: { input: noRestockInput } });
-        let retryJson: RefundJson;
-        try { retryJson = (await retryRes.json()) as RefundJson; } catch {
-          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
-          return { success: false, error: "Retry without restock failed." };
-        }
-        const retryResult = parseRefundResponse(retryJson);
-        if (retryResult.success) {
-          retryResult.refundMethod = method;
-          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "200" });
-          addBusinessEvent("refund.shopify.created", { "order.id": gid, "refund.method": method, "refund.id": retryResult.refundId ?? "", "refund.amount": retryResult.refundAmount ?? "", retried: "true" });
+              if (scAmount > 0) {
+                refundInput.refundMethods = [
+                  {
+                    storeCreditRefund: {
+                      amount: { amount: scAmount.toFixed(2), currencyCode: currency },
+                    },
+                  },
+                ];
+              }
+            }
+          } else {
+            // totalAmount === 0: Shopify reports nothing to refund for this order.
+            // For store_credit/both this means we cannot issue a credit — surface a clear error.
+            /* v8 ignore start */
+            // defensive: || short-circuit between method values not exhausted
+            if (method === "store_credit" || method === "both") {
+              return {
+                success: false,
+                error:
+                  'Shopify reports zero refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the "Discount code" refund method instead, or process manually in Shopify Admin.',
+              };
+            }
+            /* v8 ignore stop */
+            // unreachable: outer branch requires method=store_credit|both, which all return above when totalAmount=0
+            /* v8 ignore start */
+            if (suggested?.suggestedTransactions?.length) {
+              refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
+                orderId: gid,
+                kind: "REFUND",
+                gateway: t.gateway ?? "manual",
+                amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
+                ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
+              }));
+            }
+            /* v8 ignore stop */
+          }
         } else {
-          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
+          const suggestRes = await admin.graphql(SUGGEST_REFUND_QUERY, {
+            variables: {
+              orderId: gid,
+              refundLineItems: normalized.map((item) => ({
+                lineItemId: item.id.startsWith("gid://")
+                  ? item.id
+                  : `gid://shopify/LineItem/${item.id}`,
+                quantity: item.quantity,
+              })),
+            },
+          });
+          const suggestJson = (await suggestRes.json()) as {
+            data?: {
+              order?: {
+                suggestedRefund?: {
+                  suggestedTransactions?: Array<{
+                    gateway?: string;
+                    parentTransaction?: { id?: string };
+                    amountSet?: { shopMoney?: { amount?: string; currencyCode?: string } };
+                    kind?: string;
+                  }>;
+                };
+              };
+            };
+          };
+          const suggested = suggestJson.data?.order?.suggestedRefund;
+          if (suggested?.suggestedTransactions?.length) {
+            // When the caller supplied an explicit transactionAmount (e.g. an
+            // exchange price-difference refund), refund exactly that amount via the
+            // first suggested gateway/parentTransaction instead of the full suggested
+            // line-item totals. This lets us issue partial refunds without having
+            // to compute per-line-item splits.
+            if (options?.transactionAmount != null && options.transactionAmount > 0) {
+              /* v8 ignore start */ // defensive: txn.gateway ?? "manual" + optional parentId spread — only one path hit per fixture
+              const amt = Math.round(options.transactionAmount * 100) / 100;
+              const txn = suggested.suggestedTransactions[0];
+              refundInput.transactions = [
+                {
+                  orderId: gid,
+                  kind: "REFUND",
+                  gateway: txn.gateway ?? "manual",
+                  amount: amt.toFixed(2),
+                  ...(txn.parentTransaction?.id ? { parentId: txn.parentTransaction.id } : {}),
+                },
+              ];
+              // Don't restock — this is a price-adjustment refund, not a goods return.
+              refundInput.refundLineItems = [];
+              /* v8 ignore stop */
+            } else {
+              /* v8 ignore start */ // defensive: t.gateway ?? "manual" + amountSet?.shopMoney?.amount ?? "0" + optional parentId spread — only one path hit per fixture
+              refundInput.transactions = suggested.suggestedTransactions.map((t) => ({
+                orderId: gid,
+                kind: "REFUND",
+                gateway: t.gateway ?? "manual",
+                amount: parseFloat(t.amountSet?.shopMoney?.amount ?? "0").toFixed(2),
+                ...(t.parentTransaction?.id ? { parentId: t.parentTransaction.id } : {}),
+              }));
+              /* v8 ignore stop */
+            }
+          }
         }
-        return retryResult;
-      }
-      result.refundMethod = method;
-      shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
-      return result;
-    }
 
-    result.refundMethod = method;
-    shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "200" });
-    addBusinessEvent("refund.shopify.created", { "order.id": gid, "refund.method": method, "refund.id": result.refundId ?? "", "refund.amount": result.refundAmount ?? "" });
-    return result;
-    /* v8 ignore stop */
-  } catch (err) {
-    /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    const msg = err instanceof Error ? err.message : "Refund request failed";
-    shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
-    return { success: false, error: msg };
-    /* v8 ignore stop */
-  }
-  });
+        // Guard: if no transactions and no refundMethods set for store_credit/both, Shopify will reject.
+        // This can happen when suggestedTransactions is empty for a $0 refund case.
+        if (
+          (method === "store_credit" || method === "both") &&
+          refundInput.refundMethods == null &&
+          (!Array.isArray(refundInput.transactions) ||
+            (refundInput.transactions as unknown[]).length === 0)
+        ) {
+          return {
+            success: false,
+            error:
+              'No refundable amount found for store credit. Use the "Discount code" refund method instead.',
+          };
+        }
+
+        const res = await shopifyCircuitBreaker.execute(() =>
+          admin.graphql(REFUND_MUTATION, { variables: { input: refundInput } }),
+        );
+        let json: RefundJson;
+        try {
+          json = (await res.json()) as RefundJson;
+        } catch {
+          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
+          return { success: false, error: "Invalid response from Shopify. Please try again." };
+        }
+
+        if (!res.ok) {
+          shopifyApiDuration.record(timer(), {
+            operation: "refund.create",
+            status_code: String(res.status),
+          });
+          return {
+            success: false,
+            error: `Shopify API error (${res.status}). Please try again or refund manually in Shopify Admin.`,
+          };
+        }
+
+        const result = parseRefundResponse(json);
+        /* v8 ignore start */ // defensive: each `?? ""` is fallback for an optional refund field; only one path hit per fixture
+        if (!result.success) {
+          const isLocationError = /location|restock/i.test(result.error ?? "");
+          if (isLocationError) {
+            const noRestockInput: Record<string, unknown> = {
+              ...refundInput,
+              refundLineItems: normalized.map((item) => ({
+                lineItemId: item.id.startsWith("gid://")
+                  ? item.id
+                  : `gid://shopify/LineItem/${item.id}`,
+                quantity: item.quantity,
+                restockType: "NO_RESTOCK",
+              })),
+            };
+            const retryRes = await admin.graphql(REFUND_MUTATION, {
+              variables: { input: noRestockInput },
+            });
+            let retryJson: RefundJson;
+            try {
+              retryJson = (await retryRes.json()) as RefundJson;
+            } catch {
+              shopifyApiDuration.record(timer(), {
+                operation: "refund.create",
+                status_code: "error",
+              });
+              return { success: false, error: "Retry without restock failed." };
+            }
+            const retryResult = parseRefundResponse(retryJson);
+            if (retryResult.success) {
+              retryResult.refundMethod = method;
+              shopifyApiDuration.record(timer(), {
+                operation: "refund.create",
+                status_code: "200",
+              });
+              addBusinessEvent("refund.shopify.created", {
+                "order.id": gid,
+                "refund.method": method,
+                "refund.id": retryResult.refundId ?? "",
+                "refund.amount": retryResult.refundAmount ?? "",
+                retried: "true",
+              });
+            } else {
+              shopifyApiDuration.record(timer(), {
+                operation: "refund.create",
+                status_code: "error",
+              });
+            }
+            return retryResult;
+          }
+          result.refundMethod = method;
+          shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
+          return result;
+        }
+
+        result.refundMethod = method;
+        shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "200" });
+        addBusinessEvent("refund.shopify.created", {
+          "order.id": gid,
+          "refund.method": method,
+          "refund.id": result.refundId ?? "",
+          "refund.amount": result.refundAmount ?? "",
+        });
+        return result;
+        /* v8 ignore stop */
+      } catch (err) {
+        /* v8 ignore start */ // defensive: error instanceof Error narrowing
+        const msg = err instanceof Error ? err.message : "Refund request failed";
+        shopifyApiDuration.record(timer(), { operation: "refund.create", status_code: "error" });
+        return { success: false, error: msg };
+        /* v8 ignore stop */
+      }
+    },
+  );
 }
 
 /* ── Shopify Return creation (returnCreate mutation) ── */
@@ -1811,306 +2043,350 @@ export async function createShopifyReturn(
 ): Promise<ShopifyReturnResult> {
   const orderGid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
   return withSpan("shopify.return.create", { "order.id": orderGid }, async () => {
-  const timer = startTimer();
-  try {
-
-    // Step 1: Query returnable fulfillments to get fulfillmentLineItemIds
-    const fulfillmentsRes = await admin.graphql(RETURNABLE_FULFILLMENTS_QUERY, {
-      variables: { orderId: orderGid },
-    });
-    const fulfillmentsJson = (await fulfillmentsRes.json()) as {
-      data?: {
-        returnableFulfillments?: {
-          edges?: Array<{
-            node?: {
-              returnableFulfillmentLineItems?: {
-                edges?: Array<{
-                  node?: {
-                    quantity: number;
-                    fulfillmentLineItem?: {
-                      id: string;
-                      lineItem?: { id: string; sku?: string | null };
+    const timer = startTimer();
+    try {
+      // Step 1: Query returnable fulfillments to get fulfillmentLineItemIds
+      const fulfillmentsRes = await admin.graphql(RETURNABLE_FULFILLMENTS_QUERY, {
+        variables: { orderId: orderGid },
+      });
+      const fulfillmentsJson = (await fulfillmentsRes.json()) as {
+        data?: {
+          returnableFulfillments?: {
+            edges?: Array<{
+              node?: {
+                returnableFulfillmentLineItems?: {
+                  edges?: Array<{
+                    node?: {
+                      quantity: number;
+                      fulfillmentLineItem?: {
+                        id: string;
+                        lineItem?: { id: string; sku?: string | null };
+                      };
                     };
-                  };
-                }>;
+                  }>;
+                };
               };
-            };
-          }>;
-        };
-        returns?: {
-          edges?: Array<{
-            node?: {
-              id: string;
-              status?: string | null;
-              returnLineItems?: {
-                edges?: Array<{
-                  node?: {
-                    quantity: number;
-                    fulfillmentLineItem?: {
-                      id: string;
-                      lineItem?: { id: string; sku?: string | null };
+            }>;
+          };
+          returns?: {
+            edges?: Array<{
+              node?: {
+                id: string;
+                status?: string | null;
+                returnLineItems?: {
+                  edges?: Array<{
+                    node?: {
+                      quantity: number;
+                      fulfillmentLineItem?: {
+                        id: string;
+                        lineItem?: { id: string; sku?: string | null };
+                      };
                     };
-                  };
-                }>;
+                  }>;
+                };
               };
-            };
-          }>;
+            }>;
+          };
         };
+        errors?: Array<{ message?: string }>;
       };
-      errors?: Array<{ message?: string }>;
-    };
 
-    /* v8 ignore start */ // defensive: error-message + per-edge `?? 0|[]` fallbacks for optional GraphQL fields — only one path hit per fixture
-    if (fulfillmentsJson.errors?.length) {
-      const errMsg = fulfillmentsJson.errors[0]?.message ?? "Unknown error";
-      if (/access denied|not approved|protected/i.test(errMsg)) {
-        return { success: false, error: `Shopify Return creation requires "write_returns" access scope. Error: ${errMsg}` };
-      }
-      return { success: false, error: `Failed to query returnable fulfillments: ${errMsg}` };
-    }
-    /* v8 ignore stop */
-
-    // Build maps: order lineItem GID → fulfillmentLineItem, and SKU → fulfillmentLineItem.
-    // We accumulate qty across fulfillments for the same lineItem GID (a 3-qty product
-    // split into 3 separate fulfillments produces three edges with qty=1 each — the
-    // overall returnable qty is 3, not 1 from the last fulfillment seen). We also keep
-    // a per-fulfillment-line-item entry so the returnCreate mutation can target a
-    // specific fulfillment_line_item_id (Shopify requires exact ID, not a roll-up).
-    type FliEntry = { fulfillmentLineItemId: string; maxQty: number };
-    const fulfillmentLineItemMap = new Map<string, FliEntry[]>();
-    const skuMap = new Map<string, FliEntry[]>();
-
-    /* v8 ignore start */ // defensive: per-edge `?? 0|[]` fallbacks + per-field guards — only one path hit per fixture
-    for (const edge of fulfillmentsJson.data?.returnableFulfillments?.edges ?? []) {
-      for (const lineEdge of edge.node?.returnableFulfillmentLineItems?.edges ?? []) {
-        const fli = lineEdge.node?.fulfillmentLineItem;
-        if (!fli?.id) continue;
-        const maxQty = lineEdge.node?.quantity ?? 0;
-        if (maxQty <= 0) continue;
-        const entry: FliEntry = { fulfillmentLineItemId: fli.id, maxQty };
-
-        if (fli.lineItem?.id) {
-          const arr = fulfillmentLineItemMap.get(fli.lineItem.id) ?? [];
-          arr.push(entry);
-          fulfillmentLineItemMap.set(fli.lineItem.id, arr);
+      /* v8 ignore start */ // defensive: error-message + per-edge `?? 0|[]` fallbacks for optional GraphQL fields — only one path hit per fixture
+      if (fulfillmentsJson.errors?.length) {
+        const errMsg = fulfillmentsJson.errors[0]?.message ?? "Unknown error";
+        if (/access denied|not approved|protected/i.test(errMsg)) {
+          return {
+            success: false,
+            error: `Shopify Return creation requires "write_returns" access scope. Error: ${errMsg}`,
+          };
         }
-        if (fli.lineItem?.sku) {
-          const skuKey = fli.lineItem.sku.toLowerCase().trim();
-          if (skuKey) {
-            const arr = skuMap.get(skuKey) ?? [];
+        return { success: false, error: `Failed to query returnable fulfillments: ${errMsg}` };
+      }
+      /* v8 ignore stop */
+
+      // Build maps: order lineItem GID → fulfillmentLineItem, and SKU → fulfillmentLineItem.
+      // We accumulate qty across fulfillments for the same lineItem GID (a 3-qty product
+      // split into 3 separate fulfillments produces three edges with qty=1 each — the
+      // overall returnable qty is 3, not 1 from the last fulfillment seen). We also keep
+      // a per-fulfillment-line-item entry so the returnCreate mutation can target a
+      // specific fulfillment_line_item_id (Shopify requires exact ID, not a roll-up).
+      type FliEntry = { fulfillmentLineItemId: string; maxQty: number };
+      const fulfillmentLineItemMap = new Map<string, FliEntry[]>();
+      const skuMap = new Map<string, FliEntry[]>();
+
+      /* v8 ignore start */ // defensive: per-edge `?? 0|[]` fallbacks + per-field guards — only one path hit per fixture
+      for (const edge of fulfillmentsJson.data?.returnableFulfillments?.edges ?? []) {
+        for (const lineEdge of edge.node?.returnableFulfillmentLineItems?.edges ?? []) {
+          const fli = lineEdge.node?.fulfillmentLineItem;
+          if (!fli?.id) continue;
+          const maxQty = lineEdge.node?.quantity ?? 0;
+          if (maxQty <= 0) continue;
+          const entry: FliEntry = { fulfillmentLineItemId: fli.id, maxQty };
+
+          if (fli.lineItem?.id) {
+            const arr = fulfillmentLineItemMap.get(fli.lineItem.id) ?? [];
             arr.push(entry);
-            skuMap.set(skuKey, arr);
+            fulfillmentLineItemMap.set(fli.lineItem.id, arr);
           }
-        }
-      }
-    }
-    /* v8 ignore stop */
-
-    // Subtract qty from any in-flight Shopify Return on this order to prevent the
-    // returnCreate call from over-returning. Without this, two separate ReturnCases
-    // created on the same order will each see Shopify's "returnable" qty as the
-    // ordered qty (Shopify only decrements *after* a return is closed), and both
-    // will create returns — the order ends up with two open returns covering the
-    // same units. We treat OPEN-status returns as already consuming returnable qty.
-    const NON_TERMINAL_RETURN_STATUSES = new Set(["OPEN", "REQUESTED", "IN_PROGRESS"]);
-    /* v8 ignore start */ // defensive: each `?? 0|[]|""` is a per-edge fallback for optional GraphQL fields — only one path hit per fixture
-    for (const retEdge of fulfillmentsJson.data?.returns?.edges ?? []) {
-      const ret = retEdge.node;
-      if (!ret) continue;
-      const status = (ret.status ?? "").toUpperCase();
-      if (status && !NON_TERMINAL_RETURN_STATUSES.has(status)) continue;
-      for (const lineEdge of ret.returnLineItems?.edges ?? []) {
-        const node = lineEdge.node;
-        if (!node?.fulfillmentLineItem?.id) continue;
-        const consumedFliId = node.fulfillmentLineItem.id;
-        const consumedQty = node.quantity ?? 0;
-        if (consumedQty <= 0) continue;
-        const decrement = (entries?: FliEntry[]) => {
-          // unreachable: callers always pass result of map.get() under a truthy lineItem.id/sku check, never undefined here
-          /* v8 ignore start */
-          if (!entries) return;
-          /* v8 ignore stop */
-          for (const e of entries) {
-            if (e.fulfillmentLineItemId === consumedFliId) {
-              e.maxQty = Math.max(0, e.maxQty - consumedQty);
+          if (fli.lineItem?.sku) {
+            const skuKey = fli.lineItem.sku.toLowerCase().trim();
+            if (skuKey) {
+              const arr = skuMap.get(skuKey) ?? [];
+              arr.push(entry);
+              skuMap.set(skuKey, arr);
             }
           }
+        }
+      }
+      /* v8 ignore stop */
+
+      // Subtract qty from any in-flight Shopify Return on this order to prevent the
+      // returnCreate call from over-returning. Without this, two separate ReturnCases
+      // created on the same order will each see Shopify's "returnable" qty as the
+      // ordered qty (Shopify only decrements *after* a return is closed), and both
+      // will create returns — the order ends up with two open returns covering the
+      // same units. We treat OPEN-status returns as already consuming returnable qty.
+      const NON_TERMINAL_RETURN_STATUSES = new Set(["OPEN", "REQUESTED", "IN_PROGRESS"]);
+      /* v8 ignore start */ // defensive: each `?? 0|[]|""` is a per-edge fallback for optional GraphQL fields — only one path hit per fixture
+      for (const retEdge of fulfillmentsJson.data?.returns?.edges ?? []) {
+        const ret = retEdge.node;
+        if (!ret) continue;
+        const status = (ret.status ?? "").toUpperCase();
+        if (status && !NON_TERMINAL_RETURN_STATUSES.has(status)) continue;
+        for (const lineEdge of ret.returnLineItems?.edges ?? []) {
+          const node = lineEdge.node;
+          if (!node?.fulfillmentLineItem?.id) continue;
+          const consumedFliId = node.fulfillmentLineItem.id;
+          const consumedQty = node.quantity ?? 0;
+          if (consumedQty <= 0) continue;
+          const decrement = (entries?: FliEntry[]) => {
+            // unreachable: callers always pass result of map.get() under a truthy lineItem.id/sku check, never undefined here
+            /* v8 ignore start */
+            if (!entries) return;
+            /* v8 ignore stop */
+            for (const e of entries) {
+              if (e.fulfillmentLineItemId === consumedFliId) {
+                e.maxQty = Math.max(0, e.maxQty - consumedQty);
+              }
+            }
+          };
+          if (node.fulfillmentLineItem.lineItem?.id) {
+            decrement(fulfillmentLineItemMap.get(node.fulfillmentLineItem.lineItem.id));
+          }
+          if (node.fulfillmentLineItem.lineItem?.sku) {
+            decrement(skuMap.get(node.fulfillmentLineItem.lineItem.sku.toLowerCase().trim()));
+          }
+        }
+      }
+      /* v8 ignore stop */
+
+      // Pick best entry (highest remaining maxQty) for fallback callers that don't iterate.
+      // unreachable: callers re-lookup the same maps that already returned undefined/empty
+      /* v8 ignore start */
+      const pickBest = (entries?: FliEntry[]): FliEntry | undefined => {
+        if (!entries || entries.length === 0) return undefined;
+        return entries.reduce((best, cur) => (cur.maxQty > best.maxQty ? cur : best), entries[0]);
+      };
+      /* v8 ignore stop */
+
+      if (fulfillmentLineItemMap.size === 0 && skuMap.size === 0) {
+        return {
+          success: false,
+          error:
+            "No returnable fulfillment line items found. The order may not be fulfilled yet, or all items have already been returned.",
         };
-        if (node.fulfillmentLineItem.lineItem?.id) {
-          decrement(fulfillmentLineItemMap.get(node.fulfillmentLineItem.lineItem.id));
+      }
+
+      refundLogger.info(
+        { gidCount: fulfillmentLineItemMap.size, skuCount: skuMap.size },
+        "createShopifyReturn: found fulfillment line items",
+      );
+
+      // Step 2: Map return items to fulfillment line items
+      const returnLineItems: Array<{
+        fulfillmentLineItemId: string;
+        quantity: number;
+        returnReason: string;
+        returnReasonNote?: string;
+      }> = [];
+
+      for (const item of returnItems) {
+        let entries: FliEntry[] | undefined;
+
+        // Primary: match by order lineItem GID
+        if (item.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")) {
+          entries = fulfillmentLineItemMap.get(item.shopifyLineItemId);
         }
-        if (node.fulfillmentLineItem.lineItem?.sku) {
-          decrement(skuMap.get(node.fulfillmentLineItem.lineItem.sku.toLowerCase().trim()));
+
+        // Fallback: match by SKU
+        if ((!entries || entries.length === 0) && item.sku) {
+          const skuKey = item.sku.toLowerCase().trim();
+          entries = skuMap.get(skuKey);
+        }
+
+        if (!entries || entries.length === 0) {
+          // Last-resort: pickBest off the maps (any remaining entry tied to the line)
+          const fallback = pickBest(
+            item.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")
+              ? fulfillmentLineItemMap.get(item.shopifyLineItemId)
+              : item.sku
+                ? skuMap.get(item.sku.toLowerCase().trim())
+                : undefined,
+          );
+          if (!fallback) {
+            refundLogger.warn(
+              { lineItemId: item.shopifyLineItemId, sku: item.sku },
+              "createShopifyReturn: no fulfillment line item match, skipping",
+            );
+            continue;
+          }
+          // unreachable: pickBest always returns undefined here (see comment above)
+          /* v8 ignore start */
+          entries = [fallback];
+          /* v8 ignore stop */
+        }
+
+        const reason = mapReturnReason(item.reasonCode);
+        // Distribute the requested qty across the available fulfillment line items.
+        // For multi-fulfillment lineItems (Shopify split a 3-qty order across 3
+        // fulfillments) one returnLineItem with qty=3 isn't valid — Shopify wants
+        // up to qty per fulfillment_line_item_id. We consume in-place from each
+        // entry's maxQty, which also keeps the bookkeeping correct if multiple
+        // returnItems target the same lineItem GID (e.g. two separate bags).
+        let remainingQty = Math.max(0, Math.floor(item.qty));
+        for (const entry of entries) {
+          if (remainingQty <= 0) break;
+          // unreachable: entries with maxQty<=0 are filtered at map-build time (line ~1794) and only decremented in-place during this same loop
+          /* v8 ignore start */
+          if (entry.maxQty <= 0) continue;
+          /* v8 ignore stop */
+          const take = Math.min(remainingQty, entry.maxQty);
+          // unreachable: take = min(remainingQty>0, entry.maxQty>0) so always >0
+          /* v8 ignore start */
+          if (take <= 0) continue;
+          /* v8 ignore stop */
+          returnLineItems.push({
+            fulfillmentLineItemId: entry.fulfillmentLineItemId,
+            quantity: take,
+            returnReason: reason,
+            ...(item.notes
+              ? { returnReasonNote: item.notes.slice(0, 255) }
+              : reason === "OTHER"
+                ? { returnReasonNote: item.reasonCode || "Customer return request" }
+                : {}),
+          });
+          entry.maxQty -= take;
+          remainingQty -= take;
+        }
+        if (remainingQty > 0) {
+          refundLogger.warn(
+            {
+              lineItemId: item.shopifyLineItemId,
+              sku: item.sku,
+              requested: item.qty,
+              unfulfilled: remainingQty,
+            },
+            "createShopifyReturn: requested qty exceeds returnable balance — capped to what Shopify reports as remaining",
+          );
         }
       }
-    }
-    /* v8 ignore stop */
 
-    // Pick best entry (highest remaining maxQty) for fallback callers that don't iterate.
-    // unreachable: callers re-lookup the same maps that already returned undefined/empty
-    /* v8 ignore start */
-    const pickBest = (entries?: FliEntry[]): FliEntry | undefined => {
-      if (!entries || entries.length === 0) return undefined;
-      return entries.reduce((best, cur) => (cur.maxQty > best.maxQty ? cur : best), entries[0]);
-    };
-    /* v8 ignore stop */
-
-    if (fulfillmentLineItemMap.size === 0 && skuMap.size === 0) {
-      return { success: false, error: "No returnable fulfillment line items found. The order may not be fulfilled yet, or all items have already been returned." };
-    }
-
-    refundLogger.info({ gidCount: fulfillmentLineItemMap.size, skuCount: skuMap.size }, "createShopifyReturn: found fulfillment line items");
-
-    // Step 2: Map return items to fulfillment line items
-    const returnLineItems: Array<{
-      fulfillmentLineItemId: string;
-      quantity: number;
-      returnReason: string;
-      returnReasonNote?: string;
-    }> = [];
-
-    for (const item of returnItems) {
-      let entries: FliEntry[] | undefined;
-
-      // Primary: match by order lineItem GID
-      if (item.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")) {
-        entries = fulfillmentLineItemMap.get(item.shopifyLineItemId);
+      if (returnLineItems.length === 0) {
+        return {
+          success: false,
+          error:
+            "Could not match any return items to fulfilled line items. Items may not be fulfilled yet or have already been returned.",
+        };
       }
 
-      // Fallback: match by SKU
-      if ((!entries || entries.length === 0) && item.sku) {
-        const skuKey = item.sku.toLowerCase().trim();
-        entries = skuMap.get(skuKey);
-      }
-
-      if (!entries || entries.length === 0) {
-        // Last-resort: pickBest off the maps (any remaining entry tied to the line)
-        const fallback = pickBest(item.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")
-          ? fulfillmentLineItemMap.get(item.shopifyLineItemId)
-          : item.sku ? skuMap.get(item.sku.toLowerCase().trim()) : undefined);
-        if (!fallback) {
-          refundLogger.warn({ lineItemId: item.shopifyLineItemId, sku: item.sku }, "createShopifyReturn: no fulfillment line item match, skipping");
-          continue;
-        }
-        // unreachable: pickBest always returns undefined here (see comment above)
-        /* v8 ignore start */
-        entries = [fallback];
-        /* v8 ignore stop */
-      }
-
-      const reason = mapReturnReason(item.reasonCode);
-      // Distribute the requested qty across the available fulfillment line items.
-      // For multi-fulfillment lineItems (Shopify split a 3-qty order across 3
-      // fulfillments) one returnLineItem with qty=3 isn't valid — Shopify wants
-      // up to qty per fulfillment_line_item_id. We consume in-place from each
-      // entry's maxQty, which also keeps the bookkeeping correct if multiple
-      // returnItems target the same lineItem GID (e.g. two separate bags).
-      let remainingQty = Math.max(0, Math.floor(item.qty));
-      for (const entry of entries) {
-        if (remainingQty <= 0) break;
-        // unreachable: entries with maxQty<=0 are filtered at map-build time (line ~1794) and only decremented in-place during this same loop
-        /* v8 ignore start */
-        if (entry.maxQty <= 0) continue;
-        /* v8 ignore stop */
-        const take = Math.min(remainingQty, entry.maxQty);
-        // unreachable: take = min(remainingQty>0, entry.maxQty>0) so always >0
-        /* v8 ignore start */
-        if (take <= 0) continue;
-        /* v8 ignore stop */
-        returnLineItems.push({
-          fulfillmentLineItemId: entry.fulfillmentLineItemId,
-          quantity: take,
-          returnReason: reason,
-          ...(item.notes
-            ? { returnReasonNote: item.notes.slice(0, 255) }
-            : reason === "OTHER"
-              ? { returnReasonNote: item.reasonCode || "Customer return request" }
-              : {}),
-        });
-        entry.maxQty -= take;
-        remainingQty -= take;
-      }
-      if (remainingQty > 0) {
-        refundLogger.warn(
-          { lineItemId: item.shopifyLineItemId, sku: item.sku, requested: item.qty, unfulfilled: remainingQty },
-          "createShopifyReturn: requested qty exceeds returnable balance — capped to what Shopify reports as remaining",
+      // Diagnostic: log the qty distribution + the customer-requested qty so
+      // we can spot Bug #9-shaped regressions (over-creating qty across
+      // fulfillments) at a glance in production logs.
+      const totalReturnRequestedQty = returnItems.reduce(
+        (s, ri) => s + Math.max(0, Math.floor(Number(ri.qty) || 0)),
+        0,
+      );
+      const totalShopifyReturnQty = returnLineItems.reduce((s, rli) => s + (rli.quantity || 0), 0);
+      // unreachable: distribution loop caps `take` at remainingQty so totalShopifyReturnQty <= sum(floor(item.qty)) = totalReturnRequestedQty (defensive bug-#9 sentinel)
+      /* v8 ignore start */
+      if (totalShopifyReturnQty > totalReturnRequestedQty) {
+        refundLogger.error(
+          {
+            totalReturnRequestedQty,
+            totalShopifyReturnQty,
+            returnLineItemsCount: returnLineItems.length,
+            orderGid,
+          },
+          "createShopifyReturn: SHOPIFY RETURN QTY EXCEEDS CUSTOMER REQUEST — bug #9 regression",
         );
       }
-    }
-
-    if (returnLineItems.length === 0) {
-      return { success: false, error: "Could not match any return items to fulfilled line items. Items may not be fulfilled yet or have already been returned." };
-    }
-
-    // Diagnostic: log the qty distribution + the customer-requested qty so
-    // we can spot Bug #9-shaped regressions (over-creating qty across
-    // fulfillments) at a glance in production logs.
-    const totalReturnRequestedQty = returnItems.reduce((s, ri) => s + Math.max(0, Math.floor(Number(ri.qty) || 0)), 0);
-    const totalShopifyReturnQty = returnLineItems.reduce((s, rli) => s + (rli.quantity || 0), 0);
-    // unreachable: distribution loop caps `take` at remainingQty so totalShopifyReturnQty <= sum(floor(item.qty)) = totalReturnRequestedQty (defensive bug-#9 sentinel)
-    /* v8 ignore start */
-    if (totalShopifyReturnQty > totalReturnRequestedQty) {
-      refundLogger.error(
-        { totalReturnRequestedQty, totalShopifyReturnQty, returnLineItemsCount: returnLineItems.length, orderGid },
-        "createShopifyReturn: SHOPIFY RETURN QTY EXCEEDS CUSTOMER REQUEST — bug #9 regression",
+      /* v8 ignore stop */
+      refundLogger.info(
+        {
+          lineItemCount: returnLineItems.length,
+          totalShopifyReturnQty,
+          totalReturnRequestedQty,
+          orderGid,
+        },
+        "createShopifyReturn: creating Shopify return",
       );
-    }
-    /* v8 ignore stop */
-    refundLogger.info(
-      { lineItemCount: returnLineItems.length, totalShopifyReturnQty, totalReturnRequestedQty, orderGid },
-      "createShopifyReturn: creating Shopify return",
-    );
 
-    // Step 3: Call returnCreate mutation
-    const returnInput: Record<string, unknown> = {
-      orderId: orderGid,
-      returnLineItems,
-      notifyCustomer: options?.notifyCustomer ?? false,
-    };
-    if (options?.requestedAt) {
-      returnInput.requestedAt = options.requestedAt;
-    }
-
-    const createRes = await admin.graphql(RETURN_CREATE_MUTATION, {
-      variables: { returnInput },
-    });
-    const createJson = (await createRes.json()) as {
-      data?: {
-        returnCreate?: {
-          return?: { id: string } | null;
-          userErrors?: Array<{ field?: string[]; message: string }>;
-        };
+      // Step 3: Call returnCreate mutation
+      const returnInput: Record<string, unknown> = {
+        orderId: orderGid,
+        returnLineItems,
+        notifyCustomer: options?.notifyCustomer ?? false,
       };
-      errors?: Array<{ message?: string }>;
-    };
+      if (options?.requestedAt) {
+        returnInput.requestedAt = options.requestedAt;
+      }
 
-    if (createJson.errors?.length) {
-      return { success: false, error: `Shopify API error: ${createJson.errors[0]?.message ?? "Unknown"}` };
+      const createRes = await admin.graphql(RETURN_CREATE_MUTATION, {
+        variables: { returnInput },
+      });
+      const createJson = (await createRes.json()) as {
+        data?: {
+          returnCreate?: {
+            return?: { id: string } | null;
+            userErrors?: Array<{ field?: string[]; message: string }>;
+          };
+        };
+        errors?: Array<{ message?: string }>;
+      };
+
+      if (createJson.errors?.length) {
+        return {
+          success: false,
+          error: `Shopify API error: ${createJson.errors[0]?.message ?? "Unknown"}`,
+        };
+      }
+
+      const userErrors = createJson.data?.returnCreate?.userErrors ?? [];
+      if (userErrors.length > 0) {
+        const errMsg = userErrors.map((e) => e.message).join("; ");
+        return { success: false, error: `Shopify Return creation failed: ${errMsg}` };
+      }
+
+      const returnId = createJson.data?.returnCreate?.return?.id;
+      if (!returnId) {
+        return { success: false, error: "Shopify Return was created but no ID was returned." };
+      }
+
+      refundLogger.info({ returnId }, "createShopifyReturn: successfully created Shopify return");
+      shopifyApiDuration.record(timer(), { operation: "return.create", status_code: "200" });
+      addBusinessEvent("return.shopify.created", { "order.id": orderGid, "return.id": returnId });
+      return { success: true, shopifyReturnId: returnId };
+    } catch (err) {
+      /* v8 ignore start */ // defensive: error instanceof Error narrowing in both msg and log
+      const msg = err instanceof Error ? err.message : String(err);
+      refundLogger.error(
+        { error: err instanceof Error ? err.message : String(err) },
+        "createShopifyReturn: error",
+      );
+      shopifyApiDuration.record(timer(), { operation: "return.create", status_code: "error" });
+      return { success: false, error: `Shopify Return creation error: ${msg}` };
+      /* v8 ignore stop */
     }
-
-    const userErrors = createJson.data?.returnCreate?.userErrors ?? [];
-    if (userErrors.length > 0) {
-      const errMsg = userErrors.map((e) => e.message).join("; ");
-      return { success: false, error: `Shopify Return creation failed: ${errMsg}` };
-    }
-
-    const returnId = createJson.data?.returnCreate?.return?.id;
-    if (!returnId) {
-      return { success: false, error: "Shopify Return was created but no ID was returned." };
-    }
-
-    refundLogger.info({ returnId }, "createShopifyReturn: successfully created Shopify return");
-    shopifyApiDuration.record(timer(), { operation: "return.create", status_code: "200" });
-    addBusinessEvent("return.shopify.created", { "order.id": orderGid, "return.id": returnId });
-    return { success: true, shopifyReturnId: returnId };
-  } catch (err) {
-    /* v8 ignore start */ // defensive: error instanceof Error narrowing in both msg and log
-    const msg = err instanceof Error ? err.message : String(err);
-    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "createShopifyReturn: error");
-    shopifyApiDuration.record(timer(), { operation: "return.create", status_code: "error" });
-    return { success: false, error: `Shopify Return creation error: ${msg}` };
-    /* v8 ignore stop */
-  }
   });
 }
 
@@ -2150,44 +2426,49 @@ export async function closeShopifyReturn(
     ? shopifyReturnId
     : `gid://shopify/Return/${shopifyReturnId}`;
   return withSpan("shopify.return.close", { "return.id": gid }, async () => {
-  try {
-    const res = await admin.graphql(RETURN_CLOSE_MUTATION, { variables: { id: gid } });
-    const json = (await res.json()) as {
-      data?: { returnClose?: { return?: { id: string; status: string } | null; userErrors?: Array<{ field?: string[]; message: string }> } };
-      errors?: Array<{ message?: string }>;
-    };
+    try {
+      const res = await admin.graphql(RETURN_CLOSE_MUTATION, { variables: { id: gid } });
+      const json = (await res.json()) as {
+        data?: {
+          returnClose?: {
+            return?: { id: string; status: string } | null;
+            userErrors?: Array<{ field?: string[]; message: string }>;
+          };
+        };
+        errors?: Array<{ message?: string }>;
+      };
 
-    /* v8 ignore start */ // defensive: each `?? "Unknown"|[]|"CLOSED"` is fallback for an optional GraphQL field — only one path hit per fixture
-    if (json.errors?.length) {
-      const msg = json.errors[0]?.message ?? "Unknown";
-      if (/already closed|CLOSED/i.test(msg)) {
-        refundLogger.info({ gid }, "closeShopifyReturn: return already closed");
-        return { success: true, alreadyClosed: true, status: "CLOSED" };
+      /* v8 ignore start */ // defensive: each `?? "Unknown"|[]|"CLOSED"` is fallback for an optional GraphQL field — only one path hit per fixture
+      if (json.errors?.length) {
+        const msg = json.errors[0]?.message ?? "Unknown";
+        if (/already closed|CLOSED/i.test(msg)) {
+          refundLogger.info({ gid }, "closeShopifyReturn: return already closed");
+          return { success: true, alreadyClosed: true, status: "CLOSED" };
+        }
+        return { success: false, error: `Shopify API error: ${msg}` };
       }
-      return { success: false, error: `Shopify API error: ${msg}` };
-    }
 
-    const userErrors = json.data?.returnClose?.userErrors ?? [];
-    if (userErrors.length > 0) {
-      const msg = userErrors.map((e) => e.message).join("; ");
-      if (/already closed|CLOSED|cannot close/i.test(msg)) {
-        refundLogger.info({ gid }, "closeShopifyReturn: return already closed (userError)");
-        return { success: true, alreadyClosed: true, status: "CLOSED" };
+      const userErrors = json.data?.returnClose?.userErrors ?? [];
+      if (userErrors.length > 0) {
+        const msg = userErrors.map((e) => e.message).join("; ");
+        if (/already closed|CLOSED|cannot close/i.test(msg)) {
+          refundLogger.info({ gid }, "closeShopifyReturn: return already closed (userError)");
+          return { success: true, alreadyClosed: true, status: "CLOSED" };
+        }
+        return { success: false, error: `Return close failed: ${msg}` };
       }
-      return { success: false, error: `Return close failed: ${msg}` };
-    }
-    /* v8 ignore stop */
+      /* v8 ignore stop */
 
-    const status = json.data?.returnClose?.return?.status ?? "CLOSED";
-    refundLogger.info({ gid, status }, "closeShopifyReturn: successfully closed Shopify return");
-    return { success: true, status };
-  } catch (err) {
-    /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    const msg = err instanceof Error ? err.message : String(err);
-    refundLogger.error({ error: msg }, "closeShopifyReturn: error");
-    return { success: false, error: msg };
-    /* v8 ignore stop */
-  }
+      const status = json.data?.returnClose?.return?.status ?? "CLOSED";
+      refundLogger.info({ gid, status }, "closeShopifyReturn: successfully closed Shopify return");
+      return { success: true, status };
+    } catch (err) {
+      /* v8 ignore start */ // defensive: error instanceof Error narrowing
+      const msg = err instanceof Error ? err.message : String(err);
+      refundLogger.error({ error: msg }, "closeShopifyReturn: error");
+      return { success: false, error: msg };
+      /* v8 ignore stop */
+    }
   });
 }
 
@@ -2201,46 +2482,57 @@ export async function declineShopifyReturn(
     ? shopifyReturnId
     : `gid://shopify/Return/${shopifyReturnId}`;
   return withSpan("shopify.return.decline", { "return.id": gid }, async () => {
-  try {
-    const res = await admin.graphql(RETURN_DECLINE_MUTATION, {
-      variables: { input: { id: gid, declineReason: reason || "Return declined" } },
-    });
-    const json = (await res.json()) as {
-      data?: { returnDecline?: { return?: { id: string; status: string } | null; userErrors?: Array<{ field?: string[]; message: string }> } };
-      errors?: Array<{ message?: string }>;
-    };
+    try {
+      const res = await admin.graphql(RETURN_DECLINE_MUTATION, {
+        variables: { input: { id: gid, declineReason: reason || "Return declined" } },
+      });
+      const json = (await res.json()) as {
+        data?: {
+          returnDecline?: {
+            return?: { id: string; status: string } | null;
+            userErrors?: Array<{ field?: string[]; message: string }>;
+          };
+        };
+        errors?: Array<{ message?: string }>;
+      };
 
-    /* v8 ignore start */ // defensive: each `?? "Unknown"|[]|"DECLINED"` is fallback for an optional GraphQL field — only one path hit per fixture
-    if (json.errors?.length) {
-      const msg = json.errors[0]?.message ?? "Unknown";
-      if (/already declined|DECLINED|already closed|CLOSED/i.test(msg)) {
-        refundLogger.info({ gid }, "declineShopifyReturn: return already declined/closed");
-        return { success: true, alreadyClosed: true, status: "DECLINED" };
+      /* v8 ignore start */ // defensive: each `?? "Unknown"|[]|"DECLINED"` is fallback for an optional GraphQL field — only one path hit per fixture
+      if (json.errors?.length) {
+        const msg = json.errors[0]?.message ?? "Unknown";
+        if (/already declined|DECLINED|already closed|CLOSED/i.test(msg)) {
+          refundLogger.info({ gid }, "declineShopifyReturn: return already declined/closed");
+          return { success: true, alreadyClosed: true, status: "DECLINED" };
+        }
+        return { success: false, error: `Shopify API error: ${msg}` };
       }
-      return { success: false, error: `Shopify API error: ${msg}` };
-    }
 
-    const userErrors = json.data?.returnDecline?.userErrors ?? [];
-    if (userErrors.length > 0) {
-      const msg = userErrors.map((e) => e.message).join("; ");
-      if (/already declined|DECLINED|already closed|CLOSED|cannot decline/i.test(msg)) {
-        refundLogger.info({ gid }, "declineShopifyReturn: return already declined/closed (userError)");
-        return { success: true, alreadyClosed: true, status: "DECLINED" };
+      const userErrors = json.data?.returnDecline?.userErrors ?? [];
+      if (userErrors.length > 0) {
+        const msg = userErrors.map((e) => e.message).join("; ");
+        if (/already declined|DECLINED|already closed|CLOSED|cannot decline/i.test(msg)) {
+          refundLogger.info(
+            { gid },
+            "declineShopifyReturn: return already declined/closed (userError)",
+          );
+          return { success: true, alreadyClosed: true, status: "DECLINED" };
+        }
+        return { success: false, error: `Return decline failed: ${msg}` };
       }
-      return { success: false, error: `Return decline failed: ${msg}` };
-    }
-    /* v8 ignore stop */
+      /* v8 ignore stop */
 
-    const status = json.data?.returnDecline?.return?.status ?? "DECLINED";
-    refundLogger.info({ gid, status }, "declineShopifyReturn: successfully declined Shopify return");
-    return { success: true, status };
-  } catch (err) {
-    /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    const msg = err instanceof Error ? err.message : String(err);
-    refundLogger.error({ error: msg }, "declineShopifyReturn: error");
-    return { success: false, error: msg };
-    /* v8 ignore stop */
-  }
+      const status = json.data?.returnDecline?.return?.status ?? "DECLINED";
+      refundLogger.info(
+        { gid, status },
+        "declineShopifyReturn: successfully declined Shopify return",
+      );
+      return { success: true, status };
+    } catch (err) {
+      /* v8 ignore start */ // defensive: error instanceof Error narrowing
+      const msg = err instanceof Error ? err.message : String(err);
+      refundLogger.error({ error: msg }, "declineShopifyReturn: error");
+      return { success: false, error: msg };
+      /* v8 ignore stop */
+    }
   });
 }
 
@@ -2291,13 +2583,16 @@ async function closeAllOpenReturnsOnOrder(
       { variables: { id: orderGid } },
     );
     const json = (await res.json()) as {
-      data?: { order?: { returns?: { edges?: Array<{ node?: { id: string; status: string } }> } } | null };
+      data?: {
+        order?: { returns?: { edges?: Array<{ node?: { id: string; status: string } }> } } | null;
+      };
     };
     const edges = json.data?.order?.returns?.edges ?? [];
     const open = edges
       .map((e) => e.node)
-      .filter((n): n is { id: string; status: string } =>
-        !!n && ["OPEN", "REQUESTED", "IN_PROGRESS"].includes((n.status || "").toUpperCase()),
+      .filter(
+        (n): n is { id: string; status: string } =>
+          !!n && ["OPEN", "REQUESTED", "IN_PROGRESS"].includes((n.status || "").toUpperCase()),
       )
       .filter((n) => !excludeReturnIds.has(n.id));
     for (const ret of open) {
@@ -2306,7 +2601,10 @@ async function closeAllOpenReturnsOnOrder(
       else failed.push({ id: ret.id, error: r.error ?? "unknown" });
     }
   } catch (err) {
-    refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "closeAllOpenReturnsOnOrder: query failed (non-fatal)");
+    refundLogger.warn(
+      { error: err instanceof Error ? err.message : String(err) },
+      "closeAllOpenReturnsOnOrder: query failed (non-fatal)",
+    );
   }
   return { closed, failed };
   /* v8 ignore stop */
@@ -2325,22 +2623,28 @@ export async function closeShopifyReturnBestEffort(
     const { shopifyReturnId, shopifyOrderId } = returnCase;
 
     if (shopifyOrderId?.startsWith("manual:")) {
-      refundLogger.info({ returnCaseId: returnCase.id }, "closeShopifyReturnBestEffort: manual return, skipping Shopify close");
-      await options?.logEvent?.({
-        eventType: "shopify_return_close_skipped",
-        payloadJson: JSON.stringify({ reason: "manual_return", returnCaseId: returnCase.id }),
-      }).catch(() => {});
+      refundLogger.info(
+        { returnCaseId: returnCase.id },
+        "closeShopifyReturnBestEffort: manual return, skipping Shopify close",
+      );
+      await options
+        ?.logEvent?.({
+          eventType: "shopify_return_close_skipped",
+          payloadJson: JSON.stringify({ reason: "manual_return", returnCaseId: returnCase.id }),
+        })
+        .catch(() => {});
       return { ok: true, skipped: true };
     }
 
     // For close-action, ALWAYS sweep any other open returns on the order
     // (e.g. one auto-created by `createRefund` with `restockType: RETURN`).
     // Decline-action stays narrowly scoped to the explicit shopifyReturnId.
-    const orderGid = shopifyOrderId && shopifyOrderId.startsWith("gid://")
-      ? shopifyOrderId
-      : shopifyOrderId && /^\d+$/.test(shopifyOrderId)
-        ? `gid://shopify/Order/${shopifyOrderId}`
-        : null;
+    const orderGid =
+      shopifyOrderId && shopifyOrderId.startsWith("gid://")
+        ? shopifyOrderId
+        : shopifyOrderId && /^\d+$/.test(shopifyOrderId)
+          ? `gid://shopify/Order/${shopifyOrderId}`
+          : null;
 
     if (!shopifyReturnId) {
       // No tracked Shopify return — but the order may still have an auto-created
@@ -2348,22 +2652,30 @@ export async function closeShopifyReturnBestEffort(
       // order's "Return in progress" indicator (Bug #4).
       if (options?.action !== "decline" && orderGid) {
         const sweep = await closeAllOpenReturnsOnOrder(admin, orderGid);
-        await options?.logEvent?.({
-          eventType: sweep.closed.length > 0 ? "shopify_return_closed" : "shopify_return_close_skipped",
-          payloadJson: JSON.stringify({
-            reason: "no_tracked_return_id",
-            returnCaseId: returnCase.id,
-            sweepClosed: sweep.closed,
-            sweepFailed: sweep.failed,
-          }),
-        }).catch(() => {});
+        await options
+          ?.logEvent?.({
+            eventType:
+              sweep.closed.length > 0 ? "shopify_return_closed" : "shopify_return_close_skipped",
+            payloadJson: JSON.stringify({
+              reason: "no_tracked_return_id",
+              returnCaseId: returnCase.id,
+              sweepClosed: sweep.closed,
+              sweepFailed: sweep.failed,
+            }),
+          })
+          .catch(() => {});
         return { ok: true, skipped: sweep.closed.length === 0 };
       }
-      refundLogger.info({ returnCaseId: returnCase.id }, "closeShopifyReturnBestEffort: no shopifyReturnId, skipping");
-      await options?.logEvent?.({
-        eventType: "shopify_return_close_skipped",
-        payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
-      }).catch(() => {});
+      refundLogger.info(
+        { returnCaseId: returnCase.id },
+        "closeShopifyReturnBestEffort: no shopifyReturnId, skipping",
+      );
+      await options
+        ?.logEvent?.({
+          eventType: "shopify_return_close_skipped",
+          payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
+        })
+        .catch(() => {});
       return { ok: true, skipped: true };
     }
 
@@ -2385,21 +2697,25 @@ export async function closeShopifyReturnBestEffort(
     }
 
     const eventType = result.success
-      ? (options?.action === "decline" ? "shopify_return_declined" : "shopify_return_closed")
+      ? options?.action === "decline"
+        ? "shopify_return_declined"
+        : "shopify_return_closed"
       : "shopify_return_close_failed";
 
-    await options?.logEvent?.({
-      eventType,
-      payloadJson: JSON.stringify({
-        shopifyReturnId,
-        returnCaseId: returnCase.id,
-        status: result.status,
-        alreadyClosed: result.alreadyClosed,
-        error: result.error,
-        ...(sweepClosed.length > 0 ? { sweepClosed } : {}),
-        ...(sweepFailed.length > 0 ? { sweepFailed } : {}),
-      }),
-    }).catch(() => {});
+    await options
+      ?.logEvent?.({
+        eventType,
+        payloadJson: JSON.stringify({
+          shopifyReturnId,
+          returnCaseId: returnCase.id,
+          status: result.status,
+          alreadyClosed: result.alreadyClosed,
+          error: result.error,
+          ...(sweepClosed.length > 0 ? { sweepClosed } : {}),
+          ...(sweepFailed.length > 0 ? { sweepFailed } : {}),
+        }),
+      })
+      .catch(() => {});
 
     return {
       ok: result.success === true,
@@ -2409,7 +2725,10 @@ export async function closeShopifyReturnBestEffort(
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing
     const errMsg = err instanceof Error ? err.message : String(err);
-    refundLogger.warn({ error: errMsg }, "closeShopifyReturnBestEffort: unexpected error (non-fatal)");
+    refundLogger.warn(
+      { error: errMsg },
+      "closeShopifyReturnBestEffort: unexpected error (non-fatal)",
+    );
     return { ok: false, error: errMsg };
     /* v8 ignore stop */
   }
@@ -2474,7 +2793,13 @@ export type CustomerOrderInfo = {
   financialStatus: string | null;
   lifetimeOrderCount: number | null;
   lifetimeSpent: number | null;
-  refunds: Array<{ id: string; amount: number; currency: string; createdAt: string; note: string | null }>;
+  refunds: Array<{
+    id: string;
+    amount: number;
+    currency: string;
+    createdAt: string;
+    note: string | null;
+  }>;
 };
 
 export async function fetchOrdersForCustomer(
@@ -2543,8 +2868,10 @@ export async function fetchOrdersForCustomer(
     return nodes.map((n) => {
       const cust = n.customer;
       const ship = n.shippingAddress;
-      const custName = [cust?.firstName, cust?.lastName].filter(Boolean).join(" ") || ship?.name || null;
-      const custPhone = cust?.phone || cust?.defaultAddress?.phone || ship?.phone || n.phone || null;
+      const custName =
+        [cust?.firstName, cust?.lastName].filter(Boolean).join(" ") || ship?.name || null;
+      const custPhone =
+        cust?.phone || cust?.defaultAddress?.phone || ship?.phone || n.phone || null;
       const custCity = cust?.defaultAddress?.city || ship?.city || null;
       const custCountry = cust?.defaultAddress?.country || ship?.country || null;
       const refundedMoney = n.totalRefundedSet?.shopMoney;
@@ -2577,7 +2904,10 @@ export async function fetchOrdersForCustomer(
     /* v8 ignore stop */
   } catch (err) {
     /* v8 ignore start */ // defensive: error instanceof Error narrowing
-    refundLogger.error({ error: err instanceof Error ? err.message : String(err) }, "fetchOrdersForCustomer: error");
+    refundLogger.error(
+      { error: err instanceof Error ? err.message : String(err) },
+      "fetchOrdersForCustomer: error",
+    );
     return [];
     /* v8 ignore stop */
   }
@@ -2596,15 +2926,15 @@ export async function fetchOrdersForCustomer(
  * so callers can interpret it as "infinite / not tracked" instead of zero.
  */
 export type ShopifyVariantInfo = {
-  id: string;                      // gid://shopify/ProductVariant/...
-  productId: string | null;        // gid://shopify/Product/...
+  id: string; // gid://shopify/ProductVariant/...
+  productId: string | null; // gid://shopify/Product/...
   productTitle: string | null;
-  variantTitle: string | null;     // e.g. "M / Blue"
+  variantTitle: string | null; // e.g. "M / Blue"
   sku: string | null;
-  price: string;                   // numeric string in the shop's currency
+  price: string; // numeric string in the shop's currency
   currencyCode: string;
   compareAtPrice: string | null;
-  inventoryAvailable: number | null;  // null = inventory not tracked
+  inventoryAvailable: number | null; // null = inventory not tracked
   availableForSale: boolean;
   imageUrl: string | null;
 };
@@ -2640,7 +2970,9 @@ export async function fetchVariantInfo(
   const out = new Map<string, ShopifyVariantInfo>();
   const ids = (variantIds || [])
     .filter((id) => typeof id === "string" && id.trim().length > 0)
-    .map((id) => (id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id.replace(/^.*\//, "")}`));
+    .map((id) =>
+      id.startsWith("gid://") ? id : `gid://shopify/ProductVariant/${id.replace(/^.*\//, "")}`,
+    );
   if (ids.length === 0) return out;
 
   return withSpan("shopify.variants.fetch", { "variant.count": ids.length }, async () => {
@@ -2670,7 +3002,10 @@ export async function fetchVariantInfo(
         errors?: Array<{ message?: string }>;
       };
       if (Array.isArray(json.errors) && json.errors.length > 0) {
-        refundLogger.warn({ errors: json.errors.map((e) => e.message).join("; ") }, "fetchVariantInfo: GraphQL errors");
+        refundLogger.warn(
+          { errors: json.errors.map((e) => e.message).join("; ") },
+          "fetchVariantInfo: GraphQL errors",
+        );
       }
       /* v8 ignore start */ // defensive: each `?? null|"0.00"|true|false|0` is fallback for an optional GraphQL field — only one path hit per fixture
       for (const node of json.data?.nodes ?? []) {
@@ -2695,7 +3030,10 @@ export async function fetchVariantInfo(
       return out;
     } catch (err) {
       /* v8 ignore start */ // defensive: error instanceof Error narrowing
-      refundLogger.warn({ err: err instanceof Error ? err.message : String(err) }, "fetchVariantInfo: error");
+      refundLogger.warn(
+        { err: err instanceof Error ? err.message : String(err) },
+        "fetchVariantInfo: error",
+      );
       return out;
       /* v8 ignore stop */
     }
@@ -2740,7 +3078,8 @@ export async function sendDraftOrderInvoice(
           ? {
               to: customerEmail,
               subject: subject ?? "Complete your exchange",
-              customMessage: bodyMessage ?? "Please complete payment to receive your exchange items.",
+              customMessage:
+                bodyMessage ?? "Please complete payment to receive your exchange items.",
             }
           : null,
       };

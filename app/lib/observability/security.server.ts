@@ -22,10 +22,7 @@ import { hashIp, getSourceIp } from "./request-context.server";
 
 export type AuthType = "admin" | "portal_jwt" | "api_key" | "fynd_webhook";
 
-export function recordAuthSuccess(
-  authType: AuthType,
-  meta?: Record<string, string>,
-): void {
+export function recordAuthSuccess(authType: AuthType, meta?: Record<string, string>): void {
   authSuccessCounter.add(1, { auth_type: authType });
   securityLogger.debug({ authType, ...meta }, "Auth success");
 }

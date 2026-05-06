@@ -100,7 +100,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -126,26 +126,28 @@ import {
 
 /* ── Fixtures / helpers ───────────────────────────────────────────── */
 
-function makeShopWithSmtp(overrides: Partial<{
-  smtpHost: string | null;
-  smtpPort: number | null;
-  smtpUser: string | null;
-  smtpPass: string | null;
-  smtpFromEmail: string | null;
-  smtpFromName: string | null;
-  smtpSecure: boolean;
-  adminNotifyEmail: string | null;
-  notificationNewReturn: boolean;
-  notificationApproved: boolean;
-  notificationRejected: boolean;
-  notificationRefunded: boolean;
-  notificationCancelled: boolean;
-  emailTemplatesJson: string | null;
-  portalLanguage: string | null;
-  shopLocale: string | null;
-  shopCurrency: string | null;
-  shopTimezone: string | null;
-}> = {}) {
+function makeShopWithSmtp(
+  overrides: Partial<{
+    smtpHost: string | null;
+    smtpPort: number | null;
+    smtpUser: string | null;
+    smtpPass: string | null;
+    smtpFromEmail: string | null;
+    smtpFromName: string | null;
+    smtpSecure: boolean;
+    adminNotifyEmail: string | null;
+    notificationNewReturn: boolean;
+    notificationApproved: boolean;
+    notificationRejected: boolean;
+    notificationRefunded: boolean;
+    notificationCancelled: boolean;
+    emailTemplatesJson: string | null;
+    portalLanguage: string | null;
+    shopLocale: string | null;
+    shopCurrency: string | null;
+    shopTimezone: string | null;
+  }> = {},
+) {
   return {
     id: "shop-1",
     shopDomain: "my-shop.myshopify.com",
@@ -231,9 +233,7 @@ describe("sendNewReturnNotification", () => {
   });
 
   it("returns error when no admin email configured", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(
-      makeShopWithSmtp({ adminNotifyEmail: null }),
-    );
+    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({ adminNotifyEmail: null }));
     const res = await sendNewReturnNotification(baseParams);
     expect(res.success).toBe(false);
     expect(res.error).toMatch(/admin email/i);
@@ -259,11 +259,13 @@ describe("sendNewReturnNotification", () => {
   });
 
   it("uses custom template when emailTemplatesJson.new_return is set", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: JSON.stringify({
-        new_return: { subject: "Custom: {{orderName}}", bodyHtml: "<p>{{returnId}}</p>" },
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: JSON.stringify({
+          new_return: { subject: "Custom: {{orderName}}", bodyHtml: "<p>{{returnId}}</p>" },
+        }),
       }),
-    }));
+    );
     sendMailMock.mockResolvedValue({});
     await sendNewReturnNotification(baseParams);
     const call = sendMailMock.mock.calls[0][0] as { subject: string; html: string };
@@ -290,9 +292,7 @@ describe("sendApprovalNotification", () => {
   };
 
   it("skips when toggle disabled", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(
-      makeShopWithSmtp({ notificationApproved: false }),
-    );
+    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({ notificationApproved: false }));
     const res = await sendApprovalNotification(baseParams);
     expect(res.success).toBe(true);
     expect(sendMailMock).not.toHaveBeenCalled();
@@ -334,9 +334,7 @@ describe("sendRejectionNotification", () => {
   };
 
   it("skips when toggle disabled", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(
-      makeShopWithSmtp({ notificationRejected: false }),
-    );
+    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({ notificationRejected: false }));
     const res = await sendRejectionNotification(baseParams);
     expect(res.success).toBe(true);
     expect(sendMailMock).not.toHaveBeenCalled();
@@ -361,9 +359,7 @@ describe("sendRefundNotification", () => {
   };
 
   it("skips when toggle disabled", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(
-      makeShopWithSmtp({ notificationRefunded: false }),
-    );
+    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({ notificationRefunded: false }));
     const res = await sendRefundNotification(baseParams);
     expect(res.success).toBe(true);
   });
@@ -478,11 +474,13 @@ describe("testSmtpConnection", () => {
       pass: "p",
     });
     expect(res.success).toBe(true);
-    expect(createTransportMock).toHaveBeenCalledWith(expect.objectContaining({
-      host: "smtp.example.com",
-      port: 587,
-      secure: false,
-    }));
+    expect(createTransportMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: "smtp.example.com",
+        port: 587,
+        secure: false,
+      }),
+    );
   });
 
   it("returns failure when verify() throws", async () => {
@@ -608,21 +606,13 @@ describe("sendWhatsAppNotification", () => {
     // Falls through to the "provider not yet implemented" branch. Returns
     // success because the notification is best-effort — no WhatsApp means
     // we don't block the rest of the return flow.
-    const res = await sendWhatsAppNotification(
-      { provider: "meta_cloud", apiKey: "k" },
-      "+1",
-      "m",
-    );
+    const res = await sendWhatsAppNotification({ provider: "meta_cloud", apiKey: "k" }, "+1", "m");
     expect(res.success).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("skips (logs + returns success) for unimplemented providers like twilio", async () => {
-    const res = await sendWhatsAppNotification(
-      { provider: "twilio", apiKey: "k" },
-      "+1",
-      "m",
-    );
+    const res = await sendWhatsAppNotification({ provider: "twilio", apiKey: "k" }, "+1", "m");
     expect(res.success).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });

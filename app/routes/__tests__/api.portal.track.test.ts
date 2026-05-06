@@ -18,7 +18,11 @@ vi.mock("../../lib/portal-cors.server", () => ({
 
 vi.mock("../../lib/rate-limit.server", () => ({
   checkRateLimit: checkRateLimitMock,
-  rateLimitResponse: (ms: number) => Response.json({ error: "rate limited" }, { status: 429, headers: { "Retry-After": String(ms) } }),
+  rateLimitResponse: (ms: number) =>
+    Response.json(
+      { error: "rate limited" },
+      { status: 429, headers: { "Retry-After": String(ms) } },
+    ),
 }));
 
 vi.mock("../../lib/fynd-payload.server", () => ({
@@ -33,7 +37,9 @@ function mkRequest(qs: string, method = "GET") {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   extractJourneyMock.mockClear();
 });
 
@@ -63,14 +69,22 @@ describe("GET /api/portal/track", () => {
   });
 
   it("requires email or phone", async () => {
-    const res = await loader({ request: mkRequest("shop=x&returnRequestNo=R1"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest("shop=x&returnRequestNo=R1"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
     expect(await res.json()).toEqual({ error: "email or phone is required" });
   });
 
   it("returns 404 when shop not found", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    const res = await loader({ request: mkRequest("shop=x&returnRequestNo=R1&email=a@b.com"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest("shop=x&returnRequestNo=R1&email=a@b.com"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Shop not found" });
   });
@@ -78,7 +92,11 @@ describe("GET /api/portal/track", () => {
   it("returns 404 when return not found", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(null);
-    const res = await loader({ request: mkRequest("shop=x&returnRequestNo=R1&email=a@b.com"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest("shop=x&returnRequestNo=R1&email=a@b.com"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(404);
     expect(await res.json()).toEqual({ error: "Return not found" });
   });
@@ -98,7 +116,11 @@ describe("GET /api/portal/track", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    const res = await loader({ request: mkRequest("shop=x&returnRequestNo=R1&email=wrong@example.com"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest("shop=x&returnRequestNo=R1&email=wrong@example.com"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(404);
   });
 
@@ -119,7 +141,11 @@ describe("GET /api/portal/track", () => {
       updatedAt: now,
       fyndPayloadJson: null,
     });
-    const res = await loader({ request: mkRequest("shop=x&returnRequestNo=R1&email=USER@Example.com"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest("shop=x&returnRequestNo=R1&email=USER@Example.com"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.returnRequestNo).toBe("R1");
@@ -144,7 +170,11 @@ describe("GET /api/portal/track", () => {
       updatedAt: new Date(),
       fyndPayloadJson: '{"payload":{}}',
     });
-    const res = await loader({ request: mkRequest("shop=x&returnRequestNo=R1&email=user@example.com"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest("shop=x&returnRequestNo=R1&email=user@example.com"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnJourney.length).toBeGreaterThan(0);
     expect(extractJourneyMock).toHaveBeenCalled();
@@ -152,8 +182,14 @@ describe("GET /api/portal/track", () => {
 
   it("normalises non-dotted shop to .myshopify.com", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    await loader({ request: mkRequest("shop=mystore&returnRequestNo=R1&email=a@b.com"), params: {}, context: {} } as never);
-    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith({ where: { shopDomain: "mystore.myshopify.com" } });
+    await loader({
+      request: mkRequest("shop=mystore&returnRequestNo=R1&email=a@b.com"),
+      params: {},
+      context: {},
+    } as never);
+    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith({
+      where: { shopDomain: "mystore.myshopify.com" },
+    });
   });
 
   it("matches by phone when email absent", async () => {
@@ -171,7 +207,11 @@ describe("GET /api/portal/track", () => {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
-    const res = await loader({ request: mkRequest("shop=x&returnRequestNo=R1&phone=%2B14155551212"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkRequest("shop=x&returnRequestNo=R1&phone=%2B14155551212"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 });

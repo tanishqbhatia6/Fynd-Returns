@@ -63,7 +63,12 @@ describe("parseAutoApproveRules", () => {
     const rules = [
       rule("orderValue", "gt", "100", "approve"),
       rule("returnReason", "eq", "damaged", "manual_review"),
-      { field: "bogusField", operator: "weirdOp", value: "x", action: "approve" } as unknown as AutoApproveRule,
+      {
+        field: "bogusField",
+        operator: "weirdOp",
+        value: "x",
+        action: "approve",
+      } as unknown as AutoApproveRule,
     ];
     const result = parseAutoApproveRules(JSON.stringify(rules));
     expect(result).toEqual(rules);
@@ -80,7 +85,9 @@ describe("evaluateAutoApproveRules — empty inputs", () => {
   });
 
   it("returns null when no rule matches", () => {
-    expect(evaluateAutoApproveRules([rule("orderValue", "gt", "1000")], { orderValue: 50 })).toBeNull();
+    expect(
+      evaluateAutoApproveRules([rule("orderValue", "gt", "1000")], { orderValue: 50 }),
+    ).toBeNull();
   });
 });
 
@@ -133,24 +140,24 @@ describe("evaluateAutoApproveRules — returnReason (string)", () => {
   const ctx: AutoApproveContext = { returnReason: "Damaged on Arrival" };
 
   it("eq is case-insensitive; neq inverts it", () => {
-    expect(
-      evaluateAutoApproveRules([rule("returnReason", "eq", "damaged on arrival")], ctx),
-    ).toBe("approve");
-    expect(
-      evaluateAutoApproveRules([rule("returnReason", "neq", "wrong size")], ctx),
-    ).toBe("approve");
+    expect(evaluateAutoApproveRules([rule("returnReason", "eq", "damaged on arrival")], ctx)).toBe(
+      "approve",
+    );
+    expect(evaluateAutoApproveRules([rule("returnReason", "neq", "wrong size")], ctx)).toBe(
+      "approve",
+    );
     expect(
       evaluateAutoApproveRules([rule("returnReason", "neq", "DAMAGED ON ARRIVAL")], ctx),
     ).toBeNull();
   });
 
   it("contains/not_contains are case-insensitive substring checks", () => {
-    expect(
-      evaluateAutoApproveRules([rule("returnReason", "contains", "DAMAGED")], ctx),
-    ).toBe("approve");
-    expect(
-      evaluateAutoApproveRules([rule("returnReason", "not_contains", "size")], ctx),
-    ).toBe("approve");
+    expect(evaluateAutoApproveRules([rule("returnReason", "contains", "DAMAGED")], ctx)).toBe(
+      "approve",
+    );
+    expect(evaluateAutoApproveRules([rule("returnReason", "not_contains", "size")], ctx)).toBe(
+      "approve",
+    );
     expect(
       evaluateAutoApproveRules([rule("returnReason", "not_contains", "damaged")], ctx),
     ).toBeNull();
@@ -182,16 +189,16 @@ describe("evaluateAutoApproveRules — productTag (array)", () => {
   });
 
   it("contains is partial, case-insensitive, across any tag", () => {
-    expect(evaluateAutoApproveRules([rule("productTag", "contains", "final")], ctx)).toBe("approve");
+    expect(evaluateAutoApproveRules([rule("productTag", "contains", "final")], ctx)).toBe(
+      "approve",
+    );
   });
 
   it("not_contains matches only when no tag includes the substring", () => {
-    expect(
-      evaluateAutoApproveRules([rule("productTag", "not_contains", "winter")], ctx),
-    ).toBe("approve");
-    expect(
-      evaluateAutoApproveRules([rule("productTag", "not_contains", "sale")], ctx),
-    ).toBeNull();
+    expect(evaluateAutoApproveRules([rule("productTag", "not_contains", "winter")], ctx)).toBe(
+      "approve",
+    );
+    expect(evaluateAutoApproveRules([rule("productTag", "not_contains", "sale")], ctx)).toBeNull();
   });
 
   it("returns null when productTags is missing or empty", () => {
@@ -210,22 +217,22 @@ describe("evaluateAutoApproveRules — customerReturnCount (numeric)", () => {
   it("supports the full numeric operator set", () => {
     const ctx: AutoApproveContext = { customerReturnCount: 3 };
     expect(evaluateAutoApproveRules([rule("customerReturnCount", "gt", "2")], ctx)).toBe("approve");
-    expect(evaluateAutoApproveRules([rule("customerReturnCount", "lte", "3")], ctx)).toBe("approve");
+    expect(evaluateAutoApproveRules([rule("customerReturnCount", "lte", "3")], ctx)).toBe(
+      "approve",
+    );
     expect(
-      evaluateAutoApproveRules(
-        [rule("customerReturnCount", "eq", "0")],
-        { customerReturnCount: 0 },
-      ),
+      evaluateAutoApproveRules([rule("customerReturnCount", "eq", "0")], {
+        customerReturnCount: 0,
+      }),
     ).toBe("approve");
   });
 
   it("returns null when missing or non-finite rule.value", () => {
     expect(evaluateAutoApproveRules([rule("customerReturnCount", "gt", "0")], {})).toBeNull();
     expect(
-      evaluateAutoApproveRules(
-        [rule("customerReturnCount", "gt", "lots")],
-        { customerReturnCount: 3 },
-      ),
+      evaluateAutoApproveRules([rule("customerReturnCount", "gt", "lots")], {
+        customerReturnCount: 3,
+      }),
     ).toBeNull();
   });
 });
@@ -238,7 +245,12 @@ describe("evaluateAutoApproveRules — ordering & action semantics", () => {
 
   it("treats unknown action strings as 'approve' (only manual_review is special)", () => {
     const rules = [
-      { field: "orderValue", operator: "gt", value: "10", action: "weird" } as unknown as AutoApproveRule,
+      {
+        field: "orderValue",
+        operator: "gt",
+        value: "10",
+        action: "weird",
+      } as unknown as AutoApproveRule,
     ];
     expect(evaluateAutoApproveRules(rules, { orderValue: 50 })).toBe("approve");
   });
@@ -260,7 +272,12 @@ describe("evaluateAutoApproveRules — ordering & action semantics", () => {
   });
 
   it("unknown field never matches and falls through to null", () => {
-    const bogus = { field: "nope", operator: "eq", value: "x", action: "approve" } as unknown as AutoApproveRule;
+    const bogus = {
+      field: "nope",
+      operator: "eq",
+      value: "x",
+      action: "approve",
+    } as unknown as AutoApproveRule;
     expect(evaluateAutoApproveRules([bogus], { orderValue: 50 })).toBeNull();
   });
 

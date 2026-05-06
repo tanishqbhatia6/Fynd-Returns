@@ -59,42 +59,71 @@ describe("guards", () => {
 
   it("400 on invalid action type", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    const res = await action({ request: mkJsonReq({ action: "nuke", returnIds: ["rc-1"] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkJsonReq({ action: "nuke", returnIds: ["rc-1"] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when resolutionType missing on bulk_change_resolution", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    const res = await action({ request: mkJsonReq({ action: "bulk_change_resolution", returnIds: ["rc-1"] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkJsonReq({ action: "bulk_change_resolution", returnIds: ["rc-1"] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when returnIds empty or non-array", async () => {
     prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1" });
-    const res1 = await action({ request: mkJsonReq({ action: "bulk_approve", returnIds: [] }), params: {}, context: {} } as never);
+    const res1 = await action({
+      request: mkJsonReq({ action: "bulk_approve", returnIds: [] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res1.status).toBe(400);
-    const res2 = await action({ request: mkJsonReq({ action: "bulk_approve", returnIds: "not-array" }), params: {}, context: {} } as never);
+    const res2 = await action({
+      request: mkJsonReq({ action: "bulk_approve", returnIds: "not-array" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res2.status).toBe(400);
   });
 
   it("400 when returnIds length > 100 (MAX_BULK_IDS)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const ids = Array.from({ length: 101 }, (_, i) => `rc-${i}`);
-    const res = await action({ request: mkJsonReq({ action: "bulk_approve", returnIds: ids }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkJsonReq({ action: "bulk_approve", returnIds: ids }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when bulk_reject has no reason", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    const res = await action({ request: mkJsonReq({ action: "bulk_reject", returnIds: ["rc-1"] }), params: {}, context: {} } as never);
+    const res = await action({
+      request: mkJsonReq({ action: "bulk_reject", returnIds: ["rc-1"] }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when rejectionReason > 500 chars", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
-      request: mkJsonReq({ action: "bulk_reject", returnIds: ["rc-1"], rejectionReason: "x".repeat(501) }),
-      params: {}, context: {},
+      request: mkJsonReq({
+        action: "bulk_reject",
+        returnIds: ["rc-1"],
+        rejectionReason: "x".repeat(501),
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
   });
@@ -104,7 +133,8 @@ describe("guards", () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     const res = await action({
       request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-other"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(404);
   });
@@ -123,7 +153,8 @@ describe("bulk_approve", () => {
 
     const res = await action({
       request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-1"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -138,7 +169,8 @@ describe("bulk_approve", () => {
     ]);
     const res = await action({
       request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-1"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.errorCount).toBe(1);
@@ -152,7 +184,8 @@ describe("bulk_approve", () => {
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 0 });
     const res = await action({
       request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-1"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].success).toBe(true);
@@ -165,12 +198,19 @@ describe("bulk_approve", () => {
     ]);
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 1 });
     await action({
-      request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-1"], resolutionType: "exchange" }),
-      params: {}, context: {},
+      request: mkJsonReq({
+        action: "bulk_approve",
+        returnIds: ["rc-1"],
+        resolutionType: "exchange",
+      }),
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.returnCase.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ resolutionType: "exchange" }),
-    }));
+    expect(prismaMock.returnCase.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ resolutionType: "exchange" }),
+      }),
+    );
   });
 
   it("swallows notification failures without failing the row", async () => {
@@ -181,7 +221,8 @@ describe("bulk_approve", () => {
     sendApprovalMock.mockRejectedValueOnce(new Error("smtp"));
     const res = await action({
       request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-1"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].success).toBe(true);
@@ -194,7 +235,8 @@ describe("bulk_approve", () => {
     prismaMock.returnCase.updateMany.mockRejectedValueOnce(new Error("deadlock"));
     const res = await action({
       request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-1"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].success).toBe(false);
@@ -208,7 +250,8 @@ describe("bulk_approve", () => {
     prismaMock.returnCase.updateMany.mockResolvedValueOnce({ count: 1 });
     const res = await action({
       request: mkJsonReq({ action: "bulk_approve", returnIds: ["rc-1", "rc-missing"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     const missingResult = body.results.find((r: { id: string }) => r.id === "rc-missing");
@@ -227,14 +270,21 @@ describe("bulk_reject", () => {
       { id: "rc-1", status: "pending", customerEmailNorm: "u@x.com", shopifyOrderName: "#1001" },
     ]);
     const res = await action({
-      request: mkJsonReq({ action: "bulk_reject", returnIds: ["rc-1"], rejectionReason: "duplicate" }),
-      params: {}, context: {},
+      request: mkJsonReq({
+        action: "bulk_reject",
+        returnIds: ["rc-1"],
+        rejectionReason: "duplicate",
+      }),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].success).toBe(true);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "rejected", rejectionReason: "duplicate" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "rejected", rejectionReason: "duplicate" }),
+      }),
+    );
     expect(sendRejectionMock).toHaveBeenCalled();
   });
 
@@ -244,7 +294,8 @@ describe("bulk_reject", () => {
     ]);
     const res = await action({
       request: mkJsonReq({ action: "bulk_reject", returnIds: ["rc-1"], rejectionReason: "dup" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.errorCount).toBe(1);
@@ -261,14 +312,21 @@ describe("bulk_change_resolution", () => {
       { id: "rc-1", status: "pending", resolutionType: "refund" },
     ]);
     const res = await action({
-      request: mkJsonReq({ action: "bulk_change_resolution", returnIds: ["rc-1"], resolutionType: "exchange" }),
-      params: {}, context: {},
+      request: mkJsonReq({
+        action: "bulk_change_resolution",
+        returnIds: ["rc-1"],
+        resolutionType: "exchange",
+      }),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.results[0].success).toBe(true);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: { resolutionType: "exchange" },
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { resolutionType: "exchange" },
+      }),
+    );
   });
 
   it("rejects rejected/cancelled returns", async () => {
@@ -277,8 +335,13 @@ describe("bulk_change_resolution", () => {
       { id: "rc-2", status: "cancelled", resolutionType: "refund" },
     ]);
     const res = await action({
-      request: mkJsonReq({ action: "bulk_change_resolution", returnIds: ["rc-1", "rc-2"], resolutionType: "exchange" }),
-      params: {}, context: {},
+      request: mkJsonReq({
+        action: "bulk_change_resolution",
+        returnIds: ["rc-1", "rc-2"],
+        resolutionType: "exchange",
+      }),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.errorCount).toBe(2);

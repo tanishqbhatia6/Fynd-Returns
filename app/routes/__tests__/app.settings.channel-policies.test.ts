@@ -41,7 +41,11 @@ describe("loader", () => {
     parseChannelPoliciesMock.mockReturnValueOnce({
       pos: { returnEnabled: false, returnWindowDays: null, autoApproveEnabled: null },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.policies.pos).toBeDefined();
     expect(parseChannelPoliciesMock).toHaveBeenCalledWith('{"pos":{"returnEnabled":false}}');
   });
@@ -49,7 +53,11 @@ describe("loader", () => {
   it("returns empty policies when channelPoliciesJson is null", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: null });
     parseChannelPoliciesMock.mockReturnValueOnce({});
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(parseChannelPoliciesMock).toHaveBeenCalledWith(null);
     expect(data.policies).toEqual({});
   });
@@ -79,10 +87,13 @@ describe("action", () => {
         b2b_returnWindowDays: "30",
         b2b_autoApproveEnabled: "false",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
-    const stored = JSON.parse(prismaMock.shopSettings.update.mock.calls[0][0].data.channelPoliciesJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.update.mock.calls[0][0].data.channelPoliciesJson,
+    );
     expect(stored.pos.returnEnabled).toBe(true);
     expect(stored.pos.returnWindowDays).toBe(14);
     expect(stored.pos.autoApproveEnabled).toBe(true);
@@ -110,9 +121,12 @@ describe("action", () => {
         b2b_returnWindowDays: "",
         b2b_autoApproveEnabled: "",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    const stored = JSON.parse(prismaMock.shopSettings.update.mock.calls[0][0].data.channelPoliciesJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.update.mock.calls[0][0].data.channelPoliciesJson,
+    );
     expect(stored.pos.returnWindowDays).toBeNull();
     expect(stored.b2b.returnWindowDays).toBeNull();
   });
@@ -134,7 +148,8 @@ describe("action", () => {
         b2b_returnWindowDays: "",
         b2b_autoApproveEnabled: "",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ success: true });

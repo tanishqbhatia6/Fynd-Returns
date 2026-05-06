@@ -93,9 +93,7 @@ describe("billing.server — coverage gaps", () => {
     const admin = makeAdmin({
       data: {
         currentAppInstallation: {
-          activeSubscriptions: [
-            { id: "1", name: "Pro", status: "ACTIVE", test: false },
-          ],
+          activeSubscriptions: [{ id: "1", name: "Pro", status: "ACTIVE", test: false }],
         },
       },
     });

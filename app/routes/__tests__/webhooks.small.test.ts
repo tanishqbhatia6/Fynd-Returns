@@ -24,7 +24,12 @@ vi.mock("../../shopify.server", () => ({
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   for (const m of extraModels) {
-    const model = (prismaMock as unknown as Record<string, Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>>)[m];
+    const model = (
+      prismaMock as unknown as Record<
+        string,
+        Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>
+      >
+    )[m];
     Object.values(model).forEach((fn) => {
       fn.mockReset();
       if (fn === model.findMany) fn.mockResolvedValue([]);
@@ -42,11 +47,14 @@ describe("webhooks.app.uninstalled", () => {
   it("deletes sessions when session present", async () => {
     const { action } = await import("../webhooks.app.uninstalled");
     authenticateWebhookMock.mockResolvedValueOnce({
-      shop: "store.myshopify.com", session: { id: "sess-1" },
+      shop: "store.myshopify.com",
+      session: { id: "sess-1" },
     });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
-    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({ where: { shop: "store.myshopify.com" } });
+    expect(prismaMock.session.deleteMany).toHaveBeenCalledWith({
+      where: { shop: "store.myshopify.com" },
+    });
   });
 
   it("no-op when session absent", async () => {
@@ -60,7 +68,8 @@ describe("webhooks.app.uninstalled", () => {
   it("swallows DB errors", async () => {
     const { action } = await import("../webhooks.app.uninstalled");
     authenticateWebhookMock.mockResolvedValueOnce({
-      shop: "store.myshopify.com", session: { id: "sess-1" },
+      shop: "store.myshopify.com",
+      session: { id: "sess-1" },
     });
     prismaMock.session.deleteMany.mockRejectedValueOnce(new Error("db"));
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
@@ -107,7 +116,8 @@ describe("webhooks.customers.data_request", () => {
   it("skips findMany when no conditions (empty payload)", async () => {
     const { action } = await import("../webhooks.customers.data_request");
     authenticateWebhookMock.mockResolvedValueOnce({
-      shop: "store.myshopify.com", payload: { customer: {} },
+      shop: "store.myshopify.com",
+      payload: { customer: {} },
     });
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);

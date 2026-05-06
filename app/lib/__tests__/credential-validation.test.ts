@@ -4,8 +4,10 @@ import { sanitizeCredentialInputs } from "../credential-validation.server";
 describe("sanitizeCredentialInputs", () => {
   describe("fyndCompanyId", () => {
     it("accepts a normal alphanumeric ID", () => {
-      expect(sanitizeCredentialInputs({ fyndCompanyId: "company_123-abc" }))
-        .toEqual({ valid: true, sanitized: { fyndCompanyId: "company_123-abc" } });
+      expect(sanitizeCredentialInputs({ fyndCompanyId: "company_123-abc" })).toEqual({
+        valid: true,
+        sanitized: { fyndCompanyId: "company_123-abc" },
+      });
     });
     it("rejects IDs longer than 64 chars", () => {
       const r = sanitizeCredentialInputs({ fyndCompanyId: "x".repeat(65) });
@@ -73,7 +75,9 @@ describe("sanitizeCredentialInputs", () => {
       expect(r.valid).toBe(false);
     });
     it("rejects overlong URLs", () => {
-      expect(sanitizeCredentialInputs({ fyndCustomBaseUrl: "https://" + "x".repeat(260) }).valid).toBe(false);
+      expect(
+        sanitizeCredentialInputs({ fyndCustomBaseUrl: "https://" + "x".repeat(260) }).valid,
+      ).toBe(false);
     });
     it("accepts empty URL (optional)", () => {
       expect(sanitizeCredentialInputs({ fyndCustomBaseUrl: "" }).valid).toBe(true);

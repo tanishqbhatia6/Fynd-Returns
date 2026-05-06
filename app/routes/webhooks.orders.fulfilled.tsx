@@ -58,7 +58,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const attrs = Array.isArray(p.note_attributes)
       ? (p.note_attributes as Array<{ name?: string; value?: string }>).map((a) => ({
           /* v8 ignore start - defensive optional fields */
-          key: a.name ?? "", value: a.value ?? "",
+          key: a.name ?? "",
+          value: a.value ?? "",
           /* v8 ignore stop */
         }))
       : [];
@@ -71,7 +72,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (fyndOrderId) {
       const gid = p.admin_graphql_api_id
         ? String(p.admin_graphql_api_id)
-        : p.id ? `gid://shopify/Order/${p.id}` : null;
+        : p.id
+          ? `gid://shopify/Order/${p.id}`
+          : null;
 
       if (gid) {
         try {
@@ -80,19 +83,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             variables: {
               input: {
                 id: gid,
-                metafields: [{
-                  namespace: "$app",
-                  key: "fynd_order_id",
-                  value: fyndOrderId,
-                  type: "single_line_text_field",
-                }],
+                metafields: [
+                  {
+                    namespace: "$app",
+                    key: "fynd_order_id",
+                    value: fyndOrderId,
+                    type: "single_line_text_field",
+                  },
+                ],
               },
             },
           });
         } catch (err) {
           /* v8 ignore start - defensive Error narrowing in catch */
           console.error("[webhook:orders/fulfilled] metafield write failed", {
-            shop, orderName: orderNameClean, fyndOrderId,
+            shop,
+            orderName: orderNameClean,
+            fyndOrderId,
             error: err instanceof Error ? err.message : String(err),
           });
           /* v8 ignore stop */
@@ -102,15 +109,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       try {
         /* v8 ignore start - defensive fallback chains for optional payload fields */
         await prisma.fyndOrderMapping.upsert({
-          where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderNameClean}` } },
-          create: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderNameClean}`, shopifyOrderId: gid ?? undefined, fyndOrderId, searchStrategy: "orders_fulfilled_webhook" },
+          where: {
+            shopId_shopifyOrderName: {
+              shopId: shopRecord.id,
+              shopifyOrderName: orderNameRaw || `#${orderNameClean}`,
+            },
+          },
+          create: {
+            shopId: shopRecord.id,
+            shopifyOrderName: orderNameRaw || `#${orderNameClean}`,
+            shopifyOrderId: gid ?? undefined,
+            fyndOrderId,
+            searchStrategy: "orders_fulfilled_webhook",
+          },
           update: { fyndOrderId, ...(gid ? { shopifyOrderId: gid } : {}) },
         });
         /* v8 ignore stop */
       } catch (err) {
         /* v8 ignore start - defensive Error narrowing in catch */
         console.error("[webhook:orders/fulfilled] mapping upsert failed", {
-          shop, orderName: orderNameClean, fyndOrderId,
+          shop,
+          orderName: orderNameClean,
+          fyndOrderId,
           error: err instanceof Error ? err.message : String(err),
         });
         /* v8 ignore stop */

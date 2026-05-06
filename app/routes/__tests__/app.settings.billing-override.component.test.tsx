@@ -164,21 +164,15 @@ describe("Billing override page (default export)", () => {
         "input[type='hidden'][name='shopDomain']",
       ) as HTMLInputElement | null;
       expect(hidden).toBeTruthy();
-      const select = form.querySelector(
-        "select[name='override']",
-      ) as HTMLSelectElement | null;
+      const select = form.querySelector("select[name='override']") as HTMLSelectElement | null;
       expect(select).toBeTruthy();
       const optionValues = Array.from(select?.options ?? []).map((o) => o.value);
       expect(optionValues).toEqual(expect.arrayContaining(["", "free", "paid"]));
-      const reason = form.querySelector(
-        "input[name='reason']",
-      ) as HTMLInputElement | null;
+      const reason = form.querySelector("input[name='reason']") as HTMLInputElement | null;
       expect(reason).toBeTruthy();
       expect(reason?.required).toBe(true);
       expect(reason?.minLength).toBe(4);
-      const submit = form.querySelector(
-        "button[type='submit']",
-      ) as HTMLButtonElement | null;
+      const submit = form.querySelector("button[type='submit']") as HTMLButtonElement | null;
       expect(submit?.textContent?.trim()).toBe("Save");
     });
   });
@@ -206,12 +200,8 @@ describe("Billing override page (default export)", () => {
         "input[type='hidden'][name='shopDomain']",
       ) as HTMLInputElement | null;
     };
-    expect(hiddenFor("alpha-shop.myshopify.com")?.value).toBe(
-      "alpha-shop.myshopify.com",
-    );
-    expect(hiddenFor("beta-shop.myshopify.com")?.value).toBe(
-      "beta-shop.myshopify.com",
-    );
+    expect(hiddenFor("alpha-shop.myshopify.com")?.value).toBe("alpha-shop.myshopify.com");
+    expect(hiddenFor("beta-shop.myshopify.com")?.value).toBe("beta-shop.myshopify.com");
   });
 
   it("renders the reason audit info (text + by/at) only for shops that have an override reason", async () => {

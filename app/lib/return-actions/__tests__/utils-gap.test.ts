@@ -118,8 +118,11 @@ describe("notification.server.ts — utils gap coverage", () => {
   it("testSmtpConnection: returns success on transport.verify() pass", async () => {
     const { testSmtpConnection } = await import("../../notification.server");
     const r = await testSmtpConnection({
-      host: "smtp.example.com", port: 587, secure: false,
-      user: "u@example.com", pass: "p",
+      host: "smtp.example.com",
+      port: 587,
+      secure: false,
+      user: "u@example.com",
+      pass: "p",
     });
     expect(r.success).toBe(true);
     expect(verifyMock).toHaveBeenCalled();
@@ -129,8 +132,11 @@ describe("notification.server.ts — utils gap coverage", () => {
     verifyMock.mockRejectedValueOnce(new Error("auth failed"));
     const { testSmtpConnection } = await import("../../notification.server");
     const r = await testSmtpConnection({
-      host: "smtp.example.com", port: 587, secure: true,
-      user: "u@example.com", pass: "p",
+      host: "smtp.example.com",
+      port: 587,
+      secure: true,
+      user: "u@example.com",
+      pass: "p",
     });
     expect(r.success).toBe(false);
     expect(r.error).toContain("auth failed");
@@ -140,7 +146,11 @@ describe("notification.server.ts — utils gap coverage", () => {
     verifyMock.mockRejectedValueOnce("plain string error");
     const { testSmtpConnection } = await import("../../notification.server");
     const r = await testSmtpConnection({
-      host: "h", port: 25, secure: false, user: "u", pass: "p",
+      host: "h",
+      port: 25,
+      secure: false,
+      user: "u",
+      pass: "p",
     });
     expect(r.success).toBe(false);
     expect(r.error).toBe("plain string error");
@@ -150,7 +160,11 @@ describe("notification.server.ts — utils gap coverage", () => {
   it("sendOtpEmail: returns success when SMTP not configured (skip silently)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "s1", settings: null });
     const { sendOtpEmail } = await import("../../notification.server");
-    const r = await sendOtpEmail({ shopDomain: "x.myshopify.com", to: "u@example.com", otp: "1234" });
+    const r = await sendOtpEmail({
+      shopDomain: "x.myshopify.com",
+      to: "u@example.com",
+      otp: "1234",
+    });
     expect(r.success).toBe(true);
     expect(sendMailMock).not.toHaveBeenCalled();
   });
@@ -174,7 +188,11 @@ describe("notification.server.ts — utils gap coverage", () => {
     // Mock the second findUnique call for logNotification
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "s1" });
     const { sendOtpEmail } = await import("../../notification.server");
-    const r = await sendOtpEmail({ shopDomain: "x.myshopify.com", to: "to@example.com", otp: "987654" });
+    const r = await sendOtpEmail({
+      shopDomain: "x.myshopify.com",
+      to: "to@example.com",
+      otp: "987654",
+    });
     expect(r.success).toBe(true);
     expect(sendMailMock).toHaveBeenCalledOnce();
     const call = sendMailMock.mock.calls[0][0];
@@ -186,8 +204,10 @@ describe("notification.server.ts — utils gap coverage", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "s1", settings: null });
     const { sendCustomerNoteNotification } = await import("../../notification.server");
     const r = await sendCustomerNoteNotification({
-      shopDomain: "x.myshopify.com", to: "u@example.com",
-      orderName: "#1001", note: "hi",
+      shopDomain: "x.myshopify.com",
+      to: "u@example.com",
+      orderName: "#1001",
+      note: "hi",
     });
     expect(r.success).toBe(true);
     expect(sendMailMock).not.toHaveBeenCalled();
@@ -200,8 +220,10 @@ describe("notification.server.ts — utils gap coverage", () => {
     });
     const { sendCustomerNoteNotification } = await import("../../notification.server");
     const r = await sendCustomerNoteNotification({
-      shopDomain: "x.myshopify.com", to: "",
-      orderName: "#1001", note: "hi",
+      shopDomain: "x.myshopify.com",
+      to: "",
+      orderName: "#1001",
+      note: "hi",
     });
     expect(r.success).toBe(false);
     expect(r.error).toContain("No recipient");
@@ -215,8 +237,11 @@ describe("notification.server.ts — utils gap coverage", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "s1" });
     const { sendCustomerNoteNotification } = await import("../../notification.server");
     const r = await sendCustomerNoteNotification({
-      shopDomain: "x.myshopify.com", to: "to@example.com",
-      orderName: "#1001", note: "Quick update", shopName: "Acme",
+      shopDomain: "x.myshopify.com",
+      to: "to@example.com",
+      orderName: "#1001",
+      note: "Quick update",
+      shopName: "Acme",
     });
     expect(r.success).toBe(true);
     const html = sendMailMock.mock.calls[0][0].html;
@@ -233,8 +258,10 @@ describe("notification.server.ts — utils gap coverage", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "s1" });
     const { sendCustomerNoteNotification } = await import("../../notification.server");
     await sendCustomerNoteNotification({
-      shopDomain: "x.myshopify.com", to: "to@example.com",
-      orderName: "#1001", note: "Hi",
+      shopDomain: "x.myshopify.com",
+      to: "to@example.com",
+      orderName: "#1001",
+      note: "Hi",
     });
     const html = sendMailMock.mock.calls[0][0].html;
     expect(html).toContain("The store");
@@ -245,7 +272,8 @@ describe("notification.server.ts — utils gap coverage", () => {
     const { sendWhatsAppNotification } = await import("../../notification.server");
     const r = await sendWhatsAppNotification(
       { provider: "meta_cloud", apiKey: "k", phoneNumberId: "pn1" },
-      "", "msg",
+      "",
+      "msg",
     );
     expect(r.success).toBe(false);
     expect(r.error).toMatch(/missing/i);
@@ -255,22 +283,27 @@ describe("notification.server.ts — utils gap coverage", () => {
     const { sendWhatsAppNotification } = await import("../../notification.server");
     const r = await sendWhatsAppNotification(
       { provider: "meta_cloud", apiKey: "k", phoneNumberId: "pn1" },
-      "+9112345", "",
+      "+9112345",
+      "",
     );
     expect(r.success).toBe(false);
   });
 
   it("sendWhatsAppNotification: meta_cloud success path normalizes phone with leading +", async () => {
     const origFetch = globalThis.fetch;
-    globalThis.fetch = vi.fn().mockResolvedValueOnce({ ok: true, status: 200, text: async () => "" }) as never;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => "" }) as never;
     try {
       const { sendWhatsAppNotification } = await import("../../notification.server");
       const r = await sendWhatsAppNotification(
         { provider: "meta_cloud", apiKey: "k", phoneNumberId: "pn1" },
-        "9112345", "Hi",
+        "9112345",
+        "Hi",
       );
       expect(r.success).toBe(true);
-      const callArgs = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls[0];
+      const callArgs = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock
+        .calls[0];
       const body = JSON.parse((callArgs[1] as { body: string }).body);
       expect(body.to).toBe("+9112345");
     } finally {
@@ -281,13 +314,16 @@ describe("notification.server.ts — utils gap coverage", () => {
   it("sendWhatsAppNotification: meta_cloud non-OK response surfaces error message", async () => {
     const origFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
-      ok: false, status: 401, text: async () => "Invalid token",
+      ok: false,
+      status: 401,
+      text: async () => "Invalid token",
     }) as never;
     try {
       const { sendWhatsAppNotification } = await import("../../notification.server");
       const r = await sendWhatsAppNotification(
         { provider: "meta_cloud", apiKey: "bad", phoneNumberId: "pn1" },
-        "+19998887777", "Hi",
+        "+19998887777",
+        "Hi",
       );
       expect(r.success).toBe(false);
       expect(r.error).toContain("401");
@@ -300,13 +336,18 @@ describe("notification.server.ts — utils gap coverage", () => {
   it("sendWhatsAppNotification: meta_cloud non-OK with text() failure still returns error", async () => {
     const origFetch = globalThis.fetch;
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
-      ok: false, status: 500, text: async () => { throw new Error("boom"); },
+      ok: false,
+      status: 500,
+      text: async () => {
+        throw new Error("boom");
+      },
     }) as never;
     try {
       const { sendWhatsAppNotification } = await import("../../notification.server");
       const r = await sendWhatsAppNotification(
         { provider: "meta_cloud", apiKey: "k", phoneNumberId: "pn1" },
-        "+1", "x",
+        "+1",
+        "x",
       );
       expect(r.success).toBe(false);
       expect(r.error).toContain("500");
@@ -322,7 +363,8 @@ describe("notification.server.ts — utils gap coverage", () => {
       const { sendWhatsAppNotification } = await import("../../notification.server");
       const r = await sendWhatsAppNotification(
         { provider: "meta_cloud", apiKey: "k", phoneNumberId: "pn1" },
-        "+1", "Hi",
+        "+1",
+        "Hi",
       );
       expect(r.success).toBe(false);
       expect(r.error).toContain("network down");
@@ -333,17 +375,13 @@ describe("notification.server.ts — utils gap coverage", () => {
 
   it("sendWhatsAppNotification: non-meta provider returns success with skipped log", async () => {
     const { sendWhatsAppNotification } = await import("../../notification.server");
-    const r = await sendWhatsAppNotification(
-      { provider: "twilio", apiKey: "k" }, "+1", "Hi",
-    );
+    const r = await sendWhatsAppNotification({ provider: "twilio", apiKey: "k" }, "+1", "Hi");
     expect(r.success).toBe(true);
   });
 
   it("sendWhatsAppNotification: meta_cloud without phoneNumberId falls through to skipped-provider branch", async () => {
     const { sendWhatsAppNotification } = await import("../../notification.server");
-    const r = await sendWhatsAppNotification(
-      { provider: "meta_cloud", apiKey: "k" }, "+1", "Hi",
-    );
+    const r = await sendWhatsAppNotification({ provider: "meta_cloud", apiKey: "k" }, "+1", "Hi");
     expect(r.success).toBe(true);
   });
 
@@ -434,8 +472,10 @@ describe("update-label.server.ts — utils gap coverage", () => {
   }
 
   async function expectRedirect(p: Promise<unknown>) {
-    try { await p; throw new Error("expected redirect"); }
-    catch (err) {
+    try {
+      await p;
+      throw new Error("expected redirect");
+    } catch (err) {
       expect(err).toBeInstanceOf(Response);
       expect((err as Response).status).toBeGreaterThanOrEqual(300);
     }
@@ -443,10 +483,7 @@ describe("update-label.server.ts — utils gap coverage", () => {
 
   it("nulls every field when payload is fully empty (string trim → null)", async () => {
     const { handleUpdateLabel } = await import("../update-label.server");
-    await expectRedirect(handleUpdateLabel(
-      mkCtx() as never,
-      { action: "update_label" } as never,
-    ));
+    await expectRedirect(handleUpdateLabel(mkCtx() as never, { action: "update_label" } as never));
     const args = prismaMock.returnCase.update.mock.calls[0][0];
     expect(args.data.returnLabelUrl).toBeNull();
     const labelJson = JSON.parse(args.data.returnLabelJson);
@@ -459,16 +496,18 @@ describe("update-label.server.ts — utils gap coverage", () => {
 
   it("trims whitespace from every label field", async () => {
     const { handleUpdateLabel } = await import("../update-label.server");
-    await expectRedirect(handleUpdateLabel(
-      mkCtx() as never,
-      {
-        action: "update_label",
-        carrier: "  UPS  ",
-        trackingNumber: "  T1  ",
-        labelUrl: "  https://l/  ",
-        qrCodeUrl: "  https://q/  ",
-      } as never,
-    ));
+    await expectRedirect(
+      handleUpdateLabel(
+        mkCtx() as never,
+        {
+          action: "update_label",
+          carrier: "  UPS  ",
+          trackingNumber: "  T1  ",
+          labelUrl: "  https://l/  ",
+          qrCodeUrl: "  https://q/  ",
+        } as never,
+      ),
+    );
     const args = prismaMock.returnCase.update.mock.calls[0][0];
     const labelJson = JSON.parse(args.data.returnLabelJson);
     expect(labelJson.carrier).toBe("UPS");
@@ -500,10 +539,12 @@ describe("update-label.server.ts — utils gap coverage", () => {
 
   it("writes a returnEvent of source=admin/eventType=label_updated", async () => {
     const { handleUpdateLabel } = await import("../update-label.server");
-    await expectRedirect(handleUpdateLabel(
-      mkCtx() as never,
-      { action: "update_label", carrier: "DHL", trackingNumber: "TN1" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateLabel(
+        mkCtx() as never,
+        { action: "update_label", carrier: "DHL", trackingNumber: "TN1" } as never,
+      ),
+    );
     const evt = prismaMock.returnEvent.create.mock.calls[0][0];
     expect(evt.data.source).toBe("admin");
     expect(evt.data.eventType).toBe("label_updated");
@@ -524,7 +565,12 @@ describe("update-status.server.ts — utils gap coverage", () => {
   function mkCtx(overrides: Record<string, unknown> = {}) {
     return {
       id: "rc-1",
-      returnCase: { id: "rc-1", adminNotes: "old", status: "pending", returnRequestNo: "RQ-1" } as never,
+      returnCase: {
+        id: "rc-1",
+        adminNotes: "old",
+        status: "pending",
+        returnRequestNo: "RQ-1",
+      } as never,
       shop: { id: "s1", shopDomain: "x.myshopify.com", settings: null },
       admin: { graphql: vi.fn() } as never,
       shopDomain: "x.myshopify.com",
@@ -537,8 +583,10 @@ describe("update-status.server.ts — utils gap coverage", () => {
   }
 
   async function expectRedirect(p: Promise<unknown>) {
-    try { await p; throw new Error("expected redirect"); }
-    catch (err) {
+    try {
+      await p;
+      throw new Error("expected redirect");
+    } catch (err) {
       expect(err).toBeInstanceOf(Response);
       expect((err as Response).status).toBeGreaterThanOrEqual(300);
     }
@@ -546,10 +594,12 @@ describe("update-status.server.ts — utils gap coverage", () => {
 
   it("calls close action on terminal cancelled status (not decline)", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    await expectRedirect(handleUpdateStatus(
-      mkCtx() as never,
-      { action: "update_status", status: "cancelled" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateStatus(
+        mkCtx() as never,
+        { action: "update_status", status: "cancelled" } as never,
+      ),
+    );
     expect(closeBestEffortMock).toHaveBeenCalledOnce();
     const args = closeBestEffortMock.mock.calls[0][2];
     expect(args.action).toBe("close");
@@ -558,29 +608,35 @@ describe("update-status.server.ts — utils gap coverage", () => {
 
   it("accepts mixed-case 'In Progress' status as valid", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    await expectRedirect(handleUpdateStatus(
-      mkCtx() as never,
-      { action: "update_status", status: "In Progress" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateStatus(
+        mkCtx() as never,
+        { action: "update_status", status: "In Progress" } as never,
+      ),
+    );
     expect(prismaMock.returnCase.update).toHaveBeenCalled();
   });
 
   it("preserves existing adminNotes when body.note is empty", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    await expectRedirect(handleUpdateStatus(
-      mkCtx() as never,
-      { action: "update_status", status: "approved", note: "" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateStatus(
+        mkCtx() as never,
+        { action: "update_status", status: "approved", note: "" } as never,
+      ),
+    );
     const upd = prismaMock.returnCase.update.mock.calls[0][0];
     expect(upd.data.adminNotes).toBe("old");
   });
 
   it("uses provided declineReason for rejected status (note → declineReason)", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    await expectRedirect(handleUpdateStatus(
-      mkCtx() as never,
-      { action: "update_status", status: "rejected", note: "fraud detected" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateStatus(
+        mkCtx() as never,
+        { action: "update_status", status: "rejected", note: "fraud detected" } as never,
+      ),
+    );
     expect(closeBestEffortMock).toHaveBeenCalled();
     const args = closeBestEffortMock.mock.calls[0][2];
     expect(args.action).toBe("decline");
@@ -589,10 +645,12 @@ describe("update-status.server.ts — utils gap coverage", () => {
 
   it("uses default decline reason when note empty for rejected", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    await expectRedirect(handleUpdateStatus(
-      mkCtx() as never,
-      { action: "update_status", status: "rejected" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateStatus(
+        mkCtx() as never,
+        { action: "update_status", status: "rejected" } as never,
+      ),
+    );
     const args = closeBestEffortMock.mock.calls[0][2];
     expect(args.declineReason).toBe("Return rejected");
   });
@@ -601,25 +659,39 @@ describe("update-status.server.ts — utils gap coverage", () => {
     prismaMock.returnCase.update.mockRejectedValueOnce(new Error("db down"));
     const { handleUpdateStatus } = await import("../update-status.server");
     await expect(
-      handleUpdateStatus(mkCtx() as never, { action: "update_status", status: "approved" } as never),
+      handleUpdateStatus(
+        mkCtx() as never,
+        { action: "update_status", status: "approved" } as never,
+      ),
     ).rejects.toThrow(/db down/);
   });
 
   it("non-terminal status doesn't call close best-effort", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    await expectRedirect(handleUpdateStatus(
-      mkCtx() as never,
-      { action: "update_status", status: "processing" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateStatus(
+        mkCtx() as never,
+        { action: "update_status", status: "processing" } as never,
+      ),
+    );
     expect(closeBestEffortMock).not.toHaveBeenCalled();
   });
 
   it("writes status_updated event with from/to/note/adminEmail in payload", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    await expectRedirect(handleUpdateStatus(
-      mkCtx({ returnCase: { id: "rc-1", adminNotes: null, status: "pending", returnRequestNo: "RQ-1" } as never }) as never,
-      { action: "update_status", status: "approved", note: "ok" } as never,
-    ));
+    await expectRedirect(
+      handleUpdateStatus(
+        mkCtx({
+          returnCase: {
+            id: "rc-1",
+            adminNotes: null,
+            status: "pending",
+            returnRequestNo: "RQ-1",
+          } as never,
+        }) as never,
+        { action: "update_status", status: "approved", note: "ok" } as never,
+      ),
+    );
     const evt = prismaMock.returnEvent.create.mock.calls[0][0];
     const payload = JSON.parse(evt.data.payloadJson);
     expect(payload.from).toBe("pending");
@@ -630,10 +702,7 @@ describe("update-status.server.ts — utils gap coverage", () => {
 
   it("returns 400 when status field missing from body", async () => {
     const { handleUpdateStatus } = await import("../update-status.server");
-    const res = await handleUpdateStatus(
-      mkCtx() as never,
-      { action: "update_status" } as never,
-    );
+    const res = await handleUpdateStatus(mkCtx() as never, { action: "update_status" } as never);
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(400);
   });

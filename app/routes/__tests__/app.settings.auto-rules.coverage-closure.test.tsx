@@ -48,9 +48,7 @@ const mockFetcher: MockFetcherState = {
   Form: ({ children, ...props }) => <form {...props}>{children}</form>,
 };
 vi.mock("react-router", async () => {
-  const actual = await vi.importActual<typeof import("react-router")>(
-    "react-router",
-  );
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return {
     ...actual,
     useLoaderData: () => mockLoaderState.value,
@@ -107,18 +105,18 @@ describe("app.settings.auto-rules — coverage closure", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (2)");
     });
-    const removeButtons = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "Remove");
+    const removeButtons = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Remove",
+    );
     expect(removeButtons.length).toBe(2);
     fireEvent.click(removeButtons[0]);
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (1)");
     });
     // Only one Remove button should remain after removal.
-    const remaining = Array.from(
-      container.querySelectorAll("button"),
-    ).filter((b) => b.textContent?.trim() === "Remove");
+    const remaining = Array.from(container.querySelectorAll("button")).filter(
+      (b) => b.textContent?.trim() === "Remove",
+    );
     expect(remaining.length).toBe(1);
   });
 });

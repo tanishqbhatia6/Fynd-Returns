@@ -22,7 +22,9 @@ function mkReq(qs: string) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   globalThis.fetch = vi.fn();
 });
 
@@ -50,7 +52,8 @@ describe("guards", () => {
 
   it("403 when exchange not enabled", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", shopDomain: "store.myshopify.com",
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
       settings: { portalExchangeEnabled: false },
     });
     const res = await loader({ request: mkReq("shop=store"), params: {}, context: {} } as never);
@@ -67,9 +70,11 @@ describe("guards", () => {
   it("normalises shop without dot to .myshopify.com", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     await loader({ request: mkReq("shop=mystore"), params: {}, context: {} } as never);
-    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopDomain: "mystore.myshopify.com" },
-    }));
+    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopDomain: "mystore.myshopify.com" },
+      }),
+    );
   });
 });
 
@@ -84,16 +89,35 @@ describe("product fetch paths", () => {
       ok: true,
       json: async () => ({
         product: {
-          id: 1, title: "T-shirt", handle: "t-shirt", product_type: "Apparel", vendor: "Acme",
+          id: 1,
+          title: "T-shirt",
+          handle: "t-shirt",
+          product_type: "Apparel",
+          vendor: "Acme",
           images: [{ src: "https://img.example/1.jpg" }],
           variants: [
-            { id: 11, title: "Small", price: "20.00", compare_at_price: null, inventory_quantity: 5, sku: "TS-S", option1: "Small", option2: null, option3: null, image_id: null },
+            {
+              id: 11,
+              title: "Small",
+              price: "20.00",
+              compare_at_price: null,
+              inventory_quantity: 5,
+              sku: "TS-S",
+              option1: "Small",
+              option2: null,
+              option3: null,
+              image_id: null,
+            },
           ],
         },
       }),
     }) as typeof fetch;
 
-    const res = await loader({ request: mkReq("shop=store&productId=gid%3A%2F%2Fshopify%2FProduct%2F1"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&productId=gid%3A%2F%2Fshopify%2FProduct%2F1"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.products).toHaveLength(1);
@@ -107,12 +131,36 @@ describe("product fetch paths", () => {
       ok: true,
       json: async () => ({
         products: [
-          { id: 1, title: "Hat", handle: "hat", product_type: "", vendor: "",
-            images: [], variants: [{ id: 11, title: "Default", price: "5.00", compare_at_price: null, inventory_quantity: 1, sku: null, option1: null, option2: null, option3: null, image_id: null }] },
+          {
+            id: 1,
+            title: "Hat",
+            handle: "hat",
+            product_type: "",
+            vendor: "",
+            images: [],
+            variants: [
+              {
+                id: 11,
+                title: "Default",
+                price: "5.00",
+                compare_at_price: null,
+                inventory_quantity: 1,
+                sku: null,
+                option1: null,
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
+            ],
+          },
         ],
       }),
     }) as typeof fetch;
-    const res = await loader({ request: mkReq("shop=store&search=hat"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&search=hat"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.products[0].title).toBe("Hat");
   });
@@ -122,8 +170,28 @@ describe("product fetch paths", () => {
       ok: true,
       json: async () => ({
         products: [
-          { id: 1, title: "SoldOut", handle: "x", product_type: "", vendor: "",
-            images: [], variants: [{ id: 11, title: "X", price: "1.00", compare_at_price: null, inventory_quantity: 0, sku: null, option1: null, option2: null, option3: null, image_id: null }] },
+          {
+            id: 1,
+            title: "SoldOut",
+            handle: "x",
+            product_type: "",
+            vendor: "",
+            images: [],
+            variants: [
+              {
+                id: 11,
+                title: "X",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: 0,
+                sku: null,
+                option1: null,
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
+            ],
+          },
         ],
       }),
     }) as typeof fetch;
@@ -137,8 +205,28 @@ describe("product fetch paths", () => {
       ok: true,
       json: async () => ({
         products: [
-          { id: 1, title: "Digital", handle: "d", product_type: "", vendor: "",
-            images: [], variants: [{ id: 11, title: "Default", price: "1.00", compare_at_price: null, inventory_quantity: -1, sku: null, option1: null, option2: null, option3: null, image_id: null }] },
+          {
+            id: 1,
+            title: "Digital",
+            handle: "d",
+            product_type: "",
+            vendor: "",
+            images: [],
+            variants: [
+              {
+                id: 11,
+                title: "Default",
+                price: "1.00",
+                compare_at_price: null,
+                inventory_quantity: -1,
+                sku: null,
+                option1: null,
+                option2: null,
+                option3: null,
+                image_id: null,
+              },
+            ],
+          },
         ],
       }),
     }) as typeof fetch;
@@ -153,12 +241,15 @@ describe("product fetch paths", () => {
       json: async () => ({ products: [] }),
     }) as typeof fetch;
     await loader({ request: mkReq("shop=store&limit=999"), params: {}, context: {} } as never);
-    const fetchCall = (globalThis.fetch as unknown as { mock: { calls: Array<[string, unknown]> } }).mock.calls[0][0];
+    const fetchCall = (globalThis.fetch as unknown as { mock: { calls: Array<[string, unknown]> } })
+      .mock.calls[0][0];
     expect(fetchCall).toMatch(/limit=50/);
   });
 
   it("returns empty array when Shopify returns non-ok", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false, json: async () => ({}) }) as typeof fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: false, json: async () => ({}) }) as typeof fetch;
     const res = await loader({ request: mkReq("shop=store"), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -172,8 +263,14 @@ describe("product fetch paths", () => {
   });
 
   it("productType filter is added to query", async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ products: [] }) }) as typeof fetch;
-    await loader({ request: mkReq("shop=store&productType=Shirts"), params: {}, context: {} } as never);
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValue({ ok: true, json: async () => ({ products: [] }) }) as typeof fetch;
+    await loader({
+      request: mkReq("shop=store&productType=Shirts"),
+      params: {},
+      context: {},
+    } as never);
     // productType just affects internal queryParts — verifying through the fetch endpoint is enough
     expect(globalThis.fetch).toHaveBeenCalled();
   });

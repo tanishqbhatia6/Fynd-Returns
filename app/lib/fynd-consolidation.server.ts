@@ -51,17 +51,24 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
   // Group by fyndOrderId + fyndShipmentId so returns for different shipments are sent separately
   const groups = new Map<string, typeof pendingCases>();
   for (const rc of pendingCases) {
-    const orderPart = rc.fyndOrderId?.trim() || rc.shopifyOrderName?.replace(/^#/, "").trim() || rc.id;
+    const orderPart =
+      rc.fyndOrderId?.trim() || rc.shopifyOrderName?.replace(/^#/, "").trim() || rc.id;
     const shipmentPart = rc.fyndShipmentId?.trim() || "unknown";
     const groupKey = `${orderPart}:${shipmentPart}`;
     if (!groups.has(groupKey)) groups.set(groupKey, []);
     groups.get(groupKey)!.push(rc);
   }
 
-  const settingsForFynd = shopWithSettings.settings as Parameters<typeof createFyndClientOrError>[0] & { fyndApiType?: string | null };
-  const fyndClientResult = await createFyndClientOrError(settingsForFynd, { requirePlatform: true });
+  const settingsForFynd = shopWithSettings.settings as Parameters<
+    typeof createFyndClientOrError
+  >[0] & { fyndApiType?: string | null };
+  const fyndClientResult = await createFyndClientOrError(settingsForFynd, {
+    requirePlatform: true,
+  });
   if (!fyndClientResult.ok || !("getShipments" in fyndClientResult.client)) {
-    result.errors.push(`Fynd client unavailable: ${!fyndClientResult.ok ? fyndClientResult.error : "Not platform client"}`);
+    result.errors.push(
+      `Fynd client unavailable: ${!fyndClientResult.ok ? fyndClientResult.error : "Not platform client"}`,
+    );
     return result;
   }
   const fyndClient = fyndClientResult.client;
@@ -86,7 +93,9 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
               ...(fyndSync.fyndReturnNo && { fyndReturnNo: fyndSync.fyndReturnNo }),
               ...(fyndSync.fyndOrderId && { fyndOrderId: fyndSync.fyndOrderId }),
               ...(fyndSync.fyndShipmentId && { fyndShipmentId: fyndSync.fyndShipmentId }),
-              ...(fyndSync.fyndPayload != null && { fyndPayloadJson: JSON.stringify(fyndSync.fyndPayload) }),
+              ...(fyndSync.fyndPayload != null && {
+                fyndPayloadJson: JSON.stringify(fyndSync.fyndPayload),
+              }),
             },
           });
           await prisma.returnEvent.create({
@@ -94,7 +103,11 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
               returnCaseId: rc.id,
               source: "system",
               eventType: "fynd_consolidation_synced",
-              payloadJson: JSON.stringify({ groupKey, caseCount: 1, fyndReturnId: fyndSync.fyndReturnId }),
+              payloadJson: JSON.stringify({
+                groupKey,
+                caseCount: 1,
+                fyndReturnId: fyndSync.fyndReturnId,
+              }),
             },
           });
           result.casesUpdated++;
@@ -136,7 +149,9 @@ export async function runConsolidationBatch(shopId: string): Promise<Consolidati
                 /* v8 ignore start */
                 ...(fyndSync.fyndOrderId && { fyndOrderId: fyndSync.fyndOrderId }),
                 ...(fyndSync.fyndShipmentId && { fyndShipmentId: fyndSync.fyndShipmentId }),
-                ...(fyndSync.fyndPayload != null && { fyndPayloadJson: JSON.stringify(fyndSync.fyndPayload) }),
+                ...(fyndSync.fyndPayload != null && {
+                  fyndPayloadJson: JSON.stringify(fyndSync.fyndPayload),
+                }),
                 /* v8 ignore stop */
               },
             });

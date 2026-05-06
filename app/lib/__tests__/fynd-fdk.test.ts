@@ -10,7 +10,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  *  - getShipments / searchShipmentsByExternalOrderId / updateShipmentStatus paths
  */
 
-const { platformConfigCtor, applicationConfigCtor, platformCtor, applicationCtor, platformRequest, appRequest, appGetLanguages } = vi.hoisted(() => {
+const {
+  platformConfigCtor,
+  applicationConfigCtor,
+  platformCtor,
+  applicationCtor,
+  platformRequest,
+  appRequest,
+  appGetLanguages,
+} = vi.hoisted(() => {
   const platformConfigCtor = vi.fn();
   const applicationConfigCtor = vi.fn();
   const platformRequest = vi.fn();
@@ -18,20 +26,28 @@ const { platformConfigCtor, applicationConfigCtor, platformCtor, applicationCtor
   const appGetLanguages = vi.fn();
 
   class FakePlatformConfig {
-    constructor(opts: unknown) { platformConfigCtor(opts); }
+    constructor(opts: unknown) {
+      platformConfigCtor(opts);
+    }
   }
   class FakeApplicationConfig {
-    constructor(opts: unknown) { applicationConfigCtor(opts); }
+    constructor(opts: unknown) {
+      applicationConfigCtor(opts);
+    }
   }
   class FakePlatformClient {
     request = platformRequest;
     configuration = { getLanguages: appGetLanguages };
-    constructor(cfg: unknown, extra: unknown) { platformCtorFn(cfg, extra); }
+    constructor(cfg: unknown, extra: unknown) {
+      platformCtorFn(cfg, extra);
+    }
   }
   class FakeApplicationClient {
     request = appRequest;
     configuration = { getLanguages: appGetLanguages };
-    constructor(cfg: unknown, extra: unknown) { applicationCtorFn(cfg, extra); }
+    constructor(cfg: unknown, extra: unknown) {
+      applicationCtorFn(cfg, extra);
+    }
   }
   const platformCtorFn = vi.fn();
   const applicationCtorFn = vi.fn();
@@ -57,26 +73,34 @@ const { platformConfigCtor, applicationConfigCtor, platformCtor, applicationCtor
 vi.mock("@gofynd/fdk-client-javascript", async () => {
   // Reconstruct classes here referencing hoisted mocks
   class PlatformConfig {
-    constructor(opts: unknown) { platformConfigCtor(opts); }
+    constructor(opts: unknown) {
+      platformConfigCtor(opts);
+    }
   }
   class ApplicationConfig {
-    constructor(opts: unknown) { applicationConfigCtor(opts); }
+    constructor(opts: unknown) {
+      applicationConfigCtor(opts);
+    }
   }
   class PlatformClient {
     request = platformRequest;
-    constructor(cfg: unknown, extra: unknown) { platformCtor(cfg, extra); }
+    constructor(cfg: unknown, extra: unknown) {
+      platformCtor(cfg, extra);
+    }
   }
   class ApplicationClient {
     request = appRequest;
     configuration = { getLanguages: appGetLanguages };
-    constructor(cfg: unknown, extra: unknown) { applicationCtor(cfg, extra); }
+    constructor(cfg: unknown, extra: unknown) {
+      applicationCtor(cfg, extra);
+    }
   }
   return { PlatformConfig, ApplicationConfig, PlatformClient, ApplicationClient };
 });
 
 vi.mock("../fynd-config.server", () => ({
   getFyndBaseUrl: vi.fn((s: { fyndEnvironment?: string | null }) =>
-    s.fyndEnvironment === "prod" ? "https://api.fynd.com" : "https://api.uat.fyndx1.de"
+    s.fyndEnvironment === "prod" ? "https://api.fynd.com" : "https://api.uat.fyndx1.de",
   ),
 }));
 
@@ -132,9 +156,11 @@ describe("createFyndPlatformClient", () => {
       apiSecret: "s",
       domain: "https://api.uat.fyndx1.de",
     });
-    expect(platformConfigCtor).toHaveBeenCalledWith(expect.objectContaining({
-      domain: "https://api.uat.fyndx1.de",
-    }));
+    expect(platformConfigCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: "https://api.uat.fyndx1.de",
+      }),
+    );
   });
 });
 
@@ -196,10 +222,12 @@ describe("FyndStorefrontClientFDK", () => {
     appRequest.mockResolvedValueOnce({ data: { items: [{ id: 1 }] } });
     const res = await client.getBagReasons();
     expect(res).toEqual({ items: [{ id: 1 }] });
-    expect(appRequest).toHaveBeenCalledWith(expect.objectContaining({
-      method: "GET",
-      url: "/service/application/order/v1.0/bag/reasons",
-    }));
+    expect(appRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "GET",
+        url: "/service/application/order/v1.0/bag/reasons",
+      }),
+    );
   });
 
   it("getBagReasons wraps errors", async () => {
@@ -212,7 +240,9 @@ describe("FyndStorefrontClientFDK", () => {
 describe("FyndPlatformClientFDK", () => {
   function mkClient() {
     const log = vi.fn();
-    const fdk = { request: platformRequest } as unknown as InstanceType<typeof import("@gofynd/fdk-client-javascript").PlatformClient>;
+    const fdk = { request: platformRequest } as unknown as InstanceType<
+      typeof import("@gofynd/fdk-client-javascript").PlatformClient
+    >;
     return { client: new FyndPlatformClientFDK(fdk, "C1", "A1", log), log };
   }
 
@@ -221,10 +251,12 @@ describe("FyndPlatformClientFDK", () => {
     platformRequest.mockResolvedValueOnce({ data: { items: [] } });
     const res = await client.getReturnReasons();
     expect(res).toBe(null);
-    expect(platformRequest).toHaveBeenCalledWith(expect.objectContaining({
-      method: "GET",
-      url: "/service/platform/order/v1.0/company/C1/orders-listing?page_no=1&page_size=1",
-    }));
+    expect(platformRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "GET",
+        url: "/service/platform/order/v1.0/company/C1/orders-listing?page_no=1&page_size=1",
+      }),
+    );
   });
 
   it("testConnection returns ok:true on success", async () => {
@@ -235,7 +267,9 @@ describe("FyndPlatformClientFDK", () => {
 
   it("testConnection returns ok:true with warning on 404", async () => {
     const { client } = mkClient();
-    platformRequest.mockRejectedValueOnce({ response: { status: 404, data: { message: "Not Found" } } });
+    platformRequest.mockRejectedValueOnce({
+      response: { status: 404, data: { message: "Not Found" } },
+    });
     const res = await client.testConnection();
     expect(res.ok).toBe(true);
     expect(res.warning).toMatch(/Return reasons endpoint not available/);
@@ -243,25 +277,35 @@ describe("FyndPlatformClientFDK", () => {
 
   it("testConnection rethrows other errors", async () => {
     const { client } = mkClient();
-    platformRequest.mockRejectedValueOnce({ response: { status: 500, data: { message: "server exploded" } } });
+    platformRequest.mockRejectedValueOnce({
+      response: { status: 500, data: { message: "server exploded" } },
+    });
     await expect(client.testConnection()).rejects.toThrow(/500/);
   });
 
   it("request() annotates 401 errors with hint about credentials", async () => {
     const { client } = mkClient();
-    platformRequest.mockRejectedValueOnce({ response: { status: 401, data: { message: "Unauthorized" } } });
-    await expect(client.getReturnReasons()).rejects.toThrow(/401.*Company ID, Client ID and Secret/s);
+    platformRequest.mockRejectedValueOnce({
+      response: { status: 401, data: { message: "Unauthorized" } },
+    });
+    await expect(client.getReturnReasons()).rejects.toThrow(
+      /401.*Company ID, Client ID and Secret/s,
+    );
   });
 
   it("request() annotates 403 errors with scope guidance", async () => {
     const { client } = mkClient();
-    platformRequest.mockRejectedValueOnce({ response: { status: 403, data: { message: "Forbidden" } } });
+    platformRequest.mockRejectedValueOnce({
+      response: { status: 403, data: { message: "Forbidden" } },
+    });
     await expect(client.getReturnReasons()).rejects.toThrow(/403.*company\/orders\/read/s);
   });
 
   it("request() uses description fallback when message absent", async () => {
     const { client } = mkClient();
-    platformRequest.mockRejectedValueOnce({ response: { status: 500, data: { description: "broken" } } });
+    platformRequest.mockRejectedValueOnce({
+      response: { status: 500, data: { description: "broken" } },
+    });
     await expect(client.getReturnReasons()).rejects.toThrow(/500: broken/);
   });
 
@@ -273,7 +317,9 @@ describe("FyndPlatformClientFDK", () => {
 
   it("getShipments returns .shipments preferentially", async () => {
     const { client } = mkClient();
-    platformRequest.mockResolvedValueOnce({ data: { shipments: [{ id: "s1" }], order: { id: "o1" } } });
+    platformRequest.mockResolvedValueOnce({
+      data: { shipments: [{ id: "s1" }], order: { id: "o1" } },
+    });
     const res = await client.getShipments("ORD-1");
     expect(res).toEqual([{ id: "s1" }]);
   });
@@ -290,7 +336,10 @@ describe("FyndPlatformClientFDK", () => {
     platformRequest.mockResolvedValueOnce({
       data: { items: [{ order_id: "INT-1", shipment_id: "SH-1" }] },
     });
-    const res = await client.searchShipmentsByExternalOrderId("EXT-42", { pageSize: 5, orderStatus: "delivered" });
+    const res = await client.searchShipmentsByExternalOrderId("EXT-42", {
+      pageSize: 5,
+      orderStatus: "delivered",
+    });
     expect(res.orderId).toBe("INT-1");
     expect(res.shipmentId).toBe("SH-1");
     const path = platformRequest.mock.calls[0][0].url as string;
@@ -321,9 +370,11 @@ describe("FyndPlatformClientFDK", () => {
     await client.updateShipmentStatus("unused-order", {
       statuses: [{ shipments: [{ identifier: "S1" }], status: "return_initiated" }],
     });
-    expect(platformRequest).toHaveBeenCalledWith(expect.objectContaining({
-      method: "PUT",
-      url: "/service/platform/order-manage/v1.0/company/C1/shipment/status-internal",
-    }));
+    expect(platformRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "PUT",
+        url: "/service/platform/order-manage/v1.0/company/C1/shipment/status-internal",
+      }),
+    );
   });
 });

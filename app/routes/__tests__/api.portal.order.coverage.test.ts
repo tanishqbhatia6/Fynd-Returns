@@ -40,11 +40,18 @@ const {
   fetchOrderByGidMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
   withRestCredentialsMock: vi.fn((a: unknown) => a),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   formatReturnRequestIdMock: vi.fn((x: string) => `R-${x.slice(0, 6)}`),
-  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(() => ({ eligible: true })),
+  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(
+    () => ({ eligible: true }),
+  ),
   createPortalCsrfTokenMock: vi.fn(() => "csrf-token-abc"),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping = {
@@ -79,7 +86,10 @@ vi.mock("../../lib/portal-auth.server", () => ({
 }));
 vi.mock("../../lib/shopify-admin.server", async () => {
   class OrderAccessError extends Error {
-    constructor(public reason: string, public orderNumber: string) {
+    constructor(
+      public reason: string,
+      public orderNumber: string,
+    ) {
       super(`Order ${orderNumber} cannot be accessed: ${reason}`);
       this.name = "OrderAccessError";
     }
@@ -114,8 +124,12 @@ beforeEach(() => {
   mapping.upsert.mockResolvedValue({});
   mapping.findFirst.mockReset();
   mapping.findFirst.mockResolvedValue(null);
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   fetchOrderByOrderNumberMock.mockReset();
   fetchOrderByGidMock.mockReset();
   fetchOrderByFyndAffiliateIdMock.mockReset();
@@ -124,7 +138,9 @@ beforeEach(() => {
   formatReturnRequestIdMock.mockReset().mockImplementation((x: string) => `R-${x.slice(0, 6)}`);
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   createPortalCsrfTokenMock.mockReset().mockReturnValue("csrf-token-abc");
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
 
   // Defaults shared across most cases
   prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com" });
@@ -160,9 +176,16 @@ describe("FyndOrderMapping cache hit fast path", () => {
       lineItems: [{ id: "li-1", title: "T", quantity: 1, price: "10", productTags: [] }],
     });
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
-    expect(fetchOrderByGidMock).toHaveBeenCalledWith(expect.anything(), "gid://shopify/Order/123456");
+    expect(fetchOrderByGidMock).toHaveBeenCalledWith(
+      expect.anything(),
+      "gid://shopify/Order/123456",
+    );
     const body = await res.json();
     expect(body.order.id).toBe("gid://shopify/Order/123456");
   });
@@ -186,7 +209,11 @@ describe("FyndOrderMapping cache hit fast path", () => {
       lineItems: [],
     });
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=2002"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=2002"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     // The 2nd call uses the cleaned name (without leading "#")
     expect(fetchOrderByOrderNumberMock).toHaveBeenNthCalledWith(2, expect.anything(), "2002");
@@ -211,7 +238,11 @@ describe("FyndOrderMapping cache hit fast path", () => {
       lineItems: [],
     });
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=FYNDSHOPIFYX14115"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=FYNDSHOPIFYX14115"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     expect(fetchOrderByGidMock).not.toHaveBeenCalled();
   });
@@ -232,8 +263,22 @@ describe("SKU-based qty fallback", () => {
       displayFinancialStatus: "PAID",
       currencyCode: "USD",
       lineItems: [
-        { id: "li-shopify-1", title: "Shirt", quantity: 3, price: "20", sku: "SKU-A", productTags: [] },
-        { id: "li-shopify-2", title: "Pants", quantity: 2, price: "30", sku: "SKU-B", productTags: [] },
+        {
+          id: "li-shopify-1",
+          title: "Shirt",
+          quantity: 3,
+          price: "20",
+          sku: "SKU-A",
+          productTags: [],
+        },
+        {
+          id: "li-shopify-2",
+          title: "Pants",
+          quantity: 2,
+          price: "30",
+          sku: "SKU-B",
+          productTags: [],
+        },
       ],
     };
   }
@@ -248,7 +293,11 @@ describe("SKU-based qty fallback", () => {
       { sku: "SKU-B", qty: 2, shopifyLineItemId: "fynd-bag-100" },
     ]);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=3001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=3001"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnedQtyMap).toEqual({
       "li-shopify-1": 1,
@@ -268,7 +317,11 @@ describe("SKU-based qty fallback", () => {
       { sku: "SKU-B", qty: 2, shopifyLineItemId: "fynd-bag-200" }, // include
     ]);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=3001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=3001"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnedQtyMap["li-shopify-1"]).toBe(1); // not 2
     expect(body.returnedQtyMap["li-shopify-2"]).toBe(2);
@@ -281,18 +334,29 @@ describe("SKU-based qty fallback", () => {
       { sku: "SKU-UNRELATED", qty: 5, shopifyLineItemId: "fynd-bag-x" },
     ]);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=3001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=3001"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnedQtyMap).toEqual({});
   });
 
   it("skips the SKU fallback entirely when the order has no line items with SKUs", async () => {
     const order = mkOrder();
-    order.lineItems = order.lineItems.map((li) => ({ ...li, sku: null as unknown as string })) as typeof order.lineItems;
+    order.lineItems = order.lineItems.map((li) => ({
+      ...li,
+      sku: null as unknown as string,
+    })) as typeof order.lineItems;
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(order);
     prismaMock.returnItem.findMany.mockResolvedValueOnce([]); // direct ID lookup
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=3001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=3001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     // returnItem.findMany should only be called once (direct), not twice (SKU)
     expect(prismaMock.returnItem.findMany).toHaveBeenCalledTimes(1);
@@ -324,8 +388,22 @@ describe("multi-shipment bucketing", () => {
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
       lineItems: [
-        { id: "li-shop-A", title: "Shirt", quantity: 1, price: "100", sku: "SKU-A", productTags: [] },
-        { id: "li-shop-B", title: "Pants", quantity: 1, price: "200", sku: "SKU-B", productTags: [] },
+        {
+          id: "li-shop-A",
+          title: "Shirt",
+          quantity: 1,
+          price: "100",
+          sku: "SKU-A",
+          productTags: [],
+        },
+        {
+          id: "li-shop-B",
+          title: "Pants",
+          quantity: 1,
+          price: "200",
+          sku: "SKU-B",
+          productTags: [],
+        },
       ],
     });
     prismaMock.shopSettings.findUnique.mockResolvedValue({
@@ -340,7 +418,13 @@ describe("multi-shipment bucketing", () => {
           {
             bag_id: "bag-1",
             quantity: 1,
-            articles: [{ seller_identifier: "SKU-A", article_id: "art-1", item: { item_id: "item-A", name: "Shirt" } }],
+            articles: [
+              {
+                seller_identifier: "SKU-A",
+                article_id: "art-1",
+                item: { item_id: "item-A", name: "Shirt" },
+              },
+            ],
           },
         ],
       },
@@ -351,13 +435,23 @@ describe("multi-shipment bucketing", () => {
           {
             bag_id: "bag-2",
             quantity: 1,
-            articles: [{ seller_identifier: "SKU-B", article_id: "art-2", item: { item_id: "item-B", name: "Pants" } }],
+            articles: [
+              {
+                seller_identifier: "SKU-B",
+                article_id: "art-2",
+                item: { item_id: "item-B", name: "Pants" },
+              },
+            ],
           },
         ],
       },
     ]);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=4001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=4001"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.shipments).toHaveLength(2);
     expect(body.shipments[0].shipmentId).toBe("SHIP-1");
@@ -380,15 +474,31 @@ describe("multi-shipment bucketing", () => {
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
       lineItems: [
-        { id: "li-shop-A", title: "Shirt", quantity: 2, price: "100", sku: "SKU-A", productTags: [] },
+        {
+          id: "li-shop-A",
+          title: "Shirt",
+          quantity: 2,
+          price: "100",
+          sku: "SKU-A",
+          productTags: [],
+        },
       ],
     });
-    prismaMock.shopSettings.findUnique.mockResolvedValue({ shopId: "shop-1", allowedFyndStatusesForReturn: null });
+    prismaMock.shopSettings.findUnique.mockResolvedValue({
+      shopId: "shop-1",
+      allowedFyndStatusesForReturn: null,
+    });
     setFyndShipments([
       {
         shipment_id: "SHIP-1",
         status: "delivery_done",
-        bags: [{ bag_id: "bag-1", quantity: 1, articles: [{ seller_identifier: "SKU-A", item: { item_id: "i1" } }] }],
+        bags: [
+          {
+            bag_id: "bag-1",
+            quantity: 1,
+            articles: [{ seller_identifier: "SKU-A", item: { item_id: "i1" } }],
+          },
+        ],
       },
     ]);
 
@@ -407,7 +517,11 @@ describe("multi-shipment bucketing", () => {
         },
       ]);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=4002"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=4002"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.shipmentReturnedQtyMap).toBeDefined();
     expect(body.shipmentReturnedQtyMap["SHIP-1"]).toMatchObject({
@@ -426,21 +540,42 @@ describe("multi-shipment bucketing", () => {
       displayFulfillmentStatus: "PARTIALLY_FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
-      lineItems: [{ id: "li-1", title: "X", quantity: 1, price: "10", sku: "SKU-X", productTags: [] }],
+      lineItems: [
+        { id: "li-1", title: "X", quantity: 1, price: "10", sku: "SKU-X", productTags: [] },
+      ],
     });
-    prismaMock.shopSettings.findUnique.mockResolvedValue({ shopId: "shop-1", allowedFyndStatusesForReturn: null });
+    prismaMock.shopSettings.findUnique.mockResolvedValue({
+      shopId: "shop-1",
+      allowedFyndStatusesForReturn: null,
+    });
     setFyndShipments([
-      { shipment_id: "S1", status: "delivery_done", bags: [{ bag_id: "b1", quantity: 1, articles: [{ seller_identifier: "SKU-X" }] }] },
-      { shipment_id: "S2", status: "out_for_delivery", bags: [{ bag_id: "b2", quantity: 1, articles: [{ seller_identifier: "SKU-Y" }] }] },
+      {
+        shipment_id: "S1",
+        status: "delivery_done",
+        bags: [{ bag_id: "b1", quantity: 1, articles: [{ seller_identifier: "SKU-X" }] }],
+      },
+      {
+        shipment_id: "S2",
+        status: "out_for_delivery",
+        bags: [{ bag_id: "b2", quantity: 1, articles: [{ seller_identifier: "SKU-Y" }] }],
+      },
     ]);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=4003"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=4003"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     // Order-level eligibility ends up true because S1 is eligible (override)
     expect(body.returnEligibility.eligible).toBe(true);
     expect(body.shipments).toHaveLength(2);
-    expect(body.shipments.find((s: { shipmentId: string }) => s.shipmentId === "S1").eligible).toBe(true);
-    expect(body.shipments.find((s: { shipmentId: string }) => s.shipmentId === "S2").eligible).toBe(false);
+    expect(body.shipments.find((s: { shipmentId: string }) => s.shipmentId === "S1").eligible).toBe(
+      true,
+    );
+    expect(body.shipments.find((s: { shipmentId: string }) => s.shipmentId === "S2").eligible).toBe(
+      false,
+    );
   });
 
   it("multi-shipment override does NOT bypass return-rule blocks (out of return window)", async () => {
@@ -452,19 +587,36 @@ describe("multi-shipment bucketing", () => {
       displayFulfillmentStatus: "FULFILLED",
       displayFinancialStatus: "PAID",
       currencyCode: "INR",
-      lineItems: [{ id: "li-1", title: "X", quantity: 1, price: "10", sku: "SKU-X", productTags: [] }],
+      lineItems: [
+        { id: "li-1", title: "X", quantity: 1, price: "10", sku: "SKU-X", productTags: [] },
+      ],
     });
-    prismaMock.shopSettings.findUnique.mockResolvedValue({ shopId: "shop-1", allowedFyndStatusesForReturn: null });
+    prismaMock.shopSettings.findUnique.mockResolvedValue({
+      shopId: "shop-1",
+      allowedFyndStatusesForReturn: null,
+    });
     // Return rule check FAILS the order-wide eligibility on the first call; per-item calls return ok.
     checkReturnEligibilityMock
       .mockReturnValueOnce({ eligible: false, reason: "Return window has expired" })
       .mockReturnValue({ eligible: true });
     setFyndShipments([
-      { shipment_id: "S1", status: "delivery_done", bags: [{ bag_id: "b1", quantity: 1, articles: [{ seller_identifier: "SKU-X" }] }] },
-      { shipment_id: "S2", status: "delivery_done", bags: [{ bag_id: "b2", quantity: 1, articles: [{ seller_identifier: "SKU-Y" }] }] },
+      {
+        shipment_id: "S1",
+        status: "delivery_done",
+        bags: [{ bag_id: "b1", quantity: 1, articles: [{ seller_identifier: "SKU-X" }] }],
+      },
+      {
+        shipment_id: "S2",
+        status: "delivery_done",
+        bags: [{ bag_id: "b2", quantity: 1, articles: [{ seller_identifier: "SKU-Y" }] }],
+      },
     ]);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=4004"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=4004"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.eligible).toBe(false);
     expect(body.returnEligibility.reason).toMatch(/Return window/i);
@@ -487,13 +639,19 @@ describe("financial / fulfillment status gates", () => {
       displayFulfillmentStatus: fulfillment,
       displayFinancialStatus: financial,
       currencyCode: "USD",
-      lineItems: [{ id: "li-1", title: "X", quantity: 1, price: "10", sku: "SKU-X", productTags: [] }],
+      lineItems: [
+        { id: "li-1", title: "X", quantity: 1, price: "10", sku: "SKU-X", productTags: [] },
+      ],
     };
   }
 
   it("blocks orders with financialStatus=REFUNDED", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(mkOrderWithStatuses("REFUNDED", "FULFILLED"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=5005"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=5005"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.eligible).toBe(false);
     expect(body.returnEligibility.reason).toMatch(/already been refunded/i);
@@ -501,7 +659,11 @@ describe("financial / fulfillment status gates", () => {
 
   it("blocks orders with financialStatus=VOIDED", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(mkOrderWithStatuses("VOIDED", "FULFILLED"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=5005"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=5005"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.eligible).toBe(false);
     expect(body.returnEligibility.reason).toMatch(/already been refunded/i);
@@ -509,7 +671,11 @@ describe("financial / fulfillment status gates", () => {
 
   it("blocks orders with fulfillmentStatus=UNFULFILLED with the not-shipped-yet message", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(mkOrderWithStatuses("PAID", "UNFULFILLED"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=5005"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=5005"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.eligible).toBe(false);
     expect(body.returnEligibility.reason).toMatch(/has not been shipped yet/i);
@@ -517,7 +683,11 @@ describe("financial / fulfillment status gates", () => {
 
   it("blocks orders with fulfillmentStatus=ON_HOLD with the on-hold message", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(mkOrderWithStatuses("PAID", "ON_HOLD"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=5005"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=5005"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.eligible).toBe(false);
     expect(body.returnEligibility.reason).toMatch(/on hold/i);
@@ -525,22 +695,36 @@ describe("financial / fulfillment status gates", () => {
 
   it("blocks orders with fulfillmentStatus=SCHEDULED with the scheduled-not-shipped message", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(mkOrderWithStatuses("PAID", "SCHEDULED"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=5005"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=5005"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.eligible).toBe(false);
     expect(body.returnEligibility.reason).toMatch(/scheduled/i);
   });
 
   it("REFUNDED takes precedence over UNFULFILLED (refund message wins)", async () => {
-    fetchOrderByOrderNumberMock.mockResolvedValueOnce(mkOrderWithStatuses("REFUNDED", "UNFULFILLED"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=5005"), params: {}, context: {} } as never);
+    fetchOrderByOrderNumberMock.mockResolvedValueOnce(
+      mkOrderWithStatuses("REFUNDED", "UNFULFILLED"),
+    );
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=5005"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.reason).toMatch(/already been refunded/i);
   });
 
   it("PAID + FULFILLED + no Fynd data passes the gates and returns eligible:true", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(mkOrderWithStatuses("PAID", "FULFILLED"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=5005"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=5005"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.returnEligibility.eligible).toBe(true);
     expect(body.portalCsrfToken).toBe("csrf-token-abc");

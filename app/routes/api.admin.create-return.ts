@@ -1,12 +1,20 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { parseReturnIdConfig, buildReturnRequestId, formatReturnRequestId } from "../lib/return-request-id";
+import {
+  parseReturnIdConfig,
+  buildReturnRequestId,
+  formatReturnRequestId,
+} from "../lib/return-request-id";
 import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkReturnEligibility } from "../lib/return-rules.server";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
-import { fetchOrderByFyndAffiliateId, fetchOrderByOrderNumber, withRestCredentials } from "../lib/shopify-admin.server";
+import {
+  fetchOrderByFyndAffiliateId,
+  fetchOrderByOrderNumber,
+  withRestCredentials,
+} from "../lib/shopify-admin.server";
 import shopify from "../shopify.server";
 
 /**
@@ -38,27 +46,46 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const items = body.items as
     | Array<{
-        lineItemId: string; qty: number; reasonCode?: string; notes?: string; condition?: string;
-        sku?: string; fyndShipmentId?: string; fyndBagId?: string;
-        fyndArticleId?: string; fyndAffiliateLineId?: string; fyndSellerIdentifier?: string;
-        fyndItemId?: string; fyndQuantityAvailable?: number; fyndPriceEffective?: string; fyndSize?: string;
+        lineItemId: string;
+        qty: number;
+        reasonCode?: string;
+        notes?: string;
+        condition?: string;
+        sku?: string;
+        fyndShipmentId?: string;
+        fyndBagId?: string;
+        fyndArticleId?: string;
+        fyndAffiliateLineId?: string;
+        fyndSellerIdentifier?: string;
+        fyndItemId?: string;
+        fyndQuantityAvailable?: number;
+        fyndPriceEffective?: string;
+        fyndSize?: string;
       }>
     | undefined;
   if (!items || !Array.isArray(items) || items.length === 0) {
-    return Response.json({ error: "items is required and must be a non-empty array" }, { status: 400 });
+    return Response.json(
+      { error: "items is required and must be a non-empty array" },
+      { status: 400 },
+    );
   }
 
   // --- Optional fields ---
   const customerEmail = (body.customerEmail as string | undefined)?.trim().toLowerCase() || null;
-  const customerPhone = (body.customerPhone as string | undefined)?.trim().replace(/[^\d+]/g, "") || null;
+  const customerPhone =
+    (body.customerPhone as string | undefined)?.trim().replace(/[^\d+]/g, "") || null;
   const customerName = (body.customerName as string | undefined)?.trim() || null;
   const customerCity = (body.customerCity as string | undefined)?.trim() || null;
   const customerCountry = (body.customerCountry as string | undefined)?.trim() || null;
-  const customerAddress1 = (body.customerAddress1 as string | undefined)?.trim().slice(0, 500) || null;
-  const customerAddress2 = (body.customerAddress2 as string | undefined)?.trim().slice(0, 500) || null;
-  const customerProvince = (body.customerProvince as string | undefined)?.trim().slice(0, 100) || null;
+  const customerAddress1 =
+    (body.customerAddress1 as string | undefined)?.trim().slice(0, 500) || null;
+  const customerAddress2 =
+    (body.customerAddress2 as string | undefined)?.trim().slice(0, 500) || null;
+  const customerProvince =
+    (body.customerProvince as string | undefined)?.trim().slice(0, 100) || null;
   const customerZip = (body.customerZip as string | undefined)?.trim().slice(0, 20) || null;
-  const customerLandmark = (body.customerLandmark as string | undefined)?.trim().slice(0, 500) || null;
+  const customerLandmark =
+    (body.customerLandmark as string | undefined)?.trim().slice(0, 500) || null;
 
   /* v8 ignore start - defensive fallback for missing resolutionType */
   const resolutionType = (body.resolutionType as string | undefined) || "refund";
@@ -78,12 +105,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const crmNotes = (body.crmNotes as string | undefined)?.trim() || null;
   const createdByStaff = (body.createdByStaff as string | undefined)?.trim() || null;
   const adminOverride = body.adminOverride === true;
-  const currencyCode = (body.currency as string | undefined)?.trim().toUpperCase().slice(0, 10) || null;
+  const currencyCode =
+    (body.currency as string | undefined)?.trim().toUpperCase().slice(0, 10) || null;
   const orderCreatedAt = body.orderCreatedAt ? new Date(body.orderCreatedAt as string) : null;
 
-  const lineItemsWithPrice = (body.lineItemsWithPrice as
-    | Array<{ id: string; title?: string; variantTitle?: string; price?: string | number; imageUrl?: string; sku?: string }>
-    | undefined) ?? [];
+  const lineItemsWithPrice =
+    (body.lineItemsWithPrice as
+      | Array<{
+          id: string;
+          title?: string;
+          variantTitle?: string;
+          price?: string | number;
+          imageUrl?: string;
+          sku?: string;
+        }>
+      | undefined) ?? [];
 
   // --- Shop lookup ---
   const shopRecord = await prisma.shop.findUnique({
@@ -107,7 +143,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       /* v8 ignore start - defensive guard; order_name is always pushed so length > 0 */
       if (blockChecks.length > 0) {
-      /* v8 ignore stop */
+        /* v8 ignore stop */
         const blocked = await prisma.blocklistEntry.findFirst({
           where: {
             settingsId: settings.id,
@@ -130,7 +166,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     for (const item of items) {
       if (!Number.isInteger(item.qty) || item.qty < 1) {
         return Response.json(
-          { error: `Invalid quantity for line item ${item.lineItemId}: must be a positive integer.` },
+          {
+            error: `Invalid quantity for line item ${item.lineItemId}: must be a positive integer.`,
+          },
           { status: 400 },
         );
       }
@@ -177,13 +215,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       /* v8 ignore stop */
       const orderNameClean = shopifyOrderName.replace(/^#/, "").trim();
       /* v8 ignore start - defensive fallback chain when first lookup fails */
-      const resolved = await fetchOrderByFyndAffiliateId(admin, orderNameClean).catch(() => null)
-        ?? await fetchOrderByOrderNumber(admin, orderNameClean).catch(() => null);
+      const resolved =
+        (await fetchOrderByFyndAffiliateId(admin, orderNameClean).catch(() => null)) ??
+        (await fetchOrderByOrderNumber(admin, orderNameClean).catch(() => null));
       if (resolved?.id?.startsWith("gid://")) {
         shopifyOrderId = resolved.id;
       }
       /* v8 ignore stop */
-    } catch { /* non-fatal — proceed with what we have */ }
+    } catch {
+      /* non-fatal — proceed with what we have */
+    }
   }
 
   // --- Determine status (auto-approve check) ---
@@ -194,11 +235,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const firstReasonCode = items[0]?.reasonCode;
       const allTags = lineItemsWithPrice.flatMap((li) => {
         const liAny = li as Record<string, unknown>;
-        return Array.isArray(liAny.productTags) ? liAny.productTags as string[] : [];
+        return Array.isArray(liAny.productTags) ? (liAny.productTags as string[]) : [];
       });
       let customerReturnCount: number | undefined;
       if (customerEmail) {
-        customerReturnCount = await prisma.returnCase.count({ where: { shopId: shopRecord.id, customerEmailNorm: customerEmail } });
+        customerReturnCount = await prisma.returnCase.count({
+          where: { shopId: shopRecord.id, customerEmailNorm: customerEmail },
+        });
       }
       const ruleResult = evaluateAutoApproveRules(autoRules, {
         returnReason: firstReasonCode,
@@ -241,7 +284,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           crmNotes,
           orderProcessedAt: orderCreatedAt,
           fyndShipmentId: (() => {
-            const shipIds = items.map(it => it.fyndShipmentId).filter(Boolean) as string[];
+            const shipIds = items.map((it) => it.fyndShipmentId).filter(Boolean) as string[];
             if (shipIds.length === 0) return null;
             const unique = [...new Set(shipIds)];
             return unique.length === 1 ? unique[0] : shipIds[0];

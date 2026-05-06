@@ -6,17 +6,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  authenticateMock,
-  findOrCreateShopMock,
-  fetchAllLocationsMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  findOrCreateShopMock: vi.fn(),
-  fetchAllLocationsMock: vi.fn(),
-}));
+const { prismaMock, authenticateMock, findOrCreateShopMock, fetchAllLocationsMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    findOrCreateShopMock: vi.fn(),
+    fetchAllLocationsMock: vi.fn(),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -53,7 +50,11 @@ beforeEach(() => {
 describe("loader", () => {
   it("returns defaults when shop has no settings", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.noReturnPeriodEnabled).toBe(false);
     expect(data.noReturnPeriodStart).toBe("");
     expect(data.noReturnPeriodEnd).toBe("");
@@ -111,7 +112,11 @@ describe("loader", () => {
         greenReturnsDonateMessage: "We donate items",
       },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.noReturnPeriodEnabled).toBe(true);
     expect(data.noReturnPeriodStart).toBe("2025-12-20");
     expect(data.noReturnPeriodEnd).toBe("2025-12-31");
@@ -141,7 +146,11 @@ describe("loader", () => {
         refundGatePreset: null,
       },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.portalAllowedFulfillmentStatuses).toEqual(["FULFILLED", "PARTIALLY_FULFILLED"]);
     expect(data.allowedFyndStatusesForRefund).toEqual([]);
     expect(data.allowedFyndStatusesForReturn).toEqual([]);
@@ -152,16 +161,22 @@ describe("loader", () => {
   it("survives fetchAllLocations failure (non-fatal)", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
     fetchAllLocationsMock.mockRejectedValueOnce(new Error("scope missing"));
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.shopLocations).toEqual([]);
   });
 
   it("returns shopLocations when admin call succeeds", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    fetchAllLocationsMock.mockResolvedValueOnce([
-      { id: "gid://shopify/Location/1", name: "Main" },
-    ]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    fetchAllLocationsMock.mockResolvedValueOnce([{ id: "gid://shopify/Location/1", name: "Main" }]);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.shopLocations).toHaveLength(1);
     expect(data.shopLocations[0]).toMatchObject({ name: "Main" });
   });
@@ -201,7 +216,8 @@ describe("action", () => {
         returnFeeAmount: "-99",
         refundStoreCreditPct: "250",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.returnFeeAmount).toBe(0);
@@ -215,7 +231,8 @@ describe("action", () => {
         returnFeeAmount: "12.34",
         refundStoreCreditPct: "-5",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.returnFeeAmount).toBeCloseTo(12.34);
@@ -230,7 +247,8 @@ describe("action", () => {
         noReturnPeriodStart: "2025-12-31",
         noReturnPeriodEnd: "2025-12-01",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({
       success: false,
@@ -247,7 +265,8 @@ describe("action", () => {
         noReturnPeriodStart: "2025-12-01",
         noReturnPeriodEnd: "2025-12-31",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -260,7 +279,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ restrictedProductTagsJson: "{not-json" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -275,20 +295,19 @@ describe("action", () => {
       request: formReq({
         restrictedProductTagsJson: JSON.stringify(["final-sale", "clearance"]),
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
-    expect(JSON.parse(args.create.restrictedProductTagsJson)).toEqual([
-      "final-sale",
-      "clearance",
-    ]);
+    expect(JSON.parse(args.create.restrictedProductTagsJson)).toEqual(["final-sale", "clearance"]);
   });
 
   it("falls back to default fyndConsolidateWindowHours when invalid", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ fyndConsolidateWindowHours: "999" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.fyndConsolidateWindowHours).toBe(4);
@@ -298,7 +317,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ fyndConsolidateWindowHours: "8" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.fyndConsolidateWindowHours).toBe(8);
@@ -311,7 +331,8 @@ describe("action", () => {
         refundGatePreset: "none",
         allowedFyndStatusesForRefund: ["delivered", "qc_passed"],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.refundGatePreset).toBe("none");
@@ -325,7 +346,8 @@ describe("action", () => {
         refundGatePreset: "custom",
         allowedFyndStatusesForRefund: ["  Delivered  ", "QC_Passed", ""],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.refundGatePreset).toBe("custom");
@@ -339,7 +361,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ refundGatePreset: "after_delivery" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.refundGatePreset).toBe("after_delivery");
@@ -356,7 +379,8 @@ describe("action", () => {
       request: formReq({
         portalAllowedFulfillmentStatuses: ["FULFILLED", "IN_PROGRESS"],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(JSON.parse(args.create.portalAllowedFulfillmentStatuses)).toEqual([
@@ -369,7 +393,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ scheduledReportDay: "99" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const args = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(args.create.scheduledReportDay).toBe(28);
@@ -380,7 +405,8 @@ describe("action", () => {
     prismaMock.shopSettings.upsert.mockRejectedValueOnce(new Error("DB unavailable"));
     const res = await action({
       request: formReq({}),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: false, error: "DB unavailable" });
   });

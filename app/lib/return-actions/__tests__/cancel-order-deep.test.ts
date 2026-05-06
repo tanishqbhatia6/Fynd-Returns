@@ -96,10 +96,10 @@ describe("handleCancelOrder — deep coverage", () => {
       it(`forwards reason=${reason} to Shopify and records it on the event`, async () => {
         const adminMock = mkAdminGraphql();
         await expectRedirect(
-          handleCancelOrder(
-            mkCtx({ admin: adminMock as never }),
-            { action: "cancel_order", cancelReason: reason } as never,
-          ),
+          handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+            action: "cancel_order",
+            cancelReason: reason,
+          } as never),
           "/app/returns/rc-1",
         );
 
@@ -123,10 +123,10 @@ describe("handleCancelOrder — deep coverage", () => {
     it("upper-cases lowercase cancelReason before validating + forwarding", async () => {
       const adminMock = mkAdminGraphql();
       await expectRedirect(
-        handleCancelOrder(
-          mkCtx({ admin: adminMock as never }),
-          { action: "cancel_order", cancelReason: "customer" } as never,
-        ),
+        handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+          action: "cancel_order",
+          cancelReason: "customer",
+        } as never),
         "/app/returns/rc-1",
       );
       expect(adminMock.graphql).toHaveBeenCalledWith(
@@ -138,10 +138,9 @@ describe("handleCancelOrder — deep coverage", () => {
     it("defaults cancelReason to OTHER when omitted from body", async () => {
       const adminMock = mkAdminGraphql();
       await expectRedirect(
-        handleCancelOrder(
-          mkCtx({ admin: adminMock as never }),
-          { action: "cancel_order" } as ReturnActionBody,
-        ),
+        handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+          action: "cancel_order",
+        } as ReturnActionBody),
         "/app/returns/rc-1",
       );
       expect(adminMock.graphql).toHaveBeenCalledWith(
@@ -152,10 +151,15 @@ describe("handleCancelOrder — deep coverage", () => {
   });
 
   describe("refund + restock flag matrix", () => {
-    const cases: Array<{ refund?: boolean; restock?: boolean; expRefund: boolean; expRestock: boolean }> = [
-      { refund: true,  restock: true,  expRefund: true,  expRestock: true  },
-      { refund: true,  restock: false, expRefund: true,  expRestock: false },
-      { refund: false, restock: true,  expRefund: false, expRestock: true  },
+    const cases: Array<{
+      refund?: boolean;
+      restock?: boolean;
+      expRefund: boolean;
+      expRestock: boolean;
+    }> = [
+      { refund: true, restock: true, expRefund: true, expRestock: true },
+      { refund: true, restock: false, expRefund: true, expRestock: false },
+      { refund: false, restock: true, expRefund: false, expRestock: true },
       { refund: false, restock: false, expRefund: false, expRestock: false },
     ];
 
@@ -163,15 +167,12 @@ describe("handleCancelOrder — deep coverage", () => {
       it(`refund=${c.refund} + restock=${c.restock} forwards verbatim to Shopify and event payload`, async () => {
         const adminMock = mkAdminGraphql();
         await expectRedirect(
-          handleCancelOrder(
-            mkCtx({ admin: adminMock as never }),
-            {
-              action: "cancel_order",
-              cancelReason: "CUSTOMER",
-              refund: c.refund,
-              restock: c.restock,
-            } as never,
-          ),
+          handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+            action: "cancel_order",
+            cancelReason: "CUSTOMER",
+            refund: c.refund,
+            restock: c.restock,
+          } as never),
           "/app/returns/rc-1",
         );
 
@@ -195,10 +196,10 @@ describe("handleCancelOrder — deep coverage", () => {
     it("defaults both refund and restock to true when omitted from body", async () => {
       const adminMock = mkAdminGraphql();
       await expectRedirect(
-        handleCancelOrder(
-          mkCtx({ admin: adminMock as never }),
-          { action: "cancel_order", cancelReason: "OTHER" } as never,
-        ),
+        handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+          action: "cancel_order",
+          cancelReason: "OTHER",
+        } as never),
         "/app/returns/rc-1",
       );
       expect(adminMock.graphql).toHaveBeenCalledWith(
@@ -216,10 +217,10 @@ describe("handleCancelOrder — deep coverage", () => {
         { message: "order already cancelled" },
         { message: "refund not allowed" },
       ]);
-      const res = await handleCancelOrder(
-        mkCtx({ admin: adminMock as never }),
-        { action: "cancel_order", cancelReason: "FRAUD" } as never,
-      );
+      const res = await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+        action: "cancel_order",
+        cancelReason: "FRAUD",
+      } as never);
       expect(res.status).toBe(400);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBe(
@@ -237,10 +238,10 @@ describe("handleCancelOrder — deep coverage", () => {
         { message: "err2" },
         { message: "err3" },
       ]);
-      const res = await handleCancelOrder(
-        mkCtx({ admin: adminMock as never }),
-        { action: "cancel_order", cancelReason: "INVENTORY" } as never,
-      );
+      const res = await handleCancelOrder(mkCtx({ admin: adminMock as never }), {
+        action: "cancel_order",
+        cancelReason: "INVENTORY",
+      } as never);
       expect(res.status).toBe(400);
       const body = (await res.json()) as { error: string };
       expect(body.error).toBe("Order cancellation failed: err1; err2; err3");

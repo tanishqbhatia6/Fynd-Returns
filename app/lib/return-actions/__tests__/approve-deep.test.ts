@@ -26,12 +26,23 @@ const {
   createReturnOnFyndMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, shopifyReturnId: "gid://shopify/Return/1" })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  createReturnOnFyndMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, fyndReturnId: "FYR-1" })),
+  createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    shopifyReturnId: "gid://shopify/Return/1",
+  })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  createReturnOnFyndMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    fyndReturnId: "FYR-1",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -87,7 +98,11 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       customerName: null,
       customerPhoneNorm: null,
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -133,7 +148,10 @@ beforeEach(() => {
 describe("handleApprove — terminal short-circuit", () => {
   it("returns 400 when isTerminal=true", async () => {
     const res = await handleApprove(
-      mkCtx({ isTerminal: true, returnCase: { ...mkCtx().returnCase, status: "approved" } as never }),
+      mkCtx({
+        isTerminal: true,
+        returnCase: { ...mkCtx().returnCase, status: "approved" } as never,
+      }),
       { action: "approve" } as ReturnActionBody,
     );
     expect(res.status).toBe(400);
@@ -249,7 +267,10 @@ describe("handleApprove — consolidation path", () => {
 
   it("skips Shopify Return when shopifyReturnId already set", async () => {
     const ctx = consCtx({
-      returnCase: { ...mkCtx().returnCase, shopifyReturnId: "gid://shopify/Return/EXISTING" } as never,
+      returnCase: {
+        ...mkCtx().returnCase,
+        shopifyReturnId: "gid://shopify/Return/EXISTING",
+      } as never,
     });
     await expectRedirect(
       handleApprove(ctx, { action: "approve" } as ReturnActionBody),
@@ -398,7 +419,10 @@ describe("handleApprove — Fynd transient error", () => {
 
 describe("handleApprove — Fynd config error (not transient)", () => {
   it("uses fyndClientOrError failure message when Fynd is not configured", async () => {
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "Fynd is not configured" });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: false,
+      error: "Fynd is not configured",
+    });
     await expectRedirect(
       handleApprove(mkCtx(), { action: "approve" } as ReturnActionBody),
       "fyndError=",
@@ -420,7 +444,9 @@ describe("handleApprove — Fynd config error (not transient)", () => {
   });
 
   it("uses 'Fynd is not configured' when shop.settings is undefined", async () => {
-    const ctx = mkCtx({ shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: null } });
+    const ctx = mkCtx({
+      shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: null },
+    });
     await expectRedirect(
       handleApprove(ctx, { action: "approve" } as ReturnActionBody),
       "fyndError=",
@@ -461,7 +487,11 @@ describe("handleApprove — affiliate id fetch", () => {
   it("uses fetchOrderByOrderNumber when shopifyOrderId is null", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({ affiliateOrderId: "AFF-9" });
     const ctx = mkCtx({
-      returnCase: { ...mkCtx().returnCase, shopifyOrderId: null, shopifyOrderName: "#1001" } as never,
+      returnCase: {
+        ...mkCtx().returnCase,
+        shopifyOrderId: null,
+        shopifyOrderName: "#1001",
+      } as never,
     });
     await expectRedirect(
       handleApprove(ctx, { action: "approve" } as ReturnActionBody),
@@ -511,7 +541,8 @@ describe("handleApprove — Shopify Return creation success / failure", () => {
     // The post-update is a returnCase.update call setting shopifyReturnId.
     const setIdCalls = prismaMock.returnCase.update.mock.calls.filter(
       (c: unknown[]) =>
-        (c[0] as { data: { shopifyReturnId?: string } }).data.shopifyReturnId === "gid://shopify/Return/777",
+        (c[0] as { data: { shopifyReturnId?: string } }).data.shopifyReturnId ===
+        "gid://shopify/Return/777",
     );
     expect(setIdCalls.length).toBe(1);
     const evtTypes = prismaMock.returnEvent.create.mock.calls.map(
@@ -542,7 +573,10 @@ describe("handleApprove — Shopify Return creation success / failure", () => {
 
   it("skips Shopify Return creation when shopifyReturnId already set", async () => {
     const ctx = mkCtx({
-      returnCase: { ...mkCtx().returnCase, shopifyReturnId: "gid://shopify/Return/EXISTING" } as never,
+      returnCase: {
+        ...mkCtx().returnCase,
+        shopifyReturnId: "gid://shopify/Return/EXISTING",
+      } as never,
     });
     await expectRedirect(
       handleApprove(ctx, { action: "approve" } as ReturnActionBody),

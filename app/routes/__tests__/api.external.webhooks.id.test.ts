@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
-}));
+const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateApiKeyMock: vi.fn(),
+    checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+    checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
+      async () => null,
+    ),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -30,13 +33,19 @@ const mkReq = (method: string = "DELETE") =>
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
 });
 
 describe("DELETE /api/v1/external/webhooks/:id", () => {
   it("405 on non-DELETE method", async () => {
-    const res = await action({ request: mkReq("PUT"), params: { id: "sub-1" }, context: {} } as never);
+    const res = await action({
+      request: mkReq("PUT"),
+      params: { id: "sub-1" },
+      context: {},
+    } as never);
     expect(res.status).toBe(405);
   });
 
@@ -47,7 +56,10 @@ describe("DELETE /api/v1/external/webhooks/:id", () => {
   });
 
   it("401 when auth fails", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: false, response: Response.json({}, { status: 401 }) });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({}, { status: 401 }),
+    });
     const res = await action({ request: mkReq(), params: { id: "sub-1" }, context: {} } as never);
     expect(res.status).toBe(401);
   });
@@ -74,13 +86,18 @@ describe("DELETE /api/v1/external/webhooks/:id", () => {
 
   it("200 soft-deletes (isActive=false) on happy path", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({ id: "sub-1", shopId: "shop-1" });
+    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({
+      id: "sub-1",
+      shopId: "shop-1",
+    });
     const res = await action({ request: mkReq(), params: { id: "sub-1" }, context: {} } as never);
     expect(res.status).toBe(200);
-    expect(prismaMock.webhookSubscription.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "sub-1" },
-      data: { isActive: false },
-    }));
+    expect(prismaMock.webhookSubscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "sub-1" },
+        data: { isActive: false },
+      }),
+    );
   });
 
   it("500 when prisma throws", async () => {

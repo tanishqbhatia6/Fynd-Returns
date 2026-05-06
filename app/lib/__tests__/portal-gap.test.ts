@@ -271,9 +271,7 @@ describe("portal-auth.server.ts — secret resolution IIFE", () => {
     process.env.PORTAL_JWT_SECRET = "short";
     process.env.NODE_ENV = "production";
     vi.resetModules();
-    await expect(import("../portal-auth.server")).rejects.toThrow(
-      /at least 32 characters/,
-    );
+    await expect(import("../portal-auth.server")).rejects.toThrow(/at least 32 characters/);
   });
 
   it("uses the env-supplied secret when it is >= 32 chars (happy path, no warn, no throw)", async () => {

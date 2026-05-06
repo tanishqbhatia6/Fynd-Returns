@@ -13,7 +13,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -22,7 +22,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -123,7 +123,14 @@ describe("closeAllOpenReturnsOnOrder — success push branch", () => {
   it("records swept return id in `closed` when child close succeeds", async () => {
     const { admin } = makeAdmin([
       // 1) primary returnClose (best-effort target)
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
       // 2) openReturns sweep query — returns one OPEN sibling
       {
         data: {
@@ -135,12 +142,23 @@ describe("closeAllOpenReturnsOnOrder — success push branch", () => {
         },
       },
       // 3) returnClose for the swept sibling — succeeds (no userErrors)
-      { data: { returnClose: { return: { id: "gid://shopify/Return/SIB", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/SIB", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi.fn(async (_e: { eventType: string; payloadJson: string }) => {});
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc-1", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc-1",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { logEvent },
     );
     expect(r.ok).toBe(true);

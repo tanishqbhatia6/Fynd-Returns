@@ -22,12 +22,20 @@ describe("parseReturnIdConfig", () => {
   });
   it("parses full custom config", () => {
     const json = JSON.stringify({
-      prefix: "RMA", separator: "_", bodyMode: "sequential",
-      hashLength: 10, sequentialPadding: 8, suffix: "-2026",
+      prefix: "RMA",
+      separator: "_",
+      bodyMode: "sequential",
+      hashLength: 10,
+      sequentialPadding: 8,
+      suffix: "-2026",
     });
     expect(parseReturnIdConfig(json)).toEqual({
-      prefix: "RMA", separator: "_", bodyMode: "sequential",
-      hashLength: 10, sequentialPadding: 8, suffix: "-2026",
+      prefix: "RMA",
+      separator: "_",
+      bodyMode: "sequential",
+      hashLength: 10,
+      sequentialPadding: 8,
+      suffix: "-2026",
     });
   });
   it("falls back to defaults for invalid field values", () => {
@@ -47,7 +55,9 @@ describe("parseReturnIdConfig", () => {
   });
   it("accepts sequentialPadding in range 4-8", () => {
     for (let n = 4; n <= 8; n++) {
-      expect(parseReturnIdConfig(JSON.stringify({ sequentialPadding: n })).sequentialPadding).toBe(n);
+      expect(parseReturnIdConfig(JSON.stringify({ sequentialPadding: n })).sequentialPadding).toBe(
+        n,
+      );
     }
   });
 });
@@ -61,7 +71,11 @@ describe("buildReturnRequestId", () => {
     expect(id).toMatch(/^RPM-[A-Z0-9]{8}$/);
   });
   it("builds sequential mode with zero-padded counter", () => {
-    const cfg = { ...DEFAULT_RETURN_ID_CONFIG, bodyMode: "sequential" as const, sequentialPadding: 6 };
+    const cfg = {
+      ...DEFAULT_RETURN_ID_CONFIG,
+      bodyMode: "sequential" as const,
+      sequentialPadding: 6,
+    };
     expect(buildReturnRequestId(cfg, cuid, 42)).toBe("RPM-000042");
     expect(buildReturnRequestId(cfg, cuid, 1234567)).toBe("RPM-1234567");
   });
@@ -75,7 +89,11 @@ describe("buildReturnRequestId", () => {
     expect(id).toMatch(/^RPM-\d{6}-[A-Z0-9]{6}$/);
   });
   it("builds date_sequential mode (YYMMDD-NNNN)", () => {
-    const cfg = { ...DEFAULT_RETURN_ID_CONFIG, bodyMode: "date_sequential" as const, sequentialPadding: 4 };
+    const cfg = {
+      ...DEFAULT_RETURN_ID_CONFIG,
+      bodyMode: "date_sequential" as const,
+      sequentialPadding: 4,
+    };
     const id = buildReturnRequestId(cfg, cuid, 7);
     expect(id).toMatch(/^RPM-\d{6}-0007$/);
   });
@@ -105,8 +123,13 @@ describe("buildReturnRequestId", () => {
 
 describe("previewReturnRequestId", () => {
   it("produces a deterministic preview with counter=42", () => {
-    expect(previewReturnRequestId({ ...DEFAULT_RETURN_ID_CONFIG, bodyMode: "sequential", sequentialPadding: 6 }))
-      .toBe("RPM-000042");
+    expect(
+      previewReturnRequestId({
+        ...DEFAULT_RETURN_ID_CONFIG,
+        bodyMode: "sequential",
+        sequentialPadding: 6,
+      }),
+    ).toBe("RPM-000042");
   });
   it("produces a default hash-mode preview", () => {
     const id = previewReturnRequestId(DEFAULT_RETURN_ID_CONFIG);

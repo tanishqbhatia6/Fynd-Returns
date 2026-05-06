@@ -16,14 +16,16 @@ export const MAX_WEBHOOK_BYTES = 1_048_576;
 
 /** Read body with an upfront content-length check. Returns null + a Response on
  *  413 so callers can `return body ?? response`. */
-export async function readBoundedBody(request: Request): Promise<{ body: string } | { rejected: Response }> {
+export async function readBoundedBody(
+  request: Request,
+): Promise<{ body: string } | { rejected: Response }> {
   const contentLength = request.headers.get("content-length");
   if (contentLength) {
     const declared = Number(contentLength);
     // defensive: declared from content-length header is always finite numeric; NaN branch unreachable
     /* v8 ignore start */
     if (Number.isFinite(declared) && declared > MAX_WEBHOOK_BYTES) {
-    /* v8 ignore stop */
+      /* v8 ignore stop */
       return { rejected: Response.json({ error: "Webhook payload too large" }, { status: 413 }) };
     }
   }
@@ -115,7 +117,7 @@ export function extractSecretCandidates(request: Request): string[] {
   // defensive: authorization header presence varies; falsy branch covered only in some paths
   /* v8 ignore start */
   if (auth) {
-  /* v8 ignore stop */
+    /* v8 ignore stop */
     /* v8 ignore start */
     // defensive: stripped length / Bearer-prefix variation branches not all exercised
     const stripped = auth.replace(/^Bearer\s+/i, "").trim();
@@ -156,8 +158,7 @@ export function authenticateWebhook(
   //    previous signature-based design (or a Fynd integration that chooses to
   //    sign) keeps working without re-onboarding.
   const sigHeader =
-    request.headers.get("x-fynd-signature") ??
-    request.headers.get("x-webhook-signature");
+    request.headers.get("x-fynd-signature") ?? request.headers.get("x-webhook-signature");
   if (sigHeader && verifyWebhookSignature(rawBody, sigHeader, storedSecret)) {
     return { ok: true, method: "hmac" };
   }

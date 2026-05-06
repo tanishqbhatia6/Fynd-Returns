@@ -53,7 +53,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -75,14 +75,16 @@ function uniqueSubId() {
   return `retry-sub-${subCounter}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function makeSub(overrides: Partial<{
-  id: string;
-  shopId: string;
-  isActive: boolean;
-  url: string;
-  secret: string;
-  events: string;
-}> = {}) {
+function makeSub(
+  overrides: Partial<{
+    id: string;
+    shopId: string;
+    isActive: boolean;
+    url: string;
+    secret: string;
+    events: string;
+  }> = {},
+) {
   return {
     id: overrides.id ?? uniqueSubId(),
     shopId: "shop-retry",
@@ -128,8 +130,7 @@ async function advanceFullRetryLadder() {
 beforeEach(() => {
   prismaMock.webhookSubscription.findMany.mockReset().mockResolvedValue([]);
   // Default: subscription is still active when checked between retries.
-  prismaMock.webhookSubscription.findFirst.mockReset()
-    .mockResolvedValue({ id: "sub-active" });
+  prismaMock.webhookSubscription.findFirst.mockReset().mockResolvedValue({ id: "sub-active" });
   prismaMock.webhookDeliveryFailure.create.mockReset().mockResolvedValue({});
   fetchSpy.mockReset();
   isSafeOutboundUrlMock.mockReset().mockResolvedValue({ ok: true });
@@ -334,9 +335,7 @@ describe("deliverWithRetry — DLQ write on permanent failure", () => {
     const sub = makeSub();
     prismaMock.webhookSubscription.findMany.mockResolvedValue([sub]);
     fetchSpy.mockResolvedValue({ ok: false, status: 500 });
-    prismaMock.webhookDeliveryFailure.create.mockRejectedValue(
-      new Error("DLQ write blew up"),
-    );
+    prismaMock.webhookDeliveryFailure.create.mockRejectedValue(new Error("DLQ write blew up"));
 
     expect(() =>
       dispatchWebhookEvent("shop-retry", "return.approved", { id: "r-bad-dlq" }),

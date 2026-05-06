@@ -14,11 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  * — we use vi.useFakeTimers() to control Date.now().
  */
 
-const {
-  prismaMock,
-  createFyndClientOrErrorMock,
-  getShipmentsMock,
-} = vi.hoisted(() => ({
+const { prismaMock, createFyndClientOrErrorMock, getShipmentsMock } = vi.hoisted(() => ({
   prismaMock: {
     returnCase: {
       findMany: vi.fn(),
@@ -46,10 +42,11 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: {
-    setAttribute: () => void;
-    setAttributes: () => void;
-  }) => Promise<T>) => fn({ setAttribute: () => {}, setAttributes: () => {} }),
+  withSpan: async <T>(
+    _n: string,
+    _a: unknown,
+    fn: (s: { setAttribute: () => void; setAttributes: () => void }) => Promise<T>,
+  ) => fn({ setAttribute: () => {}, setAttributes: () => {} }),
 }));
 
 import { pollStaleReturns, refreshSingleReturn } from "../fynd-status-poll.server";
@@ -58,23 +55,26 @@ function mkShipmentClient(): { getShipments: typeof getShipmentsMock } {
   return { getShipments: getShipmentsMock };
 }
 
-function mkReturn(overrides: {
-  id?: string;
-  shopId?: string;
-  fyndShipmentId?: string | null;
-  fyndOrderId?: string | null;
-  forwardAwb?: string | null;
-  settings?: unknown;
-} = {}) {
+function mkReturn(
+  overrides: {
+    id?: string;
+    shopId?: string;
+    fyndShipmentId?: string | null;
+    fyndOrderId?: string | null;
+    forwardAwb?: string | null;
+    settings?: unknown;
+  } = {},
+) {
   // Use `in` check so callers can explicitly pass `settings: null` without
   // triggering the ?? default fallback.
-  const settings = "settings" in overrides
-    ? overrides.settings
-    : {
-        fyndCredentials: JSON.stringify({ platform: { clientId: "c", clientSecret: "s" } }),
-        fyndApplicationId: "app",
-        fyndCompanyId: "co",
-      };
+  const settings =
+    "settings" in overrides
+      ? overrides.settings
+      : {
+          fyndCredentials: JSON.stringify({ platform: { clientId: "c", clientSecret: "s" } }),
+          fyndApplicationId: "app",
+          fyndCompanyId: "co",
+        };
   return {
     id: overrides.id ?? "rc-1",
     shopId: overrides.shopId ?? "shop-1",
@@ -138,10 +138,7 @@ describe("pollStaleReturns — throttle", () => {
 
 describe("pollStaleReturns — per-return behaviour", () => {
   it("skips returns with no Fynd credentials on the shop", async () => {
-
-    prismaMock.returnCase.findMany.mockResolvedValue([
-      mkReturn({ settings: null }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValue([mkReturn({ settings: null })]);
     const r = await pollStaleReturns();
     expect(r.checked).toBe(1);
     expect(r.updated).toBe(0);
@@ -149,17 +146,13 @@ describe("pollStaleReturns — per-return behaviour", () => {
   });
 
   it("skips returns missing fyndShipmentId", async () => {
-
-    prismaMock.returnCase.findMany.mockResolvedValue([
-      mkReturn({ fyndShipmentId: null }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValue([mkReturn({ fyndShipmentId: null })]);
     const r = await pollStaleReturns();
     expect(r.checked).toBe(1);
     expect(r.updated).toBe(0);
   });
 
   it("continues when Fynd client creation fails", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: false, error: "bad creds" });
     const r = await pollStaleReturns();
@@ -168,7 +161,6 @@ describe("pollStaleReturns — per-return behaviour", () => {
   });
 
   it("writes shipment payload + updates lastFyndStatusCheck on success", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
@@ -177,35 +169,39 @@ describe("pollStaleReturns — per-return behaviour", () => {
     const r = await pollStaleReturns();
     expect(r.checked).toBe(1);
     expect(r.updated).toBe(1);
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "rc-1" },
-      data: expect.objectContaining({ lastFyndStatusCheck: expect.any(Date) }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rc-1" },
+        data: expect.objectContaining({ lastFyndStatusCheck: expect.any(Date) }),
+      }),
+    );
   });
 
   it("transitions status to completed when shipment_status contains 'delivered'", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
       items: [{ shipment_id: "SH1", shipment_status: "delivered" }],
     });
     await pollStaleReturns();
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "completed" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "completed" }),
+      }),
+    );
   });
 
   it("backfills forwardAwb when missing + valid (not a Fynd ID)", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn({ forwardAwb: null })]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
-      items: [{
-        shipment_id: "SH1",
-        shipment_status: "in_transit",
-        dp_details: { awb_no: "AWB12345" }, // real AWB (not Fynd ID)
-      }],
+      items: [
+        {
+          shipment_id: "SH1",
+          shipment_status: "in_transit",
+          dp_details: { awb_no: "AWB12345" }, // real AWB (not Fynd ID)
+        },
+      ],
     });
     await pollStaleReturns();
     const call = prismaMock.returnCase.update.mock.calls[0][0] as { data: { forwardAwb?: string } };
@@ -213,15 +209,16 @@ describe("pollStaleReturns — per-return behaviour", () => {
   });
 
   it("does NOT backfill forwardAwb when the AWB is a Fynd shipment ID", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn({ forwardAwb: null })]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
-      items: [{
-        shipment_id: "SH1",
-        shipment_status: "in_transit",
-        dp_details: { awb_no: "16834567890123456" }, // Fynd ID, not a real AWB
-      }],
+      items: [
+        {
+          shipment_id: "SH1",
+          shipment_status: "in_transit",
+          dp_details: { awb_no: "16834567890123456" }, // Fynd ID, not a real AWB
+        },
+      ],
     });
     await pollStaleReturns();
     const call = prismaMock.returnCase.update.mock.calls[0][0] as { data: { forwardAwb?: string } };
@@ -229,51 +226,59 @@ describe("pollStaleReturns — per-return behaviour", () => {
   });
 
   it("logs fynd_status_poll event when journey has steps", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
-      items: [{
-        shipment_id: "SH1",
-        shipment_status: "in_transit",
-        bags: [{
-          bag_status: [
-            { status: "bag_picked", bag_state_mapper: { journey_type: "forward", display_name: "Picked up" }, updated_at: "2026-04-22T10:00:00Z" },
+      items: [
+        {
+          shipment_id: "SH1",
+          shipment_status: "in_transit",
+          bags: [
+            {
+              bag_status: [
+                {
+                  status: "bag_picked",
+                  bag_state_mapper: { journey_type: "forward", display_name: "Picked up" },
+                  updated_at: "2026-04-22T10:00:00Z",
+                },
+              ],
+            },
           ],
-        }],
-      }],
+        },
+      ],
     });
     await pollStaleReturns();
-    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        eventType: "fynd_status_poll",
-        source: "system",
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          eventType: "fynd_status_poll",
+          source: "system",
+        }),
       }),
-    }));
+    );
   });
 
   it("still stamps lastFyndStatusCheck on per-return failure (so we don't retry immediately)", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockRejectedValue(new Error("Fynd 500"));
     await pollStaleReturns();
     // An update was still issued to bump lastFyndStatusCheck.
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "rc-1" },
-      data: { lastFyndStatusCheck: expect.any(Date) },
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rc-1" },
+        data: { lastFyndStatusCheck: expect.any(Date) },
+      }),
+    );
   });
 
   it("swallows a top-level Prisma error without throwing", async () => {
-
     prismaMock.returnCase.findMany.mockRejectedValue(new Error("DB down"));
     const r = await pollStaleReturns();
     expect(r).toEqual({ checked: 0, updated: 0 });
   });
 
   it("reuses the Fynd client across returns with the same shopId", async () => {
-
     prismaMock.returnCase.findMany.mockResolvedValue([
       mkReturn({ id: "rc-1" }),
       mkReturn({ id: "rc-2" }),
@@ -341,9 +346,11 @@ describe("refreshSingleReturn", () => {
       items: [{ shipment_id: "SH1", shipment_status: "delivery_done" }],
     });
     await refreshSingleReturn("rc-1");
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ status: "completed" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: "completed" }),
+      }),
+    );
   });
 
   it("returns false + doesn't throw on Prisma error", async () => {

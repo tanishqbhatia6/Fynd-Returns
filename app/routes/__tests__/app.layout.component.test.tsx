@@ -22,7 +22,9 @@ vi.mock("../lib/fynd-config.server", () => ({
   getAppMode: vi.fn(() => "prod"),
 }));
 vi.mock("../lib/shop.server", () => ({
-  syncShopLocaleAndCurrency: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  syncShopLocaleAndCurrency: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../lib/billing.server", () => ({
   getBillingStatus: vi.fn(async () => ({ hasAccess: true })),
@@ -108,9 +110,9 @@ describe("App layout (default export)", () => {
     await waitFor(() => {
       expect(container.querySelector("s-app-nav")).toBeTruthy();
     });
-    const breadcrumbDashboard = Array.from(
-      container.querySelectorAll("a"),
-    ).find((a) => a.textContent === "Dashboard");
+    const breadcrumbDashboard = Array.from(container.querySelectorAll("a")).find(
+      (a) => a.textContent === "Dashboard",
+    );
     expect(breadcrumbDashboard).toBeFalsy();
   });
 
@@ -123,9 +125,7 @@ describe("App layout (default export)", () => {
       const anchors = Array.from(container.querySelectorAll("a"));
       expect(
         anchors.find(
-          (a) =>
-            a.getAttribute("href") === "/app" &&
-            a.textContent?.trim() === "Dashboard",
+          (a) => a.getAttribute("href") === "/app" && a.textContent?.trim() === "Dashboard",
         ),
       ).toBeTruthy();
     });
@@ -138,9 +138,9 @@ describe("App layout (default export)", () => {
       loaderData: { ...baseLoaderData, pendingCount: 4 },
     });
     await waitFor(() => {
-      const returnsLink = Array.from(
-        container.querySelectorAll("s-link"),
-      ).find((l) => l.getAttribute("href") === "/app/returns");
+      const returnsLink = Array.from(container.querySelectorAll("s-link")).find(
+        (l) => l.getAttribute("href") === "/app/returns",
+      );
       expect(returnsLink?.textContent).toContain("Returns (4)");
     });
   });
@@ -151,9 +151,7 @@ describe("App layout (default export)", () => {
       loaderData: { ...baseLoaderData, appMode: "dev" as const },
     });
     expect(await findByText(/Dev mode/i)).toBeTruthy();
-    const switchLink = container.querySelector(
-      "a[href='/app/settings/integrations']",
-    );
+    const switchLink = container.querySelector("a[href='/app/settings/integrations']");
     expect(switchLink?.textContent).toMatch(/Switch to Prod/i);
   });
 

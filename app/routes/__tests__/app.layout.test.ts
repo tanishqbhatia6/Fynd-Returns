@@ -18,7 +18,9 @@ const {
   authenticateMock: vi.fn(),
   getBillingStatusMock: vi.fn(async () => ({ hasAccess: true })),
   getAppModeMock: vi.fn(() => "prod"),
-  syncShopLocaleAndCurrencyMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  syncShopLocaleAndCurrencyMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -26,7 +28,9 @@ vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock } }));
 vi.mock("../../lib/billing.server", () => ({ getBillingStatus: getBillingStatusMock }));
 vi.mock("../../lib/fynd-config.server", () => ({ getAppMode: getAppModeMock }));
-vi.mock("../../lib/shop.server", () => ({ syncShopLocaleAndCurrency: syncShopLocaleAndCurrencyMock }));
+vi.mock("../../lib/shop.server", () => ({
+  syncShopLocaleAndCurrency: syncShopLocaleAndCurrencyMock,
+}));
 
 import { loader } from "../app";
 
@@ -63,7 +67,8 @@ describe("app.tsx loader", () => {
   it("does NOT check billing on /app/settings/billing-override", async () => {
     await loader({
       request: mkReq("/app/settings/billing-override"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(getBillingStatusMock).not.toHaveBeenCalled();
   });

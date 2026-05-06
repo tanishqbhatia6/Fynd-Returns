@@ -65,8 +65,16 @@ vi.mock("recharts", () => {
     if (typeof props.formatter === "function") {
       // Call once with a numeric value, once with undefined, to cover both
       // sides of the `value ?? 0` nullish coalescing.
-      try { props.formatter(7); } catch { /* swallow */ }
-      try { props.formatter(undefined); } catch { /* swallow */ }
+      try {
+        props.formatter(7);
+      } catch {
+        /* swallow */
+      }
+      try {
+        props.formatter(undefined);
+      } catch {
+        /* swallow */
+      }
     }
     return <div data-testid="recharts-tooltip" />;
   };
@@ -83,11 +91,7 @@ vi.mock("recharts", () => {
 
 import { renderWithRouter } from "../../test/component-helpers";
 import { configure, fireEvent, render, waitFor } from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import Dashboard, { ErrorBoundary } from "../app._index";
 
 // jsdom can be slow on CI/local. Bump the default async timeout so
@@ -143,9 +147,7 @@ const baseLoaderData = {
       fyndReturnNo: "FR-002",
       createdAt: new Date("2025-01-11T12:00:00Z"),
     },
-  ] as unknown as Awaited<
-    ReturnType<typeof import("../../db.server").default.returnCase.findMany>
-  >,
+  ] as unknown as Awaited<ReturnType<typeof import("../../db.server").default.returnCase.findMany>>,
   hasFyndConfig: true,
   shopDomain: "test-shop.myshopify.com",
   refundedCount: 12,
@@ -218,16 +220,16 @@ describe("Dashboard route (app._index)", () => {
     const heroCards = container.querySelectorAll(".dashboard-kpi-card");
     expect(heroCards.length).toBe(4);
 
-    const labels = Array.from(container.querySelectorAll(".kpi-label")).map(
-      (el) => el.textContent?.trim(),
+    const labels = Array.from(container.querySelectorAll(".kpi-label")).map((el) =>
+      el.textContent?.trim(),
     );
     expect(labels).toEqual(
       expect.arrayContaining(["Total returns", "Needs review", "Approved", "Refunded"]),
     );
 
-    const values = Array.from(
-      container.querySelectorAll(".dashboard-hero-grid .kpi-value"),
-    ).map((el) => el.textContent?.trim());
+    const values = Array.from(container.querySelectorAll(".dashboard-hero-grid .kpi-value")).map(
+      (el) => el.textContent?.trim(),
+    );
     expect(values).toEqual(expect.arrayContaining(["42", "5", "30", "12"]));
   });
 
@@ -242,9 +244,9 @@ describe("Dashboard route (app._index)", () => {
     const statCards = container.querySelectorAll(".dashboard-stat-card");
     expect(statCards.length).toBeGreaterThanOrEqual(8);
 
-    const labels = Array.from(
-      container.querySelectorAll(".dashboard-stat-grid .kpi-label"),
-    ).map((el) => el.textContent?.trim());
+    const labels = Array.from(container.querySelectorAll(".dashboard-stat-grid .kpi-label")).map(
+      (el) => el.textContent?.trim(),
+    );
     expect(labels).toEqual(
       expect.arrayContaining([
         "Revenue retained",

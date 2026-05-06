@@ -7,14 +7,13 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-const { prismaMock, healthCheckDurationRecord, getCircuitBreakerStatusesMock } =
-  vi.hoisted(() => ({
-    prismaMock: {
-      $queryRaw: vi.fn(),
-    },
-    healthCheckDurationRecord: vi.fn(),
-    getCircuitBreakerStatusesMock: vi.fn(),
-  }));
+const { prismaMock, healthCheckDurationRecord, getCircuitBreakerStatusesMock } = vi.hoisted(() => ({
+  prismaMock: {
+    $queryRaw: vi.fn(),
+  },
+  healthCheckDurationRecord: vi.fn(),
+  getCircuitBreakerStatusesMock: vi.fn(),
+}));
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 
@@ -26,11 +25,7 @@ vi.mock("../observability/resilience.server", () => ({
   getAllCircuitBreakerStatuses: getCircuitBreakerStatusesMock,
 }));
 
-import {
-  checkDatabase,
-  checkFyndApi,
-  runReadinessChecks,
-} from "../observability/health.server";
+import { checkDatabase, checkFyndApi, runReadinessChecks } from "../observability/health.server";
 
 describe("checkDatabase", () => {
   beforeEach(() => {
@@ -50,10 +45,9 @@ describe("checkDatabase", () => {
   it("records duration metric tagged with the database dependency", async () => {
     prismaMock.$queryRaw.mockResolvedValueOnce([{ "?column?": 1 }]);
     await checkDatabase();
-    expect(healthCheckDurationRecord).toHaveBeenCalledWith(
-      expect.any(Number),
-      { dependency: "database" },
-    );
+    expect(healthCheckDurationRecord).toHaveBeenCalledWith(expect.any(Number), {
+      dependency: "database",
+    });
   });
 
   it("returns error with the thrown message on query failure", async () => {
@@ -61,10 +55,9 @@ describe("checkDatabase", () => {
     const result = await checkDatabase();
     expect(result.status).toBe("error");
     expect(result.message).toBe("connection refused");
-    expect(healthCheckDurationRecord).toHaveBeenCalledWith(
-      expect.any(Number),
-      { dependency: "database" },
-    );
+    expect(healthCheckDurationRecord).toHaveBeenCalledWith(expect.any(Number), {
+      dependency: "database",
+    });
   });
 
   it("returns error with a fallback message for non-Error rejections", async () => {
@@ -125,10 +118,7 @@ describe("checkFyndApi", () => {
     fetchMock.mockRejectedValueOnce(new Error("nope"));
     await checkFyndApi();
     const tags = healthCheckDurationRecord.mock.calls.map((c) => c[1]);
-    expect(tags).toEqual([
-      { dependency: "fynd_api" },
-      { dependency: "fynd_api" },
-    ]);
+    expect(tags).toEqual([{ dependency: "fynd_api" }, { dependency: "fynd_api" }]);
   });
 
   it("passes an AbortSignal so the request can be cancelled", async () => {

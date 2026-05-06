@@ -5,12 +5,7 @@
  * covered by i18n.test.ts.
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
-import {
-  formatMoney,
-  formatDate,
-  formatDateTime,
-  formatNumber,
-} from "../i18n.server";
+import { formatMoney, formatDate, formatDateTime, formatNumber } from "../i18n.server";
 
 describe("i18n.server — Intl-failure fallback branches", () => {
   afterEach(() => {
@@ -18,11 +13,9 @@ describe("i18n.server — Intl-failure fallback branches", () => {
   });
 
   it("formatMoney falls back to '<currency> amount.toFixed(2)' when Intl.NumberFormat throws (line 25)", () => {
-    const spy = vi
-      .spyOn(Intl, "NumberFormat")
-      .mockImplementation(() => {
-        throw new Error("boom");
-      });
+    const spy = vi.spyOn(Intl, "NumberFormat").mockImplementation(() => {
+      throw new Error("boom");
+    });
     const out = formatMoney(12.345, "USD", "en");
     expect(out).toBe("USD 12.35");
     expect(spy).toHaveBeenCalled();

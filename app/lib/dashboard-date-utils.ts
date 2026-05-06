@@ -38,7 +38,9 @@ function tzParts(tz: string, when: Date): { y: number; m: number; d: number } {
   // formatToParts gives us numeric components in the requested timezone.
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: tz,
-    year: "numeric", month: "2-digit", day: "2-digit",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
   });
   const parts = fmt.formatToParts(when);
   // defensive nullish part value fallback
@@ -55,7 +57,16 @@ function tzParts(tz: string, when: Date): { y: number; m: number; d: number } {
  * shows in `tz`, then offset by the difference. Two passes handle DST
  * transitions correctly.
  */
-function zonedTimeToUtc(tz: string, y: number, m: number, d: number, hh: number, mm: number, ss: number, ms: number): Date {
+function zonedTimeToUtc(
+  tz: string,
+  y: number,
+  m: number,
+  d: number,
+  hh: number,
+  mm: number,
+  ss: number,
+  ms: number,
+): Date {
   // Naive guess: pretend the wall clock is UTC. Compute the offset at SECONDS
   // precision (timezones are always whole-minute offsets, ms can be safely
   // dropped from the offset computation and re-added at the end — otherwise the
@@ -64,9 +75,14 @@ function zonedTimeToUtc(tz: string, y: number, m: number, d: number, hh: number,
   const naiveSec = Date.UTC(y, m - 1, d, hh, mm, ss); // no ms
   const naiveDateSec = new Date(naiveSec);
   const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz, hour12: false,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    timeZone: tz,
+    hour12: false,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
   });
   const parts = fmt.formatToParts(naiveDateSec);
   // defensive nullish part value + DST hour-24 wraparound
@@ -75,7 +91,8 @@ function zonedTimeToUtc(tz: string, y: number, m: number, d: number, hh: number,
   const tzHour = get("hour") === 24 ? 0 : get("hour");
   /* v8 ignore stop */
   const offsetMs =
-    Date.UTC(get("year"), get("month") - 1, get("day"), tzHour, get("minute"), get("second")) - naiveSec;
+    Date.UTC(get("year"), get("month") - 1, get("day"), tzHour, get("minute"), get("second")) -
+    naiveSec;
   return new Date(naiveSec - offsetMs + ms);
 }
 
@@ -183,9 +200,11 @@ export function parseDateRange(
     // to the runtime default when no locale is supplied.
     // defensive Intl.supportedLocalesOf optional chain + locale fallback
     /* v8 ignore start */
-    const labelLocale = (typeof Intl !== "undefined" && Intl.DateTimeFormat?.supportedLocalesOf?.([locale ?? ""])?.length)
-      ? locale
-      : undefined;
+    const labelLocale =
+      typeof Intl !== "undefined" &&
+      Intl.DateTimeFormat?.supportedLocalesOf?.([locale ?? ""])?.length
+        ? locale
+        : undefined;
     const fmt = new Intl.DateTimeFormat(labelLocale, {
       dateStyle: "medium",
       ...(timeZone ? { timeZone } : {}),

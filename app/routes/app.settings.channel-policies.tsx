@@ -2,7 +2,11 @@ import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useFetcher, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { parseChannelPolicies, type ChannelPolicy, type ChannelPoliciesMap } from "../lib/source-channel.server";
+import {
+  parseChannelPolicies,
+  type ChannelPolicy,
+  type ChannelPoliciesMap,
+} from "../lib/source-channel.server";
 
 const CHANNELS = [
   {
@@ -40,7 +44,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     where: { shopDomain: session.shop },
     include: { settings: true },
   });
-  const channelPoliciesJson = (shop?.settings as { channelPoliciesJson?: string | null } | null)?.channelPoliciesJson ?? null;
+  const channelPoliciesJson =
+    (shop?.settings as { channelPoliciesJson?: string | null } | null)?.channelPoliciesJson ?? null;
   const policies = parseChannelPolicies(channelPoliciesJson);
   return { policies };
 };
@@ -59,13 +64,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       returnEnabled,
       /* v8 ignore start */
       // defensive: parseInt always returns numeric or NaN; || null fallback only fires for invalid input
-      returnWindowDays: windowRaw && String(windowRaw).trim() !== "" ? parseInt(String(windowRaw), 10) || null : null,
+      returnWindowDays:
+        windowRaw && String(windowRaw).trim() !== ""
+          ? parseInt(String(windowRaw), 10) || null
+          : null,
       /* v8 ignore stop */
-      autoApproveEnabled: autoApproveRaw === "" || autoApproveRaw === null ? null : autoApproveRaw === "true",
+      autoApproveEnabled:
+        autoApproveRaw === "" || autoApproveRaw === null ? null : autoApproveRaw === "true",
     };
   }
 
-  const shop = await prisma.shop.findUnique({ where: { shopDomain: session.shop }, include: { settings: true } });
+  const shop = await prisma.shop.findUnique({
+    where: { shopDomain: session.shop },
+    include: { settings: true },
+  });
   if (!shop?.settings) return Response.json({ error: "Shop settings not found" }, { status: 404 });
 
   await prisma.shopSettings.update({
@@ -76,23 +88,51 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   return Response.json({ success: true });
 };
 
-function ToggleSwitch({ name, checked, onChange }: { name: string; checked: boolean; onChange: (v: boolean) => void }) {
+function ToggleSwitch({
+  name,
+  checked,
+  onChange,
+}: {
+  name: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
-    <label style={{ display: "inline-flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+    <label
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        cursor: "pointer",
+        userSelect: "none",
+      }}
+    >
       <input type="hidden" name={name} value={String(checked)} />
       <div
         onClick={() => onChange(!checked)}
         style={{
-          width: 40, height: 22, borderRadius: 11,
+          width: 40,
+          height: 22,
+          borderRadius: 11,
           background: checked ? "#4f46e5" : "#D1D5DB",
-          position: "relative", transition: "background 0.2s", cursor: "pointer",
+          position: "relative",
+          transition: "background 0.2s",
+          cursor: "pointer",
         }}
       >
-        <div style={{
-          position: "absolute", top: 3, left: checked ? 21 : 3,
-          width: 16, height: 16, borderRadius: "50%",
-          background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-        }} />
+        <div
+          style={{
+            position: "absolute",
+            top: 3,
+            left: checked ? 21 : 3,
+            width: 16,
+            height: 16,
+            borderRadius: "50%",
+            background: "#fff",
+            transition: "left 0.2s",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
+          }}
+        />
       </div>
       <span style={{ fontSize: 13, color: checked ? "#111827" : "#6B7280", fontWeight: 500 }}>
         {checked ? "Enabled" : "Disabled"}
@@ -126,8 +166,14 @@ export default function ChannelPoliciesSettings() {
     for (const ch of ["pos", "draft_order", "b2b"] as const) {
       const p = state[ch];
       formData.append(`${ch}_returnEnabled`, String(p.returnEnabled));
-      formData.append(`${ch}_returnWindowDays`, p.returnWindowDays != null ? String(p.returnWindowDays) : "");
-      formData.append(`${ch}_autoApproveEnabled`, p.autoApproveEnabled != null ? String(p.autoApproveEnabled) : "");
+      formData.append(
+        `${ch}_returnWindowDays`,
+        p.returnWindowDays != null ? String(p.returnWindowDays) : "",
+      );
+      formData.append(
+        `${ch}_autoApproveEnabled`,
+        p.autoApproveEnabled != null ? String(p.autoApproveEnabled) : "",
+      );
     }
     fetcher.submit(formData, { method: "POST" });
   };
@@ -138,20 +184,48 @@ export default function ChannelPoliciesSettings() {
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={() => navigate("/app/settings")}
-            style={{ background: "none", border: "none", cursor: "pointer", padding: "4px 6px", borderRadius: 6, color: "var(--rpm-muted)", display: "flex", alignItems: "center" }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              padding: "4px 6px",
+              borderRadius: 6,
+              color: "var(--rpm-muted)",
+              display: "flex",
+              alignItems: "center",
+            }}
           >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
           </button>
           <div>
             <div className="app-page-title">Channel Policies</div>
-            <div className="app-page-subtitle">Configure return eligibility per Shopify sales channel</div>
+            <div className="app-page-subtitle">
+              Configure return eligibility per Shopify sales channel
+            </div>
           </div>
         </div>
         <button
           onClick={handleSave}
           disabled={isSaving}
           className="app-btn-primary"
-          style={{ padding: "9px 22px", borderRadius: 8, border: "none", fontSize: 14, fontWeight: 600, cursor: isSaving ? "wait" : "pointer", opacity: isSaving ? 0.7 : 1 }}
+          style={{
+            padding: "9px 22px",
+            borderRadius: 8,
+            border: "none",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: isSaving ? "wait" : "pointer",
+            opacity: isSaving ? 0.7 : 1,
+          }}
         >
           {isSaving ? "Saving…" : saved ? "Saved ✓" : "Save Changes"}
         </button>
@@ -160,18 +234,54 @@ export default function ChannelPoliciesSettings() {
       {/* v8 ignore start */}
       {/* defensive: fetcher.data.error rarely populated in fixtures */}
       {fetcher.data?.error && (
-        <div style={{ background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 8, padding: "12px 16px", marginBottom: 20, color: "#DC2626", fontSize: 13 }}>
+        <div
+          style={{
+            background: "#FEE2E2",
+            border: "1px solid #FECACA",
+            borderRadius: 8,
+            padding: "12px 16px",
+            marginBottom: 20,
+            color: "#DC2626",
+            fontSize: 13,
+          }}
+        >
           {fetcher.data.error}
         </div>
       )}
       {/* v8 ignore stop */}
 
-      <div style={{ background: "#EFF6FF", border: "1px solid #BFDBFE", borderRadius: 10, padding: "12px 16px", marginBottom: 24, display: "flex", gap: 10, alignItems: "flex-start" }}>
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <div
+        style={{
+          background: "#EFF6FF",
+          border: "1px solid #BFDBFE",
+          borderRadius: 10,
+          padding: "12px 16px",
+          marginBottom: 24,
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-start",
+        }}
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#3B82F6"
+          strokeWidth="2"
+          style={{ flexShrink: 0, marginTop: 1 }}
+        >
+          <circle cx="12" cy="12" r="10" />
+          <line x1="12" y1="8" x2="12" y2="12" />
+          <line x1="12" y1="16" x2="12.01" y2="16" />
+        </svg>
         <div style={{ fontSize: 13, color: "#1E40AF", lineHeight: 1.5 }}>
-          These rules apply on top of your global return settings. When disabled for a channel, customers cannot submit returns for those orders via the portal. Existing returns are not affected.
+          These rules apply on top of your global return settings. When disabled for a channel,
+          customers cannot submit returns for those orders via the portal. Existing returns are not
+          affected.
           <br />
-          Leave <strong>Return Window</strong> and <strong>Auto-Approve</strong> blank to inherit the global setting.
+          Leave <strong>Return Window</strong> and <strong>Auto-Approve</strong> blank to inherit
+          the global setting.
         </div>
       </div>
 
@@ -180,27 +290,79 @@ export default function ChannelPoliciesSettings() {
           const p = state[ch.key];
           return (
             <div key={ch.key} className="app-card" style={{ padding: 20 }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, marginBottom: 20 }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  marginBottom: 20,
+                }}
+              >
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: ch.bg, border: `1px solid ${ch.border}`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={ch.color} strokeWidth="1.8" dangerouslySetInnerHTML={{ __html: ch.icon }} />
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 8,
+                      background: ch.bg,
+                      border: `1px solid ${ch.border}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke={ch.color}
+                      strokeWidth="1.8"
+                      dangerouslySetInnerHTML={{ __html: ch.icon }}
+                    />
                   </div>
                   <div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--rpm-text)" }}>{ch.label}</div>
-                    <div style={{ fontSize: 12, color: "var(--rpm-muted)", marginTop: 2 }}>{ch.desc}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "var(--rpm-text)" }}>
+                      {ch.label}
+                    </div>
+                    <div style={{ fontSize: 12, color: "var(--rpm-muted)", marginTop: 2 }}>
+                      {ch.desc}
+                    </div>
                   </div>
                 </div>
                 <ToggleSwitch
                   name={`${ch.key}_returnEnabled`}
                   checked={p.returnEnabled}
-                  onChange={(v) => setState((s) => ({ ...s, [ch.key]: { ...s[ch.key], returnEnabled: v } }))}
+                  onChange={(v) =>
+                    setState((s) => ({ ...s, [ch.key]: { ...s[ch.key], returnEnabled: v } }))
+                  }
                 />
               </div>
 
               {p.returnEnabled && (
-                <div style={{ display: "flex", gap: 20, flexWrap: "wrap", borderTop: "1px solid var(--rpm-border)", paddingTop: 16 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    gap: 20,
+                    flexWrap: "wrap",
+                    borderTop: "1px solid var(--rpm-border)",
+                    paddingTop: 16,
+                  }}
+                >
                   <div style={{ flex: "0 0 180px" }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-muted)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <label
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "var(--rpm-muted)",
+                        display: "block",
+                        marginBottom: 6,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
                       Return Window (days)
                     </label>
                     <input
@@ -209,27 +371,45 @@ export default function ChannelPoliciesSettings() {
                       max="365"
                       placeholder="Use global setting"
                       value={p.returnWindowDays ?? ""}
-                      onChange={(e) => setState((s) => ({
-                        ...s,
-                        [ch.key]: { ...s[ch.key], returnWindowDays: e.target.value ? parseInt(e.target.value, 10) : null },
-                      }))}
+                      onChange={(e) =>
+                        setState((s) => ({
+                          ...s,
+                          [ch.key]: {
+                            ...s[ch.key],
+                            returnWindowDays: e.target.value ? parseInt(e.target.value, 10) : null,
+                          },
+                        }))
+                      }
                       className="app-input"
                       style={{ width: "100%", padding: "8px 12px", fontSize: 13 }}
                     />
                   </div>
                   <div style={{ flex: "0 0 200px" }}>
-                    <label style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-muted)", display: "block", marginBottom: 6, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <label
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: "var(--rpm-muted)",
+                        display: "block",
+                        marginBottom: 6,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.05em",
+                      }}
+                    >
                       Auto-Approve
                     </label>
                     <select
                       value={p.autoApproveEnabled == null ? "" : String(p.autoApproveEnabled)}
-                      onChange={(e) => setState((s) => ({
-                        ...s,
-                        [ch.key]: {
-                          ...s[ch.key],
-                          autoApproveEnabled: e.target.value === "" ? null : e.target.value === "true",
-                        },
-                      }))}
+                      onChange={(e) =>
+                        setState((s) => ({
+                          ...s,
+                          [ch.key]: {
+                            ...s[ch.key],
+                            autoApproveEnabled:
+                              e.target.value === "" ? null : e.target.value === "true",
+                          },
+                        }))
+                      }
                       className="app-select"
                       style={{ width: "100%", padding: "8px 12px", fontSize: 13 }}
                     >
@@ -242,9 +422,31 @@ export default function ChannelPoliciesSettings() {
               )}
 
               {!p.returnEnabled && (
-                <div style={{ borderTop: "1px solid var(--rpm-border)", paddingTop: 14, display: "flex", alignItems: "center", gap: 8, color: "#DC2626" }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>Returns are disabled for {ch.label} orders. Customers will see a message explaining this.</span>
+                <div
+                  style={{
+                    borderTop: "1px solid var(--rpm-border)",
+                    paddingTop: 14,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    color: "#DC2626",
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                  </svg>
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>
+                    Returns are disabled for {ch.label} orders. Customers will see a message
+                    explaining this.
+                  </span>
                 </div>
               )}
             </div>

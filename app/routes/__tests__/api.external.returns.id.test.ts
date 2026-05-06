@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
-}));
+const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateApiKeyMock: vi.fn(),
+    checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+    checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
+      async () => null,
+    ),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -29,7 +32,9 @@ const mkReq = () => new Request("https://app.example/api/v1/external/returns/rc-
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
 });
 
@@ -41,7 +46,10 @@ describe("GET /api/v1/external/returns/:id", () => {
   });
 
   it("401 when auth fails", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: false, response: Response.json({}, { status: 401 }) });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({}, { status: 401 }),
+    });
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(401);
   });

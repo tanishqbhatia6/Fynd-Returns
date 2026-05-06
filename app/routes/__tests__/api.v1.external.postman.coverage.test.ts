@@ -9,14 +9,15 @@ const {
 } = vi.hoisted(() => ({
   authenticateApiKeyMock: vi.fn(),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  rateLimitResponseMock: vi.fn(
-    (ms: number) =>
-      Response.json(
-        { error: "rate limited" },
-        { status: 429, headers: { "Retry-After": String(ms) } },
-      ),
+  rateLimitResponseMock: vi.fn((ms: number) =>
+    Response.json(
+      { error: "rate limited" },
+      { status: 429, headers: { "Retry-After": String(ms) } },
+    ),
   ),
-  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
+  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
+    async () => null,
+  ),
   generatePostmanMock: vi.fn(() => JSON.stringify({ info: { name: "RPM" }, item: [] })),
 }));
 
@@ -41,10 +42,14 @@ const origEnv = { ...process.env };
 beforeEach(() => {
   process.env = { ...origEnv };
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   rateLimitResponseMock.mockClear();
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
-  generatePostmanMock.mockReset().mockReturnValue(JSON.stringify({ info: { name: "RPM" }, item: [] }));
+  generatePostmanMock
+    .mockReset()
+    .mockReturnValue(JSON.stringify({ info: { name: "RPM" }, item: [] }));
 });
 afterEach(() => {
   process.env = { ...origEnv };
@@ -52,7 +57,10 @@ afterEach(() => {
 
 const req = (url = "https://app.example/api/v1/external/postman") => new Request(url);
 const ok = (keyId: string) => ({ ok: true, keyId });
-const denied = (status = 401) => ({ ok: false, response: Response.json({ error: "denied" }, { status }) });
+const denied = (status = 401) => ({
+  ok: false,
+  response: Response.json({ error: "denied" }, { status }),
+});
 
 describe("api.v1.external.postman coverage", () => {
   it("propagates retryAfterMs into the IP rate-limit 429 response", async () => {
@@ -82,9 +90,7 @@ describe("api.v1.external.postman coverage", () => {
   });
 
   it("auth path 2: read_returns denied → read_settings succeeds — exactly two perms tried in order", async () => {
-    authenticateApiKeyMock
-      .mockResolvedValueOnce(denied())
-      .mockResolvedValueOnce(ok("key-rs"));
+    authenticateApiKeyMock.mockResolvedValueOnce(denied()).mockResolvedValueOnce(ok("key-rs"));
     const res = await loader({ request: req(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
     expect(authenticateApiKeyMock).toHaveBeenCalledTimes(2);
@@ -133,7 +139,10 @@ describe("api.v1.external.postman coverage", () => {
 
   it("per-key rate limit short-circuits with custom 429 body before generating collection", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce(ok("key-1"));
-    const perKeyResp = Response.json({ error: "per-key limited", code: "RATE_LIMITED" }, { status: 429 });
+    const perKeyResp = Response.json(
+      { error: "per-key limited", code: "RATE_LIMITED" },
+      { status: 429 },
+    );
     checkPerKeyRateLimitMock.mockResolvedValueOnce(perKeyResp);
     const res = await loader({ request: req(), params: {}, context: {} } as never);
     expect(res.status).toBe(429);
@@ -164,7 +173,10 @@ describe("api.v1.external.postman coverage", () => {
 
   it("Content-Type is application/json and body is the generated collection", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce(ok("k"));
-    const payload = JSON.stringify({ info: { name: "RPM-Coverage", _postman_id: "abc" }, item: [{ name: "X" }] });
+    const payload = JSON.stringify({
+      info: { name: "RPM-Coverage", _postman_id: "abc" },
+      item: [{ name: "X" }],
+    });
     generatePostmanMock.mockReturnValueOnce(payload);
     const res = await loader({ request: req(), params: {}, context: {} } as never);
     expect(res.headers.get("Content-Type")).toBe("application/json");

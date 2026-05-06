@@ -51,8 +51,8 @@ export type BillingStatus = {
    * page UI.
    */
   reason:
-    | "dev_mode"           // APP_BILLING_MODE=dev, billing bypassed
-    | "override_free"      // per-shop override forces free
+    | "dev_mode" // APP_BILLING_MODE=dev, billing bypassed
+    | "override_free" // per-shop override forces free
     | "subscription_active" // Shopify reports an active, non-test subscription
     | "subscription_missing" // no active subscription — access denied
     | "override_paid_no_sub"; // override says paid but no subscription — access denied
@@ -168,9 +168,7 @@ export async function fetchSubscriptionSnapshot(
     };
   };
   const subs = json.data?.currentAppInstallation?.activeSubscriptions ?? [];
-  const liveSub = subs.find(
-    (s) => s.status === "ACTIVE" && s.test !== true,
-  );
+  const liveSub = subs.find((s) => s.status === "ACTIVE" && s.test !== true);
   if (liveSub) {
     return { status: "active", name: liveSub.name };
   }
@@ -317,10 +315,7 @@ export async function getBillingStatus(
  * their handle.
  */
 export function getManagedPricingUpgradeUrl(shopDomain: string): string {
-  const handle =
-    process.env.APP_MANAGED_PRICING_HANDLE ||
-    process.env.SHOPIFY_API_KEY ||
-    "";
+  const handle = process.env.APP_MANAGED_PRICING_HANDLE || process.env.SHOPIFY_API_KEY || "";
   const shop = shopDomain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   return `https://admin.shopify.com/store/${shop.replace(".myshopify.com", "")}/charges/${handle}/pricing_plans`;
 }

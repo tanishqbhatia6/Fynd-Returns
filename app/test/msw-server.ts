@@ -60,10 +60,16 @@ export function shopifyGraphQLError(message: string, extras: Record<string, unkn
 }
 
 /** Build a Shopify userErrors response (for mutations that half-succeeded). */
-export function shopifyUserErrors(mutationName: string, userErrors: Array<{ field?: string[]; message: string }>) {
+export function shopifyUserErrors(
+  mutationName: string,
+  userErrors: Array<{ field?: string[]; message: string }>,
+) {
   return HttpResponse.json({
     data: {
-      [mutationName]: { userErrors, [mutationName.replace("Create", "").replace(/^./, (c) => c.toLowerCase())]: null },
+      [mutationName]: {
+        userErrors,
+        [mutationName.replace("Create", "").replace(/^./, (c) => c.toLowerCase())]: null,
+      },
     },
   });
 }

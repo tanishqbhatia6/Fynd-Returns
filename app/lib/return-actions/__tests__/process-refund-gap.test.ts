@@ -46,12 +46,19 @@ const {
   })),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
+  fetchOrderByFyndAffiliateIdMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
+    async () => null,
+  ),
   fetchOrderLineItemsOnlyMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderLineItemsByNameMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -100,10 +107,23 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: {
       graphql: vi.fn(async () => ({
         json: async () => ({ data: {} }),
@@ -208,7 +228,9 @@ describe("handleProcessRefund — status guards", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) => (c[0] as { data: Record<string, unknown> }).data);
+    const updates = prismaMock.returnCase.update.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
     const clearedUpd = updates.find((d) => d.cancellationRequestedAt === null);
     expect(clearedUpd).toBeDefined();
   });
@@ -273,7 +295,16 @@ describe("handleProcessRefund — Fynd order resolution", () => {
         shopifyOrderId: "FY-ORDER-XYZ",
         shopifyOrderName: "#1001",
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -286,7 +317,9 @@ describe("handleProcessRefund — Fynd order resolution", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) => (c[0] as { data: Record<string, unknown> }).data);
+    const updates = prismaMock.returnCase.update.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
     const orderIdUpd = updates.find((d) => d.shopifyOrderId === "gid://shopify/Order/777");
     expect(orderIdUpd).toBeDefined();
     // Order id passed to createRefund should be the resolved GID
@@ -300,7 +333,16 @@ describe("handleProcessRefund — Fynd order resolution", () => {
         shopifyOrderId: "#FY-XYZ",
         shopifyOrderName: "#1001",
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -331,11 +373,26 @@ describe("handleProcessRefund — Fynd order resolution", () => {
             external_order_id: "EXT-1",
             meta: { channel_order_id: "CHAN-1" },
             order: { affiliate_order_id: "ORD-AFF-1" },
-            items: [{ affiliate_order_id: "ITEM-AFF-1", external_order_id: "ITEM-EXT-1", order: { affiliate_order_id: "INNER-1" } }],
+            items: [
+              {
+                affiliate_order_id: "ITEM-AFF-1",
+                external_order_id: "ITEM-EXT-1",
+                order: { affiliate_order_id: "INNER-1" },
+              },
+            ],
           },
         }),
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -347,9 +404,7 @@ describe("handleProcessRefund — Fynd order resolution", () => {
       .mockResolvedValueOnce({
         id: "gid://shopify/Order/333",
         name: "#R3",
-        lineItems: [
-          { id: "gid://shopify/LineItem/SKU", title: "S", sku: "SKU-1", quantity: 99 },
-        ],
+        lineItems: [{ id: "gid://shopify/LineItem/SKU", title: "S", sku: "SKU-1", quantity: 99 }],
       });
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
@@ -366,7 +421,16 @@ describe("handleProcessRefund — Fynd order resolution", () => {
         shopifyOrderName: null,
         fyndPayloadJson: "{not valid json",
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -385,15 +449,24 @@ describe("handleProcessRefund — Fynd order resolution", () => {
         shopifyOrderName: "#1001",
         fyndPayloadJson: null,
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
     fetchOrderByFyndAffiliateIdMock.mockResolvedValue(null);
-    const res = await handleProcessRefund(
-      ctx,
-      { action: "process_refund", note: "trying" } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(ctx, {
+      action: "process_refund",
+      note: "trying",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("FY-UNRESOLVABLE");
@@ -410,23 +483,42 @@ describe("handleProcessRefund — Fynd order resolution", () => {
         shopifyOrderId: "FY-ABC",
         shopifyOrderName: "#1001",
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 7, sku: "  SKU-MATCH  ", price: null, reasonCode: null, notes: null, title: null },
-          { id: "i2", shopifyLineItemId: "manual", qty: 2, sku: "", price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 7,
+            sku: "  SKU-MATCH  ",
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
+          {
+            id: "i2",
+            shopifyLineItemId: "manual",
+            qty: 2,
+            sku: "",
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
     fetchOrderByFyndAffiliateIdMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/9",
       name: "#1001",
-      lineItems: [
-        { id: "gid://shopify/LineItem/M", title: "M", sku: "sku-match", quantity: 50 },
-      ],
+      lineItems: [{ id: "gid://shopify/LineItem/M", title: "M", sku: "sku-match", quantity: 50 }],
     });
     await expectRedirect(
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{ id: string; quantity: number }>;
+    const liArg = createRefundMock.mock.calls[0][2] as unknown as Array<{
+      id: string;
+      quantity: number;
+    }>;
     expect(liArg).toEqual([{ id: "gid://shopify/LineItem/M", quantity: 7 }]);
   });
 
@@ -437,7 +529,16 @@ describe("handleProcessRefund — Fynd order resolution", () => {
         shopifyOrderId: "FY-ABC",
         shopifyOrderName: null,
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -450,7 +551,9 @@ describe("handleProcessRefund — Fynd order resolution", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) => (c[0] as { data: Record<string, unknown> }).data);
+    const updates = prismaMock.returnCase.update.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
     const upd = updates.find((d) => d.shopifyOrderId === "gid://shopify/Order/9");
     expect(upd).toBeDefined();
     expect((upd as Record<string, unknown>).shopifyOrderName).toBeUndefined();
@@ -463,7 +566,16 @@ describe("handleProcessRefund — Fynd order resolution", () => {
         shopifyOrderId: "FY-ABC",
         shopifyOrderName: "#1001",
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -488,7 +600,16 @@ describe("handleProcessRefund — line-item resolution edge", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -512,7 +633,16 @@ describe("handleProcessRefund — line-item resolution edge", () => {
         ...mkCtx().returnCase,
         shopifyOrderName: "#",
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -533,7 +663,16 @@ describe("handleProcessRefund — line-item resolution edge", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -548,7 +687,9 @@ describe("handleProcessRefund — line-item resolution edge", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) => (c[0] as { data: Record<string, unknown> }).data);
+    const updates = prismaMock.returnCase.update.mock.calls.map(
+      (c) => (c[0] as { data: Record<string, unknown> }).data,
+    );
     expect(updates.find((d) => d.shopifyOrderId === "gid://shopify/Order/NEW2")).toBeDefined();
   });
 
@@ -557,7 +698,16 @@ describe("handleProcessRefund — line-item resolution edge", () => {
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "i1", shopifyLineItemId: "9999", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "9999",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -586,7 +736,16 @@ describe("handleProcessRefund — line-item resolution edge", () => {
         ...mkCtx().returnCase,
         shopifyOrderId: "gid://shopify/Order/SAME",
         items: [
-          { id: "i1", shopifyLineItemId: "manual", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "i1",
+            shopifyLineItemId: "manual",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
     });
@@ -610,10 +769,11 @@ describe("handleProcessRefund — createRefund failure", () => {
       success: false,
       error: "Refund line items not refundable",
     });
-    const res = await handleProcessRefund(
-      mkCtx(),
-      { action: "process_refund", refundMethod: "original", note: "test note" } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+      refundMethod: "original",
+      note: "test note",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const events = prismaMock.returnEvent.create.mock.calls.map(
       (c) => (c[0] as { data: { eventType: string } }).data.eventType,
@@ -623,7 +783,9 @@ describe("handleProcessRefund — createRefund failure", () => {
 
   it("createRefund.success=false WITHOUT error string uses default message", async () => {
     createRefundMock.mockResolvedValueOnce({ success: false });
-    const res = await handleProcessRefund(mkCtx(), { action: "process_refund" } as ReturnActionBody);
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+    } as ReturnActionBody);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toMatch(/Shopify Admin/i);
@@ -784,10 +946,10 @@ describe("handleProcessRefund — COD detection", () => {
 describe("handleProcessRefund — error handler", () => {
   it("500 when createRefund THROWS and refund_failed event written", async () => {
     createRefundMock.mockRejectedValueOnce(new Error("network down"));
-    const res = await handleProcessRefund(
-      mkCtx(),
-      { action: "process_refund", note: "with note" } as ReturnActionBody,
-    );
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+      note: "with note",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toMatch(/network down|could not be processed/i);
@@ -801,7 +963,9 @@ describe("handleProcessRefund — error handler", () => {
     createRefundMock.mockImplementationOnce(async () => {
       throw "raw string error";
     });
-    const res = await handleProcessRefund(mkCtx(), { action: "process_refund" } as ReturnActionBody);
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
   });
 
@@ -809,7 +973,9 @@ describe("handleProcessRefund — error handler", () => {
     createRefundMock.mockRejectedValueOnce(new Error("boom"));
     // The refund_failed event creation also throws — handler must not crash.
     prismaMock.returnEvent.create.mockRejectedValueOnce(new Error("event log fail"));
-    const res = await handleProcessRefund(mkCtx(), { action: "process_refund" } as ReturnActionBody);
+    const res = await handleProcessRefund(mkCtx(), {
+      action: "process_refund",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
   });
 
@@ -957,14 +1123,21 @@ describe("handleProcessRefund — final output edges", () => {
       refundMethod: "store_credit",
     });
     await expectRedirect(
-      handleProcessRefund(
-        mkCtx(),
-        { action: "process_refund", refundMethod: "store_credit" } as ReturnActionBody,
-      ),
+      handleProcessRefund(mkCtx(), {
+        action: "process_refund",
+        refundMethod: "store_credit",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as { data: { refundJson: string } };
-    const parsed = JSON.parse(finalUpdate.data.refundJson) as { method: string; amount: null; currency: null; createdAt: string };
+    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as {
+      data: { refundJson: string };
+    };
+    const parsed = JSON.parse(finalUpdate.data.refundJson) as {
+      method: string;
+      amount: null;
+      currency: null;
+      createdAt: string;
+    };
     expect(parsed.method).toBe("store_credit");
     expect(parsed.amount).toBeNull();
     expect(parsed.currency).toBeNull();
@@ -982,13 +1155,15 @@ describe("handleProcessRefund — final output edges", () => {
       // refundMethod missing
     });
     await expectRedirect(
-      handleProcessRefund(
-        mkCtx(),
-        { action: "process_refund", refundMethod: "store_credit" } as ReturnActionBody,
-      ),
+      handleProcessRefund(mkCtx(), {
+        action: "process_refund",
+        refundMethod: "store_credit",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as { data: { refundJson: string } };
+    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as {
+      data: { refundJson: string };
+    };
     const parsed = JSON.parse(finalUpdate.data.refundJson) as { method: string };
     // refundDetails.method falls back to "original" string in code: result.refundMethod ?? "original"
     expect(parsed.method).toBe("original");
@@ -1002,7 +1177,9 @@ describe("handleProcessRefund — final output edges", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as { data: { adminNotes: string } };
+    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as {
+      data: { adminNotes: string };
+    };
     expect(finalUpdate.data.adminNotes).toBe("existing-admin-note");
   });
 
@@ -1011,10 +1188,15 @@ describe("handleProcessRefund — final output edges", () => {
       returnCase: { ...mkCtx().returnCase, adminNotes: "existing-admin-note" } as never,
     });
     await expectRedirect(
-      handleProcessRefund(ctx, { action: "process_refund", note: "fresh-note" } as ReturnActionBody),
+      handleProcessRefund(ctx, {
+        action: "process_refund",
+        note: "fresh-note",
+      } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as { data: { adminNotes: string } };
+    const finalUpdate = prismaMock.returnCase.update.mock.calls.at(-1)![0] as {
+      data: { adminNotes: string };
+    };
     expect(finalUpdate.data.adminNotes).toBe("fresh-note");
   });
 

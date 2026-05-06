@@ -10,11 +10,7 @@
  */
 import React from "react";
 import { render, type RenderResult } from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 
 export type RenderWithRouterOptions = {
   /** Path the memory router starts at. */

@@ -64,11 +64,7 @@ export async function withSpan<T>(
 /**
  * Synchronous version of withSpan for non-async operations.
  */
-export function withSpanSync<T>(
-  name: string,
-  attributes: Attributes,
-  fn: (span: Span) => T,
-): T {
+export function withSpanSync<T>(name: string, attributes: Attributes, fn: (span: Span) => T): T {
   return tracer.startActiveSpan(name, { attributes }, (span) => {
     try {
       const result = fn(span);
@@ -93,9 +89,7 @@ export function withSpanSync<T>(
  * Set context baggage entries that propagate across service boundaries.
  * Call this at auth boundaries (admin auth, portal auth, API key auth).
  */
-export function setBaggage(
-  entries: Record<string, string>,
-): void {
+export function setBaggage(entries: Record<string, string>): void {
   let baggage = propagation.getBaggage(context.active()) ?? propagation.createBaggage();
   for (const [key, value] of Object.entries(entries)) {
     if (value) {
@@ -137,10 +131,7 @@ export function getBaggageValue(key: string): string | undefined {
  *   "refund.method": "original_payment",
  * });
  */
-export function addBusinessEvent(
-  eventName: string,
-  attributes?: Attributes,
-): void {
+export function addBusinessEvent(eventName: string, attributes?: Attributes): void {
   const span = trace.getSpan(context.active());
   if (span) {
     span.addEvent(eventName, attributes);

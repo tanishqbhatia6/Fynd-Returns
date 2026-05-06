@@ -1,10 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import {
-  sendApprovalNotification,
-  sendRejectionNotification,
-} from "../lib/notification.server";
+import { sendApprovalNotification, sendRejectionNotification } from "../lib/notification.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 const MAX_BULK_IDS = 100;
@@ -44,7 +41,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const { action: actionType, returnIds, rejectionReason } = body;
 
-  if (!actionType || !["bulk_approve", "bulk_reject", "bulk_change_resolution"].includes(actionType)) {
+  if (
+    !actionType ||
+    !["bulk_approve", "bulk_reject", "bulk_change_resolution"].includes(actionType)
+  ) {
     return Response.json(
       { error: "Invalid action. Must be bulk_approve, bulk_reject, or bulk_change_resolution." },
       { status: 400 },
@@ -62,10 +62,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   if (!Array.isArray(returnIds) || returnIds.length === 0) {
-    return Response.json(
-      { error: "returnIds must be a non-empty array" },
-      { status: 400 },
-    );
+    return Response.json({ error: "returnIds must be a non-empty array" }, { status: 400 });
   }
 
   if (returnIds.length > MAX_BULK_IDS) {
@@ -78,10 +75,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (actionType === "bulk_reject") {
     const reason = (rejectionReason ?? "").trim();
     if (!reason) {
-      return Response.json(
-        { error: "Rejection reason is required" },
-        { status: 400 },
-      );
+      return Response.json({ error: "Rejection reason is required" }, { status: 400 });
     }
     if (reason.length > 500) {
       return Response.json(
@@ -115,9 +109,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // approve silently defaulted resolutionType to whatever the row already had,
     // so a merchant who wanted to bulk-approve as "exchange" had no way to
     // express that (P1 finding).
-    const bulkResolutionType: string = body.resolutionType && VALID_RESOLUTION_TYPES.includes(body.resolutionType)
-      ? body.resolutionType
-      : "refund";
+    const bulkResolutionType: string =
+      body.resolutionType && VALID_RESOLUTION_TYPES.includes(body.resolutionType)
+        ? body.resolutionType
+        : "refund";
 
     for (const rc of returnCases) {
       if (TERMINAL_STATUSES.includes(rc.status.toLowerCase())) {
@@ -166,10 +161,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopName: session.shop?.replace(".myshopify.com", ""),
             });
           } catch (err) {
-            console.warn(
-              `[BulkApprove] Notification failed for ${rc.id}:`,
-              err,
-            );
+            console.warn(`[BulkApprove] Notification failed for ${rc.id}:`, err);
           }
         }
 
@@ -233,10 +225,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               shopName: session.shop?.replace(".myshopify.com", ""),
             });
           } catch (err) {
-            console.warn(
-              `[BulkReject] Notification failed for ${rc.id}:`,
-              err,
-            );
+            console.warn(`[BulkReject] Notification failed for ${rc.id}:`, err);
           }
         }
 
@@ -256,7 +245,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const newResType = body.resolutionType!;
     for (const rc of returnCases) {
       if (["rejected", "cancelled"].includes(rc.status.toLowerCase())) {
-        results.push({ id: rc.id, success: false, error: `Cannot change resolution: return is ${rc.status}` });
+        results.push({
+          id: rc.id,
+          success: false,
+          error: `Cannot change resolution: return is ${rc.status}`,
+        });
         continue;
       }
       try {
@@ -269,14 +262,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             returnCaseId: rc.id,
             source: "admin",
             eventType: "resolution_changed",
-            payloadJson: JSON.stringify({ resolutionType: newResType, previousType: rc.resolutionType, bulk: true }),
+            payloadJson: JSON.stringify({
+              resolutionType: newResType,
+              previousType: rc.resolutionType,
+              bulk: true,
+            }),
           },
         });
         results.push({ id: rc.id, success: true });
       } catch (err) {
         console.error(`[BulkResolution] Failed for ${rc.id}:`, err);
         /* v8 ignore start - defensive Error narrowing in catch */
-        results.push({ id: rc.id, success: false, error: err instanceof Error ? err.message : "Unknown error" });
+        results.push({
+          id: rc.id,
+          success: false,
+          error: err instanceof Error ? err.message : "Unknown error",
+        });
         /* v8 ignore stop */
       }
     }

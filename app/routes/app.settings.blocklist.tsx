@@ -70,10 +70,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (intent === "add") {
     /* v8 ignore start */
     // defensive: form fields always provided; "" fallbacks unreachable in valid submissions
-    const type = (formData.get("type") as string || "").trim();
+    const type = ((formData.get("type") as string) || "").trim();
     /* v8 ignore stop */
-    const value = (formData.get("value") as string || "").trim().toLowerCase();
-    const reason = (formData.get("reason") as string || "").trim() || null;
+    const value = ((formData.get("value") as string) || "").trim().toLowerCase();
+    const reason = ((formData.get("reason") as string) || "").trim() || null;
 
     if (!["email", "phone", "order_name", "ip"].includes(type)) {
       return { error: "Invalid entry type" };
@@ -145,30 +145,54 @@ export default function BlocklistSettings() {
       <div className="app-content">
         {fetcher.data?.success && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>
-            {fetcher.formData?.get("intent") === "toggle" ? "Blocklist setting updated." :
-             fetcher.formData?.get("intent") === "delete" ? "Entry removed from blocklist." :
-             "Entry added to blocklist."}
+            {fetcher.formData?.get("intent") === "toggle"
+              ? "Blocklist setting updated."
+              : fetcher.formData?.get("intent") === "delete"
+                ? "Entry removed from blocklist."
+                : "Entry added to blocklist."}
           </div>
         )}
         {fetcher.data?.error && (
-          <div className="app-alert app-alert-error" style={{ marginBottom: 16 }}>{fetcher.data.error}</div>
+          <div className="app-alert app-alert-error" style={{ marginBottom: 16 }}>
+            {fetcher.data.error}
+          </div>
         )}
 
-        <div className="layout-medium" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+        <div
+          className="layout-medium"
+          style={{ display: "flex", flexDirection: "column", gap: 24 }}
+        >
           {/* Enable/Disable Toggle */}
           <s-section>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 16,
+                flexWrap: "wrap",
+              }}
+            >
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 4 }}>Blocklist enforcement</div>
                 <p style={{ fontSize: 13, color: "#6d7175", margin: 0 }}>
-                  When enabled, return requests from blocked customers will be automatically rejected.
-                  The customer will see a generic error without revealing they are blocked.
+                  When enabled, return requests from blocked customers will be automatically
+                  rejected. The customer will see a generic error without revealing they are
+                  blocked.
                 </p>
               </div>
               <fetcher.Form method="post">
                 <input type="hidden" name="intent" value="toggle" />
-                <input type="hidden" name="blocklistEnabled" value={data.blocklistEnabled ? "off" : "on"} />
-                <s-button type="submit" variant={data.blocklistEnabled ? "primary" : "secondary"} disabled={isSubmitting}>
+                <input
+                  type="hidden"
+                  name="blocklistEnabled"
+                  value={data.blocklistEnabled ? "off" : "on"}
+                />
+                <s-button
+                  type="submit"
+                  variant={data.blocklistEnabled ? "primary" : "secondary"}
+                  disabled={isSubmitting}
+                >
                   {data.blocklistEnabled ? "Enabled" : "Disabled"}
                 </s-button>
               </fetcher.Form>
@@ -185,12 +209,30 @@ export default function BlocklistSettings() {
               <input type="hidden" name="intent" value="add" />
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6d7175", marginBottom: 4 }}>Type</label>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#6d7175",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Type
+                  </label>
                   <select
                     name="type"
                     value={type}
                     onChange={(e) => setType(e.target.value)}
-                    style={{ padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, minWidth: 140, background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
+                    style={{
+                      padding: "9px 12px",
+                      borderRadius: "var(--rpm-radius-sm, 8px)",
+                      border: "var(--rpm-border, 1px solid #e1e3e5)",
+                      fontSize: 13,
+                      minWidth: 140,
+                      background: "var(--rpm-surface, #fff)",
+                      color: "var(--rpm-text, #0f172a)",
+                    }}
                   >
                     <option value="email">Email</option>
                     <option value="phone">Phone</option>
@@ -199,41 +241,101 @@ export default function BlocklistSettings() {
                   </select>
                 </div>
                 <div style={{ flex: 1, minWidth: 200 }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6d7175", marginBottom: 4 }}>Value</label>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#6d7175",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Value
+                  </label>
                   <input
                     type="text"
                     name="value"
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
-                    placeholder={type === "email" ? "customer@example.com" : type === "phone" ? "+1234567890" : type === "order_name" ? "#1234" : "192.168.1.1"}
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, boxSizing: "border-box", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
+                    placeholder={
+                      type === "email"
+                        ? "customer@example.com"
+                        : type === "phone"
+                          ? "+1234567890"
+                          : type === "order_name"
+                            ? "#1234"
+                            : "192.168.1.1"
+                    }
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: "var(--rpm-radius-sm, 8px)",
+                      border: "var(--rpm-border, 1px solid #e1e3e5)",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                      background: "var(--rpm-surface, #fff)",
+                      color: "var(--rpm-text, #0f172a)",
+                    }}
                     required
                   />
                 </div>
                 <div style={{ flex: 1, minWidth: 160 }}>
-                  <label style={{ display: "block", fontSize: 12, fontWeight: 600, color: "#6d7175", marginBottom: 4 }}>Reason (optional)</label>
+                  <label
+                    style={{
+                      display: "block",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: "#6d7175",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Reason (optional)
+                  </label>
                   <input
                     type="text"
                     name="reason"
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
                     placeholder="e.g. Suspected fraud"
-                    style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--rpm-radius-sm, 8px)", border: "var(--rpm-border, 1px solid #e1e3e5)", fontSize: 13, boxSizing: "border-box", background: "var(--rpm-surface, #fff)", color: "var(--rpm-text, #0f172a)" }}
+                    style={{
+                      width: "100%",
+                      padding: "9px 12px",
+                      borderRadius: "var(--rpm-radius-sm, 8px)",
+                      border: "var(--rpm-border, 1px solid #e1e3e5)",
+                      fontSize: 13,
+                      boxSizing: "border-box",
+                      background: "var(--rpm-surface, #fff)",
+                      color: "var(--rpm-text, #0f172a)",
+                    }}
                   />
                 </div>
-                <s-button type="submit" variant="primary" disabled={isSubmitting || !value.trim()}>Add</s-button>
+                <s-button type="submit" variant="primary" disabled={isSubmitting || !value.trim()}>
+                  Add
+                </s-button>
               </div>
             </fetcher.Form>
           </s-section>
 
           {/* Blocklist Table */}
           <s-section>
-            <div style={{ fontWeight: 600, marginBottom: 4 }}>Blocked entries ({data.entries.length})</div>
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              Blocked entries ({data.entries.length})
+            </div>
             <p style={{ fontSize: 13, color: "#6d7175", marginBottom: 16 }}>
               Customers matching any of these entries will be unable to submit return requests.
             </p>
             {data.entries.length === 0 ? (
-              <div style={{ padding: 32, textAlign: "center", color: "#9CA3AF", fontSize: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #F3F4F6" }}>
+              <div
+                style={{
+                  padding: 32,
+                  textAlign: "center",
+                  color: "#9CA3AF",
+                  fontSize: 14,
+                  background: "#F9FAFB",
+                  borderRadius: 10,
+                  border: "1px solid #F3F4F6",
+                }}
+              >
                 No entries in the blocklist yet. Add one above to get started.
               </div>
             ) : (
@@ -241,29 +343,120 @@ export default function BlocklistSettings() {
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr style={{ background: "#F9FAFB" }}>
-                      <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, fontSize: 11, color: "#6d7175", textTransform: "uppercase", letterSpacing: "0.05em" }}>Type</th>
-                      <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, fontSize: 11, color: "#6d7175", textTransform: "uppercase", letterSpacing: "0.05em" }}>Value</th>
-                      <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, fontSize: 11, color: "#6d7175", textTransform: "uppercase", letterSpacing: "0.05em" }}>Reason</th>
-                      <th style={{ textAlign: "left", padding: "10px 14px", fontWeight: 600, fontSize: 11, color: "#6d7175", textTransform: "uppercase", letterSpacing: "0.05em" }}>Added</th>
-                      <th style={{ textAlign: "right", padding: "10px 14px", fontWeight: 600, fontSize: 11, color: "#6d7175" }}></th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 14px",
+                          fontWeight: 600,
+                          fontSize: 11,
+                          color: "#6d7175",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        Type
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 14px",
+                          fontWeight: 600,
+                          fontSize: 11,
+                          color: "#6d7175",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        Value
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 14px",
+                          fontWeight: 600,
+                          fontSize: 11,
+                          color: "#6d7175",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        Reason
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "left",
+                          padding: "10px 14px",
+                          fontWeight: 600,
+                          fontSize: 11,
+                          color: "#6d7175",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                        }}
+                      >
+                        Added
+                      </th>
+                      <th
+                        style={{
+                          textAlign: "right",
+                          padding: "10px 14px",
+                          fontWeight: 600,
+                          fontSize: 11,
+                          color: "#6d7175",
+                        }}
+                      ></th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.entries.map((entry) => (
                       <tr key={entry.id} style={{ borderTop: "1px solid #F3F4F6" }}>
                         <td style={{ padding: "10px 14px" }}>
-                          <span style={{
-                            display: "inline-block", padding: "2px 8px", borderRadius: 5, fontSize: 11, fontWeight: 600,
-                            background: entry.type === "email" ? "#EFF6FF" : entry.type === "phone" ? "#F0FDF4" : entry.type === "order_name" ? "#FFFBEB" : "#F5F3FF",
-                            color: entry.type === "email" ? "#1E40AF" : entry.type === "phone" ? "#166534" : entry.type === "order_name" ? "#92400E" : "#6D28D9",
-                          }}>
+                          <span
+                            style={{
+                              display: "inline-block",
+                              padding: "2px 8px",
+                              borderRadius: 5,
+                              fontSize: 11,
+                              fontWeight: 600,
+                              background:
+                                entry.type === "email"
+                                  ? "#EFF6FF"
+                                  : entry.type === "phone"
+                                    ? "#F0FDF4"
+                                    : entry.type === "order_name"
+                                      ? "#FFFBEB"
+                                      : "#F5F3FF",
+                              color:
+                                entry.type === "email"
+                                  ? "#1E40AF"
+                                  : entry.type === "phone"
+                                    ? "#166534"
+                                    : entry.type === "order_name"
+                                      ? "#92400E"
+                                      : "#6D28D9",
+                            }}
+                          >
                             {TYPE_LABELS[entry.type] || entry.type}
                           </span>
                         </td>
-                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12 }}>{entry.value}</td>
-                        <td style={{ padding: "10px 14px", color: entry.reason ? "#374151" : "#9CA3AF" }}>{entry.reason || "--"}</td>
+                        <td style={{ padding: "10px 14px", fontFamily: "monospace", fontSize: 12 }}>
+                          {entry.value}
+                        </td>
+                        <td
+                          style={{
+                            padding: "10px 14px",
+                            color: entry.reason ? "#374151" : "#9CA3AF",
+                          }}
+                        >
+                          {entry.reason || "--"}
+                        </td>
                         <td style={{ padding: "10px 14px", color: "#6d7175", fontSize: 12 }}>
-                          {new Intl.DateTimeFormat(data.shopLocale || "en", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(entry.createdAt))}
+                          {new Intl.DateTimeFormat(data.shopLocale || "en", {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }).format(new Date(entry.createdAt))}
                         </td>
                         <td style={{ padding: "10px 14px", textAlign: "right" }}>
                           <fetcher.Form method="post" style={{ display: "inline" }}>
@@ -273,9 +466,15 @@ export default function BlocklistSettings() {
                               type="submit"
                               disabled={isSubmitting}
                               style={{
-                                background: "none", border: "1px solid #FECACA", borderRadius: 6,
-                                padding: "4px 10px", cursor: "pointer", color: "#DC2626", fontSize: 12,
-                                fontWeight: 500, transition: "all 0.15s",
+                                background: "none",
+                                border: "1px solid #FECACA",
+                                borderRadius: 6,
+                                padding: "4px 10px",
+                                cursor: "pointer",
+                                color: "#DC2626",
+                                fontSize: 12,
+                                fontWeight: 500,
+                                transition: "all 0.15s",
                               }}
                             >
                               Remove
@@ -293,7 +492,9 @@ export default function BlocklistSettings() {
 
         <div className="app-actions">
           <Link to="/app/settings">
-            <s-button variant="secondary" type="button">Back to Settings</s-button>
+            <s-button variant="secondary" type="button">
+              Back to Settings
+            </s-button>
           </Link>
         </div>
       </div>

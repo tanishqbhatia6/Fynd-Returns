@@ -43,7 +43,9 @@ describe("enrichFyndError", () => {
 
 describe("classifyFyndError", () => {
   it("classifies missing-platform errors as config_error", () => {
-    expect(classifyFyndError("Fynd is not configured. Configure Platform API.")).toBe("config_error");
+    expect(classifyFyndError("Fynd is not configured. Configure Platform API.")).toBe(
+      "config_error",
+    );
     expect(classifyFyndError("Client ID missing")).toBe("config_error");
     expect(classifyFyndError("Company ID required")).toBe("config_error");
   });
@@ -69,51 +71,51 @@ describe("classifyFyndError", () => {
 
 describe("enrichRefundError", () => {
   it("appends COD/gift-card hint when 'no transactions' AND method=original", () => {
-    const result = enrichRefundError(
-      "no transactions to refund",
-      { method: "original", orderName: "#1001" },
-    );
+    const result = enrichRefundError("no transactions to refund", {
+      method: "original",
+      orderName: "#1001",
+    });
     expect(result).toContain("COD or gift-card");
     expect(result).toContain("Store credit");
   });
 
   it("does NOT append COD hint when method is store_credit", () => {
-    const result = enrichRefundError(
-      "no transactions to refund",
-      { method: "store_credit", orderName: "#1001" },
-    );
+    const result = enrichRefundError("no transactions to refund", {
+      method: "store_credit",
+      orderName: "#1001",
+    });
     expect(result).not.toContain("COD or gift-card");
   });
 
   it("appends customer-account hint when store-credit fails for guest", () => {
-    const result = enrichRefundError(
-      "store_credit customer not found",
-      { method: "store_credit", orderName: "#1001" },
-    );
+    const result = enrichRefundError("store_credit customer not found", {
+      method: "store_credit",
+      orderName: "#1001",
+    });
     expect(result).toContain("Discount code");
   });
 
   it("includes order name in already-refunded message", () => {
-    const result = enrichRefundError(
-      "this order has already been refunded",
-      { method: "original", orderName: "#1001" },
-    );
+    const result = enrichRefundError("this order has already been refunded", {
+      method: "original",
+      orderName: "#1001",
+    });
     expect(result).toContain("#1001");
   });
 
   it("appends location/restock hint", () => {
-    const result = enrichRefundError(
-      "Invalid restock location",
-      { method: "original", orderName: null },
-    );
+    const result = enrichRefundError("Invalid restock location", {
+      method: "original",
+      orderName: null,
+    });
     expect(result).toContain("Settings → Return Settings");
   });
 
   it("appends gift-card hint", () => {
-    const result = enrichRefundError(
-      "store_credit_amount not allowed for gift card",
-      { method: "store_credit", orderName: null },
-    );
+    const result = enrichRefundError("store_credit_amount not allowed for gift card", {
+      method: "store_credit",
+      orderName: null,
+    });
     expect(result).toContain("Discount code");
   });
 
@@ -129,9 +131,15 @@ describe("enrichRefundError", () => {
 
 describe("isRedirectResponse", () => {
   it("returns true for 3xx Response", () => {
-    expect(isRedirectResponse(new Response(null, { status: 302, headers: { Location: "/x" } }))).toBe(true);
-    expect(isRedirectResponse(new Response(null, { status: 301, headers: { Location: "/x" } }))).toBe(true);
-    expect(isRedirectResponse(new Response(null, { status: 307, headers: { Location: "/x" } }))).toBe(true);
+    expect(
+      isRedirectResponse(new Response(null, { status: 302, headers: { Location: "/x" } })),
+    ).toBe(true);
+    expect(
+      isRedirectResponse(new Response(null, { status: 301, headers: { Location: "/x" } })),
+    ).toBe(true);
+    expect(
+      isRedirectResponse(new Response(null, { status: 307, headers: { Location: "/x" } })),
+    ).toBe(true);
   });
 
   it("returns false for 2xx Response", () => {

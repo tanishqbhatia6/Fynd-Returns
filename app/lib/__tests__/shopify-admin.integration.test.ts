@@ -14,7 +14,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
+  withSpan: async <T>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -23,7 +23,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -57,20 +57,22 @@ describe("fetchOrder", () => {
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
         HttpResponse.json({
           data: {
-            nodes: [{
-              id: "gid://shopify/Order/1001",
-              name: "#1001",
-              createdAt: "2026-04-01T00:00:00Z",
-              email: "cust@example.com",
-              displayFinancialStatus: "PAID",
-              displayFulfillmentStatus: "FULFILLED",
-              totalPriceSet: { shopMoney: { amount: "99.99", currencyCode: "USD" } },
-              lineItems: { nodes: [] },
-              fulfillments: [],
-              customAttributes: [],
-            }],
+            nodes: [
+              {
+                id: "gid://shopify/Order/1001",
+                name: "#1001",
+                createdAt: "2026-04-01T00:00:00Z",
+                email: "cust@example.com",
+                displayFinancialStatus: "PAID",
+                displayFulfillmentStatus: "FULFILLED",
+                totalPriceSet: { shopMoney: { amount: "99.99", currencyCode: "USD" } },
+                lineItems: { nodes: [] },
+                fulfillments: [],
+                customAttributes: [],
+              },
+            ],
           },
-        })
+        }),
       ),
     );
     const result = await fetchOrder(admin(), "1001");
@@ -81,9 +83,7 @@ describe("fetchOrder", () => {
 
   it("returns null when Shopify responds with empty node", async () => {
     server.use(
-      http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
-        HttpResponse.json({ data: { nodes: [null] } })
-      ),
+      http.post(TEST_SHOPIFY_GRAPHQL_URL, () => HttpResponse.json({ data: { nodes: [null] } })),
     );
     const result = await fetchOrder(admin(), "9999");
     expect(result).toBe(null);
@@ -95,7 +95,7 @@ describe("fetchOrder", () => {
         HttpResponse.json({
           errors: [{ message: "Field not found" }],
           data: { nodes: [null] },
-        })
+        }),
       ),
     );
     const result = await fetchOrder(admin(), "1001");
@@ -103,9 +103,7 @@ describe("fetchOrder", () => {
   });
 
   it("returns null when Shopify throws a network error", async () => {
-    server.use(
-      http.post(TEST_SHOPIFY_GRAPHQL_URL, () => HttpResponse.error()),
-    );
+    server.use(http.post(TEST_SHOPIFY_GRAPHQL_URL, () => HttpResponse.error()));
     const result = await fetchOrder(admin(), "1001");
     expect(result).toBe(null);
   });
@@ -114,7 +112,7 @@ describe("fetchOrder", () => {
     let receivedIds: string[] | undefined;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { ids?: string[] } };
+        const body = (await request.json()) as { variables?: { ids?: string[] } };
         receivedIds = body.variables?.ids;
         return HttpResponse.json({ data: { nodes: [null] } });
       }),
@@ -137,27 +135,51 @@ describe("fetchAllLocations", () => {
           data: {
             locations: {
               nodes: [
-                { id: "gid://shopify/Location/1", name: "Warehouse", isActive: true, fulfillsOnlineOrders: true, isFulfillmentService: false },
-                { id: "gid://shopify/Location/2", name: "Store", isActive: true, fulfillsOnlineOrders: false, isFulfillmentService: false },
-                { id: "gid://shopify/Location/3", name: "3rd party", isActive: true, fulfillsOnlineOrders: true, isFulfillmentService: true },
-                { id: "gid://shopify/Location/4", name: "Inactive", isActive: false, fulfillsOnlineOrders: true, isFulfillmentService: false },
+                {
+                  id: "gid://shopify/Location/1",
+                  name: "Warehouse",
+                  isActive: true,
+                  fulfillsOnlineOrders: true,
+                  isFulfillmentService: false,
+                },
+                {
+                  id: "gid://shopify/Location/2",
+                  name: "Store",
+                  isActive: true,
+                  fulfillsOnlineOrders: false,
+                  isFulfillmentService: false,
+                },
+                {
+                  id: "gid://shopify/Location/3",
+                  name: "3rd party",
+                  isActive: true,
+                  fulfillsOnlineOrders: true,
+                  isFulfillmentService: true,
+                },
+                {
+                  id: "gid://shopify/Location/4",
+                  name: "Inactive",
+                  isActive: false,
+                  fulfillsOnlineOrders: true,
+                  isFulfillmentService: false,
+                },
               ],
             },
           },
-        })
+        }),
       ),
     );
     const locs = await fetchAllLocations(admin());
     expect(locs.length).toBeGreaterThanOrEqual(1);
     // At minimum, the active non-3PL locations should be returned.
-    const names = locs.map(l => l.name);
+    const names = locs.map((l) => l.name);
     expect(names).toContain("Warehouse");
   });
 
   it("returns empty array when the API has no locations", async () => {
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
-        HttpResponse.json({ data: { locations: { nodes: [] } } })
+        HttpResponse.json({ data: { locations: { nodes: [] } } }),
       ),
     );
     const locs = await fetchAllLocations(admin());
@@ -167,7 +189,7 @@ describe("fetchAllLocations", () => {
   it("returns empty array on error response", async () => {
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
-        HttpResponse.json({ errors: [{ message: "boom" }] }, { status: 500 })
+        HttpResponse.json({ errors: [{ message: "boom" }] }, { status: 500 }),
       ),
     );
     const locs = await fetchAllLocations(admin());
@@ -183,12 +205,24 @@ describe("fetchPrimaryLocationId", () => {
           data: {
             locations: {
               nodes: [
-                { id: "gid://shopify/Location/1", name: "Warehouse", isActive: true, fulfillsOnlineOrders: true, isFulfillmentService: false },
-                { id: "gid://shopify/Location/2", name: "Store", isActive: true, fulfillsOnlineOrders: false, isFulfillmentService: false },
+                {
+                  id: "gid://shopify/Location/1",
+                  name: "Warehouse",
+                  isActive: true,
+                  fulfillsOnlineOrders: true,
+                  isFulfillmentService: false,
+                },
+                {
+                  id: "gid://shopify/Location/2",
+                  name: "Store",
+                  isActive: true,
+                  fulfillsOnlineOrders: false,
+                  isFulfillmentService: false,
+                },
               ],
             },
           },
-        })
+        }),
       ),
     );
     const id = await fetchPrimaryLocationId(admin());
@@ -198,7 +232,7 @@ describe("fetchPrimaryLocationId", () => {
   it("returns null when there are no eligible locations", async () => {
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
-        HttpResponse.json({ data: { locations: { nodes: [] } } })
+        HttpResponse.json({ data: { locations: { nodes: [] } } }),
       ),
     );
     const id = await fetchPrimaryLocationId(admin());
@@ -265,7 +299,7 @@ describe("closeShopifyReturn", () => {
               userErrors: [],
             },
           },
-        })
+        }),
       ),
     );
     const res = await closeShopifyReturn(admin(), "gid://shopify/Return/1");
@@ -279,7 +313,7 @@ describe("closeShopifyReturn", () => {
         HttpResponse.json({
           errors: [{ message: "Return is already closed" }],
           data: null,
-        })
+        }),
       ),
     );
     const res = await closeShopifyReturn(admin(), "gid://shopify/Return/1");
@@ -297,7 +331,7 @@ describe("closeShopifyReturn", () => {
               userErrors: [{ message: "Return is already CLOSED" }],
             },
           },
-        })
+        }),
       ),
     );
     const res = await closeShopifyReturn(admin(), "gid://shopify/Return/1");
@@ -315,7 +349,7 @@ describe("closeShopifyReturn", () => {
               userErrors: [{ message: "Return not found" }],
             },
           },
-        })
+        }),
       ),
     );
     const res = await closeShopifyReturn(admin(), "999");
@@ -333,10 +367,15 @@ describe("closeShopifyReturn", () => {
     let receivedVars: { id?: string } | undefined;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { id?: string } };
+        const body = (await request.json()) as { variables?: { id?: string } };
         receivedVars = body.variables;
         return HttpResponse.json({
-          data: { returnClose: { return: { id: "gid://shopify/Return/42", status: "CLOSED" }, userErrors: [] } },
+          data: {
+            returnClose: {
+              return: { id: "gid://shopify/Return/42", status: "CLOSED" },
+              userErrors: [],
+            },
+          },
         });
       }),
     );
@@ -352,7 +391,7 @@ describe("declineShopifyReturn", () => {
     let receivedInput: { declineReason?: string; id?: string } | undefined;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        const body = (await request.json()) as { variables?: { input?: typeof receivedInput } };
         receivedInput = body.variables?.input;
         return HttpResponse.json({
           data: {
@@ -374,10 +413,14 @@ describe("declineShopifyReturn", () => {
     let receivedReason = "";
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { input?: { declineReason?: string } } };
+        const body = (await request.json()) as {
+          variables?: { input?: { declineReason?: string } };
+        };
         receivedReason = body.variables?.input?.declineReason ?? "";
         return HttpResponse.json({
-          data: { returnDecline: { return: { id: "gid://1", status: "DECLINED" }, userErrors: [] } },
+          data: {
+            returnDecline: { return: { id: "gid://1", status: "DECLINED" }, userErrors: [] },
+          },
         });
       }),
     );
@@ -395,7 +438,7 @@ describe("declineShopifyReturn", () => {
               userErrors: [{ message: "Invalid return state" }],
             },
           },
-        })
+        }),
       ),
     );
     const res = await declineShopifyReturn(admin(), "1", "bad");
@@ -413,7 +456,11 @@ describe("closeShopifyReturnBestEffort", () => {
     const res = await closeShopifyReturnBestEffort(
       admin(),
       { id: "rc-1", shopifyReturnId: null, shopifyOrderId: null },
-      { logEvent: async (evt) => { logged.push(evt); } },
+      {
+        logEvent: async (evt) => {
+          logged.push(evt);
+        },
+      },
     );
     expect(res.ok).toBe(true);
     expect(res.skipped).toBe(true);
@@ -426,7 +473,11 @@ describe("closeShopifyReturnBestEffort", () => {
     const res = await closeShopifyReturnBestEffort(
       admin(),
       { id: "rc-2", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "manual:xyz" },
-      { logEvent: async (evt) => { logged.push(evt); } },
+      {
+        logEvent: async (evt) => {
+          logged.push(evt);
+        },
+      },
     );
     expect(res.ok).toBe(true);
     expect(res.skipped).toBe(true);
@@ -451,10 +502,11 @@ describe("closeShopifyReturnBestEffort", () => {
         });
       }),
     );
-    const res = await closeShopifyReturnBestEffort(
-      admin(),
-      { id: "rc-3", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
-    );
+    const res = await closeShopifyReturnBestEffort(admin(), {
+      id: "rc-3",
+      shopifyReturnId: "gid://shopify/Return/1",
+      shopifyOrderId: "gid://shopify/Order/1",
+    });
     expect(res.ok).toBe(true);
     expect(sawClose).toBe(true);
   });
@@ -465,13 +517,19 @@ describe("closeShopifyReturnBestEffort", () => {
         const body = await request.text();
         expect(body).toContain("returnDecline");
         return HttpResponse.json({
-          data: { returnDecline: { return: { id: "gid://1", status: "DECLINED" }, userErrors: [] } },
+          data: {
+            returnDecline: { return: { id: "gid://1", status: "DECLINED" }, userErrors: [] },
+          },
         });
       }),
     );
     const res = await closeShopifyReturnBestEffort(
       admin(),
-      { id: "rc-4", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc-4",
+        shopifyReturnId: "gid://shopify/Return/1",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { action: "decline", declineReason: "Outside return window" },
     );
     expect(res.ok).toBe(true);
@@ -482,14 +540,22 @@ describe("closeShopifyReturnBestEffort", () => {
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
         HttpResponse.json({
           data: { returnClose: { return: { id: "gid://1", status: "CLOSED" }, userErrors: [] } },
-        })
+        }),
       ),
     );
     const logged: Array<{ eventType: string; payloadJson: string }> = [];
     await closeShopifyReturnBestEffort(
       admin(),
-      { id: "rc-5", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
-      { logEvent: async (evt) => { logged.push(evt); } },
+      {
+        id: "rc-5",
+        shopifyReturnId: "gid://shopify/Return/1",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
+      {
+        logEvent: async (evt) => {
+          logged.push(evt);
+        },
+      },
     );
     expect(logged[0].eventType).toBe("shopify_return_closed");
   });
@@ -499,14 +565,22 @@ describe("closeShopifyReturnBestEffort", () => {
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
         HttpResponse.json({
           data: { returnClose: { return: null, userErrors: [{ message: "forbidden" }] } },
-        })
+        }),
       ),
     );
     const logged: Array<{ eventType: string; payloadJson: string }> = [];
     const res = await closeShopifyReturnBestEffort(
       admin(),
-      { id: "rc-6", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
-      { logEvent: async (evt) => { logged.push(evt); } },
+      {
+        id: "rc-6",
+        shopifyReturnId: "gid://shopify/Return/1",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
+      {
+        logEvent: async (evt) => {
+          logged.push(evt);
+        },
+      },
     );
     expect(res.ok).toBe(false);
     expect(logged[0].eventType).toBe("shopify_return_close_failed");
@@ -517,13 +591,21 @@ describe("closeShopifyReturnBestEffort", () => {
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
         HttpResponse.json({
           data: { returnClose: { return: { id: "gid://1", status: "CLOSED" }, userErrors: [] } },
-        })
+        }),
       ),
     );
     const res = await closeShopifyReturnBestEffort(
       admin(),
-      { id: "rc-7", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
-      { logEvent: async () => { throw new Error("log infra down"); } },
+      {
+        id: "rc-7",
+        shopifyReturnId: "gid://shopify/Return/1",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
+      {
+        logEvent: async () => {
+          throw new Error("log infra down");
+        },
+      },
     );
     // logEvent errors are caught with .catch(() => {}) so the main call succeeds.
     expect(res.ok).toBe(true);
@@ -557,7 +639,7 @@ describe("fetchOrderByGid", () => {
               customAttributes: [],
             },
           },
-        })
+        }),
       ),
     );
     const result = await fetchOrderByGid(admin(), "gid://shopify/Order/1001");
@@ -568,7 +650,7 @@ describe("fetchOrderByGid", () => {
   it("returns null when orderByIdentifier is null (order missing)", async () => {
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, () =>
-        HttpResponse.json({ data: { orderByIdentifier: null } })
+        HttpResponse.json({ data: { orderByIdentifier: null } }),
       ),
     );
     expect(await fetchOrderByGid(admin(), "gid://shopify/Order/999")).toBe(null);
@@ -580,12 +662,12 @@ describe("fetchOrderByGid", () => {
         HttpResponse.json({
           errors: [{ message: "Your app is not approved to access the Order object" }],
           data: { orderByIdentifier: null },
-        })
+        }),
       ),
     );
-    await expect(
-      fetchOrderByGid(admin(), "gid://shopify/Order/1001"),
-    ).rejects.toBeInstanceOf(OrderAccessError);
+    await expect(fetchOrderByGid(admin(), "gid://shopify/Order/1001")).rejects.toBeInstanceOf(
+      OrderAccessError,
+    );
   });
 
   it("returns null for unrelated GraphQL errors (not PCDA)", async () => {
@@ -594,7 +676,7 @@ describe("fetchOrderByGid", () => {
         HttpResponse.json({
           errors: [{ message: "Field 'xyz' doesn't exist" }],
           data: null,
-        })
+        }),
       ),
     );
     expect(await fetchOrderByGid(admin(), "gid://shopify/Order/1")).toBe(null);
@@ -629,7 +711,10 @@ describe("createRefund", () => {
         if (body.includes("query suggestRefund") || body.includes("query locations")) {
           // Permissive stub for any auxiliary lookup.
           return HttpResponse.json({
-            data: { order: { suggestedRefund: { suggestedTransactions: [] } }, locations: { edges: [] } },
+            data: {
+              order: { suggestedRefund: { suggestedTransactions: [] } },
+              locations: { edges: [] },
+            },
           });
         }
         return HttpResponse.json({
@@ -665,15 +750,21 @@ describe("createRefund", () => {
   });
 
   it("accepts string-only lineItems (legacy API shape)", async () => {
-    let receivedInput: { refundLineItems?: Array<{ lineItemId?: string; quantity?: number }> } | undefined;
+    let receivedInput:
+      | { refundLineItems?: Array<{ lineItemId?: string; quantity?: number }> }
+      | undefined;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        const body = (await request.json()) as { variables?: { input?: typeof receivedInput } };
         receivedInput = body.variables?.input;
         return HttpResponse.json({
           data: {
             refundCreate: {
-              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } },
+              },
               userErrors: [],
             },
           },
@@ -702,7 +793,7 @@ describe("createRefund", () => {
               userErrors: [{ message: "Cannot refund more than paid" }],
             },
           },
-        })
+        }),
       ),
     );
     const res = await createRefund(
@@ -723,7 +814,7 @@ describe("createRefund", () => {
         HttpResponse.json({
           errors: [{ message: "Order frozen" }],
           data: null,
-        })
+        }),
       ),
     );
     const res = await createRefund(
@@ -757,7 +848,7 @@ describe("createRefund", () => {
               userErrors: [],
             },
           },
-        })
+        }),
       ),
     );
     const res = await createRefund(
@@ -776,12 +867,16 @@ describe("createRefund", () => {
     let receivedNote = "";
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { input?: { note?: string } } };
+        const body = (await request.json()) as { variables?: { input?: { note?: string } } };
         receivedNote = body.variables?.input?.note ?? "";
         return HttpResponse.json({
           data: {
             refundCreate: {
-              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } },
+              },
               userErrors: [],
             },
           },
@@ -796,14 +891,18 @@ describe("createRefund", () => {
     let receivedRestockType = "";
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as {
+        const body = (await request.json()) as {
           variables?: { input?: { refundLineItems?: Array<{ restockType?: string }> } };
         };
         receivedRestockType = body.variables?.input?.refundLineItems?.[0]?.restockType ?? "";
         return HttpResponse.json({
           data: {
             refundCreate: {
-              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } },
+              },
               userErrors: [],
             },
           },
@@ -823,15 +922,21 @@ describe("createRefund", () => {
   });
 
   it("sets restockType to RETURN by default (with locationId)", async () => {
-    let receivedInput: { refundLineItems?: Array<{ restockType?: string; locationId?: string }> } | undefined;
+    let receivedInput:
+      | { refundLineItems?: Array<{ restockType?: string; locationId?: string }> }
+      | undefined;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        const body = (await request.json()) as { variables?: { input?: typeof receivedInput } };
         receivedInput = body.variables?.input;
         return HttpResponse.json({
           data: {
             refundCreate: {
-              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } },
+              },
               userErrors: [],
             },
           },
@@ -864,7 +969,15 @@ describe("createRefund", () => {
           return HttpResponse.json({
             data: {
               locations: {
-                nodes: [{ id: "gid://shopify/Location/1", name: "Warehouse", isActive: true, fulfillsOnlineOrders: true, isFulfillmentService: false }],
+                nodes: [
+                  {
+                    id: "gid://shopify/Location/1",
+                    name: "Warehouse",
+                    isActive: true,
+                    fulfillsOnlineOrders: true,
+                    isFulfillmentService: false,
+                  },
+                ],
               },
             },
           });
@@ -873,7 +986,11 @@ describe("createRefund", () => {
         return HttpResponse.json({
           data: {
             refundCreate: {
-              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } },
+              },
               userErrors: [],
             },
           },
@@ -897,19 +1014,25 @@ describe("createRefund", () => {
     let receivedOrderId = "";
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { input?: { orderId?: string } } };
+        const body = (await request.json()) as { variables?: { input?: { orderId?: string } } };
         receivedOrderId = body.variables?.input?.orderId ?? "";
         return HttpResponse.json({
           data: {
             refundCreate: {
-              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } },
+              },
               userErrors: [],
             },
           },
         });
       }),
     );
-    await createRefund(admin(), "1001", lineItems, undefined, "gid://loc/1", { method: "original" });
+    await createRefund(admin(), "1001", lineItems, undefined, "gid://loc/1", {
+      method: "original",
+    });
     expect(receivedOrderId).toBe("gid://shopify/Order/1001");
   });
 
@@ -917,12 +1040,16 @@ describe("createRefund", () => {
     let receivedInput: { refundLineItems?: Array<{ lineItemId?: string }> } | undefined;
     server.use(
       http.post(TEST_SHOPIFY_GRAPHQL_URL, async ({ request }) => {
-        const body = await request.json() as { variables?: { input?: typeof receivedInput } };
+        const body = (await request.json()) as { variables?: { input?: typeof receivedInput } };
         receivedInput = body.variables?.input;
         return HttpResponse.json({
           data: {
             refundCreate: {
-              refund: { id: "gid://1", createdAt: "x", totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } } },
+              refund: {
+                id: "gid://1",
+                createdAt: "x",
+                totalRefundedSet: { shopMoney: { amount: "1", currencyCode: "USD" } },
+              },
               userErrors: [],
             },
           },

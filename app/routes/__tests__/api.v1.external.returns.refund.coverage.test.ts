@@ -104,7 +104,9 @@ function happyAuth() {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
   dispatchWebhookEventMock.mockClear();
   createRefundMock.mockReset();
@@ -134,35 +136,39 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce(null);
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r1", refundAmount: "10.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r1",
+      refundAmount: "10.00",
+      refundCurrency: "USD",
     });
-    const res = await action({ request: mkReq("POST", undefined, "not-json{"), params: { id: "rc-1" }, context: {} } as never);
+    const res = await action({
+      request: mkReq("POST", undefined, "not-json{"),
+      params: { id: "rc-1" },
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     // No method in body, no setting → "original" default
     expect(body.data.refundDetails.method).toBe("original");
   });
 
-  it.each([
-    ["bogus"],
-    ["partial"],
-    ["cash"],
-    ["DISCOUNT_CODE"],
-    [""],
-  ])("rejects invalid refundMethod %s with 400 BAD_REQUEST", async (method) => {
-    happyAuth();
-    const res = await action({
-      request: mkReq("POST", { refundMethod: method }),
-      params: { id: "rc-1" },
-      context: {},
-    } as never);
-    expect(res.status).toBe(400);
-    const body = await res.json();
-    expect(body.error.code).toBe("BAD_REQUEST");
-    expect(body.error.message).toMatch(/Invalid refundMethod/);
-    // Validation failure must short-circuit before DB.
-    expect(prismaMock.returnCase.findFirst).not.toHaveBeenCalled();
-  });
+  it.each([["bogus"], ["partial"], ["cash"], ["DISCOUNT_CODE"], [""]])(
+    "rejects invalid refundMethod %s with 400 BAD_REQUEST",
+    async (method) => {
+      happyAuth();
+      const res = await action({
+        request: mkReq("POST", { refundMethod: method }),
+        params: { id: "rc-1" },
+        context: {},
+      } as never);
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error.code).toBe("BAD_REQUEST");
+      expect(body.error.message).toMatch(/Invalid refundMethod/);
+      // Validation failure must short-circuit before DB.
+      expect(prismaMock.returnCase.findFirst).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([["original"], ["store_credit"], ["both"]])(
     "accepts whitelisted refundMethod %s and forwards it to createRefund",
@@ -172,7 +178,10 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
       prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
       prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
       createRefundMock.mockResolvedValueOnce({
-        success: true, refundId: "r-x", refundAmount: "1.00", refundCurrency: "USD",
+        success: true,
+        refundId: "r-x",
+        refundAmount: "1.00",
+        refundCurrency: "USD",
       });
 
       const res = await action({
@@ -195,10 +204,15 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
   it("body refundMethod overrides shopSettings.refundPaymentMethod", async () => {
     happyAuth();
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn());
-    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "store_credit" });
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
+      refundPaymentMethod: "store_credit",
+    });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "5.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "5.00",
+      refundCurrency: "USD",
     });
 
     const res = await action({
@@ -220,7 +234,10 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
     });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "1.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "1.00",
+      refundCurrency: "USD",
     });
 
     const res = await action({
@@ -248,7 +265,10 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
     });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "1.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "1.00",
+      refundCurrency: "USD",
     });
 
     const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -271,10 +291,17 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "1.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "1.00",
+      refundCurrency: "USD",
     });
 
-    await action({ request: mkReq("POST", { note: "hi" }), params: { id: "rc-1" }, context: {} } as never);
+    await action({
+      request: mkReq("POST", { note: "hi" }),
+      params: { id: "rc-1" },
+      context: {},
+    } as never);
     expect(createRefundMock).toHaveBeenCalledWith(
       expect.anything(),
       "gid://shopify/Order/123",
@@ -294,7 +321,10 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "freshest-token" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "1.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "1.00",
+      refundCurrency: "USD",
     });
 
     await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -313,7 +343,10 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
       prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
       prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
       createRefundMock.mockResolvedValueOnce({
-        success: true, refundId: "r", refundAmount: "1.00", refundCurrency: "USD",
+        success: true,
+        refundId: "r",
+        refundAmount: "1.00",
+        refundCurrency: "USD",
       });
 
       const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -329,7 +362,9 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "20.00",
+      success: true,
+      refundId: "r",
+      refundAmount: "20.00",
       // refundCurrency intentionally omitted
     });
 
@@ -356,7 +391,10 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "9.99", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "9.99",
+      refundCurrency: "USD",
     });
 
     // Simulate close handler invoking logEvent with a failing prisma create.
@@ -394,10 +432,15 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
   it("emits a return.refunded event row with method + apiKeyId in payloadJson", async () => {
     happyAuth();
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn());
-    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "store_credit" });
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
+      refundPaymentMethod: "store_credit",
+    });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "r", refundAmount: "3.00", refundCurrency: "USD",
+      success: true,
+      refundId: "r",
+      refundAmount: "3.00",
+      refundCurrency: "USD",
     });
 
     await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -407,7 +450,8 @@ describe("api.v1.external.returns.$id.refund — extra coverage", () => {
         (call[0] as { data?: { eventType?: string } })?.data?.eventType === "refunded",
     );
     expect(refundedCall).toBeTruthy();
-    const data = (refundedCall as unknown as [{ data: { source: string; payloadJson: string } }])[0].data;
+    const data = (refundedCall as unknown as [{ data: { source: string; payloadJson: string } }])[0]
+      .data;
     expect(data.source).toBe("external_api");
     expect(JSON.parse(data.payloadJson)).toEqual({ method: "store_credit", apiKeyId: "k-1" });
   });

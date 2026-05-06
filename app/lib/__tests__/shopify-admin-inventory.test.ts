@@ -23,7 +23,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -32,7 +32,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -211,7 +211,11 @@ describe("fetchVariantInfo — edge cases", () => {
               sku: null,
               inventoryItem: { tracked: false },
               price: "5.00",
-              product: { id: "gid://shopify/Product/3", title: "Cap", featuredImage: { url: "http://img/cap.png" } },
+              product: {
+                id: "gid://shopify/Product/3",
+                title: "Cap",
+                featuredImage: { url: "http://img/cap.png" },
+              },
             },
           ],
         },
@@ -234,7 +238,11 @@ describe("sendDraftOrderInvoice — edge cases", () => {
       {
         data: {
           draftOrderInvoiceSend: {
-            draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", invoiceUrl: "http://inv/1" },
+            draftOrder: {
+              id: "gid://shopify/DraftOrder/1",
+              name: "D1",
+              invoiceUrl: "http://inv/1",
+            },
             userErrors: [],
           },
         },
@@ -245,7 +253,7 @@ describe("sendDraftOrderInvoice — edge cases", () => {
       "gid://shopify/DraftOrder/1",
       "buyer@example.com",
       "Custom subject",
-      "Custom body"
+      "Custom body",
     );
     expect(r.success).toBe(true);
     expect(r.invoiceUrl).toBe("http://inv/1");
@@ -357,10 +365,10 @@ describe("fetchOrderByOrderNumber — error catch paths", () => {
       // exercise REST 'try' block error catch (line 623) by making the REST
       // call throw.
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 })
+        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 }),
       )
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 })
+        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 }),
       )
       // REST attempt (#X) throws
       .mockRejectedValueOnce(new Error("dns failure"))
@@ -480,7 +488,7 @@ describe("createRefund — 'original' method with zero refundable + suggested tx
       admin,
       "5000",
       [{ id: "gid://shopify/LineItem/1", quantity: 1 }],
-      "Test note"
+      "Test note",
     );
     expect(r.success).toBe(true);
     expect(r.refundId).toBe("gid://shopify/Refund/77");
@@ -617,7 +625,13 @@ describe("createShopifyReturn — SKU + open-return decrement paths", () => {
       },
     ]);
     const r = await createShopifyReturn(admin, "1", [
-      { shopifyLineItemId: "gid://shopify/LineItem/B", qty: 4, sku: "SKU-B", reasonCode: "OTHER", notes: "x" },
+      {
+        shopifyLineItemId: "gid://shopify/LineItem/B",
+        qty: 4,
+        sku: "SKU-B",
+        reasonCode: "OTHER",
+        notes: "x",
+      },
     ]);
     expect(r.success).toBe(true);
   });

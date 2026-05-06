@@ -372,7 +372,10 @@ describe("app.returns.$id — action-button visibility per status", () => {
         fyndShipmentId: "FYND-SHIP-99",
         fyndReturnId: "FYND-RET-99",
         fyndCurrentStatus: "return_initiated",
-        fyndPayloadJson: JSON.stringify({ shipment_status: "return_initiated", id: "FYND-SHIP-99" }),
+        fyndPayloadJson: JSON.stringify({
+          shipment_status: "return_initiated",
+          id: "FYND-SHIP-99",
+        }),
       },
       {
         fyndCurrentStatus: "return_initiated",

@@ -42,14 +42,20 @@ beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   findOrCreateShopMock.mockReset();
-  parseJsonArrayMock.mockReset().mockImplementation((_s: string | null, fallback: unknown[]) => fallback);
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((_s: string | null, fallback: unknown[]) => fallback);
   parseJsonObjectMock.mockReset().mockReturnValue({});
 });
 
 describe("loader", () => {
   it("returns defaults when shop has no settings", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.returnWindowDays).toBe(30);
     expect(data.minimumReturnPrice).toBe("0");
     expect(data.returnOffersEnabled).toBe(false);
@@ -67,12 +73,16 @@ describe("loader", () => {
       },
     });
     parseJsonArrayMock.mockReturnValueOnce(["a", "b"]); // reasons
-    parseJsonArrayMock.mockReturnValueOnce([]);          // regions
-    parseJsonArrayMock.mockReturnValueOnce([]);          // offers
+    parseJsonArrayMock.mockReturnValueOnce([]); // regions
+    parseJsonArrayMock.mockReturnValueOnce([]); // offers
     parseJsonObjectMock.mockReturnValueOnce({ apparel: ["too tight"] });
-    parseJsonArrayMock.mockReturnValueOnce([]);          // fees
-    parseJsonArrayMock.mockReturnValueOnce([]);          // windows
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    parseJsonArrayMock.mockReturnValueOnce([]); // fees
+    parseJsonArrayMock.mockReturnValueOnce([]); // windows
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.returnWindowDays).toBe(14);
     expect(data.minimumReturnPrice).toBe("9.99");
     expect(data.returnReasons).toEqual(["a", "b"]);
@@ -89,7 +99,11 @@ describe("loader", () => {
     });
     parseJsonArrayMock.mockReturnValue([]);
     parseJsonObjectMock.mockReturnValueOnce({ x: "not-array", y: ["ok"] });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.returnReasonsByCategory).toHaveLength(2);
     // entry x → reasons becomes [] (Array.isArray fallback)
     expect(data.returnReasonsByCategory.find((c) => c.category === "x")?.reasons).toEqual([]);
@@ -102,7 +116,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ returnWindowDays: "10000" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const arg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(arg.update.returnWindowDays).toBe(365);
@@ -111,7 +126,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ returnWindowDays: "0" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const arg2 = prismaMock.shopSettings.upsert.mock.calls[0][0];
     // parseInt("0",10) is 0 which is falsy; the `|| 30` fallback engages,
@@ -123,7 +139,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ returnWindowDays: "abc" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const arg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(arg.update.returnWindowDays).toBe(30);
@@ -133,7 +150,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ minimumReturnPrice: "-5" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(prismaMock.shopSettings.upsert.mock.calls[0][0].update.minimumReturnPrice).toBe(0);
 
@@ -141,7 +159,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ minimumReturnPrice: "abc" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(prismaMock.shopSettings.upsert.mock.calls[0][0].update.minimumReturnPrice).toBe(0);
   });
@@ -150,7 +169,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ returnOffersEnabled: "on" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(prismaMock.shopSettings.upsert.mock.calls[0][0].update.returnOffersEnabled).toBe(true);
   });
@@ -165,7 +185,8 @@ describe("action", () => {
         feesByReasonJson: "}",
         windowsByCountryJson: "[unparseable",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const update = prismaMock.shopSettings.upsert.mock.calls[0][0].update;
     expect(update.returnReasonsJson).toBeUndefined();
@@ -182,7 +203,8 @@ describe("action", () => {
         returnReasonsJson: JSON.stringify({ wrong: "shape" }),
         restrictedRegionsJson: JSON.stringify("string"),
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const update = prismaMock.shopSettings.upsert.mock.calls[0][0].update;
     expect(update.returnReasonsJson).toBeUndefined();
@@ -196,7 +218,8 @@ describe("action", () => {
         returnReasonsJson: JSON.stringify(["damaged", "wrong size"]),
         returnOffersJson: JSON.stringify([{ offerType: "discount_pct", offerValue: 10 }]),
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const update = prismaMock.shopSettings.upsert.mock.calls[0][0].update;
     expect(JSON.parse(update.returnReasonsJson)).toEqual(["damaged", "wrong size"]);
@@ -209,7 +232,8 @@ describe("action", () => {
       request: formReq({
         returnReasonsByCategoryJson: JSON.stringify(["should-be-object"]),
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const update = prismaMock.shopSettings.upsert.mock.calls[0][0].update;
     expect(update.returnReasonsByCategoryJson).toBeUndefined();
@@ -220,7 +244,8 @@ describe("action", () => {
       request: formReq({
         returnReasonsByCategoryJson: JSON.stringify({ apparel: ["x"] }),
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const update2 = prismaMock.shopSettings.upsert.mock.calls[0][0].update;
     expect(JSON.parse(update2.returnReasonsByCategoryJson)).toEqual({ apparel: ["x"] });
@@ -231,7 +256,8 @@ describe("action", () => {
     prismaMock.shopSettings.upsert.mockRejectedValueOnce(new Error("DB out"));
     const res = await action({
       request: formReq({}),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: false, error: "DB out" });
   });

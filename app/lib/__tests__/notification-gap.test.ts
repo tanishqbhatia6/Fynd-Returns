@@ -25,23 +25,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /* ── Mocks ────────────────────────────────────────────────────────── */
 
-const { prismaMock, sendMailMock, verifyMock, createTransportMock, decryptMock, loggerMock } = vi.hoisted(() => {
-  const sendMail = vi.fn();
-  const verify = vi.fn();
-  const createTransport = vi.fn(() => ({ sendMail, verify }));
-  const decrypt = vi.fn((v: string | null | undefined) => v ?? null);
-  return {
-    sendMailMock: sendMail,
-    verifyMock: verify,
-    createTransportMock: createTransport,
-    decryptMock: decrypt,
-    loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    prismaMock: {
-      shop: { findUnique: vi.fn() },
-      notificationLog: { create: vi.fn().mockResolvedValue({}) },
-    },
-  };
-});
+const { prismaMock, sendMailMock, verifyMock, createTransportMock, decryptMock, loggerMock } =
+  vi.hoisted(() => {
+    const sendMail = vi.fn();
+    const verify = vi.fn();
+    const createTransport = vi.fn(() => ({ sendMail, verify }));
+    const decrypt = vi.fn((v: string | null | undefined) => v ?? null);
+    return {
+      sendMailMock: sendMail,
+      verifyMock: verify,
+      createTransportMock: createTransport,
+      decryptMock: decrypt,
+      loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      prismaMock: {
+        shop: { findUnique: vi.fn() },
+        notificationLog: { create: vi.fn().mockResolvedValue({}) },
+      },
+    };
+  });
 
 vi.mock("nodemailer", () => ({
   default: { createTransport: createTransportMock },
@@ -112,7 +113,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -237,7 +238,9 @@ describe("getSmtpConfig — SMTP password decryption", () => {
       expect.stringMatching(/decryption returned null/i),
     );
     // pass should be empty in transport config
-    const transportCfg = (createTransportMock.mock.calls as unknown as unknown[][])[0][0] as { auth: { pass: string } };
+    const transportCfg = (createTransportMock.mock.calls as unknown as unknown[][])[0][0] as {
+      auth: { pass: string };
+    };
     expect(transportCfg.auth.pass).toBe("");
   });
 });
@@ -399,14 +402,16 @@ describe("sendRejectionNotification — gap", () => {
   });
 
   it("uses custom rejected template when configured", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: JSON.stringify({
-        rejected: {
-          subject: "REJECTED {{orderName}}",
-          bodyHtml: "<p>Reason: {{rejectionReason}} (id={{returnId}})</p>",
-        },
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: JSON.stringify({
+          rejected: {
+            subject: "REJECTED {{orderName}}",
+            bodyHtml: "<p>Reason: {{rejectionReason}} (id={{returnId}})</p>",
+          },
+        }),
       }),
-    }));
+    );
     sendMailMock.mockResolvedValue({});
 
     await sendRejectionNotification({ ...baseParams, returnId: "RPM-R1" });
@@ -523,14 +528,16 @@ describe("sendCancellationNotification — gap", () => {
   });
 
   it("uses custom cancelled template when configured", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: JSON.stringify({
-        cancelled: {
-          subject: "CANCELLED {{orderName}}",
-          bodyHtml: "<p>Hi {{customerEmail}} — return {{returnId}}</p>",
-        },
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: JSON.stringify({
+          cancelled: {
+            subject: "CANCELLED {{orderName}}",
+            bodyHtml: "<p>Hi {{customerEmail}} — return {{returnId}}</p>",
+          },
+        }),
       }),
-    }));
+    );
     sendMailMock.mockResolvedValue({});
 
     await sendCancellationNotification({
@@ -591,14 +598,16 @@ describe("sendCancellationDeclinedNotification — gap", () => {
   });
 
   it("uses custom cancellation_declined template when configured", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: JSON.stringify({
-        cancellation_declined: {
-          subject: "DECLINED {{orderName}}",
-          bodyHtml: "<p>Return {{returnId}} cannot be cancelled</p>",
-        },
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: JSON.stringify({
+          cancellation_declined: {
+            subject: "DECLINED {{orderName}}",
+            bodyHtml: "<p>Return {{returnId}} cannot be cancelled</p>",
+          },
+        }),
       }),
-    }));
+    );
     sendMailMock.mockResolvedValue({});
 
     await sendCancellationDeclinedNotification({

@@ -8,7 +8,10 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 const { prismaMock, authenticateMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -47,13 +50,21 @@ describe("POST /api/admin/backfill-fynd-items", () => {
   });
 
   it("400 when settings missing", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: null });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: null,
+    });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when Fynd client construction fails", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "no creds" });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(400);
@@ -62,14 +73,27 @@ describe("POST /api/admin/backfill-fynd-items", () => {
   });
 
   it("400 when client is storefront-only", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { /* no getShipments */ } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: {
+        /* no getShipments */
+      },
+    });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(400);
   });
 
   it("returns empty results when no eligible cases", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },
@@ -83,31 +107,51 @@ describe("POST /api/admin/backfill-fynd-items", () => {
   });
 
   it("scopes by returnCaseId when supplied", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
-    await action({ request: mkReq({ returnCaseId: "rc-target" }), params: {}, context: {} } as never);
-    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ id: "rc-target", shopId: "shop-1" }),
-    }));
+    await action({
+      request: mkReq({ returnCaseId: "rc-target" }),
+      params: {},
+      context: {},
+    } as never);
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ id: "rc-target", shopId: "shop-1" }),
+      }),
+    );
   });
 
   it("clamps limit to max 200", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     await action({ request: mkReq({ limit: 5000 }), params: {}, context: {} } as never);
-    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 200 }));
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 200 }),
+    );
   });
 
   it("tolerates malformed JSON body", async () => {
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x",
+      settings: { fyndApiType: "platform" },
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null) },

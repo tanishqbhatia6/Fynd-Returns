@@ -3,10 +3,7 @@ import { readFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import prisma from "../db.server";
-import {
-  parsePortalTheme,
-  applyPortalThemeToHtml,
-} from "../lib/portal-theme.server";
+import { parsePortalTheme, applyPortalThemeToHtml } from "../lib/portal-theme.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
 import { getPortalLabels } from "../lib/portal-i18n";
 
@@ -16,7 +13,8 @@ function getPortalTemplate(): string {
   /* v8 ignore start */
   // defensive: cache+env+__dirname branches all environment-dependent; tests run in non-production
   if (cachedTemplate && process.env.NODE_ENV === "production") return cachedTemplate;
-  const dir = typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
+  const dir =
+    typeof __dirname !== "undefined" ? __dirname : dirname(fileURLToPath(import.meta.url));
   /* v8 ignore stop */
   const paths = [
     join(dir, "..", "portal", "index.html"),
@@ -34,7 +32,12 @@ function getPortalTemplate(): string {
 }
 
 function escapeHtmlAttr(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 function escapeHtmlContent(s: string): string {
@@ -51,9 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // defensive: missing shop param fallback
   const shopParam = url.searchParams.get("shop") || "";
   /* v8 ignore stop */
-  const shopDomain = shopParam.includes(".")
-    ? shopParam
-    : `${shopParam}.myshopify.com`;
+  const shopDomain = shopParam.includes(".") ? shopParam : `${shopParam}.myshopify.com`;
   const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
 
   let theme = parsePortalTheme(null);
@@ -94,16 +95,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopCurrency = shop.settings.shopCurrency ?? "USD";
       shopTimezone = shop.settings.shopTimezone ?? "UTC";
       if (shop.settings.portalLabelsJson) {
-        try { portalLabelOverrides = JSON.parse(shop.settings.portalLabelsJson); } catch { /* ignore */ }
+        try {
+          portalLabelOverrides = JSON.parse(shop.settings.portalLabelsJson);
+        } catch {
+          /* ignore */
+        }
       }
       brandLogoUrl = (shop.settings as { brandLogoUrl?: string | null }).brandLogoUrl ?? null;
-      brandFaviconUrl = (shop.settings as { brandFaviconUrl?: string | null }).brandFaviconUrl ?? null;
+      brandFaviconUrl =
+        (shop.settings as { brandFaviconUrl?: string | null }).brandFaviconUrl ?? null;
       giftReturnsEnabled = shop.settings.giftReturnsEnabled ?? false;
       portalExchangeEnabled = shop.settings.portalExchangeEnabled ?? false;
       greenReturnsEnabled = shop.settings.greenReturnsEnabled ?? false;
       greenReturnsDonateEnabled = shop.settings.greenReturnsDonateEnabled ?? false;
       greenReturnsDonateMessage = shop.settings.greenReturnsDonateMessage ?? "";
-      channelPoliciesJson = (shop.settings as { channelPoliciesJson?: string | null }).channelPoliciesJson ?? "{}";
+      channelPoliciesJson =
+        (shop.settings as { channelPoliciesJson?: string | null }).channelPoliciesJson ?? "{}";
     }
   } catch (err) {
     console.error("Portal theme load error:", err);
@@ -158,12 +165,18 @@ window.__RPM_FEATURES__=${escapeJsonInHtml(JSON.stringify(portalFeatureFlags))};
     .replace("%RETURN_WINDOW%", String(returnWindowDays))
     .replace("%RETURN_POLICY%", escapeHtmlContent(returnPolicyText))
     .replace("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))
-    .replace("%RETURN_REASONS_BY_CATEGORY_JSON%", escapeJsonInHtml(returnReasonsByCategoryJson || "{}"))
+    .replace(
+      "%RETURN_REASONS_BY_CATEGORY_JSON%",
+      escapeJsonInHtml(returnReasonsByCategoryJson || "{}"),
+    )
     .replace("%PORTAL_CONFIG%", escapeJsonInHtml(JSON.stringify(portalConfig)))
     .replace("%BRAND_LOGO_URL%", escapeHtmlAttr(brandLogoUrl ?? ""))
     .replace("<!-- %FAVICON% -->", faviconHtml)
     .replace("</head>", `${i18nScript}\n</head>`)
-    .replace('<html lang="en"', `<html lang="${escapeHtmlAttr(effectiveLocale)}"${isRtl ? ' dir="rtl"' : ''}`);
+    .replace(
+      '<html lang="en"',
+      `<html lang="${escapeHtmlAttr(effectiveLocale)}"${isRtl ? ' dir="rtl"' : ""}`,
+    );
 
   return new Response(portalHtml, {
     headers: { "Content-Type": "text/html" },

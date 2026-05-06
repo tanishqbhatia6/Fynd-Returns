@@ -154,14 +154,21 @@ describe("app.returns._index — coverage closure", () => {
   it("renders fallback for an unparseable createdAt date (catch arm)", async () => {
     const RealDTF = Intl.DateTimeFormat;
     class ThrowingDTF {
-      constructor() { /* no-op */ }
-      format() { throw new RangeError("Invalid time value"); }
-      formatToParts() { throw new RangeError("Invalid time value"); }
-      resolvedOptions() { return { locale: "en" } as Intl.ResolvedDateTimeFormatOptions; }
+      constructor() {
+        /* no-op */
+      }
+      format() {
+        throw new RangeError("Invalid time value");
+      }
+      formatToParts() {
+        throw new RangeError("Invalid time value");
+      }
+      resolvedOptions() {
+        return { locale: "en" } as Intl.ResolvedDateTimeFormatOptions;
+      }
     }
     // Cast through unknown to avoid TS friction with Intl typings.
-    (Intl as unknown as { DateTimeFormat: unknown }).DateTimeFormat =
-      ThrowingDTF as unknown;
+    (Intl as unknown as { DateTimeFormat: unknown }).DateTimeFormat = ThrowingDTF as unknown;
     try {
       const badDate = "ZZZZZZZZZZ-bad";
       const { container } = renderWithRouter(ReturnsList, {
@@ -177,8 +184,7 @@ describe("app.returns._index — coverage closure", () => {
       // Fallback: date = String(d).slice(0, 10) = "ZZZZZZZZZZ", time = "".
       expect(container.textContent).toContain("ZZZZZZZZZZ");
     } finally {
-      (Intl as unknown as { DateTimeFormat: typeof RealDTF }).DateTimeFormat =
-        RealDTF;
+      (Intl as unknown as { DateTimeFormat: typeof RealDTF }).DateTimeFormat = RealDTF;
     }
   });
 
@@ -232,9 +238,7 @@ describe("app.returns._index — coverage closure", () => {
     await waitFor(() => {
       expect(container.querySelector(".returns-pagination")).toBeTruthy();
     });
-    const numbered = Array.from(
-      container.querySelectorAll(".app-pagination-btn"),
-    )
+    const numbered = Array.from(container.querySelectorAll(".app-pagination-btn"))
       .map((b) => b.textContent?.trim() || "")
       .filter((t) => /^\d+$/.test(t));
     // Middle clamp: page=10 → window 7..13 (page-3+i for i=0..6)
@@ -248,8 +252,8 @@ describe("app.returns._index — coverage closure", () => {
 
     // line 630 — click a numbered page button (the active one is fine —
     // it still runs the onClick handler which calls goToPage(p)).
-    const numberedBtns = Array.from(allBtns).filter(
-      (b) => /^\d+$/.test(b.textContent?.trim() || ""),
+    const numberedBtns = Array.from(allBtns).filter((b) =>
+      /^\d+$/.test(b.textContent?.trim() || ""),
     ) as HTMLButtonElement[];
     fireEvent.click(numberedBtns[0]);
     expect(numberedBtns.length).toBe(7);

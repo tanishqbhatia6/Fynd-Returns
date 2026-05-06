@@ -56,7 +56,9 @@ const {
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
-  fetchAllLocationsMock: vi.fn<(...args: unknown[]) => Promise<Array<{ id: string; name: string; isActive: boolean }>>>(async () => []),
+  fetchAllLocationsMock: vi.fn<
+    (...args: unknown[]) => Promise<Array<{ id: string; name: string; isActive: boolean }>>
+  >(async () => []),
   parseReturnIdConfigMock: vi.fn(() => ({ bodyMode: "hash", prefix: "RET" })),
   buildReturnRequestIdMock: vi.fn(() => "RET-ABC123"),
   formatReturnRequestIdMock: vi.fn((id: string) => id),
@@ -67,12 +69,17 @@ const {
   extractFyndJourneyMock: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
   extractCustomerFromFyndPayloadMock: vi.fn<(...args: unknown[]) => unknown>(() => null),
   extractShippingDetailsFromFyndPayloadMock: vi.fn<(...args: unknown[]) => unknown>(() => null),
-  extractAffiliateOrderIdFromFyndPayloadMock: vi.fn<(...args: unknown[]) => string | null>(() => null),
+  extractAffiliateOrderIdFromFyndPayloadMock: vi.fn<(...args: unknown[]) => string | null>(
+    () => null,
+  ),
   isLikelyFyndIdMock: vi.fn<(v?: unknown) => boolean>(() => false),
   buildTrackingUrlFromCourierAndAwbMock: vi.fn<(...args: unknown[]) => string | null>(() => null),
   isFyndPrivateUrlMock: vi.fn<(...args: unknown[]) => boolean>(() => false),
   signFyndUrlMock: vi.fn<(s: unknown, url?: string) => Promise<unknown>>(async () => null),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, reason: "not_configured" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    reason: "not_configured",
+  })),
   refundLoggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -191,7 +198,9 @@ beforeEach(() => {
   buildTrackingUrlFromCourierAndAwbMock.mockReset().mockReturnValue(null);
   isFyndPrivateUrlMock.mockReset().mockReturnValue(false);
   signFyndUrlMock.mockReset().mockResolvedValue(null);
-  createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, reason: "not_configured" });
+  createFyndClientOrErrorMock
+    .mockReset()
+    .mockResolvedValue({ ok: false, reason: "not_configured" });
 });
 
 describe("app.returns.$id loader — deep coverage", () => {
@@ -348,7 +357,8 @@ describe("app.returns.$id loader — deep coverage", () => {
     await runLoader();
     const updates = prismaMock.returnCase.update.mock.calls;
     const awbUpdate = updates.find(
-      (c: unknown[]) => (c[0] as { data?: { forwardAwb?: string } })?.data?.forwardAwb === "AWB-REAL-123",
+      (c: unknown[]) =>
+        (c[0] as { data?: { forwardAwb?: string } })?.data?.forwardAwb === "AWB-REAL-123",
     );
     expect(awbUpdate).toBeTruthy();
   });
@@ -370,7 +380,8 @@ describe("app.returns.$id loader — deep coverage", () => {
     await runLoader();
     const updates = prismaMock.returnCase.update.mock.calls;
     const awbUpdate = updates.find(
-      (c: unknown[]) => (c[0] as { data?: { forwardAwb?: string } })?.data?.forwardAwb === "FYND-INTERNAL-99",
+      (c: unknown[]) =>
+        (c[0] as { data?: { forwardAwb?: string } })?.data?.forwardAwb === "FYND-INTERNAL-99",
     );
     expect(awbUpdate).toBeFalsy();
   });
@@ -423,7 +434,9 @@ describe("app.returns.$id loader — deep coverage", () => {
     const data = await runLoader();
     expect(data.fyndOrderDetailsTab?.shipments).toBeTruthy();
     // Re-parsed final filter retains target + return shipments
-    const ids = (data.fyndOrderDetailsTab?.shipments ?? []).map((s: { shipmentId?: string }) => s.shipmentId);
+    const ids = (data.fyndOrderDetailsTab?.shipments ?? []).map(
+      (s: { shipmentId?: string }) => s.shipmentId,
+    );
     expect(ids).toContain("SHIP-2");
     expect(ids).not.toContain("SHIP-1");
   });
@@ -453,7 +466,10 @@ describe("app.returns.$id loader — deep coverage", () => {
           delivery_partner_details: { display_name: "Delhivery", awb_no: "AWB-RET-XYZ" },
           status: "return_initiated",
           tracking_url: "https://track.example/AWB-RET-XYZ",
-          invoice: { label_url: "https://label.example/x.pdf", invoice_url: "https://inv.example/x.pdf" },
+          invoice: {
+            label_url: "https://label.example/x.pdf",
+            invoice_url: "https://inv.example/x.pdf",
+          },
           meta: {},
         },
       ],
@@ -467,7 +483,9 @@ describe("app.returns.$id loader — deep coverage", () => {
     const data = await runLoader();
     expect(searchShipmentsByExternalOrderIdMock).toHaveBeenCalledWith("1234", expect.any(Object));
     // returnLabelJson should now be merged with rCarrier/rAwb/rTrackingUrl
-    const rl = data.returnCase.returnLabelJson ? JSON.parse(data.returnCase.returnLabelJson as string) : null;
+    const rl = data.returnCase.returnLabelJson
+      ? JSON.parse(data.returnCase.returnLabelJson as string)
+      : null;
     expect(rl?.carrier).toBe("Delhivery");
     expect(rl?.trackingNumber).toBe("AWB-RET-XYZ");
   });
@@ -582,7 +600,9 @@ describe("app.returns.$id loader — deep coverage", () => {
       }),
     );
     parseFyndOrderDetailsForTabMock.mockReturnValue({
-      shipments: [{ shipmentId: "SHIP-A", journeyType: "forward", cpName: "BD", shipmentStatus: "delivered" }],
+      shipments: [
+        { shipmentId: "SHIP-A", journeyType: "forward", cpName: "BD", shipmentStatus: "delivered" },
+      ],
     });
 
     await runLoader();
@@ -616,14 +636,23 @@ describe("app.returns.$id loader — deep coverage", () => {
       }),
     );
     parseFyndOrderDetailsForTabMock.mockReturnValue({
-      shipments: [{ shipmentId: "S1", journeyType: "forward", forwardAwb: "REAL-AWB", cpName: "X", shipmentStatus: "y" }],
+      shipments: [
+        {
+          shipmentId: "S1",
+          journeyType: "forward",
+          forwardAwb: "REAL-AWB",
+          cpName: "X",
+          shipmentStatus: "y",
+        },
+      ],
     });
     isLikelyFyndIdMock.mockReturnValue(false);
 
     await runLoader();
     const updateCalls = prismaMock.returnCase.update.mock.calls;
     const heal = updateCalls.find(
-      (c: unknown[]) => (c[0] as { data?: { fyndSyncStatus?: string } })?.data?.fyndSyncStatus === "synced",
+      (c: unknown[]) =>
+        (c[0] as { data?: { fyndSyncStatus?: string } })?.data?.fyndSyncStatus === "synced",
     );
     expect(heal).toBeTruthy();
   });
@@ -662,7 +691,9 @@ describe("app.returns.$id loader — deep coverage", () => {
     isLikelyFyndIdMock.mockImplementation((v: unknown) => v === "FYND-internal");
 
     const data = await runLoader();
-    const s0 = (data.fyndOrderDetailsTab?.shipments?.[0] ?? null) as { forwardAwb?: string | null } | null;
+    const s0 = (data.fyndOrderDetailsTab?.shipments?.[0] ?? null) as {
+      forwardAwb?: string | null;
+    } | null;
     expect(s0?.forwardAwb).toBeNull();
   });
 
@@ -723,7 +754,9 @@ describe("app.returns.$id loader — deep coverage", () => {
 
     const data = await runLoader();
     expect(data.returnLabelInfo?.signedLabelUrl).toBe("https://signed.example/label?sig=x");
-    expect((data.returnLabelInfo as Record<string, unknown>)?.signedInvoiceUrl).toBe("https://signed.example/inv?sig=y");
+    expect((data.returnLabelInfo as Record<string, unknown>)?.signedInvoiceUrl).toBe(
+      "https://signed.example/inv?sig=y",
+    );
   });
 
   it("does not sign URLs when shopSettings is missing", async () => {
@@ -759,16 +792,21 @@ describe("app.returns.$id loader — deep coverage", () => {
       fyndCredentials: "x",
     });
     parseFyndOrderDetailsForTabMock.mockReturnValue({
-      shipments: [{
-        shipmentId: "S1",
-        journeyType: "forward",
-        invoiceUrl: "https://hdn-1.fynd/inv.pdf",
-        labelUrl: "https://hdn-1.fynd/label.pdf",
-        cpName: "BD", shipmentStatus: "delivered",
-      }],
+      shipments: [
+        {
+          shipmentId: "S1",
+          journeyType: "forward",
+          invoiceUrl: "https://hdn-1.fynd/inv.pdf",
+          labelUrl: "https://hdn-1.fynd/label.pdf",
+          cpName: "BD",
+          shipmentStatus: "delivered",
+        },
+      ],
     });
     isFyndPrivateUrlMock.mockReturnValue(true);
-    signFyndUrlMock.mockImplementation(async (_s: unknown, url?: string) => ({ signedUrl: (url ?? "") + "?sig=ok" }));
+    signFyndUrlMock.mockImplementation(async (_s: unknown, url?: string) => ({
+      signedUrl: (url ?? "") + "?sig=ok",
+    }));
 
     const data = await runLoader();
     const s0 = data.fyndOrderDetailsTab?.shipments?.[0] as Record<string, unknown> | undefined;
@@ -815,7 +853,9 @@ describe("app.returns.$id loader — deep coverage", () => {
     );
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ id: "set-1", shopId: "shop-1" });
     prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({
-      id: "bl-1", type: "email", value: "bad@example.com",
+      id: "bl-1",
+      type: "email",
+      value: "bad@example.com",
     });
 
     const data = await runLoader();
@@ -837,7 +877,11 @@ describe("app.returns.$id loader — deep coverage", () => {
   it("returns blocklist=false when there are no checks (no email + no phone)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "set-1" } });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(
-      makeReturnCase({ shopifyOrderId: "manual:x", customerEmailNorm: null, customerPhoneNorm: null }),
+      makeReturnCase({
+        shopifyOrderId: "manual:x",
+        customerEmailNorm: null,
+        customerPhoneNorm: null,
+      }),
     );
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ id: "set-1", shopId: "shop-1" });
 
@@ -921,7 +965,9 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({ shopifyOrderId: "manual:x", orderProcessedAt: tenDaysAgo }),
     );
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
-      id: "set-1", shopId: "shop-1", returnWindowDays: 30,
+      id: "set-1",
+      shopId: "shop-1",
+      returnWindowDays: 30,
     });
 
     const data = await runLoader();
@@ -961,7 +1007,9 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({ shopifyOrderId: "manual:x", currency: null }),
     );
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
-      id: "set-1", shopId: "shop-1", shopCurrency: "GBP",
+      id: "set-1",
+      shopId: "shop-1",
+      shopCurrency: "GBP",
     });
 
     const data = await runLoader();
@@ -1061,7 +1109,15 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({ shopifyOrderId: "manual:x", fyndPayloadJson: '{"shipments":[]}' }),
     );
     parseFyndOrderDetailsForTabMock.mockReturnValue({
-      shipments: [{ shipmentId: "S1", journeyType: "forward", forwardAwb: "REAL-AWB-1", cpName: "X", shipmentStatus: "Y" }],
+      shipments: [
+        {
+          shipmentId: "S1",
+          journeyType: "forward",
+          forwardAwb: "REAL-AWB-1",
+          cpName: "X",
+          shipmentStatus: "Y",
+        },
+      ],
     });
     isLikelyFyndIdMock.mockReturnValue(false);
 
@@ -1085,7 +1141,9 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({ shopifyOrderId: "manual:x", fyndPayloadJson: '{"shipments":[]}' }),
     );
     getPickupAddressFromFyndPayloadMock.mockReturnValueOnce({ city: "Pune", country: "IN" });
-    extractFyndJourneyMock.mockReturnValueOnce([{ status: "return_initiated", date: "2024-01-01" }]);
+    extractFyndJourneyMock.mockReturnValueOnce([
+      { status: "return_initiated", date: "2024-01-01" },
+    ]);
 
     const data = await runLoader();
     expect(data.pickupAddress).toEqual({ city: "Pune", country: "IN" });

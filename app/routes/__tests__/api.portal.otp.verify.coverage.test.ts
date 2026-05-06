@@ -59,7 +59,9 @@ function mkValidSession(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   createPortalTokenMock.mockClear();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
 });
 
 describe("api.portal.otp.verify — bcrypt vs SHA-256 legacy detection", () => {
@@ -132,11 +134,7 @@ describe("api.portal.otp.verify — bcrypt vs SHA-256 legacy detection", () => {
   it("uppercase 64-char hex still detected as legacy SHA-256", async () => {
     // Regex is /i so uppercase hex must also match the legacy branch.
     const otp = "aabbcc";
-    const legacyHash = crypto
-      .createHash("sha256")
-      .update(otp)
-      .digest("hex")
-      .toUpperCase();
+    const legacyHash = crypto.createHash("sha256").update(otp).digest("hex").toUpperCase();
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
       mkValidSession({ otpTarget: legacyHash }),
     );
@@ -295,9 +293,7 @@ describe("api.portal.otp.verify — verifiedAt write on success", () => {
   it("writes verifiedAt as a Date close to now on bcrypt success", async () => {
     const otp = "112233";
     const hash = await bcrypt.hash(otp, 4);
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkValidSession({ otpTarget: hash }),
-    );
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkValidSession({ otpTarget: hash }));
     prismaMock.lookupSession.findMany.mockResolvedValueOnce([]);
 
     const before = Date.now();
@@ -323,9 +319,7 @@ describe("api.portal.otp.verify — verifiedAt write on success", () => {
   it("writes portalToken AND clears otpTarget atomically on success", async () => {
     const otp = "445566";
     const hash = await bcrypt.hash(otp, 4);
-    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(
-      mkValidSession({ otpTarget: hash }),
-    );
+    prismaMock.lookupSession.findUnique.mockResolvedValueOnce(mkValidSession({ otpTarget: hash }));
     prismaMock.lookupSession.findMany.mockResolvedValueOnce([]);
 
     const res = await action({

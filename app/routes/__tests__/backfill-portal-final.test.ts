@@ -49,19 +49,26 @@ const {
     },
   },
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 5, retryAfterMs: 0 })),
   verifyPortalCsrfMock: vi.fn(() => true),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
   evaluateAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown>(() => "approve"),
   parseAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown[]>(() => [] as unknown[]),
   createReturnOnFyndMock: vi.fn(),
   sendNewReturnNotificationMock: vi.fn().mockResolvedValue(undefined),
-  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(() => ({ eligible: true })),
+  checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(
+    () => ({ eligible: true }),
+  ),
   buildReturnRequestIdMock: vi.fn(() => "R-1001"),
   parseReturnIdConfigMock: vi.fn(() => ({ bodyMode: "id" })),
   formatReturnRequestIdMock: vi.fn((x: string) => `R-${x}`),
@@ -176,7 +183,14 @@ function happyBody(extra: Record<string, unknown> = {}) {
     customerEmail: "shopper@example.com",
     items: [{ lineItemId: "gid://shopify/LineItem/100", qty: 1, reasonCode: "size" }],
     lineItemsWithPrice: [
-      { id: "gid://shopify/LineItem/100", title: "Tee", price: "25.00", quantity: 1, productTags: ["sale"], sku: "TEE-1" },
+      {
+        id: "gid://shopify/LineItem/100",
+        title: "Tee",
+        price: "25.00",
+        quantity: 1,
+        productTags: ["sale"],
+        sku: "TEE-1",
+      },
     ],
     orderCreatedAt: new Date().toISOString(),
     ...extra,
@@ -186,7 +200,12 @@ function happyBody(extra: Record<string, unknown> = {}) {
 beforeEach(() => {
   process.env = { ...origEnv, PORTAL_CSRF_REQUIRED: "false" };
   resetPrismaMock(prismaMock);
-  const fynd = (prismaMock as unknown as Record<string, { upsert: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> }>).fyndOrderMapping;
+  const fynd = (
+    prismaMock as unknown as Record<
+      string,
+      { upsert: ReturnType<typeof vi.fn>; findFirst: ReturnType<typeof vi.fn> }
+    >
+  ).fyndOrderMapping;
   fynd.upsert.mockReset().mockResolvedValue({});
   fynd.findFirst.mockReset().mockResolvedValue(null);
 
@@ -195,7 +214,9 @@ beforeEach(() => {
 
   shopifyModuleMock.unauthenticated.admin.mockReset();
   shopifyModuleMock.unauthenticated.admin.mockResolvedValue({ admin: { graphql: vi.fn() } });
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   verifyPortalCsrfMock.mockReset().mockReturnValue(true);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderMock.mockReset().mockResolvedValue({
@@ -208,10 +229,14 @@ beforeEach(() => {
   });
   fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
   fetchOrderByFyndAffiliateIdMock.mockReset().mockResolvedValue(null);
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
   evaluateAutoApproveRulesMock.mockReset().mockReturnValue("approve");
   parseAutoApproveRulesMock.mockReset().mockReturnValue([]);
-  createReturnOnFyndMock.mockReset().mockResolvedValue({ success: true, fyndReturnId: "fr-1", fyndShipmentId: "fs-1" });
+  createReturnOnFyndMock
+    .mockReset()
+    .mockResolvedValue({ success: true, fyndReturnId: "fr-1", fyndShipmentId: "fs-1" });
   sendNewReturnNotificationMock.mockReset().mockResolvedValue(undefined);
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   buildReturnRequestIdMock.mockReset().mockReturnValue("R-1001");
@@ -298,7 +323,11 @@ describe("backfill-fynd-items — bag-level fallback (lines 201-221)", () => {
       },
     ]);
 
-    const res = await backfillAction({ request: backfillReq({}), params: {}, context: {} } as never);
+    const res = await backfillAction({
+      request: backfillReq({}),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.updated).toBe(1);
@@ -368,7 +397,11 @@ describe("backfill-fynd-items — bag-level fallback (lines 201-221)", () => {
       },
     ]);
 
-    const res = await backfillAction({ request: backfillReq({}), params: {}, context: {} } as never);
+    const res = await backfillAction({
+      request: backfillReq({}),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.updated).toBe(1);
@@ -442,7 +475,11 @@ describe("backfill-fynd-items — title+price proximity (lines 263-266)", () => 
       },
     ]);
 
-    const res = await backfillAction({ request: backfillReq({}), params: {}, context: {} } as never);
+    const res = await backfillAction({
+      request: backfillReq({}),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.updated).toBe(1);
@@ -508,7 +545,11 @@ describe("backfill-fynd-items — title+price proximity (lines 263-266)", () => 
       },
     ]);
 
-    const res = await backfillAction({ request: backfillReq({}), params: {}, context: {} } as never);
+    const res = await backfillAction({
+      request: backfillReq({}),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     // Title contains but price diff > 1, so the predicate at 266 returns false →
     // no match → no DB write
@@ -521,10 +562,12 @@ describe("backfill-fynd-items — title+price proximity (lines 263-266)", () => 
 
 describe("portal.create-return — auto-approve else fallthrough (line 952)", () => {
   it("status=approved when evaluator returns neither 'approve' nor 'manual_review'", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop({
-      autoApproveEnabled: true,
-      autoApproveRulesJson: '[{"if":"true","then":"hold"}]',
-    }));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      happyShop({
+        autoApproveEnabled: true,
+        autoApproveRulesJson: '[{"if":"true","then":"hold"}]',
+      }),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     parseAutoApproveRulesMock.mockReturnValueOnce([{ if: "true", then: "hold" }]);
     // Drives the final `else` at line 952 — anything that isn't
@@ -535,7 +578,8 @@ describe("portal.create-return — auto-approve else fallthrough (line 952)", ()
 
     const res = await portalCreateAction({
       request: portalReq(happyBody()),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
@@ -551,17 +595,25 @@ describe("portal.create-return — price object handling (lines 1193-1195)", () 
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
 
     await portalCreateAction({
-      request: portalReq(happyBody({
-        // eligibility check parseFloat(li.price) returns NaN for object,
-        // but checkReturnEligibility is mocked to eligible=true — so we
-        // proceed and hit the price-object branch in the items.create map.
-        lineItemsWithPrice: [
-          { id: "gid://shopify/LineItem/100", title: "Tee",
-            price: { amount: "42.00", currencyCode: "USD" } as unknown as string,
-            quantity: 1, productTags: [], sku: "TEE-1" },
-        ],
-      })),
-      params: {}, context: {},
+      request: portalReq(
+        happyBody({
+          // eligibility check parseFloat(li.price) returns NaN for object,
+          // but checkReturnEligibility is mocked to eligible=true — so we
+          // proceed and hit the price-object branch in the items.create map.
+          lineItemsWithPrice: [
+            {
+              id: "gid://shopify/LineItem/100",
+              title: "Tee",
+              price: { amount: "42.00", currencyCode: "USD" } as unknown as string,
+              quantity: 1,
+              productTags: [],
+              sku: "TEE-1",
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
@@ -576,14 +628,22 @@ describe("portal.create-return — price object handling (lines 1193-1195)", () 
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
 
     await portalCreateAction({
-      request: portalReq(happyBody({
-        lineItemsWithPrice: [
-          { id: "gid://shopify/LineItem/100", title: "Tee",
-            price: { transfer_price: 18.5 } as unknown as string,
-            quantity: 1, productTags: [], sku: "TEE-1" },
-        ],
-      })),
-      params: {}, context: {},
+      request: portalReq(
+        happyBody({
+          lineItemsWithPrice: [
+            {
+              id: "gid://shopify/LineItem/100",
+              title: "Tee",
+              price: { transfer_price: 18.5 } as unknown as string,
+              quantity: 1,
+              productTags: [],
+              sku: "TEE-1",
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
@@ -597,14 +657,22 @@ describe("portal.create-return — price object handling (lines 1193-1195)", () 
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
 
     await portalCreateAction({
-      request: portalReq(happyBody({
-        lineItemsWithPrice: [
-          { id: "gid://shopify/LineItem/100", title: "Tee",
-            price: { foo: "bar" } as unknown as string,
-            quantity: 1, productTags: [], sku: "TEE-1" },
-        ],
-      })),
-      params: {}, context: {},
+      request: portalReq(
+        happyBody({
+          lineItemsWithPrice: [
+            {
+              id: "gid://shopify/LineItem/100",
+              title: "Tee",
+              price: { foo: "bar" } as unknown as string,
+              quantity: 1,
+              productTags: [],
+              sku: "TEE-1",
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
 
     const callArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
@@ -638,17 +706,27 @@ describe("portal.create-return — late line-item resolution (lines 507-514)", (
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
 
     const res = await portalCreateAction({
-      request: portalReq(happyBody({
-        // Non-GID orderId (non-FYND prefix) AND non-GID lineItem → drives the
-        // line-item resolution branch (497-514) without first hitting the
-        // "last resort" FYND-prefix path.
-        orderId: "STORE-ALIAS-XYZ",
-        items: [{ lineItemId: "BAG-3777852", qty: 1, reasonCode: "size" }],
-        lineItemsWithPrice: [
-          { id: "BAG-3777852", title: "Tee", price: "25.00", quantity: 1, productTags: [], sku: "TEE-1" },
-        ],
-      })),
-      params: {}, context: {},
+      request: portalReq(
+        happyBody({
+          // Non-GID orderId (non-FYND prefix) AND non-GID lineItem → drives the
+          // line-item resolution branch (497-514) without first hitting the
+          // "last resort" FYND-prefix path.
+          orderId: "STORE-ALIAS-XYZ",
+          items: [{ lineItemId: "BAG-3777852", qty: 1, reasonCode: "size" }],
+          lineItemsWithPrice: [
+            {
+              id: "BAG-3777852",
+              title: "Tee",
+              price: "25.00",
+              quantity: 1,
+              productTags: [],
+              sku: "TEE-1",
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBeLessThan(500);
     // Confirm both resolution paths fired (initial + inside line-item block at 507-514)
@@ -687,7 +765,8 @@ describe("portal.create-return — discount code error catch (line 94)", () => {
         acceptOffer: true,
         items: [{ lineItemId: "li-1", qty: 1 }],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(500);
     expect((await res.json()).error).toMatch(/graphql network down/);

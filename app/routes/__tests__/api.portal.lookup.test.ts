@@ -95,11 +95,15 @@ function baseShop(settings: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   sendOtpEmailMock.mockReset().mockResolvedValue(undefined);
   fetchOrdersByFilterMock.mockReset().mockResolvedValue([]);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
   getPortalLabelsMock.mockReset().mockReturnValue({ heading: "Your Returns" });
   getTrackingInfoMock.mockReset().mockReturnValue(null);
   extractJourneyMock.mockReset().mockReturnValue([]);
@@ -110,12 +114,20 @@ beforeEach(() => {
 
 describe("loader", () => {
   it("204 on OPTIONS preflight", async () => {
-    const res = await loader({ request: new Request("https://a/x", { method: "OPTIONS" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: new Request("https://a/x", { method: "OPTIONS" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res?.status).toBe(204);
   });
 
   it("null on other methods", async () => {
-    const res = await loader({ request: new Request("https://a/x"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: new Request("https://a/x"),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toBe(null);
   });
 });
@@ -142,7 +154,8 @@ describe("action: guards", () => {
   it("400 on invalid lookupType", async () => {
     const res = await action({
       request: jsonReq({ shop: "s", lookupType: "not_a_type", lookupValue: "x" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
   });
@@ -150,7 +163,8 @@ describe("action: guards", () => {
   it("400 when lookupValue too short", async () => {
     const res = await action({
       request: jsonReq({ shop: "s", lookupType: "email", lookupValue: "a" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
   });
@@ -158,7 +172,8 @@ describe("action: guards", () => {
   it("400 when lookupValue too long (> 256 chars)", async () => {
     const res = await action({
       request: jsonReq({ shop: "s", lookupType: "email", lookupValue: "a".repeat(300) }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
   });
@@ -167,7 +182,8 @@ describe("action: guards", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     const res = await action({
       request: jsonReq({ shop: "missing", lookupType: "email", lookupValue: "u@x.com" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(404);
   });
@@ -176,11 +192,14 @@ describe("action: guards", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     await action({
       request: jsonReq({ shop: "mystore", lookupType: "email", lookupValue: "u@x.com" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopDomain: "mystore.myshopify.com" },
-    }));
+    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopDomain: "mystore.myshopify.com" },
+      }),
+    );
   });
 
   it("500 on malformed JSON body", async () => {
@@ -206,7 +225,8 @@ describe("OTP gate (email)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "u@x.com" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -218,12 +238,20 @@ describe("OTP gate (email)", () => {
   it("resend within cooldown returns cooldownMs instead of re-sending OTP", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      id: "sess-1", expiresAt: new Date(Date.now() + 60000),
-      attemptsCount: 1, otpSentAt: new Date(Date.now() - 5000), // 5s ago, within 60s cooldown
+      id: "sess-1",
+      expiresAt: new Date(Date.now() + 60000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 5000), // 5s ago, within 60s cooldown
     });
     const res = await action({
-      request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "u@x.com", sessionId: "sess-1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "u@x.com",
+        sessionId: "sess-1",
+      }),
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.cooldownMs).toBeGreaterThan(0);
@@ -233,18 +261,28 @@ describe("OTP gate (email)", () => {
   it("resend past cooldown generates new OTP + updates session", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      id: "sess-1", expiresAt: new Date(Date.now() + 60000),
-      attemptsCount: 1, otpSentAt: new Date(Date.now() - 120_000), // 2min ago, past cooldown
+      id: "sess-1",
+      expiresAt: new Date(Date.now() + 60000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 120_000), // 2min ago, past cooldown
     });
     const res = await action({
-      request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "u@x.com", sessionId: "sess-1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "u@x.com",
+        sessionId: "sess-1",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
-    expect(prismaMock.lookupSession.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "sess-1" },
-      data: expect.objectContaining({ otpTarget: expect.any(String), attemptsCount: 2 }),
-    }));
+    expect(prismaMock.lookupSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "sess-1" },
+        data: expect.objectContaining({ otpTarget: expect.any(String), attemptsCount: 2 }),
+      }),
+    );
     expect(sendOtpEmailMock).toHaveBeenCalled();
   });
 
@@ -257,7 +295,8 @@ describe("OTP gate (email)", () => {
     ]);
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "u@x.com" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(429);
     const body = await res.json();
@@ -268,12 +307,20 @@ describe("OTP gate (email)", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     // Existing session found on the first branch, past cooldown so reissues new OTP
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      id: "sess-1", expiresAt: new Date(Date.now() + 60_000),
-      attemptsCount: 1, otpSentAt: new Date(Date.now() - 120_000),
+      id: "sess-1",
+      expiresAt: new Date(Date.now() + 60_000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 120_000),
     });
     const res = await action({
-      request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "u@x.com", sessionId: "sess-1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "u@x.com",
+        sessionId: "sess-1",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     expect((await res.json()).requiresOtp).toBe(true);
@@ -282,16 +329,23 @@ describe("OTP gate (email)", () => {
   it("401 when portalToken provided but session expired", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      id: "sess-1", expiresAt: new Date(Date.now() - 1000),
-      attemptsCount: 1, otpSentAt: new Date(Date.now() - 120_000),
-      verifiedAt: new Date(), portalToken: "tok-1",
+      id: "sess-1",
+      expiresAt: new Date(Date.now() - 1000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 120_000),
+      verifiedAt: new Date(),
+      portalToken: "tok-1",
     });
     const res = await action({
       request: jsonReq({
-        shop: "store", lookupType: "email", lookupValue: "u@x.com",
-        sessionId: "sess-1", portalToken: "tok-1",
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "u@x.com",
+        sessionId: "sess-1",
+        portalToken: "tok-1",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(401);
   });
@@ -299,16 +353,23 @@ describe("OTP gate (email)", () => {
   it("401 when portalToken provided but session not yet verified", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      id: "sess-1", expiresAt: new Date(Date.now() + 60000),
-      attemptsCount: 1, otpSentAt: new Date(Date.now() - 120_000),
-      verifiedAt: null, portalToken: null,
+      id: "sess-1",
+      expiresAt: new Date(Date.now() + 60000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 120_000),
+      verifiedAt: null,
+      portalToken: null,
     });
     const res = await action({
       request: jsonReq({
-        shop: "store", lookupType: "email", lookupValue: "u@x.com",
-        sessionId: "sess-1", portalToken: "tok-1",
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "u@x.com",
+        sessionId: "sess-1",
+        portalToken: "tok-1",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(401);
     expect((await res.json()).requiresOtp).toBe(true);
@@ -317,16 +378,23 @@ describe("OTP gate (email)", () => {
   it("401 on portalToken mismatch", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(baseShop({ portalOtpEmailEnabled: true }));
     prismaMock.lookupSession.findUnique.mockResolvedValueOnce({
-      id: "sess-1", expiresAt: new Date(Date.now() + 60000),
-      attemptsCount: 1, otpSentAt: new Date(Date.now() - 120_000),
-      verifiedAt: new Date(), portalToken: "real-token",
+      id: "sess-1",
+      expiresAt: new Date(Date.now() + 60000),
+      attemptsCount: 1,
+      otpSentAt: new Date(Date.now() - 120_000),
+      verifiedAt: new Date(),
+      portalToken: "real-token",
     });
     const res = await action({
       request: jsonReq({
-        shop: "store", lookupType: "email", lookupValue: "u@x.com",
-        sessionId: "sess-1", portalToken: "wrong-token",
+        shop: "store",
+        lookupType: "email",
+        lookupValue: "u@x.com",
+        sessionId: "sess-1",
+        portalToken: "wrong-token",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(401);
   });
@@ -338,7 +406,9 @@ describe("lookup dispatch (no OTP required)", () => {
   beforeEach(() => {
     prismaMock.shop.findUnique.mockResolvedValue(baseShop());
     prismaMock.shopSettings.findUnique.mockResolvedValue({
-      portalLanguage: "en", portalLabelsJson: null, defaultReturnInstructions: null,
+      portalLanguage: "en",
+      portalLabelsJson: null,
+      defaultReturnInstructions: null,
     });
     // Single findMany now (id + include were consolidated). Default to empty so each
     // test only asserts on the where-clause shape, which is what these tests care about.
@@ -349,45 +419,59 @@ describe("lookup dispatch (no OTP required)", () => {
   it("return_id lookup builds OR clause with id + returnRequestNo (both cases)", async () => {
     await action({
       request: jsonReq({ shop: "store", lookupType: "return_id", lookupValue: "r-abc" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    const whereArg = (prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>).where;
+    const whereArg = (
+      prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>
+    ).where;
     expect(Array.isArray(whereArg.OR)).toBe(true);
-    expect(whereArg.OR).toEqual(expect.arrayContaining([
-      { id: "r-abc" },
-      { returnRequestNo: "r-abc" },
-      { returnRequestNo: "R-ABC" },
-    ]));
+    expect(whereArg.OR).toEqual(
+      expect.arrayContaining([
+        { id: "r-abc" },
+        { returnRequestNo: "r-abc" },
+        { returnRequestNo: "R-ABC" },
+      ]),
+    );
   });
 
   it("return_no strips leading # and looks up by multiple fields", async () => {
     await action({
       request: jsonReq({ shop: "store", lookupType: "return_no", lookupValue: "#R-123" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    const whereArg = (prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>).where;
+    const whereArg = (
+      prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>
+    ).where;
     const orList = whereArg.OR as Array<Record<string, { equals?: string }>>;
-    const equalsVals = orList.map(x => Object.values(x)[0]?.equals);
+    const equalsVals = orList.map((x) => Object.values(x)[0]?.equals);
     expect(equalsVals).toContain("r-123");
   });
 
   it("forward_awb / return_awb uses contains across both fields", async () => {
     await action({
       request: jsonReq({ shop: "store", lookupType: "return_awb", lookupValue: "AWB-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    const whereArg = (prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>).where;
+    const whereArg = (
+      prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>
+    ).where;
     const orList = whereArg.OR as Array<Record<string, { contains?: string }>>;
-    expect(orList.some(x => x.forwardAwb?.contains === "awb-1")).toBe(true);
-    expect(orList.some(x => x.returnAwb?.contains === "awb-1")).toBe(true);
+    expect(orList.some((x) => x.forwardAwb?.contains === "awb-1")).toBe(true);
+    expect(orList.some((x) => x.returnAwb?.contains === "awb-1")).toBe(true);
   });
 
   it("phone type strips non-digits from the query", async () => {
     await action({
       request: jsonReq({ shop: "store", lookupType: "phone", lookupValue: "+1 (415) 555-1212" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    const whereArg = (prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>).where;
+    const whereArg = (
+      prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>
+    ).where;
     const orList = whereArg.OR as Array<Record<string, { contains?: string }>>;
     expect(orList[0].customerPhoneNorm?.contains).toBe("14155551212");
   });
@@ -395,9 +479,12 @@ describe("lookup dispatch (no OTP required)", () => {
   it("email lookup queries both email + phone norm fields", async () => {
     await action({
       request: jsonReq({ shop: "store", lookupType: "email", lookupValue: "USER@Example.com" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    const whereArg = (prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>).where;
+    const whereArg = (
+      prismaMock.returnCase.findMany.mock.calls[0][0] as Record<string, Record<string, unknown>>
+    ).where;
     const orList = whereArg.OR as Array<Record<string, { contains?: string }>>;
     expect(orList[0].customerEmailNorm?.contains).toBe("user@example.com");
   });
@@ -412,7 +499,8 @@ describe("empty-result path", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", lookupType: "return_id", lookupValue: "nope" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();

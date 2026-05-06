@@ -33,11 +33,7 @@ export function apiCreated<T>(data: T) {
   return Response.json({ data, errors: [] }, { status: 201 });
 }
 
-export function apiError(
-  status: number,
-  code: string,
-  message: string,
-) {
+export function apiError(status: number, code: string, message: string) {
   return Response.json({ error: { code, message } }, { status });
 }
 
@@ -104,7 +100,9 @@ export function sanitizeReturnSummary(rc: Record<string, unknown>) {
   };
 }
 
-export function sanitizeReturnDetail(rc: Record<string, unknown> & { items?: unknown[]; events?: unknown[] }) {
+export function sanitizeReturnDetail(
+  rc: Record<string, unknown> & { items?: unknown[]; events?: unknown[] },
+) {
   return {
     id: rc.id,
     returnRequestNo: rc.returnRequestNo,

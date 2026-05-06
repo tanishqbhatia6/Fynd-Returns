@@ -30,9 +30,7 @@ const {
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
   encryptMock: vi.fn((s: string) => `enc(${s})`),
-  encryptIfNeededMock: vi.fn((s: string | null | undefined) =>
-    s ? `enc(${s})` : null,
-  ),
+  encryptIfNeededMock: vi.fn((s: string | null | undefined) => (s ? `enc(${s})` : null)),
   decryptIfEncryptedMock: vi.fn((s: string | null | undefined) =>
     s ? String(s).replace(/^enc\(|\)$/g, "") : null,
   ),
@@ -98,9 +96,7 @@ beforeEach(() => {
   prismaMock.shopSettings.upsert
     .mockReset()
     .mockImplementation(async ({ create, where }) => ({ ...where, ...create }));
-  authenticateMock
-    .mockReset()
-    .mockResolvedValue({ session: { shop: "store.myshopify.com" } });
+  authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   encryptMock.mockClear();
   encryptIfNeededMock.mockClear();
   decryptIfEncryptedMock.mockClear();

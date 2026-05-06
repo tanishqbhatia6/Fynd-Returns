@@ -23,8 +23,8 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
-    fn({ setAttribute: () => { }, end: () => { } }),
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
+    fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 0,
 }));
@@ -81,9 +81,9 @@ describe("toDisplayString — number/boolean/object branches via parseFyndOrderD
       delivery_address: {
         name: "Buyer",
         address1: "1 Main St",
-        city: 560001,            // number → line 155
-        pincode: 560002,         // number → line 155
-        phone: 9999999999,       // number → line 155
+        city: 560001, // number → line 155
+        pincode: 560002, // number → line 155
+        phone: 9999999999, // number → line 155
       },
     });
     const tab = parseFyndOrderDetailsForTab(json);
@@ -212,14 +212,18 @@ type ClientOverrides = {
 };
 
 function makeClient(o: ClientOverrides = {}) {
-  const search = o.searchImpl ?? vi.fn().mockResolvedValue({
-    items: [{ id: "FY1", order_id: "FYMP1234567890", shipment_id: "FY1" }],
-    orderId: "FYMP1234567890",
-    shipmentId: "FY1",
-  });
-  const getShipments = o.getShipmentsImpl ?? vi.fn().mockResolvedValue({
-    shipments: [{ id: "FY1", identifier: "FY1", order_id: "FYMP1234567890" }],
-  });
+  const search =
+    o.searchImpl ??
+    vi.fn().mockResolvedValue({
+      items: [{ id: "FY1", order_id: "FYMP1234567890", shipment_id: "FY1" }],
+      orderId: "FYMP1234567890",
+      shipmentId: "FY1",
+    });
+  const getShipments =
+    o.getShipmentsImpl ??
+    vi.fn().mockResolvedValue({
+      shipments: [{ id: "FY1", identifier: "FY1", order_id: "FYMP1234567890" }],
+    });
   const update = o.updateImpl ?? vi.fn().mockResolvedValue({ return_id: "RID1" });
   const client: Record<string, unknown> = {
     searchShipmentsByExternalOrderId: search,
@@ -293,7 +297,9 @@ describe("createReturnOnFynd — searchRes.shipmentId fallback (line 301)", () =
     expect(res.fyndShipmentId).toBe("FALLBACK-FROM-SEARCH");
     // updateShipmentStatus was called with the fallback shipment ID in the payload.
     expect(update).toHaveBeenCalledTimes(1);
-    const callPayload = update.mock.calls[0][1] as { statuses: Array<{ shipments: Array<{ identifier: string }> }> };
+    const callPayload = update.mock.calls[0][1] as {
+      statuses: Array<{ shipments: Array<{ identifier: string }> }>;
+    };
     expect(callPayload.statuses[0].shipments[0].identifier).toBe("FALLBACK-FROM-SEARCH");
   });
 });

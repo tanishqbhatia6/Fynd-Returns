@@ -63,13 +63,11 @@ const navigateMock = vi.fn();
 let useFetcherCalls = 0;
 
 vi.mock("react-router", async () => {
-  const actual =
-    await vi.importActual<typeof import("react-router")>("react-router");
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return {
     ...actual,
     useFetcher: () => {
-      const fetcher =
-        useFetcherCalls % 2 === 0 ? orderFetcherShared : submitFetcherShared;
+      const fetcher = useFetcherCalls % 2 === 0 ? orderFetcherShared : submitFetcherShared;
       useFetcherCalls += 1;
       return fetcher;
     },
@@ -197,9 +195,7 @@ async function mountWithOrder(
   });
   await waitFor(
     () => {
-      expect(result.container.textContent).toContain(
-        "Select Items to Return",
-      );
+      expect(result.container.textContent).toContain("Select Items to Return");
     },
     { timeout: 5000 },
   );
@@ -214,14 +210,10 @@ describe("app.returns.create — gap coverage", () => {
   it("shows 'Please enter an order number' when search clicked with empty input", async () => {
     const result = await mount();
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const searchBtn = buttons.find((b) =>
-      /Search/i.test(b.textContent || ""),
-    ) as HTMLButtonElement;
+    const searchBtn = buttons.find((b) => /Search/i.test(b.textContent || "")) as HTMLButtonElement;
     fireEvent.click(searchBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Please enter an order number.",
-      );
+      expect(result.container.textContent).toContain("Please enter an order number.");
     });
     expect(orderFetcherShared.load).not.toHaveBeenCalled();
   });
@@ -234,14 +226,10 @@ describe("app.returns.create — gap coverage", () => {
     // Trim+strip leading "#" → empty → triggers same branch
     fireEvent.change(input, { target: { value: "  #  " } });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const searchBtn = buttons.find((b) =>
-      /Search/i.test(b.textContent || ""),
-    ) as HTMLButtonElement;
+    const searchBtn = buttons.find((b) => /Search/i.test(b.textContent || "")) as HTMLButtonElement;
     fireEvent.click(searchBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Please enter an order number.",
-      );
+      expect(result.container.textContent).toContain("Please enter an order number.");
     });
   });
 
@@ -251,21 +239,15 @@ describe("app.returns.create — gap coverage", () => {
       'input[placeholder="e.g. 1042, #1042"]',
     ) as HTMLInputElement;
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const searchBtn = buttons.find((b) =>
-      /Search/i.test(b.textContent || ""),
-    ) as HTMLButtonElement;
+    const searchBtn = buttons.find((b) => /Search/i.test(b.textContent || "")) as HTMLButtonElement;
     fireEvent.click(searchBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Please enter an order number.",
-      );
+      expect(result.container.textContent).toContain("Please enter an order number.");
     });
     // Typing should clear the validation error
     fireEvent.change(input, { target: { value: "abc" } });
     await waitFor(() => {
-      expect(result.container.textContent).not.toContain(
-        "Please enter an order number.",
-      );
+      expect(result.container.textContent).not.toContain("Please enter an order number.");
     });
   });
 
@@ -277,9 +259,7 @@ describe("app.returns.create — gap coverage", () => {
     await waitFor(() => {
       expect(result.container.textContent).toContain("Shipment 1");
     });
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     const firstEnabled = Array.from(checkboxes).find(
       (cb) => !(cb as HTMLInputElement).disabled,
     ) as HTMLInputElement;
@@ -292,8 +272,12 @@ describe("app.returns.create — gap coverage", () => {
 
     const selects = result.container.querySelectorAll("select");
     // [0] Reason, [1] Condition for the expanded item
-    await act(async () => { fireEvent.change(selects[1], { target: { value: "used_like_new" } }); });
-    await waitFor(() => { expect((selects[1] as HTMLSelectElement).value).toBe("used_like_new"); });
+    await act(async () => {
+      fireEvent.change(selects[1], { target: { value: "used_like_new" } });
+    });
+    await waitFor(() => {
+      expect((selects[1] as HTMLSelectElement).value).toBe("used_like_new");
+    });
   });
 
   it("multi-shipment: edits Notes textarea onChange (line 997)", async () => {
@@ -304,9 +288,7 @@ describe("app.returns.create — gap coverage", () => {
     await waitFor(() => {
       expect(result.container.textContent).toContain("Shipment 1");
     });
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     const firstEnabled = Array.from(checkboxes).find(
       (cb) => !(cb as HTMLInputElement).disabled,
     ) as HTMLInputElement;
@@ -317,8 +299,12 @@ describe("app.returns.create — gap coverage", () => {
       expect(tas.length).toBeGreaterThanOrEqual(1);
     });
     const tas = result.container.querySelectorAll("textarea");
-    await act(async () => { fireEvent.change(tas[0], { target: { value: "scratched packaging" } }); });
-    await waitFor(() => { expect((tas[0] as HTMLTextAreaElement).value).toBe("scratched packaging"); });
+    await act(async () => {
+      fireEvent.change(tas[0], { target: { value: "scratched packaging" } });
+    });
+    await waitFor(() => {
+      expect((tas[0] as HTMLTextAreaElement).value).toBe("scratched packaging");
+    });
   });
 
   it("multi-shipment: edits qty input within shipment row", async () => {
@@ -326,9 +312,7 @@ describe("app.returns.create — gap coverage", () => {
       order: { ...sampleOrder, lineItems: [] },
       shipments: multiShipments,
     });
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     const firstEnabled = Array.from(checkboxes).find(
       (cb) => !(cb as HTMLInputElement).disabled,
     ) as HTMLInputElement;
@@ -338,14 +322,16 @@ describe("app.returns.create — gap coverage", () => {
       const num = result.container.querySelector('input[type="number"]');
       expect(num).toBeTruthy();
     });
-    const qty = result.container.querySelector(
-      'input[type="number"]',
-    ) as HTMLInputElement;
+    const qty = result.container.querySelector('input[type="number"]') as HTMLInputElement;
     // Trigger clamps: above max (4) and below min (0) and a regular value
     fireEvent.change(qty, { target: { value: "99" } });
     fireEvent.change(qty, { target: { value: "0" } });
-    await act(async () => { fireEvent.change(qty, { target: { value: "3" } }); });
-    await waitFor(() => { expect(qty.value).toBe("3"); });
+    await act(async () => {
+      fireEvent.change(qty, { target: { value: "3" } });
+    });
+    await waitFor(() => {
+      expect(qty.value).toBe("3");
+    });
   });
 
   it("multi-shipment: edits Reason select onChange", async () => {
@@ -353,9 +339,7 @@ describe("app.returns.create — gap coverage", () => {
       order: { ...sampleOrder, lineItems: [] },
       shipments: multiShipments,
     });
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     const firstEnabled = Array.from(checkboxes).find(
       (cb) => !(cb as HTMLInputElement).disabled,
     ) as HTMLInputElement;
@@ -366,8 +350,12 @@ describe("app.returns.create — gap coverage", () => {
       expect(selects.length).toBeGreaterThanOrEqual(2);
     });
     const selects = result.container.querySelectorAll("select");
-    await act(async () => { fireEvent.change(selects[0], { target: { value: "damaged" } }); });
-    await waitFor(() => { expect((selects[0] as HTMLSelectElement).value).toBe("damaged"); });
+    await act(async () => {
+      fireEvent.change(selects[0], { target: { value: "damaged" } });
+    });
+    await waitFor(() => {
+      expect((selects[0] as HTMLSelectElement).value).toBe("damaged");
+    });
   });
 
   it("multi-shipment: validateStep2 fails when condition missing on selected item", async () => {
@@ -375,9 +363,7 @@ describe("app.returns.create — gap coverage", () => {
       order: { ...sampleOrder, lineItems: [] },
       shipments: multiShipments,
     });
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     const firstEnabled = Array.from(checkboxes).find(
       (cb) => !(cb as HTMLInputElement).disabled,
     ) as HTMLInputElement;
@@ -392,32 +378,24 @@ describe("app.returns.create — gap coverage", () => {
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
 
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
 
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Please select the item condition",
-      );
+      expect(result.container.textContent).toContain("Please select the item condition");
     });
   });
 
   it("step 3: edits Agent Name input (line 1286)", async () => {
     const result = await mountWithOrder();
     // Advance to step 3
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     const selects = result.container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Customer Information");
@@ -430,24 +408,24 @@ describe("app.returns.create — gap coverage", () => {
     expect(agentInput).toBeTruthy();
     // Default value seeded as "Admin"
     expect(agentInput.value).toBe("Admin");
-    await act(async () => { fireEvent.change(agentInput, { target: { value: "Casey Agent" } }); });
-    await waitFor(() => { expect(agentInput.value).toBe("Casey Agent"); });
+    await act(async () => {
+      fireEvent.change(agentInput, { target: { value: "Casey Agent" } });
+    });
+    await waitFor(() => {
+      expect(agentInput.value).toBe("Casey Agent");
+    });
   });
 
   it("step 3: empty agent name still allowed; submit defaults to 'Admin'", async () => {
     const result = await mountWithOrder();
     // Advance to step 2 -> 3
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     const selects = result.container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     let buttons = Array.from(result.container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Customer Information");
     });
@@ -461,9 +439,7 @@ describe("app.returns.create — gap coverage", () => {
 
     // Advance to step 4
     buttons = Array.from(result.container.querySelectorAll("button"));
-    const reviewBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Review",
-    ) as HTMLButtonElement;
+    const reviewBtn = buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement;
     fireEvent.click(reviewBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Return Items");
@@ -473,8 +449,12 @@ describe("app.returns.create — gap coverage", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(submitBtn); });
-    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+    await waitFor(() => {
+      expect(submitFetcherShared.submit).toHaveBeenCalled();
+    });
     const [body] = submitFetcherShared.submit.mock.calls[0];
     const parsed = JSON.parse(body as string);
     expect(parsed.createdByStaff).toBe("Admin");
@@ -587,9 +567,7 @@ describe("app.returns.create — gap coverage", () => {
       order: { ...sampleOrder, lineItems: [] },
       shipments: multiShipments,
     });
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     const firstEnabled = Array.from(checkboxes).find(
       (cb) => !(cb as HTMLInputElement).disabled,
     ) as HTMLInputElement;
@@ -603,19 +581,13 @@ describe("app.returns.create — gap coverage", () => {
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
 
     let buttons = Array.from(result.container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Customer Information");
     });
 
     buttons = Array.from(result.container.querySelectorAll("button"));
-    fireEvent.click(
-      buttons.find(
-        (b) => b.textContent?.trim() === "Review",
-      ) as HTMLButtonElement,
-    );
+    fireEvent.click(buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Return Items");
     });
@@ -627,8 +599,12 @@ describe("app.returns.create — gap coverage", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(submitBtn); });
-    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+    await waitFor(() => {
+      expect(submitFetcherShared.submit).toHaveBeenCalled();
+    });
   });
 
   it("validateStep2 fails with 'Quantity must be at least 1' when item qty seeded to 0 (lines 581-582)", async () => {
@@ -646,22 +622,16 @@ describe("app.returns.create — gap coverage", () => {
         ],
       },
     });
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     const selects = result.container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Quantity must be at least 1",
-      );
+      expect(result.container.textContent).toContain("Quantity must be at least 1");
     });
   });
 });

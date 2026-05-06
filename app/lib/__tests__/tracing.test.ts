@@ -9,38 +9,41 @@ import { describe, it, expect, vi } from "vitest";
  * dispatch to the active span.
  */
 
-const { spanMock, tracerMock, getSpanMock, getBaggageMock, setBaggageMock, createBaggageMock } = vi.hoisted(() => {
-  const span = {
-    setStatus: vi.fn(),
-    recordException: vi.fn(),
-    end: vi.fn(),
-    addEvent: vi.fn(),
-    setAttribute: vi.fn(),
-    setAttributes: vi.fn(),
-    spanContext: () => ({ traceId: "t", spanId: "s", traceFlags: 1 }),
-  };
-  const tracer = {
-    startActiveSpan: vi.fn((_name: string, _opts: unknown, cb: (s: typeof span) => unknown) => cb(span)),
-  };
-  const baggageEntries = new Map<string, { value: string }>();
-  const baggage = {
-    setEntry(k: string, e: { value: string }) {
-      baggageEntries.set(k, e);
-      return baggage;
-    },
-    getEntry(k: string) {
-      return baggageEntries.get(k);
-    },
-  };
-  return {
-    spanMock: span,
-    tracerMock: tracer,
-    getSpanMock: vi.fn(() => span),
-    getBaggageMock: vi.fn(() => baggage),
-    setBaggageMock: vi.fn(),
-    createBaggageMock: vi.fn(() => baggage),
-  };
-});
+const { spanMock, tracerMock, getSpanMock, getBaggageMock, setBaggageMock, createBaggageMock } =
+  vi.hoisted(() => {
+    const span = {
+      setStatus: vi.fn(),
+      recordException: vi.fn(),
+      end: vi.fn(),
+      addEvent: vi.fn(),
+      setAttribute: vi.fn(),
+      setAttributes: vi.fn(),
+      spanContext: () => ({ traceId: "t", spanId: "s", traceFlags: 1 }),
+    };
+    const tracer = {
+      startActiveSpan: vi.fn((_name: string, _opts: unknown, cb: (s: typeof span) => unknown) =>
+        cb(span),
+      ),
+    };
+    const baggageEntries = new Map<string, { value: string }>();
+    const baggage = {
+      setEntry(k: string, e: { value: string }) {
+        baggageEntries.set(k, e);
+        return baggage;
+      },
+      getEntry(k: string) {
+        return baggageEntries.get(k);
+      },
+    };
+    return {
+      spanMock: span,
+      tracerMock: tracer,
+      getSpanMock: vi.fn(() => span),
+      getBaggageMock: vi.fn(() => baggage),
+      setBaggageMock: vi.fn(),
+      createBaggageMock: vi.fn(() => baggage),
+    };
+  });
 
 vi.mock("@opentelemetry/api", () => ({
   trace: {
@@ -83,7 +86,11 @@ describe("withSpan", () => {
     spanMock.recordException.mockClear();
     spanMock.end.mockClear();
     const err = new Error("boom");
-    await expect(withSpan("test.op", {}, async () => { throw err; })).rejects.toThrow("boom");
+    await expect(
+      withSpan("test.op", {}, async () => {
+        throw err;
+      }),
+    ).rejects.toThrow("boom");
     expect(spanMock.recordException).toHaveBeenCalledWith(err);
     expect(spanMock.setStatus).toHaveBeenCalledWith({ code: 2, message: "boom" });
     expect(spanMock.end).toHaveBeenCalled(); // finally runs
@@ -91,7 +98,11 @@ describe("withSpan", () => {
 
   it("converts non-Error throws to Error", async () => {
     spanMock.recordException.mockClear();
-    await expect(withSpan("op", {}, async () => { throw "string-error"; })).rejects.toBe("string-error");
+    await expect(
+      withSpan("op", {}, async () => {
+        throw "string-error";
+      }),
+    ).rejects.toBe("string-error");
     const captured = spanMock.recordException.mock.calls[0][0];
     expect(captured).toBeInstanceOf(Error);
     expect(captured.message).toBe("string-error");
@@ -99,7 +110,11 @@ describe("withSpan", () => {
 
   it("calls span.end even when fn throws synchronously inside async", async () => {
     spanMock.end.mockClear();
-    await expect(withSpan("op", {}, () => { throw new Error("sync"); })).rejects.toThrow();
+    await expect(
+      withSpan("op", {}, () => {
+        throw new Error("sync");
+      }),
+    ).rejects.toThrow();
     expect(spanMock.end).toHaveBeenCalled();
   });
 });
@@ -113,13 +128,21 @@ describe("withSpanSync", () => {
 
   it("rethrows + records on error", () => {
     spanMock.recordException.mockClear();
-    expect(() => withSpanSync("op", {}, () => { throw new Error("x"); })).toThrow("x");
+    expect(() =>
+      withSpanSync("op", {}, () => {
+        throw new Error("x");
+      }),
+    ).toThrow("x");
     expect(spanMock.recordException).toHaveBeenCalled();
   });
 
   it("wraps non-Error throws", () => {
     spanMock.recordException.mockClear();
-    expect(() => withSpanSync("op", {}, () => { throw 123; })).toThrow();
+    expect(() =>
+      withSpanSync("op", {}, () => {
+        throw 123;
+      }),
+    ).toThrow();
     expect(spanMock.recordException.mock.calls[0][0]).toBeInstanceOf(Error);
   });
 });

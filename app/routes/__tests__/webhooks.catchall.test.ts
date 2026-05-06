@@ -7,9 +7,7 @@ const { prismaMock, authenticateWebhookMock } = vi.hoisted(() => ({
 }));
 Object.assign(prismaMock, createPrismaMock());
 // Models used by redact paths that aren't in base factory
-const extraModels = [
-  "notificationLog", "fyndOrderMapping",
-] as const;
+const extraModels = ["notificationLog", "fyndOrderMapping"] as const;
 for (const m of extraModels) {
   (prismaMock as unknown as Record<string, unknown>)[m] = {
     deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -28,7 +26,12 @@ import { action } from "../webhooks";
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   for (const m of extraModels) {
-    const model = (prismaMock as unknown as Record<string, Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>>)[m];
+    const model = (
+      prismaMock as unknown as Record<
+        string,
+        Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>
+      >
+    )[m];
     Object.values(model).forEach((fn) => {
       fn.mockReset();
       if (fn === model.findMany) fn.mockResolvedValue([]);
@@ -91,13 +94,17 @@ describe("GDPR catch-all webhook handler", () => {
 
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
-    expect(prismaMock.returnCase.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ customerName: "[redacted]" }),
-    }));
+    expect(prismaMock.returnCase.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ customerName: "[redacted]" }),
+      }),
+    );
     expect(prismaMock.lookupSession.deleteMany).toHaveBeenCalled();
-    expect(prismaMock.fyndWebhookLog.updateMany).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ customerEmail: null }),
-    }));
+    expect(prismaMock.fyndWebhookLog.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ customerEmail: null }),
+      }),
+    );
   });
 
   it("CUSTOMERS_REDACT: skips when no matching conditions (no email + no id)", async () => {

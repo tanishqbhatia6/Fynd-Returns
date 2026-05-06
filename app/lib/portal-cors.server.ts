@@ -3,15 +3,9 @@
  * Portal runs on store domain (e.g. store.myshopify.com) and fetches from app domain.
  */
 
-const ALLOWED_ORIGIN_PATTERNS = [
-  /\.myshopify\.com$/,
-  /\.shopify\.com$/,
-];
+const ALLOWED_ORIGIN_PATTERNS = [/\.myshopify\.com$/, /\.shopify\.com$/];
 
-const DEV_PATTERNS = [
-  /^https?:\/\/localhost(:\d+)?$/,
-  /^https?:\/\/127\.0\.0\.1(:\d+)?$/,
-];
+const DEV_PATTERNS = [/^https?:\/\/localhost(:\d+)?$/, /^https?:\/\/127\.0\.0\.1(:\d+)?$/];
 
 function isAllowedOrigin(origin: string): boolean {
   if (!origin) return false;

@@ -192,7 +192,7 @@ describe("PayloadViewer toolbar + modes", () => {
     fireEvent.click(getByText("Pretty"));
     const pre = container.querySelector("pre");
     expect(pre).toBeTruthy();
-    expect(pre?.textContent).toContain("\"x\"");
+    expect(pre?.textContent).toContain('"x"');
     expect(pre?.textContent).toContain("1");
   });
 
@@ -239,7 +239,7 @@ describe("PayloadViewer search", () => {
   it("filters Pretty-mode lines that match the search term (case-insensitive)", () => {
     const payload = JSON.stringify({ apple: 1, banana: 2, cherry: 3 });
     const { container, getByPlaceholderText, getByText } = render(
-      <PayloadViewer rawPayload={payload} />
+      <PayloadViewer rawPayload={payload} />,
     );
     fireEvent.click(getByText("Pretty"));
     const input = getByPlaceholderText("Search...") as HTMLInputElement;
@@ -253,7 +253,7 @@ describe("PayloadViewer search", () => {
   it("filters Raw-mode display by search term", () => {
     const payload = JSON.stringify({ alpha: 10, beta: 20 });
     const { container, getByPlaceholderText, getByText } = render(
-      <PayloadViewer rawPayload={payload} />
+      <PayloadViewer rawPayload={payload} />,
     );
     fireEvent.click(getByText("Raw"));
     const input = getByPlaceholderText("Search...") as HTMLInputElement;
@@ -266,7 +266,7 @@ describe("PayloadViewer search", () => {
   it("clearing the search restores full display", () => {
     const payload = JSON.stringify({ alpha: 10, beta: 20 });
     const { container, getByPlaceholderText, getByText } = render(
-      <PayloadViewer rawPayload={payload} />
+      <PayloadViewer rawPayload={payload} />,
     );
     fireEvent.click(getByText("Pretty"));
     const input = getByPlaceholderText("Search...") as HTMLInputElement;
@@ -342,16 +342,13 @@ describe("PayloadViewer large arrays + syntax highlighting", () => {
 
   it("applies type-specific colors via inline style on spans", () => {
     const { container } = render(
-      <JsonNode
-        value={{ s: "abc", n: 1, b: true, z: null }}
-        depth={0}
-      />
+      <JsonNode value={{ s: "abc", n: 1, b: true, z: null }} depth={0} />,
     );
     const html = container.innerHTML;
     // jsdom normalizes inline style hex colors -> rgb()
     expect(html).toContain("rgb(248, 113, 113)"); // string red #F87171
-    expect(html).toContain("rgb(16, 185, 129)");  // number green #10B981
-    expect(html).toContain("rgb(245, 158, 11)");  // boolean amber #F59E0B
+    expect(html).toContain("rgb(16, 185, 129)"); // number green #10B981
+    expect(html).toContain("rgb(245, 158, 11)"); // boolean amber #F59E0B
     expect(html).toContain("rgb(167, 139, 250)"); // null purple #A78BFA
     expect(html).toContain("rgb(147, 197, 253)"); // key blue #93C5FD
   });

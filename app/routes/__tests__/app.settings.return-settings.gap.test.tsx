@@ -129,9 +129,7 @@ function findSectionToggle(container: HTMLElement, headingText: string): HTMLInp
   // Walk up to the section root, then query for the first checkbox inside.
   let node: HTMLElement | null = headings[0];
   for (let i = 0; i < 6 && node; i++) {
-    const cb = node.querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement | null;
+    const cb = node.querySelector("input[type='checkbox']") as HTMLInputElement | null;
     if (cb) return cb;
     node = node.parentElement;
   }
@@ -145,7 +143,9 @@ describe("ReturnSettings — gap coverage", () => {
     const toggle = findSectionToggle(container, "Fynd Status Gate for Refunds");
     expect(toggle).toBeTruthy();
     expect(toggle!.checked).toBe(false);
-    await act(async () => { fireEvent.click(toggle!); });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
     // After turning ON with preset="none", the else-if branch fires and
     // selects "after_delivery", which renders the "Recommended" badge and
     // the description text "After bag reaches warehouse".
@@ -186,9 +186,7 @@ describe("ReturnSettings — gap coverage", () => {
       (l) => l.textContent?.trim() === "return_bag_picked",
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
     // First click → uncheck (line 1350 else branch).
     fireEvent.click(cb);
@@ -205,9 +203,7 @@ describe("ReturnSettings — gap coverage", () => {
       (l) => l.textContent?.trim() === "refund_initiated",
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
     fireEvent.click(cb);
     expect(cb.checked).toBe(false);
@@ -219,14 +215,24 @@ describe("ReturnSettings — gap coverage", () => {
     const toggle = findSectionToggle(container, "Fynd Return Consolidation");
     expect(toggle).toBeTruthy();
     expect(toggle!.checked).toBe(false);
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => {
-      expect(toggle!.checked).toBe(true);
-    }, { timeout: 5000 });
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => {
-      expect(toggle!.checked).toBe(false);
-    }, { timeout: 5000 });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(
+      () => {
+        expect(toggle!.checked).toBe(true);
+      },
+      { timeout: 5000 },
+    );
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(
+      () => {
+        expect(toggle!.checked).toBe(false);
+      },
+      { timeout: 5000 },
+    );
   });
 
   it("toggles Photo Required onChange (line 603)", async () => {
@@ -234,10 +240,18 @@ describe("ReturnSettings — gap coverage", () => {
     await ready(container);
     const toggle = findSectionToggle(container, "Photo Required");
     expect(toggle).toBeTruthy();
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(true); });
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(true);
+    });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(false);
+    });
   });
 
   it("toggles Auto Approval and Auto Refund onChange (lines 805, 834)", async () => {
@@ -258,8 +272,12 @@ describe("ReturnSettings — gap coverage", () => {
     await ready(container);
     const toggle = findSectionToggle(container, "Sync Refund Status to Fynd");
     expect(toggle).toBeTruthy();
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(true);
+    });
   });
 
   it("clicks the 'original' payment-method radio (line 897)", async () => {
@@ -270,38 +288,32 @@ describe("ReturnSettings — gap coverage", () => {
       l.textContent?.includes("Original payment method"),
     );
     expect(labels.length).toBeGreaterThan(0);
-    const radio = labels[0].querySelector(
-      "input[type='radio']",
-    ) as HTMLInputElement;
-    await act(async () => { fireEvent.click(radio); });
-    await waitFor(() => { expect(radio.checked).toBe(true); });
+    const radio = labels[0].querySelector("input[type='radio']") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.click(radio);
+    });
+    await waitFor(() => {
+      expect(radio.checked).toBe(true);
+    });
   });
 
   it("clicks the 'store_credit' payment-method radio (line 914)", async () => {
     const { container } = renderForm({ refundPaymentMethod: "original" });
     await ready(container);
     const labels = Array.from(container.querySelectorAll("label")).filter(
-      (l) =>
-        l.textContent?.includes("Store credit") &&
-        !l.textContent?.includes("Split"),
+      (l) => l.textContent?.includes("Store credit") && !l.textContent?.includes("Split"),
     );
     expect(labels.length).toBeGreaterThan(0);
-    const radio = labels[0].querySelector(
-      "input[type='radio']",
-    ) as HTMLInputElement;
+    const radio = labels[0].querySelector("input[type='radio']") as HTMLInputElement;
     fireEvent.click(radio);
     expect(radio.checked).toBe(true);
     // Renders the store-credit info banner branch.
-    expect(container.textContent).toContain(
-      "Store credit requires new customer accounts",
-    );
+    expect(container.textContent).toContain("Store credit requires new customer accounts");
   });
 
   it("clicks both refundLocationMode radios (lines 998, 1008)", async () => {
     const { container } = renderForm({
-      shopLocations: [
-        { id: "gid://shopify/Location/1", name: "Main", isActive: true },
-      ],
+      shopLocations: [{ id: "gid://shopify/Location/1", name: "Main", isActive: true }],
     });
     await ready(container);
     const auto = container.querySelector(
@@ -312,10 +324,18 @@ describe("ReturnSettings — gap coverage", () => {
     ) as HTMLInputElement;
     expect(auto).toBeTruthy();
     expect(manual).toBeTruthy();
-    await act(async () => { fireEvent.click(manual); });
-    await waitFor(() => { expect(manual.checked).toBe(true); });
-    await act(async () => { fireEvent.click(auto); });
-    await waitFor(() => { expect(auto.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(manual);
+    });
+    await waitFor(() => {
+      expect(manual.checked).toBe(true);
+    });
+    await act(async () => {
+      fireEvent.click(auto);
+    });
+    await waitFor(() => {
+      expect(auto.checked).toBe(true);
+    });
   });
 
   it("changes the refundLocationId select onChange (line 1028)", async () => {
@@ -326,9 +346,7 @@ describe("ReturnSettings — gap coverage", () => {
       ],
     });
     await ready(container);
-    const sel = container.querySelector(
-      "select[name='refundLocationId']",
-    ) as HTMLSelectElement;
+    const sel = container.querySelector("select[name='refundLocationId']") as HTMLSelectElement;
     expect(sel).toBeTruthy();
     fireEvent.change(sel, { target: { value: "gid://shopify/Location/2" } });
     expect(sel.value).toBe("gid://shopify/Location/2");
@@ -341,10 +359,18 @@ describe("ReturnSettings — gap coverage", () => {
     await ready(container);
     const toggle = findSectionToggle(container, "Portal Exchange");
     expect(toggle).toBeTruthy();
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(true); });
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(true);
+    });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(false);
+    });
   });
 
   it("re-toggles a Delivery & Handover status off (custom mode, covers checked → unchecked path on Delivery section)", async () => {
@@ -357,12 +383,14 @@ describe("ReturnSettings — gap coverage", () => {
       (l) => l.textContent?.trim() === "delivery_done",
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    await act(async () => { fireEvent.click(cb); });
-    await waitFor(() => { expect(cb.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(cb);
+    });
+    await waitFor(() => {
+      expect(cb.checked).toBe(false);
+    });
   });
 
   it("renders the no-statuses-selected warning after unchecking the last refund status", async () => {
@@ -374,9 +402,7 @@ describe("ReturnSettings — gap coverage", () => {
     const labels = Array.from(container.querySelectorAll("label")).filter(
       (l) => l.textContent?.trim() === "delivery_done",
     );
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     fireEvent.click(cb);
     await waitFor(() => {
       expect(container.textContent).toMatch(/No statuses selected/);

@@ -115,29 +115,26 @@ describe("backoff math (via runFyndRetryQueue retry scheduling)", () => {
     // [previousRetries, expectedMinutes]
     // newRetries = previousRetries + 1, BACKOFF_MINUTES indexed by newRetries.
     // BACKOFF_MINUTES = [2, 5, 15, 60, 240]
-    [0, 5],   // newRetries=1 -> 5min
-    [1, 15],  // newRetries=2 -> 15min
-    [2, 60],  // newRetries=3 -> 60min
+    [0, 5], // newRetries=1 -> 5min
+    [1, 15], // newRetries=2 -> 15min
+    [2, 60], // newRetries=3 -> 60min
     [3, 240], // newRetries=4 -> 240min
-  ])(
-    "schedules ~%i-th retry %i minutes ahead",
-    async (prevRetries, expectedMinutes) => {
-      bypassThrottle();
-      const now = Date.now();
-      prismaMock.returnCase.findMany.mockResolvedValueOnce([
-        mkCase({ fyndSyncRetries: prevRetries }),
-      ]);
-      createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakePlatformClient });
-      createReturnOnFyndMock.mockResolvedValueOnce({ success: false, error: "boom" });
+  ])("schedules ~%i-th retry %i minutes ahead", async (prevRetries, expectedMinutes) => {
+    bypassThrottle();
+    const now = Date.now();
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([
+      mkCase({ fyndSyncRetries: prevRetries }),
+    ]);
+    createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakePlatformClient });
+    createReturnOnFyndMock.mockResolvedValueOnce({ success: false, error: "boom" });
 
-      await runFyndRetryQueue();
+    await runFyndRetryQueue();
 
-      const next = lastUpdateNextRetry();
-      const expected = now + expectedMinutes * 60_000;
-      // Allow a tiny drift (vi fake timers should be exact, but be defensive).
-      expect(Math.abs(next.getTime() - expected)).toBeLessThanOrEqual(50);
-    },
-  );
+    const next = lastUpdateNextRetry();
+    const expected = now + expectedMinutes * 60_000;
+    // Allow a tiny drift (vi fake timers should be exact, but be defensive).
+    expect(Math.abs(next.getTime() - expected)).toBeLessThanOrEqual(50);
+  });
 
   it("scheduleRetry uses BACKOFF_MINUTES[0] (2 minutes) for fresh failures", async () => {
     vi.setSystemTime(new Date("2026-02-02T00:00:00Z").getTime());
@@ -200,9 +197,7 @@ describe("runFyndRetryQueue — extra scenarios", () => {
 
   it("truncates the exhausted-retries error message to 2000 chars and prefixes Exhausted N retries", async () => {
     bypassThrottle();
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      mkCase({ fyndSyncRetries: 4 }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([mkCase({ fyndSyncRetries: 4 })]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakePlatformClient });
     createReturnOnFyndMock.mockRejectedValueOnce(new Error("y".repeat(5000)));
 
@@ -233,9 +228,7 @@ describe("runFyndRetryQueue — extra scenarios", () => {
   it("on success without payload, retains the case's existing fyndPayloadJson", async () => {
     bypassThrottle();
     const existing = JSON.stringify({ keep: true });
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      mkCase({ fyndPayloadJson: existing }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([mkCase({ fyndPayloadJson: existing })]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakePlatformClient });
     createReturnOnFyndMock.mockResolvedValueOnce({
       success: true,
@@ -310,9 +303,7 @@ describe("runFyndRetryQueue — extra scenarios", () => {
 
   it("emits attempt_number=newRetries on retry_scheduled outcome", async () => {
     bypassThrottle();
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      mkCase({ fyndSyncRetries: 1 }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([mkCase({ fyndSyncRetries: 1 })]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakePlatformClient });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: false, error: "x" });
 

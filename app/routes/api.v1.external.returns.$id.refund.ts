@@ -3,7 +3,12 @@ import { authenticateApiKey } from "../lib/api-key-auth.server";
 import { apiSuccess, apiError, checkPerKeyRateLimit } from "../lib/external-api-helpers.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { dispatchWebhookEvent } from "../lib/webhook-dispatch.server";
-import { createRefund, createAdminClient, closeShopifyReturnBestEffort, type RefundMethodConfig } from "../lib/shopify-admin.server";
+import {
+  createRefund,
+  createAdminClient,
+  closeShopifyReturnBestEffort,
+  type RefundMethodConfig,
+} from "../lib/shopify-admin.server";
 import prisma from "../db.server";
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -17,14 +22,22 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const auth = await authenticateApiKey(request, "write_returns");
   if (!auth.ok) return auth.response;
 
-  const perKey = await checkPerKeyRateLimit(request, "external.returns.refund", auth.keyId ?? "anon");
+  const perKey = await checkPerKeyRateLimit(
+    request,
+    "external.returns.refund",
+    auth.keyId ?? "anon",
+  );
   if (perKey) return perKey;
 
   const id = params.id;
   if (!id) return apiError(400, "BAD_REQUEST", "Return ID is required");
 
   let body: { refundMethod?: string; locationId?: string; note?: string } = {};
-  try { body = await request.json(); } catch { /* empty */ }
+  try {
+    body = await request.json();
+  } catch {
+    /* empty */
+  }
 
   // Whitelist refundMethod. Shopify App Store policy restricts refunds to
   // Shopify's refundCreate / storeCreditRefund — `discount_code` is
@@ -37,7 +50,7 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
         400,
         "BAD_REQUEST",
         `Invalid refundMethod. Must be one of: ${[...VALID_REFUND_METHODS].join(", ")}. ` +
-        `Note: discount_code is no longer supported as a refund method.`,
+          `Note: discount_code is no longer supported as a refund method.`,
       );
     }
   }
@@ -50,7 +63,11 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     if (!returnCase) return apiError(404, "NOT_FOUND", `Return with ID ${id} not found`);
 
     if (returnCase.status.toLowerCase() !== "approved") {
-      return apiError(400, "INVALID_STATE", `Return must be approved before refunding (current: ${returnCase.status})`);
+      return apiError(
+        400,
+        "INVALID_STATE",
+        `Return must be approved before refunding (current: ${returnCase.status})`,
+      );
     }
     if (returnCase.refundStatus === "refunded") {
       return apiError(400, "INVALID_STATE", "Return has already been refunded");
@@ -87,7 +104,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const safeMethod = refundMethod === "discount_code" ? "original" : refundMethod;
 
     // Standard refund (original, store_credit, both)
-    const refundMethodConfig: RefundMethodConfig = { method: safeMethod as RefundMethodConfig["method"] };
+    const refundMethodConfig: RefundMethodConfig = {
+      method: safeMethod as RefundMethodConfig["method"],
+    };
 
     const result = await createRefund(
       admin,
@@ -122,7 +141,9 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     // Close the Shopify return after standard refund
     await closeShopifyReturnBestEffort(admin, returnCase, {
       logEvent: async (evt) => {
-        await prisma.returnEvent.create({ data: { returnCaseId: id, source: "external_api", ...evt } }).catch(() => {});
+        await prisma.returnEvent
+          .create({ data: { returnCaseId: id, source: "external_api", ...evt } })
+          .catch(() => {});
       },
     });
 

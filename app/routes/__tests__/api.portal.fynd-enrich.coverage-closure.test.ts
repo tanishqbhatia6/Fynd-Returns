@@ -19,7 +19,10 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   parseFyndOrderDetailsMock: vi.fn(() => null),
   extractFyndJourneyMock: vi.fn(() => []),
   getTrackingInfoMock: vi.fn(() => null),
@@ -61,7 +64,9 @@ function jsonReq(body: unknown) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   createFyndClientOrErrorMock.mockReset();
   parseFyndOrderDetailsMock.mockReset().mockReturnValue(null);
 });

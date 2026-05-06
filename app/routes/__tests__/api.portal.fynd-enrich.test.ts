@@ -12,7 +12,10 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 30, retryAfterMs: 0 })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   parseFyndOrderDetailsMock: vi.fn(() => ({ orderInfo: { name: "#1001" } })),
   extractFyndJourneyMock: vi.fn(() => [{ status: "delivery_done" }]),
   getTrackingInfoMock: vi.fn(() => ({ awb: "AWB-1" })),
@@ -55,10 +58,17 @@ function jsonReq(body: unknown, method = "POST") {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  const mapping = (prismaMock as unknown as Record<string, Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>>).fyndOrderMapping;
+  const mapping = (
+    prismaMock as unknown as Record<
+      string,
+      Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>
+    >
+  ).fyndOrderMapping;
   mapping.upsert.mockReset();
   mapping.upsert.mockResolvedValue({});
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   parseFyndOrderDetailsMock.mockReset().mockReturnValue({ orderInfo: { name: "#1001" } });
   extractFyndJourneyMock.mockReset().mockReturnValue([{ status: "delivery_done" }]);
@@ -68,7 +78,11 @@ beforeEach(() => {
 
 describe("loader preflight", () => {
   it("204 on OPTIONS", async () => {
-    const res = await loader({ request: new Request("https://a/x", { method: "OPTIONS" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: new Request("https://a/x", { method: "OPTIONS" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res?.status).toBe(204);
   });
 });
@@ -97,25 +111,50 @@ describe("action guards", () => {
   });
 
   it("returns empty payload when Fynd client unavailable", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "no creds" });
-    const res = await action({ request: jsonReq({ shop: "store", type: "order", orderName: "1001" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shop: "store", type: "order", orderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ fyndData: null, returnEnrichments: {} });
   });
 
   it("returns empty payload when client lacks searchShipmentsByExternalOrderId (storefront-only)", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
-    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: { /* no search method */ } });
-    const res = await action({ request: jsonReq({ shop: "store", type: "order", orderName: "1001" }), params: {}, context: {} } as never);
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: {
+        /* no search method */
+      },
+    });
+    const res = await action({
+      request: jsonReq({ shop: "store", type: "order", orderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.fyndData).toBe(null);
   });
 
   it("200 with null payload on unexpected thrown error", async () => {
     prismaMock.shop.findUnique.mockRejectedValueOnce(new Error("db gone"));
-    const res = await action({ request: jsonReq({ shop: "x", type: "order", orderName: "1001" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shop: "x", type: "order", orderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({ fyndData: null, returnEnrichments: {} });
@@ -124,20 +163,26 @@ describe("action guards", () => {
 
 describe("order enrichment (type=order)", () => {
   beforeEach(() => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
   });
 
   it("returns fyndData when search hits forward items, stripping # prefix", async () => {
     const searchMock = vi.fn().mockResolvedValueOnce({
-      items: [
-        { shipment_id: "SH-1", order_id: "O-1", journey_type: "forward" },
-      ],
+      items: [{ shipment_id: "SH-1", order_id: "O-1", journey_type: "forward" }],
     });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock },
     });
-    const res = await action({ request: jsonReq({ shop: "store", type: "order", orderName: "#1001" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shop: "store", type: "order", orderName: "#1001" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.fyndData).not.toBe(null);
     expect(searchMock).toHaveBeenCalledWith("1001", expect.anything());
@@ -154,7 +199,11 @@ describe("order enrichment (type=order)", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock },
     });
-    await action({ request: jsonReq({ shop: "store", type: "order", orderName: "1001" }), params: {}, context: {} } as never);
+    await action({
+      request: jsonReq({ shop: "store", type: "order", orderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     // parseFyndOrderDetailsForTab should be called with the forward-filtered payload
     expect(parseFyndOrderDetailsMock).toHaveBeenCalled();
   });
@@ -167,9 +216,15 @@ describe("order enrichment (type=order)", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock },
     });
-    await action({ request: jsonReq({ shop: "store", type: "order", orderName: "1001" }), params: {}, context: {} } as never);
+    await action({
+      request: jsonReq({ shop: "store", type: "order", orderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     await new Promise((r) => setImmediate(r));
-    const mapping = (prismaMock as unknown as Record<string, Record<string, { mock: { calls: unknown[] } }>>).fyndOrderMapping;
+    const mapping = (
+      prismaMock as unknown as Record<string, Record<string, { mock: { calls: unknown[] } }>>
+    ).fyndOrderMapping;
     expect(mapping.upsert.mock.calls.length).toBeGreaterThan(0);
   });
 
@@ -179,7 +234,11 @@ describe("order enrichment (type=order)", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock },
     });
-    const res = await action({ request: jsonReq({ shop: "store", type: "order", orderName: "1001" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shop: "store", type: "order", orderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.fyndData).toBe(null);
   });
@@ -187,7 +246,11 @@ describe("order enrichment (type=order)", () => {
 
 describe("returns enrichment (type=returns)", () => {
   beforeEach(() => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com", settings: {} });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {},
+    });
   });
 
   it("caps returnIds to 10 and ignores returns with missing orderName/shipmentId", async () => {
@@ -202,8 +265,13 @@ describe("returns enrichment (type=returns)", () => {
     ]);
 
     const res = await action({
-      request: jsonReq({ shop: "store", type: "returns", returnIds: new Array(20).fill(0).map((_, i) => `r-${i}`) }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        type: "returns",
+        returnIds: new Array(20).fill(0).map((_, i) => `r-${i}`),
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     // findMany was called with a cap of 10 IDs
@@ -225,13 +293,16 @@ describe("returns enrichment (type=returns)", () => {
 
     const res = await action({
       request: jsonReq({ shop: "store", type: "returns", returnIds: ["r-1"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
-    expect(body.returnEnrichments["r-1"]).toEqual(expect.objectContaining({
-      trackingInfo: { awb: "AWB-1" },
-      fyndShipmentId: "SH-EXACT",
-    }));
+    expect(body.returnEnrichments["r-1"]).toEqual(
+      expect.objectContaining({
+        trackingInfo: { awb: "AWB-1" },
+        fyndShipmentId: "SH-EXACT",
+      }),
+    );
   });
 
   it("falls back to first return shipment when exact ID doesn't match (stale bag ID)", async () => {
@@ -247,7 +318,8 @@ describe("returns enrichment (type=returns)", () => {
     ]);
     const res = await action({
       request: jsonReq({ shop: "store", type: "returns", returnIds: ["r-1"] }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body.returnEnrichments["r-1"].fyndShipmentId).toBe("SH-LIVE");

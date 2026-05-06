@@ -29,11 +29,17 @@ vi.mock("../../lib/shop.server", () => ({ findOrCreateShop: findOrCreateShopMock
 vi.mock("../../lib/portal-theme.server", () => ({
   parsePortalTheme: parsePortalThemeMock,
   DEFAULT_PORTAL_THEME: {
-    primaryColor: "#4E52F2", primaryHoverColor: "#3940d6",
-    backgroundColor: "#fff", surfaceColor: "#f8fafc",
-    textColor: "#0f172a", textMutedColor: "#64748b",
-    borderColor: "#e2e8f0", fontFamily: "Inter", headingFont: "Inter",
-    borderRadius: "10", shadow: "default",
+    primaryColor: "#4E52F2",
+    primaryHoverColor: "#3940d6",
+    backgroundColor: "#fff",
+    surfaceColor: "#f8fafc",
+    textColor: "#0f172a",
+    textMutedColor: "#64748b",
+    borderColor: "#e2e8f0",
+    fontFamily: "Inter",
+    headingFont: "Inter",
+    borderRadius: "10",
+    shadow: "default",
   },
   FONT_OPTIONS: ["Inter", "Roboto"],
 }));
@@ -65,8 +71,14 @@ beforeEach(() => {
 
 describe("loader", () => {
   it("returns theme + config + portalUrl built from session shop", async () => {
-    findOrCreateShopMock.mockResolvedValueOnce({ settings: { portalLanguage: "en", shopLocale: "en", shopCurrency: "USD" } });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    findOrCreateShopMock.mockResolvedValueOnce({
+      settings: { portalLanguage: "en", shopLocale: "en", shopCurrency: "USD" },
+    });
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.portalUrl).toBe("https://store.myshopify.com/apps/returns");
     expect(data.portalLanguage).toBe("en");
     expect(data.portalTheme.primaryColor).toBe("#000");
@@ -76,7 +88,11 @@ describe("loader", () => {
     findOrCreateShopMock.mockResolvedValueOnce({
       settings: { portalLabelsJson: "{not json", portalLanguage: "en" },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.portalLabelOverrides).toEqual({});
   });
 
@@ -87,13 +103,21 @@ describe("loader", () => {
         portalLanguage: "en",
       },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.portalLabelOverrides).toEqual({ "portal.title": "Custom Heading" });
   });
 
   it("returns DEFAULT shop locale/currency/timezone when settings missing", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.shopLocale).toBe("en");
     expect(data.shopCurrency).toBe("USD");
     expect(data.shopTimezone).toBe("UTC");
@@ -111,14 +135,15 @@ describe("action", () => {
         allowMediaUploads: "on",
         defaultTab: "create",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     const cfg = JSON.parse(upsertArg.update.portalConfigJson);
     expect(cfg.showOrderTracking).toBe(true);
     expect(cfg.allowMediaUploads).toBe(true);
-    expect(cfg.allowReturnCancellation).toBe(true);   // default-true unless "off"
+    expect(cfg.allowReturnCancellation).toBe(true); // default-true unless "off"
     expect(cfg.defaultTab).toBe("create");
   });
 
@@ -126,7 +151,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ defaultTab: "garbage" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const cfg = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.portalConfigJson);
     expect(cfg.defaultTab).toBe("return");
@@ -136,7 +162,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ allowReturnCancellation: "off" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const cfg = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.portalConfigJson);
     expect(cfg.allowReturnCancellation).toBe(false);
@@ -145,8 +172,11 @@ describe("action", () => {
   it("only writes portalThemeJson when at least one theme field is provided", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
-      request: formReq({ /* no theme fields */ }),
-      params: {}, context: {},
+      request: formReq({
+        /* no theme fields */
+      }),
+      params: {},
+      context: {},
     } as never);
     const arg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(arg.update.portalThemeJson).toBeUndefined();
@@ -156,7 +186,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     await action({
       request: formReq({ primaryColor: "#abcdef" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const themeJson = prismaMock.shopSettings.upsert.mock.calls[0][0].update.portalThemeJson;
     const theme = JSON.parse(themeJson);
@@ -168,15 +199,18 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const labels = JSON.stringify({
       "portal.title": "Custom",
-      "portal.subtitle": "  ",        // whitespace-only → dropped
-      "portal.misc": 42,                // non-string → dropped
-      "portal.ok": "Trim me  ",         // trimmed
+      "portal.subtitle": "  ", // whitespace-only → dropped
+      "portal.misc": 42, // non-string → dropped
+      "portal.ok": "Trim me  ", // trimmed
     });
     await action({
       request: formReq({ portalLabelsJson: labels }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    const stored = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.portalLabelsJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.upsert.mock.calls[0][0].update.portalLabelsJson,
+    );
     expect(stored["portal.title"]).toBe("Custom");
     expect(stored["portal.ok"]).toBe("Trim me");
     expect(stored).not.toHaveProperty("portal.subtitle");
@@ -187,7 +221,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ portalLabelsJson: "{not json" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     const arg = prismaMock.shopSettings.upsert.mock.calls[0][0];

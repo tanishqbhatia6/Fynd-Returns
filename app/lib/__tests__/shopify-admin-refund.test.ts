@@ -19,7 +19,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -28,17 +28,14 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import { createRefund, type AdminGraphQL } from "../shopify-admin.server";
 
 type Variables = Record<string, unknown> | undefined;
 type GraphqlCall = { query: string; variables: Variables };
-type CannedResponse =
-  | unknown
-  | Error
-  | { status: number; body: unknown };
+type CannedResponse = unknown | Error | { status: number; body: unknown };
 
 function makeAdmin(responses: CannedResponse[]): {
   admin: AdminGraphQL;
@@ -67,7 +64,9 @@ function makeAdmin(responses: CannedResponse[]): {
 }
 
 const LOCATIONS_OK = {
-  data: { locations: { nodes: [{ id: "gid://shopify/Location/L1", name: "Main", isActive: true }] } },
+  data: {
+    locations: { nodes: [{ id: "gid://shopify/Location/L1", name: "Main", isActive: true }] },
+  },
 };
 
 function suggested(amount = "100.00", currency = "USD", withTxn = true) {
@@ -93,12 +92,14 @@ function suggested(amount = "100.00", currency = "USD", withTxn = true) {
   };
 }
 
-function refundOk(opts: {
-  id?: string;
-  amount?: string;
-  currency?: string;
-  userErrors?: Array<{ field?: string; message: string }>;
-} = {}) {
+function refundOk(
+  opts: {
+    id?: string;
+    amount?: string;
+    currency?: string;
+    userErrors?: Array<{ field?: string; message: string }>;
+  } = {},
+) {
   return {
     data: {
       refundCreate: {
@@ -124,11 +125,7 @@ beforeEach(() => {
 
 describe("createRefund — happy path", () => {
   it("invokes the refundCreate mutation and returns mapped fields", async () => {
-    const { admin, calls, graphql } = makeAdmin([
-      LOCATIONS_OK,
-      suggested(),
-      refundOk(),
-    ]);
+    const { admin, calls, graphql } = makeAdmin([LOCATIONS_OK, suggested(), refundOk()]);
     const r = await createRefund(admin, "gid://shopify/Order/42", [
       { id: "gid://shopify/LineItem/9", quantity: 2 },
     ]);
@@ -147,7 +144,11 @@ describe("createRefund — happy path", () => {
 
 describe("createRefund — original-method (default)", () => {
   it("populates transactions from the suggested-refund response", async () => {
-    const { admin, calls } = makeAdmin([LOCATIONS_OK, suggested("75.50"), refundOk({ amount: "75.50" })]);
+    const { admin, calls } = makeAdmin([
+      LOCATIONS_OK,
+      suggested("75.50"),
+      refundOk({ amount: "75.50" }),
+    ]);
     await createRefund(admin, "1001", [{ id: "9", quantity: 1 }]);
     const input = calls[2].variables?.input as {
       transactions: Array<{ gateway: string; amount: string; parentId?: string; kind: string }>;
@@ -174,19 +175,16 @@ describe("createRefund — store_credit method", () => {
       suggested("250.00", "INR"),
       refundOk({ amount: "250.00", currency: "INR" }),
     ]);
-    const r = await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "store_credit" },
-    );
+    const r = await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "store_credit",
+    });
     expect(r.success).toBe(true);
     expect(r.refundMethod).toBe("store_credit");
     const input = calls[2].variables?.input as {
       transactions: unknown[];
-      refundMethods: Array<{ storeCreditRefund: { amount: { amount: string; currencyCode: string } } }>;
+      refundMethods: Array<{
+        storeCreditRefund: { amount: { amount: string; currencyCode: string } };
+      }>;
     };
     // Original-payment transactions are explicitly empty — money flows
     // exclusively through storeCreditRefund.
@@ -200,19 +198,12 @@ describe("createRefund — store_credit method", () => {
 
 describe("createRefund — both method (split)", () => {
   it("splits refund into transactions + refundMethods using requested amounts", async () => {
-    const { admin, calls } = makeAdmin([
-      LOCATIONS_OK,
-      suggested("100.00", "USD"),
-      refundOk(),
-    ]);
-    await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "both", storeCreditAmount: 70, originalAmount: 30 },
-    );
+    const { admin, calls } = makeAdmin([LOCATIONS_OK, suggested("100.00", "USD"), refundOk()]);
+    await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "both",
+      storeCreditAmount: 70,
+      originalAmount: 30,
+    });
     const input = calls[2].variables?.input as {
       transactions: Array<{ amount: string; gateway: string; parentId?: string }>;
       refundMethods: Array<{ storeCreditRefund: { amount: { amount: string } } }>;
@@ -224,19 +215,11 @@ describe("createRefund — both method (split)", () => {
   });
 
   it("uses storeCreditPct fallback split when amounts not explicit", async () => {
-    const { admin, calls } = makeAdmin([
-      LOCATIONS_OK,
-      suggested("200.00", "USD"),
-      refundOk(),
-    ]);
-    await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "both", storeCreditPct: 75 },
-    );
+    const { admin, calls } = makeAdmin([LOCATIONS_OK, suggested("200.00", "USD"), refundOk()]);
+    await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "both",
+      storeCreditPct: 75,
+    });
     const input = calls[2].variables?.input as {
       transactions: Array<{ amount: string }>;
       refundMethods: Array<{ storeCreditRefund: { amount: { amount: string } } }>;
@@ -249,36 +232,22 @@ describe("createRefund — both method (split)", () => {
 
 describe("createRefund — COD / zero-refundable fallback", () => {
   it("rejects store_credit when suggested amount is 0 (COD-style order)", async () => {
-    const { admin } = makeAdmin([
-      LOCATIONS_OK,
-      suggested("0.00", "INR", false),
-    ]);
-    const r = await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "store_credit" },
-    );
+    const { admin } = makeAdmin([LOCATIONS_OK, suggested("0.00", "INR", false)]);
+    const r = await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "store_credit",
+    });
     expect(r.success).toBe(false);
     // Error message points the merchant at Discount-code refund / manual flow.
     expect(r.error).toMatch(/COD|zero refundable|Discount code|manually/i);
   });
 
   it("rejects 'both' when suggested amount is 0", async () => {
-    const { admin } = makeAdmin([
-      LOCATIONS_OK,
-      suggested("0.00", "INR", false),
-    ]);
-    const r = await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      { method: "both", storeCreditAmount: 50, originalAmount: 50 },
-    );
+    const { admin } = makeAdmin([LOCATIONS_OK, suggested("0.00", "INR", false)]);
+    const r = await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, {
+      method: "both",
+      storeCreditAmount: 50,
+      originalAmount: 50,
+    });
     expect(r.success).toBe(false);
     expect(r.error).toMatch(/zero refundable|COD|Discount code/i);
   });
@@ -299,7 +268,12 @@ describe("createRefund — refundLocationId pass-through", () => {
     );
     expect(graphql).toHaveBeenCalledTimes(2); // no locations call
     const input = calls[1].variables?.input as {
-      refundLineItems: Array<{ lineItemId: string; quantity: number; restockType: string; locationId?: string }>;
+      refundLineItems: Array<{
+        lineItemId: string;
+        quantity: number;
+        restockType: string;
+        locationId?: string;
+      }>;
     };
     for (const li of input.refundLineItems) {
       expect(li.locationId).toBe("gid://shopify/Location/Custom-77");
@@ -325,15 +299,9 @@ describe("createRefund — refundLineItem shaping", () => {
 
   it("uses NO_RESTOCK and omits locationId when skipLocation=true", async () => {
     const { admin, calls } = makeAdmin([suggested(), refundOk()]);
-    await createRefund(
-      admin,
-      "1001",
-      [{ id: "9", quantity: 1 }],
-      undefined,
-      undefined,
-      undefined,
-      { skipLocation: true },
-    );
+    await createRefund(admin, "1001", [{ id: "9", quantity: 1 }], undefined, undefined, undefined, {
+      skipLocation: true,
+    });
     const input = calls[1].variables?.input as {
       refundLineItems: Array<{ restockType: string; locationId?: string }>;
     };
@@ -448,7 +416,9 @@ describe("createRefund — currency formatting", () => {
       { bonusAmount: 0 },
     );
     const input = calls[2].variables?.input as {
-      refundMethods: Array<{ storeCreditRefund: { amount: { amount: string; currencyCode: string } } }>;
+      refundMethods: Array<{
+        storeCreditRefund: { amount: { amount: string; currencyCode: string } };
+      }>;
     };
     // Math.round(123.4567 * 100) / 100 = 123.46 → ".toFixed(2)" = "123.46".
     expect(input.refundMethods[0].storeCreditRefund.amount.amount).toBe("123.46");

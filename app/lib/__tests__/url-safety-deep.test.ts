@@ -46,10 +46,10 @@ describe("isPrivateIPv4 — public ranges", () => {
     "1.1.1.1",
     "11.0.0.1",
     "172.15.255.255", // just below RFC 1918 172.16/12
-    "172.32.0.1",     // just above RFC 1918 172.16/12
+    "172.32.0.1", // just above RFC 1918 172.16/12
     "100.63.255.255", // just below CGNAT
-    "100.128.0.0",    // just above CGNAT
-    "203.0.114.1",    // just above TEST-NET-3
+    "100.128.0.0", // just above CGNAT
+    "203.0.114.1", // just above TEST-NET-3
   ];
   for (const ip of PUBLIC) {
     it(`accepts ${ip} as public`, () => {

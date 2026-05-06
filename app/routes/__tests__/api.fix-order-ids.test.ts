@@ -47,12 +47,15 @@ describe("loader: GET /api/fix-order-ids", () => {
   });
 
   it("returns tenant-scoped summary on happy path", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
         id: "rc-1",
         returnRequestNo: "R-1",
-        shopifyOrderId: "FYNDSHOPIFYX14126",  // not a valid GID
+        shopifyOrderId: "FYNDSHOPIFYX14126", // not a valid GID
         shopifyOrderName: "#1001",
         status: "approved",
         refundStatus: null,
@@ -62,10 +65,21 @@ describe("loader: GET /api/fix-order-ids", () => {
         customerPhoneNorm: null,
         customerCity: null,
         customerCountry: null,
-        items: [{ id: "i-1", shopifyLineItemId: "gid://shopify/LineItem/1", sku: "SKU", title: "T", qty: 1 }],
+        items: [
+          {
+            id: "i-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            sku: "SKU",
+            title: "T",
+            qty: 1,
+          },
+        ],
       },
     ]);
-    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.session.findFirst.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      accessToken: "tok",
+    });
 
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
@@ -115,7 +129,10 @@ describe("action: POST /api/fix-order-ids", () => {
   });
 
   it("500 when no offline session has an access token", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     prismaMock.session.findFirst.mockResolvedValueOnce(null);
     const res = await action({ request: mkReq("POST"), params: {}, context: {} } as never);
     expect(res.status).toBe(500);
@@ -124,8 +141,14 @@ describe("action: POST /api/fix-order-ids", () => {
   });
 
   it("enrich path: returns empty results when no cases found", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
-    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
+    prismaMock.session.findFirst.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      accessToken: "tok",
+    });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
 
     const res = await action({
@@ -139,8 +162,14 @@ describe("action: POST /api/fix-order-ids", () => {
   });
 
   it("enrich path: scopes by shopId", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
-    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
+    prismaMock.session.findFirst.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      accessToken: "tok",
+    });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
 
     await action({
@@ -156,8 +185,14 @@ describe("action: POST /api/fix-order-ids", () => {
   });
 
   it("enrich path: scopes by specific id when provided", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
-    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
+    prismaMock.session.findFirst.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      accessToken: "tok",
+    });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
 
     await action({
@@ -173,8 +208,14 @@ describe("action: POST /api/fix-order-ids", () => {
   });
 
   it("fix path: scopes by shopId and finds candidates with invalid IDs", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
-    prismaMock.session.findFirst.mockResolvedValueOnce({ shop: "store.myshopify.com", accessToken: "tok" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
+    prismaMock.session.findFirst.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      accessToken: "tok",
+    });
     // Return zero cases so the fix loop is a no-op (no Shopify network calls).
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     const res = await action({ request: mkReq("POST"), params: {}, context: {} } as never);

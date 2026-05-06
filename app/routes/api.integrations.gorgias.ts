@@ -31,9 +31,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   });
 
   if (!shop?.settings?.gorgiasEnabled) {
-    return new Response(renderCard("Not Configured", "Gorgias integration is not enabled for this shop.", []), {
-      headers: { "Content-Type": "text/html" },
-    });
+    return new Response(
+      renderCard("Not Configured", "Gorgias integration is not enabled for this shop.", []),
+      {
+        headers: { "Content-Type": "text/html" },
+      },
+    );
   }
 
   // Validate API key if configured. Stored value is encrypted (post P0 rollout); the
@@ -49,7 +52,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const a = Buffer.from(apiKey, "utf8");
       const b = Buffer.from(storedPlain, "utf8");
       ok = a.length === b.length && crypto.timingSafeEqual(a, b);
-    } catch { ok = false; }
+    } catch {
+      ok = false;
+    }
     if (!ok) {
       return new Response(renderCard("Unauthorized", "Invalid API key.", []), {
         status: 401,
@@ -72,9 +77,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Defensive: try with new fields first, fall back without them if columns don't exist yet
   let returns: Array<{
-    id: string; returnRequestNo: string | null; shopifyOrderName: string | null;
-    status: string; resolutionType: string | null; createdAt: Date; customerName: string | null;
-    isGiftReturn: boolean; fraudRiskLevel: string | null; fraudRiskScore: number | null;
+    id: string;
+    returnRequestNo: string | null;
+    shopifyOrderName: string | null;
+    status: string;
+    resolutionType: string | null;
+    createdAt: Date;
+    customerName: string | null;
+    isGiftReturn: boolean;
+    fraudRiskLevel: string | null;
+    fraudRiskScore: number | null;
     items: Array<{ title: string | null; qty: number }>;
   }>;
   try {
@@ -83,9 +95,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       orderBy: { createdAt: "desc" },
       take: 10,
       select: {
-        id: true, returnRequestNo: true, shopifyOrderName: true,
-        status: true, resolutionType: true, createdAt: true, customerName: true,
-        isGiftReturn: true, fraudRiskLevel: true, fraudRiskScore: true,
+        id: true,
+        returnRequestNo: true,
+        shopifyOrderName: true,
+        status: true,
+        resolutionType: true,
+        createdAt: true,
+        customerName: true,
+        isGiftReturn: true,
+        fraudRiskLevel: true,
+        fraudRiskScore: true,
         items: { select: { title: true, qty: true } },
       },
     });
@@ -96,31 +115,45 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       orderBy: { createdAt: "desc" },
       take: 10,
       select: {
-        id: true, returnRequestNo: true, shopifyOrderName: true,
-        status: true, resolutionType: true, createdAt: true, customerName: true,
+        id: true,
+        returnRequestNo: true,
+        shopifyOrderName: true,
+        status: true,
+        resolutionType: true,
+        createdAt: true,
+        customerName: true,
         items: { select: { title: true, qty: true } },
       },
     });
-    returns = fallback.map(r => ({ ...r, isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null }));
+    returns = fallback.map((r) => ({
+      ...r,
+      isGiftReturn: false,
+      fraudRiskLevel: null,
+      fraudRiskScore: null,
+    }));
   }
 
   if (returns.length === 0) {
-    return new Response(renderCard("No Returns", `No return requests found for ${customerEmail || orderName}.`, []), {
-      headers: { "Content-Type": "text/html" },
-    });
+    return new Response(
+      renderCard("No Returns", `No return requests found for ${customerEmail || orderName}.`, []),
+      {
+        headers: { "Content-Type": "text/html" },
+      },
+    );
   }
 
   const appUrl = process.env.SHOPIFY_APP_URL || url.origin;
 
-  const cards = returns.map(r => {
+  const cards = returns.map((r) => {
     const statusColor = getStatusColor(r.status);
-    const riskBadge = r.fraudRiskLevel && r.fraudRiskLevel !== "low"
-      ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${getRiskColor(r.fraudRiskLevel).bg};color:${getRiskColor(r.fraudRiskLevel).text};margin-left:6px">${r.fraudRiskLevel.toUpperCase()} RISK</span>`
-      : "";
+    const riskBadge =
+      r.fraudRiskLevel && r.fraudRiskLevel !== "low"
+        ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:${getRiskColor(r.fraudRiskLevel).bg};color:${getRiskColor(r.fraudRiskLevel).text};margin-left:6px">${r.fraudRiskLevel.toUpperCase()} RISK</span>`
+        : "";
     const giftBadge = r.isGiftReturn
       ? `<span style="display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;background:#EDE9FE;color:#7C3AED;margin-left:6px">GIFT</span>`
       : "";
-    const items = r.items.map(i => `${i.title} (x${i.qty})`).join(", ");
+    const items = r.items.map((i) => `${i.title} (x${i.qty})`).join(", ");
     /* v8 ignore start */
     // defensive: resolutionType nullish fallback in card template
     const resolution = (r.resolutionType ?? "").replace(/_/g, " ");
@@ -140,13 +173,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       </div>`;
   });
 
-  return new Response(renderCard(
-    `Returns (${returns.length})`,
-    `Customer: ${returns[0].customerName || customerEmail}`,
-    cards,
-  ), {
-    headers: { "Content-Type": "text/html" },
-  });
+  return new Response(
+    renderCard(
+      `Returns (${returns.length})`,
+      `Customer: ${returns[0].customerName || customerEmail}`,
+      cards,
+    ),
+    {
+      headers: { "Content-Type": "text/html" },
+    },
+  );
 };
 
 function renderCard(title: string, subtitle: string, items: string[]): string {
@@ -168,22 +204,32 @@ function renderCard(title: string, subtitle: string, items: string[]): string {
 function getStatusColor(status: string): { bg: string; text: string } {
   switch (status) {
     case "initiated":
-    case "pending": return { bg: "#FEF3C7", text: "#92400E" };
+    case "pending":
+      return { bg: "#FEF3C7", text: "#92400E" };
     case "approved":
-    case "processing": return { bg: "#D1FAE5", text: "#065F46" };
-    case "completed": return { bg: "#DBEAFE", text: "#1E40AF" };
-    case "rejected": return { bg: "#FEE2E2", text: "#991B1B" };
-    case "cancelled": return { bg: "#F3F4F6", text: "#374151" };
-    default: return { bg: "#F3F4F6", text: "#374151" };
+    case "processing":
+      return { bg: "#D1FAE5", text: "#065F46" };
+    case "completed":
+      return { bg: "#DBEAFE", text: "#1E40AF" };
+    case "rejected":
+      return { bg: "#FEE2E2", text: "#991B1B" };
+    case "cancelled":
+      return { bg: "#F3F4F6", text: "#374151" };
+    default:
+      return { bg: "#F3F4F6", text: "#374151" };
   }
 }
 /* v8 ignore stop */
 
 function getRiskColor(level: string): { bg: string; text: string } {
   switch (level) {
-    case "critical": return { bg: "#FEE2E2", text: "#DC2626" };
-    case "high": return { bg: "#FFEDD5", text: "#EA580C" };
-    case "medium": return { bg: "#FEF3C7", text: "#D97706" };
-    default: return { bg: "#F3F4F6", text: "#6B7280" };
+    case "critical":
+      return { bg: "#FEE2E2", text: "#DC2626" };
+    case "high":
+      return { bg: "#FFEDD5", text: "#EA580C" };
+    case "medium":
+      return { bg: "#FEF3C7", text: "#D97706" };
+    default:
+      return { bg: "#F3F4F6", text: "#6B7280" };
   }
 }

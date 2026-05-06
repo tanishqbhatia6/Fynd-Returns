@@ -41,51 +41,39 @@ describe("portal-i18n parametric: getPortalLabels completeness", () => {
     },
   );
 
-  it.each(LANG_CASES)(
-    "[%s/%s] every English key is present in the returned map",
-    (code) => {
-      const labels = getPortalLabels(code);
-      for (const key of ALL_KEYS) {
-        expect(Object.prototype.hasOwnProperty.call(labels, key)).toBe(true);
-      }
-    },
-  );
+  it.each(LANG_CASES)("[%s/%s] every English key is present in the returned map", (code) => {
+    const labels = getPortalLabels(code);
+    for (const key of ALL_KEYS) {
+      expect(Object.prototype.hasOwnProperty.call(labels, key)).toBe(true);
+    }
+  });
 
-  it.each(LANG_CASES)(
-    "[%s/%s] uppercase language code resolves to a complete map",
-    (code) => {
-      const labels = getPortalLabels(code.toUpperCase());
-      for (const key of ALL_KEYS) {
-        expect(typeof labels[key]).toBe("string");
-        expect(labels[key].length).toBeGreaterThan(0);
-      }
-    },
-  );
+  it.each(LANG_CASES)("[%s/%s] uppercase language code resolves to a complete map", (code) => {
+    const labels = getPortalLabels(code.toUpperCase());
+    for (const key of ALL_KEYS) {
+      expect(typeof labels[key]).toBe("string");
+      expect(labels[key].length).toBeGreaterThan(0);
+    }
+  });
 
-  it.each(LANG_CASES)(
-    "[%s/%s] locale-suffixed code (xx-XX) resolves to a complete map",
-    (code) => {
-      const labels = getPortalLabels(`${code}-XX`);
-      for (const key of ALL_KEYS) {
-        expect(typeof labels[key]).toBe("string");
-        expect(labels[key].length).toBeGreaterThan(0);
-      }
-    },
-  );
+  it.each(LANG_CASES)("[%s/%s] locale-suffixed code (xx-XX) resolves to a complete map", (code) => {
+    const labels = getPortalLabels(`${code}-XX`);
+    for (const key of ALL_KEYS) {
+      expect(typeof labels[key]).toBe("string");
+      expect(labels[key].length).toBeGreaterThan(0);
+    }
+  });
 
-  it.each(LANG_CASES)(
-    "[%s/%s] overrides win over base translations",
-    (code) => {
-      const sentinel = `__sentinel_${code}__`;
-      const labels = getPortalLabels(code, { "portal.title": sentinel });
-      expect(labels["portal.title"]).toBe(sentinel);
-      // remaining keys still resolve
-      for (const key of ALL_KEYS) {
-        expect(typeof labels[key]).toBe("string");
-        expect(labels[key].length).toBeGreaterThan(0);
-      }
-    },
-  );
+  it.each(LANG_CASES)("[%s/%s] overrides win over base translations", (code) => {
+    const sentinel = `__sentinel_${code}__`;
+    const labels = getPortalLabels(code, { "portal.title": sentinel });
+    expect(labels["portal.title"]).toBe(sentinel);
+    // remaining keys still resolve
+    for (const key of ALL_KEYS) {
+      expect(typeof labels[key]).toBe("string");
+      expect(labels[key].length).toBeGreaterThan(0);
+    }
+  });
 
   it.each(LANG_CASES)(
     "[%s/%s] empty/whitespace overrides are ignored, base value preserved",
@@ -99,20 +87,17 @@ describe("portal-i18n parametric: getPortalLabels completeness", () => {
     },
   );
 
-  it.each(LANG_CASES)(
-    "[%s/%s] non-string override values are ignored",
-    (code) => {
-      const overrides = {
-        "portal.title": 123 as unknown as string,
-        "portal.common.back": null as unknown as string,
-      };
-      const labels = getPortalLabels(code, overrides);
-      expect(typeof labels["portal.title"]).toBe("string");
-      expect(labels["portal.title"].length).toBeGreaterThan(0);
-      expect(typeof labels["portal.common.back"]).toBe("string");
-      expect(labels["portal.common.back"].length).toBeGreaterThan(0);
-    },
-  );
+  it.each(LANG_CASES)("[%s/%s] non-string override values are ignored", (code) => {
+    const overrides = {
+      "portal.title": 123 as unknown as string,
+      "portal.common.back": null as unknown as string,
+    };
+    const labels = getPortalLabels(code, overrides);
+    expect(typeof labels["portal.title"]).toBe("string");
+    expect(labels["portal.title"].length).toBeGreaterThan(0);
+    expect(typeof labels["portal.common.back"]).toBe("string");
+    expect(labels["portal.common.back"].length).toBeGreaterThan(0);
+  });
 });
 
 describe("portal-i18n parametric: smoke checks", () => {

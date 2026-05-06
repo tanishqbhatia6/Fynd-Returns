@@ -33,9 +33,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Draft order was converted to a real order.
       // Shopify includes order_id and order_gid on the completed draft order payload.
       const realOrderId = p.order_id ? String(p.order_id) : null;
-      const realOrderGid = realOrderId
-        ? `gid://shopify/Order/${realOrderId}`
-        : null;
+      const realOrderGid = realOrderId ? `gid://shopify/Order/${realOrderId}` : null;
 
       if (realOrderGid) {
         // Update FyndOrderMapping to point to the real Order GID
@@ -47,7 +45,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             /* v8 ignore stop */
             data: { shopifyOrderId: realOrderGid, searchStrategy: "draft_order_completed" },
           });
-        } catch { /* non-critical */ }
+        } catch {
+          /* non-critical */
+        }
       }
 
       // Backfill sourceChannel on any existing ReturnCase for this order
@@ -60,7 +60,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           },
           data: { sourceChannel: "draft_order" },
         });
-      } catch { /* non-critical */ }
+      } catch {
+        /* non-critical */
+      }
     } else if (status !== "open" && status !== "invoiced") {
       // Draft order was cancelled/deleted — cancel any associated returns
       const returns = await prisma.returnCase.findMany({

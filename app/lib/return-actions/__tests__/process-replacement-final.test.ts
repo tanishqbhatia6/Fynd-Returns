@@ -35,10 +35,17 @@ const {
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(async () => new Map()),
+  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(
+    async () => new Map(),
+  ),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -60,10 +67,24 @@ import { handleProcessReplacement } from "../process-replacement.server";
 import type { ReturnHandlerContext, ReturnActionBody } from "../types";
 
 const DRAFT_OK = {
-  data: { draftOrderCreate: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" }, userErrors: [] } },
+  data: {
+    draftOrderCreate: {
+      draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" },
+      userErrors: [],
+    },
+  },
 };
 const COMPLETE_OK = {
-  data: { draftOrderComplete: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", order: { id: "gid://shopify/Order/9", name: "#9" } }, userErrors: [] } },
+  data: {
+    draftOrderComplete: {
+      draftOrder: {
+        id: "gid://shopify/DraftOrder/1",
+        name: "D1",
+        order: { id: "gid://shopify/Order/9", name: "#9" },
+      },
+      userErrors: [],
+    },
+  },
 };
 
 function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerContext {
@@ -81,17 +102,33 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       currency: "USD",
       refundStatus: null,
       cancellationRequestedAt: null,
-      fyndOrderId: null, fyndShipmentId: null, fyndReturnId: null, fyndPayloadJson: null,
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndPayloadJson: null,
       fyndCurrentStatus: null,
       shopifyReturnId: null,
       exchangeOrderId: null,
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 2, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 2,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: {
       graphql: vi.fn(async () => ({ json: async () => DRAFT_OK })),
     } as never,
@@ -151,19 +188,22 @@ describe("handleProcessReplacement — final coverage closers", () => {
   // ─── FN @139 + FN @148 ─────────────────────────────────────────────
   it("stockout path: builds human string and writes inventory_blocked event (409)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        id: "gid://shopify/LineItem/1",
-        title: "Item 1",
-        sku: "SKU-1",
-        price: "10.00",
-        quantity: 2,
-        variantId: "gid://shopify/ProductVariant/V1",
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 2,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map([
-      ["gid://shopify/ProductVariant/V1", { inventoryAvailable: 0 }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map([["gid://shopify/ProductVariant/V1", { inventoryAvailable: 0 }]]),
+    );
     const ctx = mkCtx();
     const body = await expectJsonError(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
@@ -175,29 +215,65 @@ describe("handleProcessReplacement — final coverage closers", () => {
     expect(body.stockoutLines).toBeDefined();
     expect(body.stockoutLines[0]).toMatchObject({ title: "Item 1", required: 2, available: 0 });
     // The inventory_blocked event create call DID happen (resolved path)
-    const calls = prismaMock.returnEvent.create.mock.calls
-      .map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const calls = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(calls).toContain("replacement_inventory_blocked");
   });
 
   it("stockout path: clamps negative inventoryAvailable to 0 and joins multi-line message", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       lineItems: [
-        { id: "gid://shopify/LineItem/1", title: "Item 1", sku: "SKU-1", price: "10.00", quantity: 2, variantId: "gid://shopify/ProductVariant/V1" },
-        { id: "gid://shopify/LineItem/2", title: "Item 2", sku: "SKU-2", price: "5.00", quantity: 1, variantId: "gid://shopify/ProductVariant/V2" },
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 2,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+        {
+          id: "gid://shopify/LineItem/2",
+          title: "Item 2",
+          sku: "SKU-2",
+          price: "5.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V2",
+        },
       ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map<string, { inventoryAvailable: number }>([
-      ["gid://shopify/ProductVariant/V1", { inventoryAvailable: -3 }], // negative → clamp
-      ["gid://shopify/ProductVariant/V2", { inventoryAvailable: 0 }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map<string, { inventoryAvailable: number }>([
+        ["gid://shopify/ProductVariant/V1", { inventoryAvailable: -3 }], // negative → clamp
+        ["gid://shopify/ProductVariant/V2", { inventoryAvailable: 0 }],
+      ]),
+    );
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 2, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
-          { id: "li-2", shopifyLineItemId: "gid://shopify/LineItem/2", qty: 1, sku: "SKU-2", price: "5.00", reasonCode: null, notes: null, title: "Item 2" },
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 2,
+            sku: "SKU-1",
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: "Item 1",
+          },
+          {
+            id: "li-2",
+            shopifyLineItemId: "gid://shopify/LineItem/2",
+            qty: 1,
+            sku: "SKU-2",
+            price: "5.00",
+            reasonCode: null,
+            notes: null,
+            title: "Item 2",
+          },
         ],
       } as never,
     });
@@ -214,12 +290,22 @@ describe("handleProcessReplacement — final coverage closers", () => {
 
   it("stockout: catch silently swallows when returnEvent.create rejects (FN @148)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "Item 1", sku: "SKU-1", price: "10.00", quantity: 2, variantId: "gid://shopify/ProductVariant/V1" }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 2,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map([
-      ["gid://shopify/ProductVariant/V1", { inventoryAvailable: 0 }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map([["gid://shopify/ProductVariant/V1", { inventoryAvailable: 0 }]]),
+    );
     // Reject ONLY for the inventory_blocked event; default impl handles
     // any other create. Because the .catch is a sync arrow on the
     // returned Promise, the rejection becomes a no-op and the 409
@@ -244,8 +330,11 @@ describe("handleProcessReplacement — final coverage closers", () => {
   // ─── FN @210 ───────────────────────────────────────────────────────
   it("draft top-level errors path: maps + joins messages (FN @210)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const draftErr = { errors: [{ message: "Field bad" }, { message: "Another problem" }] };
     const ctx = mkCtx({ admin: mkAdmin(draftErr, COMPLETE_OK) });
@@ -262,8 +351,11 @@ describe("handleProcessReplacement — final coverage closers", () => {
 
   it("draft top-level errors with scope keyword: returns 403 with reinstall message", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const draftErr = { errors: [{ message: "access denied: write_draft_orders required" }] };
     const ctx = mkCtx({ admin: mkAdmin(draftErr, COMPLETE_OK) });
@@ -277,14 +369,20 @@ describe("handleProcessReplacement — final coverage closers", () => {
   // ─── FN @222 ───────────────────────────────────────────────────────
   it("draft userErrors path: maps + joins messages (FN @222)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const draftUserErr = {
       data: {
         draftOrderCreate: {
           draftOrder: null,
-          userErrors: [{ field: ["email"], message: "Email is invalid" }, { message: "Quantity must be positive" }],
+          userErrors: [
+            { field: ["email"], message: "Email is invalid" },
+            { message: "Quantity must be positive" },
+          ],
         },
       },
     };
@@ -301,8 +399,11 @@ describe("handleProcessReplacement — final coverage closers", () => {
 
   it("draft userErrors with scope keyword: returns 400 with reinstall message", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const draftUserErr = {
       data: {
@@ -323,10 +424,15 @@ describe("handleProcessReplacement — final coverage closers", () => {
   // ─── FN @331 ───────────────────────────────────────────────────────
   it("fynd_replacement_synced: catch silently swallows create rejection (FN @331)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
-    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined);
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
@@ -354,19 +460,25 @@ describe("handleProcessReplacement — final coverage closers", () => {
       "/app/returns/rc-1",
     );
     // Confirm the rejected create was attempted
-    const attempted = prismaMock.returnEvent.create.mock.calls
-      .map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const attempted = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(attempted).toContain("fynd_replacement_synced");
   });
 
   // ─── FN @342 ───────────────────────────────────────────────────────
   it("fynd_replacement_sync_failed: catch silently swallows create rejection (FN @342)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     // Force the Fynd push to throw → enters the catch that writes _failed
-    const updateShipmentStatus = vi.fn(async () => { throw new Error("Fynd 503"); });
+    const updateShipmentStatus = vi.fn(async () => {
+      throw new Error("Fynd 503");
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
@@ -391,8 +503,9 @@ describe("handleProcessReplacement — final coverage closers", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const attempted = prismaMock.returnEvent.create.mock.calls
-      .map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const attempted = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(attempted).toContain("fynd_replacement_sync_failed");
   });
 });

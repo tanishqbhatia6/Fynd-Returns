@@ -11,7 +11,10 @@
  */
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { extractAffiliateOrderIdFromFyndPayload, extractCustomerFromFyndPayload } from "../lib/fynd-payload.server";
+import {
+  extractAffiliateOrderIdFromFyndPayload,
+  extractCustomerFromFyndPayload,
+} from "../lib/fynd-payload.server";
 import { authenticate } from "../shopify.server";
 
 const API_VERSION = "2026-01";
@@ -21,7 +24,11 @@ const SHOPIFY_FETCH_TIMEOUT_MS = 15_000;
 /** Wrap fetch with an AbortController-based timeout so a hung upstream
  *  doesn't pin the worker. Used for direct REST/GraphQL calls in this
  *  admin diagnostic+repair endpoint. */
-async function shopifyFetch(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+async function shopifyFetch(
+  url: string,
+  init: RequestInit,
+  timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -42,7 +49,7 @@ function isValidShopifyId(id: string | null | undefined): boolean {
 async function resolveOrderByName(
   shopDomain: string,
   accessToken: string,
-  orderName: string
+  orderName: string,
 ): Promise<{ gid: string; name: string } | null> {
   const clean = orderName.replace(/^#/, "").trim();
   // unreachable: getOrderNameVariants pre-filters empty strings
@@ -145,7 +152,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const valid = isValidShopifyId(rc.shopifyOrderId);
     const affiliateId = extractAffiliateOrderIdFromFyndPayload(rc.fyndPayloadJson);
     const lineItemsValid = rc.items.every(
-      (i) => i.shopifyLineItemId.startsWith("gid://shopify/LineItem/") || /^\d+$/.test(i.shopifyLineItemId)
+      (i) =>
+        i.shopifyLineItemId.startsWith("gid://shopify/LineItem/") ||
+        /^\d+$/.test(i.shopifyLineItemId),
     );
     return {
       id: rc.id,
@@ -170,7 +179,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         sku: i.sku,
         title: i.title,
         qty: i.qty,
-        isValidShopifyLineItemId: i.shopifyLineItemId.startsWith("gid://shopify/LineItem/") || i.shopifyLineItemId === "manual",
+        isValidShopifyLineItemId:
+          i.shopifyLineItemId.startsWith("gid://shopify/LineItem/") ||
+          i.shopifyLineItemId === "manual",
         looksNumeric: /^\d+$/.test(i.shopifyLineItemId),
       })),
       lineItemsValid,
@@ -181,16 +192,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const needsLineItemFix = summary.filter((s) => !s.lineItemsValid);
 
   /* v8 ignore start - defensive `?? session.shop` fallback for missing offline */
-  return Response.json({
-    sessionFound: !!offlineSession,
-    shopDomain: offlineSession?.shop ?? session.shop,
-    hasAccessToken: !!offlineSession?.accessToken,
-    totalCases: cases.length,
-    needsOrderIdFix: needsFix.length,
-    needsLineItemFix: needsLineItemFix.length,
-    needsAnyFix: summary.filter((s) => s.needsFix || !s.lineItemsValid).length,
-    cases: summary,
-  }, { headers: { "Content-Type": "application/json" } });
+  return Response.json(
+    {
+      sessionFound: !!offlineSession,
+      shopDomain: offlineSession?.shop ?? session.shop,
+      hasAccessToken: !!offlineSession?.accessToken,
+      totalCases: cases.length,
+      needsOrderIdFix: needsFix.length,
+      needsLineItemFix: needsLineItemFix.length,
+      needsAnyFix: summary.filter((s) => s.needsFix || !s.lineItemsValid).length,
+      cases: summary,
+    },
+    { headers: { "Content-Type": "application/json" } },
+  );
   /* v8 ignore stop */
 };
 
@@ -201,7 +215,17 @@ async function fetchShopifyOrderCustomerInfo(
   shopDomain: string,
   accessToken: string,
   orderGid: string,
-): Promise<{ email?: string; phone?: string; name?: string; city?: string; country?: string; address1?: string; address2?: string; province?: string; zip?: string } | null> {
+): Promise<{
+  email?: string;
+  phone?: string;
+  name?: string;
+  city?: string;
+  country?: string;
+  address1?: string;
+  address2?: string;
+  province?: string;
+  zip?: string;
+} | null> {
   /* v8 ignore start - defensive shop-domain normalization ternary */
   const shop = shopDomain.includes(".") ? shopDomain : `${shopDomain}.myshopify.com`;
   /* v8 ignore stop */
@@ -226,12 +250,15 @@ async function fetchShopifyOrderCustomerInfo(
     if (!res.ok) return null;
     /* v8 ignore start - defensive `?.`/`||` chains for partial Shopify response */
     const json = (await res.json()) as {
-      data?: { node?: { email?: string; phone?: string; shippingAddress?: Record<string, string | null> } };
+      data?: {
+        node?: { email?: string; phone?: string; shippingAddress?: Record<string, string | null> };
+      };
     };
     const order = json.data?.node;
     if (!order) return null;
     const addr = order.shippingAddress;
-    const name = addr?.name || [addr?.firstName, addr?.lastName].filter(Boolean).join(" ") || undefined;
+    const name =
+      addr?.name || [addr?.firstName, addr?.lastName].filter(Boolean).join(" ") || undefined;
     return {
       email: order.email || undefined,
       phone: order.phone || undefined,
@@ -281,7 +308,13 @@ async function fetchShopifyOrderLineItems(
     if (!res.ok) return null;
     /* v8 ignore start - defensive `?.`/`?? null` chains */
     const json = (await res.json()) as {
-      data?: { node?: { lineItems?: { edges?: Array<{ node: { id: string; title: string; sku: string | null } }> } } };
+      data?: {
+        node?: {
+          lineItems?: {
+            edges?: Array<{ node: { id: string; title: string; sku: string | null } }>;
+          };
+        };
+      };
     };
     return json.data?.node?.lineItems?.edges?.map((e) => e.node) ?? null;
     /* v8 ignore stop */
@@ -297,12 +330,17 @@ async function fetchShopifyOrderLineItems(
  * Returns a map of returnItemId → newShopifyLineItemGid.
  */
 function matchLineItems(
-  returnItems: Array<{ id: string; shopifyLineItemId: string; sku: string | null; title: string | null }>,
+  returnItems: Array<{
+    id: string;
+    shopifyLineItemId: string;
+    sku: string | null;
+    title: string | null;
+  }>,
   shopifyLineItems: Array<{ id: string; title: string; sku: string | null }>,
 ): Map<string, string> {
   const result = new Map<string, string>();
-  const bySku = new Map<string, typeof shopifyLineItems[0]>();
-  const byTitle = new Map<string, typeof shopifyLineItems[0]>();
+  const bySku = new Map<string, (typeof shopifyLineItems)[0]>();
+  const byTitle = new Map<string, (typeof shopifyLineItems)[0]>();
   for (const sli of shopifyLineItems) {
     /* v8 ignore start */
     // defensive: shopify line items in fixtures always have sku/title; falsy branches unreachable
@@ -314,9 +352,13 @@ function matchLineItems(
   /* v8 ignore start - defensive multi-strategy match (sku → title → single-item) */
   for (const ri of returnItems) {
     // Skip items that already have valid Shopify GIDs
-    if (ri.shopifyLineItemId.startsWith("gid://shopify/LineItem/") || ri.shopifyLineItemId === "manual") continue;
+    if (
+      ri.shopifyLineItemId.startsWith("gid://shopify/LineItem/") ||
+      ri.shopifyLineItemId === "manual"
+    )
+      continue;
 
-    let matched: typeof shopifyLineItems[0] | undefined;
+    let matched: (typeof shopifyLineItems)[0] | undefined;
     // Match by SKU first (most reliable)
     if (ri.sku) matched = bySku.get(ri.sku.toLowerCase());
     // Fall back to title match
@@ -382,24 +424,41 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       },
     });
 
-    const results: Array<{ id: string; returnRequestNo: string | null; enriched: Record<string, string>; source: string }> = [];
+    const results: Array<{
+      id: string;
+      returnRequestNo: string | null;
+      enriched: Record<string, string>;
+      source: string;
+    }> = [];
 
     for (const rc of cases) {
       const enrichData: Record<string, string> = {};
 
       // Source 1: Shopify order (via GraphQL)
       if (rc.shopifyOrderId?.startsWith("gid://")) {
-        const shopifyCustomer = await fetchShopifyOrderCustomerInfo(session.shop, session.accessToken, rc.shopifyOrderId);
+        const shopifyCustomer = await fetchShopifyOrderCustomerInfo(
+          session.shop,
+          session.accessToken,
+          rc.shopifyOrderId,
+        );
         if (shopifyCustomer) {
           /* v8 ignore start - defensive null-current-field guards for enrichment */
-          if (!rc.customerName && shopifyCustomer.name) enrichData.customerName = shopifyCustomer.name;
-          if (!rc.customerEmailNorm && shopifyCustomer.email) enrichData.customerEmailNorm = shopifyCustomer.email.toLowerCase();
-          if (!rc.customerPhoneNorm && shopifyCustomer.phone) enrichData.customerPhoneNorm = shopifyCustomer.phone;
-          if (!rc.customerCity && shopifyCustomer.city) enrichData.customerCity = shopifyCustomer.city;
-          if (!rc.customerCountry && shopifyCustomer.country) enrichData.customerCountry = shopifyCustomer.country;
-          if (!rc.customerAddress1 && shopifyCustomer.address1) enrichData.customerAddress1 = shopifyCustomer.address1;
-          if (!rc.customerAddress2 && shopifyCustomer.address2) enrichData.customerAddress2 = shopifyCustomer.address2;
-          if (!rc.customerProvince && shopifyCustomer.province) enrichData.customerProvince = shopifyCustomer.province;
+          if (!rc.customerName && shopifyCustomer.name)
+            enrichData.customerName = shopifyCustomer.name;
+          if (!rc.customerEmailNorm && shopifyCustomer.email)
+            enrichData.customerEmailNorm = shopifyCustomer.email.toLowerCase();
+          if (!rc.customerPhoneNorm && shopifyCustomer.phone)
+            enrichData.customerPhoneNorm = shopifyCustomer.phone;
+          if (!rc.customerCity && shopifyCustomer.city)
+            enrichData.customerCity = shopifyCustomer.city;
+          if (!rc.customerCountry && shopifyCustomer.country)
+            enrichData.customerCountry = shopifyCustomer.country;
+          if (!rc.customerAddress1 && shopifyCustomer.address1)
+            enrichData.customerAddress1 = shopifyCustomer.address1;
+          if (!rc.customerAddress2 && shopifyCustomer.address2)
+            enrichData.customerAddress2 = shopifyCustomer.address2;
+          if (!rc.customerProvince && shopifyCustomer.province)
+            enrichData.customerProvince = shopifyCustomer.province;
           if (!rc.customerZip && shopifyCustomer.zip) enrichData.customerZip = shopifyCustomer.zip;
           /* v8 ignore stop */
         }
@@ -409,30 +468,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       /* v8 ignore start */
       // defensive: rc.fyndPayloadJson always present in this code path; falsy branch unreachable
       if (rc.fyndPayloadJson) {
-      /* v8 ignore stop */
+        /* v8 ignore stop */
         const fyndCustomer = extractCustomerFromFyndPayload(rc.fyndPayloadJson);
         /* v8 ignore start */
         // defensive: null fyndCustomer falsy branch
         if (fyndCustomer) {
           // defensive null-current-field guards for Fynd-payload enrichment
-          if (!enrichData.customerName && !rc.customerName && fyndCustomer.name) enrichData.customerName = fyndCustomer.name;
-          if (!enrichData.customerEmailNorm && !rc.customerEmailNorm && fyndCustomer.email) enrichData.customerEmailNorm = fyndCustomer.email.toLowerCase();
-          if (!enrichData.customerPhoneNorm && !rc.customerPhoneNorm && fyndCustomer.phone) enrichData.customerPhoneNorm = fyndCustomer.phone;
-          if (!enrichData.customerCity && !rc.customerCity && fyndCustomer.city) enrichData.customerCity = fyndCustomer.city;
-          if (!enrichData.customerCountry && !rc.customerCountry && fyndCustomer.country) enrichData.customerCountry = fyndCustomer.country;
-          if (!enrichData.customerAddress1 && !rc.customerAddress1 && fyndCustomer.address1) enrichData.customerAddress1 = fyndCustomer.address1;
-          if (!enrichData.customerAddress2 && !rc.customerAddress2 && fyndCustomer.address2) enrichData.customerAddress2 = fyndCustomer.address2;
-          if (!enrichData.customerProvince && !rc.customerProvince && fyndCustomer.province) enrichData.customerProvince = fyndCustomer.province;
-          if (!enrichData.customerZip && !rc.customerZip && fyndCustomer.zip) enrichData.customerZip = fyndCustomer.zip;
+          if (!enrichData.customerName && !rc.customerName && fyndCustomer.name)
+            enrichData.customerName = fyndCustomer.name;
+          if (!enrichData.customerEmailNorm && !rc.customerEmailNorm && fyndCustomer.email)
+            enrichData.customerEmailNorm = fyndCustomer.email.toLowerCase();
+          if (!enrichData.customerPhoneNorm && !rc.customerPhoneNorm && fyndCustomer.phone)
+            enrichData.customerPhoneNorm = fyndCustomer.phone;
+          if (!enrichData.customerCity && !rc.customerCity && fyndCustomer.city)
+            enrichData.customerCity = fyndCustomer.city;
+          if (!enrichData.customerCountry && !rc.customerCountry && fyndCustomer.country)
+            enrichData.customerCountry = fyndCustomer.country;
+          if (!enrichData.customerAddress1 && !rc.customerAddress1 && fyndCustomer.address1)
+            enrichData.customerAddress1 = fyndCustomer.address1;
+          if (!enrichData.customerAddress2 && !rc.customerAddress2 && fyndCustomer.address2)
+            enrichData.customerAddress2 = fyndCustomer.address2;
+          if (!enrichData.customerProvince && !rc.customerProvince && fyndCustomer.province)
+            enrichData.customerProvince = fyndCustomer.province;
+          if (!enrichData.customerZip && !rc.customerZip && fyndCustomer.zip)
+            enrichData.customerZip = fyndCustomer.zip;
           /* v8 ignore stop */
         }
       }
 
       if (Object.keys(enrichData).length > 0) {
         await prisma.returnCase.update({ where: { id: rc.id }, data: enrichData });
-        results.push({ id: rc.id, returnRequestNo: rc.returnRequestNo, enriched: enrichData, source: "shopify+fynd" });
+        results.push({
+          id: rc.id,
+          returnRequestNo: rc.returnRequestNo,
+          enriched: enrichData,
+          source: "shopify+fynd",
+        });
       } else {
-        results.push({ id: rc.id, returnRequestNo: rc.returnRequestNo, enriched: {}, source: "none" });
+        results.push({
+          id: rc.id,
+          returnRequestNo: rc.returnRequestNo,
+          enriched: {},
+          source: "none",
+        });
       }
     }
 
@@ -465,13 +543,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   // Fix both: returns with invalid order IDs AND returns with valid order IDs but invalid line item IDs
   /* v8 ignore start - defensive `?.startsWith` short-circuit on null orderId */
-  const needsOrderFix = (rc: typeof cases[0]) =>
+  const needsOrderFix = (rc: (typeof cases)[0]) =>
     !isValidShopifyId(rc.shopifyOrderId) && !rc.shopifyOrderId?.startsWith("manual:");
   /* v8 ignore stop */
-  const needsLineItemFix = (rc: typeof cases[0]) =>
+  const needsLineItemFix = (rc: (typeof cases)[0]) =>
     rc.items.some(
-      (i) => i.shopifyLineItemId !== "manual" &&
-        !i.shopifyLineItemId.startsWith("gid://shopify/LineItem/")
+      (i) =>
+        i.shopifyLineItemId !== "manual" &&
+        !i.shopifyLineItemId.startsWith("gid://shopify/LineItem/"),
     );
   const toFix = cases.filter((rc) => needsOrderFix(rc) || needsLineItemFix(rc));
 
@@ -511,7 +590,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       allCandidates.push(...candidateNames);
 
       if (candidateNames.size === 0) {
-        results.push({ id: rc.id, returnRequestNo: rc.returnRequestNo, before: rc.shopifyOrderId, after: null, afterName: null, status: "NO_CANDIDATES", candidates: allCandidates, lineItemsFixed: 0, lineItemDetails: [] });
+        results.push({
+          id: rc.id,
+          returnRequestNo: rc.returnRequestNo,
+          before: rc.shopifyOrderId,
+          after: null,
+          afterName: null,
+          status: "NO_CANDIDATES",
+          candidates: allCandidates,
+          lineItemsFixed: 0,
+          lineItemDetails: [],
+        });
         continue;
       }
 
@@ -535,13 +624,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } else {
         const bestName = affiliateId?.replace(/^#/, "").trim();
         if (bestName && bestName !== rc.shopifyOrderId) {
-          await prisma.returnCase.update({ where: { id: rc.id }, data: { shopifyOrderId: bestName } });
+          await prisma.returnCase.update({
+            where: { id: rc.id },
+            data: { shopifyOrderId: bestName },
+          });
         }
         results.push({
-          id: rc.id, returnRequestNo: rc.returnRequestNo,
-          before: rc.shopifyOrderId, after: bestName ?? null, afterName: null,
+          id: rc.id,
+          returnRequestNo: rc.returnRequestNo,
+          before: rc.shopifyOrderId,
+          after: bestName ?? null,
+          afterName: null,
           status: bestName && bestName !== rc.shopifyOrderId ? "NAME_ONLY" : "NOT_FOUND_IN_SHOPIFY",
-          candidates: allCandidates, lineItemsFixed: 0, lineItemDetails: [],
+          candidates: allCandidates,
+          lineItemsFixed: 0,
+          lineItemDetails: [],
         });
         continue;
       }
@@ -550,13 +647,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // ── Step 2: Fix shopifyLineItemId for items that have invalid IDs ──
     const lineItemDetails: Array<{ itemId: string; before: string; after: string }> = [];
     const itemsNeedingFix = rc.items.filter(
-      (i) => i.shopifyLineItemId !== "manual" &&
-        !i.shopifyLineItemId.startsWith("gid://shopify/LineItem/")
+      (i) =>
+        i.shopifyLineItemId !== "manual" &&
+        !i.shopifyLineItemId.startsWith("gid://shopify/LineItem/"),
     );
 
     if (itemsNeedingFix.length > 0 && resolvedGid?.startsWith("gid://")) {
       /* v8 ignore start - defensive line-items GID-resolution best-effort */
-      const shopifyLineItems = await fetchShopifyOrderLineItems(session.shop, session.accessToken, resolvedGid);
+      const shopifyLineItems = await fetchShopifyOrderLineItems(
+        session.shop,
+        session.accessToken,
+        resolvedGid,
+      );
       if (shopifyLineItems && shopifyLineItems.length > 0) {
         const mapping = matchLineItems(itemsNeedingFix, shopifyLineItems);
         for (const [returnItemId, newLineItemGid] of mapping) {
@@ -566,7 +668,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               where: { id: returnItemId },
               data: { shopifyLineItemId: newLineItemGid },
             });
-            lineItemDetails.push({ itemId: returnItemId, before: item.shopifyLineItemId, after: newLineItemGid });
+            lineItemDetails.push({
+              itemId: returnItemId,
+              before: item.shopifyLineItemId,
+              after: newLineItemGid,
+            });
           }
         }
       }
@@ -574,8 +680,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     results.push({
-      id: rc.id, returnRequestNo: rc.returnRequestNo,
-      before: rc.shopifyOrderId, after: resolvedGid, afterName: resolvedName,
+      id: rc.id,
+      returnRequestNo: rc.returnRequestNo,
+      before: rc.shopifyOrderId,
+      after: resolvedGid,
+      afterName: resolvedName,
       status: orderNeedsFix ? "RESOLVED" : "LINE_ITEMS_FIXED",
       candidates: allCandidates,
       lineItemsFixed: lineItemDetails.length,

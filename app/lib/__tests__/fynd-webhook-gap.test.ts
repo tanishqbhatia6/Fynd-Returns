@@ -118,13 +118,20 @@ type ReturnCaseFixture = {
   customerName: string | null;
   customerEmailNorm: string | null;
   returnLabelJson: string | null;
-  items: Array<{ shopifyLineItemId: string; qty: number; sku?: string | null; title?: string | null }>;
+  items: Array<{
+    shopifyLineItemId: string;
+    qty: number;
+    sku?: string | null;
+    title?: string | null;
+  }>;
   shop: { id: string; shopDomain: string };
 };
 
 function mkReturnCase(over: Partial<ReturnCaseFixture> = {}): ReturnCaseFixture {
-  const pick = <K extends keyof ReturnCaseFixture>(k: K, dflt: ReturnCaseFixture[K]): ReturnCaseFixture[K] =>
-    (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
+  const pick = <K extends keyof ReturnCaseFixture>(
+    k: K,
+    dflt: ReturnCaseFixture[K],
+  ): ReturnCaseFixture[K] => (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
   return {
     id: pick("id", "rc-1"),
     shopId: pick("shopId", "shop-1"),
@@ -601,9 +608,7 @@ describe("processFyndWebhook — gap branches", () => {
       affiliate_order_id: "AFF-NEW",
       refund_status: "bag_picked",
     } as FyndWebhookPayload);
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) =>
-      JSON.stringify(c[0]),
-    );
+    const updates = prismaMock.returnCase.update.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(updates.some((u) => u.includes('"fyndOrderId":"AFF-NEW"'))).toBe(true);
   });
 
@@ -715,8 +720,7 @@ describe("processFyndWebhook — gap branches", () => {
     } as FyndWebhookPayload);
     expect(r).toMatchObject({ ok: true, action: "ignored" });
     const logCalls = prismaMock.fyndWebhookLog.create.mock.calls;
-    const errMsg =
-      ((logCalls[0]?.[0] as { data?: { error?: string } })?.data?.error ?? "");
+    const errMsg = (logCalls[0]?.[0] as { data?: { error?: string } })?.data?.error ?? "";
     expect(errMsg).toContain("refund_status");
   });
 
@@ -733,7 +737,10 @@ describe("processFyndWebhook — gap branches", () => {
 
   it("matches via shop-scoped fyndShipmentId when affiliateOrderId absent (strategy 8)", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValue(null);
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x.myshopify.com",
+    });
     const rc = mkReturnCase();
     prismaMock.returnCase.findFirst.mockImplementation(async (args: unknown) => {
       const a = args as { where?: { shopId?: string; fyndShipmentId?: string } };
@@ -759,18 +766,18 @@ describe("processFyndWebhook — gap branches", () => {
     await processFyndWebhook(
       mkPayload({ refund_status: "refund_done", affiliate_order_id: "STORE-1001" }),
     );
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) =>
-      JSON.stringify(c[0]),
-    );
+    const updates = prismaMock.returnCase.update.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(updates.some((u) => u.includes('"shopifyOrderName":"#1001-from-shopify"'))).toBe(true);
   });
 
   it("logs event via closeShopifyReturnBestEffort logEvent callback (manual refund branch)", async () => {
     const rc = mkReturnCase({ shopifyOrderId: "manual:abc" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
-    closeShopifyReturnBestEffortMock.mockImplementationOnce(async (_admin, _rc, opts: { logEvent: (e: { eventType: string }) => Promise<void> }) => {
-      await opts.logEvent({ eventType: "shopify_return_closed" });
-    });
+    closeShopifyReturnBestEffortMock.mockImplementationOnce(
+      async (_admin, _rc, opts: { logEvent: (e: { eventType: string }) => Promise<void> }) => {
+        await opts.logEvent({ eventType: "shopify_return_closed" });
+      },
+    );
     await processFyndWebhook(mkPayload({ refund_status: "refund_done" }));
     expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -794,10 +801,16 @@ describe("processFyndWebhook — gap branches", () => {
       error: "Order has been refunded for this amount already",
     });
     let captured: { eventType: string } | null = null;
-    closeShopifyReturnBestEffortMock.mockImplementation(async (_admin: unknown, _rc: unknown, opts: { logEvent: (e: { eventType: string }) => Promise<void> }) => {
-      await opts.logEvent({ eventType: "close_already_refunded" });
-      captured = { eventType: "close_already_refunded" };
-    });
+    closeShopifyReturnBestEffortMock.mockImplementation(
+      async (
+        _admin: unknown,
+        _rc: unknown,
+        opts: { logEvent: (e: { eventType: string }) => Promise<void> },
+      ) => {
+        await opts.logEvent({ eventType: "close_already_refunded" });
+        captured = { eventType: "close_already_refunded" };
+      },
+    );
     const r = await processFyndWebhook(mkPayload({ refund_status: "refund_done" }));
     expect(r).toMatchObject({ ok: true, action: "refund_completed" });
     expect(closeShopifyReturnBestEffortMock).toHaveBeenCalled();
@@ -808,10 +821,16 @@ describe("processFyndWebhook — gap branches", () => {
     const rc = mkReturnCase();
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     let captured: { eventType: string } | null = null;
-    closeShopifyReturnBestEffortMock.mockImplementation(async (_admin: unknown, _rc: unknown, opts: { logEvent: (e: { eventType: string }) => Promise<void> }) => {
-      await opts.logEvent({ eventType: "close_after_success" });
-      captured = { eventType: "close_after_success" };
-    });
+    closeShopifyReturnBestEffortMock.mockImplementation(
+      async (
+        _admin: unknown,
+        _rc: unknown,
+        opts: { logEvent: (e: { eventType: string }) => Promise<void> },
+      ) => {
+        await opts.logEvent({ eventType: "close_after_success" });
+        captured = { eventType: "close_after_success" };
+      },
+    );
     const r = await processFyndWebhook(mkPayload({ refund_status: "refund_done" }));
     expect(r).toMatchObject({ ok: true, action: "refund_completed" });
     expect(captured).not.toBeNull();
@@ -876,9 +895,7 @@ describe("processFyndWebhook — gap branches", () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/100",
-      lineItems: [
-        { id: "gid://shopify/LineItem/F1", quantity: 7, sku: "S1", title: "Title1" },
-      ],
+      lineItems: [{ id: "gid://shopify/LineItem/F1", quantity: 7, sku: "S1", title: "Title1" }],
       fulfillments: [{ location: { id: "loc-1" } }],
       paymentGatewayNames: ["shopify_payments"],
     });
@@ -903,9 +920,7 @@ describe("processFyndWebhook — gap branches", () => {
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/100",
-      lineItems: [
-        { id: "gid://shopify/LineItem/match", quantity: 99, sku: "WIDGET", title: "T" },
-      ],
+      lineItems: [{ id: "gid://shopify/LineItem/match", quantity: 99, sku: "WIDGET", title: "T" }],
       fulfillments: [{ location: { id: "loc-1" } }],
       paymentGatewayNames: ["shopify_payments"],
     });
@@ -1016,9 +1031,7 @@ describe("processFyndWebhook — auto-refund gap coverage", () => {
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
         id: "gid://shopify/Order/AFFFALL",
-        lineItems: [
-          { id: "gid://shopify/LineItem/AFL", quantity: 9 },
-        ],
+        lineItems: [{ id: "gid://shopify/LineItem/AFL", quantity: 9 }],
       });
     fetchOrderMock.mockResolvedValue({
       id: "gid://shopify/Order/AFFFALL",
@@ -1133,9 +1146,11 @@ describe("processFyndWebhook — auto-refund gap coverage", () => {
     const rc = mkReturnCase();
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     prismaMock.shopSettings.findUnique.mockResolvedValue(baseSettings);
-    closeShopifyReturnBestEffortMock.mockImplementationOnce(async (_admin, _rc, opts: { logEvent: (e: { eventType: string }) => Promise<void> }) => {
-      await opts.logEvent({ eventType: "auto_refund_close_done" });
-    });
+    closeShopifyReturnBestEffortMock.mockImplementationOnce(
+      async (_admin, _rc, opts: { logEvent: (e: { eventType: string }) => Promise<void> }) => {
+        await opts.logEvent({ eventType: "auto_refund_close_done" });
+      },
+    );
     await processFyndWebhook(mkPayload({ refund_status: "credit_note_generated" }));
     expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1175,13 +1190,12 @@ describe("processFyndWebhook — fetchOrder error tolerance", () => {
       refundPaymentMethod: "original",
       refundStoreCreditPct: 100,
     });
-    fetchOrderMock.mockRejectedValueOnce(new Error("network"))
-      .mockResolvedValue({
-        id: "gid://shopify/Order/100",
-        lineItems: [{ id: "gid://shopify/LineItem/1", quantity: 1 }],
-        fulfillments: [{ location: { id: "loc-1" } }],
-        paymentGatewayNames: ["shopify_payments"],
-      });
+    fetchOrderMock.mockRejectedValueOnce(new Error("network")).mockResolvedValue({
+      id: "gid://shopify/Order/100",
+      lineItems: [{ id: "gid://shopify/LineItem/1", quantity: 1 }],
+      fulfillments: [{ location: { id: "loc-1" } }],
+      paymentGatewayNames: ["shopify_payments"],
+    });
     const r = await processFyndWebhook(mkPayload({ refund_status: "refund_done" }));
     expect(r.ok).toBe(true);
   });

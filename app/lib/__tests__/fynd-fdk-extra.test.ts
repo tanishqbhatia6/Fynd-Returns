@@ -11,7 +11,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  *  - createFyndPlatformClient/createFyndApplicationClient pass empty options as 2nd arg
  */
 
-const { platformConfigCtor, applicationConfigCtor, platformCtor, applicationCtor, platformRequest, appRequest, appGetLanguages } = vi.hoisted(() => ({
+const {
+  platformConfigCtor,
+  applicationConfigCtor,
+  platformCtor,
+  applicationCtor,
+  platformRequest,
+  appRequest,
+  appGetLanguages,
+} = vi.hoisted(() => ({
   platformConfigCtor: vi.fn(),
   applicationConfigCtor: vi.fn(),
   platformCtor: vi.fn(),
@@ -23,26 +31,34 @@ const { platformConfigCtor, applicationConfigCtor, platformCtor, applicationCtor
 
 vi.mock("@gofynd/fdk-client-javascript", () => {
   class PlatformConfig {
-    constructor(opts: unknown) { platformConfigCtor(opts); }
+    constructor(opts: unknown) {
+      platformConfigCtor(opts);
+    }
   }
   class ApplicationConfig {
-    constructor(opts: unknown) { applicationConfigCtor(opts); }
+    constructor(opts: unknown) {
+      applicationConfigCtor(opts);
+    }
   }
   class PlatformClient {
     request = platformRequest;
-    constructor(cfg: unknown, extra: unknown) { platformCtor(cfg, extra); }
+    constructor(cfg: unknown, extra: unknown) {
+      platformCtor(cfg, extra);
+    }
   }
   class ApplicationClient {
     request = appRequest;
     configuration = { getLanguages: appGetLanguages };
-    constructor(cfg: unknown, extra: unknown) { applicationCtor(cfg, extra); }
+    constructor(cfg: unknown, extra: unknown) {
+      applicationCtor(cfg, extra);
+    }
   }
   return { PlatformConfig, ApplicationConfig, PlatformClient, ApplicationClient };
 });
 
 vi.mock("../fynd-config.server", () => ({
   getFyndBaseUrl: vi.fn((s: { fyndEnvironment?: string | null }) =>
-    s.fyndEnvironment === "prod" ? "https://api.fynd.com" : "https://api.uat.fyndx1.de"
+    s.fyndEnvironment === "prod" ? "https://api.fynd.com" : "https://api.uat.fyndx1.de",
   ),
 }));
 
@@ -72,14 +88,19 @@ beforeEach(() => {
 
 function mkPlatform() {
   const log = vi.fn();
-  const fdk = { request: platformRequest } as unknown as InstanceType<typeof import("@gofynd/fdk-client-javascript").PlatformClient>;
+  const fdk = { request: platformRequest } as unknown as InstanceType<
+    typeof import("@gofynd/fdk-client-javascript").PlatformClient
+  >;
   return { client: new FyndPlatformClientFDK(fdk, "C1", "A1", log), log };
 }
 
 describe("createFyndPlatformClient (extra)", () => {
   it("invokes PlatformClient with empty extras object", () => {
     createFyndPlatformClient({
-      companyId: "C9", applicationId: "A9", apiKey: "k", apiSecret: "s",
+      companyId: "C9",
+      applicationId: "A9",
+      apiKey: "k",
+      apiSecret: "s",
       domain: "https://api.uat.fyndx1.de",
     });
     expect(platformCtor).toHaveBeenCalledWith(expect.anything(), {});
@@ -89,13 +110,16 @@ describe("createFyndPlatformClient (extra)", () => {
 describe("createFyndApplicationClient (extra)", () => {
   it("strips trailing slash and passes empty extras to ApplicationClient ctor", () => {
     createFyndApplicationClient({
-      applicationId: "APP", applicationToken: "T",
+      applicationId: "APP",
+      applicationToken: "T",
       domain: "https://api.fynd.com////",
     });
     // Only the very last trailing slash is removed by the regex (replace(/\/$/, ""))
-    expect(applicationConfigCtor).toHaveBeenCalledWith(expect.objectContaining({
-      domain: "https://api.fynd.com///",
-    }));
+    expect(applicationConfigCtor).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: "https://api.fynd.com///",
+      }),
+    );
     expect(applicationCtor).toHaveBeenCalledWith(expect.anything(), {});
   });
 });
@@ -235,7 +259,7 @@ describe("FyndPlatformClientFDK.searchShipmentsByExternalOrderId (extra)", () =>
     platformRequest.mockResolvedValueOnce({
       data: { items: [], page: { current: 1, total: 0 } },
     });
-    const res = await client.searchShipmentsByExternalOrderId("EXT-1") as { page?: unknown };
+    const res = (await client.searchShipmentsByExternalOrderId("EXT-1")) as { page?: unknown };
     expect(res.page).toEqual({ current: 1, total: 0 });
   });
 });
@@ -245,30 +269,38 @@ describe("FyndPlatformClientFDK.updateShipmentStatus (extra)", () => {
     const { client } = mkPlatform();
     platformRequest.mockResolvedValueOnce({ data: { success: true } });
     const payload = {
-      statuses: [{
-        shipments: [{
-          identifier: "S1",
-          products: [{ line_number: 1, quantity: 2, identifier: "P1" }],
-          reasons: {
-            products: [{
-              filters: [{ identifier: "P1", line_number: 1, quantity: 2 }],
-              data: { reason_id: 42, reason_text: "Damaged" },
-            }],
-          },
-        }],
-        status: "return_initiated",
-      }],
+      statuses: [
+        {
+          shipments: [
+            {
+              identifier: "S1",
+              products: [{ line_number: 1, quantity: 2, identifier: "P1" }],
+              reasons: {
+                products: [
+                  {
+                    filters: [{ identifier: "P1", line_number: 1, quantity: 2 }],
+                    data: { reason_id: 42, reason_text: "Damaged" },
+                  },
+                ],
+              },
+            },
+          ],
+          status: "return_initiated",
+        },
+      ],
       task: true,
       force_transition: false,
       lock_after_transition: true,
       unlock_before_transition: false,
     };
     await client.updateShipmentStatus("ignored-order-id", payload);
-    expect(platformRequest).toHaveBeenCalledWith(expect.objectContaining({
-      method: "PUT",
-      url: "/service/platform/order-manage/v1.0/company/C1/shipment/status-internal",
-      body: payload,
-      headers: { "Content-Type": "application/json" },
-    }));
+    expect(platformRequest).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "PUT",
+        url: "/service/platform/order-manage/v1.0/company/C1/shipment/status-internal",
+        body: payload,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
   });
 });

@@ -28,11 +28,7 @@ vi.mock("../../components/AppPage", () => ({
 import { renderWithRouter } from "../../test/component-helpers";
 import { fireEvent, waitFor } from "@testing-library/react";
 import Documentation, { ErrorBoundary } from "../app.docs";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import { render } from "@testing-library/react";
 
 /** Click the sidebar TOC button whose label includes the supplied substring. */
@@ -87,8 +83,8 @@ describe("app.docs branch-coverage gap suite", () => {
     // "production-ready" appears only inside a subtitle, not in any title.
     fireEvent.change(search, { target: { value: "production-ready" } });
     await waitFor(() => {
-      const labels = Array.from(sidebar.querySelectorAll("button")).map(
-        (b) => (b.textContent || "").trim(),
+      const labels = Array.from(sidebar.querySelectorAll("button")).map((b) =>
+        (b.textContent || "").trim(),
       );
       expect(labels.some((l) => l.includes("First-Time Setup"))).toBe(true);
     });

@@ -48,15 +48,23 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "completed", resolutionType: "refund", createdAt: new Date("2025-02-01"),
-        customerName: "Alice Smith", isGiftReturn: false, fraudRiskLevel: "low", fraudRiskScore: 5,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "completed",
+        resolutionType: "refund",
+        createdAt: new Date("2025-02-01"),
+        customerName: "Alice Smith",
+        isGiftReturn: false,
+        fraudRiskLevel: "low",
+        fraudRiskScore: 5,
         items: [{ title: "Mug", qty: 1 }],
       },
     ]);
     const res = await loader({
       request: mkReq("shop=x&email=alice@example.com"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const html = await res.text();
     expect(html).toContain("Customer: Alice Smith");
@@ -70,15 +78,23 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-2", returnRequestNo: "R-2", shopifyOrderName: "#1002",
-        status: "completed", resolutionType: "refund", createdAt: new Date("2025-02-01"),
-        customerName: null, isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-2",
+        returnRequestNo: "R-2",
+        shopifyOrderName: "#1002",
+        status: "completed",
+        resolutionType: "refund",
+        createdAt: new Date("2025-02-01"),
+        customerName: null,
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [{ title: "Mug", qty: 1 }],
       },
     ]);
     const res = await loader({
       request: mkReq("shop=x&email=Bob@Example.COM"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const html = await res.text();
     // email lower-cased in loader before being used
@@ -93,22 +109,31 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
     await loader({
       request: mkReq("shop=x&email=" + encodeURIComponent("  TEST@Example.COM  ")),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ customerEmailNorm: "test@example.com" }),
-    }));
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ customerEmailNorm: "test@example.com" }),
+      }),
+    );
   });
 
   it("uses dotted shop domain as-is (no .myshopify.com appended)", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { gorgiasEnabled: false } });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { gorgiasEnabled: false },
+    });
     await loader({
       request: mkReq("shop=custom.example.com"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopDomain: "custom.example.com" },
-    }));
+    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopDomain: "custom.example.com" },
+      }),
+    );
   });
 
   it("renders status badge color for 'pending' (amber bg)", async () => {
@@ -118,13 +143,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "pending", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "pending",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("PENDING");
     expect(html).toContain("#FEF3C7"); // pending bg
     expect(html).toContain("#92400E"); // pending text
@@ -137,13 +171,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "rejected", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "rejected",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("REJECTED");
     expect(html).toContain("#FEE2E2"); // rejected bg
   });
@@ -155,13 +198,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "unknown_state", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "unknown_state",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("UNKNOWN_STATE");
     expect(html).toContain("#F3F4F6"); // default bg
     expect(html).toContain("#374151"); // default text
@@ -174,13 +226,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: "low", fraudRiskScore: 5,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "approved",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: "low",
+        fraudRiskScore: 5,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).not.toContain("LOW RISK");
     expect(html).not.toContain("RISK</span>");
   });
@@ -192,13 +253,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: "critical", fraudRiskScore: 95,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "approved",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: "critical",
+        fraudRiskScore: 95,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("CRITICAL RISK");
     expect(html).toContain("#DC2626"); // critical text color
   });
@@ -210,13 +280,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: "medium", fraudRiskScore: 50,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "approved",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: "medium",
+        fraudRiskScore: 50,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("MEDIUM RISK");
     expect(html).toContain("#D97706"); // medium text color
   });
@@ -228,13 +307,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "abcdef1234567890", returnRequestNo: null, shopifyOrderName: "#1001",
-        status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "abcdef1234567890",
+        returnRequestNo: null,
+        shopifyOrderName: "#1001",
+        status: "approved",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     // Slice is first 8 chars
     expect(html).toContain(">abcdef12<");
   });
@@ -246,13 +334,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "approved",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("No items");
   });
 
@@ -263,13 +360,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "approved", resolutionType: "store_credit", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "approved",
+        resolutionType: "store_credit",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [{ title: "X", qty: 1 }],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("store credit");
     expect(html).not.toContain("store_credit");
   });
@@ -284,13 +390,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
       });
       prismaMock.returnCase.findMany.mockResolvedValueOnce([
         {
-          id: "rc-xyz", returnRequestNo: "R-9", shopifyOrderName: "#9009",
-          status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-          customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+          id: "rc-xyz",
+          returnRequestNo: "R-9",
+          shopifyOrderName: "#9009",
+          status: "approved",
+          resolutionType: "refund",
+          createdAt: new Date("2025-01-01"),
+          customerName: "X",
+          isGiftReturn: false,
+          fraudRiskLevel: null,
+          fraudRiskScore: null,
           items: [{ title: "X", qty: 1 }],
         },
       ]);
-      const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+      const html = await (
+        await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+      ).text();
       expect(html).toContain('href="https://prod-app.example.com/app/returns/rc-xyz"');
       expect(html).toContain('target="_blank"');
     } finally {
@@ -309,13 +424,22 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
       });
       prismaMock.returnCase.findMany.mockResolvedValueOnce([
         {
-          id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-          status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-          customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+          id: "rc-1",
+          returnRequestNo: "R-1",
+          shopifyOrderName: "#1001",
+          status: "approved",
+          resolutionType: "refund",
+          createdAt: new Date("2025-01-01"),
+          customerName: "X",
+          isGiftReturn: false,
+          fraudRiskLevel: null,
+          fraudRiskScore: null,
           items: [{ title: "X", qty: 1 }],
         },
       ]);
-      const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+      const html = await (
+        await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+      ).text();
       expect(html).toContain('href="https://app.example/app/returns/rc-1"');
     } finally {
       if (orig !== undefined) process.env.SHOPIFY_APP_URL = orig;
@@ -329,9 +453,16 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
       {
-        id: "rc-1", returnRequestNo: "R-1", shopifyOrderName: "#1001",
-        status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-        customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+        id: "rc-1",
+        returnRequestNo: "R-1",
+        shopifyOrderName: "#1001",
+        status: "approved",
+        resolutionType: "refund",
+        createdAt: new Date("2025-01-01"),
+        customerName: "X",
+        isGiftReturn: false,
+        fraudRiskLevel: null,
+        fraudRiskScore: null,
         items: [
           { title: "T-shirt", qty: 2 },
           { title: "Hat", qty: 1 },
@@ -339,7 +470,9 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
         ],
       },
     ]);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("T-shirt (x2), Hat (x1), Socks (x3)");
   });
 
@@ -349,16 +482,27 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
       settings: { gorgiasEnabled: true, gorgiasApiKey: null },
     });
     const cases = Array.from({ length: 3 }, (_, i) => ({
-      id: `rc-${i}`, returnRequestNo: `R-${i}`, shopifyOrderName: `#10${i}`,
-      status: "approved", resolutionType: "refund", createdAt: new Date("2025-01-01"),
-      customerName: "X", isGiftReturn: false, fraudRiskLevel: null, fraudRiskScore: null,
+      id: `rc-${i}`,
+      returnRequestNo: `R-${i}`,
+      shopifyOrderName: `#10${i}`,
+      status: "approved",
+      resolutionType: "refund",
+      createdAt: new Date("2025-01-01"),
+      customerName: "X",
+      isGiftReturn: false,
+      fraudRiskLevel: null,
+      fraudRiskScore: null,
       items: [{ title: "X", qty: 1 }],
     }));
     prismaMock.returnCase.findMany.mockResolvedValueOnce(cases);
-    const html = await (await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)).text();
+    const html = await (
+      await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never)
+    ).text();
     expect(html).toContain("Returns (3)");
     // Verify take=10 cap is in the prisma call
-    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 10 }));
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 10 }),
+    );
   });
 
   it("returns 401 status when no api key provided but one is configured", async () => {
@@ -367,7 +511,11 @@ describe("Gorgias widget — HTML generation & sanitization coverage", () => {
       settings: { gorgiasEnabled: true, gorgiasApiKey: "enc:secret" },
     });
     decryptMock.mockImplementationOnce(() => "secret");
-    const res = await loader({ request: mkReq("shop=x&email=a@b.com"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=x&email=a@b.com"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(401);
     const html = await res.text();
     expect(html).toContain("Unauthorized");

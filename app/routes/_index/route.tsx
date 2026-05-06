@@ -168,13 +168,7 @@ function FyndLogo({ size = 20 }: { size?: number }) {
 
 type Theme = "light" | "dark" | "system";
 
-function ThemeToggle({
-  theme,
-  setTheme,
-}: {
-  theme: Theme;
-  setTheme: (t: Theme) => void;
-}) {
+function ThemeToggle({ theme, setTheme }: { theme: Theme; setTheme: (t: Theme) => void }) {
   const options: { value: Theme; label: string }[] = [
     { value: "light", label: "Light" },
     { value: "dark", label: "Dark" },
@@ -192,18 +186,45 @@ function ThemeToggle({
           title={o.label}
         >
           {o.value === "light" && (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <circle cx="12" cy="12" r="5" />
               <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
             </svg>
           )}
           {o.value === "dark" && (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
             </svg>
           )}
           {o.value === "system" && (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <rect x="2" y="3" width="20" height="14" rx="2" />
               <path d="M8 21h8M12 17v4" />
             </svg>
@@ -233,7 +254,9 @@ export default function Index() {
     }
     setResolvedDark(isDark);
     document.documentElement.setAttribute("data-theme", isDark ? "dark" : "light");
-    try { localStorage.setItem("rp-theme", t); } catch {}
+    try {
+      localStorage.setItem("rp-theme", t);
+    } catch {}
   }, []);
 
   useEffect(() => {
@@ -628,16 +651,30 @@ export default function Index() {
               <span>ReturnPro</span>
             </a>
             <div className="nav-links">
-              <a href="#features" className="nav-link">Features</a>
-              <a href="#how-it-works" className="nav-link">How it works</a>
-              <a href="https://www.fynd.com" target="_blank" rel="noopener noreferrer" className="nav-link">
+              <a href="#features" className="nav-link">
+                Features
+              </a>
+              <a href="#how-it-works" className="nav-link">
+                How it works
+              </a>
+              <a
+                href="https://www.fynd.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="nav-link"
+              >
                 Fynd Platform
               </a>
             </div>
           </div>
           <div className="nav-right">
             <ThemeToggle theme={theme} setTheme={handleTheme} />
-            <a href="https://apps.shopify.com" target="_blank" rel="noopener noreferrer" className="cta-primary sm">
+            <a
+              href="https://apps.shopify.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cta-primary sm"
+            >
               Install on Shopify
             </a>
           </div>
@@ -646,8 +683,27 @@ export default function Index() {
 
       {/* ── Hero ── */}
       <section className="hero-section">
-        <div className="gradient-orb" style={{ width: 600, height: 600, top: "-10%", left: "20%", background: `radial-gradient(circle, var(--orb-1), transparent 70%)` }} />
-        <div className="gradient-orb" style={{ width: 500, height: 500, bottom: "5%", right: "15%", background: `radial-gradient(circle, var(--orb-2), transparent 70%)`, animationDelay: "3s" }} />
+        <div
+          className="gradient-orb"
+          style={{
+            width: 600,
+            height: 600,
+            top: "-10%",
+            left: "20%",
+            background: `radial-gradient(circle, var(--orb-1), transparent 70%)`,
+          }}
+        />
+        <div
+          className="gradient-orb"
+          style={{
+            width: 500,
+            height: 500,
+            bottom: "5%",
+            right: "15%",
+            background: `radial-gradient(circle, var(--orb-2), transparent 70%)`,
+            animationDelay: "3s",
+          }}
+        />
 
         <div style={{ position: "relative", zIndex: 1, maxWidth: 800 }}>
           <div className="fade-in">
@@ -657,19 +713,31 @@ export default function Index() {
             </span>
           </div>
 
-          <h1 className="hero-heading chroma-text fade-in-d1">
-            Returns management, reimagined
-          </h1>
+          <h1 className="hero-heading chroma-text fade-in-d1">Returns management, reimagined</h1>
 
           <p className="hero-sub fade-in-d2">
-            Automate returns, delight customers, and recover revenue — all from
-            a single platform built for Shopify brands that scale.
+            Automate returns, delight customers, and recover revenue — all from a single platform
+            built for Shopify brands that scale.
           </p>
 
           <div className="cta-row fade-in-d3">
-            <a href="https://apps.shopify.com" target="_blank" rel="noopener noreferrer" className="cta-primary">
+            <a
+              href="https://apps.shopify.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cta-primary"
+            >
               Get started free
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </a>
@@ -680,7 +748,11 @@ export default function Index() {
 
           <div className="stats-row fade-in-d4">
             {stats.map((s, i) => (
-              <div key={i} className="stat-item" style={{ borderRight: i < stats.length - 1 ? "1px solid var(--border)" : "none" }}>
+              <div
+                key={i}
+                className="stat-item"
+                style={{ borderRight: i < stats.length - 1 ? "1px solid var(--border)" : "none" }}
+              >
                 <div className="stat-value">{s.value}</div>
                 <div className="stat-label">{s.label}</div>
               </div>
@@ -694,12 +766,11 @@ export default function Index() {
         <div className="section-header">
           <span className="section-label">Features</span>
           <h2 className="section-title">
-            Everything you need to manage{" "}
-            <span className="gradient-text">returns at scale</span>
+            Everything you need to manage <span className="gradient-text">returns at scale</span>
           </h2>
           <p className="section-desc">
-            From automated approvals to real-time analytics, every tool
-            your operations team needs in one place.
+            From automated approvals to real-time analytics, every tool your operations team needs
+            in one place.
           </p>
         </div>
         <div className="features-grid">
@@ -734,23 +805,54 @@ export default function Index() {
 
       {/* ── CTA ── */}
       <section className="cta-section">
-        <div className="gradient-orb" style={{ width: 800, height: 400, top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: `radial-gradient(ellipse, var(--orb-1), transparent 70%)` }} />
+        <div
+          className="gradient-orb"
+          style={{
+            width: 800,
+            height: 400,
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: `radial-gradient(ellipse, var(--orb-1), transparent 70%)`,
+          }}
+        />
         <div style={{ position: "relative", zIndex: 1 }}>
           <h2 className="cta-heading">
-            Ready to transform your<br />returns experience?
+            Ready to transform your
+            <br />
+            returns experience?
           </h2>
           <p className="cta-desc">
-            Automate returns, reduce manual work, and offer exchanges or
-            store credit to keep revenue inside your store.
+            Automate returns, reduce manual work, and offer exchanges or store credit to keep
+            revenue inside your store.
           </p>
           <div className="cta-row">
-            <a href="https://apps.shopify.com" target="_blank" rel="noopener noreferrer" className="cta-primary">
+            <a
+              href="https://apps.shopify.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cta-primary"
+            >
               Install free on Shopify
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M5 12h14M12 5l7 7-7 7" />
               </svg>
             </a>
-            <a href="https://www.fynd.com" target="_blank" rel="noopener noreferrer" className="cta-secondary">
+            <a
+              href="https://www.fynd.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="cta-secondary"
+            >
               Learn about Fynd
             </a>
           </div>
@@ -760,8 +862,15 @@ export default function Index() {
       {/* ── Powered by Fynd ── */}
       <div className="powered-by">
         <span>Powered by</span>
-        <a href="https://www.fynd.com" target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex" }}>
-          <span className="fynd-logo"><FyndLogo size={18} /></span>
+        <a
+          href="https://www.fynd.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "inline-flex" }}
+        >
+          <span className="fynd-logo">
+            <FyndLogo size={18} />
+          </span>
         </a>
       </div>
 
@@ -773,32 +882,73 @@ export default function Index() {
               <div className="nav-brand-icon" style={{ width: 24, height: 24, borderRadius: 6 }} />
               <span style={{ fontSize: 16 }}>ReturnPro</span>
             </a>
-            <p className="footer-desc">
-              Returns management for Shopify stores, powered by Fynd.
-            </p>
+            <p className="footer-desc">Returns management for Shopify stores, powered by Fynd.</p>
           </div>
           <div>
             <h4 className="footer-col-title">Product</h4>
             <div className="footer-links">
-              <a href="#features" className="footer-link">Features</a>
-              <a href="#how-it-works" className="footer-link">How it works</a>
-              <a href="https://apps.shopify.com" target="_blank" rel="noopener noreferrer" className="footer-link">Shopify App Store</a>
+              <a href="#features" className="footer-link">
+                Features
+              </a>
+              <a href="#how-it-works" className="footer-link">
+                How it works
+              </a>
+              <a
+                href="https://apps.shopify.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                Shopify App Store
+              </a>
             </div>
           </div>
           <div>
             <h4 className="footer-col-title">Platform</h4>
             <div className="footer-links">
-              <a href="https://www.fynd.com" target="_blank" rel="noopener noreferrer" className="footer-link">Fynd Commerce</a>
-              <a href="https://platform.fynd.com" target="_blank" rel="noopener noreferrer" className="footer-link">Fynd Platform</a>
-              <a href="https://www.fynd.com/careers" target="_blank" rel="noopener noreferrer" className="footer-link">Careers</a>
+              <a
+                href="https://www.fynd.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                Fynd Commerce
+              </a>
+              <a
+                href="https://platform.fynd.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                Fynd Platform
+              </a>
+              <a
+                href="https://www.fynd.com/careers"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                Careers
+              </a>
             </div>
           </div>
           <div>
             <h4 className="footer-col-title">Legal</h4>
             <div className="footer-links">
-              <a href="/privacy" className="footer-link">Privacy Policy</a>
-              <a href="/terms" className="footer-link">Terms of Service</a>
-              <a href="https://www.linkedin.com/company/gofynd" target="_blank" rel="noopener noreferrer" className="footer-link">LinkedIn</a>
+              <a href="/privacy" className="footer-link">
+                Privacy Policy
+              </a>
+              <a href="/terms" className="footer-link">
+                Terms of Service
+              </a>
+              <a
+                href="https://www.linkedin.com/company/gofynd"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-link"
+              >
+                LinkedIn
+              </a>
             </div>
           </div>
         </div>

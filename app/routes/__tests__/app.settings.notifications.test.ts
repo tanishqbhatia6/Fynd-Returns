@@ -57,14 +57,20 @@ beforeEach(() => {
     if (v == null) return null;
     return v.startsWith("enc:") ? v.slice(4) : v;
   });
-  looksEncryptedMock.mockReset().mockImplementation((v: string) => typeof v === "string" && v.startsWith("enc:"));
+  looksEncryptedMock
+    .mockReset()
+    .mockImplementation((v: string) => typeof v === "string" && v.startsWith("enc:"));
 });
 
 describe("loader", () => {
   it("returns defaults when settings are null", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
     prismaMock.notificationLog.findMany.mockResolvedValueOnce([]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.notificationNewReturn).toBe(true);
     expect(data.notificationApproved).toBe(true);
     expect(data.notificationRejected).toBe(true);
@@ -90,7 +96,11 @@ describe("loader", () => {
       },
     });
     prismaMock.notificationLog.findMany.mockResolvedValueOnce([]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.smtpPass).toBe(SMTP_PASS_PLACEHOLDER);
     expect(data.smtpConfigured).toBe(true);
     expect(data.smtpHost).toBe("smtp.example.com");
@@ -102,7 +112,11 @@ describe("loader", () => {
       settings: { whatsappEnabled: true, whatsappApiKey: "enc:wa-key" },
     });
     prismaMock.notificationLog.findMany.mockResolvedValueOnce([]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.whatsappApiKey).toBe(SMTP_PASS_PLACEHOLDER);
     expect(data.whatsappEnabled).toBe(true);
   });
@@ -113,7 +127,11 @@ describe("loader", () => {
       settings: { emailTemplatesJson: "{not json" },
     });
     prismaMock.notificationLog.findMany.mockResolvedValueOnce([]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.emailTemplatesJson).toEqual({});
   });
 
@@ -137,7 +155,11 @@ describe("loader", () => {
   it("ignores invalid logChannel/logStatus values", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
     prismaMock.notificationLog.findMany.mockResolvedValueOnce([]);
-    await loader({ request: new Request("https://x?logChannel=carrier-pigeon&logStatus=maybe"), params: {}, context: {} } as never);
+    await loader({
+      request: new Request("https://x?logChannel=carrier-pigeon&logStatus=maybe"),
+      params: {},
+      context: {},
+    } as never);
     const arg = prismaMock.notificationLog.findMany.mock.calls[0][0];
     expect(arg.where.channel).toBeUndefined();
     expect(arg.where.status).toBeUndefined();
@@ -158,7 +180,8 @@ describe("action — save", () => {
         smtpSecure: "on",
         notificationNewReturn: "on",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: true });
     expect(encryptIfNeededMock).toHaveBeenCalledWith("supersecret");
@@ -183,7 +206,8 @@ describe("action — save", () => {
         smtpUser: "alice",
         smtpPass: SMTP_PASS_PLACEHOLDER,
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(encryptIfNeededMock).not.toHaveBeenCalledWith(SMTP_PASS_PLACEHOLDER);
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -197,7 +221,8 @@ describe("action — save", () => {
     });
     await action({
       request: formReq({ smtpPass: "" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(upsertArg.update.smtpPass).toBeNull();
@@ -214,7 +239,8 @@ describe("action — save", () => {
         whatsappApiKey: SMTP_PASS_PLACEHOLDER,
         whatsappPhoneNumberId: "12345",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
     expect(upsertArg.update.whatsappApiKey).toBe("enc:wa-old");
@@ -226,7 +252,8 @@ describe("action — save", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
     await action({
       request: formReq({ whatsappApiKey: "wa-new-key" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(encryptIfNeededMock).toHaveBeenCalledWith("wa-new-key");
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -257,7 +284,8 @@ describe("action — test_smtp", () => {
         smtpPass: SMTP_PASS_PLACEHOLDER,
         smtpSecure: "on",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(decryptIfEncryptedMock).toHaveBeenCalledWith("enc:real-secret");
     expect(testSmtpConnectionMock).toHaveBeenCalledWith({
@@ -283,7 +311,8 @@ describe("action — test_smtp", () => {
         smtpUser: "alice",
         smtpPass: SMTP_PASS_PLACEHOLDER,
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(testSmtpConnectionMock).not.toHaveBeenCalled();
     expect(res).toEqual({
@@ -295,7 +324,8 @@ describe("action — test_smtp", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
     const res = await action({
       request: formReq({ intent: "test_smtp", smtpHost: "", smtpUser: "", smtpPass: "" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(testSmtpConnectionMock).not.toHaveBeenCalled();
     expect(res).toEqual({
@@ -313,7 +343,8 @@ describe("action — save_email_templates", () => {
         intent: "save_email_templates",
         emailTemplatesJson: JSON.stringify(tpl),
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ templatesSaved: true });
     const upsertArg = prismaMock.shopSettings.upsert.mock.calls[0][0];
@@ -327,7 +358,8 @@ describe("action — save_email_templates", () => {
         intent: "save_email_templates",
         emailTemplatesJson: "{not json",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ error: "Invalid template JSON" });
     expect(prismaMock.shopSettings.upsert).not.toHaveBeenCalled();

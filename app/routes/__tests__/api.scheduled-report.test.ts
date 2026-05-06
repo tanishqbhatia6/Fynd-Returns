@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  sendMailMock,
-  createTransportMock,
-  decryptMock,
-} = vi.hoisted(() => {
+const { prismaMock, sendMailMock, createTransportMock, decryptMock } = vi.hoisted(() => {
   const sendMail = vi.fn().mockResolvedValue({ messageId: "x" });
   const createTransport = vi.fn(() => ({ sendMail }));
   return {
@@ -39,13 +34,20 @@ function mkReq(headers: Record<string, string> = {}) {
 
 function baseSetting(overrides: Record<string, unknown> = {}) {
   return {
-    shopId: "shop-1", shop: { shopDomain: "store.myshopify.com" },
+    shopId: "shop-1",
+    shop: { shopDomain: "store.myshopify.com" },
     scheduledReportEnabled: true,
     scheduledReportFrequency: "daily",
     scheduledReportEmails: "owner@x.com",
-    shopCurrency: "USD", shopLocale: "en", shopTimezone: "UTC",
-    smtpHost: "smtp.example.com", smtpPort: 587, smtpSecure: false,
-    smtpUser: "smtp@x.com", smtpPass: "enc:pass", smtpFromEmail: "noreply@x.com",
+    shopCurrency: "USD",
+    shopLocale: "en",
+    shopTimezone: "UTC",
+    smtpHost: "smtp.example.com",
+    smtpPort: 587,
+    smtpSecure: false,
+    smtpUser: "smtp@x.com",
+    smtpPass: "enc:pass",
+    smtpFromEmail: "noreply@x.com",
     smtpFromName: "Returns",
     ...overrides,
   };
@@ -66,14 +68,22 @@ afterEach(() => {
 describe("GET /api/scheduled-report", () => {
   it("401 when CRON_SECRET set + header mismatches", async () => {
     process.env.CRON_SECRET = "secret";
-    const res = await loader({ request: mkReq({ "x-cron-secret": "wrong" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq({ "x-cron-secret": "wrong" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(401);
   });
 
   it("allows when header matches CRON_SECRET", async () => {
     process.env.CRON_SECRET = "secret";
     prismaMock.shopSettings.findMany.mockResolvedValueOnce([]);
-    const res = await loader({ request: mkReq({ "x-cron-secret": "secret" }), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq({ "x-cron-secret": "secret" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
   });
 
@@ -93,7 +103,9 @@ describe("GET /api/scheduled-report", () => {
   });
 
   it("daily frequency always processes", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({ scheduledReportFrequency: "daily" })]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
+      baseSetting({ scheduledReportFrequency: "daily" }),
+    ]);
     prismaMock.returnCase.count.mockResolvedValueOnce(5);
     prismaMock.returnCase.groupBy.mockResolvedValue([]);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
@@ -106,10 +118,12 @@ describe("GET /api/scheduled-report", () => {
     // Use a day that's not today — construct setting where scheduledReportDay=1 (Mon) but it's Sat
     const today = new Date().getDay() === 0 ? 7 : new Date().getDay();
     const otherDay = today === 1 ? 2 : 1;
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({
-      scheduledReportFrequency: "weekly",
-      scheduledReportDay: otherDay,
-    })]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
+      baseSetting({
+        scheduledReportFrequency: "weekly",
+        scheduledReportDay: otherDay,
+      }),
+    ]);
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     const body = await res.json();
     expect(body.results).toEqual([]);
@@ -117,23 +131,32 @@ describe("GET /api/scheduled-report", () => {
   });
 
   it("reports 'No recipients' when emails empty + no admin email", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({
-      scheduledReportEmails: "",
-      adminNotifyEmail: null,
-    })]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
+      baseSetting({
+        scheduledReportEmails: "",
+        adminNotifyEmail: null,
+      }),
+    ]);
     prismaMock.returnCase.count.mockResolvedValueOnce(0);
     prismaMock.returnCase.groupBy.mockResolvedValue([]);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
 
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     const body = await res.json();
-    expect(body.results[0]).toEqual({ shop: "store.myshopify.com", sent: false, error: "No recipients" });
+    expect(body.results[0]).toEqual({
+      shop: "store.myshopify.com",
+      sent: false,
+      error: "No recipients",
+    });
   });
 
   it("reports 'SMTP not configured' when host/user missing", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({
-      smtpHost: null, smtpUser: null,
-    })]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
+      baseSetting({
+        smtpHost: null,
+        smtpUser: null,
+      }),
+    ]);
     prismaMock.returnCase.count.mockResolvedValueOnce(0);
     prismaMock.returnCase.groupBy.mockResolvedValue([]);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
@@ -144,10 +167,12 @@ describe("GET /api/scheduled-report", () => {
   });
 
   it("falls back to adminNotifyEmail when scheduledReportEmails empty", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({
-      scheduledReportEmails: "",
-      adminNotifyEmail: "owner@shop.com",
-    })]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
+      baseSetting({
+        scheduledReportEmails: "",
+        adminNotifyEmail: "owner@shop.com",
+      }),
+    ]);
     prismaMock.returnCase.count.mockResolvedValueOnce(0);
     prismaMock.returnCase.groupBy.mockResolvedValue([]);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
@@ -157,15 +182,19 @@ describe("GET /api/scheduled-report", () => {
   });
 
   it("decrypts encrypted SMTP password before passing to nodemailer", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({ smtpPass: "enc:secret-pw" })]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
+      baseSetting({ smtpPass: "enc:secret-pw" }),
+    ]);
     prismaMock.returnCase.count.mockResolvedValue(0);
     prismaMock.returnCase.groupBy.mockResolvedValue([]);
     prismaMock.returnCase.findMany.mockResolvedValue([]);
     await loader({ request: mkReq(), params: {}, context: {} } as never);
     // createTransport was called with the decrypted password
-    expect(createTransportMock).toHaveBeenCalledWith(expect.objectContaining({
-      auth: expect.objectContaining({ pass: "secret-pw" }),
-    }));
+    expect(createTransportMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        auth: expect.objectContaining({ pass: "secret-pw" }),
+      }),
+    );
   });
 
   it("captures per-shop sendMail errors without stopping the run", async () => {
@@ -183,12 +212,18 @@ describe("GET /api/scheduled-report", () => {
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     const body = await res.json();
     expect(body.processed).toBe(2);
-    expect(body.results[0]).toEqual(expect.objectContaining({ sent: false, shop: "shop-a.myshopify.com" }));
-    expect(body.results[1]).toEqual(expect.objectContaining({ sent: true, shop: "shop-b.myshopify.com" }));
+    expect(body.results[0]).toEqual(
+      expect.objectContaining({ sent: false, shop: "shop-a.myshopify.com" }),
+    );
+    expect(body.results[1]).toEqual(
+      expect.objectContaining({ sent: true, shop: "shop-b.myshopify.com" }),
+    );
   });
 
   it("skips unknown frequencies", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([baseSetting({ scheduledReportFrequency: "hourly" })]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
+      baseSetting({ scheduledReportFrequency: "hourly" }),
+    ]);
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     const body = await res.json();
     expect(body.results).toEqual([]);

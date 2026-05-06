@@ -25,22 +25,24 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 /* ── Mocks ────────────────────────────────────────────────────────── */
 
-const { prismaMock, sendMailMock, verifyMock, createTransportMock, decryptMock } = vi.hoisted(() => {
-  const sendMail = vi.fn();
-  const verify = vi.fn();
-  const createTransport = vi.fn(() => ({ sendMail, verify }));
-  const decrypt = vi.fn((v: string | null | undefined) => v ?? null);
-  return {
-    sendMailMock: sendMail,
-    verifyMock: verify,
-    createTransportMock: createTransport,
-    decryptMock: decrypt,
-    prismaMock: {
-      shop: { findUnique: vi.fn() },
-      notificationLog: { create: vi.fn().mockResolvedValue({}) },
-    },
-  };
-});
+const { prismaMock, sendMailMock, verifyMock, createTransportMock, decryptMock } = vi.hoisted(
+  () => {
+    const sendMail = vi.fn();
+    const verify = vi.fn();
+    const createTransport = vi.fn(() => ({ sendMail, verify }));
+    const decrypt = vi.fn((v: string | null | undefined) => v ?? null);
+    return {
+      sendMailMock: sendMail,
+      verifyMock: verify,
+      createTransportMock: createTransport,
+      decryptMock: decrypt,
+      prismaMock: {
+        shop: { findUnique: vi.fn() },
+        notificationLog: { create: vi.fn().mockResolvedValue({}) },
+      },
+    };
+  },
+);
 
 vi.mock("nodemailer", () => ({
   default: { createTransport: createTransportMock },
@@ -104,7 +106,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -239,17 +241,22 @@ describe("sendApprovalNotification — extra", () => {
   });
 
   it("uses custom approved template when configured", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: JSON.stringify({
-        approved: {
-          subject: "APPROVED {{orderName}}",
-          bodyHtml: "<p>Hi {{customerEmail}} for {{returnId}}</p>",
-        },
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: JSON.stringify({
+          approved: {
+            subject: "APPROVED {{orderName}}",
+            bodyHtml: "<p>Hi {{customerEmail}} for {{returnId}}</p>",
+          },
+        }),
       }),
-    }));
+    );
     sendMailMock.mockResolvedValue({});
     await sendApprovalNotification({ ...baseParams, returnId: "RPM-XYZ" });
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { subject: string; html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      subject: string;
+      html: string;
+    };
     expect(call.subject).toBe("APPROVED #1001");
     expect(call.html).toContain("cust@example.com");
     expect(call.html).toContain("RPM-XYZ");
@@ -322,17 +329,21 @@ describe("sendRefundNotification — extra", () => {
   });
 
   it("uses custom refunded template with formatted refundAmount var", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: JSON.stringify({
-        refunded: {
-          subject: "Refund {{orderName}}",
-          bodyHtml: "<p>Amount {{refundAmount}}</p>",
-        },
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: JSON.stringify({
+          refunded: {
+            subject: "Refund {{orderName}}",
+            bodyHtml: "<p>Amount {{refundAmount}}</p>",
+          },
+        }),
       }),
-    }));
+    );
     sendMailMock.mockResolvedValue({});
     await sendRefundNotification({ ...baseParams, amount: "25.00", currency: "EUR" });
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      html: string;
+    };
     // formatMoney mock => `${cur} ${amt}` = "EUR 25.00"
     expect(call.html).toContain("EUR 25.00");
   });
@@ -341,7 +352,9 @@ describe("sendRefundNotification — extra", () => {
     prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({ shopCurrency: "GBP" }));
     sendMailMock.mockResolvedValue({});
     await sendRefundNotification({ ...baseParams, amount: "10.00" });
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      html: string;
+    };
     expect(call.html).toContain("GBP 10.00");
   });
 
@@ -410,7 +423,9 @@ describe("sendCustomerNoteNotification", () => {
     prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp());
     sendMailMock.mockResolvedValue({});
     await sendCustomerNoteNotification(baseParams);
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      html: string;
+    };
     expect(call.html).toContain("The store");
   });
 
@@ -434,13 +449,18 @@ describe("sendNewReturnNotification — extra", () => {
   };
 
   it("tolerates invalid emailTemplatesJson and falls back to default template", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: "{not valid json",
-    }));
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: "{not valid json",
+      }),
+    );
     sendMailMock.mockResolvedValue({});
     const res = await sendNewReturnNotification(baseParams);
     expect(res.success).toBe(true);
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { subject: string; html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      subject: string;
+      html: string;
+    };
     // Default subject template was used
     expect(call.subject).toContain("RPM-A1B2C3D4");
   });
@@ -449,26 +469,32 @@ describe("sendNewReturnNotification — extra", () => {
     prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({ portalLanguage: "ar" }));
     sendMailMock.mockResolvedValue({});
     await sendNewReturnNotification(baseParams);
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      html: string;
+    };
     expect(call.html).toContain('dir="rtl"');
     expect(call.html).toContain('lang="ar"');
   });
 
   it("escapes HTML in custom template variables (XSS guard)", async () => {
-    prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp({
-      emailTemplatesJson: JSON.stringify({
-        new_return: {
-          subject: "New return {{orderName}}",
-          bodyHtml: "<p>{{customerEmail}}</p>",
-        },
+    prismaMock.shop.findUnique.mockResolvedValue(
+      makeShopWithSmtp({
+        emailTemplatesJson: JSON.stringify({
+          new_return: {
+            subject: "New return {{orderName}}",
+            bodyHtml: "<p>{{customerEmail}}</p>",
+          },
+        }),
       }),
-    }));
+    );
     sendMailMock.mockResolvedValue({});
     await sendNewReturnNotification({
       ...baseParams,
-      customerEmail: '<script>alert(1)</script>',
+      customerEmail: "<script>alert(1)</script>",
     });
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      html: string;
+    };
     expect(call.html).not.toContain("<script>");
     expect(call.html).toContain("&lt;script&gt;");
   });
@@ -477,7 +503,9 @@ describe("sendNewReturnNotification — extra", () => {
     prismaMock.shop.findUnique.mockResolvedValue(makeShopWithSmtp());
     sendMailMock.mockResolvedValue({});
     await sendNewReturnNotification({ ...baseParams, itemCount: 7 });
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      html: string;
+    };
     expect(call.html).toMatch(/>7</);
   });
 });
@@ -554,21 +582,13 @@ describe("sendWhatsAppNotification — extra", () => {
   });
 
   it("skips for interakt provider (returns success without fetch)", async () => {
-    const res = await sendWhatsAppNotification(
-      { provider: "interakt", apiKey: "k" },
-      "+1",
-      "m",
-    );
+    const res = await sendWhatsAppNotification({ provider: "interakt", apiKey: "k" }, "+1", "m");
     expect(res.success).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("skips for wati provider", async () => {
-    const res = await sendWhatsAppNotification(
-      { provider: "wati", apiKey: "k" },
-      "+1",
-      "m",
-    );
+    const res = await sendWhatsAppNotification({ provider: "wati", apiKey: "k" }, "+1", "m");
     expect(res.success).toBe(true);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
@@ -577,7 +597,9 @@ describe("sendWhatsAppNotification — extra", () => {
     fetchSpy.mockResolvedValue({
       ok: false,
       status: 500,
-      text: async () => { throw new Error("body read failed"); },
+      text: async () => {
+        throw new Error("body read failed");
+      },
     });
     const res = await sendWhatsAppNotification(
       { provider: "meta_cloud", apiKey: "k", phoneNumberId: "p" },
@@ -624,7 +646,9 @@ describe("sendOtpEmail — extra", () => {
       to: "cust@example.com",
       otp: "555555",
     });
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { subject: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      subject: string;
+    };
     expect(call.subject).toBe("Your code");
   });
 
@@ -636,7 +660,9 @@ describe("sendOtpEmail — extra", () => {
       to: "cust@example.com",
       otp: "111222",
     });
-    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as { html: string };
+    const call = (sendMailMock.mock.calls as unknown as unknown[][])[0][0] as unknown as {
+      html: string;
+    };
     expect(call.html).toContain('dir="rtl"');
     expect(call.html).toContain("111222");
   });

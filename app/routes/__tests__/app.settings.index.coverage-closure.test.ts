@@ -29,9 +29,7 @@ beforeEach(() => {
 describe("app.settings._index loader — coverage closure", () => {
   it("catch branch returns the default payload when prisma throws (lines 93-94)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    prismaMock.shop.findUnique.mockRejectedValueOnce(
-      new Error("DB connection refused"),
-    );
+    prismaMock.shop.findUnique.mockRejectedValueOnce(new Error("DB connection refused"));
     try {
       const data = await loader({
         request: new Request("https://x"),
@@ -46,10 +44,7 @@ describe("app.settings._index loader — coverage closure", () => {
         readAllOrders: false,
         notifCount: 0,
       });
-      expect(errSpy).toHaveBeenCalledWith(
-        "[app.settings._index] Loader error:",
-        expect.any(Error),
-      );
+      expect(errSpy).toHaveBeenCalledWith("[app.settings._index] Loader error:", expect.any(Error));
     } finally {
       errSpy.mockRestore();
     }

@@ -26,23 +26,24 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 /* ── Mocks (same shape as siblings) ──────────────────────────────── */
 
-const { prismaMock, sendMailMock, verifyMock, createTransportMock, decryptMock, loggerMock } = vi.hoisted(() => {
-  const sendMail = vi.fn();
-  const verify = vi.fn();
-  const createTransport = vi.fn(() => ({ sendMail, verify }));
-  const decrypt = vi.fn((v: string | null | undefined) => v ?? null);
-  return {
-    sendMailMock: sendMail,
-    verifyMock: verify,
-    createTransportMock: createTransport,
-    decryptMock: decrypt,
-    loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    prismaMock: {
-      shop: { findUnique: vi.fn() },
-      notificationLog: { create: vi.fn().mockResolvedValue({}) },
-    },
-  };
-});
+const { prismaMock, sendMailMock, verifyMock, createTransportMock, decryptMock, loggerMock } =
+  vi.hoisted(() => {
+    const sendMail = vi.fn();
+    const verify = vi.fn();
+    const createTransport = vi.fn(() => ({ sendMail, verify }));
+    const decrypt = vi.fn((v: string | null | undefined) => v ?? null);
+    return {
+      sendMailMock: sendMail,
+      verifyMock: verify,
+      createTransportMock: createTransport,
+      decryptMock: decrypt,
+      loggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
+      prismaMock: {
+        shop: { findUnique: vi.fn() },
+        notificationLog: { create: vi.fn().mockResolvedValue({}) },
+      },
+    };
+  });
 
 vi.mock("nodemailer", () => ({
   default: { createTransport: createTransportMock },
@@ -75,7 +76,7 @@ vi.mock("../observability/logger.server", () => ({
 // tracing-mock — actually invokes the span callback so the inner body
 // (sendEmail + addBusinessEvent) runs and contributes to coverage.
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));

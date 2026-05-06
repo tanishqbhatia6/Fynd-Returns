@@ -35,12 +35,23 @@ const {
   createReturnOnFyndMock,
 } = vi.hoisted(() => ({
   approvePrismaMock: {} as ReturnType<typeof createPrismaMock>,
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, shopifyReturnId: "gid://shopify/Return/1" })),
-  createFyndClientOrErrorApproveMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  createReturnOnFyndMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ success: true, fyndReturnId: "FYR-1" })),
+  createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    shopifyReturnId: "gid://shopify/Return/1",
+  })),
+  createFyndClientOrErrorApproveMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  createReturnOnFyndMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    success: true,
+    fyndReturnId: "FYR-1",
+  })),
 }));
 Object.assign(approvePrismaMock, createPrismaMock());
 
@@ -49,14 +60,18 @@ vi.mock("../../notification.server", () => ({
   sendApprovalNotification: sendApprovalNotificationMock,
   // approve-cancellation imports sendCancellationNotification from same module —
   // declaring it here keeps the module mock surface complete for both handlers.
-  sendCancellationNotification: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => undefined),
+  sendCancellationNotification: vi.fn<(...args: unknown[]) => Promise<unknown>>(
+    async () => undefined,
+  ),
 }));
 vi.mock("../../shopify-admin.server", () => ({
   fetchOrder: fetchOrderMock,
   fetchOrderByOrderNumber: fetchOrderByOrderNumberMock,
   createShopifyReturn: createShopifyReturnMock,
   // approve-cancellation needs this — stub here so the same module mock works.
-  closeShopifyReturnBestEffort: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true })),
+  closeShopifyReturnBestEffort: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: true,
+  })),
 }));
 vi.mock("../../fynd.server", () => ({
   createFyndClientOrError: createFyndClientOrErrorApproveMock,
@@ -105,7 +120,11 @@ function mkApproveCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHand
       customerName: null,
       customerPhoneNorm: null,
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: { graphql: vi.fn() } as never,
     shopDomain: "store.myshopify.com",
     sessionEmail: "admin@example.com",
@@ -151,7 +170,10 @@ describe("handleApprove — coverage gaps", () => {
   it("L106: consolidation logs warning when createShopifyReturn returns success=false", async () => {
     // Consolidation enabled + numeric order id → enters consolidation Shopify-
     // return creation; success=false hits the warn-only branch.
-    createShopifyReturnMock.mockResolvedValueOnce({ success: false, error: "no fulfillable items" });
+    createShopifyReturnMock.mockResolvedValueOnce({
+      success: false,
+      error: "no fulfillable items",
+    });
     const ctx = mkApproveCtx({
       shop: {
         id: "shop-1",
@@ -295,7 +317,9 @@ describe("handleApproveCancellation — coverage gaps", () => {
       sessionEmail: "admin@example.com",
       isTerminal: false,
       elapsed: () => 100,
-      logShopifyReturnEvent: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+      logShopifyReturnEvent: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+        async () => undefined,
+      ),
       ...overrides,
     };
   }
@@ -314,7 +338,9 @@ describe("handleApproveCancellation — coverage gaps", () => {
       throw nonRedirect;
     });
     await expect(
-      handleApproveCancellation(mkCancelCtx(), { action: "approve_cancellation" } as ReturnActionBody),
+      handleApproveCancellation(mkCancelCtx(), {
+        action: "approve_cancellation",
+      } as ReturnActionBody),
     ).rejects.toBe(nonRedirect);
   });
 

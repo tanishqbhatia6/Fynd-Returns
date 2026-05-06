@@ -29,14 +29,17 @@ export function sanitizeCredentialInputs(values: {
   if (values.fyndCompanyId !== undefined && values.fyndCompanyId !== null) {
     const v = String(values.fyndCompanyId).trim();
     if (v.length > MAX_LENGTH.companyId) return { valid: false, error: "Company ID too long" };
-    if (v && !ID_PATTERN.test(v)) return { valid: false, error: "Company ID contains invalid characters" };
+    if (v && !ID_PATTERN.test(v))
+      return { valid: false, error: "Company ID contains invalid characters" };
     sanitized.fyndCompanyId = v;
   }
 
   if (values.fyndApplicationId !== undefined && values.fyndApplicationId !== null) {
     const v = String(values.fyndApplicationId).trim();
-    if (v.length > MAX_LENGTH.applicationId) return { valid: false, error: "Application ID too long" };
-    if (v && !ID_PATTERN.test(v)) return { valid: false, error: "Application ID contains invalid characters" };
+    if (v.length > MAX_LENGTH.applicationId)
+      return { valid: false, error: "Application ID too long" };
+    if (v && !ID_PATTERN.test(v))
+      return { valid: false, error: "Application ID contains invalid characters" };
     sanitized.fyndApplicationId = v;
   }
 
@@ -48,13 +51,15 @@ export function sanitizeCredentialInputs(values: {
 
   if (values.fyndClientSecret !== undefined && values.fyndClientSecret !== null) {
     const v = String(values.fyndClientSecret).trim();
-    if (v.length > MAX_LENGTH.clientSecret) return { valid: false, error: "Client Secret too long" };
+    if (v.length > MAX_LENGTH.clientSecret)
+      return { valid: false, error: "Client Secret too long" };
     sanitized.fyndClientSecret = v;
   }
 
   if (values.fyndApplicationToken !== undefined && values.fyndApplicationToken !== null) {
     const v = String(values.fyndApplicationToken).trim();
-    if (v.length > MAX_LENGTH.applicationToken) return { valid: false, error: "Application Token too long" };
+    if (v.length > MAX_LENGTH.applicationToken)
+      return { valid: false, error: "Application Token too long" };
     sanitized.fyndApplicationToken = v;
   }
 
@@ -64,7 +69,8 @@ export function sanitizeCredentialInputs(values: {
     if (v) {
       try {
         const url = new URL(v.startsWith("http") ? v : `https://${v}`);
-        if (!["http:", "https:"].includes(url.protocol)) return { valid: false, error: "URL must be HTTPS" };
+        if (!["http:", "https:"].includes(url.protocol))
+          return { valid: false, error: "URL must be HTTPS" };
       } catch {
         return { valid: false, error: "Invalid custom URL format" };
       }

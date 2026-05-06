@@ -29,7 +29,9 @@ const {
   checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   dispatchWebhookEventMock: vi.fn(),
   createAdminClientMock: vi.fn(() => ({ admin: true })),
-  closeShopifyReturnBestEffortMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  closeShopifyReturnBestEffortMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));

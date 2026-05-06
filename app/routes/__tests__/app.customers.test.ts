@@ -55,7 +55,10 @@ const SHOP = {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateMock.mockReset().mockResolvedValue({
-    session: { shop: "store.myshopify.com", onlineAccessInfo: { associated_user: { email: "admin@example.com" } } },
+    session: {
+      shop: "store.myshopify.com",
+      onlineAccessInfo: { associated_user: { email: "admin@example.com" } },
+    },
     admin: { graphql: vi.fn() },
   });
   findOrCreateShopMock.mockReset().mockResolvedValue(SHOP);
@@ -90,7 +93,8 @@ describe("app.customers.tsx loader", () => {
   it("calls rate-limit + audit log when search query is present", async () => {
     await loader({
       request: mkReq("?q=alice"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(checkRateLimitMock).toHaveBeenCalledWith(expect.any(Object), "admin.customers.search");
     expect(securityLoggerMock.info).toHaveBeenCalledWith(
@@ -126,7 +130,9 @@ describe("app.customers.tsx loader", () => {
     expect(filteredCall).toBeTruthy();
     const where = (filteredCall![0] as { where: { OR: Array<Record<string, unknown>> } }).where;
     expect(where.OR).toHaveLength(4);
-    expect(where.OR[0]).toMatchObject({ customerEmailNorm: { contains: "bob", mode: "insensitive" } });
+    expect(where.OR[0]).toMatchObject({
+      customerEmailNorm: { contains: "bob", mode: "insensitive" },
+    });
   });
 
   it("paginates correctly with skip/take when ?page=3 supplied", async () => {
@@ -149,7 +155,9 @@ describe("app.customers.tsx loader", () => {
     const paginated = prismaMock.returnCase.groupBy.mock.calls.find(
       (c) => (c[0] as { skip?: number }).skip !== undefined,
     );
-    expect((paginated![0] as { orderBy: unknown }).orderBy).toEqual({ _max: { createdAt: "desc" } });
+    expect((paginated![0] as { orderBy: unknown }).orderBy).toEqual({
+      _max: { createdAt: "desc" },
+    });
   });
 
   it("uses _count.id desc orderBy by default (sort=count)", async () => {
@@ -260,30 +268,28 @@ describe("app.customers.tsx loader", () => {
       .mockResolvedValueOnce([{ customerEmailNorm: "bob@example.com", _count: { id: 1 } }])
       .mockResolvedValueOnce([{ customerEmailNorm: "bob@example.com", _count: { id: 1 } }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(1);
-    prismaMock.returnCase.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: "rc-x",
-          returnRequestNo: null,
-          shopifyOrderName: "#2001",
-          shopifyOrderId: "gid://x",
-          customerEmailNorm: "bob@example.com",
-          customerPhoneNorm: null,
-          customerName: null,
-          customerCity: null,
-          customerCountry: null,
-          status: "completed",
-          refundJson: null,
-          refundStatus: "refunded",
-          resolutionType: "refund",
-          isGreenReturn: false,
-          bonusCreditAmount: null,
-          discountCodeValue: null,
-          createdAt: new Date("2026-03-01T00:00:00Z"),
-          items: [{ title: "Hat", qty: 1, price: "15.00" }],
-        },
-      ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "rc-x",
+        returnRequestNo: null,
+        shopifyOrderName: "#2001",
+        shopifyOrderId: "gid://x",
+        customerEmailNorm: "bob@example.com",
+        customerPhoneNorm: null,
+        customerName: null,
+        customerCity: null,
+        customerCountry: null,
+        status: "completed",
+        refundJson: null,
+        refundStatus: "refunded",
+        resolutionType: "refund",
+        isGreenReturn: false,
+        bonusCreditAmount: null,
+        discountCodeValue: null,
+        createdAt: new Date("2026-03-01T00:00:00Z"),
+        items: [{ title: "Hat", qty: 1, price: "15.00" }],
+      },
+    ]);
     fetchOrdersForCustomerMock.mockResolvedValueOnce([
       {
         orderName: "#2001",
@@ -300,7 +306,11 @@ describe("app.customers.tsx loader", () => {
     ]);
 
     const data = await loader({ request: mkReq(), params: {}, context: {} } as never);
-    expect(fetchOrdersForCustomerMock).toHaveBeenCalledWith(expect.any(Object), "bob@example.com", 25);
+    expect(fetchOrdersForCustomerMock).toHaveBeenCalledWith(
+      expect.any(Object),
+      "bob@example.com",
+      25,
+    );
     const cust = data.customers[0];
     expect(cust.totalRefundAmount).toBe(42);
     expect(cust.totalOrderValue).toBe(100);
@@ -339,30 +349,28 @@ describe("app.customers.tsx loader", () => {
       .mockResolvedValueOnce([{ customerEmailNorm: "x@x.com", _count: { id: 1 } }])
       .mockResolvedValueOnce([{ customerEmailNorm: "x@x.com", _count: { id: 1 } }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(1);
-    prismaMock.returnCase.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: "rc-disc",
-          returnRequestNo: null,
-          shopifyOrderName: "#9001",
-          shopifyOrderId: null,
-          customerEmailNorm: "x@x.com",
-          customerPhoneNorm: null,
-          customerName: null,
-          customerCity: null,
-          customerCountry: null,
-          status: "pending",
-          refundJson: null,
-          refundStatus: null,
-          resolutionType: "refund",
-          isGreenReturn: false,
-          bonusCreditAmount: null,
-          discountCodeValue: "5.50", // exercise line 312
-          createdAt: new Date("2026-01-01T00:00:00Z"),
-          items: [],
-        },
-      ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "rc-disc",
+        returnRequestNo: null,
+        shopifyOrderName: "#9001",
+        shopifyOrderId: null,
+        customerEmailNorm: "x@x.com",
+        customerPhoneNorm: null,
+        customerName: null,
+        customerCity: null,
+        customerCountry: null,
+        status: "pending",
+        refundJson: null,
+        refundStatus: null,
+        resolutionType: "refund",
+        isGreenReturn: false,
+        bonusCreditAmount: null,
+        discountCodeValue: "5.50", // exercise line 312
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        items: [],
+      },
+    ]);
 
     const data = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(data.customers[0].totalRefundAmount).toBe(5.5);
@@ -374,30 +382,28 @@ describe("app.customers.tsx loader", () => {
       .mockResolvedValueOnce([{ customerEmailNorm: "y@x.com", _count: { id: 1 } }])
       .mockResolvedValueOnce([{ customerEmailNorm: "y@x.com", _count: { id: 1 } }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(1);
-    prismaMock.returnCase.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: "rc-bonus",
-          returnRequestNo: null,
-          shopifyOrderName: "#9002",
-          shopifyOrderId: null,
-          customerEmailNorm: "y@x.com",
-          customerPhoneNorm: null,
-          customerName: null,
-          customerCity: null,
-          customerCountry: null,
-          status: "pending",
-          refundJson: null,
-          refundStatus: null,
-          resolutionType: "refund",
-          isGreenReturn: false,
-          bonusCreditAmount: "8.75", // exercise line 315
-          discountCodeValue: null,
-          createdAt: new Date("2026-01-02T00:00:00Z"),
-          items: [],
-        },
-      ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "rc-bonus",
+        returnRequestNo: null,
+        shopifyOrderName: "#9002",
+        shopifyOrderId: null,
+        customerEmailNorm: "y@x.com",
+        customerPhoneNorm: null,
+        customerName: null,
+        customerCity: null,
+        customerCountry: null,
+        status: "pending",
+        refundJson: null,
+        refundStatus: null,
+        resolutionType: "refund",
+        isGreenReturn: false,
+        bonusCreditAmount: "8.75", // exercise line 315
+        discountCodeValue: null,
+        createdAt: new Date("2026-01-02T00:00:00Z"),
+        items: [],
+      },
+    ]);
 
     const data = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(data.customers[0].totalRefundAmount).toBe(8.75);
@@ -409,34 +415,32 @@ describe("app.customers.tsx loader", () => {
       .mockResolvedValueOnce([{ customerEmailNorm: "z@x.com", _count: { id: 1 } }])
       .mockResolvedValueOnce([{ customerEmailNorm: "z@x.com", _count: { id: 1 } }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(1);
-    prismaMock.returnCase.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: "rc-est",
-          returnRequestNo: null,
-          shopifyOrderName: "#9003",
-          shopifyOrderId: null,
-          customerEmailNorm: "z@x.com",
-          customerPhoneNorm: null,
-          customerName: null,
-          customerCity: null,
-          customerCountry: null,
-          status: "completed", // triggers isRefunded
-          refundJson: null,
-          refundStatus: "refunded",
-          resolutionType: "refund",
-          isGreenReturn: false,
-          bonusCreditAmount: null,
-          discountCodeValue: null,
-          createdAt: new Date("2026-01-03T00:00:00Z"),
-          items: [
-            { title: "X", qty: 2, price: "10.00" }, // 20
-            { title: "Y", qty: 1, price: "5.50" }, // 5.5
-            { title: "Z", qty: 1, price: null }, // skipped
-          ],
-        },
-      ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "rc-est",
+        returnRequestNo: null,
+        shopifyOrderName: "#9003",
+        shopifyOrderId: null,
+        customerEmailNorm: "z@x.com",
+        customerPhoneNorm: null,
+        customerName: null,
+        customerCity: null,
+        customerCountry: null,
+        status: "completed", // triggers isRefunded
+        refundJson: null,
+        refundStatus: "refunded",
+        resolutionType: "refund",
+        isGreenReturn: false,
+        bonusCreditAmount: null,
+        discountCodeValue: null,
+        createdAt: new Date("2026-01-03T00:00:00Z"),
+        items: [
+          { title: "X", qty: 2, price: "10.00" }, // 20
+          { title: "Y", qty: 1, price: "5.50" }, // 5.5
+          { title: "Z", qty: 1, price: null }, // skipped
+        ],
+      },
+    ]);
 
     const data = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(data.customers[0].totalRefundAmount).toBeCloseTo(25.5, 2);
@@ -458,28 +462,48 @@ describe("app.customers.tsx loader", () => {
         { customerEmailNorm: "big@x.com", _count: { id: 1 } },
       ]);
     prismaMock.returnCase.count.mockResolvedValueOnce(2);
-    prismaMock.returnCase.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: "rc-small", returnRequestNo: null, shopifyOrderName: "#1", shopifyOrderId: null,
-          customerEmailNorm: "small@x.com", customerPhoneNorm: null, customerName: null,
-          customerCity: null, customerCountry: null, status: "completed",
-          refundJson: JSON.stringify({ amount: "5.00", currency: "USD" }), refundStatus: "refunded",
-          resolutionType: "refund", isGreenReturn: false, bonusCreditAmount: null,
-          discountCodeValue: null, createdAt: new Date("2026-01-01T00:00:00Z"),
-          items: [],
-        },
-        {
-          id: "rc-big", returnRequestNo: null, shopifyOrderName: "#2", shopifyOrderId: null,
-          customerEmailNorm: "big@x.com", customerPhoneNorm: null, customerName: null,
-          customerCity: null, customerCountry: null, status: "completed",
-          refundJson: JSON.stringify({ amount: "999.00", currency: "USD" }), refundStatus: "refunded",
-          resolutionType: "refund", isGreenReturn: false, bonusCreditAmount: null,
-          discountCodeValue: null, createdAt: new Date("2026-01-02T00:00:00Z"),
-          items: [],
-        },
-      ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "rc-small",
+        returnRequestNo: null,
+        shopifyOrderName: "#1",
+        shopifyOrderId: null,
+        customerEmailNorm: "small@x.com",
+        customerPhoneNorm: null,
+        customerName: null,
+        customerCity: null,
+        customerCountry: null,
+        status: "completed",
+        refundJson: JSON.stringify({ amount: "5.00", currency: "USD" }),
+        refundStatus: "refunded",
+        resolutionType: "refund",
+        isGreenReturn: false,
+        bonusCreditAmount: null,
+        discountCodeValue: null,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        items: [],
+      },
+      {
+        id: "rc-big",
+        returnRequestNo: null,
+        shopifyOrderName: "#2",
+        shopifyOrderId: null,
+        customerEmailNorm: "big@x.com",
+        customerPhoneNorm: null,
+        customerName: null,
+        customerCity: null,
+        customerCountry: null,
+        status: "completed",
+        refundJson: JSON.stringify({ amount: "999.00", currency: "USD" }),
+        refundStatus: "refunded",
+        resolutionType: "refund",
+        isGreenReturn: false,
+        bonusCreditAmount: null,
+        discountCodeValue: null,
+        createdAt: new Date("2026-01-02T00:00:00Z"),
+        items: [],
+      },
+    ]);
 
     const data = await loader({ request: mkReq("?sort=amount"), params: {}, context: {} } as never);
     expect(data.customers).toHaveLength(2);
@@ -494,30 +518,28 @@ describe("app.customers.tsx loader", () => {
       .mockResolvedValueOnce([{ customerEmailNorm: "bf@x.com", _count: { id: 1 } }])
       .mockResolvedValueOnce([{ customerEmailNorm: "bf@x.com", _count: { id: 1 } }]);
     prismaMock.returnCase.count.mockResolvedValueOnce(1);
-    prismaMock.returnCase.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          id: "rc-bf",
-          returnRequestNo: null,
-          shopifyOrderName: "#5000",
-          shopifyOrderId: null,
-          customerEmailNorm: "bf@x.com",
-          customerPhoneNorm: null, // missing — triggers backfill
-          customerName: null, // missing — triggers backfill
-          customerCity: null,
-          customerCountry: null,
-          status: "pending",
-          refundJson: null,
-          refundStatus: null,
-          resolutionType: "refund",
-          isGreenReturn: false,
-          bonusCreditAmount: null,
-          discountCodeValue: null,
-          createdAt: new Date("2026-01-04T00:00:00Z"),
-          items: [],
-        },
-      ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      {
+        id: "rc-bf",
+        returnRequestNo: null,
+        shopifyOrderName: "#5000",
+        shopifyOrderId: null,
+        customerEmailNorm: "bf@x.com",
+        customerPhoneNorm: null, // missing — triggers backfill
+        customerName: null, // missing — triggers backfill
+        customerCity: null,
+        customerCountry: null,
+        status: "pending",
+        refundJson: null,
+        refundStatus: null,
+        resolutionType: "refund",
+        isGreenReturn: false,
+        bonusCreditAmount: null,
+        discountCodeValue: null,
+        createdAt: new Date("2026-01-04T00:00:00Z"),
+        items: [],
+      },
+    ]);
     // fetchOrdersForCustomer returns customer info — triggers backfillUpdates push
     fetchOrdersForCustomerMock.mockResolvedValueOnce([
       {

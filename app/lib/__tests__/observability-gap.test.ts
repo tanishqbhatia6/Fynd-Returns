@@ -261,17 +261,13 @@ describe("observability/logger.server — real pino integration branches", () =>
     try {
       const { default: logger } = await import("../observability/logger.server");
       // url has no query — split path returns the same string.
-      expect(() =>
-        logger.info({ req: { method: "GET", url: "/orders" } }, "no qs"),
-      ).not.toThrow();
+      expect(() => logger.info({ req: { method: "GET", url: "/orders" } }, "no qs")).not.toThrow();
       // headers undefined — the optional chain bails out cleanly.
       expect(() =>
         logger.info({ req: { method: "POST", url: "/orders" } }, "no hdrs"),
       ).not.toThrow();
       // url undefined — exercises the `req.url?.split` undefined branch.
-      expect(() =>
-        logger.info({ req: { method: "GET" } }, "no url"),
-      ).not.toThrow();
+      expect(() => logger.info({ req: { method: "GET" } }, "no url")).not.toThrow();
     } finally {
       if (origEnv === undefined) delete process.env.NODE_ENV;
       else process.env.NODE_ENV = origEnv;
@@ -346,9 +342,7 @@ describe("observability/request-context.server — gap branches", () => {
         setBaggage: () => ({}),
       },
     }));
-    const { getCorrelationHeaders } = await import(
-      "../observability/request-context.server"
-    );
+    const { getCorrelationHeaders } = await import("../observability/request-context.server");
     const headers = getCorrelationHeaders("req-123");
     expect(headers["X-Request-Id"]).toBe("req-123");
     expect(headers["X-Trace-Id"]).toBe("trace-xyz");
@@ -360,13 +354,15 @@ describe("observability/request-context.server — gap branches", () => {
       context: { active: () => ({}) },
       propagation: {
         getBaggage: () => undefined,
-        createBaggage: () => ({ setEntry: function (this: unknown) { return this; } }),
+        createBaggage: () => ({
+          setEntry: function (this: unknown) {
+            return this;
+          },
+        }),
         setBaggage: () => ({}),
       },
     }));
-    const { getCorrelationHeaders } = await import(
-      "../observability/request-context.server"
-    );
+    const { getCorrelationHeaders } = await import("../observability/request-context.server");
     const headers = getCorrelationHeaders("req-456");
     expect(headers["X-Request-Id"]).toBe("req-456");
     expect(headers["X-Trace-Id"]).toBeUndefined();
@@ -378,16 +374,17 @@ describe("observability/request-context.server — gap branches", () => {
       context: { active: () => ({}) },
       propagation: {
         getBaggage: () => ({
-          getEntry: (k: string) =>
-            k === "tenant" ? { value: "shop-9" } : undefined,
+          getEntry: (k: string) => (k === "tenant" ? { value: "shop-9" } : undefined),
         }),
-        createBaggage: () => ({ setEntry: function (this: unknown) { return this; } }),
+        createBaggage: () => ({
+          setEntry: function (this: unknown) {
+            return this;
+          },
+        }),
         setBaggage: () => ({}),
       },
     }));
-    const { getContextValue } = await import(
-      "../observability/request-context.server"
-    );
+    const { getContextValue } = await import("../observability/request-context.server");
     expect(getContextValue("tenant")).toBe("shop-9");
     expect(getContextValue("missing")).toBeUndefined();
   });
@@ -398,13 +395,15 @@ describe("observability/request-context.server — gap branches", () => {
       context: { active: () => ({}) },
       propagation: {
         getBaggage: () => undefined,
-        createBaggage: () => ({ setEntry: function (this: unknown) { return this; } }),
+        createBaggage: () => ({
+          setEntry: function (this: unknown) {
+            return this;
+          },
+        }),
         setBaggage: () => ({}),
       },
     }));
-    const { getContextValue } = await import(
-      "../observability/request-context.server"
-    );
+    const { getContextValue } = await import("../observability/request-context.server");
     expect(getContextValue("any")).toBeUndefined();
   });
 
@@ -424,9 +423,7 @@ describe("observability/request-context.server — gap branches", () => {
         setBaggage,
       },
     }));
-    const { setRequestContext } = await import(
-      "../observability/request-context.server"
-    );
+    const { setRequestContext } = await import("../observability/request-context.server");
     const req = new Request("https://example.com/", {
       headers: { "x-request-id": "req-rich" },
     });
@@ -449,13 +446,7 @@ describe("observability/request-context.server — gap branches", () => {
     // Baggage got every conditional entry.
     const bagKeys = setEntry.mock.calls.map((c) => c[0]);
     expect(bagKeys).toEqual(
-      expect.arrayContaining([
-        "request.id",
-        "shop.domain",
-        "shop.id",
-        "user.type",
-        "return.id",
-      ]),
+      expect.arrayContaining(["request.id", "shop.domain", "shop.id", "user.type", "return.id"]),
     );
     expect(setBaggage).toHaveBeenCalled();
   });

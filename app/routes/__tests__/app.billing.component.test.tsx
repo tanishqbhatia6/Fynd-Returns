@@ -160,8 +160,8 @@ describe("BillingPage — hasAccess=true branch (subscription_active)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Access granted");
     });
-    const chooseLink = Array.from(container.querySelectorAll("a")).find(
-      (a) => a.textContent?.trim().startsWith("Choose a plan"),
+    const chooseLink = Array.from(container.querySelectorAll("a")).find((a) =>
+      a.textContent?.trim().startsWith("Choose a plan"),
     );
     expect(chooseLink).toBeFalsy();
     expect(container.textContent).not.toContain("Subscription required");
@@ -200,8 +200,8 @@ describe("BillingPage — hasAccess=false branch", () => {
       }),
     });
     expect(await findByText("Subscription required")).toBeTruthy();
-    const chooseLink = Array.from(container.querySelectorAll("a")).find(
-      (a) => a.textContent?.trim().startsWith("Choose a plan"),
+    const chooseLink = Array.from(container.querySelectorAll("a")).find((a) =>
+      a.textContent?.trim().startsWith("Choose a plan"),
     );
     expect(chooseLink).toBeTruthy();
     expect(chooseLink?.getAttribute("href")).toBe(UPGRADE_URL);
@@ -296,9 +296,7 @@ describe("BillingPage — ReasonLabel switch arms", () => {
     await waitFor(() => {
       expect(container.textContent).toMatch(/Access granted/);
     });
-    expect(container.textContent).toMatch(
-      /Free access granted by a superadmin for this shop\./,
-    );
+    expect(container.textContent).toMatch(/Free access granted by a superadmin for this shop\./);
   });
 
   it("reason='subscription_missing' renders the no-subscription copy", async () => {
@@ -375,9 +373,7 @@ describe("BillingPage — ReasonLabel switch arms", () => {
       expect(container.textContent).toMatch(/Access granted/);
     });
     // Bold <strong>Growth</strong> appears inside the reason label.
-    const strongs = Array.from(container.querySelectorAll("strong")).map(
-      (n) => n.textContent,
-    );
+    const strongs = Array.from(container.querySelectorAll("strong")).map((n) => n.textContent);
     expect(strongs).toContain("Growth");
     expect(container.textContent).toMatch(/Active subscription:/);
   });

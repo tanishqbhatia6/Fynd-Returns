@@ -56,7 +56,7 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
 }));
@@ -78,14 +78,16 @@ function uniqueSubId() {
   return `gap-sub-${subCounter}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function makeSub(overrides: Partial<{
-  id: string;
-  shopId: string;
-  isActive: boolean;
-  url: string;
-  secret: string;
-  events: string;
-}> = {}) {
+function makeSub(
+  overrides: Partial<{
+    id: string;
+    shopId: string;
+    isActive: boolean;
+    url: string;
+    secret: string;
+    events: string;
+  }> = {},
+) {
   return {
     id: overrides.id ?? uniqueSubId(),
     shopId: "shop-gap",
@@ -170,9 +172,7 @@ describe("dispatchWebhookEvent — SSRF re-check edges", () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([makeSub()]);
     fetchSpy.mockResolvedValue({ ok: true });
 
-    expect(() =>
-      dispatchWebhookEvent("shop-gap", "return.approved", { x: 1 }),
-    ).not.toThrow();
+    expect(() => dispatchWebhookEvent("shop-gap", "return.approved", { x: 1 })).not.toThrow();
     await flushAll();
 
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -196,8 +196,7 @@ describe("dispatchWebhookEvent — HMAC signing edge", () => {
       body: string;
     };
     const expected =
-      "sha256=" +
-      crypto.createHmac("sha256", sub.secret).update(init.body).digest("hex");
+      "sha256=" + crypto.createHmac("sha256", sub.secret).update(init.body).digest("hex");
 
     // Primary header — must be the sha256=<hex> form.
     expect(init.headers["X-Webhook-Signature"]).toBe(expected);
@@ -221,8 +220,7 @@ describe("dispatchWebhookEvent — HMAC signing edge", () => {
       headers: Record<string, string>;
       body: string;
     };
-    const expected =
-      "sha256=" + crypto.createHmac("sha256", "").update(init.body).digest("hex");
+    const expected = "sha256=" + crypto.createHmac("sha256", "").update(init.body).digest("hex");
     expect(init.headers["X-Webhook-Signature"]).toBe(expected);
   });
 });
@@ -269,9 +267,7 @@ describe("dispatchWebhookEvent — idempotency-key edges", () => {
       const dlqArg = prismaMock.webhookDeliveryFailure.create.mock.calls[0][0] as {
         data: { idempotencyKey?: string; payloadJson: string };
       };
-      const sentBody = JSON.parse(
-        (fetchSpy.mock.calls[0][1] as { body: string }).body,
-      );
+      const sentBody = JSON.parse((fetchSpy.mock.calls[0][1] as { body: string }).body);
       // Must be the same key on the wire and on the DLQ.
       expect(dlqArg.data.idempotencyKey).toBe(sentBody.idempotencyKey);
       expect(typeof dlqArg.data.idempotencyKey).toBe("string");
@@ -415,9 +411,7 @@ describe("dispatchWebhookEvent — outer error handling", () => {
   it("does not throw when prisma.findMany rejects (already-tested but reinforces the catch path)", async () => {
     prismaMock.webhookSubscription.findMany.mockRejectedValue(new Error("DB exploded"));
 
-    expect(() =>
-      dispatchWebhookEvent("shop-gap", "return.approved", { x: 1 }),
-    ).not.toThrow();
+    expect(() => dispatchWebhookEvent("shop-gap", "return.approved", { x: 1 })).not.toThrow();
     await flushAll();
 
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -443,9 +437,7 @@ describe("dispatchWebhookEvent — outer error handling", () => {
 
   it("does not throw when shopId is empty string", async () => {
     prismaMock.webhookSubscription.findMany.mockResolvedValue([]);
-    expect(() =>
-      dispatchWebhookEvent("", "return.approved", { x: 1 }),
-    ).not.toThrow();
+    expect(() => dispatchWebhookEvent("", "return.approved", { x: 1 })).not.toThrow();
     await flushAll();
     expect(prismaMock.webhookSubscription.findMany).toHaveBeenCalledWith({
       where: { shopId: "", isActive: true },
@@ -490,9 +482,7 @@ describe("dispatchWebhookEvent — fetch synchronous-throw clears timeout", () =
       throw new Error("synchronous DNS crash");
     });
 
-    expect(() =>
-      dispatchWebhookEvent("shop-gap", "return.approved", { x: 1 }),
-    ).not.toThrow();
+    expect(() => dispatchWebhookEvent("shop-gap", "return.approved", { x: 1 })).not.toThrow();
     await flushAll();
 
     expect(fetchSpy).toHaveBeenCalledOnce();

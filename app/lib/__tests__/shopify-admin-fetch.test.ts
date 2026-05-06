@@ -4,7 +4,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -13,7 +13,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -26,9 +26,10 @@ import {
 } from "../shopify-admin.server";
 
 /** Build mock AdminGraphQL with canned (FIFO) responses */
-function makeAdmin(
-  responses: Array<unknown | Error | { status: number; body: unknown }>
-): { admin: AdminGraphQL; graphql: ReturnType<typeof vi.fn> } {
+function makeAdmin(responses: Array<unknown | Error | { status: number; body: unknown }>): {
+  admin: AdminGraphQL;
+  graphql: ReturnType<typeof vi.fn>;
+} {
   let i = 0;
   const graphql = vi.fn(async () => {
     const r = responses[i++] ?? { data: {} };
@@ -158,8 +159,9 @@ describe("fetchOrder (gid lookup via nodes())", () => {
   });
 
   it("returns null on malformed JSON body (parse failure)", async () => {
-    const graphql = vi.fn(async () =>
-      new Response("not-json", { status: 200, headers: { "Content-Type": "text/plain" } })
+    const graphql = vi.fn(
+      async () =>
+        new Response("not-json", { status: 200, headers: { "Content-Type": "text/plain" } }),
     );
     const admin = { graphql } as AdminGraphQL;
     expect(await fetchOrder(admin, "1")).toBeNull();
@@ -210,9 +212,7 @@ describe("fetchOrder (gid lookup via nodes())", () => {
     const f = order!.fulfillments![0];
     expect(f.status).toBe("SUCCESS");
     expect(f.totalQuantity).toBe(2);
-    expect(f.trackingInfo).toEqual([
-      { number: "TRK1", url: "https://track/1", company: "UPS" },
-    ]);
+    expect(f.trackingInfo).toEqual([{ number: "TRK1", url: "https://track/1", company: "UPS" }]);
   });
 
   it("normalizes shipping/billing address fields", async () => {
@@ -261,9 +261,10 @@ describe("fetchOrderByGid (orderByIdentifier)", () => {
     const { admin } = makeAdmin([
       { data: null, errors: [{ message: "App is not approved to access the Order object." }] },
     ]);
-    await expect(
-      fetchOrderByGid(admin, "gid://shopify/Order/1")
-    ).rejects.toMatchObject({ name: "OrderAccessError", code: "PCDA" });
+    await expect(fetchOrderByGid(admin, "gid://shopify/Order/1")).rejects.toMatchObject({
+      name: "OrderAccessError",
+      code: "PCDA",
+    });
   });
 
   it("returns null on non-PCDA graphql errors", async () => {
@@ -294,8 +295,8 @@ describe("fetchOrderByOrderNumber", () => {
             orders: { nodes: [fullOrderNode({ name: "#X14126" })] },
           },
         }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      )
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
     );
     const baseAdmin = makeAdmin([]).admin;
     const admin = withRestCredentials(baseAdmin, "shop.myshopify.com", "token-abc");
@@ -311,22 +312,26 @@ describe("fetchOrderByOrderNumber", () => {
       .spyOn(globalThis, "fetch")
       // Strategy 1 attempt 1: empty results
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 })
+        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 }),
       )
       // Strategy 1 attempt 2: empty results
       .mockResolvedValueOnce(
-        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 })
+        new Response(JSON.stringify({ data: { orders: { nodes: [] } } }), { status: 200 }),
       )
       // REST lookup: found order
       .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({ orders: [{ id: 999, name: "#X14126" }] }),
-          { status: 200, headers: { "Content-Type": "application/json" } }
-        )
+        new Response(JSON.stringify({ orders: [{ id: 999, name: "#X14126" }] }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
       );
     const { admin: baseAdmin, graphql } = makeAdmin([
       // fetchOrderByGid follow-up
-      { data: { orderByIdentifier: fullOrderNode({ id: "gid://shopify/Order/999", name: "#X14126" }) } },
+      {
+        data: {
+          orderByIdentifier: fullOrderNode({ id: "gid://shopify/Order/999", name: "#X14126" }),
+        },
+      },
     ]);
     const admin = withRestCredentials(baseAdmin, "shop.myshopify.com", "token-abc");
     const order = await fetchOrderByOrderNumber(admin, "X14126");

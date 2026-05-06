@@ -133,13 +133,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
   DeliveryMethod: { Http: "http" },
 }));
 vi.mock("../components/AppPage", () => ({
-  AppPage: ({
-    heading,
-    children,
-  }: {
-    heading: React.ReactNode;
-    children: React.ReactNode;
-  }) => (
+  AppPage: ({ heading, children }: { heading: React.ReactNode; children: React.ReactNode }) => (
     <div data-testid="app-page">
       <h1>{heading}</h1>
       {children}
@@ -154,9 +148,7 @@ type FetcherShape = {
   formData?: FormData;
   submit: ReturnType<typeof vi.fn>;
   load: ReturnType<typeof vi.fn>;
-  Form: React.FC<
-    React.FormHTMLAttributes<HTMLFormElement> & { children?: React.ReactNode }
-  >;
+  Form: React.FC<React.FormHTMLAttributes<HTMLFormElement> & { children?: React.ReactNode }>;
 };
 const loaderState: { value: unknown } = { value: undefined };
 const fetcherStates: FetcherShape[] = [];
@@ -177,9 +169,7 @@ function defaultFetcher(): FetcherShape {
 }
 
 vi.mock("react-router", async () => {
-  const actual = await vi.importActual<typeof import("react-router")>(
-    "react-router",
-  );
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return {
     ...actual,
     useLoaderData: () => {
@@ -193,16 +183,9 @@ vi.mock("react-router", async () => {
     },
     useSearchParams: () => [
       searchParamsState.value,
-      vi.fn(
-        (
-          next:
-            | URLSearchParams
-            | ((p: URLSearchParams) => URLSearchParams),
-        ) => {
-          searchParamsState.value =
-            typeof next === "function" ? next(searchParamsState.value) : next;
-        },
-      ),
+      vi.fn((next: URLSearchParams | ((p: URLSearchParams) => URLSearchParams)) => {
+        searchParamsState.value = typeof next === "function" ? next(searchParamsState.value) : next;
+      }),
     ],
     useRevalidator: () => ({ revalidate: vi.fn(), state: "idle" }),
   };
@@ -269,7 +252,9 @@ describe("app.settings.rules — final branches", () => {
       (b) => b.textContent?.trim() === "+ Add country",
     );
     expect(addBtn).toBeTruthy();
-    await act(async () => { fireEvent.click(addBtn!); });
+    await act(async () => {
+      fireEvent.click(addBtn!);
+    });
     await waitFor(() => {
       countryInputs = Array.from(
         container.querySelectorAll<HTMLInputElement>(
@@ -281,9 +266,7 @@ describe("app.settings.rules — final branches", () => {
     fireEvent.change(countryInputs[1], { target: { value: "DE" } });
     expect(countryInputs[1].value).toBe("DE");
     const daysInputs = Array.from(
-      container.querySelectorAll<HTMLInputElement>(
-        'input[type="number"][min="1"][max="365"]',
-      ),
+      container.querySelectorAll<HTMLInputElement>('input[type="number"][min="1"][max="365"]'),
     ).filter((i) => !i.getAttribute("name"));
     expect(daysInputs.length).toBeGreaterThanOrEqual(2);
     fireEvent.change(daysInputs[daysInputs.length - 1], {
@@ -296,9 +279,7 @@ describe("app.settings.rules — final branches", () => {
     const xButtons = Array.from(container.querySelectorAll("button")).filter(
       (b) => b.textContent?.trim() === "×",
     );
-    const countryRemove = xButtons.find((b) =>
-      /days/i.test(b.parentElement?.textContent ?? ""),
-    );
+    const countryRemove = xButtons.find((b) => /days/i.test(b.parentElement?.textContent ?? ""));
     expect(countryRemove).toBeTruthy();
     fireEvent.click(countryRemove!);
     await waitFor(() => {
@@ -476,9 +457,7 @@ describe("app.settings.integrations — final branches", () => {
       loaderData: ld,
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Credentials saved successfully.",
-      );
+      expect(container.textContent).toContain("Credentials saved successfully.");
     }, WAIT);
   });
 
@@ -531,9 +510,7 @@ describe("app.settings.integrations — final branches", () => {
     });
     await waitFor(() => {
       expect(
-        container.querySelector(
-          'input[type="radio"][name="appMode"][value="dev"]',
-        ),
+        container.querySelector('input[type="radio"][name="appMode"][value="dev"]'),
       ).toBeTruthy();
     }, WAIT);
     const dev = container.querySelector(
@@ -556,9 +533,7 @@ describe("app.settings.product-policies — final branches", () => {
       loaderData: ldPP,
     });
     await waitFor(() => {
-      expect(container.textContent ?? "").toContain(
-        "Product policies saved successfully.",
-      );
+      expect(container.textContent ?? "").toContain("Product policies saved successfully.");
     }, WAIT);
   });
 
@@ -598,10 +573,7 @@ describe("app.settings.notifications — final branches", () => {
     adminNotifyEmail: "",
     adminSoundEnabled: true,
     smtpConfigured: false,
-    emailTemplatesJson: {} as Record<
-      string,
-      { subject: string; bodyHtml: string }
-    >,
+    emailTemplatesJson: {} as Record<string, { subject: string; bodyHtml: string }>,
     whatsappEnabled: false,
     whatsappProvider: "meta_cloud",
     whatsappApiKey: "",
@@ -649,9 +621,7 @@ describe("app.settings.notifications — final branches", () => {
       loaderData: baseN,
     });
     await waitFor(() => {
-      expect(container.textContent ?? "").toContain(
-        "SMTP connection successful",
-      );
+      expect(container.textContent ?? "").toContain("SMTP connection successful");
     }, WAIT);
   });
 
@@ -796,9 +766,7 @@ describe("app.settings.rules — action branches (server-side)", () => {
       minimumReturnPrice: "12.5",
       returnReasonsJson: JSON.stringify(["A", "B"]),
       restrictedRegionsJson: JSON.stringify([{ country: "US" }]),
-      returnOffersJson: JSON.stringify([
-        { offerType: "discount_pct", offerValue: 10 },
-      ]),
+      returnOffersJson: JSON.stringify([{ offerType: "discount_pct", offerValue: 10 }]),
       feesByReasonJson: JSON.stringify([{ reason: "X", feeAmount: 5 }]),
       windowsByCountryJson: JSON.stringify([{ country: "DE", days: 30 }]),
       returnReasonsByCategoryJson: JSON.stringify({ Tops: ["a"] }),
@@ -886,9 +854,8 @@ describe("app.settings.rules — action branches (server-side)", () => {
 describe("app.settings.integrations — loader/action helper branches (server-side)", () => {
   it("integrations loader: parsePolicyForForm exercises every type-guard branch", async () => {
     const auth = authenticate.admin as unknown as ReturnType<typeof vi.fn>;
-    const findUnique = (
-      prisma as unknown as { shop: { findUnique: ReturnType<typeof vi.fn> } }
-    ).shop.findUnique;
+    const findUnique = (prisma as unknown as { shop: { findUnique: ReturnType<typeof vi.fn> } })
+      .shop.findUnique;
     auth.mockResolvedValueOnce({ session: { shop: "x.myshopify.com" } });
     const policyJson = JSON.stringify({
       returnWindowDays: 9999, // → clamped to 365 via Math.min branch
@@ -929,17 +896,13 @@ describe("app.settings.integrations — loader/action helper branches (server-si
     };
     expect(result.policy.returnWindowDays).toBe(365);
     expect(result.policy.restockFeePercent).toBe(0);
-    expect(result.policy.refundMethods).toEqual([
-      "original_payment",
-      "store_credit",
-    ]);
+    expect(result.policy.refundMethods).toEqual(["original_payment", "store_credit"]);
   });
 
   it("integrations action: buildPolicyJson exercises multi-value getAll + invalid-default + appMode=dev + Gorgias preserve", async () => {
     const auth = authenticate.admin as unknown as ReturnType<typeof vi.fn>;
-    const findUnique = (
-      prisma as unknown as { shop: { findUnique: ReturnType<typeof vi.fn> } }
-    ).shop.findUnique;
+    const findUnique = (prisma as unknown as { shop: { findUnique: ReturnType<typeof vi.fn> } })
+      .shop.findUnique;
     const upsert = (
       prisma as unknown as {
         shopSettings: { upsert: ReturnType<typeof vi.fn> };
@@ -952,9 +915,9 @@ describe("app.settings.integrations — loader/action helper branches (server-si
       settings: { gorgiasApiKey: "enc(prev)" },
     });
     upsert.mockResolvedValueOnce({});
-    (
-      sanitizeCredentialInputs as unknown as ReturnType<typeof vi.fn>
-    ).mockImplementationOnce((v: unknown) => ({ valid: true, sanitized: v }));
+    (sanitizeCredentialInputs as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      (v: unknown) => ({ valid: true, sanitized: v }),
+    );
     const req = makeFormRequest({
       intent: "save",
       fyndEnvironment: "prod",
@@ -990,9 +953,8 @@ describe("app.settings.integrations — loader/action helper branches (server-si
 
   it("integrations action: clear_token nulls credentials + test_platform error path returns testResult=false", async () => {
     const auth = authenticate.admin as unknown as ReturnType<typeof vi.fn>;
-    const findUnique = (
-      prisma as unknown as { shop: { findUnique: ReturnType<typeof vi.fn> } }
-    ).shop.findUnique;
+    const findUnique = (prisma as unknown as { shop: { findUnique: ReturnType<typeof vi.fn> } })
+      .shop.findUnique;
     const upsertSettings = (
       prisma as unknown as {
         shopSettings: { upsert: ReturnType<typeof vi.fn> };
@@ -1002,9 +964,8 @@ describe("app.settings.integrations — loader/action helper branches (server-si
     // Path 1: clear_token intent — covers the clear/null branch + create-shop fallback.
     auth.mockResolvedValueOnce({ session: { shop: "x.myshopify.com" } });
     findUnique.mockResolvedValueOnce(null); // forces shop.create branch (line 288)
-    const create = (
-      prisma as unknown as { shop: { create: ReturnType<typeof vi.fn> } }
-    ).shop.create;
+    const create = (prisma as unknown as { shop: { create: ReturnType<typeof vi.fn> } }).shop
+      .create;
     create.mockResolvedValueOnce({ id: "shop_new", shopDomain: "x.myshopify.com" });
     upsertSettings.mockResolvedValueOnce({});
     const clearReq = makeFormRequest({ intent: "clear_token" });
@@ -1021,9 +982,7 @@ describe("app.settings.integrations — loader/action helper branches (server-si
 
     // Path 2: test_platform with downstream failure — covers `rawResult.ok=false`
     // branch and propagates the platform error string.
-    const { testPlatformConnectionRaw } = await import(
-      "../../lib/fynd.server"
-    );
+    const { testPlatformConnectionRaw } = await import("../../lib/fynd.server");
     const tpc = testPlatformConnectionRaw as unknown as ReturnType<typeof vi.fn>;
     tpc.mockResolvedValueOnce({ ok: false, error: "401 invalid_credentials" });
     auth.mockResolvedValueOnce({ session: { shop: "x.myshopify.com" } });
@@ -1036,12 +995,10 @@ describe("app.settings.integrations — loader/action helper branches (server-si
         fyndCompanyId: "C1",
       },
     });
-    const { getNormalizedCredentialsFromRaw } = await import(
-      "../../lib/fynd.server"
-    );
-    (
-      getNormalizedCredentialsFromRaw as unknown as ReturnType<typeof vi.fn>
-    ).mockReturnValueOnce({ platform: { clientId: "c", clientSecret: "s" } });
+    const { getNormalizedCredentialsFromRaw } = await import("../../lib/fynd.server");
+    (getNormalizedCredentialsFromRaw as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+      platform: { clientId: "c", clientSecret: "s" },
+    });
     const testReq = makeFormRequest({
       intent: "test_platform",
       fyndCompanyId: "C1",
@@ -1068,9 +1025,9 @@ describe("app.settings.integrations — loader/action helper branches (server-si
   it("integrations action: sanitizeCredentialInputs validation failure returns success=false with error", async () => {
     const auth = authenticate.admin as unknown as ReturnType<typeof vi.fn>;
     auth.mockResolvedValueOnce({ session: { shop: "x.myshopify.com" } });
-    (
-      sanitizeCredentialInputs as unknown as ReturnType<typeof vi.fn>
-    ).mockImplementationOnce(() => ({ valid: false, error: "bad input X" }));
+    (sanitizeCredentialInputs as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => ({ valid: false, error: "bad input X" }),
+    );
     const req = makeFormRequest({
       intent: "save",
       fyndEnvironment: "uat",

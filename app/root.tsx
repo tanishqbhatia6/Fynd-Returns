@@ -83,10 +83,7 @@ export default function App() {
         */}
         <script dangerouslySetInnerHTML={{ __html: INLINE_SCRIPT_BODY }} />
         <link rel="preconnect" href="https://cdn.shopify.com/" />
-        <link
-          rel="stylesheet"
-          href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css"
-        />
+        <link rel="stylesheet" href="https://cdn.shopify.com/static/fonts/inter/v4/styles.css" />
         <Meta />
         <Links />
       </head>

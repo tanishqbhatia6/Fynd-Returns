@@ -33,13 +33,20 @@ describe("auth.$ loader", () => {
   it("propagates authentication failures (throws)", async () => {
     authenticateAdminMock.mockRejectedValueOnce(new Response("redirect", { status: 302 }));
     const req = new Request("https://app.example/auth");
-    await expect(loader({ request: req, params: {}, context: {} } as never)).rejects.toBeInstanceOf(Response);
+    await expect(loader({ request: req, params: {}, context: {} } as never)).rejects.toBeInstanceOf(
+      Response,
+    );
   });
 });
 
 describe("auth.$ headers", () => {
   it("delegates to Shopify boundary.headers", () => {
-    const args = { parentHeaders: new Headers(), loaderHeaders: new Headers(), actionHeaders: new Headers(), errorHeaders: undefined };
+    const args = {
+      parentHeaders: new Headers(),
+      loaderHeaders: new Headers(),
+      actionHeaders: new Headers(),
+      errorHeaders: undefined,
+    };
     const out = headers(args as never);
     expect(boundaryHeadersMock).toHaveBeenCalledWith(args);
     expect((out as Headers).get("x-test-boundary")).toBe("1");

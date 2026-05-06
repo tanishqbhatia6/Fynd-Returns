@@ -23,9 +23,10 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(
-    async () => ({ ok: false, error: "disabled" }),
-  ),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
 }));
@@ -108,10 +109,12 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
   // ── Shipment ID derivation strategies ──────────────────────────────────────
   it("derives shipment id from fyndOrderId when it looks like a shipment id (15+ digits)", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndOrderId: "123456789012345", // 15 digits → looksLikeShipmentId
-      items: [makeItem()],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndOrderId: "123456789012345", // 15 digits → looksLikeShipmentId
+        items: [makeItem()],
+      }),
+    );
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -123,11 +126,13 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("derives shipment id from fyndReturnId when it looks like a shipment id and no fyndOrderId match", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndOrderId: "FY-NOT-DIGITS",
-      fyndReturnId: "987654321098765", // 15-digit
-      items: [makeItem()],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndOrderId: "FY-NOT-DIGITS",
+        fyndReturnId: "987654321098765", // 15-digit
+        items: [makeItem()],
+      }),
+    );
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -139,11 +144,13 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("does NOT derive shipment id when both fynd ids are short non-digit strings", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndOrderId: "FY-ABC",
-      fyndReturnId: "RET-XYZ",
-      items: [makeItem()],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndOrderId: "FY-ABC",
+        fyndReturnId: "RET-XYZ",
+        items: [makeItem()],
+      }),
+    );
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -155,10 +162,12 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("rejects 14-digit fyndOrderId (boundary — needs 15+)", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndOrderId: "12345678901234", // 14 digits
-      items: [makeItem()],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndOrderId: "12345678901234", // 14 digits
+        items: [makeItem()],
+      }),
+    );
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -170,10 +179,12 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
   // ── hasItems detection ─────────────────────────────────────────────────────
   it("treats items with shopifyLineItemId='manual' as not eligible for fast path", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndShipmentId: "SH-XYZ",
-      items: [makeItem({ shopifyLineItemId: "manual", sku: null })],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndShipmentId: "SH-XYZ",
+        items: [makeItem({ shopifyLineItemId: "manual", sku: null })],
+      }),
+    );
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();
@@ -184,10 +195,12 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("treats items with neither sku nor lineItemId as no items", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndShipmentId: "SH-A",
-      items: [makeItem({ sku: null, shopifyLineItemId: null })],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndShipmentId: "SH-A",
+        items: [makeItem({ sku: null, shopifyLineItemId: null })],
+      }),
+    );
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();
@@ -198,13 +211,15 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
   // ── Fast-path payload composition ──────────────────────────────────────────
   it("builds fast-path payload with products array preferring sku over lineItemId", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndShipmentId: "SH-PAY",
-      items: [
-        makeItem({ id: "it-1", sku: "SKU-A", qty: 2, reasonCode: "size" }),
-        makeItem({ id: "it-2", sku: null, shopifyLineItemId: "gid://LineItem/2", qty: 3 }),
-      ],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndShipmentId: "SH-PAY",
+        items: [
+          makeItem({ id: "it-1", sku: "SKU-A", qty: 2, reasonCode: "size" }),
+          makeItem({ id: "it-2", sku: null, shopifyLineItemId: "gid://LineItem/2", qty: 3 }),
+        ],
+      }),
+    );
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();
@@ -221,25 +236,33 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("uses 'Other' reason fallback when first item has no reasonCode", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndShipmentId: "SH-B",
-      items: [makeItem({ reasonCode: null })],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndShipmentId: "SH-B",
+        items: [makeItem({ reasonCode: null })],
+      }),
+    );
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();
-    expect(body.fastPathPayload.statuses[0].shipments[0].reasons.products[0].data.reason_text).toBe("Other");
-    expect(body.fastPathPayload.statuses[0].shipments[0].reasons.products[0].data.reason_id).toBe(122);
+    expect(body.fastPathPayload.statuses[0].shipments[0].reasons.products[0].data.reason_text).toBe(
+      "Other",
+    );
+    expect(body.fastPathPayload.statuses[0].shipments[0].reasons.products[0].data.reason_id).toBe(
+      122,
+    );
     expect(body.fastPathPayload.statuses[0].status).toBe("return_initiated");
   });
 
   // ── Shopify order fetch strategies ─────────────────────────────────────────
   it("uses fetchOrder when shopifyOrderId is set and not 'manual:'", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      shopifyOrderId: "gid://shopify/Order/999",
-      items: [],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderId: "gid://shopify/Order/999",
+        items: [],
+      }),
+    );
     fetchOrderMock.mockResolvedValueOnce({ affiliateOrderId: "AFF-XYZ" });
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -251,10 +274,12 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("skips Shopify lookup entirely when shopifyOrderId starts with 'manual:'", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      shopifyOrderId: "manual:FY-1",
-      items: [],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderId: "manual:FY-1",
+        items: [],
+      }),
+    );
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();
@@ -266,13 +291,17 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("categorizes non-Error thrown values from Shopify lookup via String() coercion", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      shopifyOrderId: null,
-      shopifyOrderName: "#2002",
-      items: [],
-    }));
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderId: null,
+        shopifyOrderName: "#2002",
+        items: [],
+      }),
+    );
     // Throw a non-Error value to exercise the String(err) branch
-    fetchOrderByOrderNumberMock.mockImplementationOnce(async () => { throw "boom-string"; });
+    fetchOrderByOrderNumberMock.mockImplementationOnce(async () => {
+      throw "boom-string";
+    });
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     const body = await res.json();
@@ -282,7 +311,10 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
   // ── Fynd client construction errors ────────────────────────────────────────
   it("captures fyndClientError when createFyndClientOrError throws", async () => {
     createFyndClientOrErrorMock.mockRejectedValueOnce(new Error("creds invalid"));
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({ items: [] }));
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
@@ -294,7 +326,10 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   it("captures fyndClientError when result.ok is false", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: false, error: "missing token" });
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({ items: [] }));
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
@@ -305,22 +340,29 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
 
   // ── Live Fynd API trace strategy ───────────────────────────────────────────
   it("runs all 4 trace steps when search returns orderId + derivedTargetShipId is present + externalOrderId set", async () => {
-    const searchMock = vi.fn()
+    const searchMock = vi
+      .fn()
       .mockResolvedValueOnce({ items: [{ shipment_id: "SH-1" }], orderId: "ORDER-NONDIGIT" })
       .mockResolvedValueOnce({ items: [{ shipment_id: "111111111111111" }] }); // step 3
-    const getShipmentsMock = vi.fn()
+    const getShipmentsMock = vi
+      .fn()
       .mockResolvedValueOnce({ order: { id: "ORDER-NONDIGIT" } }) // step 2
       .mockResolvedValueOnce({ order: { id: "ext" } }); // step 4
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock, getShipments: getShipmentsMock },
     });
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      fyndShipmentId: "111111111111111",
-      shopifyOrderName: "#3003",
-      items: [makeItem()],
-    }));
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        fyndShipmentId: "111111111111111",
+        shopifyOrderName: "#3003",
+        items: [makeItem()],
+      }),
+    );
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({ affiliateOrderId: "AFF-3" });
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -332,7 +374,10 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
       "4. Get order details by externalOrderId (fallback path)",
     ]);
     // Step 1 is searched by affiliateOrderId (preferred over external)
-    expect(searchMock).toHaveBeenCalledWith("AFF-3", expect.objectContaining({ searchType: "external_order_id" }));
+    expect(searchMock).toHaveBeenCalledWith(
+      "AFF-3",
+      expect.objectContaining({ searchType: "external_order_id" }),
+    );
   });
 
   it("skips step 2 when search orderId looks like a shipment id (15+ digits)", async () => {
@@ -345,11 +390,16 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock, getShipments: getShipmentsMock },
     });
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      shopifyOrderName: "#4004",
-      items: [],
-    }));
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderName: "#4004",
+        items: [],
+      }),
+    );
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -368,11 +418,16 @@ describe("api.returns.$id.diagnose — extended coverage", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock, getShipments: getShipmentsMock },
     });
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(makeReturnCase({
-      shopifyOrderName: "", // empty externalOrderId → step 4 skipped
-      items: [],
-    }));
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderName: "", // empty externalOrderId → step 4 skipped
+        items: [],
+      }),
+    );
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);

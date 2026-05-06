@@ -77,9 +77,7 @@ describe("Channel Policies settings page (default export)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(container.textContent).toMatch(
-        /Returns from orders placed in-store via Shopify POS/i,
-      );
+      expect(container.textContent).toMatch(/Returns from orders placed in-store via Shopify POS/i);
     });
     expect(container.textContent).toMatch(
       /Returns from orders originally created as Shopify draft orders/i,
@@ -95,9 +93,7 @@ describe("Channel Policies settings page (default export)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(
-        container.querySelector("input[name='pos_returnEnabled']"),
-      ).toBeTruthy();
+      expect(container.querySelector("input[name='pos_returnEnabled']")).toBeTruthy();
     });
     const posInput = container.querySelector(
       "input[name='pos_returnEnabled']",

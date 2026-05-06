@@ -42,8 +42,11 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: { setAttribute: () => void; end: () => void }) => Promise<T>) =>
-    fn({ setAttribute: () => {}, end: () => {} }),
+  withSpan: async <T>(
+    _n: string,
+    _a: unknown,
+    fn: (s: { setAttribute: () => void; end: () => void }) => Promise<T>,
+  ) => fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
 }));
@@ -54,7 +57,7 @@ vi.mock("../observability/metrics.server", () => ({
 }));
 
 vi.mock("../observability/resilience.server", () => ({
-  fyndCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  fyndCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
   recordTimeout: vi.fn(),
   recordFallback: vi.fn(),
 }));
@@ -112,7 +115,9 @@ function jsonResponse(body: unknown, init: { status?: number } = {}) {
   });
 }
 
-function settings(overrides: Partial<FyndSettings & { fyndApiType?: string | null }> = {}): FyndSettings & { fyndApiType?: string | null } {
+function settings(
+  overrides: Partial<FyndSettings & { fyndApiType?: string | null }> = {},
+): FyndSettings & { fyndApiType?: string | null } {
   return {
     fyndApplicationId: "app-1",
     fyndCompanyId: uniqueId("co-gap"),
@@ -180,9 +185,9 @@ describe("isFyndPrivateUrl", () => {
   });
 
   it("returns true for storage.googleapis.com fynd-assets-private URL", () => {
-    expect(
-      isFyndPrivateUrl("https://storage.googleapis.com/fynd-x/assets/private/foo.pdf"),
-    ).toBe(true);
+    expect(isFyndPrivateUrl("https://storage.googleapis.com/fynd-x/assets/private/foo.pdf")).toBe(
+      true,
+    );
   });
 
   it("returns true for cdn.fynd.com private URLs", () => {
@@ -327,18 +332,14 @@ describe("FyndStorefrontClient", () => {
   });
 
   it("returns parsed JSON when body is non-empty", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ ok: true, k: 7 })
-    ) as typeof fetch;
+    globalThis.fetch = vi.fn(async () => jsonResponse({ ok: true, k: 7 })) as typeof fetch;
     const client = new FyndStorefrontClient(baseUrl, appId, token);
     const result = await client.getBagReasons();
     expect(result).toEqual({ ok: true, k: 7 });
   });
 
   it("returns null on 200 with empty body", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response("", { status: 200 })
-    ) as typeof fetch;
+    globalThis.fetch = vi.fn(async () => new Response("", { status: 200 })) as typeof fetch;
     const client = new FyndStorefrontClient(baseUrl, appId, token);
     const result = await client.getLanguages();
     expect(result).toBe(null);
@@ -346,7 +347,7 @@ describe("FyndStorefrontClient", () => {
 
   it("throws helpful error on 401 with token-credential hint", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "unauth" }, { status: 401 })
+      jsonResponse({ message: "unauth" }, { status: 401 }),
     ) as typeof fetch;
     const client = new FyndStorefrontClient(baseUrl, appId, token);
     await expect(client.getLanguages()).rejects.toThrow(/Storefront API error 401/);
@@ -355,7 +356,7 @@ describe("FyndStorefrontClient", () => {
 
   it("throws helpful error on 403 with access-denied hint", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "no" }, { status: 403 })
+      jsonResponse({ message: "no" }, { status: 403 }),
     ) as typeof fetch;
     const client = new FyndStorefrontClient(baseUrl, appId, token);
     await expect(client.getLanguages()).rejects.toThrow(/Access denied/);
@@ -363,7 +364,7 @@ describe("FyndStorefrontClient", () => {
 
   it("throws helpful error on 5xx with 'Fynd server error'", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "boom" }, { status: 502 })
+      jsonResponse({ message: "boom" }, { status: 502 }),
     ) as typeof fetch;
     const client = new FyndStorefrontClient(baseUrl, appId, token);
     await expect(client.getLanguages()).rejects.toThrow(/Fynd server error/);
@@ -371,7 +372,7 @@ describe("FyndStorefrontClient", () => {
 
   it("throws plain error on 4xx (non-401/403) without hint", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "bad" }, { status: 400 })
+      jsonResponse({ message: "bad" }, { status: 400 }),
     ) as typeof fetch;
     const client = new FyndStorefrontClient(baseUrl, appId, token);
     await expect(client.getLanguages()).rejects.toThrow(/Storefront API error 400/);
@@ -438,7 +439,7 @@ describe("fetchFyndPlatformToken — edge cases", () => {
 
   it("caps cached TTL at the 50-minute internal max regardless of expires_in", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ access_token: "tok-long", expires_in: 60 * 60 * 24 })
+      jsonResponse({ access_token: "tok-long", expires_in: 60 * 60 * 24 }),
     ) as typeof fetch;
     const baseUrl = "https://api.example.fynd";
     const co = uniqueId("co-cap");
@@ -448,7 +449,7 @@ describe("fetchFyndPlatformToken — edge cases", () => {
 
   it("uses default TTL when expires_in is missing", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ access_token: "tok-no-exp" })
+      jsonResponse({ access_token: "tok-no-exp" }),
     ) as typeof fetch;
     const baseUrl = "https://api.example.fynd";
     const co = uniqueId("co-no-exp");
@@ -458,7 +459,7 @@ describe("fetchFyndPlatformToken — edge cases", () => {
 
   it("throws when access_token missing in OAuth response", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "ok but no token" })
+      jsonResponse({ message: "ok but no token" }),
     ) as typeof fetch;
     await expect(
       fetchFyndPlatformToken("https://api.x", uniqueId("co-no-tok"), "cid", "sec"),
@@ -466,8 +467,12 @@ describe("fetchFyndPlatformToken — edge cases", () => {
   });
 
   it("throws on invalid JSON body", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response("not json at all", { status: 200, headers: { "Content-Type": "application/json" } })
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response("not json at all", {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
     ) as typeof fetch;
     await expect(
       fetchFyndPlatformToken("https://api.x", uniqueId("co-badjson"), "cid", "sec"),
@@ -487,7 +492,7 @@ describe("fetchFyndPlatformToken — edge cases", () => {
 
   it("emits 5xx hint inside thrown OAuth error message", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "boom" }, { status: 502 })
+      jsonResponse({ message: "boom" }, { status: 502 }),
     ) as typeof fetch;
     await expect(
       fetchFyndPlatformToken("https://api.x", uniqueId("co-5xx"), "cid", "sec"),
@@ -496,7 +501,7 @@ describe("fetchFyndPlatformToken — edge cases", () => {
 
   it("invokes log callback during fetch + response", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ access_token: "tok-log", expires_in: 3600 })
+      jsonResponse({ access_token: "tok-log", expires_in: 3600 }),
     ) as typeof fetch;
     const log = vi.fn();
     await fetchFyndPlatformToken("https://api.x", uniqueId("co-log"), "cid", "sec", log);
@@ -684,7 +689,7 @@ describe("FyndPlatformClient.testConnection", () => {
 
   it("returns ok:true with warning on 404 (graceful fallback)", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "not found" }, { status: 404 })
+      jsonResponse({ message: "not found" }, { status: 404 }),
     ) as typeof fetch;
     const client = new FyndPlatformClient("https://api.x", "co-tc-404", "app-1", "tok");
     const out = await client.testConnection();
@@ -694,7 +699,7 @@ describe("FyndPlatformClient.testConnection", () => {
 
   it("rethrows non-404 errors", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "unauth" }, { status: 401 })
+      jsonResponse({ message: "unauth" }, { status: 401 }),
     ) as typeof fetch;
     const client = new FyndPlatformClient("https://api.x", "co-tc-401", "app-1", "tok");
     await expect(client.testConnection()).rejects.toThrow(/401/);
@@ -728,9 +733,7 @@ describe("getNormalizedCredentialsFromRaw", () => {
   });
 
   it("returns normalized storefront when application_token snake_case is given", () => {
-    const out = getNormalizedCredentialsFromRaw(
-      JSON.stringify({ application_token: "appt" }),
-    );
+    const out = getNormalizedCredentialsFromRaw(JSON.stringify({ application_token: "appt" }));
     expect(out).toEqual({ storefront: { applicationToken: "appt" } });
   });
 
@@ -794,7 +797,7 @@ describe("FyndPlatformClient.request — AbortError timeout", () => {
 describe("fetchFyndPlatformToken — cache pruning over the 50-entry limit", () => {
   it("does not throw when filling the cache beyond its max size", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ access_token: "tok-prune", expires_in: 3600 })
+      jsonResponse({ access_token: "tok-prune", expires_in: 3600 }),
     ) as typeof fetch;
     // 55 distinct cache keys (different baseUrl/companyId/clientId combos)
     for (let i = 0; i < 55; i += 1) {
@@ -808,7 +811,7 @@ describe("fetchFyndPlatformToken — cache pruning over the 50-entry limit", () 
 describe("createFyndClient", () => {
   it("returns a client when settings + creds are valid", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ access_token: "tok-cf", expires_in: 3600 })
+      jsonResponse({ access_token: "tok-cf", expires_in: 3600 }),
     ) as typeof fetch;
     const out = await createFyndClient(settings());
     expect(out).not.toBeNull();

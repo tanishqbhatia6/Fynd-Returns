@@ -1,6 +1,13 @@
 import type { LoaderFunctionArgs } from "react-router";
 import prisma from "../db.server";
-import { fetchOrderByOrderNumber, fetchOrderByGid, fetchOrderByFyndAffiliateId, OrderAccessError, withRestCredentials, type OrderForPortal } from "../lib/shopify-admin.server";
+import {
+  fetchOrderByOrderNumber,
+  fetchOrderByGid,
+  fetchOrderByFyndAffiliateId,
+  OrderAccessError,
+  withRestCredentials,
+  type OrderForPortal,
+} from "../lib/shopify-admin.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import shopify from "../shopify.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -20,13 +27,26 @@ import { createPortalCsrfToken } from "../lib/portal-auth.server";
  */
 const FYND_DELIVERED_STATUSES = new Set([
   // Post-delivery
-  "delivery_done", "delivered", "bag_delivered", "handed_over_to_customer",
+  "delivery_done",
+  "delivered",
+  "bag_delivered",
+  "handed_over_to_customer",
   // Return journey (return already in progress — always allow additional returns)
-  "return_initiated", "return_dp_assigned", "return_bag_picked", "return_bag_in_transit",
-  "return_bag_out_for_delivery", "return_bag_delivered", "return_bag_not_received",
-  "return_pre_qc", "return_accepted", "return_completed",
+  "return_initiated",
+  "return_dp_assigned",
+  "return_bag_picked",
+  "return_bag_in_transit",
+  "return_bag_out_for_delivery",
+  "return_bag_delivered",
+  "return_bag_not_received",
+  "return_pre_qc",
+  "return_accepted",
+  "return_completed",
   // Refund statuses (return/refund already happened — allow)
-  "credit_note_generated", "refund_initiated", "refund_done", "refund_completed",
+  "credit_note_generated",
+  "refund_initiated",
+  "refund_done",
+  "refund_completed",
 ]);
 
 /**
@@ -92,7 +112,8 @@ function safeStr(val: unknown, fallback = ""): string {
   // defensive: val typeof checks; only some types from Fynd payload tested
   if (typeof val === "object") {
     const obj = val as Record<string, unknown>;
-    const extracted = obj.status ?? obj.title ?? obj.name ?? obj.display_name ?? obj.value ?? obj.text ?? obj.label;
+    const extracted =
+      obj.status ?? obj.title ?? obj.name ?? obj.display_name ?? obj.value ?? obj.text ?? obj.label;
     if (extracted != null && typeof extracted !== "object") return String(extracted);
     /* v8 ignore stop */
   }
@@ -138,7 +159,10 @@ function isShipmentEligibleForReturn(
   status: string,
   allowedFyndStatusesForReturn: string[],
 ): boolean {
-  const normalized = status.toLowerCase().replace(/[\s_]+/g, "_").trim();
+  const normalized = status
+    .toLowerCase()
+    .replace(/[\s_]+/g, "_")
+    .trim();
   // Post-delivery and return-journey statuses are ALWAYS allowed
   if (FYND_DELIVERED_STATUSES.has(normalized)) return true;
   // If merchant has configured additional allowed pre-delivery statuses, check those
@@ -146,7 +170,10 @@ function isShipmentEligibleForReturn(
     return allowedFyndStatusesForReturn.some((s) => {
       // defensive: substring fallback (`includes`) on top of exact equality
       /* v8 ignore start */
-      const normalizedAllowed = s.toLowerCase().replace(/[\s_]+/g, "_").trim();
+      const normalizedAllowed = s
+        .toLowerCase()
+        .replace(/[\s_]+/g, "_")
+        .trim();
       return normalized === normalizedAllowed || normalized.includes(normalizedAllowed);
       /* v8 ignore stop */
     });
@@ -156,7 +183,9 @@ function isShipmentEligibleForReturn(
 }
 
 /** Parse the allowedFyndStatusesForReturn JSON setting into a string array */
-function parseAllowedFyndStatuses(settings: { allowedFyndStatusesForReturn?: string | null } | null): string[] {
+function parseAllowedFyndStatuses(
+  settings: { allowedFyndStatusesForReturn?: string | null } | null,
+): string[] {
   try {
     const raw = settings?.allowedFyndStatusesForReturn;
     if (!raw) return [];
@@ -164,7 +193,9 @@ function parseAllowedFyndStatuses(settings: { allowedFyndStatusesForReturn?: str
     if (Array.isArray(parsed) && parsed.length > 0) {
       return (parsed as unknown[]).map((s) => String(s).toLowerCase().trim());
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return [];
 }
 
@@ -180,7 +211,13 @@ function extractNumericPrice(val: unknown): string {
   }
   if (typeof val === "object") {
     const obj = val as Record<string, unknown>;
-    const numeric = obj.amount ?? obj.value ?? obj.effective ?? obj.transfer_price ?? obj.price_effective ?? obj.mrp;
+    const numeric =
+      obj.amount ??
+      obj.value ??
+      obj.effective ??
+      obj.transfer_price ??
+      obj.price_effective ??
+      obj.mrp;
     if (numeric != null && typeof numeric !== "object") return String(numeric);
   }
   return "0";
@@ -205,13 +242,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shopParam = url.searchParams.get("shop");
   // defensive: searchParams.get ?? "" fallback (always exercised when missing branch)
   /* v8 ignore start */
-  const orderNumber = (url.searchParams.get("orderNumber") ?? "").replace(/^#/, "").replace(/[^\w\-]/g, "").trim();
+  const orderNumber = (url.searchParams.get("orderNumber") ?? "")
+    .replace(/^#/, "")
+    .replace(/[^\w\-]/g, "")
+    .trim();
   /* v8 ignore stop */
   if (!shopParam) {
     return withCors(Response.json({ error: "Shop is required" }, { status: 400 }), request);
   }
   if (!orderNumber || orderNumber.length > 64) {
-    return withCors(Response.json({ error: "Valid order number is required" }, { status: 400 }), request);
+    return withCors(
+      Response.json({ error: "Valid order number is required" }, { status: 400 }),
+      request,
+    );
   }
   /* v8 ignore start - defensive shop-domain normalization ternary */
   const shopDomain = shopParam.includes(".") ? shopParam : `${shopParam}.myshopify.com`;
@@ -261,10 +304,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Active returns = non-terminal statuses
   const ACTIVE_STATUSES = ["initiated", "pending", "processing", "in progress", "approved"];
-  const activeReturns = formattedReturns.filter((r) =>
-    // defensive: optional-chain `?? ""` for missing status
-    /* v8 ignore start */
-    ACTIVE_STATUSES.includes(r.status?.toLowerCase() ?? "")
+  const activeReturns = formattedReturns.filter(
+    (r) =>
+      // defensive: optional-chain `?? ""` for missing status
+      /* v8 ignore start */
+      ACTIVE_STATUSES.includes(r.status?.toLowerCase() ?? ""),
     /* v8 ignore stop */
   );
 
@@ -305,7 +349,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           order = await fetchOrderByGid(admin, fyndMapping.shopifyOrderId);
         }
         if (!order && fyndMapping.shopifyOrderName) {
-          order = await fetchOrderByOrderNumber(admin, fyndMapping.shopifyOrderName.replace(/^#/, ""));
+          order = await fetchOrderByOrderNumber(
+            admin,
+            fyndMapping.shopifyOrderName.replace(/^#/, ""),
+          );
         }
       }
     }
@@ -343,24 +390,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (!order) {
       /* v8 ignore start - defensive Fynd-fallback resolve best-effort path */
       try {
-        const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+        const shopSettings = await prisma.shopSettings.findUnique({
+          where: { shopId: shopRecord.id },
+        });
         if (shopSettings) {
           const fyndResult = await createFyndClientOrError(
             shopSettings as Parameters<typeof createFyndClientOrError>[0],
-            { requirePlatform: true }
+            { requirePlatform: true },
           );
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
-            const searchRes = await fyndResult.client.searchShipmentsByExternalOrderId(orderNumber, {
-              searchType: "external_order_id",
-              pageSize: 5,
-              fulfillmentType: "FULFILLMENT",
-            });
+            const searchRes = await fyndResult.client.searchShipmentsByExternalOrderId(
+              orderNumber,
+              {
+                searchType: "external_order_id",
+                pageSize: 5,
+                fulfillmentType: "FULFILLMENT",
+              },
+            );
             // defensive: searchRes shape fallbacks (.shipments / .data.items / [])
             /* v8 ignore start */
-            const rawShipments = (
-              searchRes?.items ?? searchRes?.shipments ??
-              (searchRes as { data?: { items?: unknown[] } })?.data?.items ?? []
-            ) as Record<string, unknown>[];
+            const rawShipments = (searchRes?.items ??
+              searchRes?.shipments ??
+              (searchRes as { data?: { items?: unknown[] } })?.data?.items ??
+              []) as Record<string, unknown>[];
             /* v8 ignore stop */
             // Filter to forward shipments only
             const forwardShipments = rawShipments.filter((s) => {
@@ -379,8 +431,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               // defensive: external_order_id fallback rare in fixtures
               /* v8 ignore start */
               const affiliateOrderId = String(
-                first.affiliate_order_id ?? first.external_order_id ?? ""
-              ).replace(/^#/, "").trim();
+                first.affiliate_order_id ?? first.external_order_id ?? "",
+              )
+                .replace(/^#/, "")
+                .trim();
               /* v8 ignore stop */
               // Try to find the Shopify order using Fynd prefix stripping.
               // fetchOrderByFyndAffiliateId generates variants like
@@ -390,7 +444,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               if (affiliateOrderId) {
                 // defensive: catch fallback path rare in tests
                 /* v8 ignore start */
-                order = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId).catch(() => null);
+                order = await fetchOrderByFyndAffiliateId(admin, affiliateOrderId).catch(
+                  () => null,
+                );
                 /* v8 ignore stop */
               }
 
@@ -400,23 +456,31 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 const resolvedCleanName = `#${orderNumber}`;
                 // Best-effort cache write — `void` makes the fire-and-forget
                 // intent explicit (matches the same pattern in create-return).
-                void prisma.fyndOrderMapping.upsert({
-                  where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: resolvedCleanName } },
-                  create: {
-                    shopId: shopRecord.id,
-                    shopifyOrderName: resolvedCleanName,
-                    shopifyOrderId: order.id,
-                    // defensive: ?? fallback chains for fyndOrderId/shipmentId
+                void prisma.fyndOrderMapping
+                  .upsert({
+                    where: {
+                      shopId_shopifyOrderName: {
+                        shopId: shopRecord.id,
+                        shopifyOrderName: resolvedCleanName,
+                      },
+                    },
+                    create: {
+                      shopId: shopRecord.id,
+                      shopifyOrderName: resolvedCleanName,
+                      shopifyOrderId: order.id,
+                      // defensive: ?? fallback chains for fyndOrderId/shipmentId
+                      /* v8 ignore start */
+                      fyndOrderId:
+                        String(first.order_id ?? first.fynd_order_id ?? "").trim() || null,
+                      fyndShipmentId: String(first.shipment_id ?? "").trim() || null,
+                      /* v8 ignore stop */
+                      searchStrategy: "fynd_affiliate_resolve",
+                    },
+                    update: { shopifyOrderId: order.id },
+                    // best-effort cache write — swallow upstream errors
                     /* v8 ignore start */
-                    fyndOrderId: String(first.order_id ?? first.fynd_order_id ?? "").trim() || null,
-                    fyndShipmentId: String(first.shipment_id ?? "").trim() || null,
-                    /* v8 ignore stop */
-                    searchStrategy: "fynd_affiliate_resolve",
-                  },
-                  update: { shopifyOrderId: order.id },
-                  // best-effort cache write — swallow upstream errors
-                  /* v8 ignore start */
-                }).catch(() => {});
+                  })
+                  .catch(() => {});
                 /* v8 ignore stop */
               }
 
@@ -450,55 +514,117 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   // defensive: extensive nullish-coalesce/short-circuit fallbacks across alternative
                   // Fynd field shapes; tests exercise the primary keys, secondary fallbacks are belt-and-suspenders.
                   /* v8 ignore start */
-                  const sShipmentId = String(shipment.shipment_id ?? shipment.id ?? `fynd-ship-${collectedShipments.length}`);
-                  const sStatus = safeStr(shipment.status ?? shipment.shipment_status, "").toLowerCase();
+                  const sShipmentId = String(
+                    shipment.shipment_id ?? shipment.id ?? `fynd-ship-${collectedShipments.length}`,
+                  );
+                  const sStatus = safeStr(
+                    shipment.status ?? shipment.shipment_status,
+                    "",
+                  ).toLowerCase();
                   /* v8 ignore stop */
                   const shipmentItems: FyndShipmentForReturn["items"] = [];
 
                   // Fynd structures items under bags[].articles, bags[].items, or top-level bags
-                  const bags = (Array.isArray(shipment.bags) ? shipment.bags : []) as Record<string, unknown>[];
+                  const bags = (Array.isArray(shipment.bags) ? shipment.bags : []) as Record<
+                    string,
+                    unknown
+                  >[];
                   for (const bag of bags) {
                     // defensive: nullish/short-circuit fallback chains for atypical Fynd bag/article shapes
                     /* v8 ignore start */
                     const bagId = String(bag.bag_id ?? bag.id ?? `fynd-bag-${lineItems.length}`);
-                    const articles = Array.isArray(bag.articles) ? bag.articles
-                      : Array.isArray(bag.items) ? bag.items
-                      : bag.item ? [bag.item] : [];
+                    const articles = Array.isArray(bag.articles)
+                      ? bag.articles
+                      : Array.isArray(bag.items)
+                        ? bag.items
+                        : bag.item
+                          ? [bag.item]
+                          : [];
                     /* v8 ignore stop */
                     for (const article of articles as Record<string, unknown>[]) {
                       // defensive: extensive nullish-coalesce fallbacks for inconsistent Fynd article fields
                       /* v8 ignore start */
                       const itemObj = (article.item ?? article) as Record<string, unknown>;
-                      const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
-                      const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                      const priceInfo = (bag.prices ??
+                        bag.price_info ??
+                        article.price_info ??
+                        {}) as Record<string, unknown>;
+                      const rawPrice =
+                        priceInfo.transfer_price ??
+                        priceInfo.price_effective ??
+                        priceInfo.amount_paid ??
+                        priceInfo.mrp ??
+                        0;
                       const price = extractNumericPrice(rawPrice);
-                      const qty = typeof bag.quantity === "number" ? bag.quantity
-                        : typeof article.quantity === "number" ? article.quantity : 1;
-                      const itemId = String(bag.bag_id ?? bag.id ?? article.id ?? article.article_id ?? `fynd-${lineItems.length}`);
-                      const title = safeStr(itemObj.name, "") || safeStr(itemObj.item_name, "") || safeStr(itemObj.title, "") || safeStr(article.name, "") || "Item";
-                      const size = safeStr(itemObj.l3_category_name, "") || safeStr(itemObj.size, "") || safeStr(article.size, "") || safeStr(bag.size, "");
-                      const skuVal = article.seller_identifier ?? article.uid ?? itemObj.item_id ?? null;
+                      const qty =
+                        typeof bag.quantity === "number"
+                          ? bag.quantity
+                          : typeof article.quantity === "number"
+                            ? article.quantity
+                            : 1;
+                      const itemId = String(
+                        bag.bag_id ??
+                          bag.id ??
+                          article.id ??
+                          article.article_id ??
+                          `fynd-${lineItems.length}`,
+                      );
+                      const title =
+                        safeStr(itemObj.name, "") ||
+                        safeStr(itemObj.item_name, "") ||
+                        safeStr(itemObj.title, "") ||
+                        safeStr(article.name, "") ||
+                        "Item";
+                      const size =
+                        safeStr(itemObj.l3_category_name, "") ||
+                        safeStr(itemObj.size, "") ||
+                        safeStr(article.size, "") ||
+                        safeStr(bag.size, "");
+                      const skuVal =
+                        article.seller_identifier ?? article.uid ?? itemObj.item_id ?? null;
                       const sku = skuVal != null ? String(skuVal) : null;
                       const imageArr = Array.isArray(itemObj.images) ? itemObj.images : [];
                       const imageUrl = imageArr.length > 0 ? safeImageUrl(imageArr[0]) : null;
 
                       // Extract Fynd metadata
-                      const fyndArticleId = String(article.article_id ?? article._id ?? article.id ?? "").trim() || null;
-                      const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
-                      const fyndAffiliateLineId = String(
-                        affiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
-                      ).trim() || null;
-                      const fyndSellerIdentifier = String(article.seller_identifier ?? "").trim() || null;
-                      const fyndItemId = String(itemObj.item_id ?? itemObj._id ?? "").trim() || null;
-                      const fyndQuantityAvailable = typeof article.quantity_available === "number" ? article.quantity_available
-                        : typeof bag.quantity === "number" ? bag.quantity : null;
+                      const fyndArticleId =
+                        String(article.article_id ?? article._id ?? article.id ?? "").trim() ||
+                        null;
+                      const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<
+                        string,
+                        unknown
+                      >;
+                      const fyndAffiliateLineId =
+                        String(
+                          affiliateBagDetails.affiliate_line_id ??
+                            (bag as Record<string, unknown>).affiliate_line_id ??
+                            "",
+                        ).trim() || null;
+                      const fyndSellerIdentifier =
+                        String(article.seller_identifier ?? "").trim() || null;
+                      const fyndItemId =
+                        String(itemObj.item_id ?? itemObj._id ?? "").trim() || null;
+                      const fyndQuantityAvailable =
+                        typeof article.quantity_available === "number"
+                          ? article.quantity_available
+                          : typeof bag.quantity === "number"
+                            ? bag.quantity
+                            : null;
                       const fyndPriceEffective = (() => {
                         const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
                         return pe != null ? String(pe) : null;
                       })();
-                      const fyndSize = safeStr(article.size, "") || safeStr(bag.size, "") || safeStr(itemObj.size, "") || null;
-                      const fyndLineNumber = typeof bag.line_number === "number" ? bag.line_number
-                        : typeof article.line_number === "number" ? article.line_number : null;
+                      const fyndSize =
+                        safeStr(article.size, "") ||
+                        safeStr(bag.size, "") ||
+                        safeStr(itemObj.size, "") ||
+                        null;
+                      const fyndLineNumber =
+                        typeof bag.line_number === "number"
+                          ? bag.line_number
+                          : typeof article.line_number === "number"
+                            ? article.line_number
+                            : null;
                       /* v8 ignore stop */
 
                       const item: FyndLineItem = {
@@ -526,27 +652,55 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     // Fallback: if no articles, use bag-level item data
                     // defensive: secondary bag-level path; tests cover article-level
                     /* v8 ignore start */
-                    if ((Array.isArray(bag.articles) ? bag.articles : []).length === 0 &&
-                        (Array.isArray(bag.items) ? bag.items : []).length === 0 &&
-                        !bag.item) {
-                      const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<string, unknown>;
-                      const rawBagPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                    if (
+                      (Array.isArray(bag.articles) ? bag.articles : []).length === 0 &&
+                      (Array.isArray(bag.items) ? bag.items : []).length === 0 &&
+                      !bag.item
+                    ) {
+                      const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<
+                        string,
+                        unknown
+                      >;
+                      const rawBagPrice =
+                        priceInfo.transfer_price ??
+                        priceInfo.price_effective ??
+                        priceInfo.amount_paid ??
+                        priceInfo.mrp ??
+                        0;
                       const price = extractNumericPrice(rawBagPrice);
                       const qty = typeof bag.quantity === "number" ? bag.quantity : 1;
                       const itemId = String(bag.bag_id ?? bag.id ?? `fynd-bag-${lineItems.length}`);
                       const bagItem = (bag.item ?? {}) as Record<string, unknown>;
-                      const title = safeStr(bagItem.name, "") || safeStr(bagItem.item_name, "") || safeStr(bag.item_name, "") || safeStr(bag.name, "") || "Item";
-                      const size = safeStr(bagItem.l3_category_name, "") || safeStr(bagItem.size, "") || safeStr(bag.size, "");
-                      const sku = bag.seller_identifier != null ? String(bag.seller_identifier)
-                        : bag.article_id != null ? String(bag.article_id) : null;
+                      const title =
+                        safeStr(bagItem.name, "") ||
+                        safeStr(bagItem.item_name, "") ||
+                        safeStr(bag.item_name, "") ||
+                        safeStr(bag.name, "") ||
+                        "Item";
+                      const size =
+                        safeStr(bagItem.l3_category_name, "") ||
+                        safeStr(bagItem.size, "") ||
+                        safeStr(bag.size, "");
+                      const sku =
+                        bag.seller_identifier != null
+                          ? String(bag.seller_identifier)
+                          : bag.article_id != null
+                            ? String(bag.article_id)
+                            : null;
                       const imageArr = Array.isArray(bagItem.images) ? bagItem.images : [];
                       const imageUrl = imageArr.length > 0 ? safeImageUrl(imageArr[0]) : null;
 
                       // Extract Fynd metadata from bag-level
-                      const bagAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
-                      const bagFyndAffiliateLineId = String(
-                        bagAffiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
-                      ).trim() || null;
+                      const bagAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<
+                        string,
+                        unknown
+                      >;
+                      const bagFyndAffiliateLineId =
+                        String(
+                          bagAffiliateBagDetails.affiliate_line_id ??
+                            (bag as Record<string, unknown>).affiliate_line_id ??
+                            "",
+                        ).trim() || null;
 
                       const item: FyndLineItem = {
                         id: itemId,
@@ -560,15 +714,18 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         productTags: [],
                         fyndArticleId: bag.article_id != null ? String(bag.article_id) : null,
                         fyndAffiliateLineId: bagFyndAffiliateLineId,
-                        fyndSellerIdentifier: bag.seller_identifier != null ? String(bag.seller_identifier) : null,
+                        fyndSellerIdentifier:
+                          bag.seller_identifier != null ? String(bag.seller_identifier) : null,
                         fyndItemId: bagItem.item_id != null ? String(bagItem.item_id) : null,
-                        fyndQuantityAvailable: typeof bag.quantity === "number" ? bag.quantity : null,
+                        fyndQuantityAvailable:
+                          typeof bag.quantity === "number" ? bag.quantity : null,
                         fyndPriceEffective: (() => {
                           const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
                           return pe != null ? String(pe) : null;
                         })(),
                         fyndSize: safeStr(bagItem.size, "") || safeStr(bag.size, "") || null,
-                        fyndLineNumber: typeof bag.line_number === "number" ? bag.line_number : null,
+                        fyndLineNumber:
+                          typeof bag.line_number === "number" ? bag.line_number : null,
                       };
                       lineItems.push(item);
                       shipmentItems.push(item);
@@ -577,13 +734,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   }
 
                   // Per-shipment eligibility based on Fynd status + merchant settings
-                  const merchantAllowedStatuses = parseAllowedFyndStatuses(shopSettings as { allowedFyndStatusesForReturn?: string | null } | null);
+                  const merchantAllowedStatuses = parseAllowedFyndStatuses(
+                    shopSettings as { allowedFyndStatusesForReturn?: string | null } | null,
+                  );
                   const isEligible = isShipmentEligibleForReturn(sStatus, merchantAllowedStatuses);
                   collectedShipments.push({
                     shipmentId: sShipmentId,
                     shipmentStatus: sStatus,
                     eligible: isEligible,
-                    eligibilityReason: isEligible ? undefined : "This shipment has not been delivered yet. Returns can only be created after delivery.",
+                    eligibilityReason: isEligible
+                      ? undefined
+                      : "This shipment has not been delivered yet. Returns can only be created after delivery.",
                     items: shipmentItems,
                   });
                 }
@@ -598,23 +759,40 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
                 // defensive: nullish-coalescing fallbacks across alternative Fynd field shapes
                 /* v8 ignore start */
-                const orderName = String(first.affiliate_order_id ?? first.external_order_id ?? `#${orderNumber}`);
-                const createdAt = safeStr(first.order_date, "") || safeStr(first.orderDate, "") || safeStr(first.shipment_created_at, "") || safeStr(first.created_at, "") || new Date().toISOString();
+                const orderName = String(
+                  first.affiliate_order_id ?? first.external_order_id ?? `#${orderNumber}`,
+                );
+                const createdAt =
+                  safeStr(first.order_date, "") ||
+                  safeStr(first.orderDate, "") ||
+                  safeStr(first.shipment_created_at, "") ||
+                  safeStr(first.created_at, "") ||
+                  new Date().toISOString();
 
                 // Extract customer data from Fynd shipment fields
-                const firstBag = Array.isArray(first.bags) ? (first.bags as Record<string, unknown>[])[0] : null;
-                const deliveryAddr = ((firstBag?.delivery_address ?? first.delivery_address ?? {}) as Record<string, unknown>);
-                const customerDet = ((first.customer_details ?? {}) as Record<string, unknown>);
-                const billingDet = ((first.billing_details ?? {}) as Record<string, unknown>);
-                const fyndEmail = String(customerDet.email ?? billingDet.email ?? "").trim() || null;
-                const fyndPhone = String(customerDet.phone ?? deliveryAddr.phone ?? "").trim() || null;
+                const firstBag = Array.isArray(first.bags)
+                  ? (first.bags as Record<string, unknown>[])[0]
+                  : null;
+                const deliveryAddr = (firstBag?.delivery_address ??
+                  first.delivery_address ??
+                  {}) as Record<string, unknown>;
+                const customerDet = (first.customer_details ?? {}) as Record<string, unknown>;
+                const billingDet = (first.billing_details ?? {}) as Record<string, unknown>;
+                const fyndEmail =
+                  String(customerDet.email ?? billingDet.email ?? "").trim() || null;
+                const fyndPhone =
+                  String(customerDet.phone ?? deliveryAddr.phone ?? "").trim() || null;
                 const fyndName = String(customerDet.name ?? deliveryAddr.name ?? "").trim() || null;
                 const fyndCity = String(deliveryAddr.city ?? "").trim() || null;
-                const fyndState = String(deliveryAddr.state ?? deliveryAddr.state_code ?? "").trim() || null;
+                const fyndState =
+                  String(deliveryAddr.state ?? deliveryAddr.state_code ?? "").trim() || null;
                 const fyndCountry = String(deliveryAddr.country ?? "").trim() || null;
-                const fyndPincode = String(deliveryAddr.pincode ?? deliveryAddr.zip ?? "").trim() || null;
-                const fyndAddress1 = String(deliveryAddr.address ?? deliveryAddr.address1 ?? "").trim() || null;
-                const fyndAddress2 = String(deliveryAddr.area ?? deliveryAddr.address2 ?? "").trim() || null;
+                const fyndPincode =
+                  String(deliveryAddr.pincode ?? deliveryAddr.zip ?? "").trim() || null;
+                const fyndAddress1 =
+                  String(deliveryAddr.address ?? deliveryAddr.address1 ?? "").trim() || null;
+                const fyndAddress2 =
+                  String(deliveryAddr.area ?? deliveryAddr.address2 ?? "").trim() || null;
                 const fyndLandmark = String(deliveryAddr.landmark ?? "").trim() || null;
                 const [fyndFirst, ...fyndRestName] = (fyndName ?? "").split(" ");
                 const fyndLast = fyndRestName.join(" ");
@@ -627,7 +805,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 // instead of an opaque Fynd internal ID in the shopifyOrderId field.
                 /* v8 ignore start - defensive `||` fallback chain for absent fields */
                 const syntheticOrderId = String(
-                  affiliateOrderId || first.external_order_id || orderNumber
+                  affiliateOrderId || first.external_order_id || orderNumber,
                 );
                 /* v8 ignore stop */
 
@@ -639,28 +817,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   /* v8 ignore start - defensive `#`-prefix normalization ternary */
                   const cleanOrderName = orderName.startsWith("#") ? orderName : `#${orderName}`;
                   /* v8 ignore stop */
-                  await prisma.fyndOrderMapping.upsert({
-                    where: {
-                      shopId_shopifyOrderName: {
+                  await prisma.fyndOrderMapping
+                    .upsert({
+                      where: {
+                        shopId_shopifyOrderName: {
+                          shopId: shopRecord.id,
+                          shopifyOrderName: cleanOrderName,
+                        },
+                      },
+                      create: {
                         shopId: shopRecord.id,
                         shopifyOrderName: cleanOrderName,
+                        shopifyOrderId: syntheticOrderId,
+                        fyndOrderId: fyndInternalOrderId,
+                        fyndShipmentId: fyndFirstShipmentId,
+                        searchStrategy: "fynd_fallback",
                       },
-                    },
-                    create: {
-                      shopId: shopRecord.id,
-                      shopifyOrderName: cleanOrderName,
-                      shopifyOrderId: syntheticOrderId,
-                      fyndOrderId: fyndInternalOrderId,
-                      fyndShipmentId: fyndFirstShipmentId,
-                      searchStrategy: "fynd_fallback",
-                    },
-                    update: {
-                      ...(fyndInternalOrderId ? { fyndOrderId: fyndInternalOrderId } : {}),
-                      ...(fyndFirstShipmentId ? { fyndShipmentId: fyndFirstShipmentId } : {}),
-                    },
-                  }).catch((e: unknown) => {
-                    console.warn("[portal/order] FyndOrderMapping upsert failed:", e);
-                  });
+                      update: {
+                        ...(fyndInternalOrderId ? { fyndOrderId: fyndInternalOrderId } : {}),
+                        ...(fyndFirstShipmentId ? { fyndShipmentId: fyndFirstShipmentId } : {}),
+                      },
+                    })
+                    .catch((e: unknown) => {
+                      console.warn("[portal/order] FyndOrderMapping upsert failed:", e);
+                    });
                 }
 
                 // Extract current Fynd shipment status for the return gate
@@ -681,19 +861,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   phone: fyndPhone,
                   shippingCountry: fyndCountry || null,
                   shippingProvince: fyndState || null,
-                  shippingAddress: (fyndName || fyndCity || fyndAddress1) ? {
-                    address1: fyndAddress1 || undefined,
-                    address2: fyndAddress2 || undefined,
-                    firstName: fyndFirst || undefined,
-                    lastName: fyndLast || undefined,
-                    city: fyndCity || undefined,
-                    province: fyndState || undefined,
-                    provinceCode: fyndState || undefined,
-                    zip: fyndPincode || undefined,
-                    country: fyndCountry || undefined,
-                    countryCode: fyndCountry || undefined,
-                    landmark: fyndLandmark || undefined,
-                  } : null,
+                  shippingAddress:
+                    fyndName || fyndCity || fyndAddress1
+                      ? {
+                          address1: fyndAddress1 || undefined,
+                          address2: fyndAddress2 || undefined,
+                          firstName: fyndFirst || undefined,
+                          lastName: fyndLast || undefined,
+                          city: fyndCity || undefined,
+                          province: fyndState || undefined,
+                          provinceCode: fyndState || undefined,
+                          zip: fyndPincode || undefined,
+                          country: fyndCountry || undefined,
+                          countryCode: fyndCountry || undefined,
+                          landmark: fyndLandmark || undefined,
+                        }
+                      : null,
                   lineItems: dedupedLineItems,
                   fulfillments: [],
                 } as OrderForPortal;
@@ -703,31 +886,41 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   fyndShipmentsForReturn = collectedShipments;
                 }
                 // Cache all shipment IDs in FyndOrderMapping (comma-separated)
-                const allShipmentIds = collectedShipments.map(s => s.shipmentId).filter(Boolean);
+                const allShipmentIds = collectedShipments.map((s) => s.shipmentId).filter(Boolean);
                 if (allShipmentIds.length > 0) {
                   // Best-effort cache write — fire-and-forget by intent.
-                  void prisma.fyndOrderMapping.upsert({
-                    where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: `#${orderNumber}` } },
-                    create: {
-                      shopId: shopRecord.id,
-                      shopifyOrderName: `#${orderNumber}`,
-                      fyndOrderId: String(first.order_id ?? first.fynd_order_id ?? ""),
-                      fyndShipmentId: allShipmentIds.join(","),
-                    },
-                    update: {
-                      fyndOrderId: String(first.order_id ?? first.fynd_order_id ?? "") || undefined,
-                      fyndShipmentId: allShipmentIds.join(","),
-                    },
-                    // best-effort cache write — swallow upstream errors
-                  /* v8 ignore start */
-                }).catch(() => {});
-                /* v8 ignore stop */
+                  void prisma.fyndOrderMapping
+                    .upsert({
+                      where: {
+                        shopId_shopifyOrderName: {
+                          shopId: shopRecord.id,
+                          shopifyOrderName: `#${orderNumber}`,
+                        },
+                      },
+                      create: {
+                        shopId: shopRecord.id,
+                        shopifyOrderName: `#${orderNumber}`,
+                        fyndOrderId: String(first.order_id ?? first.fynd_order_id ?? ""),
+                        fyndShipmentId: allShipmentIds.join(","),
+                      },
+                      update: {
+                        fyndOrderId:
+                          String(first.order_id ?? first.fynd_order_id ?? "") || undefined,
+                        fyndShipmentId: allShipmentIds.join(","),
+                      },
+                      // best-effort cache write — swallow upstream errors
+                      /* v8 ignore start */
+                    })
+                    .catch(() => {});
+                  /* v8 ignore stop */
                 }
               }
             }
           }
         }
-      } catch { /* non-fatal — Fynd not configured or unavailable */ }
+      } catch {
+        /* non-fatal — Fynd not configured or unavailable */
+      }
       /* v8 ignore stop */
     }
 
@@ -735,25 +928,30 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (order && !fyndShipmentsForReturn) {
       /* v8 ignore start - defensive Fynd-enrich for Shopify-resolved orders best-effort */
       try {
-        const shopSettings = await prisma.shopSettings.findUnique({ where: { shopId: shopRecord.id } });
+        const shopSettings = await prisma.shopSettings.findUnique({
+          where: { shopId: shopRecord.id },
+        });
         if (shopSettings) {
           const fyndResult = await createFyndClientOrError(
             shopSettings as Parameters<typeof createFyndClientOrError>[0],
-            { requirePlatform: true }
+            { requirePlatform: true },
           );
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
             // defensive: extensive nullish/short-circuit fallbacks across alternative Fynd shapes
             /* v8 ignore start */
             const searchOrderNum = (order.name ?? "").replace(/^#/, "").trim() || orderNumber;
-            const searchRes = await fyndResult.client.searchShipmentsByExternalOrderId(searchOrderNum, {
-              searchType: "external_order_id",
-              pageSize: 10,
-              fulfillmentType: "FULFILLMENT",
-            });
-            const rawShipments = (
-              searchRes?.items ?? searchRes?.shipments ??
-              (searchRes as { data?: { items?: unknown[] } })?.data?.items ?? []
-            ) as Record<string, unknown>[];
+            const searchRes = await fyndResult.client.searchShipmentsByExternalOrderId(
+              searchOrderNum,
+              {
+                searchType: "external_order_id",
+                pageSize: 10,
+                fulfillmentType: "FULFILLMENT",
+              },
+            );
+            const rawShipments = (searchRes?.items ??
+              searchRes?.shipments ??
+              (searchRes as { data?: { items?: unknown[] } })?.data?.items ??
+              []) as Record<string, unknown>[];
             const forwardOnly = rawShipments.filter((s) => {
               const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
               return jt !== "return";
@@ -771,40 +969,75 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                 const sId = String(fShip.shipment_id ?? fShip.id ?? "");
                 const sStatus = safeStr(fShip.status ?? fShip.shipment_status, "").toLowerCase();
                 /* v8 ignore stop */
-                const enrichMerchantStatuses = parseAllowedFyndStatuses(shopSettings as { allowedFyndStatusesForReturn?: string | null } | null);
+                const enrichMerchantStatuses = parseAllowedFyndStatuses(
+                  shopSettings as { allowedFyndStatusesForReturn?: string | null } | null,
+                );
                 const isEligible = isShipmentEligibleForReturn(sStatus, enrichMerchantStatuses);
-                const bags = (Array.isArray(fShip.bags) ? fShip.bags : []) as Record<string, unknown>[];
+                const bags = (Array.isArray(fShip.bags) ? fShip.bags : []) as Record<
+                  string,
+                  unknown
+                >[];
                 const shipItems: FyndShipmentForReturn["items"] = [];
                 for (const bag of bags) {
                   // defensive: extensive nullish/short-circuit fallback chains
                   /* v8 ignore start */
                   const bagId = String(bag.bag_id ?? bag.id ?? "");
-                  const articles = Array.isArray(bag.articles) ? bag.articles
-                    : Array.isArray(bag.items) ? bag.items
-                    : bag.item ? [bag.item] : [];
+                  const articles = Array.isArray(bag.articles)
+                    ? bag.articles
+                    : Array.isArray(bag.items)
+                      ? bag.items
+                      : bag.item
+                        ? [bag.item]
+                        : [];
                   /* v8 ignore stop */
                   for (const article of articles as Record<string, unknown>[]) {
                     // defensive: per-field fallbacks for Fynd article shape
                     /* v8 ignore start */
                     const itemObj = (article.item ?? article) as Record<string, unknown>;
-                    const skuVal = article.seller_identifier ?? article.uid ?? itemObj.item_id ?? null;
+                    const skuVal =
+                      article.seller_identifier ?? article.uid ?? itemObj.item_id ?? null;
                     const sku = skuVal != null ? String(skuVal) : null;
-                    const qty = typeof bag.quantity === "number" ? bag.quantity
-                      : typeof article.quantity === "number" ? article.quantity : 1;
+                    const qty =
+                      typeof bag.quantity === "number"
+                        ? bag.quantity
+                        : typeof article.quantity === "number"
+                          ? article.quantity
+                          : 1;
                     // Try to match to a Shopify line item by SKU
-                    const matchedShopify = sku ? shopifyLineItems.find(li => li.sku === sku) : null;
-                    const title = matchedShopify?.title ?? (safeStr(itemObj.name, "") || safeStr(itemObj.item_name, "") || "Item");
-                    const variantTitle = (matchedShopify?.variantTitle ?? (safeStr(itemObj.size, "") || safeStr(bag.size, ""))) || null;
+                    const matchedShopify = sku
+                      ? shopifyLineItems.find((li) => li.sku === sku)
+                      : null;
+                    const title =
+                      matchedShopify?.title ??
+                      (safeStr(itemObj.name, "") || safeStr(itemObj.item_name, "") || "Item");
+                    const variantTitle =
+                      (matchedShopify?.variantTitle ??
+                        (safeStr(itemObj.size, "") || safeStr(bag.size, ""))) ||
+                      null;
                     const imageUrl = matchedShopify?.imageUrl ?? null;
-                    const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
-                    const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? priceInfo.amount_paid ?? priceInfo.mrp ?? 0;
+                    const priceInfo = (bag.prices ??
+                      bag.price_info ??
+                      article.price_info ??
+                      {}) as Record<string, unknown>;
+                    const rawPrice =
+                      priceInfo.transfer_price ??
+                      priceInfo.price_effective ??
+                      priceInfo.amount_paid ??
+                      priceInfo.mrp ??
+                      0;
                     const price = matchedShopify?.price ?? extractNumericPrice(rawPrice);
 
                     // Extract Fynd metadata
-                    const enrichAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
-                    const enrichFyndAffiliateLineId = String(
-                      enrichAffiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
-                    ).trim() || null;
+                    const enrichAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<
+                      string,
+                      unknown
+                    >;
+                    const enrichFyndAffiliateLineId =
+                      String(
+                        enrichAffiliateBagDetails.affiliate_line_id ??
+                          (bag as Record<string, unknown>).affiliate_line_id ??
+                          "",
+                      ).trim() || null;
 
                     shipItems.push({
                       id: matchedShopify?.id ?? bagId,
@@ -816,19 +1049,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       price,
                       imageUrl,
                       productTags: matchedShopify?.productTags ?? [],
-                      fyndArticleId: String(article.article_id ?? article._id ?? article.id ?? "").trim() || null,
+                      fyndArticleId:
+                        String(article.article_id ?? article._id ?? article.id ?? "").trim() ||
+                        null,
                       fyndAffiliateLineId: enrichFyndAffiliateLineId,
                       fyndSellerIdentifier: String(article.seller_identifier ?? "").trim() || null,
                       fyndItemId: String(itemObj.item_id ?? itemObj._id ?? "").trim() || null,
-                      fyndQuantityAvailable: typeof article.quantity_available === "number" ? article.quantity_available
-                        : typeof bag.quantity === "number" ? bag.quantity : null,
+                      fyndQuantityAvailable:
+                        typeof article.quantity_available === "number"
+                          ? article.quantity_available
+                          : typeof bag.quantity === "number"
+                            ? bag.quantity
+                            : null,
                       fyndPriceEffective: (() => {
                         const pe = priceInfo.price_effective ?? priceInfo.transfer_price;
                         return pe != null ? String(pe) : null;
                       })(),
-                      fyndSize: safeStr(article.size, "") || safeStr(bag.size, "") || safeStr(itemObj.size, "") || null,
-                      fyndLineNumber: typeof bag.line_number === "number" ? bag.line_number
-                        : typeof article.line_number === "number" ? article.line_number : null,
+                      fyndSize:
+                        safeStr(article.size, "") ||
+                        safeStr(bag.size, "") ||
+                        safeStr(itemObj.size, "") ||
+                        null,
+                      fyndLineNumber:
+                        typeof bag.line_number === "number"
+                          ? bag.line_number
+                          : typeof article.line_number === "number"
+                            ? article.line_number
+                            : null,
                     });
                     /* v8 ignore stop */
                   }
@@ -840,16 +1087,29 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     const skuVal = bag.seller_identifier ?? bag.article_id ?? null;
                     const sku = skuVal != null ? String(skuVal) : null;
                     const qty = typeof bag.quantity === "number" ? bag.quantity : 1;
-                    const matchedShopify = sku ? shopifyLineItems.find(li => li.sku === sku) : null;
-                    const title = matchedShopify?.title ?? (safeStr(bagItem.name, "") || safeStr(bagItem.item_name, "") || "Item");
-                    const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<string, unknown>;
+                    const matchedShopify = sku
+                      ? shopifyLineItems.find((li) => li.sku === sku)
+                      : null;
+                    const title =
+                      matchedShopify?.title ??
+                      (safeStr(bagItem.name, "") || safeStr(bagItem.item_name, "") || "Item");
+                    const priceInfo = (bag.prices ?? bag.price_info ?? {}) as Record<
+                      string,
+                      unknown
+                    >;
                     const rawPrice = priceInfo.transfer_price ?? priceInfo.price_effective ?? 0;
                     const price = matchedShopify?.price ?? extractNumericPrice(rawPrice);
 
-                    const fallbackAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
-                    const fallbackFyndAffiliateLineId = String(
-                      fallbackAffiliateBagDetails.affiliate_line_id ?? (bag as Record<string, unknown>).affiliate_line_id ?? ""
-                    ).trim() || null;
+                    const fallbackAffiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<
+                      string,
+                      unknown
+                    >;
+                    const fallbackFyndAffiliateLineId =
+                      String(
+                        fallbackAffiliateBagDetails.affiliate_line_id ??
+                          (bag as Record<string, unknown>).affiliate_line_id ??
+                          "",
+                      ).trim() || null;
 
                     shipItems.push({
                       id: matchedShopify?.id ?? bagId,
@@ -863,7 +1123,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                       productTags: matchedShopify?.productTags ?? [],
                       fyndArticleId: bag.article_id != null ? String(bag.article_id) : null,
                       fyndAffiliateLineId: fallbackFyndAffiliateLineId,
-                      fyndSellerIdentifier: bag.seller_identifier != null ? String(bag.seller_identifier) : null,
+                      fyndSellerIdentifier:
+                        bag.seller_identifier != null ? String(bag.seller_identifier) : null,
                       fyndItemId: bagItem.item_id != null ? String(bagItem.item_id) : null,
                       fyndQuantityAvailable: typeof bag.quantity === "number" ? bag.quantity : null,
                       fyndPriceEffective: (() => {
@@ -880,7 +1141,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                   shipmentId: sId,
                   shipmentStatus: sStatus,
                   eligible: isEligible,
-                  eligibilityReason: isEligible ? undefined : "This shipment has not been delivered yet.",
+                  eligibilityReason: isEligible
+                    ? undefined
+                    : "This shipment has not been delivered yet.",
                   items: shipItems,
                 });
               }
@@ -890,16 +1153,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             }
           }
         }
-      } catch { /* non-fatal — Fynd enrichment is best-effort */ }
+      } catch {
+        /* non-fatal — Fynd enrichment is best-effort */
+      }
       /* v8 ignore stop */
     }
 
     if (!order) {
-      return withCors(Response.json({
-        error: "Order not found",
-        existingReturns: formattedReturns,
-        activeReturns,
-      }, { status: 404 }), request);
+      return withCors(
+        Response.json(
+          {
+            error: "Order not found",
+            existingReturns: formattedReturns,
+            activeReturns,
+          },
+          { status: 404 },
+        ),
+        request,
+      );
     }
 
     // Load shop settings for eligibility gates (load once, reuse below)
@@ -917,14 +1188,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Admin-configurable allowed fulfillment statuses; default to FULFILLED + PARTIALLY_FULFILLED
     let allowedFulfillmentStatuses: string[] = ["FULFILLED", "PARTIALLY_FULFILLED"];
     try {
-      const raw = (settings as { portalAllowedFulfillmentStatuses?: string | null } | null)?.portalAllowedFulfillmentStatuses;
+      const raw = (settings as { portalAllowedFulfillmentStatuses?: string | null } | null)
+        ?.portalAllowedFulfillmentStatuses;
       if (raw) {
         const parsed = JSON.parse(raw) as unknown;
         if (Array.isArray(parsed) && parsed.length > 0) {
           allowedFulfillmentStatuses = (parsed as unknown[]).map((s) => String(s).toUpperCase());
         }
       }
-    } catch { /* use defaults */ }
+    } catch {
+      /* use defaults */
+    }
 
     // For Fynd synthetic orders (displayFulfillmentStatus = "FULFILLED" set by us), trust the synthetic value
     // The Fynd status check already happened when we built the synthetic order — we only allow
@@ -944,7 +1218,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } else if (fulfillmentStatus === "UNFULFILLED" || fulfillmentStatus === "") {
         returnEligibility = {
           eligible: false,
-          reason: "This order has not been shipped yet. Returns can only be created for orders that have been delivered.",
+          reason:
+            "This order has not been shipped yet. Returns can only be created for orders that have been delivered.",
         };
       } else if (fulfillmentStatus === "ON_HOLD") {
         returnEligibility = {
@@ -954,7 +1229,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } else if (fulfillmentStatus === "SCHEDULED") {
         returnEligibility = {
           eligible: false,
-          reason: "This order is scheduled for fulfillment but has not shipped yet. Returns can only be created after delivery.",
+          reason:
+            "This order is scheduled for fulfillment but has not shipped yet. Returns can only be created after delivery.",
         };
       } else {
         returnEligibility = {
@@ -975,14 +1251,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // Single-shipment: check order-level Fynd status OR the single shipment's status
     if (returnEligibility.eligible && !hasMultiShipmentData) {
       // Determine the effective Fynd status: from synthetic order or from enriched single shipment
-      const effectiveFyndStatus = fyndShipmentStatus
-        ?? (hasFyndShipmentData ? fyndShipmentsForReturn![0].shipmentStatus : null);
+      const effectiveFyndStatus =
+        fyndShipmentStatus ??
+        (hasFyndShipmentData ? fyndShipmentsForReturn![0].shipmentStatus : null);
 
       if (effectiveFyndStatus) {
-        const allowedFyndReturnStatuses = parseAllowedFyndStatuses(settings as { allowedFyndStatusesForReturn?: string | null } | null);
-        const isAllowed = isShipmentEligibleForReturn(effectiveFyndStatus, allowedFyndReturnStatuses);
+        const allowedFyndReturnStatuses = parseAllowedFyndStatuses(
+          settings as { allowedFyndStatusesForReturn?: string | null } | null,
+        );
+        const isAllowed = isShipmentEligibleForReturn(
+          effectiveFyndStatus,
+          allowedFyndReturnStatuses,
+        );
         if (!isAllowed) {
-          const friendlyStatus = effectiveFyndStatus.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+          const friendlyStatus = effectiveFyndStatus
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (c) => c.toUpperCase());
           returnEligibility = {
             eligible: false,
             reason: `This order's current status is "${friendlyStatus}". Returns can only be initiated after the order has been delivered.`,
@@ -1043,7 +1327,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const returnFeeAmount = settings?.returnFeeAmount ? Number(settings.returnFeeAmount) : 0;
     // defensive: returnFeeCurrency fallback chain (returnFeeCurrency / shopCurrency / "USD")
     /* v8 ignore start */
-    const returnFeeCurrency = order.currencyCode || settings?.returnFeeCurrency || settings?.shopCurrency || "USD";
+    const returnFeeCurrency =
+      order.currencyCode || settings?.returnFeeCurrency || settings?.shopCurrency || "USD";
     const lineItemEstimates = (order.lineItems ?? []).map((li) => {
       const price = li.price ? parseFloat(li.price) : 0;
       const qty = li.quantity ?? 1;
@@ -1054,9 +1339,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const estimatedRefundTotal = Math.max(0, itemsTotal - returnFeeAmount);
 
     // Return offers data
-    let returnOffersData: { enabled: boolean; offers: Array<{ reasonCode?: string; tag?: string; offerType: string; offerValue: number; message: string }> } = { enabled: false, offers: [] };
+    let returnOffersData: {
+      enabled: boolean;
+      offers: Array<{
+        reasonCode?: string;
+        tag?: string;
+        offerType: string;
+        offerValue: number;
+        message: string;
+      }>;
+    } = { enabled: false, offers: [] };
     if (settings?.returnOffersEnabled) {
-      const offersArr = parseJsonArray<{ reasonCode?: string; tag?: string; offerType: string; offerValue: number; message: string }>(settings.returnOffersJson ?? null, []);
+      const offersArr = parseJsonArray<{
+        reasonCode?: string;
+        tag?: string;
+        offerType: string;
+        offerValue: number;
+        message: string;
+      }>(settings.returnOffersJson ?? null, []);
       returnOffersData = { enabled: true, offers: offersArr };
     }
 
@@ -1078,10 +1378,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         });
         for (const ri of existingReturnItems) {
           if (ri.shopifyLineItemId) {
-            returnedQtyMap[ri.shopifyLineItemId] = (returnedQtyMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
+            returnedQtyMap[ri.shopifyLineItemId] =
+              (returnedQtyMap[ri.shopifyLineItemId] ?? 0) + ri.qty;
           }
         }
-      } catch { /* non-fatal — quantity locks are advisory */ }
+      } catch {
+        /* non-fatal — quantity locks are advisory */
+      }
     }
 
     // SKU-based fallback for Fynd orders where stored shopifyLineItemId
@@ -1114,12 +1417,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               }
             }
           }
-        } catch { /* non-fatal */ }
+        } catch {
+          /* non-fatal */
+        }
       }
     }
 
     // Portal exchange feature flag
-    const portalExchangeEnabled = (settings as { portalExchangeEnabled?: boolean } | null)?.portalExchangeEnabled ?? false;
+    const portalExchangeEnabled =
+      (settings as { portalExchangeEnabled?: boolean } | null)?.portalExchangeEnabled ?? false;
     const photoRequired = settings?.photoRequired ?? false;
 
     // Per-shipment returned quantity map (shipmentId → { lineItemId → qty })
@@ -1127,14 +1433,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     if (fyndShipmentsForReturn && fyndShipmentsForReturn.length > 0) {
       // When multi-shipment, override STATUS-based ineligibility if ANY shipment is eligible.
       // Do NOT override return-window or product-rule ineligibility — those apply order-wide.
-      const anyShipmentEligible = fyndShipmentsForReturn.some(s => s.eligible);
+      const anyShipmentEligible = fyndShipmentsForReturn.some((s) => s.eligible);
       if (anyShipmentEligible && !returnEligibility.eligible && !blockedByReturnRules) {
         // Only override fulfillment/status-based blocks — per-shipment gates handle the rest.
         returnEligibility = { eligible: true };
       }
 
       shipmentReturnedQtyMap = {};
-      const allShipmentIds = fyndShipmentsForReturn.map(s => s.shipmentId);
+      const allShipmentIds = fyndShipmentsForReturn.map((s) => s.shipmentId);
       try {
         const shipmentReturnItems = await prisma.returnItem.findMany({
           where: {
@@ -1179,7 +1485,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             bucket[skuKey] = (bucket[skuKey] ?? 0) + ri.qty;
           }
         }
-      } catch { /* non-fatal */ }
+      } catch {
+        /* non-fatal */
+      }
     }
 
     // ── Block-redirect gate: only show the "Return already submitted" screen when
@@ -1198,13 +1506,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // orders, max(returned-by-line-item-id, returned-by-bag, returned-by-sku)
     // is used to be conservative — if ANY of the three says it's in return,
     // we treat it as already in return.
-    const lineItemAvailability: Record<string, {
-      orderedQty: number;
-      returnedQty: number;
-      availableQty: number;
-      alreadyInReturn: boolean;
-    }> = {};
-    for (const li of (order.lineItems ?? [])) {
+    const lineItemAvailability: Record<
+      string,
+      {
+        orderedQty: number;
+        returnedQty: number;
+        availableQty: number;
+        alreadyInReturn: boolean;
+      }
+    > = {};
+    for (const li of order.lineItems ?? []) {
       // defensive: nullish-coalesce defaults rarely hit in fixtures
       /* v8 ignore start */
       const orderedQty = li.quantity ?? 1;
@@ -1229,76 +1540,98 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       /* v8 ignore stop */
     }
 
-    return withCors(Response.json({
-      order,
-      existingReturns: formattedReturns,
-      activeReturns: activeReturnsForBlock,
-      // Always expose previousReturns so the create flow can render an informational panel
-      // above the item picker (separate from the hard-block "activeReturns" path).
-      previousReturns: activeReturns,
-      returnEligibility,
-      itemEligibility,
-      returnDeadline,
-      daysRemaining,
-      returnFee: returnFeeAmount > 0 ? { amount: returnFeeAmount, currency: returnFeeCurrency } : null,
-      estimatedRefundTotal,
-      lineItemEstimates,
-      returnOffers: returnOffersData,
-      returnedQtyMap,
-      // Per-line-item availability (preferred over computing from the three
-      // maps) — Bug #10 hardening so widgets render disabled state correctly
-      // even when shipment-level metadata is missing.
-      lineItemAvailability,
-      portalExchangeEnabled,
-      photoRequired,
-      // Multi-shipment data (null when single-shipment or Fynd not available)
-      shipments: fyndShipmentsForReturn,
-      shipmentReturnedQtyMap,
-      fyndShipmentStatus,
-      // CSRF token bound to this shop. Required by /api/portal/create-return and
-      // /api/portal/cancel-return. Defends against cross-shop POST forgery via the
-      // *.myshopify.com CORS regex (P0 finding from QA audit).
-      portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
-    }), request);
+    return withCors(
+      Response.json({
+        order,
+        existingReturns: formattedReturns,
+        activeReturns: activeReturnsForBlock,
+        // Always expose previousReturns so the create flow can render an informational panel
+        // above the item picker (separate from the hard-block "activeReturns" path).
+        previousReturns: activeReturns,
+        returnEligibility,
+        itemEligibility,
+        returnDeadline,
+        daysRemaining,
+        returnFee:
+          returnFeeAmount > 0 ? { amount: returnFeeAmount, currency: returnFeeCurrency } : null,
+        estimatedRefundTotal,
+        lineItemEstimates,
+        returnOffers: returnOffersData,
+        returnedQtyMap,
+        // Per-line-item availability (preferred over computing from the three
+        // maps) — Bug #10 hardening so widgets render disabled state correctly
+        // even when shipment-level metadata is missing.
+        lineItemAvailability,
+        portalExchangeEnabled,
+        photoRequired,
+        // Multi-shipment data (null when single-shipment or Fynd not available)
+        shipments: fyndShipmentsForReturn,
+        shipmentReturnedQtyMap,
+        fyndShipmentStatus,
+        // CSRF token bound to this shop. Required by /api/portal/create-return and
+        // /api/portal/cancel-return. Defends against cross-shop POST forgery via the
+        // *.myshopify.com CORS regex (P0 finding from QA audit).
+        portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
+      }),
+      request,
+    );
   } catch (err) {
     console.error("Portal order fetch:", err);
     if ((err as { name?: string }).name === "SessionNotFoundError") {
-      return withCors(Response.json({ error: "Store has not connected the app. Please contact the store." }, { status: 403 }), request);
+      return withCors(
+        Response.json(
+          { error: "Store has not connected the app. Please contact the store." },
+          { status: 403 },
+        ),
+        request,
+      );
     }
     if (err instanceof OrderAccessError) {
       return withCors(
-        Response.json({
-          fallback: true,
-          orderNumber: orderNumber?.replace(/^#/, "").trim(),
-          error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
-          existingReturns: formattedReturns,
-          activeReturns,
-        }, { status: 200 }),
-        request
+        Response.json(
+          {
+            fallback: true,
+            orderNumber: orderNumber?.replace(/^#/, "").trim(),
+            error:
+              "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
+            existingReturns: formattedReturns,
+            activeReturns,
+          },
+          { status: 200 },
+        ),
+        request,
       );
     }
     const msg = (err as Error)?.message ?? "";
     if (msg.includes("not approved") || msg.includes("Order object") || msg.includes("protected")) {
       return withCors(
-        Response.json({
-          fallback: true,
-          orderNumber: orderNumber?.replace(/^#/, "").trim(),
-          error: "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
-          existingReturns: formattedReturns,
-          activeReturns,
-        }, { status: 200 }),
-        request
+        Response.json(
+          {
+            fallback: true,
+            orderNumber: orderNumber?.replace(/^#/, "").trim(),
+            error:
+              "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
+            existingReturns: formattedReturns,
+            activeReturns,
+          },
+          { status: 200 },
+        ),
+        request,
       );
     }
     return withCors(
-      Response.json({
-        fallback: true,
-        orderNumber: orderNumber?.replace(/^#/, "").trim(),
-        error: "We couldn't find this order automatically. Please use the form below to submit your return request.",
-        existingReturns: formattedReturns,
-        activeReturns,
-      }, { status: 200 }),
-      request
+      Response.json(
+        {
+          fallback: true,
+          orderNumber: orderNumber?.replace(/^#/, "").trim(),
+          error:
+            "We couldn't find this order automatically. Please use the form below to submit your return request.",
+          existingReturns: formattedReturns,
+          activeReturns,
+        },
+        { status: 200 },
+      ),
+      request,
     );
   }
 };

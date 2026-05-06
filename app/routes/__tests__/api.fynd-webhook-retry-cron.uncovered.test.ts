@@ -41,12 +41,10 @@ beforeEach(() => {
   process.env = { ...origEnv };
   resetPrismaMock(prismaMock);
   processFyndWebhookMock.mockReset();
-  unwrapFyndWebhookPayloadMock
-    .mockReset()
-    .mockImplementation((raw: string) => ({
-      payload: JSON.parse(raw),
-      eventType: "shipment.updated",
-    }));
+  unwrapFyndWebhookPayloadMock.mockReset().mockImplementation((raw: string) => ({
+    payload: JSON.parse(raw),
+    eventType: "shipment.updated",
+  }));
 });
 
 afterEach(() => {

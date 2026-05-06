@@ -15,24 +15,24 @@ import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 const TEMPLATE_HTML = [
   '<html lang="en">',
-  '<head>',
-  '  <!-- %FAVICON% -->',
-  '  <title>Returns</title>',
-  '  <style>body{color:%TEXT_COLOR%;background:%BG_COLOR%;}</style>',
-  '</head>',
-  '<body>',
+  "<head>",
+  "  <!-- %FAVICON% -->",
+  "  <title>Returns</title>",
+  "  <style>body{color:%TEXT_COLOR%;background:%BG_COLOR%;}</style>",
+  "</head>",
+  "<body>",
   '  <input type="hidden" id="shop" value="%SHOP%">',
   '  <span class="window">%RETURN_WINDOW% days</span>',
   '  <div class="policy">%RETURN_POLICY%</div>',
   '  <img class="brand" src="%BRAND_LOGO_URL%" />',
   '  <a href="%APP_URL%/x">link</a>',
-  '  <script>',
+  "  <script>",
   '    var REASONS = "%RETURN_REASONS_JSON%";',
   '    var REASONS_BY_CAT = "%RETURN_REASONS_BY_CATEGORY_JSON%";',
   '    var CFG = "%PORTAL_CONFIG%";',
-  '  </script>',
-  '</body>',
-  '</html>',
+  "  </script>",
+  "</body>",
+  "</html>",
 ].join("\n");
 
 const { prismaMock, readFileSyncMock } = vi.hoisted(() => ({
@@ -200,9 +200,9 @@ describe("apps.returns loader", () => {
     });
     const res = (await loader(makeArgs(makeRequest("?shop=acme")))) as Response;
     const body = await res.text();
-    expect(body).toContain("window.__RPM_LOCALE__=\"fr\"");
-    expect(body).toContain("window.__RPM_CURRENCY__=\"EUR\"");
-    expect(body).toContain("window.__RPM_TIMEZONE__=\"Europe/Paris\"");
+    expect(body).toContain('window.__RPM_LOCALE__="fr"');
+    expect(body).toContain('window.__RPM_CURRENCY__="EUR"');
+    expect(body).toContain('window.__RPM_TIMEZONE__="Europe/Paris"');
     expect(body).toContain("window.__RPM_LABELS__=");
     expect(body).toContain("window.__RPM_FEATURES__=");
     // giftReturnsEnabled was true → must appear in the features blob.
@@ -214,7 +214,7 @@ describe("apps.returns loader", () => {
     expect(idxHeadClose).toBeGreaterThan(idxScript);
   });
 
-  it("sets dir=\"rtl\" and lang=\"ar\" for Arabic locale", async () => {
+  it('sets dir="rtl" and lang="ar" for Arabic locale', async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop_1",
       shopDomain: "acme.myshopify.com",

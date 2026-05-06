@@ -41,9 +41,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       where: { shopDomain: shop },
     });
     if (!shopRecord) {
-      console.log(
-        `[webhooks.customers.redact] Shop not found: ${shop}, nothing to redact`,
-      );
+      console.log(`[webhooks.customers.redact] Shop not found: ${shop}, nothing to redact`);
       return new Response();
     }
 
@@ -69,9 +67,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
 
     if (returnCases.length === 0) {
-      console.log(
-        `[webhooks.customers.redact] No return cases found for customer in shop=${shop}`,
-      );
+      console.log(`[webhooks.customers.redact] No return cases found for customer in shop=${shop}`);
       return new Response();
     }
 
@@ -109,7 +105,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* v8 ignore start */
     // defensive: lookupValues always non-empty when email or phone present in redact payload
     if (lookupValues.length > 0) {
-    /* v8 ignore stop */
+      /* v8 ignore stop */
       await prisma.lookupSession.deleteMany({
         where: {
           shopId: shopRecord.id,
@@ -155,10 +151,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       `[webhooks.customers.redact] Redacted ${returnCases.length} return case(s) for customer in shop=${shop}`,
     );
   } catch (err) {
-    console.error(
-      "[webhooks.customers.redact] Error processing redaction:",
-      err,
-    );
+    console.error("[webhooks.customers.redact] Error processing redaction:", err);
   }
 
   return new Response();

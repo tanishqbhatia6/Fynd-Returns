@@ -127,11 +127,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 
 import { renderWithRouter } from "../../test/component-helpers";
 import { render, waitFor } from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import Component, { ErrorBoundary } from "../app.returns.$id";
 
 /**
@@ -144,7 +140,9 @@ function renderErrorBoundary(thrown: unknown) {
   const routes: RouteObject[] = [
     {
       path: "*",
-      loader: () => { throw thrown; },
+      loader: () => {
+        throw thrown;
+      },
       element: <div>ok</div>,
       errorElement: <ErrorBoundary />,
       hydrateFallbackElement: <div data-testid="hydrate-fallback" />,
@@ -290,36 +288,28 @@ describe("app.returns.$id ErrorBoundary — additional error shapes", () => {
   });
 
   it("renders 401 Response as generic 'Something went wrong'", async () => {
-    const { container } = renderErrorBoundary(
-      new Response("unauthorized", { status: 401 }),
-    );
+    const { container } = renderErrorBoundary(new Response("unauthorized", { status: 401 }));
     await waitFor(() => {
       expect(container.textContent).toContain("Something went wrong");
     });
   });
 
   it("renders 403 Response as generic 'Something went wrong'", async () => {
-    const { container } = renderErrorBoundary(
-      new Response("forbidden", { status: 403 }),
-    );
+    const { container } = renderErrorBoundary(new Response("forbidden", { status: 403 }));
     await waitFor(() => {
       expect(container.textContent).toContain("Something went wrong");
     });
   });
 
   it("renders 502 Response with a stable heading", async () => {
-    const { container } = renderErrorBoundary(
-      new Response("bad gateway", { status: 502 }),
-    );
+    const { container } = renderErrorBoundary(new Response("bad gateway", { status: 502 }));
     await waitFor(() => {
       expect(container.textContent).toContain("Something went wrong");
     });
   });
 
   it("does not render the debug <details> block on a 500 response", async () => {
-    const { container } = renderErrorBoundary(
-      new Response("boom", { status: 500 }),
-    );
+    const { container } = renderErrorBoundary(new Response("boom", { status: 500 }));
     await waitFor(() => {
       expect(container.textContent).toContain("Something went wrong");
     });

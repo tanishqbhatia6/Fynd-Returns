@@ -34,11 +34,16 @@ const {
   fetchOrderByGidMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
   withRestCredentialsMock: vi.fn((a: unknown) => a),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   formatReturnRequestIdMock: vi.fn((x: string) => `R-${x.slice(0, 6)}`),
   checkReturnEligibilityMock: vi.fn(() => ({ eligible: true })),
   createPortalCsrfTokenMock: vi.fn(() => "csrf-token-abc"),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 // fyndOrderMapping isn't in the base factory
@@ -76,7 +81,10 @@ vi.mock("../../lib/portal-auth.server", () => ({
 // Use the REAL OrderAccessError class so instanceof works
 vi.mock("../../lib/shopify-admin.server", async () => {
   class OrderAccessError extends Error {
-    constructor(public reason: string, public orderNumber: string) {
+    constructor(
+      public reason: string,
+      public orderNumber: string,
+    ) {
       super(`Order ${orderNumber} cannot be accessed: ${reason}`);
       this.name = "OrderAccessError";
     }
@@ -99,13 +107,22 @@ function mkReq(qs: string, method = "GET") {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  const mapping = (prismaMock as unknown as Record<string, Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>>).fyndOrderMapping;
+  const mapping = (
+    prismaMock as unknown as Record<
+      string,
+      Record<string, { mockReset: () => void; mockResolvedValue: (v: unknown) => void }>
+    >
+  ).fyndOrderMapping;
   mapping.upsert.mockReset();
   mapping.upsert.mockResolvedValue({});
   mapping.findFirst.mockReset();
   mapping.findFirst.mockResolvedValue(null);
-  shopifyModuleMock.unauthenticated.admin.mockReset().mockResolvedValue({ admin: { graphql: vi.fn() } });
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
+  shopifyModuleMock.unauthenticated.admin
+    .mockReset()
+    .mockResolvedValue({ admin: { graphql: vi.fn() } });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 30, retryAfterMs: 0 });
   fetchOrderByOrderNumberMock.mockReset();
   fetchOrderByGidMock.mockReset();
   fetchOrderByFyndAffiliateIdMock.mockReset();
@@ -114,7 +131,9 @@ beforeEach(() => {
   formatReturnRequestIdMock.mockReset().mockImplementation((x: string) => `R-${x.slice(0, 6)}`);
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   createPortalCsrfTokenMock.mockReset().mockReturnValue("csrf-token-abc");
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
 });
 
 // ────────────── Pure helper ──────────────
@@ -173,12 +192,20 @@ describe("loader guards", () => {
 
   it("429 when rate-limited", async () => {
     checkRateLimitMock.mockResolvedValueOnce({ allowed: false, remaining: 0, retryAfterMs: 1000 });
-    const res = await loader({ request: mkReq("shop=x&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=x&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(429);
   });
 
   it("400 when shop param missing", async () => {
-    const res = await loader({ request: mkReq("orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
@@ -188,32 +215,54 @@ describe("loader guards", () => {
   });
 
   it("400 when orderNumber longer than 64 chars", async () => {
-    const res = await loader({ request: mkReq(`shop=x&orderNumber=${"1".repeat(100)}`), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq(`shop=x&orderNumber=${"1".repeat(100)}`),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when orderNumber contains only non-word chars (after sanitization)", async () => {
-    const res = await loader({ request: mkReq("shop=x&orderNumber=%40%40%40%40"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=x&orderNumber=%40%40%40%40"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("404 when shop not found", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    const res = await loader({ request: mkReq("shop=x&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=x&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(404);
   });
 
   it("normalises non-dotted shop to .myshopify.com", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    await loader({ request: mkReq("shop=mystore&orderNumber=1001"), params: {}, context: {} } as never);
-    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopDomain: "mystore.myshopify.com" },
-    }));
+    await loader({
+      request: mkReq("shop=mystore&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
+    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopDomain: "mystore.myshopify.com" },
+      }),
+    );
   });
 
   it("strips # and special chars from orderNumber", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    await loader({ request: mkReq("shop=store&orderNumber=%231001%40"), params: {}, context: {} } as never);
+    await loader({
+      request: mkReq("shop=store&orderNumber=%231001%40"),
+      params: {},
+      context: {},
+    } as never);
     // URL params: #1001@ → after ^# strip + non-word strip → "1001"
     // Shop lookup still happens first, then findMany — we just confirmed it got past the guards
     expect(prismaMock.shop.findUnique).toHaveBeenCalled();
@@ -224,7 +273,10 @@ describe("loader guards", () => {
 
 describe("existing returns formatting", () => {
   beforeEach(() => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
   });
 
@@ -233,7 +285,11 @@ describe("existing returns formatting", () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
     fetchOrderByFyndAffiliateIdMock.mockResolvedValue(null);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=9999"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=9999"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.existingReturns).toEqual([]);
@@ -242,29 +298,80 @@ describe("existing returns formatting", () => {
 
   it("filters 'activeReturns' to only non-terminal statuses", async () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1", returnRequestNo: "R1", status: "pending", refundStatus: null, createdAt: new Date(), fyndReturnNo: null, items: [] },
-      { id: "rc-2", returnRequestNo: "R2", status: "rejected", refundStatus: null, createdAt: new Date(), fyndReturnNo: null, items: [] },
-      { id: "rc-3", returnRequestNo: "R3", status: "approved", refundStatus: null, createdAt: new Date(), fyndReturnNo: null, items: [] },
-      { id: "rc-4", returnRequestNo: "R4", status: "completed", refundStatus: null, createdAt: new Date(), fyndReturnNo: null, items: [] },
+      {
+        id: "rc-1",
+        returnRequestNo: "R1",
+        status: "pending",
+        refundStatus: null,
+        createdAt: new Date(),
+        fyndReturnNo: null,
+        items: [],
+      },
+      {
+        id: "rc-2",
+        returnRequestNo: "R2",
+        status: "rejected",
+        refundStatus: null,
+        createdAt: new Date(),
+        fyndReturnNo: null,
+        items: [],
+      },
+      {
+        id: "rc-3",
+        returnRequestNo: "R3",
+        status: "approved",
+        refundStatus: null,
+        createdAt: new Date(),
+        fyndReturnNo: null,
+        items: [],
+      },
+      {
+        id: "rc-4",
+        returnRequestNo: "R4",
+        status: "completed",
+        refundStatus: null,
+        createdAt: new Date(),
+        fyndReturnNo: null,
+        items: [],
+      },
     ]);
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
     fetchOrderByFyndAffiliateIdMock.mockResolvedValue(null);
 
-    const res = await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     const body = await res.json();
     expect(body.existingReturns).toHaveLength(4);
     // Only pending + approved are active (non-terminal)
-    expect(body.activeReturns.map((r: { status: string }) => r.status)).toEqual(["pending", "approved"]);
+    expect(body.activeReturns.map((r: { status: string }) => r.status)).toEqual([
+      "pending",
+      "approved",
+    ]);
   });
 
   it("uses formatReturnRequestId when returnRequestNo is null", async () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "long-id-abc", returnRequestNo: null, status: "pending", refundStatus: null, createdAt: new Date(), fyndReturnNo: null, items: [] },
+      {
+        id: "long-id-abc",
+        returnRequestNo: null,
+        status: "pending",
+        refundStatus: null,
+        createdAt: new Date(),
+        fyndReturnNo: null,
+        items: [],
+      },
     ]);
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
     fetchOrderByFyndAffiliateIdMock.mockResolvedValue(null);
 
-    await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
+    await loader({
+      request: mkReq("shop=store&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(formatReturnRequestIdMock).toHaveBeenCalledWith("long-id-abc");
   });
 });
@@ -273,15 +380,27 @@ describe("existing returns formatting", () => {
 
 describe("error fallbacks", () => {
   beforeEach(() => {
-    prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValue({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     prismaMock.session.findFirst.mockResolvedValue({ accessToken: "tok" });
     prismaMock.returnCase.findMany.mockResolvedValue([]);
   });
 
   it("403 on SessionNotFoundError (store disconnected the app)", async () => {
-    class SessionNotFoundError extends Error { constructor() { super("session gone"); this.name = "SessionNotFoundError"; } }
+    class SessionNotFoundError extends Error {
+      constructor() {
+        super("session gone");
+        this.name = "SessionNotFoundError";
+      }
+    }
     shopifyModuleMock.unauthenticated.admin.mockRejectedValueOnce(new SessionNotFoundError());
-    const res = await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(403);
     expect((await res.json()).error).toMatch(/connected the app/);
   });
@@ -290,7 +409,11 @@ describe("error fallbacks", () => {
     shopifyModuleMock.unauthenticated.admin.mockRejectedValueOnce(
       new OrderAccessError("protected_customer_data", "PCDA"),
     );
-    const res = await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.fallback).toBe(true);
@@ -302,7 +425,11 @@ describe("error fallbacks", () => {
     shopifyModuleMock.unauthenticated.admin.mockRejectedValueOnce(
       new Error("App is not approved for Order object scope"),
     );
-    const res = await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.fallback).toBe(true);
@@ -310,7 +437,11 @@ describe("error fallbacks", () => {
 
   it("200 generic fallback for unknown errors", async () => {
     shopifyModuleMock.unauthenticated.admin.mockRejectedValueOnce(new Error("network timeout"));
-    const res = await loader({ request: mkReq("shop=store&orderNumber=1001"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: mkReq("shop=store&orderNumber=1001"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.fallback).toBe(true);

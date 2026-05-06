@@ -13,7 +13,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -22,10 +22,15 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
-import { createRefund, createShopifyReturn, closeShopifyReturnBestEffort, type AdminGraphQL } from "../shopify-admin.server";
+import {
+  createRefund,
+  createShopifyReturn,
+  closeShopifyReturnBestEffort,
+  type AdminGraphQL,
+} from "../shopify-admin.server";
 
 type GraphqlCall = { query: string; variables?: Record<string, unknown> };
 
@@ -51,7 +56,9 @@ function makeAdmin(responses: Array<unknown | Error>): {
 beforeEach(() => vi.clearAllMocks());
 
 const LOCATIONS_OK = {
-  data: { locations: { nodes: [{ id: "gid://shopify/Location/L1", name: "Main", isActive: true }] } },
+  data: {
+    locations: { nodes: [{ id: "gid://shopify/Location/L1", name: "Main", isActive: true }] },
+  },
 };
 
 describe("createRefund — totalAmount=0 with original method (lines 1476-1477)", () => {
@@ -158,7 +165,12 @@ describe("createShopifyReturn — bug #9 regression diagnostic (line 1934)", () 
     // which is a defensive sentinel. Mark as exercised through coverage of
     // the immediate vicinity (the surrounding logic at 1928-1932 runs).
     const r = await createShopifyReturn(admin, "gid://shopify/Order/1", [
-      { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1, sku: "SKU-A", reasonCode: "DEFECTIVE" },
+      {
+        shopifyLineItemId: "gid://shopify/LineItem/100",
+        qty: 1,
+        sku: "SKU-A",
+        reasonCode: "DEFECTIVE",
+      },
     ]);
     expect(r.success).toBe(true);
   });
@@ -168,15 +180,20 @@ describe("closeAllOpenReturnsOnOrder — failed close + catch path (lines 2175-2
   it("records failed close in event payload when child returnClose returns userErrors", async () => {
     const { admin } = makeAdmin([
       // first call: returnClose for the tracked Return (success)
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
       // second call: openReturns sweep query returns a sibling
       {
         data: {
           order: {
             returns: {
-              edges: [
-                { node: { id: "gid://shopify/Return/SIB", status: "OPEN" } },
-              ],
+              edges: [{ node: { id: "gid://shopify/Return/SIB", status: "OPEN" } }],
             },
           },
         },
@@ -194,26 +211,43 @@ describe("closeAllOpenReturnsOnOrder — failed close + catch path (lines 2175-2
     const logEvent = vi.fn(async (_e: { eventType: string; payloadJson: string }) => {});
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc-1", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc-1",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { logEvent },
     );
     expect(r.ok).toBe(true);
     // Line 2175: failed-push fires
     const payload = JSON.parse(logEvent.mock.calls[0]?.[0].payloadJson as string);
-    expect(payload.sweepFailed).toEqual([{ id: "gid://shopify/Return/SIB", error: "Return close failed: Already declined" }]);
+    expect(payload.sweepFailed).toEqual([
+      { id: "gid://shopify/Return/SIB", error: "Return close failed: Already declined" },
+    ]);
   });
 
   it("swallows sweep query errors via outer catch (line 2178)", async () => {
     const { admin } = makeAdmin([
       // first call: returnClose succeeds
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
       // second call: openReturns query throws — caught by outer catch, sweep returns empty
       new Error("network down"),
     ]);
     const logEvent = vi.fn(async (_e: { eventType: string; payloadJson: string }) => {});
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc-1", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc-1",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { logEvent },
     );
     // Outer catch swallows the error — the close itself succeeded so ok=true.

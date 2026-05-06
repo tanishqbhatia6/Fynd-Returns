@@ -15,12 +15,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, extractAffiliateMock, extractCustomerMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  extractAffiliateMock: vi.fn(() => null as string | null),
-  extractCustomerMock: vi.fn(() => null as Record<string, string | undefined> | null),
-}));
+const { prismaMock, authenticateMock, extractAffiliateMock, extractCustomerMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    extractAffiliateMock: vi.fn(() => null as string | null),
+    extractCustomerMock: vi.fn(() => null as Record<string, string | undefined> | null),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -51,7 +53,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com" });
-  prismaMock.session.findFirst.mockResolvedValue({ shop: "store.myshopify.com", accessToken: "tok" });
+  prismaMock.session.findFirst.mockResolvedValue({
+    shop: "store.myshopify.com",
+    accessToken: "tok",
+  });
 });
 
 afterEach(() => {
@@ -289,7 +294,9 @@ describe("fix path: misc branch coverage", () => {
     } as never);
     expect(res.status).toBe(200);
     // Confirm the where clause carried `id: "rc-pin"`.
-    const call = prismaMock.returnCase.findMany.mock.calls[0]?.[0] as { where?: { id?: string } } | undefined;
+    const call = prismaMock.returnCase.findMany.mock.calls[0]?.[0] as
+      | { where?: { id?: string } }
+      | undefined;
     expect(call?.where?.id).toBe("rc-pin");
   });
 
@@ -305,7 +312,12 @@ describe("fix path: misc branch coverage", () => {
         fyndPayloadJson: null,
         items: [
           // Mix: one already-good GID and one bag-id needing fix.
-          { id: "i-good", shopifyLineItemId: "gid://shopify/LineItem/already", sku: "G", title: "Good" },
+          {
+            id: "i-good",
+            shopifyLineItemId: "gid://shopify/LineItem/already",
+            sku: "G",
+            title: "Good",
+          },
           { id: "i-bad", shopifyLineItemId: "bag-1", sku: "B", title: "Bad" },
         ],
       },
@@ -316,9 +328,7 @@ describe("fix path: misc branch coverage", () => {
           data: {
             node: {
               lineItems: {
-                edges: [
-                  { node: { id: "gid://shopify/LineItem/new", title: "Bad", sku: "B" } },
-                ],
+                edges: [{ node: { id: "gid://shopify/LineItem/new", title: "Bad", sku: "B" } }],
               },
             },
           },
@@ -478,9 +488,7 @@ describe("shopifyFetch: timeout aborts the request", () => {
           shopifyOrderId: "gid://shopify/Order/1",
           shopifyOrderName: "#1",
           fyndPayloadJson: null,
-          items: [
-            { id: "i-timeout", shopifyLineItemId: "bag-timeout", sku: "S", title: "T" },
-          ],
+          items: [{ id: "i-timeout", shopifyLineItemId: "bag-timeout", sku: "S", title: "T" }],
         },
       ]);
 
@@ -510,9 +518,7 @@ describe("fetchShopifyOrderLineItems: catch returns null (line 266)", () => {
         shopifyOrderId: "gid://shopify/Order/1",
         shopifyOrderName: "#1",
         fyndPayloadJson: null,
-        items: [
-          { id: "i-throw", shopifyLineItemId: "bag-throw", sku: "S", title: "T" },
-        ],
+        items: [{ id: "i-throw", shopifyLineItemId: "bag-throw", sku: "S", title: "T" }],
       },
     ]);
     // Force the line-items GraphQL fetch to throw → exercises the

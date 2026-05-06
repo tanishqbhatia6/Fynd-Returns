@@ -47,7 +47,9 @@ const {
   fetchOrderByOrderNumberMock: vi.fn(),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
-  fetchAllLocationsMock: vi.fn<(...args: unknown[]) => Promise<Array<{ id: string; name: string; isActive: boolean }>>>(async () => []),
+  fetchAllLocationsMock: vi.fn<
+    (...args: unknown[]) => Promise<Array<{ id: string; name: string; isActive: boolean }>>
+  >(async () => []),
   parseReturnIdConfigMock: vi.fn(() => ({ bodyMode: "hash", prefix: "RET" })),
   buildReturnRequestIdMock: vi.fn(() => "RET-CLO-1"),
   formatReturnRequestIdMock: vi.fn((id: string) => id),
@@ -58,12 +60,17 @@ const {
   extractFyndJourneyMock: vi.fn<(...args: unknown[]) => unknown[]>(() => []),
   extractCustomerFromFyndPayloadMock: vi.fn<(...args: unknown[]) => unknown>(() => null),
   extractShippingDetailsFromFyndPayloadMock: vi.fn<(...args: unknown[]) => unknown>(() => null),
-  extractAffiliateOrderIdFromFyndPayloadMock: vi.fn<(...args: unknown[]) => string | null>(() => null),
+  extractAffiliateOrderIdFromFyndPayloadMock: vi.fn<(...args: unknown[]) => string | null>(
+    () => null,
+  ),
   isLikelyFyndIdMock: vi.fn<(v?: unknown) => boolean>(() => false),
   buildTrackingUrlFromCourierAndAwbMock: vi.fn<(...args: unknown[]) => string | null>(() => null),
   isFyndPrivateUrlMock: vi.fn<(...args: unknown[]) => boolean>(() => false),
   signFyndUrlMock: vi.fn<(s: unknown, url?: string) => Promise<unknown>>(async () => null),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, reason: "not_configured" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    reason: "not_configured",
+  })),
   refundLoggerMock: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 Object.assign(prismaMock, createPrismaMock());
@@ -182,7 +189,9 @@ beforeEach(() => {
   buildTrackingUrlFromCourierAndAwbMock.mockReset().mockReturnValue(null);
   isFyndPrivateUrlMock.mockReset().mockReturnValue(false);
   signFyndUrlMock.mockReset().mockResolvedValue(null);
-  createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, reason: "not_configured" });
+  createFyndClientOrErrorMock
+    .mockReset()
+    .mockResolvedValue({ ok: false, reason: "not_configured" });
 });
 
 describe("app.returns.$id loader — coverage closure", () => {
@@ -210,11 +219,13 @@ describe("app.returns.$id loader — coverage closure", () => {
       ok: true,
       client: {
         searchShipmentsByExternalOrderId: vi.fn().mockResolvedValue({
-          items: [{
-            journey_type: "return",
-            // no awb/carrier in returned shipment, no tracking_url either
-            status: "return_initiated",
-          }],
+          items: [
+            {
+              journey_type: "return",
+              // no awb/carrier in returned shipment, no tracking_url either
+              status: "return_initiated",
+            },
+          ],
         }),
       },
     });
@@ -222,7 +233,9 @@ describe("app.returns.$id loader — coverage closure", () => {
 
     const data = await runLoader();
     expect(buildTrackingUrlFromCourierAndAwbMock).toHaveBeenCalledWith("ExistingDart", "EX-123");
-    const rl = data.returnCase.returnLabelJson ? JSON.parse(data.returnCase.returnLabelJson as string) : null;
+    const rl = data.returnCase.returnLabelJson
+      ? JSON.parse(data.returnCase.returnLabelJson as string)
+      : null;
     expect(rl?.trackingUrl).toBe("https://built.example/EX-123");
   });
 
@@ -280,7 +293,8 @@ describe("app.returns.$id loader — coverage closure", () => {
     const data = await runLoader();
     expect(prismaMock.returnCase.update).toHaveBeenCalled();
     const updateArg = prismaMock.returnCase.update.mock.calls.find(
-      (c: unknown[]) => (c[0] as { data: Record<string, unknown> }).data.customerCountry === "Canada",
+      (c: unknown[]) =>
+        (c[0] as { data: Record<string, unknown> }).data.customerCountry === "Canada",
     );
     expect(updateArg).toBeTruthy();
     expect(data.returnCase.customerCountry).toBe("Canada");
@@ -301,8 +315,14 @@ describe("app.returns.$id loader — coverage closure", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ id: "set-1", shopId: "shop-1" });
     extractCustomerFromFyndPayloadMock.mockReturnValueOnce({
       country: "India",
-      city: null, address1: null, address2: null, province: null, zip: null,
-      name: null, email: null, phone: null,
+      city: null,
+      address1: null,
+      address2: null,
+      province: null,
+      zip: null,
+      name: null,
+      email: null,
+      phone: null,
     });
     const data = await runLoader();
     expect(data.returnCase.customerCountry).toBe("India");
@@ -323,8 +343,14 @@ describe("app.returns.$id loader — coverage closure", () => {
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ id: "set-1", shopId: "shop-1" });
     extractCustomerFromFyndPayloadMock.mockReturnValueOnce({
       address2: "Apt 5B",
-      address1: null, country: null, city: null, province: null, zip: null,
-      name: null, email: null, phone: null,
+      address1: null,
+      country: null,
+      city: null,
+      province: null,
+      zip: null,
+      name: null,
+      email: null,
+      phone: null,
     });
     const data = await runLoader();
     expect(data.returnCase.customerAddress2).toBe("Apt 5B");

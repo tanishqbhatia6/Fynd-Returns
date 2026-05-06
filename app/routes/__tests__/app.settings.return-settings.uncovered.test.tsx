@@ -149,17 +149,18 @@ describe("ReturnSettings — uncovered branch coverage", () => {
         { id: "gid://shopify/Location/3", name: "Inactive", isActive: false },
       ],
     });
-    await waitFor(() => {
-      const sel = container.querySelector(
-        "select[name='refundLocationId']",
-      ) as HTMLSelectElement | null;
-      expect(sel).toBeTruthy();
-      expect(sel?.value).toBe("gid://shopify/Location/2");
-    }, { timeout: 5000 });
-    // Inactive location filtered out — only 2 active + the empty "None" option = 3
-    const opts = container.querySelectorAll(
-      "select[name='refundLocationId'] option",
+    await waitFor(
+      () => {
+        const sel = container.querySelector(
+          "select[name='refundLocationId']",
+        ) as HTMLSelectElement | null;
+        expect(sel).toBeTruthy();
+        expect(sel?.value).toBe("gid://shopify/Location/2");
+      },
+      { timeout: 5000 },
     );
+    // Inactive location filtered out — only 2 active + the empty "None" option = 3
+    const opts = container.querySelectorAll("select[name='refundLocationId'] option");
     expect(opts.length).toBe(3);
   });
 
@@ -174,16 +175,15 @@ describe("ReturnSettings — uncovered branch coverage", () => {
       refundPaymentMethod: "both",
       refundStoreCreditPct: 60,
     });
-    await waitFor(() => {
-      const range = container.querySelector(
-        "input[type='range']",
-      ) as HTMLInputElement | null;
-      expect(range).toBeTruthy();
-      expect(range?.value).toBe("60");
-    }, { timeout: 5000 });
-    const range = container.querySelector(
-      "input[type='range']",
-    ) as HTMLInputElement;
+    await waitFor(
+      () => {
+        const range = container.querySelector("input[type='range']") as HTMLInputElement | null;
+        expect(range).toBeTruthy();
+        expect(range?.value).toBe("60");
+      },
+      { timeout: 5000 },
+    );
+    const range = container.querySelector("input[type='range']") as HTMLInputElement;
     fireEvent.change(range, { target: { value: "80" } });
     expect(container.textContent).toContain("80%");
     expect(container.textContent).toContain("20%");
@@ -195,18 +195,14 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     // The 'original' radio should be checked (it's the first radio in the
     // payment-method group — `input[type=radio][checked]` finds the
     // "original" option implicitly).
-    const checkedRadios = container.querySelectorAll(
-      "input[type='radio']:checked",
-    );
+    const checkedRadios = container.querySelectorAll("input[type='radio']:checked");
     expect(checkedRadios.length).toBeGreaterThan(0);
   });
 
   it("renders the store_credit info banner branch", async () => {
     const { container } = renderForm({ refundPaymentMethod: "store_credit" });
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
-    expect(container.textContent).toContain(
-      "Store credit requires new customer accounts",
-    );
+    expect(container.textContent).toContain("Store credit requires new customer accounts");
   });
 
   it("clicks the 'both' payment-method radio to fire its onChange handler", async () => {
@@ -216,9 +212,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const labels = Array.from(container.querySelectorAll("label"));
     const splitLabel = labels.find((l) => l.textContent?.includes("Split"));
     expect(splitLabel).toBeTruthy();
-    const radio = splitLabel?.querySelector(
-      "input[type='radio']",
-    ) as HTMLInputElement;
+    const radio = splitLabel?.querySelector("input[type='radio']") as HTMLInputElement;
     // fireEvent.click → React's onChange handler runs and calls
     // setPaymentMethod("both"), exercising that handler statement.
     fireEvent.click(radio);
@@ -230,29 +224,26 @@ describe("ReturnSettings — uncovered branch coverage", () => {
 
   it("toggles the no-return-period checkbox and reveals date inputs", async () => {
     const { container } = renderForm();
-    await waitFor(() =>
-      expect(
-        container.querySelector("input[name='noReturnPeriodEnabled']"),
-      ).toBeTruthy(),
-    { timeout: 5000 });
-    const cb = container.querySelector(
-      "input[name='noReturnPeriodEnabled']",
-    ) as HTMLInputElement;
-    await act(async () => { fireEvent.click(cb); });
-    await waitFor(() =>
-      expect(
-        container.querySelector("input[name='noReturnPeriodStart']"),
-      ).toBeTruthy(),
-    { timeout: 5000 });
+    await waitFor(
+      () => expect(container.querySelector("input[name='noReturnPeriodEnabled']")).toBeTruthy(),
+      { timeout: 5000 },
+    );
+    const cb = container.querySelector("input[name='noReturnPeriodEnabled']") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.click(cb);
+    });
+    await waitFor(
+      () => expect(container.querySelector("input[name='noReturnPeriodStart']")).toBeTruthy(),
+      { timeout: 5000 },
+    );
   });
 
   it("adds a tag via the input + Add button and removes it again", async () => {
     const { container } = renderForm();
-    await waitFor(() =>
-      expect(
-        container.querySelector("input[placeholder='Search tags']"),
-      ).toBeTruthy(),
-    { timeout: 5000 });
+    await waitFor(
+      () => expect(container.querySelector("input[placeholder='Search tags']")).toBeTruthy(),
+      { timeout: 5000 },
+    );
     const tagInput = container.querySelector(
       "input[placeholder='Search tags']",
     ) as HTMLInputElement;
@@ -260,41 +251,29 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     // Press Enter to add (covers the keyDown branch)
     fireEvent.keyDown(tagInput, { key: "Enter" });
     await waitFor(() =>
-      expect(
-        container.querySelector("button[aria-label='Remove fragile']"),
-      ).toBeTruthy(),
+      expect(container.querySelector("button[aria-label='Remove fragile']")).toBeTruthy(),
     );
     // Adding the same tag again should be a no-op (covers the dedup branch)
     fireEvent.change(tagInput, { target: { value: "fragile" } });
     fireEvent.keyDown(tagInput, { key: "Enter" });
-    expect(
-      container.querySelectorAll("button[aria-label^='Remove ']").length,
-    ).toBe(1);
+    expect(container.querySelectorAll("button[aria-label^='Remove ']").length).toBe(1);
     // Now click Add button with empty input — covered by the early-return
     fireEvent.change(tagInput, { target: { value: "  " } });
     const buttons = Array.from(container.querySelectorAll("s-button, button"));
-    const addBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Add",
-    ) as HTMLElement | undefined;
+    const addBtn = buttons.find((b) => b.textContent?.trim() === "Add") as HTMLElement | undefined;
     if (addBtn) fireEvent.click(addBtn);
     // Click remove on existing tag
-    const removeBtn = container.querySelector(
-      "button[aria-label='Remove fragile']",
-    ) as HTMLElement;
+    const removeBtn = container.querySelector("button[aria-label='Remove fragile']") as HTMLElement;
     fireEvent.click(removeBtn);
     await waitFor(() =>
-      expect(
-        container.querySelector("button[aria-label='Remove fragile']"),
-      ).toBeFalsy(),
+      expect(container.querySelector("button[aria-label='Remove fragile']")).toBeFalsy(),
     );
   });
 
   it("changes the return-ID prefix/suffix and exercises uppercase+sanitization", async () => {
     const { container } = renderForm();
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
-    const prefixInput = container.querySelector(
-      "input[placeholder='RPM']",
-    ) as HTMLInputElement;
+    const prefixInput = container.querySelector("input[placeholder='RPM']") as HTMLInputElement;
     fireEvent.change(prefixInput, { target: { value: "abc!@#123" } });
     expect(prefixInput.value).toBe("ABC123");
     const suffixInput = container.querySelector(
@@ -308,9 +287,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const { container } = renderForm();
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     const radios = Array.from(
-      container.querySelectorAll(
-        "input[type='radio'][name='ridBodyMode']",
-      ),
+      container.querySelectorAll("input[type='radio'][name='ridBodyMode']"),
     ) as HTMLInputElement[];
     expect(radios.length).toBe(4);
     for (const r of radios) {
@@ -328,14 +305,18 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     // Every <select> with options that include "Underscore" is the separator
     const selects = Array.from(container.querySelectorAll("select"));
-    const sepSelect = selects.find((s) =>
-      s.textContent?.includes("Underscore"),
-    ) as HTMLSelectElement | undefined;
+    const sepSelect = selects.find((s) => s.textContent?.includes("Underscore")) as
+      | HTMLSelectElement
+      | undefined;
     expect(sepSelect).toBeTruthy();
     expect(sepSelect?.value).toBe("_");
     if (sepSelect) {
-      await act(async () => { fireEvent.change(sepSelect, { target: { value: "/" } }); });
-      await waitFor(() => { expect(sepSelect.value).toBe("/"); });
+      await act(async () => {
+        fireEvent.change(sepSelect, { target: { value: "/" } });
+      });
+      await waitFor(() => {
+        expect(sepSelect.value).toBe("/");
+      });
     }
   });
 
@@ -344,9 +325,9 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     // Hash-length select shows "8 characters (default)"
     const selects = Array.from(container.querySelectorAll("select"));
-    const hashSelect = selects.find((s) =>
-      s.textContent?.includes("8 characters (default)"),
-    ) as HTMLSelectElement | undefined;
+    const hashSelect = selects.find((s) => s.textContent?.includes("8 characters (default)")) as
+      | HTMLSelectElement
+      | undefined;
     expect(hashSelect).toBeTruthy();
     if (hashSelect) {
       fireEvent.change(hashSelect, { target: { value: "10" } });
@@ -358,9 +339,9 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     ) as HTMLInputElement;
     fireEvent.click(seqRadio);
     const selects2 = Array.from(container.querySelectorAll("select"));
-    const padSelect = selects2.find((s) =>
-      s.textContent?.includes("6 digits (default)"),
-    ) as HTMLSelectElement | undefined;
+    const padSelect = selects2.find((s) => s.textContent?.includes("6 digits (default)")) as
+      | HTMLSelectElement
+      | undefined;
     expect(padSelect).toBeTruthy();
     if (padSelect) {
       fireEvent.change(padSelect, { target: { value: "8" } });
@@ -372,17 +353,23 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const { container } = renderForm();
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     // Find the FULFILLED checkbox via its sibling text
-    const fulfillmentLabels = Array.from(
-      container.querySelectorAll("label"),
-    ).filter((l) => l.textContent?.includes("UNFULFILLED"));
+    const fulfillmentLabels = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.includes("UNFULFILLED"),
+    );
     expect(fulfillmentLabels.length).toBeGreaterThan(0);
-    const cb = fulfillmentLabels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
-    await act(async () => { fireEvent.click(cb); }); // turn on
-    await waitFor(() => { expect(cb.checked).toBe(true); });
-    await act(async () => { fireEvent.click(cb); }); // turn off
-    await waitFor(() => { expect(cb.checked).toBe(false); });
+    const cb = fulfillmentLabels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.click(cb);
+    }); // turn on
+    await waitFor(() => {
+      expect(cb.checked).toBe(true);
+    });
+    await act(async () => {
+      fireEvent.click(cb);
+    }); // turn off
+    await waitFor(() => {
+      expect(cb.checked).toBe(false);
+    });
   });
 
   it("enables the Fynd return-status gate and toggles forward + delivery statuses", async () => {
@@ -395,20 +382,16 @@ describe("ReturnSettings — uncovered branch coverage", () => {
       l.textContent?.match(/Order Placed/),
     );
     if (labels.length) {
-      const cb = labels[0].querySelector(
-        "input[type='checkbox']",
-      ) as HTMLInputElement;
+      const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
       fireEvent.click(cb);
       fireEvent.click(cb);
     }
     // Click handed_over_to_customer
-    const handed = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.includes("Handed Over to Customer"),
+    const handed = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.includes("Handed Over to Customer"),
     );
     if (handed.length) {
-      const cb = handed[0].querySelector(
-        "input[type='checkbox']",
-      ) as HTMLInputElement;
+      const cb = handed[0].querySelector("input[type='checkbox']") as HTMLInputElement;
       fireEvent.click(cb);
     }
     expect(container.textContent).toContain("Forward Journey");
@@ -440,8 +423,8 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     });
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     // Uncheck delivery_done
-    const handed = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.includes("Delivered"),
+    const handed = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.includes("Delivered"),
     );
     if (handed.length) {
       const cb = handed[0].querySelector(
@@ -465,9 +448,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const { container } = renderForm({ refundGatePreset: "after_delivery" });
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     const presetRadios = Array.from(
-      container.querySelectorAll(
-        "input[type='radio'][name='refundGatePresetRadio']",
-      ),
+      container.querySelectorAll("input[type='radio'][name='refundGatePresetRadio']"),
     ) as HTMLInputElement[];
     expect(presetRadios.length).toBe(4);
     for (const r of presetRadios) {
@@ -488,9 +469,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
       l.textContent?.match(/^delivery_done$/),
     );
     if (labels.length) {
-      const cb = labels[0].querySelector(
-        "input[type='checkbox']",
-      ) as HTMLInputElement;
+      const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
       fireEvent.click(cb);
       fireEvent.click(cb);
     }
@@ -499,9 +478,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
       l.textContent?.match(/^return_bag_picked$/),
     );
     if (rb.length) {
-      const cb = rb[0].querySelector(
-        "input[type='checkbox']",
-      ) as HTMLInputElement;
+      const cb = rb[0].querySelector("input[type='checkbox']") as HTMLInputElement;
       fireEvent.click(cb);
     }
     // Click refund_initiated
@@ -509,9 +486,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
       l.textContent?.match(/^refund_initiated$/),
     );
     if (ri.length) {
-      const cb = ri[0].querySelector(
-        "input[type='checkbox']",
-      ) as HTMLInputElement;
+      const cb = ri[0].querySelector("input[type='checkbox']") as HTMLInputElement;
       fireEvent.click(cb);
     }
     // No statuses selected eventually triggers the warning when all unchecked
@@ -526,20 +501,24 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     // The 1h, 4h, 8h, 24h radios should all be present
     const radios = Array.from(
-      container.querySelectorAll(
-        "input[type='radio'][name='fyndConsolidateWindowHours']",
-      ),
+      container.querySelectorAll("input[type='radio'][name='fyndConsolidateWindowHours']"),
     ) as HTMLInputElement[];
     expect(radios.length).toBe(4);
     // 8h is checked
     expect(radios.find((r) => r.value === "8")?.checked).toBe(true);
     // Click the 24h option
     const r24 = radios.find((r) => r.value === "24");
-    if (r24) await act(async () => { fireEvent.click(r24); });
-    await waitFor(() => {
-      // The radio is now checked + description text reflects new window
-      expect(radios.find((r) => r.value === "24")?.checked).toBe(true);
-    }, { timeout: 5000 });
+    if (r24)
+      await act(async () => {
+        fireEvent.click(r24);
+      });
+    await waitFor(
+      () => {
+        // The radio is now checked + description text reflects new window
+        expect(radios.find((r) => r.value === "24")?.checked).toBe(true);
+      },
+      { timeout: 5000 },
+    );
   });
 
   it("toggles scheduledReport frequency to monthly to render the day-of-month input", async () => {
@@ -663,16 +642,18 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const { container } = renderForm({
       refundLocationMode: "auto",
       refundLocationId: "gid://shopify/Location/9",
-      shopLocations: [
-        { id: "gid://shopify/Location/9", name: "Main", isActive: true },
-      ],
+      shopLocations: [{ id: "gid://shopify/Location/9", name: "Main", isActive: true }],
     });
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), { timeout: 5000 });
     const manualRadio = container.querySelector(
       "input[name='refundLocationMode'][value='manual']",
     ) as HTMLInputElement;
-    await act(async () => { fireEvent.click(manualRadio); });
-    await waitFor(() => { expect(manualRadio.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(manualRadio);
+    });
+    await waitFor(() => {
+      expect(manualRadio.checked).toBe(true);
+    });
   });
 
   it("toggles each on/off switch for sync, gift, donate, scheduled, photo, autoApprove, autoRefund, portalExchange, fyndConsolidate", async () => {
@@ -685,9 +666,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
       "greenReturnsDonateEnabled",
     ];
     for (const n of named) {
-      const cb = container.querySelector(
-        `input[name='${n}']`,
-      ) as HTMLInputElement | null;
+      const cb = container.querySelector(`input[name='${n}']`) as HTMLInputElement | null;
       if (cb) {
         fireEvent.click(cb);
         fireEvent.click(cb);
@@ -707,9 +686,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
         (d) => d.textContent?.trim() === head,
       );
       const flexRow = labelDiv?.parentElement?.parentElement;
-      const cb = flexRow?.querySelector(
-        "input[type='checkbox']",
-      ) as HTMLInputElement | null;
+      const cb = flexRow?.querySelector("input[type='checkbox']") as HTMLInputElement | null;
       if (cb) {
         fireEvent.click(cb);
         fireEvent.click(cb);

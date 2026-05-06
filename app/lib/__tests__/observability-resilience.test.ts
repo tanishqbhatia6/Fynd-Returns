@@ -170,7 +170,9 @@ describe("CircuitBreaker.execute()", () => {
   it("propagates the underlying error and records a failure", async () => {
     const cb = new CircuitBreaker("svc", 5, 10_000);
     await expect(
-      cb.execute(async () => { throw new Error("upstream-fail"); }),
+      cb.execute(async () => {
+        throw new Error("upstream-fail");
+      }),
     ).rejects.toThrow("upstream-fail");
     expect(cb.getStatus().failureCount).toBe(1);
   });

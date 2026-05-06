@@ -52,7 +52,12 @@ describe("GET /api/v1/external/returns", () => {
     );
     mockAuth.mockResolvedValue({ ok: false, response: unauthorizedResponse });
 
-    const response = await loader({ request: makeRequest(), params: {}, context: {} as any, unstable_pattern: "/api/v1/external/returns" });
+    const response = await loader({
+      request: makeRequest(),
+      params: {},
+      context: {} as any,
+      unstable_pattern: "/api/v1/external/returns",
+    });
     expect(response.status).toBe(401);
 
     const body = await response.json();

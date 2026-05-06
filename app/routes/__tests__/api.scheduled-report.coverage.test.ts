@@ -8,12 +8,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  sendMailMock,
-  createTransportMock,
-  decryptMock,
-} = vi.hoisted(() => {
+const { prismaMock, sendMailMock, createTransportMock, decryptMock } = vi.hoisted(() => {
   const sendMail = vi.fn().mockResolvedValue({ messageId: "x" });
   const createTransport = vi.fn(() => ({ sendMail }));
   return {

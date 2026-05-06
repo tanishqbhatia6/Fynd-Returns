@@ -10,7 +10,10 @@ const {
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
   fetchOrderMock: vi.fn(),
   fetchOrderByOrderNumberMock: vi.fn(),
 }));
@@ -58,21 +61,44 @@ describe("GET /api/returns/:id/diagnose", () => {
   it("returns diagnostic payload with DB fields + analysis when Fynd disabled", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", returnRequestNo: "R-1",
+      id: "rc-1",
+      returnRequestNo: "R-1",
       shopifyOrderId: "gid://shopify/Order/123",
-      shopifyOrderName: "#1001", status: "pending",
-      fyndOrderId: null, fyndReturnId: null, fyndShipmentId: null,
-      items: [{
-        id: "it-1", shopifyLineItemId: "gid://shopify/LineItem/1",
-        sku: "SKU-1", qty: 1, price: "10", reasonCode: "defective",
-        title: "Item", fyndShipmentId: null, fyndBagId: null,
-      }],
-      createdAt: new Date(), updatedAt: new Date(), currency: "USD",
-      createdByChannel: "portal", customerName: null, customerEmailNorm: null,
-      customerPhoneNorm: null, customerCity: null, customerAddress1: null,
-      customerZip: null, forwardAwb: null, returnAwb: null,
-      shopifyReturnId: null, refundStatus: null, resolutionType: "refund",
-      fyndCurrentStatus: null, fyndReturnNo: null,
+      shopifyOrderName: "#1001",
+      status: "pending",
+      fyndOrderId: null,
+      fyndReturnId: null,
+      fyndShipmentId: null,
+      items: [
+        {
+          id: "it-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          sku: "SKU-1",
+          qty: 1,
+          price: "10",
+          reasonCode: "defective",
+          title: "Item",
+          fyndShipmentId: null,
+          fyndBagId: null,
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      currency: "USD",
+      createdByChannel: "portal",
+      customerName: null,
+      customerEmailNorm: null,
+      customerPhoneNorm: null,
+      customerCity: null,
+      customerAddress1: null,
+      customerZip: null,
+      forwardAwb: null,
+      returnAwb: null,
+      shopifyReturnId: null,
+      refundStatus: null,
+      resolutionType: "refund",
+      fyndCurrentStatus: null,
+      fyndReturnNo: null,
     });
     fetchOrderMock.mockResolvedValueOnce({ affiliateOrderId: "AFF-1" });
 
@@ -91,22 +117,44 @@ describe("GET /api/returns/:id/diagnose", () => {
   it("derives fast path when fyndShipmentId is set + items have SKUs", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", returnRequestNo: "R-1",
+      id: "rc-1",
+      returnRequestNo: "R-1",
       shopifyOrderId: "manual:FY123",
-      shopifyOrderName: "#1001", status: "approved",
-      fyndOrderId: null, fyndReturnId: null,
+      shopifyOrderName: "#1001",
+      status: "approved",
+      fyndOrderId: null,
+      fyndReturnId: null,
       fyndShipmentId: "SH-DERIVED",
-      items: [{
-        id: "it-1", shopifyLineItemId: "gid://shopify/LineItem/1",
-        sku: "SKU-1", qty: 2, price: "10", reasonCode: "size",
-        title: "Item", fyndShipmentId: null, fyndBagId: null,
-      }],
-      createdAt: new Date(), updatedAt: new Date(), currency: "USD",
-      createdByChannel: "portal", customerName: null, customerEmailNorm: null,
-      customerPhoneNorm: null, customerCity: null, customerAddress1: null,
-      customerZip: null, forwardAwb: null, returnAwb: null,
-      shopifyReturnId: null, refundStatus: null, resolutionType: "refund",
-      fyndCurrentStatus: null, fyndReturnNo: null,
+      items: [
+        {
+          id: "it-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          sku: "SKU-1",
+          qty: 2,
+          price: "10",
+          reasonCode: "size",
+          title: "Item",
+          fyndShipmentId: null,
+          fyndBagId: null,
+        },
+      ],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      currency: "USD",
+      createdByChannel: "portal",
+      customerName: null,
+      customerEmailNorm: null,
+      customerPhoneNorm: null,
+      customerCity: null,
+      customerAddress1: null,
+      customerZip: null,
+      forwardAwb: null,
+      returnAwb: null,
+      shopifyReturnId: null,
+      refundStatus: null,
+      resolutionType: "refund",
+      fyndCurrentStatus: null,
+      fyndReturnNo: null,
     });
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
@@ -121,15 +169,32 @@ describe("GET /api/returns/:id/diagnose", () => {
   it("captures Shopify order fetch error in analysis", async () => {
     prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: null });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", shopifyOrderId: null, shopifyOrderName: "#1001",
-      items: [], fyndOrderId: null, fyndReturnId: null, fyndShipmentId: null,
-      createdAt: new Date(), updatedAt: new Date(), currency: "USD",
-      returnRequestNo: null, status: "pending",
-      createdByChannel: "portal", customerName: null, customerEmailNorm: null,
-      customerPhoneNorm: null, customerCity: null, customerAddress1: null,
-      customerZip: null, forwardAwb: null, returnAwb: null,
-      shopifyReturnId: null, refundStatus: null, resolutionType: null,
-      fyndCurrentStatus: null, fyndReturnNo: null,
+      id: "rc-1",
+      shopifyOrderId: null,
+      shopifyOrderName: "#1001",
+      items: [],
+      fyndOrderId: null,
+      fyndReturnId: null,
+      fyndShipmentId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      currency: "USD",
+      returnRequestNo: null,
+      status: "pending",
+      createdByChannel: "portal",
+      customerName: null,
+      customerEmailNorm: null,
+      customerPhoneNorm: null,
+      customerCity: null,
+      customerAddress1: null,
+      customerZip: null,
+      forwardAwb: null,
+      returnAwb: null,
+      shopifyReturnId: null,
+      refundStatus: null,
+      resolutionType: null,
+      fyndCurrentStatus: null,
+      fyndReturnNo: null,
     });
     fetchOrderByOrderNumberMock.mockRejectedValueOnce(new Error("shopify down"));
 
@@ -139,23 +204,45 @@ describe("GET /api/returns/:id/diagnose", () => {
   });
 
   it("runs live Fynd API trace when client available", async () => {
-    const searchMock = vi.fn().mockResolvedValue({ items: [{ shipment_id: "SH-1" }], orderId: "O-1" });
+    const searchMock = vi
+      .fn()
+      .mockResolvedValue({ items: [{ shipment_id: "SH-1" }], orderId: "O-1" });
     const getShipmentsMock = vi.fn().mockResolvedValue({ order: { id: "O-1" } });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock, getShipments: getShipmentsMock },
     });
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", shopifyOrderId: null, shopifyOrderName: "#1001",
-      items: [], fyndOrderId: null, fyndReturnId: null, fyndShipmentId: null,
-      createdAt: new Date(), updatedAt: new Date(), currency: "USD",
-      returnRequestNo: null, status: "pending",
-      createdByChannel: "portal", customerName: null, customerEmailNorm: null,
-      customerPhoneNorm: null, customerCity: null, customerAddress1: null,
-      customerZip: null, forwardAwb: null, returnAwb: null,
-      shopifyReturnId: null, refundStatus: null, resolutionType: null,
-      fyndCurrentStatus: null, fyndReturnNo: null,
+      id: "rc-1",
+      shopifyOrderId: null,
+      shopifyOrderName: "#1001",
+      items: [],
+      fyndOrderId: null,
+      fyndReturnId: null,
+      fyndShipmentId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      currency: "USD",
+      returnRequestNo: null,
+      status: "pending",
+      createdByChannel: "portal",
+      customerName: null,
+      customerEmailNorm: null,
+      customerPhoneNorm: null,
+      customerCity: null,
+      customerAddress1: null,
+      customerZip: null,
+      forwardAwb: null,
+      returnAwb: null,
+      shopifyReturnId: null,
+      refundStatus: null,
+      resolutionType: null,
+      fyndCurrentStatus: null,
+      fyndReturnNo: null,
     });
     fetchOrderByOrderNumberMock.mockResolvedValueOnce(null);
 
@@ -172,17 +259,37 @@ describe("GET /api/returns/:id/diagnose", () => {
       ok: true,
       client: { searchShipmentsByExternalOrderId: searchMock, getShipments: vi.fn() },
     });
-    prismaMock.shop.findFirst.mockResolvedValueOnce({ id: "shop-1", settings: { fyndApiType: "platform" } });
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndApiType: "platform" },
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
-      id: "rc-1", shopifyOrderId: null, shopifyOrderName: "#1001",
-      items: [], fyndOrderId: null, fyndReturnId: null, fyndShipmentId: null,
-      createdAt: new Date(), updatedAt: new Date(), currency: "USD",
-      returnRequestNo: null, status: "pending",
-      createdByChannel: "portal", customerName: null, customerEmailNorm: null,
-      customerPhoneNorm: null, customerCity: null, customerAddress1: null,
-      customerZip: null, forwardAwb: null, returnAwb: null,
-      shopifyReturnId: null, refundStatus: null, resolutionType: null,
-      fyndCurrentStatus: null, fyndReturnNo: null,
+      id: "rc-1",
+      shopifyOrderId: null,
+      shopifyOrderName: "#1001",
+      items: [],
+      fyndOrderId: null,
+      fyndReturnId: null,
+      fyndShipmentId: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      currency: "USD",
+      returnRequestNo: null,
+      status: "pending",
+      createdByChannel: "portal",
+      customerName: null,
+      customerEmailNorm: null,
+      customerPhoneNorm: null,
+      customerCity: null,
+      customerAddress1: null,
+      customerZip: null,
+      forwardAwb: null,
+      returnAwb: null,
+      shopifyReturnId: null,
+      refundStatus: null,
+      resolutionType: null,
+      fyndCurrentStatus: null,
+      fyndReturnNo: null,
     });
 
     const res = await loader({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);

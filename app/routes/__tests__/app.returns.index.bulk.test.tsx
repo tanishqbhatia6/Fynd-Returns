@@ -137,9 +137,7 @@ function getRowCheckboxes(container: HTMLElement): HTMLInputElement[] {
   ) as HTMLInputElement[];
 }
 function getRowCheckboxCells(container: HTMLElement): HTMLElement[] {
-  return Array.from(
-    container.querySelectorAll("td.checkbox-cell"),
-  ) as HTMLElement[];
+  return Array.from(container.querySelectorAll("td.checkbox-cell")) as HTMLElement[];
 }
 function getBulkBar(container: HTMLElement): HTMLElement | null {
   return container.querySelector(".returns-bulk-bar") as HTMLElement | null;
@@ -154,12 +152,13 @@ describe("app.returns._index — bulk-action UI", () => {
   let fetchSpy: ReturnType<typeof vi.fn>;
 
   beforeEach(() => {
-    fetchSpy = vi.fn(async () =>
-      // Default: bulk endpoint returns success for all selected ids.
-      ({
-        ok: true,
-        json: async () => ({ successCount: 2, errorCount: 0, results: [] }),
-      }) as unknown as Response,
+    fetchSpy = vi.fn(
+      async () =>
+        // Default: bulk endpoint returns success for all selected ids.
+        ({
+          ok: true,
+          json: async () => ({ successCount: 2, errorCount: 0, results: [] }),
+        }) as unknown as Response,
     );
     // Vitest jsdom env doesn't ship a fetch — install the spy globally.
     (globalThis as { fetch?: typeof fetch }).fetch = fetchSpy as unknown as typeof fetch;
@@ -216,8 +215,12 @@ describe("app.returns._index — bulk-action UI", () => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
     const selectAll = getSelectAllCheckbox(container);
-    await act(async () => { fireEvent.click(selectAll); }); // select
-    await act(async () => { fireEvent.click(selectAll); }); // deselect
+    await act(async () => {
+      fireEvent.click(selectAll);
+    }); // select
+    await act(async () => {
+      fireEvent.click(selectAll);
+    }); // deselect
     await waitFor(() => expect(selectAll.checked).toBe(false));
     await waitFor(() => {
       const bar = getBulkBar(container)!;
@@ -238,9 +241,7 @@ describe("app.returns._index — bulk-action UI", () => {
     const cells = getRowCheckboxCells(container);
     fireEvent.click(cells[0]);
     await waitFor(() => {
-      expect(getBulkBar(container)?.className).toContain(
-        "returns-bulk-bar--visible",
-      );
+      expect(getBulkBar(container)?.className).toContain("returns-bulk-bar--visible");
     });
     expect(getBulkBar(container)?.textContent).toContain("1 selected");
     // Selected row gets the .row-selected class.
@@ -256,12 +257,14 @@ describe("app.returns._index — bulk-action UI", () => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
     const cells = getRowCheckboxCells(container);
-    await act(async () => { fireEvent.click(cells[0]); });
-    await act(async () => { fireEvent.click(cells[0]); });
+    await act(async () => {
+      fireEvent.click(cells[0]);
+    });
+    await act(async () => {
+      fireEvent.click(cells[0]);
+    });
     await waitFor(() => {
-      expect(getBulkBar(container)?.className).toContain(
-        "returns-bulk-bar--hidden",
-      );
+      expect(getBulkBar(container)?.className).toContain("returns-bulk-bar--hidden");
     });
     expect(container.querySelectorAll("tr.row-selected").length).toBe(0);
   });
@@ -278,9 +281,7 @@ describe("app.returns._index — bulk-action UI", () => {
     expect(rowCbs[2].disabled).toBe(true);
     const cells = getRowCheckboxCells(container);
     fireEvent.click(cells[2]); // non-selectable row
-    expect(getBulkBar(container)?.className).toContain(
-      "returns-bulk-bar--hidden",
-    );
+    expect(getBulkBar(container)?.className).toContain("returns-bulk-bar--hidden");
   });
 
   it("bulk Approve button calls /api/returns/bulk with bulk_approve action", async () => {
@@ -543,11 +544,13 @@ describe("app.returns._index — bulk-action UI", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    await act(async () => { fireEvent.click(getRowCheckboxCells(container)[0]); });
+    await act(async () => {
+      fireEvent.click(getRowCheckboxCells(container)[0]);
+    });
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     await act(async () => {
       fireEvent.click(getButtonByText(container, "Approve")!);
@@ -567,11 +570,13 @@ describe("app.returns._index — bulk-action UI", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    await act(async () => { fireEvent.click(getRowCheckboxCells(container)[0]); });
+    await act(async () => {
+      fireEvent.click(getRowCheckboxCells(container)[0]);
+    });
     await waitFor(() => {
-      expect(
-        container.querySelector(".returns-bulk-bar")?.className,
-      ).toContain("returns-bulk-bar--visible");
+      expect(container.querySelector(".returns-bulk-bar")?.className).toContain(
+        "returns-bulk-bar--visible",
+      );
     });
     await act(async () => {
       fireEvent.click(getButtonByText(container, "Approve")!);

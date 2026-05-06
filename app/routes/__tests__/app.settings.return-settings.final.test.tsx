@@ -101,10 +101,7 @@ const renderForm = (
   });
 
 /** Find the toggle <input type="checkbox"> next to a section heading text. */
-function findGateToggle(
-  container: HTMLElement,
-  headingText: string,
-): HTMLInputElement | null {
+function findGateToggle(container: HTMLElement, headingText: string): HTMLInputElement | null {
   const heads = Array.from(container.querySelectorAll("div")).filter(
     (d) => d.textContent?.trim() === headingText,
   );
@@ -112,9 +109,7 @@ function findGateToggle(
     let row: HTMLElement | null = head.parentElement;
     // Walk up a few levels to find the flex row containing the toggle.
     for (let i = 0; i < 4 && row; i += 1) {
-      const cb = row.querySelector(
-        "input[type='checkbox']",
-      ) as HTMLInputElement | null;
+      const cb = row.querySelector("input[type='checkbox']") as HTMLInputElement | null;
       if (cb) return cb;
       row = row.parentElement;
     }
@@ -155,9 +150,7 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     fireEvent.click(toggle!);
     expect(toggle!.checked).toBe(false);
     // Disabled label shown.
-    expect(container.textContent).toContain(
-      "Disabled — refunds allowed regardless of Fynd status",
-    );
+    expect(container.textContent).toContain("Disabled — refunds allowed regardless of Fynd status");
   });
 
   it("toggles Fynd Refund-Gate ON when preset is already non-none (else-if false branch)", async () => {
@@ -170,10 +163,18 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     });
     const toggle = findGateToggle(container, "Fynd Status Gate for Refunds");
     expect(toggle).toBeTruthy();
-    await act(async () => { fireEvent.click(toggle!); }); // OFF
-    await waitFor(() => { expect(toggle!.checked).toBe(false); });
-    await act(async () => { fireEvent.click(toggle!); }); // ON again
-    await waitFor(() => { expect(toggle!.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    }); // OFF
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(false);
+    });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    }); // ON again
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(true);
+    });
   });
 
   it("unchecks a Return Flow status checkbox in custom mode (line ~1350)", async () => {
@@ -185,13 +186,11 @@ describe("ReturnSettings — final-mile branch coverage", () => {
       timeout: 5000,
     });
     // Find the Return-Flow `return_bag_picked` checkbox (already checked)
-    const labels = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.match(/^return_bag_picked$/),
+    const labels = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.match(/^return_bag_picked$/),
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
     fireEvent.click(cb); // uncheck → exercises filter() branch
     expect(cb.checked).toBe(false);
@@ -210,9 +209,7 @@ describe("ReturnSettings — final-mile branch coverage", () => {
       (l) => l.textContent?.trim() === "return_dp_not_assigned",
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(false);
     fireEvent.click(cb);
     await waitFor(() => expect(cb.checked).toBe(true));
@@ -226,13 +223,11 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), {
       timeout: 5000,
     });
-    const labels = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.match(/^refund_initiated$/),
+    const labels = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.match(/^refund_initiated$/),
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
     fireEvent.click(cb); // uncheck → filter branch
     expect(cb.checked).toBe(false);
@@ -246,15 +241,17 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), {
       timeout: 5000,
     });
-    const labels = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.match(/^credit_note_generated$/),
+    const labels = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.match(/^credit_note_generated$/),
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
-    await act(async () => { fireEvent.click(cb); });
-    await waitFor(() => { expect(cb.checked).toBe(true); });
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
+    await act(async () => {
+      fireEvent.click(cb);
+    });
+    await waitFor(() => {
+      expect(cb.checked).toBe(true);
+    });
   });
 
   it("unchecks a Delivery & Handover status checkbox in custom mode", async () => {
@@ -265,21 +262,21 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), {
       timeout: 5000,
     });
-    const labels = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.match(/^delivery_done$/),
+    const labels = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.match(/^delivery_done$/),
     );
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    await act(async () => { fireEvent.click(cb); });
-    await waitFor(() => { expect(cb.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(cb);
+    });
+    await waitFor(() => {
+      expect(cb.checked).toBe(false);
+    });
     // Now "No statuses selected" warning still hidden because handed_over remains.
     await act(async () => {
       fireEvent.click(
-        labels[0]
-          .closest("div")!
-          .querySelectorAll("input[type='checkbox']")[0] as HTMLInputElement,
+        labels[0].closest("div")!.querySelectorAll("input[type='checkbox']")[0] as HTMLInputElement,
       );
     });
   });
@@ -292,10 +289,18 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     const toggle = findGateToggle(container, "Fynd Return Consolidation");
     expect(toggle).toBeTruthy();
     expect(toggle!.checked).toBe(false);
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(true); });
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(true);
+    });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(false);
+    });
   });
 
   it("renders the Fynd refund-gate ENABLED status footer label", async () => {
@@ -331,9 +336,7 @@ describe("ReturnSettings — final-mile branch coverage", () => {
       timeout: 5000,
     });
     const radios = Array.from(
-      container.querySelectorAll(
-        "input[type='radio'][name='fyndConsolidateWindowHours']",
-      ),
+      container.querySelectorAll("input[type='radio'][name='fyndConsolidateWindowHours']"),
     ) as HTMLInputElement[];
     expect(radios.length).toBe(4);
     for (const r of radios) {
@@ -351,13 +354,11 @@ describe("ReturnSettings — final-mile branch coverage", () => {
       timeout: 5000,
     });
     // Find Forward-journey "Handed Over to Customer" label and uncheck.
-    const labels = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.includes("Handed Over to Customer"),
+    const labels = Array.from(container.querySelectorAll("label")).filter((l) =>
+      l.textContent?.includes("Handed Over to Customer"),
     );
     expect(labels.length).toBeGreaterThan(0);
-    const cb = labels[0].querySelector(
-      "input[type='checkbox']",
-    ) as HTMLInputElement;
+    const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;
     expect(cb.checked).toBe(true);
     fireEvent.click(cb); // uncheck — filter() branch
     expect(cb.checked).toBe(false);

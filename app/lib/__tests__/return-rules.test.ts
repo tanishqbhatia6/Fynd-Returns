@@ -25,9 +25,7 @@ import type { ShopSettings } from "@prisma/client";
  * Helper to create a minimal ShopSettings-like object.
  * Only the fields tested are filled; the rest default to null/0/false.
  */
-function makeSettings(
-  overrides: Partial<ShopSettings> = {},
-): ShopSettings {
+function makeSettings(overrides: Partial<ShopSettings> = {}): ShopSettings {
   return {
     id: "settings-1",
     shopId: "shop-1",
@@ -176,9 +174,7 @@ describe("checkReturnEligibility", () => {
 
   it("blocks restricted regions", () => {
     const settings = makeSettings({
-      restrictedRegionsJson: JSON.stringify([
-        { country: "IN", province: "Maharashtra" },
-      ]),
+      restrictedRegionsJson: JSON.stringify([{ country: "IN", province: "Maharashtra" }]),
     });
     const result = checkReturnEligibility(settings, {
       customerCountry: "IN",

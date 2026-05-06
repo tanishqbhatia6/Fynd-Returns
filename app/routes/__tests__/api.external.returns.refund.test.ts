@@ -71,7 +71,9 @@ function approvedReturn(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
   dispatchWebhookEventMock.mockClear();
   createRefundMock.mockReset();
@@ -81,7 +83,11 @@ beforeEach(() => {
 
 describe("POST /api/v1/external/returns/:id/refund", () => {
   it("405 on non-POST", async () => {
-    const res = await action({ request: mkReq("GET"), params: { id: "rc-1" }, context: {} } as never);
+    const res = await action({
+      request: mkReq("GET"),
+      params: { id: "rc-1" },
+      context: {},
+    } as never);
     expect(res.status).toBe(405);
   });
 
@@ -92,34 +98,61 @@ describe("POST /api/v1/external/returns/:id/refund", () => {
   });
 
   it("401 when auth fails", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: false, response: Response.json({}, { status: 401 }) });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: false,
+      response: Response.json({}, { status: 401 }),
+    });
     const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(401);
   });
 
   it("400 when id missing", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     const res = await action({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 for unsupported refundMethod (discount_code explicitly rejected)", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
-    const res = await action({ request: mkReq("POST", { refundMethod: "discount_code" }), params: { id: "rc-1" }, context: {} } as never);
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
+    const res = await action({
+      request: mkReq("POST", { refundMethod: "discount_code" }),
+      params: { id: "rc-1" },
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error.message).toMatch(/discount_code/);
   });
 
   it("404 when return not found for shop", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(null);
     const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(404);
   });
 
   it("400 when return not yet approved", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn({ status: "pending" }));
     const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(400);
@@ -128,14 +161,26 @@ describe("POST /api/v1/external/returns/:id/refund", () => {
   });
 
   it("400 when already refunded", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn({ refundStatus: "refunded" }));
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      approvedReturn({ refundStatus: "refunded" }),
+    );
     const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(400);
   });
 
   it("500 when no Shopify session", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn());
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
     prismaMock.session.findFirst.mockResolvedValueOnce(null);
@@ -144,7 +189,12 @@ describe("POST /api/v1/external/returns/:id/refund", () => {
   });
 
   it("400 when createRefund returns failure", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn());
     prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "original" });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
@@ -156,23 +206,39 @@ describe("POST /api/v1/external/returns/:id/refund", () => {
   });
 
   it("200 on happy path — updates return, emits event + webhook, calls close best-effort", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn());
-    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "store_credit" });
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
+      refundPaymentMethod: "store_credit",
+    });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({
-      success: true, refundId: "gid://shopify/Refund/1", refundAmount: "42.00", refundCurrency: "USD",
+      success: true,
+      refundId: "gid://shopify/Refund/1",
+      refundAmount: "42.00",
+      refundCurrency: "USD",
     });
 
-    const res = await action({ request: mkReq("POST", { note: "api note" }), params: { id: "rc-1" }, context: {} } as never);
+    const res = await action({
+      request: mkReq("POST", { note: "api note" }),
+      params: { id: "rc-1" },
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.data.refundDetails.amount).toBe("42.00");
     expect(body.data.refundDetails.method).toBe("store_credit");
 
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ refundStatus: "refunded", status: "completed" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ refundStatus: "refunded", status: "completed" }),
+      }),
+    );
     expect(prismaMock.returnEvent.create).toHaveBeenCalled();
     expect(dispatchWebhookEventMock).toHaveBeenCalledWith(
       "shop-1",
@@ -183,9 +249,16 @@ describe("POST /api/v1/external/returns/:id/refund", () => {
   });
 
   it("coerces legacy discount_code stored setting to original", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(approvedReturn());
-    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({ refundPaymentMethod: "discount_code" });
+    prismaMock.shopSettings.findUnique.mockResolvedValueOnce({
+      refundPaymentMethod: "discount_code",
+    });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     createRefundMock.mockResolvedValueOnce({ success: true, refundId: "r", refundAmount: "1.00" });
 
@@ -193,13 +266,22 @@ describe("POST /api/v1/external/returns/:id/refund", () => {
     const body = await res.json();
     expect(body.data.refundDetails.method).toBe("original");
     expect(createRefundMock).toHaveBeenCalledWith(
-      expect.anything(), expect.anything(), expect.anything(), undefined, null,
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      undefined,
+      null,
       expect.objectContaining({ method: "original" }),
     );
   });
 
   it("500 on unexpected prisma error", async () => {
-    authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1", shopDomain: "s.myshopify.com" });
+    authenticateApiKeyMock.mockResolvedValueOnce({
+      ok: true,
+      keyId: "k-1",
+      shopId: "shop-1",
+      shopDomain: "s.myshopify.com",
+    });
     prismaMock.returnCase.findFirst.mockRejectedValueOnce(new Error("db"));
     const res = await action({ request: mkReq(), params: { id: "rc-1" }, context: {} } as never);
     expect(res.status).toBe(500);

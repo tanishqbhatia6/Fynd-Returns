@@ -13,7 +13,11 @@ import { recordAuthSuccess, recordAuthFailure } from "./observability/security.s
 const KEY_PREFIX_LEN = 8; // "rpm_a1b2"
 const BCRYPT_ROUNDS = 10;
 
-export type ApiKeyPermission = "read_returns" | "write_returns" | "read_settings" | "manage_webhooks";
+export type ApiKeyPermission =
+  | "read_returns"
+  | "write_returns"
+  | "read_settings"
+  | "manage_webhooks";
 
 export const ALL_PERMISSIONS: ApiKeyPermission[] = [
   "read_returns",
@@ -81,7 +85,10 @@ export async function authenticateApiKey(
       });
 
       if (candidates.length === 0) {
-        securityLogger.warn({ keyPrefix: prefix }, "API key authentication failed: no matching key found");
+        securityLogger.warn(
+          { keyPrefix: prefix },
+          "API key authentication failed: no matching key found",
+        );
         recordAuthFailure(request, "api_key", "invalid_key");
         return {
           ok: false,
@@ -100,7 +107,9 @@ export async function authenticateApiKey(
           let permissions: string[] = [];
           try {
             permissions = JSON.parse(candidate.permissions);
-          } catch { /* empty */ }
+          } catch {
+            /* empty */
+          }
 
           if (!permissions.includes(requiredPermission)) {
             securityLogger.warn(
@@ -128,7 +137,9 @@ export async function authenticateApiKey(
           // Fire-and-forget: update lastUsedAt
           prisma.apiKey
             .update({ where: { id: candidate.id }, data: { lastUsedAt: new Date() } })
-            .catch(() => { /* non-critical */ });
+            .catch(() => {
+              /* non-critical */
+            });
 
           span.setAttribute("auth.shop_id", candidate.shopId);
           span.setAttribute("auth.key_id", candidate.id);

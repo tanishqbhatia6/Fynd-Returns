@@ -55,9 +55,9 @@ describe("webhooks.orders.updated", () => {
   it("re-throws HMAC 401 Response from authenticate.webhook", async () => {
     const resp401 = new Response(null, { status: 401 });
     authenticateWebhookMock.mockRejectedValueOnce(resp401);
-    await expect(
-      action({ request: mkReq(), params: {}, context: {} } as never),
-    ).rejects.toBe(resp401);
+    await expect(action({ request: mkReq(), params: {}, context: {} } as never)).rejects.toBe(
+      resp401,
+    );
   });
 
   it("swallows non-Response auth errors and returns 200", async () => {

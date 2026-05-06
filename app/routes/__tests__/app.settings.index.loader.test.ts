@@ -69,7 +69,11 @@ describe("app.settings._index loader", () => {
       settings: null,
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(prismaMock.shop.create).toHaveBeenCalled();
     expect(data).toBeDefined();
   });
@@ -81,7 +85,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings(),
     });
     prismaMock.blocklistEntry.count.mockResolvedValue(3);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.hasFynd).toBe(true);
     expect(data.hasReasons).toBe(true);
     expect(data.hasPortalTheme).toBe(true);
@@ -107,7 +115,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ returnReasonsJson: "{not json" }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.reasonCount).toBe(0);
   });
 
@@ -118,7 +130,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ restrictedRegionsJson: "[oops" }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.restrictedRegionCount).toBe(0);
   });
 
@@ -129,7 +145,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ autoApproveRulesJson: "{broken" }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.autoRulesCount).toBe(0);
   });
 
@@ -140,7 +160,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ productPoliciesJson: "?invalid" }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.productPolicyCount).toBe(0);
   });
 
@@ -151,7 +175,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ fyndCompanyId: null }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.hasFynd).toBe(false);
   });
 
@@ -162,7 +190,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ smtpHost: null }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.smtpConfigured).toBe(false);
   });
 
@@ -173,7 +205,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ returnReasonsJson: "[]" }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.hasReasons).toBe(false);
   });
 
@@ -184,7 +220,11 @@ describe("app.settings._index loader", () => {
       settings: fullSettings({ returnFeeAmount: null }),
     });
     prismaMock.blocklistEntry.count.mockResolvedValueOnce(0);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.returnFeeAmount).toBe(0);
     expect(data.hasReturnFee).toBe(false);
   });

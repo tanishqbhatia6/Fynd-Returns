@@ -46,11 +46,7 @@ const PRESET_STATUS_MAP: Record<Exclude<RefundGatePreset, "none" | "custom">, st
     "return_completed",
     ...REFUND_FLOW_STATUSES,
   ],
-  after_qc: [
-    "return_accepted",
-    "return_completed",
-    ...REFUND_FLOW_STATUSES,
-  ],
+  after_qc: ["return_accepted", "return_completed", ...REFUND_FLOW_STATUSES],
 };
 
 /**
@@ -75,10 +71,7 @@ export function inferPresetFromStatuses(statuses: string[]): RefundGatePreset {
   for (const [preset, presetStatuses] of Object.entries(PRESET_STATUS_MAP)) {
     const presetSet = new Set(presetStatuses);
     const statusSet = new Set(statuses);
-    if (
-      presetSet.size === statusSet.size &&
-      [...presetSet].every((s) => statusSet.has(s))
-    ) {
+    if (presetSet.size === statusSet.size && [...presetSet].every((s) => statusSet.has(s))) {
       return preset as RefundGatePreset;
     }
   }

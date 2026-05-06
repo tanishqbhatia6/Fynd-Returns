@@ -299,7 +299,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
     await waitFor(() => {
       expect(container.querySelector(".app-modal-overlay")).toBeTruthy();
     });
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     // 0=original, 1=store_credit, 2=both (split)
     fireEvent.click(radios[1]);
     await waitFor(() => {
@@ -313,7 +315,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(findButton(container as HTMLElement, "Process Refund")).toBeTruthy();
     });
     fireEvent.click(findButton(container as HTMLElement, "Process Refund") as Element);
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     fireEvent.click(radios[2]);
     await waitFor(() => {
       expect(findButton(container as HTMLElement, "Process split refund")).toBeTruthy();
@@ -326,7 +330,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(findButton(container as HTMLElement, "Process Refund")).toBeTruthy();
     });
     fireEvent.click(findButton(container as HTMLElement, "Process Refund") as Element);
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     fireEvent.click(radios[2]); // both
     await waitFor(() => {
       expect(container.textContent).toContain("Percentage");
@@ -340,7 +346,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(findButton(container as HTMLElement, "Process Refund")).toBeTruthy();
     });
     fireEvent.click(findButton(container as HTMLElement, "Process Refund") as Element);
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     fireEvent.click(radios[2]); // both
     await waitFor(() => {
       expect(findButton(container as HTMLElement, "Amount")).toBeTruthy();
@@ -357,7 +365,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(findButton(container as HTMLElement, "Process Refund")).toBeTruthy();
     });
     fireEvent.click(findButton(container as HTMLElement, "Process Refund") as Element);
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     fireEvent.click(radios[2]); // both
     await waitFor(() => {
       expect(container.querySelector('input[type="range"]')).toBeTruthy();
@@ -406,8 +416,12 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
     const select = container.querySelector(
       'select[aria-label="Select restock location"]',
     ) as HTMLSelectElement;
-    await act(async () => { fireEvent.change(select, { target: { value: "gid://shopify/Location/2" } }); });
-    await waitFor(() => { expect(select.value).toBe("gid://shopify/Location/2"); });
+    await act(async () => {
+      fireEvent.change(select, { target: { value: "gid://shopify/Location/2" } });
+    });
+    await waitFor(() => {
+      expect(select.value).toBe("gid://shopify/Location/2");
+    });
   });
 
   it("shows the bonus-credit preview block when bonusCreditEnabled and store_credit is selected", async () => {
@@ -419,7 +433,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(findButton(container as HTMLElement, "Process Refund")).toBeTruthy();
     });
     fireEvent.click(findButton(container as HTMLElement, "Process Refund") as Element);
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     fireEvent.click(radios[1]); // store_credit
     await waitFor(() => {
       expect(container.textContent).toContain("Store credit bonus");
@@ -436,7 +452,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("COD order");
     });
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     expect(radios[0].disabled).toBe(true); // original disabled
     expect(radios[1].disabled).toBe(false); // store credit allowed
   });
@@ -479,7 +497,9 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(findButton(container as HTMLElement, "Process Refund")).toBeTruthy();
     });
     fireEvent.click(findButton(container as HTMLElement, "Process Refund") as Element);
-    const radios = Array.from(container.querySelectorAll('input[type="radio"]')) as HTMLInputElement[];
+    const radios = Array.from(
+      container.querySelectorAll('input[type="radio"]'),
+    ) as HTMLInputElement[];
     fireEvent.click(radios[1]); // store_credit
     await waitFor(() => {
       expect(container.textContent).toContain("new customer accounts in Shopify");
@@ -543,8 +563,12 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
     const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     expect(checkbox).toBeTruthy();
     expect(checkbox.checked).toBe(true); // default
-    await act(async () => { fireEvent.click(checkbox); });
-    await waitFor(() => { expect(checkbox.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(checkbox);
+    });
+    await waitFor(() => {
+      expect(checkbox.checked).toBe(false);
+    });
   });
 
   it("clicking the modal body does NOT close the refund modal (event propagation stopped)", async () => {
@@ -557,8 +581,12 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(container.querySelector(".app-modal")).toBeTruthy();
     });
     const modalBody = container.querySelector(".app-modal") as HTMLElement;
-    await act(async () => { fireEvent.click(modalBody); });
+    await act(async () => {
+      fireEvent.click(modalBody);
+    });
     // Modal still open
-    await waitFor(() => { expect(container.querySelector(".app-modal-overlay")).toBeTruthy(); });
+    await waitFor(() => {
+      expect(container.querySelector(".app-modal-overlay")).toBeTruthy();
+    });
   });
 });

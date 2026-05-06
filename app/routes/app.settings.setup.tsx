@@ -69,7 +69,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         fyndCredentials: s.fyndCredentials ?? "",
         /* v8 ignore stop */
       },
-      undefined
+      undefined,
     );
     if (listResult.ok) {
       // Match either the per-shop URL or the legacy URL — a merchant who set
@@ -119,10 +119,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         where: { shopDomain: session.shop },
         include: { settings: true },
       });
-      if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+      if (!shop)
+        shop = await prisma.shop.create({
+          data: { shopDomain: session.shop },
+          include: { settings: true },
+        });
       const stored = shop.settings;
       if (!stored?.fyndCredentials || !stored?.fyndCompanyId || !stored?.fyndApplicationId) {
-        return { success: false, error: "Save credentials first (Step 1), then test.", testResult: false, debugLogs: logs };
+        return {
+          success: false,
+          error: "Save credentials first (Step 1), then test.",
+          testResult: false,
+          debugLogs: logs,
+        };
       }
       const envSettings = {
         fyndEnvironment: (stored as { fyndEnvironment?: string })?.fyndEnvironment ?? "uat",
@@ -135,10 +144,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           fyndApplicationId: stored.fyndApplicationId,
           fyndCredentials: stored.fyndCredentials,
         },
-        log
+        log,
       );
       if (result.ok) {
-        return { success: true, testResult: true, testMessage: result.warning ?? "Platform API connection successful.", debugLogs: logs };
+        return {
+          success: true,
+          testResult: true,
+          testMessage: result.warning ?? "Platform API connection successful.",
+          debugLogs: logs,
+        };
       }
       return { success: false, error: result.error, testResult: false, debugLogs: logs };
     }
@@ -150,7 +164,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       };
       const result = await processFyndWebhook(testPayload);
       if (!result.ok) {
-        return { success: false, webhookError: result.error, webhookTestResult: false, debugLogs: logs };
+        return {
+          success: false,
+          webhookError: result.error,
+          webhookTestResult: false,
+          debugLogs: logs,
+        };
       }
       return {
         success: true,
@@ -172,10 +191,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         where: { shopDomain: session.shop },
         include: { settings: true },
       });
-      if (!shop) shop = await prisma.shop.create({ data: { shopDomain: session.shop }, include: { settings: true } });
+      if (!shop)
+        shop = await prisma.shop.create({
+          data: { shopDomain: session.shop },
+          include: { settings: true },
+        });
       const stored = shop.settings;
       if (!stored?.fyndCredentials || !stored?.fyndCompanyId || !stored?.fyndApplicationId) {
-        return { success: false, registerError: "Save credentials first (Step 1), then register webhook.", registerResult: false, debugLogs: logs };
+        return {
+          success: false,
+          registerError: "Save credentials first (Step 1), then register webhook.",
+          registerResult: false,
+          debugLogs: logs,
+        };
       }
       const appUrl = process.env.SHOPIFY_APP_URL || "";
       // Register the per-shop URL (preferred). The legacy global URL is no
@@ -183,7 +211,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // working, but new registrations use per-shop.
       const webhookUrl = appUrl ? `${appUrl.replace(/\/$/, "")}/api/webhooks/fynd/${shop.id}` : "";
       if (!webhookUrl) {
-        return { success: false, registerError: "SHOPIFY_APP_URL is not set. Set it in your deployment environment.", registerResult: false, debugLogs: logs };
+        return {
+          success: false,
+          registerError: "SHOPIFY_APP_URL is not set. Set it in your deployment environment.",
+          registerResult: false,
+          debugLogs: logs,
+        };
       }
       // Sanity-check: the per-shop URL won't authenticate without a per-shop
       // signing secret. Refuse to register a webhook that's pre-broken.
@@ -196,10 +229,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           debugLogs: logs,
         };
       }
-      const notificationEmail = String(formData.get("notificationEmail") ?? "").trim() || `webhooks@${session.shop?.replace(".myshopify.com", "")}.local`;
+      const notificationEmail =
+        String(formData.get("notificationEmail") ?? "").trim() ||
+        `webhooks@${session.shop?.replace(".myshopify.com", "")}.local`;
       // defensive subscriberName empty-string fallback
       /* v8 ignore start */
-      const subscriberName = String(formData.get("subscriberName") ?? "Fynd Returns").trim() || "Fynd Returns";
+      const subscriberName =
+        String(formData.get("subscriberName") ?? "Fynd Returns").trim() || "Fynd Returns";
       /* v8 ignore stop */
       const result = await registerFyndWebhook(
         {
@@ -212,10 +248,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         webhookUrl,
         subscriberName,
         notificationEmail,
-        log
+        log,
       );
       if (!result.ok) {
-        return { success: false, registerError: result.error, registerResult: false, debugLogs: logs };
+        return {
+          success: false,
+          registerError: result.error,
+          registerResult: false,
+          debugLogs: logs,
+        };
       }
       // Verify endpoint is reachable before showing success.
       //
@@ -231,7 +272,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const ok = verifyRes.ok && verifyRes.status >= 200 && verifyRes.status < 300;
         if (!ok) {
           const text = await verifyRes.text();
-          log("register_webhook", "Endpoint verification failed", `${verifyRes.status}: ${text.slice(0, 200)}`);
+          log(
+            "register_webhook",
+            "Endpoint verification failed",
+            `${verifyRes.status}: ${text.slice(0, 200)}`,
+          );
           return {
             success: false,
             registerError: `Webhook registered in Fynd, but the endpoint returned ${verifyRes.status}. Ensure ${webhookUrl} is publicly reachable (check SHOPIFY_APP_URL, Render deployment, and firewall).`,
@@ -252,7 +297,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           debugLogs: logs,
         };
       }
-      return { success: true, registerResult: true, registerMessage: result.message, debugLogs: logs };
+      return {
+        success: true,
+        registerResult: true,
+        registerMessage: result.message,
+        debugLogs: logs,
+      };
     }
 
     return { success: false, error: "Unknown action", debugLogs: logs };
@@ -266,7 +316,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const msg = err instanceof Error ? err.message : String(err);
     /* v8 ignore stop */
     log("action", "Error", msg);
-    return { success: false, error: msg, testResult: false, webhookTestResult: false, debugLogs: logs };
+    return {
+      success: false,
+      error: msg,
+      testResult: false,
+      webhookTestResult: false,
+      debugLogs: logs,
+    };
   }
 };
 
@@ -322,7 +378,8 @@ export default function FyndSetup() {
     <AppPage heading="Fynd Setup">
       <div className="app-content">
         <p style={{ marginBottom: 24, color: "#6d7175", fontSize: 14 }}>
-          Follow these steps to connect Fynd and enable automatic refund updates when Fynd processes returns.
+          Follow these steps to connect Fynd and enable automatic refund updates when Fynd processes
+          returns.
         </p>
 
         {/* Step indicator */}
@@ -375,7 +432,20 @@ export default function FyndSetup() {
                     fontWeight: 600,
                   }}
                 >
-                  {isPast ? <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12"/></svg> : i + 1}
+                  {isPast ? (
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="3"
+                    >
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  ) : (
+                    i + 1
+                  )}
                 </span>
                 {s.title}
               </button>
@@ -386,7 +456,15 @@ export default function FyndSetup() {
         {/* Alerts */}
         {showTestSuccess && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 24 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={{ verticalAlign: "middle", marginRight: 4 }}
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {fetcher.data?.testMessage ?? "Connection successful."}
@@ -399,7 +477,15 @@ export default function FyndSetup() {
         )}
         {showWebhookSuccess && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 24 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={{ verticalAlign: "middle", marginRight: 4 }}
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {fetcher.data?.webhookMessage ?? "Webhook test successful."}
@@ -412,7 +498,15 @@ export default function FyndSetup() {
         )}
         {showRegisterSuccess && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 24 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={{ verticalAlign: "middle", marginRight: 4 }}
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
             {fetcher.data?.registerMessage ?? "Webhook registered successfully."}
@@ -427,13 +521,21 @@ export default function FyndSetup() {
         {/* Step content */}
         {currentStep === "credentials" && (
           <div className="layout-form">
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 1: Fynd credentials</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
+              Step 1: Fynd credentials
+            </h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-                Enter your Fynd Platform API credentials. You need <strong>Company ID</strong>, <strong>Application ID</strong>,{" "}
-                <strong>Client ID</strong>, and <strong>Client Secret</strong> from{" "}
-                <a href="https://platform.fynd.com" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3" }}>
+                Enter your Fynd Platform API credentials. You need <strong>Company ID</strong>,{" "}
+                <strong>Application ID</strong>, <strong>Client ID</strong>, and{" "}
+                <strong>Client Secret</strong> from{" "}
+                <a
+                  href="https://platform.fynd.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#005bd3" }}
+                >
                   Fynd Platform
                 </a>
                 .
@@ -444,7 +546,8 @@ export default function FyndSetup() {
                 <li>Client ID & Secret — From your OAuth app (Platform API)</li>
               </ul>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
-                Your OAuth app must have <code>company/orders/read</code> and <code>company/orders/write</code> scopes.
+                Your OAuth app must have <code>company/orders/read</code> and{" "}
+                <code>company/orders/write</code> scopes.
               </p>
             </div>
             <div style={{ marginTop: 24 }}>
@@ -454,7 +557,15 @@ export default function FyndSetup() {
             </div>
             {data.hasPlatformCreds && (
               <p style={{ marginTop: 16, color: "#008060", fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  style={{ verticalAlign: "middle", marginRight: 4 }}
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
                 Credentials configured. Continue to Step 2.
@@ -464,7 +575,14 @@ export default function FyndSetup() {
               <button
                 type="button"
                 onClick={() => goToStep("test-platform")}
-                style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", fontWeight: 500, cursor: "pointer" }}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #e1e3e5",
+                  background: "#fff",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
               >
                 Next: Test connection
               </button>
@@ -474,32 +592,63 @@ export default function FyndSetup() {
 
         {currentStep === "test-platform" && (
           <div className="layout-form">
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 2: Test Platform connection</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
+              Step 2: Test Platform connection
+            </h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-                Verify that Fynd Returns can connect to Fynd Platform API. This calls the <code>orders-listing</code> endpoint to validate
-                your OAuth token and scopes.
+                Verify that Fynd Returns can connect to Fynd Platform API. This calls the{" "}
+                <code>orders-listing</code> endpoint to validate your OAuth token and scopes.
               </p>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
-                If you get 403 Forbidden, ensure your OAuth app has <code>company/orders/read</code> and <code>company/orders/write</code> in
-                Fynd Partners.
+                If you get 403 Forbidden, ensure your OAuth app has <code>company/orders/read</code>{" "}
+                and <code>company/orders/write</code> in Fynd Partners.
               </p>
             </div>
             <fetcher.Form method="post" style={{ marginTop: 24 }}>
               <input type="hidden" name="intent" value="test_platform" />
-              <s-button type="submit" variant="primary" loading={fetcher.state !== "idle"} disabled={!data.hasPlatformCreds}>
+              <s-button
+                type="submit"
+                variant="primary"
+                loading={fetcher.state !== "idle"}
+                disabled={!data.hasPlatformCreds}
+              >
                 {fetcher.state !== "idle" ? "Testing…" : "Test Platform"}
               </s-button>
             </fetcher.Form>
             {!data.hasPlatformCreds && (
-              <p style={{ marginTop: 12, color: "#b45309", fontSize: 13 }}>Complete Step 1 (credentials) first.</p>
+              <p style={{ marginTop: 12, color: "#b45309", fontSize: 13 }}>
+                Complete Step 1 (credentials) first.
+              </p>
             )}
             <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => goToStep("credentials")} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", fontWeight: 500, cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => goToStep("credentials")}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #e1e3e5",
+                  background: "#fff",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
                 Back
               </button>
-              <button type="button" onClick={() => goToStep("webhook")} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", fontWeight: 500, cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => goToStep("webhook")}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #e1e3e5",
+                  background: "#fff",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
                 Next: Webhook setup
               </button>
             </div>
@@ -508,23 +657,35 @@ export default function FyndSetup() {
 
         {currentStep === "webhook" && (
           <div className="layout-form">
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 3: Webhook setup</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
+              Step 3: Webhook setup
+            </h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-                The webhook lets Fynd notify Fynd Returns when refund status changes. When Fynd reports <code>refund_done</code>, the app
-                automatically creates the refund in Shopify.
+                The webhook lets Fynd notify Fynd Returns when refund status changes. When Fynd
+                reports <code>refund_done</code>, the app automatically creates the refund in
+                Shopify.
               </p>
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-                This URL is <strong>unique to this Shopify store</strong>. Each store has its
-                own URL <em>and</em> its own HMAC signing secret — a leak only ever
-                affects one store.
+                This URL is <strong>unique to this Shopify store</strong>. Each store has its own
+                URL <em>and</em> its own HMAC signing secret — a leak only ever affects one store.
               </p>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
-                <strong>Required Fynd scopes:</strong> <code>company/orders/read</code>, <code>company/orders/write</code>. If webhook registration fails with 403, your OAuth app may also need <code>company/settings</code> or <code>company/webhooks</code> in Fynd Partners.
+                <strong>Required Fynd scopes:</strong> <code>company/orders/read</code>,{" "}
+                <code>company/orders/write</code>. If webhook registration fails with 403, your
+                OAuth app may also need <code>company/settings</code> or{" "}
+                <code>company/webhooks</code> in Fynd Partners.
               </p>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
-                <a href="https://docs.fynd.com/partners/commerce/sdk/latest/platform/company/webhook" target="_blank" rel="noopener noreferrer" style={{ color: "#005bd3" }}>Fynd Webhook API docs →</a>
+                <a
+                  href="https://docs.fynd.com/partners/commerce/sdk/latest/platform/company/webhook"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "#005bd3" }}
+                >
+                  Fynd Webhook API docs →
+                </a>
               </p>
             </div>
 
@@ -546,17 +707,24 @@ export default function FyndSetup() {
               >
                 <strong>You need to generate a webhook signing secret first.</strong>
                 <p style={{ margin: "6px 0 0" }}>
-                  Open <Link to="/app/settings/integrations" style={{ color: "#92400e", textDecoration: "underline" }}>Settings → Integrations</Link> →
-                  expand <strong>"Fynd Webhook (per-shop secret)"</strong> →
-                  click <strong>Generate webhook secret</strong>. Copy the secret
-                  (shown ONCE) along with this URL into the Fynd Partner Dashboard.
+                  Open{" "}
+                  <Link
+                    to="/app/settings/integrations"
+                    style={{ color: "#92400e", textDecoration: "underline" }}
+                  >
+                    Settings → Integrations
+                  </Link>{" "}
+                  → expand <strong>"Fynd Webhook (per-shop secret)"</strong> → click{" "}
+                  <strong>Generate webhook secret</strong>. Copy the secret (shown ONCE) along with
+                  this URL into the Fynd Partner Dashboard.
                 </p>
               </div>
             )}
 
             <div style={{ marginTop: 24 }}>
               <label style={{ display: "block", fontWeight: 600, marginBottom: 8, fontSize: 14 }}>
-                Webhook URL <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 12 }}>(per-shop)</span>
+                Webhook URL{" "}
+                <span style={{ fontWeight: 400, color: "#6b7280", fontSize: 12 }}>(per-shop)</span>
               </label>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <code
@@ -593,14 +761,14 @@ export default function FyndSetup() {
               </div>
               {!data.webhookUrl && (
                 <p style={{ marginTop: 8, color: "#b45309", fontSize: 13 }}>
-                  SHOPIFY_APP_URL is not set. Set it in your deployment environment (e.g. Render, Heroku).
+                  SHOPIFY_APP_URL is not set. Set it in your deployment environment (e.g. Render,
+                  Heroku).
                 </p>
               )}
               {data.hasPerShopWebhookSecret && (
                 <p style={{ marginTop: 8, fontSize: 12, color: "#065f46" }}>
-                  ✓ This shop has a webhook secret configured. Make sure the
-                  same secret value is set in the Fynd Partner Dashboard for
-                  this URL.
+                  ✓ This shop has a webhook secret configured. Make sure the same secret value is
+                  set in the Fynd Partner Dashboard for this URL.
                 </p>
               )}
               {/* Reference for merchants still on the legacy global URL — not
@@ -609,13 +777,17 @@ export default function FyndSetup() {
                 <summary style={{ cursor: "pointer" }}>Legacy global URL (deprecated)</summary>
                 <p style={{ margin: "8px 0 0" }}>
                   Older deployments used a single global URL with a shared
-                  <code> FYND_WEBHOOK_SECRET</code> env var. It still works,
-                  but new merchants should use the per-shop URL above.
+                  <code> FYND_WEBHOOK_SECRET</code> env var. It still works, but new merchants
+                  should use the per-shop URL above.
                 </p>
                 <code
                   style={{
-                    display: "block", marginTop: 6, padding: "8px 10px",
-                    background: "#f3f4f6", color: "#374151", borderRadius: 6,
+                    display: "block",
+                    marginTop: 6,
+                    padding: "8px 10px",
+                    background: "#f3f4f6",
+                    color: "#374151",
+                    borderRadius: 6,
                     wordBreak: "break-all",
                   }}
                 >
@@ -635,7 +807,15 @@ export default function FyndSetup() {
                 }}
               >
                 <p style={{ margin: 0, fontWeight: 600, color: "#065f46", fontSize: 14 }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    style={{ verticalAlign: "middle", marginRight: 4 }}
+                  >
                     <polyline points="20 6 9 17 4 12" />
                   </svg>
                   Webhook already subscribed
@@ -643,7 +823,14 @@ export default function FyndSetup() {
                 <p style={{ margin: "8px 0 0", fontSize: 13, color: "#047857" }}>
                   Subscriber: <strong>{data.existingSubscriber.name}</strong>
                 </p>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#059669", wordBreak: "break-all" }}>
+                <p
+                  style={{
+                    margin: "4px 0 0",
+                    fontSize: 12,
+                    color: "#059669",
+                    wordBreak: "break-all",
+                  }}
+                >
                   URL: {data.existingSubscriber.webhook_url}
                 </p>
                 <p style={{ margin: "8px 0 0", fontSize: 12, color: "#047857" }}>
@@ -664,7 +851,8 @@ export default function FyndSetup() {
                   color: "#92400e",
                 }}
               >
-                Could not check existing webhooks: {data.subscribersError}. You can still register manually in Fynd Partners or try registering below.
+                Could not check existing webhooks: {data.subscribersError}. You can still register
+                manually in Fynd Partners or try registering below.
               </div>
             )}
 
@@ -672,7 +860,11 @@ export default function FyndSetup() {
               <fetcher.Form method="post" style={{ marginTop: 24 }}>
                 <input type="hidden" name="intent" value="register_webhook" />
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontWeight: 500, marginBottom: 6, fontSize: 13 }}>Subscriber name</label>
+                  <label
+                    style={{ display: "block", fontWeight: 500, marginBottom: 6, fontSize: 13 }}
+                  >
+                    Subscriber name
+                  </label>
                   <input
                     type="text"
                     name="subscriberName"
@@ -683,7 +875,11 @@ export default function FyndSetup() {
                   />
                 </div>
                 <div style={{ marginBottom: 16 }}>
-                  <label style={{ display: "block", fontWeight: 500, marginBottom: 6, fontSize: 13 }}>Notification email (for Fynd alerts)</label>
+                  <label
+                    style={{ display: "block", fontWeight: 500, marginBottom: 6, fontSize: 13 }}
+                  >
+                    Notification email (for Fynd alerts)
+                  </label>
                   <input
                     type="email"
                     name="notificationEmail"
@@ -691,23 +887,54 @@ export default function FyndSetup() {
                     className="app-input"
                     style={{ maxWidth: 320 }}
                   />
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6b7280" }}>Fynd sends webhook failure alerts to this email.</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#6b7280" }}>
+                    Fynd sends webhook failure alerts to this email.
+                  </p>
                 </div>
-                <s-button type="submit" variant="primary" loading={fetcher.state !== "idle"} disabled={fetcher.state !== "idle"}>
+                <s-button
+                  type="submit"
+                  variant="primary"
+                  loading={fetcher.state !== "idle"}
+                  disabled={fetcher.state !== "idle"}
+                >
                   {fetcher.state !== "idle" ? "Registering…" : "Register webhook via Fynd API"}
                 </s-button>
               </fetcher.Form>
             )}
 
             {!data.hasPlatformCreds && (
-              <p style={{ marginTop: 16, color: "#b45309", fontSize: 13 }}>Complete Step 1 (credentials) first.</p>
+              <p style={{ marginTop: 16, color: "#b45309", fontSize: 13 }}>
+                Complete Step 1 (credentials) first.
+              </p>
             )}
 
             <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => goToStep("test-platform")} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", fontWeight: 500, cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => goToStep("test-platform")}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #e1e3e5",
+                  background: "#fff",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
                 Back
               </button>
-              <button type="button" onClick={() => goToStep("test-webhook")} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", fontWeight: 500, cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => goToStep("test-webhook")}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #e1e3e5",
+                  background: "#fff",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
                 Next: Test webhook
               </button>
             </div>
@@ -716,15 +943,19 @@ export default function FyndSetup() {
 
         {currentStep === "test-webhook" && (
           <div className="layout-form">
-            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>Step 4: Test webhook</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 600, marginBottom: 12 }}>
+              Step 4: Test webhook
+            </h2>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
               <strong>Documentation</strong>
               <p style={{ margin: "8px 0 0", fontSize: 13 }}>
-                This sends a test payload to the webhook endpoint to verify it is reachable and processes correctly. The test uses a fake
-                shipment ID, so no return will be updated — you will see &quot;ignored&quot; which means the endpoint is working.
+                This sends a test payload to the webhook endpoint to verify it is reachable and
+                processes correctly. The test uses a fake shipment ID, so no return will be updated
+                — you will see &quot;ignored&quot; which means the endpoint is working.
               </p>
               <p style={{ margin: "12px 0 0", fontSize: 12, color: "#6b7280" }}>
-                After Fynd is configured to send webhooks, real payloads will include <code>shipment_id</code> and <code>refund_status</code>.
+                After Fynd is configured to send webhooks, real payloads will include{" "}
+                <code>shipment_id</code> and <code>refund_status</code>.
               </p>
             </div>
             <fetcher.Form method="post" style={{ marginTop: 24 }}>
@@ -734,10 +965,32 @@ export default function FyndSetup() {
               </s-button>
             </fetcher.Form>
             <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => goToStep("webhook")} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", fontWeight: 500, cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => goToStep("webhook")}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #e1e3e5",
+                  background: "#fff",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
                 Back
               </button>
-              <button type="button" onClick={() => goToStep("done")} style={{ padding: "10px 18px", borderRadius: 8, border: "1px solid #e1e3e5", background: "#fff", fontWeight: 500, cursor: "pointer" }}>
+              <button
+                type="button"
+                onClick={() => goToStep("done")}
+                style={{
+                  padding: "10px 18px",
+                  borderRadius: 8,
+                  border: "1px solid #e1e3e5",
+                  background: "#fff",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
                 Next: Done
               </button>
             </div>
@@ -757,10 +1010,19 @@ export default function FyndSetup() {
               }}
             >
               <p style={{ margin: 0, fontSize: 15, color: "#065f46", fontWeight: 500 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ verticalAlign: "middle", marginRight: 4 }}>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  style={{ verticalAlign: "middle", marginRight: 4 }}
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
-                Fynd integration is ready. Returns synced to Fynd will receive automatic refund updates via webhook.
+                Fynd integration is ready. Returns synced to Fynd will receive automatic refund
+                updates via webhook.
               </p>
             </div>
             <div style={docCard as React.CSSProperties} className="app-doc-card">
@@ -768,7 +1030,10 @@ export default function FyndSetup() {
               <ul style={{ margin: "8px 0 0", paddingLeft: 20 }}>
                 <li>When you approve a return, sync it to Fynd (Retry Fynd sync)</li>
                 <li>When Fynd processes the refund, they send a webhook</li>
-                <li>Fynd Returns updates <code>refundStatus</code> to in_progress, then calls Shopify Refund API when done</li>
+                <li>
+                  Fynd Returns updates <code>refundStatus</code> to in_progress, then calls Shopify
+                  Refund API when done
+                </li>
               </ul>
             </div>
             <div style={{ marginTop: 24, display: "flex", gap: 12, flexWrap: "wrap" }}>
@@ -788,7 +1053,17 @@ export default function FyndSetup() {
         {fetcher.data?.debugLogs && fetcher.data.debugLogs.length > 0 && (
           <details className="app-details" style={{ marginTop: 32 }}>
             <summary>Debug logs ({fetcher.data.debugLogs.length})</summary>
-            <pre style={{ margin: 0, padding: 16, background: "#1e1e1e", color: "#d4d4d4", fontSize: 12, overflow: "auto", maxHeight: 300 }}>
+            <pre
+              style={{
+                margin: 0,
+                padding: 16,
+                background: "#1e1e1e",
+                color: "#d4d4d4",
+                fontSize: 12,
+                overflow: "auto",
+                maxHeight: 300,
+              }}
+            >
               {fetcher.data.debugLogs.map((e, i) => (
                 <div key={i}>
                   [{e.ts}] {e.step}: {e.message}

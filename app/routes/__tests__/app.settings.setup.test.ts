@@ -166,7 +166,9 @@ describe("loader", () => {
     getNormalizedCredentialsFromRawMock.mockReturnValueOnce({ platform: { clientId: "x" } });
     listFyndWebhookSubscribersMock.mockResolvedValueOnce({
       ok: true,
-      subscribers: [{ name: "Fynd Returns", webhook_url: "https://app.example.com/api/webhooks/fynd/shop-1" }],
+      subscribers: [
+        { name: "Fynd Returns", webhook_url: "https://app.example.com/api/webhooks/fynd/shop-1" },
+      ],
     });
     findSubscriberWithUrlMock.mockReturnValueOnce({
       name: "Fynd Returns",

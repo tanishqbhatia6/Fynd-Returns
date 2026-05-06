@@ -85,9 +85,7 @@ beforeEach(() => {
   process.env = { ...origEnv, NODE_ENV: "test" };
   resetPrismaMock(prismaMock);
   authenticateWebhookMock.mockReset();
-  authenticateAdminMock
-    .mockReset()
-    .mockResolvedValue({ session: { shop: "store.myshopify.com" } });
+  authenticateAdminMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   processFyndWebhookMock.mockReset().mockResolvedValue({
     ok: true,
     action: "updated",
@@ -103,9 +101,7 @@ beforeEach(() => {
     .mockImplementation(async (req: Request) => ({ body: await req.text() }));
   decryptMock
     .mockReset()
-    .mockImplementation((v: unknown) =>
-      typeof v === "string" ? v.replace(/^enc:/, "") : null,
-    );
+    .mockImplementation((v: unknown) => (typeof v === "string" ? v.replace(/^enc:/, "") : null));
 });
 
 afterEach(() => {
@@ -131,7 +127,6 @@ describe("api.webhooks.fynd — final branches", () => {
   it("logs non-Error parse failure with String(err) — fallback path on line 82", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     unwrapFyndWebhookPayloadMock.mockImplementationOnce(() => {
-       
       throw "string-not-error";
     });
     const res = await fyndAction({
@@ -169,7 +164,6 @@ describe("api.webhooks.fynd — final branches", () => {
   it("logs non-Error from processFyndWebhook outer catch via String(err)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     processFyndWebhookMock.mockImplementationOnce(() => {
-       
       throw { code: 99, weird: true };
     });
     const res = await fyndAction({
@@ -192,9 +186,7 @@ describe("api.webhooks.fynd.retry — final branches", () => {
   it("bulk retry: skips logs whose rawPayload becomes null at iteration time (defensive guard)", async () => {
     // The findMany already filters null rawPayload, but the in-loop `if (!log.rawPayload)`
     // is a defensive guard. Simulate it by returning a log with explicit null.
-    prismaMock.fyndWebhookLog.findMany.mockResolvedValueOnce([
-      { id: "n-1", rawPayload: null },
-    ]);
+    prismaMock.fyndWebhookLog.findMany.mockResolvedValueOnce([{ id: "n-1", rawPayload: null }]);
     const res = await fyndRetryAction({
       request: mkPostReq(
         "https://app.example/api/webhooks/fynd/retry",
@@ -218,7 +210,6 @@ describe("api.webhooks.fynd.retry — final branches", () => {
       rawPayload: JSON.stringify({}),
     });
     processFyndWebhookMock.mockImplementationOnce(() => {
-       
       throw 12345;
     });
     const res = await fyndRetryAction({
@@ -327,7 +318,6 @@ describe("api.webhooks.fynd.$shopId — final branches", () => {
       settings: { fyndWebhookSecret: "enc:secret" },
     });
     unwrapFyndWebhookPayloadMock.mockImplementationOnce(() => {
-       
       throw "raw-string-thrown";
     });
     const res = await fyndShopIdAction({
@@ -355,7 +345,6 @@ describe("api.webhooks.fynd.$shopId — final branches", () => {
       settings: { fyndWebhookSecret: "enc:secret" },
     });
     processFyndWebhookMock.mockImplementationOnce(() => {
-       
       throw "weird-string";
     });
     const res = await fyndShopIdAction({
@@ -407,10 +396,7 @@ describe("webhooks.shop.redact — final branches", () => {
       id: "shop-1",
       shopDomain: "store.myshopify.com",
     });
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1" },
-      { id: "rc-2" },
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc-1" }, { id: "rc-2" }]);
     const res = await shopRedactAction({
       request: mkPostReq("https://app.example/webhooks/shop.redact", "{}"),
       params: {},
@@ -460,7 +446,6 @@ describe("webhooks.shop.redact — final branches", () => {
   it("auth threw a non-Error value → String(err) fallback used (line 20 false branch)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     authenticateWebhookMock.mockImplementationOnce(() => {
-       
       throw "auth-string-error";
     });
     const res = await shopRedactAction({
@@ -475,7 +460,6 @@ describe("webhooks.shop.redact — final branches", () => {
     );
     errSpy.mockRestore();
   });
-
 });
 
 // ════════════════════════════════════════════════════════════════════════
@@ -639,10 +623,7 @@ describe("webhooks.tsx (catchall) — final branches", () => {
       payload: { customer: { email: "Cust@Example.COM" } },
     });
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-a" },
-      { id: "rc-b" },
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc-a" }, { id: "rc-b" }]);
     prismaMock.fyndWebhookLog.findMany.mockResolvedValueOnce([{ id: "fl-1" }]);
 
     const res = await catchallAction({

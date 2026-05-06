@@ -15,12 +15,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, extractAffiliateMock, extractCustomerMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  extractAffiliateMock: vi.fn(() => null as string | null),
-  extractCustomerMock: vi.fn(() => null as Record<string, string | undefined> | null),
-}));
+const { prismaMock, authenticateMock, extractAffiliateMock, extractCustomerMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    extractAffiliateMock: vi.fn(() => null as string | null),
+    extractCustomerMock: vi.fn(() => null as Record<string, string | undefined> | null),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -54,7 +56,10 @@ beforeEach(() => {
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
   prismaMock.shop.findUnique.mockResolvedValue({ id: "shop-1", shopDomain: "store.myshopify.com" });
-  prismaMock.session.findFirst.mockResolvedValue({ shop: "store.myshopify.com", accessToken: "tok" });
+  prismaMock.session.findFirst.mockResolvedValue({
+    shop: "store.myshopify.com",
+    accessToken: "tok",
+  });
 });
 
 afterEach(() => {

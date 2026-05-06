@@ -1,12 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateApiKeyMock: vi.fn(),
-  checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
-  checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(async () => null),
-}));
+const { prismaMock, authenticateApiKeyMock, checkRateLimitMock, checkPerKeyRateLimitMock } =
+  vi.hoisted(() => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateApiKeyMock: vi.fn(),
+    checkRateLimitMock: vi.fn(async () => ({ allowed: true, remaining: 10, retryAfterMs: 0 })),
+    checkPerKeyRateLimitMock: vi.fn<(...args: unknown[]) => Promise<Response | null>>(
+      async () => null,
+    ),
+  }));
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -30,7 +33,9 @@ const mkReq = (method: string = "DELETE", id: string = "sub-1") =>
 beforeEach(() => {
   resetPrismaMock(prismaMock);
   authenticateApiKeyMock.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 10, retryAfterMs: 0 });
   checkPerKeyRateLimitMock.mockReset().mockResolvedValue(null);
 });
 
@@ -39,7 +44,11 @@ describe("DELETE /api/v1/external/webhooks/:id — extended coverage", () => {
   it.each(["GET", "POST", "PATCH", "OPTIONS"])(
     "405 + standard error envelope on %s",
     async (method) => {
-      const res = await action({ request: mkReq(method), params: { id: "sub-1" }, context: {} } as never);
+      const res = await action({
+        request: mkReq(method),
+        params: { id: "sub-1" },
+        context: {},
+      } as never);
       expect(res.status).toBe(405);
       const body = await res.json();
       expect(body.error).toMatchObject({ code: "METHOD_NOT_ALLOWED" });
@@ -66,7 +75,10 @@ describe("DELETE /api/v1/external/webhooks/:id — extended coverage", () => {
 
   it("requests the manage_webhooks permission from authenticateApiKey", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({ id: "sub-1", shopId: "shop-1" });
+    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({
+      id: "sub-1",
+      shopId: "shop-1",
+    });
     await action({ request: mkReq(), params: { id: "sub-1" }, context: {} } as never);
     expect(authenticateApiKeyMock).toHaveBeenCalledWith(expect.any(Request), "manage_webhooks");
   });
@@ -107,8 +119,15 @@ describe("DELETE /api/v1/external/webhooks/:id — extended coverage", () => {
 
   it("returns success envelope { data: { id, message }, errors: [] }", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({ id: "sub-xyz", shopId: "shop-1" });
-    const res = await action({ request: mkReq("DELETE", "sub-xyz"), params: { id: "sub-xyz" }, context: {} } as never);
+    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({
+      id: "sub-xyz",
+      shopId: "shop-1",
+    });
+    const res = await action({
+      request: mkReq("DELETE", "sub-xyz"),
+      params: { id: "sub-xyz" },
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body).toEqual({
@@ -136,7 +155,10 @@ describe("DELETE /api/v1/external/webhooks/:id — extended coverage", () => {
   // ── error path on update step (post-find) ──
   it("500 when prisma.update throws after a successful find", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({ id: "sub-1", shopId: "shop-1" });
+    prismaMock.webhookSubscription.findFirst.mockResolvedValueOnce({
+      id: "sub-1",
+      shopId: "shop-1",
+    });
     prismaMock.webhookSubscription.update.mockRejectedValueOnce(new Error("update boom"));
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await action({ request: mkReq(), params: { id: "sub-1" }, context: {} } as never);
@@ -157,7 +179,9 @@ describe("DELETE /api/v1/external/webhooks/:id — extended coverage", () => {
   // ── ordering: per-key limit runs AFTER auth, BEFORE DB ──
   it("does not touch DB when per-key rate limit fires", async () => {
     authenticateApiKeyMock.mockResolvedValueOnce({ ok: true, keyId: "k-1", shopId: "shop-1" });
-    checkPerKeyRateLimitMock.mockResolvedValueOnce(Response.json({ error: "rate" }, { status: 429 }));
+    checkPerKeyRateLimitMock.mockResolvedValueOnce(
+      Response.json({ error: "rate" }, { status: 429 }),
+    );
     const res = await action({ request: mkReq(), params: { id: "sub-1" }, context: {} } as never);
     expect(res.status).toBe(429);
     expect(prismaMock.webhookSubscription.findFirst).not.toHaveBeenCalled();

@@ -106,7 +106,12 @@ type ReturnCaseFixture = {
   customerName: string | null;
   customerEmailNorm: string | null;
   returnLabelJson: string | null;
-  items: Array<{ shopifyLineItemId: string; qty: number; sku?: string | null; title?: string | null }>;
+  items: Array<{
+    shopifyLineItemId: string;
+    qty: number;
+    sku?: string | null;
+    title?: string | null;
+  }>;
   shop: { id: string; shopDomain: string };
 };
 
@@ -114,8 +119,10 @@ function mkReturnCase(over: Partial<ReturnCaseFixture> = {}): ReturnCaseFixture 
   // Use `in`-checks so callers can pass `null` explicitly for fields that
   // also have a non-null default — e.g. `fyndShipmentId: null` must NOT
   // collapse back to "SHIP-1" via the `??` fallback.
-  const pick = <K extends keyof ReturnCaseFixture>(k: K, dflt: ReturnCaseFixture[K]): ReturnCaseFixture[K] =>
-    (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
+  const pick = <K extends keyof ReturnCaseFixture>(
+    k: K,
+    dflt: ReturnCaseFixture[K],
+  ): ReturnCaseFixture[K] => (k in over ? (over[k] as ReturnCaseFixture[K]) : dflt);
   return {
     id: pick("id", "rc-1"),
     shopId: pick("shopId", "shop-1"),
@@ -243,7 +250,9 @@ describe("processFyndWebhook — identifier handling", () => {
     });
     const rc = mkReturnCase();
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
-    const r = await processFyndWebhook(mkPayload({ refund_status: "bag_picked", affiliate_order_id: "AFF-9" }));
+    const r = await processFyndWebhook(
+      mkPayload({ refund_status: "bag_picked", affiliate_order_id: "AFF-9" }),
+    );
     expect(prismaMock.fyndOrderMapping.findFirst).toHaveBeenCalled();
     expect(r.ok).toBe(true);
   });
@@ -309,15 +318,16 @@ describe("processFyndWebhook — identifier handling", () => {
     });
     await processFyndWebhook(mkPayload({ shipment_id: undefined, order_id: "12345" }));
     // Verify the strategy 7 call shape happened
-    const calls = prismaMock.returnCase.findFirst.mock.calls.map((c) =>
-      JSON.stringify(c[0]),
-    );
+    const calls = prismaMock.returnCase.findFirst.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(calls.some((s) => s.includes("gid://shopify/Order/12345"))).toBe(true);
   });
 
   it("matches via shop-scoped lookup using payload _shop_domain (strategy 8)", async () => {
     prismaMock.returnCase.findFirst.mockResolvedValue(null);
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "x.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "x.myshopify.com",
+    });
     const rc = mkReturnCase();
     extractShopifyOrderNumberVariantsMock.mockReturnValueOnce(["2001"]);
     prismaMock.returnCase.findFirst.mockImplementation(async (args: unknown) => {
@@ -364,8 +374,7 @@ describe("processFyndWebhook — refund_in_progress branch", () => {
     expect(r).toMatchObject({ ok: true, action: "refund_in_progress" });
     const updateCalls = prismaMock.returnCase.update.mock.calls.map((c) => c[0]);
     const flipped = updateCalls.some(
-      (u) =>
-        (u as { data?: { refundStatus?: string } }).data?.refundStatus === "in_progress",
+      (u) => (u as { data?: { refundStatus?: string } }).data?.refundStatus === "in_progress",
     );
     expect(flipped).toBe(true);
     expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
@@ -508,9 +517,7 @@ describe("processFyndWebhook — refund_completed branch", () => {
     );
     expect(r.ok).toBe(true);
     // The backfill update should have set shopifyOrderId
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) =>
-      JSON.stringify(c[0]),
-    );
+    const updates = prismaMock.returnCase.update.mock.calls.map((c) => JSON.stringify(c[0]));
     expect(updates.some((u) => u.includes("gid://shopify/Order/777"))).toBe(true);
   });
 
@@ -743,7 +750,8 @@ describe("processFyndWebhook — journey status updates", () => {
     const updates = prismaMock.returnCase.update.mock.calls.map((c) => c[0]);
     // No update should set fyndCurrentStatus back to bag_picked
     const downgraded = updates.some(
-      (u) => (u as { data?: { fyndCurrentStatus?: string } }).data?.fyndCurrentStatus === "bag_picked",
+      (u) =>
+        (u as { data?: { fyndCurrentStatus?: string } }).data?.fyndCurrentStatus === "bag_picked",
     );
     expect(downgraded).toBe(false);
   });
@@ -770,8 +778,7 @@ describe("processFyndWebhook — journey status updates", () => {
     await processFyndWebhook(mkPayload({ refund_status: "bag_picked" }));
     const updates = prismaMock.returnCase.update.mock.calls.map((c) => c[0]);
     const synced = updates.some(
-      (u) =>
-        (u as { data?: { fyndSyncStatus?: string } }).data?.fyndSyncStatus === "synced",
+      (u) => (u as { data?: { fyndSyncStatus?: string } }).data?.fyndSyncStatus === "synced",
     );
     expect(synced).toBe(true);
   });
@@ -797,9 +804,7 @@ describe("processFyndWebhook — backfill", () => {
       .mockResolvedValueOnce(null) // shipmentId lookup
       .mockResolvedValueOnce(rc); // orderId lookup
     await processFyndWebhook(mkPayload({ refund_status: "bag_picked" }));
-    const updates = prismaMock.returnCase.update.mock.calls.map((c) =>
-      JSON.stringify(c[0]),
-    );
+    const updates = prismaMock.returnCase.update.mock.calls.map((c) => JSON.stringify(c[0]));
     const backfilled = updates.some(
       (u) => u.includes('"fyndShipmentId":"SHIP-1"') && u.includes('"fyndOrderId":"FY-1"'),
     );
@@ -832,7 +837,9 @@ describe("processFyndWebhook — backfill", () => {
   it("upserts FyndOrderMapping for future track-order lookups", async () => {
     const rc = mkReturnCase();
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
-    await processFyndWebhook(mkPayload({ refund_status: "bag_picked", affiliate_order_id: "AFF-X" }));
+    await processFyndWebhook(
+      mkPayload({ refund_status: "bag_picked", affiliate_order_id: "AFF-X" }),
+    );
     expect(prismaMock.fyndOrderMapping.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
@@ -912,7 +919,9 @@ describe("processFyndWebhook — backfill", () => {
     // the raw object instead of double-stringifying.
     const updateData = prismaMock.returnCase.update.mock.calls
       .map((c) => (c[0] as { data?: Record<string, unknown> }).data ?? {})
-      .find((d) => typeof d.returnLabelJson === "string") as { returnLabelJson?: string; returnAwb?: string } | undefined;
+      .find((d) => typeof d.returnLabelJson === "string") as
+      | { returnLabelJson?: string; returnAwb?: string }
+      | undefined;
     expect(updateData).toBeDefined();
     expect(updateData?.returnAwb).toBe("AWB-RETURN-1");
     const labelJson = JSON.parse(updateData!.returnLabelJson!) as Record<string, unknown>;

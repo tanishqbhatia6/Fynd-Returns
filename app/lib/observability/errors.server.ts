@@ -127,7 +127,11 @@ export class WebhookDeliveryError extends AppError {
 
   protected getFingerPrintSuffix(): string {
     const host = (() => {
-      try { return new URL(this.url).host; } catch { return "unknown"; }
+      try {
+        return new URL(this.url).host;
+      } catch {
+        return "unknown";
+      }
     })();
     return `${host}:${this.lastStatusCode ?? "timeout"}`;
   }

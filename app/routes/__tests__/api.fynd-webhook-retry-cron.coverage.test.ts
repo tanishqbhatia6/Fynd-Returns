@@ -36,7 +36,10 @@ beforeEach(() => {
   processFyndWebhookMock.mockReset();
   unwrapFyndWebhookPayloadMock
     .mockReset()
-    .mockImplementation((raw: string) => ({ payload: JSON.parse(raw), eventType: "shipment.updated" }));
+    .mockImplementation((raw: string) => ({
+      payload: JSON.parse(raw),
+      eventType: "shipment.updated",
+    }));
 });
 afterEach(() => {
   process.env = { ...origEnv };

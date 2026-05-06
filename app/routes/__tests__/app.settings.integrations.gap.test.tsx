@@ -106,13 +106,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 
 // AppPage passthrough so jsdom doesn't try to load Polaris.
 vi.mock("../../components/AppPage", () => ({
-  AppPage: ({
-    heading,
-    children,
-  }: {
-    heading: React.ReactNode;
-    children: React.ReactNode;
-  }) => (
+  AppPage: ({ heading, children }: { heading: React.ReactNode; children: React.ReactNode }) => (
     <div data-testid="app-page">
       <h1 data-testid="app-page-heading">{heading}</h1>
       {children}
@@ -234,9 +228,11 @@ beforeEach(() => {
   authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
   encryptMock.mockClear();
   encryptIfNeededMock.mockClear();
-  decryptIfEncryptedMock.mockReset().mockImplementation((s: string | null | undefined) =>
-    s ? String(s).replace(/^enc\(|\)$/g, "") : null,
-  );
+  decryptIfEncryptedMock
+    .mockReset()
+    .mockImplementation((s: string | null | undefined) =>
+      s ? String(s).replace(/^enc\(|\)$/g, "") : null,
+    );
   getNormalizedCredentialsFromRawMock.mockReset().mockReturnValue(null);
   testPlatformConnectionRawMock.mockReset();
   createFyndClientOrErrorMock.mockReset();
@@ -376,9 +372,11 @@ describe("action — test_fynd_webhook_secret error branches", () => {
       shopDomain: "store.myshopify.com",
       settings: { fyndWebhookSecret: "enc(plain-secret)" },
     });
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("upstream rejected", { status: 401, statusText: "Unauthorized" }) as Response,
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response("upstream rejected", { status: 401, statusText: "Unauthorized" }) as Response,
+      );
     try {
       const res = (await action({
         request: formReq({ intent: "test_fynd_webhook_secret" }),
@@ -404,9 +402,7 @@ describe("action — test_fynd_webhook_secret error branches", () => {
       shopDomain: "store.myshopify.com",
       settings: { fyndWebhookSecret: "enc(plain-secret)" },
     });
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockRejectedValue(new Error("network down"));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("network down"));
     try {
       const res = (await action({
         request: formReq({ intent: "test_fynd_webhook_secret" }),
@@ -484,9 +480,7 @@ describe("action — save preserves existing creds when none submitted (line 329
     // tokenUpdated stays true because merged.platform was set from existing creds.
     expect(res.tokenUpdated).toBe(true);
     // The encrypt call should serialise the *existing* clientId/clientSecret.
-    expect(encryptMock).toHaveBeenCalledWith(
-      expect.stringContaining("stored-cid"),
-    );
+    expect(encryptMock).toHaveBeenCalledWith(expect.stringContaining("stored-cid"));
   });
 });
 
@@ -571,8 +565,12 @@ describe("component — radio onChange handlers for the chosen default", () => {
       "input[type='radio'][name='appMode'][value='prod']",
     ) as HTMLInputElement;
     expect(prod.checked).toBe(false);
-    await act(async () => { fireEvent.click(prod); });
-    await waitFor(() => { expect(prod.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(prod);
+    });
+    await waitFor(() => {
+      expect(prod.checked).toBe(true);
+    });
   });
 
   it("clicking 'uat' radio when initial fyndEnvironment is 'prod' fires setFyndEnvironment (line 855)", async () => {
@@ -582,8 +580,12 @@ describe("component — radio onChange handlers for the chosen default", () => {
       "input[type='radio'][name='fyndEnvironment'][value='uat']",
     ) as HTMLInputElement;
     expect(uat.checked).toBe(false);
-    await act(async () => { fireEvent.click(uat); });
-    await waitFor(() => { expect(uat.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(uat);
+    });
+    await waitFor(() => {
+      expect(uat.checked).toBe(true);
+    });
   });
 });
 
@@ -623,11 +625,15 @@ describe("component — Gorgias toggle + API key + webhook rotation feedback", (
       return true;
     });
     const { container } = renderWith();
-    const rotateBtn = Array.from(container.querySelectorAll("button")).find(
-      (b) => b.textContent?.includes("Rotate webhook secret"),
+    const rotateBtn = Array.from(container.querySelectorAll("button")).find((b) =>
+      b.textContent?.includes("Rotate webhook secret"),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(rotateBtn); });
-    await waitFor(() => { expect(confirmSpy).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(rotateBtn);
+    });
+    await waitFor(() => {
+      expect(confirmSpy).toHaveBeenCalled();
+    });
     confirmSpy.mockRestore();
   });
 });

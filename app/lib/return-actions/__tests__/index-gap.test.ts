@@ -95,9 +95,7 @@ describe("return-actions/index barrel re-exports", () => {
   it("exports every handler name documented in the barrel", () => {
     for (const [name] of expectedHandlers) {
       expect(barrel, `barrel missing ${String(name)}`).toHaveProperty(name as string);
-      expect(typeof (barrel as Record<string, unknown>)[name as string]).toBe(
-        "function",
-      );
+      expect(typeof (barrel as Record<string, unknown>)[name as string]).toBe("function");
     }
   });
 
@@ -131,9 +129,7 @@ describe("return-actions/index barrel re-exports", () => {
   it("each handler is uniquely identified (no accidental aliasing)", () => {
     // Defensive: protect against a future edit that accidentally points
     // two named exports at the same underlying function.
-    const refs = expectedHandlers.map(
-      ([n]) => (barrel as Record<string, unknown>)[n as string],
-    );
+    const refs = expectedHandlers.map(([n]) => (barrel as Record<string, unknown>)[n as string]);
     const unique = new Set(refs);
     expect(unique.size).toBe(refs.length);
   });

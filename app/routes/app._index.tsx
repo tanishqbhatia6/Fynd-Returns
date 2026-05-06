@@ -1,9 +1,19 @@
 import React from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useSearchParams, isRouteErrorResponse, useRouteError } from "react-router";
+import {
+  Link,
+  useLoaderData,
+  useSearchParams,
+  isRouteErrorResponse,
+  useRouteError,
+} from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import { parseDateRange, DATE_RANGE_OPTIONS, type DateRangePreset } from "../lib/dashboard-date-utils";
+import {
+  parseDateRange,
+  DATE_RANGE_OPTIONS,
+  type DateRangePreset,
+} from "../lib/dashboard-date-utils";
 import { getStatusColor } from "../lib/status-colors";
 import { AppPage } from "../components/AppPage";
 import {
@@ -28,8 +38,18 @@ function buildSuggestions(data: {
   refundedCount: number;
   avgProcessingDays: number | null;
   rangeLabel: string;
-}): { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[] {
-  const suggestions: { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[] = [];
+}): {
+  type: "info" | "warning" | "success";
+  message: string;
+  action?: string;
+  actionUrl?: string;
+}[] {
+  const suggestions: {
+    type: "info" | "warning" | "success";
+    message: string;
+    action?: string;
+    actionUrl?: string;
+  }[] = [];
 
   if (data.totalReturns === 0) return suggestions;
 
@@ -70,7 +90,11 @@ function buildSuggestions(data: {
   }
 
   const topReason = data.topReasons[0];
-  if (topReason && (topReason.reason === "Other" || topReason.reason === "other") && data.totalReturns >= 2) {
+  if (
+    topReason &&
+    (topReason.reason === "Other" || topReason.reason === "other") &&
+    data.totalReturns >= 2
+  ) {
     suggestions.push({
       type: "info",
       message: "Many returns use 'Other' as reason. Add specific reasons in settings.",
@@ -94,19 +118,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   if (Date.now() - lastSessionCleanup > SESSION_CLEANUP_INTERVAL_MS) {
     lastSessionCleanup = Date.now();
-    prisma.lookupSession.deleteMany({
-      where: { expiresAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
-    }).catch((err: unknown) => console.warn("[cleanup] Failed to clean expired sessions:", err));
-    prisma.fyndWebhookLog.deleteMany({
-      where: { createdAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
-    }).catch((err: unknown) => console.warn("[cleanup] Failed to clean old webhook logs:", err));
+    prisma.lookupSession
+      .deleteMany({
+        where: { expiresAt: { lt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } },
+      })
+      .catch((err: unknown) => console.warn("[cleanup] Failed to clean expired sessions:", err));
+    prisma.fyndWebhookLog
+      .deleteMany({
+        where: { createdAt: { lt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) } },
+      })
+      .catch((err: unknown) => console.warn("[cleanup] Failed to clean old webhook logs:", err));
   }
 
   import("../lib/fynd-retry.server").then(({ runFyndRetryQueue }) =>
-    runFyndRetryQueue().catch((err: unknown) => console.warn("[retry] Queue error:", err))
+    runFyndRetryQueue().catch((err: unknown) => console.warn("[retry] Queue error:", err)),
   );
   import("../lib/fynd-status-poll.server").then(({ pollStaleReturns }) =>
-    pollStaleReturns().catch((err: unknown) => console.warn("[poll] Status poll error:", err))
+    pollStaleReturns().catch((err: unknown) => console.warn("[poll] Status poll error:", err)),
   );
 
   try {
@@ -125,43 +153,98 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     // locale for human-readable date labels.
     const merchantTz = shop.settings?.shopTimezone || undefined;
     const merchantLocale = shop.settings?.shopLocale || undefined;
-    const { start: rangeStart, end: rangeEnd, label: rangeLabel } = parseDateRange(range, from, to, merchantTz, merchantLocale);
+    const {
+      start: rangeStart,
+      end: rangeEnd,
+      label: rangeLabel,
+    } = parseDateRange(range, from, to, merchantTz, merchantLocale);
     const where = { shopId: shop.id, createdAt: { gte: rangeStart, lte: rangeEnd } };
     const whereAll = { shopId: shop.id };
     const approvedStatuses = ["approved", "completed"];
     const approvedWhere = { ...where, status: { in: approvedStatuses } };
 
     const [
-      totalReturns, returnsByStatus, recentReturns, reasonAggregation,
-      refundedCount, fyndSyncedCount, pendingCount, rejectedCount,
-      allTimeReturns, approvedWithEvents, returnsForDaily, approvedNotRefundedCount,
-      greenReturnCount, resolutionAgg, retainedCases, blocklistCount,
+      totalReturns,
+      returnsByStatus,
+      recentReturns,
+      reasonAggregation,
+      refundedCount,
+      fyndSyncedCount,
+      pendingCount,
+      rejectedCount,
+      allTimeReturns,
+      approvedWithEvents,
+      returnsForDaily,
+      approvedNotRefundedCount,
+      greenReturnCount,
+      resolutionAgg,
+      retainedCases,
+      blocklistCount,
     ] = await Promise.all([
       prisma.returnCase.count({ where }),
       prisma.returnCase.groupBy({ by: ["status"], where, _count: true }),
-      prisma.returnCase.findMany({ where, orderBy: { createdAt: "desc" }, take: 8, include: { items: { take: 3 } } }),
+      prisma.returnCase.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        take: 8,
+        include: { items: { take: 3 } },
+      }),
       prisma.returnItem.groupBy({ by: ["reasonCode"], where: { returnCase: where }, _count: true }),
-      prisma.returnCase.count({ where: { ...where, status: { in: ["approved", "completed"] }, refundStatus: "refunded" } }),
-      prisma.returnCase.count({ where: { ...where, status: { in: ["approved", "completed"] }, OR: [{ fyndReturnNo: { not: null } }, { fyndReturnId: { not: null } }, { fyndShipmentId: { not: null } }] } }),
+      prisma.returnCase.count({
+        where: { ...where, status: { in: ["approved", "completed"] }, refundStatus: "refunded" },
+      }),
+      prisma.returnCase.count({
+        where: {
+          ...where,
+          status: { in: ["approved", "completed"] },
+          OR: [
+            { fyndReturnNo: { not: null } },
+            { fyndReturnId: { not: null } },
+            { fyndShipmentId: { not: null } },
+          ],
+        },
+      }),
       prisma.returnCase.count({ where: { ...where, status: "pending" } }),
       prisma.returnCase.count({ where: { ...where, status: "rejected" } }),
       prisma.returnCase.count({ where: whereAll }),
-      prisma.returnCase.findMany({ where: approvedWhere, select: { createdAt: true, updatedAt: true }, orderBy: { createdAt: "desc" } }),
-      prisma.returnCase.findMany({ where, select: { createdAt: true }, orderBy: { createdAt: "desc" } }),
+      prisma.returnCase.findMany({
+        where: approvedWhere,
+        select: { createdAt: true, updatedAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.returnCase.findMany({
+        where,
+        select: { createdAt: true },
+        orderBy: { createdAt: "desc" },
+      }),
       // "Awaiting refund": every approved-or-completed return whose refund hasn't
       // landed yet. Previously this only counted status='approved' and missed
       // status='completed' rows, hiding refunds the merchant still owed (P0
       // finding from QA audit).
-      prisma.returnCase.count({ where: { ...where, status: { in: ["approved", "completed"] }, OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }] } }),
+      prisma.returnCase.count({
+        where: {
+          ...where,
+          status: { in: ["approved", "completed"] },
+          OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }],
+        },
+      }),
       // Green returns: only count APPROVED or COMPLETED — a rejected return that
       // happened to be flagged green should not inflate the metric.
-      prisma.returnCase.count({ where: { ...where, isGreenReturn: true, status: { in: ["approved", "completed"] } } }),
+      prisma.returnCase.count({
+        where: { ...where, isGreenReturn: true, status: { in: ["approved", "completed"] } },
+      }),
       prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),
       prisma.returnCase.findMany({
-        where: { ...where, resolutionType: { in: ["exchange", "store_credit"] }, refundJson: { not: null } },
+        where: {
+          ...where,
+          resolutionType: { in: ["exchange", "store_credit"] },
+          refundJson: { not: null },
+        },
         select: { refundJson: true },
       }),
-      shop.settings ? prisma.blocklistEntry.count({ where: { settingsId: shop.settings.id } }) : Promise.resolve(0),
+      shop.settings
+        ? prisma.blocklistEntry.count({ where: { settingsId: shop.settings.id } })
+        : Promise.resolve(0),
     ]);
 
     // Determine the dominant currency from actual return data (not shop settings which may be wrong)
@@ -188,7 +271,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     `;
     const revenueAtRisk = parseFloat(atRiskResult[0]?.total ?? "0") || 0;
 
-    const statusMap = returnsByStatus.reduce((acc, x) => ({ ...acc, [x.status]: x._count }), {} as Record<string, number>);
+    const statusMap = returnsByStatus.reduce(
+      (acc, x) => ({ ...acc, [x.status]: x._count }),
+      {} as Record<string, number>,
+    );
     const approvedCount = (statusMap.approved ?? 0) + (statusMap.completed ?? 0);
 
     let revenueRetained = 0;
@@ -196,7 +282,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       try {
         const parsed = JSON.parse(rc.refundJson ?? "{}");
         revenueRetained += parseFloat(parsed.amount ?? "0") || 0;
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
 
     const resolutionMap = resolutionAgg.reduce(
@@ -204,9 +292,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       {} as Record<string, number>,
     );
     const resolvedTotal = Object.values(resolutionMap).reduce((a, b) => a + b, 0);
-    const exchangeRate = resolvedTotal > 0
-      ? Math.round(((resolutionMap.exchange ?? 0) / resolvedTotal) * 100)
-      : 0;
+    const exchangeRate =
+      resolvedTotal > 0 ? Math.round(((resolutionMap.exchange ?? 0) / resolvedTotal) * 100) : 0;
 
     const topReasons = reasonAggregation
       .filter((r) => r.reasonCode != null && String(r.reasonCode).trim() !== "")
@@ -230,7 +317,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const returnsOverTime = Object.entries(dailyData)
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([date, count]) => ({
-        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", { month: "short", day: "numeric", year: "2-digit" }).format(new Date(date)),
+        date: new Intl.DateTimeFormat(shop?.settings?.shopLocale || "en", {
+          month: "short",
+          day: "numeric",
+          year: "2-digit",
+        }).format(new Date(date)),
         returns: count,
         fullDate: date,
       }));
@@ -265,9 +356,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       } catch {
         // Fallback to updatedAt-based calculation
         const times = approvedWithEvents
-          .map((rc) => (new Date(rc.updatedAt).getTime() - new Date(rc.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+          .map(
+            (rc) =>
+              (new Date(rc.updatedAt).getTime() - new Date(rc.createdAt).getTime()) /
+              (24 * 60 * 60 * 1000),
+          )
           .filter((t) => t >= 0);
-        if (times.length > 0) avgProcessingDays = Math.round((times.reduce((a, b) => a + b, 0) / times.length) * 10) / 10;
+        if (times.length > 0)
+          avgProcessingDays =
+            Math.round((times.reduce((a, b) => a + b, 0) / times.length) * 10) / 10;
       }
     }
 
@@ -281,7 +378,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     let totalRefundAmount = 0;
     let refundContributorCount = 0;
     const refundedForAmount = await prisma.returnCase.findMany({
-      where: { ...where, status: { in: ["approved", "completed"] }, refundStatus: "refunded", refundJson: { not: null } },
+      where: {
+        ...where,
+        status: { in: ["approved", "completed"] },
+        refundStatus: "refunded",
+        refundJson: { not: null },
+      },
       select: { refundJson: true },
     });
     for (const rc of refundedForAmount) {
@@ -292,34 +394,58 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           totalRefundAmount += amt;
           refundContributorCount++;
         }
-      } catch { /* skip */ }
+      } catch {
+        /* skip */
+      }
     }
-    const avgRefundAmount = refundContributorCount > 0 ? totalRefundAmount / refundContributorCount : 0;
+    const avgRefundAmount =
+      refundContributorCount > 0 ? totalRefundAmount / refundContributorCount : 0;
 
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
     const prevPeriodStart = new Date(rangeStart);
-    prevPeriodStart.setTime(prevPeriodStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime()));
+    prevPeriodStart.setTime(
+      prevPeriodStart.getTime() - (rangeEnd.getTime() - rangeStart.getTime()),
+    );
     const prevPeriodCount = await prisma.returnCase.count({
       where: { shopId: shop.id, createdAt: { gte: prevPeriodStart, lt: rangeStart } },
     });
-    const periodChange = totalReturns > 0 && prevPeriodCount >= 0
-      ? Math.round(((totalReturns - prevPeriodCount) / Math.max(prevPeriodCount, 1)) * 100)
-      : 0;
+    const periodChange =
+      totalReturns > 0 && prevPeriodCount >= 0
+        ? Math.round(((totalReturns - prevPeriodCount) / Math.max(prevPeriodCount, 1)) * 100)
+        : 0;
 
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
     const overdueCount = await prisma.returnCase.count({
-      where: { shopId: shop.id, status: { in: ["initiated", "pending"] }, createdAt: { lt: threeDaysAgo } },
+      where: {
+        shopId: shop.id,
+        status: { in: ["initiated", "pending"] },
+        createdAt: { lt: threeDaysAgo },
+      },
     });
 
     // Fraud alerts: returns from high/critical risk customers in the period
     // Wrapped in try/catch so a missing column doesn't crash the entire dashboard
-    let fraudAlertReturns: { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[] = [];
+    let fraudAlertReturns: {
+      id: string;
+      customerName: string | null;
+      customerEmailNorm: string | null;
+      fraudRiskLevel: string | null;
+      fraudRiskScore: number | null;
+      shopifyOrderName: string | null;
+    }[] = [];
     let fraudAlertCount = 0;
     try {
       fraudAlertReturns = await prisma.returnCase.findMany({
         where: { ...where, fraudRiskLevel: { in: ["high", "critical"] } },
-        select: { id: true, customerName: true, customerEmailNorm: true, fraudRiskLevel: true, fraudRiskScore: true, shopifyOrderName: true },
+        select: {
+          id: true,
+          customerName: true,
+          customerEmailNorm: true,
+          fraudRiskLevel: true,
+          fraudRiskScore: true,
+          shopifyOrderName: true,
+        },
         orderBy: { fraudRiskScore: "desc" },
         take: 5,
       });
@@ -331,46 +457,109 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const suggestions = buildSuggestions({
-      totalReturns, pendingCount, rejectedCount, approvedCount,
+      totalReturns,
+      pendingCount,
+      rejectedCount,
+      approvedCount,
       approvedNotRefundedCount,
-      topReasons, hasFyndConfig, fyndSyncedCount, refundedCount,
-      avgProcessingDays, rangeLabel,
+      topReasons,
+      hasFyndConfig,
+      fyndSyncedCount,
+      refundedCount,
+      avgProcessingDays,
+      rangeLabel,
     });
 
     return {
-      totalReturns, statusMap, approvedCount, topReasons, recentReturns,
-      hasFyndConfig, shopDomain: session.shop, refundedCount, pendingCount,
-      rejectedCount, returnsOverTime, periodChange, rangeLabel, range,
-      from: from ?? undefined, to: to ?? undefined, allTimeReturns,
-      suggestions, error: null,
-      revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
-      resolutionMap, revenueAtRisk, overdueCount,
+      totalReturns,
+      statusMap,
+      approvedCount,
+      topReasons,
+      recentReturns,
+      hasFyndConfig,
+      shopDomain: session.shop,
+      refundedCount,
+      pendingCount,
+      rejectedCount,
+      returnsOverTime,
+      periodChange,
+      rangeLabel,
+      range,
+      from: from ?? undefined,
+      to: to ?? undefined,
+      allTimeReturns,
+      suggestions,
+      error: null,
+      revenueRetained,
+      exchangeRate,
+      greenReturnCount,
+      blocklistCount,
+      resolutionMap,
+      revenueAtRisk,
+      overdueCount,
       shopLocale: shop?.settings?.shopLocale ?? "en",
       shopCurrency: dominantCurrency,
       shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
       fraudAlertCount,
-      fraudAlertReturns: fraudAlertReturns as { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
-      avgRefundAmount, totalRefundAmount,
+      fraudAlertReturns: fraudAlertReturns as {
+        id: string;
+        customerName: string | null;
+        customerEmailNorm: string | null;
+        fraudRiskLevel: string | null;
+        fraudRiskScore: number | null;
+        shopifyOrderName: string | null;
+      }[],
+      avgRefundAmount,
+      totalRefundAmount,
     };
   } catch (err) {
     console.error("Dashboard loader error:", err);
     return {
-      totalReturns: 0, statusMap: {} as Record<string, number>, approvedCount: 0,
+      totalReturns: 0,
+      statusMap: {} as Record<string, number>,
+      approvedCount: 0,
       topReasons: [] as { reason: string; count: number }[],
       recentReturns: [] as Awaited<ReturnType<typeof prisma.returnCase.findMany>>,
-      hasFyndConfig: false, shopDomain: session.shop, refundedCount: 0,
-      pendingCount: 0, rejectedCount: 0,
+      hasFyndConfig: false,
+      shopDomain: session.shop,
+      refundedCount: 0,
+      pendingCount: 0,
+      rejectedCount: 0,
       returnsOverTime: [] as { date: string; returns: number; fullDate: string }[],
-      periodChange: 0, rangeLabel: "Last 30 days", range: "last_30_days",
-      from: undefined, to: undefined, allTimeReturns: 0,
-      suggestions: [] as { type: "info" | "warning" | "success"; message: string; action?: string; actionUrl?: string }[],
+      periodChange: 0,
+      rangeLabel: "Last 30 days",
+      range: "last_30_days",
+      from: undefined,
+      to: undefined,
+      allTimeReturns: 0,
+      suggestions: [] as {
+        type: "info" | "warning" | "success";
+        message: string;
+        action?: string;
+        actionUrl?: string;
+      }[],
       error: "Failed to load dashboard data. Please refresh or try again later.",
-      revenueRetained: 0, exchangeRate: 0, greenReturnCount: 0, blocklistCount: 0,
-      resolutionMap: {} as Record<string, number>, revenueAtRisk: 0, overdueCount: 0,
-      shopLocale: "en", shopCurrency: "USD", shopTimezone: "UTC",
+      revenueRetained: 0,
+      exchangeRate: 0,
+      greenReturnCount: 0,
+      blocklistCount: 0,
+      resolutionMap: {} as Record<string, number>,
+      revenueAtRisk: 0,
+      overdueCount: 0,
+      shopLocale: "en",
+      shopCurrency: "USD",
+      shopTimezone: "UTC",
       fraudAlertCount: 0,
-      fraudAlertReturns: [] as { id: string; customerName: string | null; customerEmailNorm: string | null; fraudRiskLevel: string | null; fraudRiskScore: number | null; shopifyOrderName: string | null }[],
-      avgRefundAmount: 0, totalRefundAmount: 0,
+      fraudAlertReturns: [] as {
+        id: string;
+        customerName: string | null;
+        customerEmailNorm: string | null;
+        fraudRiskLevel: string | null;
+        fraudRiskScore: number | null;
+        shopifyOrderName: string | null;
+      }[],
+      avgRefundAmount: 0,
+      totalRefundAmount: 0,
     };
   }
 };
@@ -378,20 +567,47 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const {
-    totalReturns, statusMap, approvedCount, topReasons, recentReturns,
-    hasFyndConfig, refundedCount, pendingCount, rejectedCount,
-    returnsOverTime, periodChange, rangeLabel, range, from, to,
-    allTimeReturns, suggestions, error,
-    revenueRetained, exchangeRate, greenReturnCount, blocklistCount,
-    resolutionMap, revenueAtRisk, overdueCount, shopLocale, shopCurrency, shopTimezone,
-    fraudAlertCount, fraudAlertReturns,
-    avgRefundAmount, totalRefundAmount,
+    totalReturns,
+    statusMap,
+    approvedCount,
+    topReasons,
+    recentReturns,
+    hasFyndConfig,
+    refundedCount,
+    pendingCount,
+    rejectedCount,
+    returnsOverTime,
+    periodChange,
+    rangeLabel,
+    range,
+    from,
+    to,
+    allTimeReturns,
+    suggestions,
+    error,
+    revenueRetained,
+    exchangeRate,
+    greenReturnCount,
+    blocklistCount,
+    resolutionMap,
+    revenueAtRisk,
+    overdueCount,
+    shopLocale,
+    shopCurrency,
+    shopTimezone,
+    fraudAlertCount,
+    fraudAlertReturns,
+    avgRefundAmount,
+    totalRefundAmount,
   } = useLoaderData<typeof loader>();
 
   const handleRangeChange = (newRange: DateRangePreset) => {
     const next = new URLSearchParams(searchParams);
     next.set("range", newRange);
-    if (newRange !== "custom") { next.delete("from"); next.delete("to"); }
+    if (newRange !== "custom") {
+      next.delete("from");
+      next.delete("to");
+    }
     setSearchParams(next);
   };
 
@@ -412,7 +628,19 @@ export default function Dashboard() {
         {error && (
           <div className="app-alert app-alert-error mb-md">
             <p style={{ fontWeight: 600, fontSize: 14 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ verticalAlign: "middle", marginRight: 4 }}><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                style={{ verticalAlign: "middle", marginRight: 4 }}
+              >
+                <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
               {error}
             </p>
           </div>
@@ -424,20 +652,37 @@ export default function Dashboard() {
             <span className="dashboard-toolbar-label">Overview</span>
             <span className="dashboard-toolbar-separator" />
           </div>
-          <select value={range} onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}>
+          <select
+            value={range}
+            onChange={(e) => handleRangeChange(e.target.value as DateRangePreset)}
+          >
             {DATE_RANGE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
             ))}
           </select>
           {range === "custom" && (
             <>
-              <input type="date" value={from ?? ""} onChange={(e) => handleCustomRange(e.target.value, to ?? "")} />
+              <input
+                type="date"
+                value={from ?? ""}
+                onChange={(e) => handleCustomRange(e.target.value, to ?? "")}
+              />
               <span style={{ color: "var(--rpm-text-muted)", fontSize: 12 }}>to</span>
-              <input type="date" value={to ?? ""} onChange={(e) => handleCustomRange(from ?? "", e.target.value)} />
+              <input
+                type="date"
+                value={to ?? ""}
+                onChange={(e) => handleCustomRange(from ?? "", e.target.value)}
+              />
             </>
           )}
           <span style={{ fontSize: 12, color: "var(--rpm-text-muted)" }}>{rangeLabel}</span>
-          <Link to="/app/reports" className="panel-link" style={{ marginLeft: "auto", fontSize: 13 }}>
+          <Link
+            to="/app/reports"
+            className="panel-link"
+            style={{ marginLeft: "auto", fontSize: 13 }}
+          >
             Full reports →
           </Link>
         </div>
@@ -449,9 +694,31 @@ export default function Dashboard() {
               <div key={i} className={`dashboard-suggestion dashboard-suggestion--${s.type}`}>
                 <span className="suggestion-icon">
                   {s.type === "warning" ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
                   ) : (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                    <svg
+                      width="14"
+                      height="14"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <circle cx="12" cy="12" r="10" />
+                      <line x1="12" y1="16" x2="12" y2="12" />
+                      <line x1="12" y1="8" x2="12.01" y2="8" />
+                    </svg>
                   )}
                   {s.message}
                 </span>
@@ -468,165 +735,398 @@ export default function Dashboard() {
         {/* ── Hero KPI row — four primary metrics, modern card layout.
              Each card has an icon chip in the header plus a trend pill. */}
         <div className="dashboard-hero-grid mb-md">
-          <Link to="/app/returns" className="dashboard-kpi-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
+          <Link
+            to="/app/returns"
+            className="dashboard-kpi-card"
+            style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+                  <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                  <line x1="12" y1="22.08" x2="12" y2="12" />
+                </svg>
               </span>
               <span className="kpi-label">Total returns</span>
               {periodChange !== 0 && (
-                <span className={`kpi-change ${periodChange > 0 ? "kpi-change--up" : "kpi-change--down"}`}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                    {periodChange > 0
-                      ? <><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></>
-                      : <><line x1="7" y1="7" x2="17" y2="17"/><polyline points="17 7 17 17 7 17"/></>}
+                <span
+                  className={`kpi-change ${periodChange > 0 ? "kpi-change--up" : "kpi-change--down"}`}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {periodChange > 0 ? (
+                      <>
+                        <line x1="7" y1="17" x2="17" y2="7" />
+                        <polyline points="7 7 17 7 17 17" />
+                      </>
+                    ) : (
+                      <>
+                        <line x1="7" y1="7" x2="17" y2="17" />
+                        <polyline points="17 7 17 17 7 17" />
+                      </>
+                    )}
                   </svg>
                   {Math.abs(periodChange)}%
                 </span>
               )}
             </div>
-            <div className="kpi-value">{new Intl.NumberFormat(shopLocale || "en").format(totalReturns)}</div>
+            <div className="kpi-value">
+              {new Intl.NumberFormat(shopLocale || "en").format(totalReturns)}
+            </div>
             <div className="kpi-meta">{rangeLabel}</div>
           </Link>
 
-          <Link to="/app/returns?status=pending" className="dashboard-kpi-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
+          <Link
+            to="/app/returns?status=pending"
+            className="dashboard-kpi-card"
+            style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
               </span>
               <span className="kpi-label">Needs review</span>
             </div>
-            <div className="kpi-value" style={{ color: pendingCount > 0 ? "#D97706" : undefined }}>{pendingCount}</div>
+            <div className="kpi-value" style={{ color: pendingCount > 0 ? "#D97706" : undefined }}>
+              {pendingCount}
+            </div>
             <div className="kpi-meta">{pendingCount > 0 ? "Awaiting action" : "All clear"}</div>
           </Link>
 
-          <Link to="/app/returns?status=approved" className="dashboard-kpi-card" style={{ "--kpi-accent": "#10B981" } as React.CSSProperties}>
+          <Link
+            to="/app/returns?status=approved"
+            className="dashboard-kpi-card"
+            style={{ "--kpi-accent": "#10B981" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
               </span>
               <span className="kpi-label">Approved</span>
               {totalReturns > 0 && (
-                <span className="kpi-change" style={{ background: "#ECFDF5", color: "#047857", border: "1px solid #A7F3D0" }}>
+                <span
+                  className="kpi-change"
+                  style={{ background: "#ECFDF5", color: "#047857", border: "1px solid #A7F3D0" }}
+                >
                   {approvalRate}%
                 </span>
               )}
             </div>
-            <div className="kpi-value" style={{ color: "#059669" }}>{approvedCount}</div>
+            <div className="kpi-value" style={{ color: "#059669" }}>
+              {approvedCount}
+            </div>
             <div className="kpi-meta">Approved &amp; completed</div>
           </Link>
 
-          <div className="dashboard-kpi-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
+          <div
+            className="dashboard-kpi-card"
+            style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="12" y1="1" x2="12" y2="23" />
+                  <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                </svg>
               </span>
               <span className="kpi-label">Refunded</span>
             </div>
-            <div className="kpi-value" style={{ color: "#7C3AED" }}>{refundedCount}</div>
+            <div className="kpi-value" style={{ color: "#7C3AED" }}>
+              {refundedCount}
+            </div>
             <div className="kpi-meta">
-              {allTimeReturns > 0 ? `${new Intl.NumberFormat(shopLocale || "en").format(allTimeReturns)} all time` : "No refunds yet"}
+              {allTimeReturns > 0
+                ? `${new Intl.NumberFormat(shopLocale || "en").format(allTimeReturns)} all time`
+                : "No refunds yet"}
             </div>
           </div>
         </div>
 
         {/* ── Secondary stats grid — compact 4×2 modern cards. */}
         <div className="dashboard-stat-grid mb-md">
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#059669" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={{ "--kpi-accent": "#059669" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4"/><path d="M12 18v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="m16.24 16.24 2.83 2.83"/><path d="M2 12h4"/><path d="M18 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="m16.24 7.76 2.83-2.83"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 2v4" />
+                  <path d="M12 18v4" />
+                  <path d="m4.93 4.93 2.83 2.83" />
+                  <path d="m16.24 16.24 2.83 2.83" />
+                  <path d="M2 12h4" />
+                  <path d="M18 12h4" />
+                  <path d="m4.93 19.07 2.83-2.83" />
+                  <path d="m16.24 7.76 2.83-2.83" />
+                </svg>
               </span>
               <span className="kpi-label">Revenue retained</span>
             </div>
             <div className="kpi-value" style={{ color: "#059669" }}>
-              {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueRetained)}
+              {new Intl.NumberFormat(shopLocale || "en", {
+                style: "currency",
+                currency: shopCurrency || "USD",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(revenueRetained)}
             </div>
             <div className="kpi-meta">Exchanges &amp; store credit</div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={{ "--kpi-accent": "#F59E0B" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
               </span>
               <span className="kpi-label">Revenue at risk</span>
             </div>
             <div className="kpi-value" style={{ color: revenueAtRisk > 0 ? "#D97706" : undefined }}>
-              {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(revenueAtRisk)}
+              {new Intl.NumberFormat(shopLocale || "en", {
+                style: "currency",
+                currency: shopCurrency || "USD",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(revenueAtRisk)}
             </div>
             <div className="kpi-meta">Initiated &amp; pending (30d)</div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={{ "--kpi-accent": "#8B5CF6" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="2" y="5" width="20" height="14" rx="2" />
+                  <line x1="2" y1="10" x2="22" y2="10" />
+                </svg>
               </span>
               <span className="kpi-label">Avg refund</span>
             </div>
             <div className="kpi-value" style={{ color: "#7C3AED" }}>
-              {new Intl.NumberFormat(shopLocale || "en", { style: "currency", currency: shopCurrency || "USD", minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(avgRefundAmount)}
+              {new Intl.NumberFormat(shopLocale || "en", {
+                style: "currency",
+                currency: shopCurrency || "USD",
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+              }).format(avgRefundAmount)}
             </div>
-            <div className="kpi-meta">{refundedCount} refund{refundedCount === 1 ? "" : "s"} issued</div>
+            <div className="kpi-meta">
+              {refundedCount} refund{refundedCount === 1 ? "" : "s"} issued
+            </div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#6366F1" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={{ "--kpi-accent": "#6366F1" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21.5 2v6h-6"/><path d="M21.34 15.57A10 10 0 1 1 19 5.27L21.5 8"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M21.5 2v6h-6" />
+                  <path d="M21.34 15.57A10 10 0 1 1 19 5.27L21.5 8" />
+                </svg>
               </span>
               <span className="kpi-label">Refund rate</span>
             </div>
-            <div className="kpi-value" style={{ color: "#4F46E5" }}>{refundRate}%</div>
-            <div className="kpi-meta">{refundedCount} of {approvedCount} approved</div>
-            <div className="kpi-progress"><span style={{ width: `${Math.min(100, refundRate)}%` }} /></div>
+            <div className="kpi-value" style={{ color: "#4F46E5" }}>
+              {refundRate}%
+            </div>
+            <div className="kpi-meta">
+              {refundedCount} of {approvedCount} approved
+            </div>
+            <div className="kpi-progress">
+              <span style={{ width: `${Math.min(100, refundRate)}%` }} />
+            </div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={{ "--kpi-accent": "#3B82F6" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <polyline points="17 1 21 5 17 9" />
+                  <path d="M3 11V9a4 4 0 0 1 4-4h14" />
+                  <polyline points="7 23 3 19 7 15" />
+                  <path d="M21 13v2a4 4 0 0 1-4 4H3" />
+                </svg>
               </span>
               <span className="kpi-label">Exchange rate</span>
             </div>
-            <div className="kpi-value" style={{ color: "#2563EB" }}>{exchangeRate}%</div>
-            <div className="kpi-meta">{resolutionMap.exchange ?? 0} of {Object.values(resolutionMap).reduce((a, b) => a + b, 0)} resolved</div>
-            <div className="kpi-progress"><span style={{ width: `${Math.min(100, exchangeRate)}%` }} /></div>
+            <div className="kpi-value" style={{ color: "#2563EB" }}>
+              {exchangeRate}%
+            </div>
+            <div className="kpi-meta">
+              {resolutionMap.exchange ?? 0} of{" "}
+              {Object.values(resolutionMap).reduce((a, b) => a + b, 0)} resolved
+            </div>
+            <div className="kpi-progress">
+              <span style={{ width: `${Math.min(100, exchangeRate)}%` }} />
+            </div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#06B6D4" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={{ "--kpi-accent": "#06B6D4" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path d="M2 21c0-3 1.85-5.36 5.08-6"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z" />
+                  <path d="M2 21c0-3 1.85-5.36 5.08-6" />
+                </svg>
               </span>
               <span className="kpi-label">Green returns</span>
             </div>
-            <div className="kpi-value" style={{ color: "#0891B2" }}>{greenReturnCount}</div>
+            <div className="kpi-value" style={{ color: "#0891B2" }}>
+              {greenReturnCount}
+            </div>
             <div className="kpi-meta">Customer kept item</div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": "#DC2626" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={{ "--kpi-accent": "#DC2626" } as React.CSSProperties}
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
               </span>
               <span className="kpi-label">Blocked attempts</span>
             </div>
-            <div className="kpi-value" style={{ color: blocklistCount > 0 ? "#B91C1C" : undefined }}>{blocklistCount}</div>
+            <div
+              className="kpi-value"
+              style={{ color: blocklistCount > 0 ? "#B91C1C" : undefined }}
+            >
+              {blocklistCount}
+            </div>
             <div className="kpi-meta">
-              <Link to="/app/settings/blocklist" className="panel-link" style={{ fontSize: 10, padding: 0 }}>Manage blocklist →</Link>
+              <Link
+                to="/app/settings/blocklist"
+                className="panel-link"
+                style={{ fontSize: 10, padding: 0 }}
+              >
+                Manage blocklist →
+              </Link>
             </div>
           </div>
 
-          <div className="dashboard-stat-card" style={{ "--kpi-accent": overdueCount > 0 ? "#DC2626" : "#10B981" } as React.CSSProperties}>
+          <div
+            className="dashboard-stat-card"
+            style={
+              { "--kpi-accent": overdueCount > 0 ? "#DC2626" : "#10B981" } as React.CSSProperties
+            }
+          >
             <div className="kpi-header">
               <span className="kpi-icon">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/><path d="M8 2h8"/></svg>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                  <path d="M8 2h8" />
+                </svg>
               </span>
               <span className="kpi-label">Overdue returns</span>
             </div>
-            <div className="kpi-value" style={{ color: overdueCount > 0 ? "#B91C1C" : undefined }}>{overdueCount}</div>
+            <div className="kpi-value" style={{ color: overdueCount > 0 ? "#B91C1C" : undefined }}>
+              {overdueCount}
+            </div>
             <div className="kpi-meta">Pending &gt; 3 days</div>
           </div>
         </div>
@@ -637,35 +1137,78 @@ export default function Dashboard() {
         {(topReasons.length > 0 || approvedCount > 0) && (
           <div className="dashboard-highlight-strip mb-md">
             {topReasons.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}
+              >
                 <span className="dashboard-highlight-strip__label">Top return reason</span>
-                <span className="dashboard-highlight-strip__value" style={{ color: "#F43F5E" }}>{topReasons[0].reason}</span>
-                <span className="kpi-meta" style={{ marginTop: 0 }}>{topReasons[0].count} occurrences in {rangeLabel.toLowerCase()}</span>
+                <span className="dashboard-highlight-strip__value" style={{ color: "#F43F5E" }}>
+                  {topReasons[0].reason}
+                </span>
+                <span className="kpi-meta" style={{ marginTop: 0 }}>
+                  {topReasons[0].count} occurrences in {rangeLabel.toLowerCase()}
+                </span>
               </div>
             )}
             {topReasons.length > 1 && (
               <>
                 <span className="dashboard-highlight-strip__divider" />
-                <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                    flex: 1,
+                    minWidth: 180,
+                  }}
+                >
                   <span className="dashboard-highlight-strip__label">Second most common</span>
-                  <span className="dashboard-highlight-strip__value" style={{ color: "#F97316" }}>{topReasons[1].reason}</span>
-                  <span className="kpi-meta" style={{ marginTop: 0 }}>{topReasons[1].count} occurrences</span>
+                  <span className="dashboard-highlight-strip__value" style={{ color: "#F97316" }}>
+                    {topReasons[1].reason}
+                  </span>
+                  <span className="kpi-meta" style={{ marginTop: 0 }}>
+                    {topReasons[1].count} occurrences
+                  </span>
                 </div>
               </>
             )}
             <span className="dashboard-highlight-strip__divider" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}
+            >
               <span className="dashboard-highlight-strip__label">Approval rate</span>
-              <span className="dashboard-highlight-strip__value" style={{ color: approvalRate >= 70 ? "#10B981" : approvalRate >= 50 ? "#F59E0B" : "#DC2626" }}>{approvalRate}%</span>
-              <span className="kpi-meta" style={{ marginTop: 0 }}>{approvedCount} of {totalReturns} approved</span>
+              <span
+                className="dashboard-highlight-strip__value"
+                style={{
+                  color:
+                    approvalRate >= 70 ? "#10B981" : approvalRate >= 50 ? "#F59E0B" : "#DC2626",
+                }}
+              >
+                {approvalRate}%
+              </span>
+              <span className="kpi-meta" style={{ marginTop: 0 }}>
+                {approvedCount} of {totalReturns} approved
+              </span>
             </div>
             <span className="dashboard-highlight-strip__divider" />
-            <div style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}>
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 180 }}
+            >
               <span className="dashboard-highlight-strip__label">Fraud alerts</span>
-              <span className="dashboard-highlight-strip__value" style={{ color: fraudAlertCount > 0 ? "#DC2626" : "#10B981" }}>{fraudAlertCount}</span>
-              <span className="kpi-meta" style={{ marginTop: 0 }}>High &amp; critical risk</span>
+              <span
+                className="dashboard-highlight-strip__value"
+                style={{ color: fraudAlertCount > 0 ? "#DC2626" : "#10B981" }}
+              >
+                {fraudAlertCount}
+              </span>
+              <span className="kpi-meta" style={{ marginTop: 0 }}>
+                High &amp; critical risk
+              </span>
             </div>
-            <Link to="/app/reports" className="panel-link" style={{ marginLeft: "auto", fontSize: 13, whiteSpace: "nowrap" }}>
+            <Link
+              to="/app/reports"
+              className="panel-link"
+              style={{ marginLeft: "auto", fontSize: 13, whiteSpace: "nowrap" }}
+            >
               Full analytics →
             </Link>
           </div>
@@ -677,12 +1220,17 @@ export default function Dashboard() {
           <div className="dashboard-chart-panel">
             <div className="panel-header">
               <h3>Return trend</h3>
-              <Link to="/app/reports" className="panel-link">Analytics →</Link>
+              <Link to="/app/reports" className="panel-link">
+                Analytics →
+              </Link>
             </div>
             <div style={{ height: 260 }}>
               {returnsOverTime.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={returnsOverTime} margin={{ top: 4, right: 4, left: -28, bottom: 0 }}>
+                  <AreaChart
+                    data={returnsOverTime}
+                    margin={{ top: 4, right: 4, left: -28, bottom: 0 }}
+                  >
                     <defs>
                       <linearGradient id="dashGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.15} />
@@ -690,13 +1238,35 @@ export default function Dashboard() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "#94a3b8" }}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                    />
                     <Tooltip
-                      contentStyle={{ borderRadius: 8, border: "1px solid #E2E8F0", fontSize: 12, boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}
+                      contentStyle={{
+                        borderRadius: 8,
+                        border: "1px solid #E2E8F0",
+                        fontSize: 12,
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
+                      }}
                       formatter={(value: number | undefined) => [value ?? 0, "Returns"]}
                     />
-                    <Area type="monotone" dataKey="returns" stroke="#3b82f6" strokeWidth={2} fill="url(#dashGrad)" />
+                    <Area
+                      type="monotone"
+                      dataKey="returns"
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      fill="url(#dashGrad)"
+                    />
                   </AreaChart>
                 </ResponsiveContainer>
               ) : (
@@ -709,7 +1279,9 @@ export default function Dashboard() {
           <div className="dashboard-chart-panel">
             <h3>Status breakdown</h3>
             {Object.keys(statusMap).length === 0 ? (
-              <div className="chart-empty" style={{ padding: 24 }}>No returns in this period.</div>
+              <div className="chart-empty" style={{ padding: 24 }}>
+                No returns in this period.
+              </div>
             ) : (
               <div className="dashboard-status-list">
                 {Object.entries(statusMap)
@@ -717,16 +1289,34 @@ export default function Dashboard() {
                   .map(([status, count]) => {
                     const pct = totalReturns > 0 ? Math.round((count / totalReturns) * 100) : 0;
                     return (
-                      <Link key={status} to={`/app/returns?status=${encodeURIComponent(status)}`} className="dashboard-status-item">
+                      <Link
+                        key={status}
+                        to={`/app/returns?status=${encodeURIComponent(status)}`}
+                        className="dashboard-status-item"
+                      >
                         <div className="dashboard-status-row">
                           <span className="status-name">
-                            <span className="status-dot" style={{ background: getStatusColor(status) }} />
+                            <span
+                              className="status-dot"
+                              style={{ background: getStatusColor(status) }}
+                            />
                             {status}
                           </span>
-                          <span className="status-count">{count} ({pct}%)</span>
+                          <span className="status-count">
+                            {count} ({pct}%)
+                          </span>
                         </div>
                         <div className="dashboard-status-bar">
-                          <div style={{ width: `${pct}%`, height: "100%", background: getStatusColor(status), borderRadius: 3, minWidth: count > 0 ? 3 : 0, transition: "width 0.4s ease" }} />
+                          <div
+                            style={{
+                              width: `${pct}%`,
+                              height: "100%",
+                              background: getStatusColor(status),
+                              borderRadius: 3,
+                              minWidth: count > 0 ? 3 : 0,
+                              transition: "width 0.4s ease",
+                            }}
+                          />
                         </div>
                       </Link>
                     );
@@ -741,7 +1331,9 @@ export default function Dashboard() {
           <div className="dashboard-chart-panel mb-md">
             <div className="panel-header">
               <h3>Resolution breakdown</h3>
-              <Link to="/app/reports" className="panel-link">Full report →</Link>
+              <Link to="/app/reports" className="panel-link">
+                Full report →
+              </Link>
             </div>
             <div className="dashboard-resolution-grid">
               {[
@@ -751,20 +1343,53 @@ export default function Dashboard() {
                 { key: "replacement", label: "Replacements", color: "#F59E0B" },
               ].map((r) => {
                 const count = resolutionMap[r.key] ?? 0;
-                const resolvedTotal = Object.values(resolutionMap).reduce((a: number, b: number) => a + b, 0);
+                const resolvedTotal = Object.values(resolutionMap).reduce(
+                  (a: number, b: number) => a + b,
+                  0,
+                );
                 const pct = resolvedTotal > 0 ? Math.round((count / resolvedTotal) * 100) : 0;
                 return (
-                  <div key={r.key} className="dashboard-resolution-card" style={{ "--res-color": r.color } as React.CSSProperties}>
+                  <div
+                    key={r.key}
+                    className="dashboard-resolution-card"
+                    style={{ "--res-color": r.color } as React.CSSProperties}
+                  >
                     <div className="flex-center" style={{ marginBottom: 8 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: r.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)" }}>{r.label}</span>
+                      <span
+                        style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: 2,
+                          background: r.color,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{ fontSize: 12, fontWeight: 600, color: "var(--rpm-text-muted)" }}
+                      >
+                        {r.label}
+                      </span>
                     </div>
                     <div className="kpi-row">
-                      <span className="text-tabular" style={{ fontSize: 22, fontWeight: 800, color: "var(--rpm-text)" }}>{count}</span>
+                      <span
+                        className="text-tabular"
+                        style={{ fontSize: 22, fontWeight: 800, color: "var(--rpm-text)" }}
+                      >
+                        {count}
+                      </span>
                       <span style={{ fontSize: 11, fontWeight: 600, color: r.color }}>{pct}%</span>
                     </div>
                     <div className="dashboard-resolution-bar">
-                      <div style={{ width: `${pct}%`, height: "100%", background: r.color, borderRadius: 2, minWidth: count > 0 ? 3 : 0, transition: "width 0.4s ease" }} />
+                      <div
+                        style={{
+                          width: `${pct}%`,
+                          height: "100%",
+                          background: r.color,
+                          borderRadius: 2,
+                          minWidth: count > 0 ? 3 : 0,
+                          transition: "width 0.4s ease",
+                        }}
+                      />
                     </div>
                   </div>
                 );
@@ -777,17 +1402,36 @@ export default function Dashboard() {
         <div className="dashboard-chart-panel">
           <div className="panel-header">
             <h3>Recent returns</h3>
-            <Link to="/app/returns" className="panel-link">View all →</Link>
+            <Link to="/app/returns" className="panel-link">
+              View all →
+            </Link>
           </div>
           {recentReturns.length === 0 ? (
             <div className="dashboard-empty-state">
-              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#CBD5E1" strokeWidth="1.5" style={{ marginBottom: 12 }}>
-                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/>
-                <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+              <svg
+                width="40"
+                height="40"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#CBD5E1"
+                strokeWidth="1.5"
+                style={{ marginBottom: 12 }}
+              >
+                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                <line x1="12" y1="22.08" x2="12" y2="12" />
               </svg>
-              <div style={{ fontWeight: 600, fontSize: 14, color: "var(--rpm-text)", marginBottom: 4 }}>No returns yet</div>
-              <div style={{ fontSize: 13, color: "var(--rpm-text-muted)", marginBottom: 14 }}>Returns will appear here when customers submit them.</div>
-              <Link to="/app/portal"><s-button variant="primary">Share portal URL</s-button></Link>
+              <div
+                style={{ fontWeight: 600, fontSize: 14, color: "var(--rpm-text)", marginBottom: 4 }}
+              >
+                No returns yet
+              </div>
+              <div style={{ fontSize: 13, color: "var(--rpm-text-muted)", marginBottom: 14 }}>
+                Returns will appear here when customers submit them.
+              </div>
+              <Link to="/app/portal">
+                <s-button variant="primary">Share portal URL</s-button>
+              </Link>
             </div>
           ) : (
             <div style={{ overflowX: "auto" }}>
@@ -805,26 +1449,72 @@ export default function Dashboard() {
                   {recentReturns.map((r) => (
                     <tr key={r.id}>
                       <td>
-                        <Link to={`/app/returns/${r.id}`} style={{ fontWeight: 600, color: "var(--rpm-text)", textDecoration: "none" }}>
+                        <Link
+                          to={`/app/returns/${r.id}`}
+                          style={{
+                            fontWeight: 600,
+                            color: "var(--rpm-text)",
+                            textDecoration: "none",
+                          }}
+                        >
                           {r.shopifyOrderName || r.id.slice(0, 8)}
                         </Link>
                       </td>
                       <td>
-                        <span className="status-badge" style={{ background: `${getStatusColor(r.status)}14`, color: getStatusColor(r.status) }}>
-                          <span className="status-dot--sm" style={{ width: 5, height: 5, borderRadius: "50%", background: "currentColor" }} />
+                        <span
+                          className="status-badge"
+                          style={{
+                            background: `${getStatusColor(r.status)}14`,
+                            color: getStatusColor(r.status),
+                          }}
+                        >
+                          <span
+                            className="status-dot--sm"
+                            style={{
+                              width: 5,
+                              height: 5,
+                              borderRadius: "50%",
+                              background: "currentColor",
+                            }}
+                          />
                           {r.status}
                         </span>
                       </td>
-                      <td className="text-mono" style={{ color: "var(--rpm-text-muted)", fontSize: 12 }}>
-                        {(r as { returnRequestNo?: string | null }).returnRequestNo || r.fyndReturnNo || "—"}
+                      <td
+                        className="text-mono"
+                        style={{ color: "var(--rpm-text-muted)", fontSize: 12 }}
+                      >
+                        {(r as { returnRequestNo?: string | null }).returnRequestNo ||
+                          r.fyndReturnNo ||
+                          "—"}
                       </td>
                       <td className="text-tabular nowrap" style={{ fontSize: 12 }}>
-                        <div style={{ color: "var(--rpm-text-muted)", fontWeight: 500 }}>{new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit" }).format(new Date(r.createdAt))}</div>
-                        <div style={{ color: "#9ca3af", fontSize: 11 }}>{new Intl.DateTimeFormat(shopLocale || "en", { hour: "2-digit", minute: "2-digit" }).format(new Date(r.createdAt))}</div>
+                        <div style={{ color: "var(--rpm-text-muted)", fontWeight: 500 }}>
+                          {new Intl.DateTimeFormat(shopLocale || "en", {
+                            day: "numeric",
+                            month: "short",
+                            year: "2-digit",
+                          }).format(new Date(r.createdAt))}
+                        </div>
+                        <div style={{ color: "#9ca3af", fontSize: 11 }}>
+                          {new Intl.DateTimeFormat(shopLocale || "en", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }).format(new Date(r.createdAt))}
+                        </div>
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <Link to={`/app/returns/${r.id}`} style={{ color: "var(--rpm-accent)" }}>
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <polyline points="9 18 15 12 9 6" />
+                          </svg>
                         </Link>
                       </td>
                     </tr>
@@ -840,10 +1530,25 @@ export default function Dashboard() {
           <div className="dashboard-chart-panel mb-md" style={{ borderLeft: "3px solid #DC2626" }}>
             <div className="panel-header">
               <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="#DC2626"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
                 Fraud Alerts ({fraudAlertCount})
               </h3>
-              <Link to="/app/returns" className="panel-link">View all →</Link>
+              <Link to="/app/returns" className="panel-link">
+                View all →
+              </Link>
             </div>
             <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>
               Returns from high/critical risk customers in this period
@@ -854,19 +1559,28 @@ export default function Dashboard() {
                   key={fr.id}
                   to={`/app/returns/${fr.id}`}
                   style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    padding: "8px 12px", borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "8px 12px",
+                    borderRadius: 8,
                     background: fr.fraudRiskLevel === "critical" ? "#FEF2F2" : "#FFFBEB",
                     border: `1px solid ${fr.fraudRiskLevel === "critical" ? "#FECACA" : "#FDE68A"}`,
-                    textDecoration: "none", fontSize: 13,
+                    textDecoration: "none",
+                    fontSize: 13,
                   }}
                 >
-                  <span style={{
-                    display: "inline-block", padding: "2px 6px", borderRadius: 4,
-                    fontSize: 10, fontWeight: 700,
-                    background: fr.fraudRiskLevel === "critical" ? "#FEE2E2" : "#FFEDD5",
-                    color: fr.fraudRiskLevel === "critical" ? "#DC2626" : "#EA580C",
-                  }}>
+                  <span
+                    style={{
+                      display: "inline-block",
+                      padding: "2px 6px",
+                      borderRadius: 4,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      background: fr.fraudRiskLevel === "critical" ? "#FEE2E2" : "#FFEDD5",
+                      color: fr.fraudRiskLevel === "critical" ? "#DC2626" : "#EA580C",
+                    }}
+                  >
                     {(fr.fraudRiskLevel || "high").toUpperCase()}
                   </span>
                   <span style={{ flex: 1, fontWeight: 500, color: "var(--rpm-text)" }}>
@@ -886,11 +1600,25 @@ export default function Dashboard() {
         {!hasFyndConfig && (
           <div className="dashboard-fynd-banner">
             <div className="banner-icon">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="1.5"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#D97706"
+                strokeWidth="1.5"
+              >
+                <path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+                <path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+              </svg>
             </div>
             <div className="banner-text">
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#92400E" }}>Connect Fynd for reverse logistics</div>
-              <div style={{ fontSize: 12, color: "#A16207" }}>Automate return pickups, tracking, and delivery.</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "#92400E" }}>
+                Connect Fynd for reverse logistics
+              </div>
+              <div style={{ fontSize: 12, color: "#A16207" }}>
+                Automate return pickups, tracking, and delivery.
+              </div>
             </div>
             <Link to="/app/settings/integrations" style={{ textDecoration: "none", flexShrink: 0 }}>
               <s-button variant="secondary">Configure</s-button>
@@ -908,8 +1636,10 @@ export function ErrorBoundary() {
   // defensive: error.data always provided in route Response.json errors; status-only fallback unreachable
   /* v8 ignore start */
   const message = isResponse
-    ? (error.data || `Error ${isResponse ? error.status : 500}`)
-    : error instanceof Error ? error.message : "An unexpected error occurred.";
+    ? error.data || `Error ${isResponse ? error.status : 500}`
+    : error instanceof Error
+      ? error.message
+      : "An unexpected error occurred.";
   /* v8 ignore stop */
 
   return (
@@ -917,17 +1647,32 @@ export function ErrorBoundary() {
       <div className="app-content layout-wide" style={{ paddingBottom: 48 }}>
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ verticalAlign: "middle", marginRight: 4 }}>
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              style={{ verticalAlign: "middle", marginRight: 4 }}
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
             </svg>
             {typeof message === "string" ? message : "Failed to load dashboard."}
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
-          <Link to="/app/returns"><s-button variant="primary">View Returns</s-button></Link>
-          <Link to="/app/settings"><s-button variant="secondary">Settings</s-button></Link>
-          <Link to="/app/portal"><s-button variant="secondary">Portal</s-button></Link>
+          <Link to="/app/returns">
+            <s-button variant="primary">View Returns</s-button>
+          </Link>
+          <Link to="/app/settings">
+            <s-button variant="secondary">Settings</s-button>
+          </Link>
+          <Link to="/app/portal">
+            <s-button variant="secondary">Portal</s-button>
+          </Link>
         </div>
       </div>
     </AppPage>

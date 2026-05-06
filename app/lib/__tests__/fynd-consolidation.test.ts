@@ -31,10 +31,7 @@ vi.mock("../fynd-returns.server", () => ({
   createReturnOnFynd: createReturnOnFyndMock,
 }));
 
-import {
-  runConsolidationBatch,
-  runConsolidationForAllShops,
-} from "../fynd-consolidation.server";
+import { runConsolidationBatch, runConsolidationForAllShops } from "../fynd-consolidation.server";
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
@@ -46,7 +43,10 @@ const fakeFyndClient = { getShipments: vi.fn() }; // .getShipments presence keep
 
 describe("runConsolidationBatch", () => {
   it("no-ops when consolidation not enabled", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { fyndConsolidateReturns: false } });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { fyndConsolidateReturns: false },
+    });
     const res = await runConsolidationBatch("shop-1");
     expect(res).toEqual({ shopId: "shop-1", groupsProcessed: 0, casesUpdated: 0, errors: [] });
     expect(prismaMock.returnCase.findMany).not.toHaveBeenCalled();
@@ -76,7 +76,13 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1001", items: [] },
+      {
+        id: "rc-1",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1001",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: false, error: "no creds" });
     const res = await runConsolidationBatch("shop-1");
@@ -90,7 +96,13 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1001", items: [] },
+      {
+        id: "rc-1",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1001",
+        items: [],
+      },
     ]);
     // ok=true but client lacks getShipments → consolidation bails
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: {} });
@@ -104,7 +116,13 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true, fyndConsolidateWindowHours: 2 },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-1", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1001", items: [] },
+      {
+        id: "rc-1",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1001",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockResolvedValueOnce({
@@ -121,21 +139,25 @@ describe("runConsolidationBatch", () => {
     expect(res.casesUpdated).toBe(1);
     expect(res.errors).toEqual([]);
 
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      where: { id: "rc-1" },
-      data: expect.objectContaining({
-        fyndSyncStatus: "synced",
-        fyndReturnId: "R-1",
-        fyndReturnNo: "RN-1",
-        fyndPayloadJson: JSON.stringify({ foo: "bar" }),
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rc-1" },
+        data: expect.objectContaining({
+          fyndSyncStatus: "synced",
+          fyndReturnId: "R-1",
+          fyndReturnNo: "RN-1",
+          fyndPayloadJson: JSON.stringify({ foo: "bar" }),
+        }),
       }),
-    }));
-    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        returnCaseId: "rc-1",
-        eventType: "fynd_consolidation_synced",
+    );
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          returnCaseId: "rc-1",
+          eventType: "fynd_consolidation_synced",
+        }),
       }),
-    }));
+    );
   });
 
   it("single-case group: marks 'failed' and captures error on sync failure", async () => {
@@ -144,7 +166,13 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-fail", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1001", items: [] },
+      {
+        id: "rc-fail",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1001",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: false, error: "API rejected" });
@@ -152,9 +180,11 @@ describe("runConsolidationBatch", () => {
     const res = await runConsolidationBatch("shop-1");
     expect(res.casesUpdated).toBe(0);
     expect(res.errors).toContain("[rc-fail] API rejected");
-    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ fyndSyncStatus: "failed", fyndSyncError: "API rejected" }),
-    }));
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ fyndSyncStatus: "failed", fyndSyncError: "API rejected" }),
+      }),
+    );
   });
 
   it("multi-case group: shares fyndReturnId across grouped cases", async () => {
@@ -163,8 +193,20 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-a", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1001", items: [] },
-      { id: "rc-b", fyndOrderId: "O-1", fyndShipmentId: "S-1", shopifyOrderName: "#1001", items: [] },
+      {
+        id: "rc-a",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1001",
+        items: [],
+      },
+      {
+        id: "rc-b",
+        fyndOrderId: "O-1",
+        fyndShipmentId: "S-1",
+        shopifyOrderName: "#1001",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
 
@@ -179,7 +221,7 @@ describe("runConsolidationBatch", () => {
 
     // Both updates should carry fyndReturnId R-1 (shared)
     const updateCalls = prismaMock.returnCase.update.mock.calls;
-    const ids = updateCalls.map(c => c[0].data.fyndReturnId);
+    const ids = updateCalls.map((c) => c[0].data.fyndReturnId);
     expect(ids).toEqual(["R-1", "R-1"]);
   });
 
@@ -189,8 +231,20 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-a", fyndOrderId: "O-2", fyndShipmentId: "S-2", shopifyOrderName: "#1002", items: [] },
-      { id: "rc-b", fyndOrderId: "O-2", fyndShipmentId: "S-2", shopifyOrderName: "#1002", items: [] },
+      {
+        id: "rc-a",
+        fyndOrderId: "O-2",
+        fyndShipmentId: "S-2",
+        shopifyOrderName: "#1002",
+        items: [],
+      },
+      {
+        id: "rc-b",
+        fyndOrderId: "O-2",
+        fyndShipmentId: "S-2",
+        shopifyOrderName: "#1002",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
 
@@ -209,13 +263,21 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-boom", fyndOrderId: "O-3", fyndShipmentId: "S-3", shopifyOrderName: "#1003", items: [] },
+      {
+        id: "rc-boom",
+        fyndOrderId: "O-3",
+        fyndShipmentId: "S-3",
+        shopifyOrderName: "#1003",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockRejectedValueOnce(new Error("network"));
 
     const res = await runConsolidationBatch("shop-1");
-    expect(res.errors.some(e => e.includes("[group:O-3:S-3]") && e.includes("network"))).toBe(true);
+    expect(res.errors.some((e) => e.includes("[group:O-3:S-3]") && e.includes("network"))).toBe(
+      true,
+    );
   });
 
   it("falls back to shopifyOrderName when fyndOrderId is missing", async () => {
@@ -224,7 +286,13 @@ describe("runConsolidationBatch", () => {
       settings: { fyndConsolidateReturns: true },
     });
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      { id: "rc-order-only", fyndOrderId: null, fyndShipmentId: null, shopifyOrderName: "#1004", items: [] },
+      {
+        id: "rc-order-only",
+        fyndOrderId: null,
+        fyndShipmentId: null,
+        shopifyOrderName: "#1004",
+        items: [],
+      },
     ]);
     createFyndClientMock.mockResolvedValueOnce({ ok: true, client: fakeFyndClient });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "R-4" });
@@ -252,10 +320,7 @@ describe("runConsolidationBatch", () => {
 
 describe("runConsolidationForAllShops", () => {
   it("iterates all shops with consolidation enabled", async () => {
-    prismaMock.shopSettings.findMany.mockResolvedValueOnce([
-      { shopId: "s-1" },
-      { shopId: "s-2" },
-    ]);
+    prismaMock.shopSettings.findMany.mockResolvedValueOnce([{ shopId: "s-1" }, { shopId: "s-2" }]);
 
     // Return empty pending cases for both shops (keeps test focused)
     prismaMock.shop.findUnique
@@ -265,8 +330,8 @@ describe("runConsolidationForAllShops", () => {
 
     const results = await runConsolidationForAllShops();
     expect(results).toHaveLength(2);
-    expect(results.map(r => r.shopId)).toEqual(["s-1", "s-2"]);
-    expect(results.every(r => r.errors.length === 0)).toBe(true);
+    expect(results.map((r) => r.shopId)).toEqual(["s-1", "s-2"]);
+    expect(results.every((r) => r.errors.length === 0)).toBe(true);
   });
 
   it("captures per-shop errors without failing the whole run", async () => {

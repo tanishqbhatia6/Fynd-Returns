@@ -21,8 +21,7 @@ const mockSpan = {
 };
 
 const startActiveSpan = vi.fn(
-  (_name: string, _opts: unknown, fn: (span: typeof mockSpan) => unknown) =>
-    fn(mockSpan),
+  (_name: string, _opts: unknown, fn: (span: typeof mockSpan) => unknown) => fn(mockSpan),
 );
 
 const getSpan = vi.fn<(...args: unknown[]) => typeof mockSpan | undefined>(() => mockSpan);
@@ -263,8 +262,7 @@ describe("baggage helpers", () => {
 
   it("getBaggageValue returns the entry value when present", () => {
     getBaggage.mockReturnValueOnce({
-      getEntry: (key: string) =>
-        key === "tenant" ? { value: "shop-42" } : undefined,
+      getEntry: (key: string) => (key === "tenant" ? { value: "shop-42" } : undefined),
     });
     expect(getBaggageValue("tenant")).toBe("shop-42");
   });

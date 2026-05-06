@@ -37,11 +37,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 
 import { renderWithRouter } from "../../test/component-helpers";
 import { act, fireEvent, render, waitFor } from "@testing-library/react";
-import {
-  createMemoryRouter,
-  RouterProvider,
-  type RouteObject,
-} from "react-router";
+import { createMemoryRouter, RouterProvider, type RouteObject } from "react-router";
 import PortalInfo, { ErrorBoundary } from "../app.portal";
 import { DEFAULT_PORTAL_THEME } from "../../lib/portal-theme.server";
 
@@ -77,9 +73,7 @@ describe("App portal (default export)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(container.querySelector(".app-page-title")?.textContent).toBe(
-        "Customer Portal",
-      );
+      expect(container.querySelector(".app-page-title")?.textContent).toBe("Customer Portal");
     }, WAIT);
   });
 
@@ -89,9 +83,7 @@ describe("App portal (default export)", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "https://test-shop.myshopify.com/apps/returns",
-      );
+      expect(container.textContent).toContain("https://test-shop.myshopify.com/apps/returns");
     }, WAIT);
   });
 
@@ -102,9 +94,7 @@ describe("App portal (default export)", () => {
     });
     await waitFor(() => {
       const anchors = Array.from(container.querySelectorAll("a"));
-      const openLink = anchors.find(
-        (a) => a.getAttribute("href") === baseLoaderData.portalUrl,
-      );
+      const openLink = anchors.find((a) => a.getAttribute("href") === baseLoaderData.portalUrl);
       expect(openLink).toBeTruthy();
       expect(openLink?.getAttribute("target")).toBe("_blank");
     }, WAIT);
@@ -194,8 +184,8 @@ describe("App portal (default export)", () => {
       expect(container.textContent).toContain("Copy URL");
     }, WAIT);
 
-    const copyBtn = Array.from(container.querySelectorAll("s-button")).find(
-      (b) => (b.textContent ?? "").includes("Copy URL"),
+    const copyBtn = Array.from(container.querySelectorAll("s-button")).find((b) =>
+      (b.textContent ?? "").includes("Copy URL"),
     );
     expect(copyBtn).toBeTruthy();
 
@@ -228,8 +218,8 @@ describe("App portal (default export)", () => {
       });
       expect(container.textContent).toContain("Copy URL");
 
-      const copyBtn = Array.from(container.querySelectorAll("s-button")).find(
-        (b) => (b.textContent ?? "").includes("Copy URL"),
+      const copyBtn = Array.from(container.querySelectorAll("s-button")).find((b) =>
+        (b.textContent ?? "").includes("Copy URL"),
       );
 
       act(() => {
@@ -262,8 +252,8 @@ describe("App portal (default export)", () => {
       expect(container.textContent).toContain("Copy URL");
     }, WAIT);
 
-    const copyBtn = Array.from(container.querySelectorAll("s-button")).find(
-      (b) => (b.textContent ?? "").includes("Copy URL"),
+    const copyBtn = Array.from(container.querySelectorAll("s-button")).find((b) =>
+      (b.textContent ?? "").includes("Copy URL"),
     );
 
     expect(() => {
@@ -313,9 +303,7 @@ describe("App portal ErrorBoundary", () => {
   });
 
   it("renders the message from a thrown Error instance", async () => {
-    const { container } = renderErrorBoundaryWithError(
-      new Error("kaboom-from-loader"),
-    );
+    const { container } = renderErrorBoundaryWithError(new Error("kaboom-from-loader"));
     await waitFor(() => {
       expect(container.textContent).toContain("kaboom-from-loader");
     }, WAIT);
@@ -324,26 +312,22 @@ describe("App portal ErrorBoundary", () => {
   it("renders the generic fallback for non-Error / non-Response throws", async () => {
     const { container } = renderErrorBoundaryWithError("plain-string-error");
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "An unexpected error occurred.",
-      );
+      expect(container.textContent).toContain("An unexpected error occurred.");
     }, WAIT);
   });
 
   it("renders the 'Customer Portal' heading inside the ErrorBoundary frame", async () => {
     const { container } = renderErrorBoundaryWithError(new Error("x"));
     await waitFor(() => {
-      expect(container.querySelector(".app-page-title")?.textContent).toBe(
-        "Customer Portal",
-      );
+      expect(container.querySelector(".app-page-title")?.textContent).toBe("Customer Portal");
     }, WAIT);
   });
 
   it("renders a 'Try again' link pointing back at /app/portal", async () => {
     const { container } = renderErrorBoundaryWithError(new Error("x"));
     await waitFor(() => {
-      const link = Array.from(container.querySelectorAll("a")).find(
-        (a) => (a.textContent ?? "").includes("Try again"),
+      const link = Array.from(container.querySelectorAll("a")).find((a) =>
+        (a.textContent ?? "").includes("Try again"),
       );
       expect(link).toBeTruthy();
       expect(link?.getAttribute("href")).toBe("/app/portal");

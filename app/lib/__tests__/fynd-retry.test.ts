@@ -106,9 +106,7 @@ describe("runFyndRetryQueue", () => {
 
   it("skips cases without fyndCredentials", async () => {
     vi.setSystemTime(Date.now() + 10 * 60_000);
-    prismaMock.returnCase.findMany.mockResolvedValueOnce([
-      mkCase({ shop: { settings: null } }),
-    ]);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([mkCase({ shop: { settings: null } })]);
     const res = await runFyndRetryQueue();
     expect(res.processed).toBe(1);
     expect(res.succeeded).toBe(0);

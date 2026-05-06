@@ -269,9 +269,7 @@ describe("approve route — extra coverage", () => {
       shopifyOrderName: "#1001",
     });
 
-    const response = await action(
-      baseArgs(makeRequest("POST", { resolutionType: "magic-beans" })),
-    );
+    const response = await action(baseArgs(makeRequest("POST", { resolutionType: "magic-beans" })));
 
     expect(response.status).toBe(400);
     const body = await response.json();

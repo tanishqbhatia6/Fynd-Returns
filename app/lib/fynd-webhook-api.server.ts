@@ -10,7 +10,12 @@ import type { FyndLogFn } from "./fynd.server";
 
 /** Events we subscribe to for return/refund automation */
 export const FYND_WEBHOOK_EVENTS = [
-  { event_category: "application", event_name: "refund", event_type: "refund_initiated", version: 1 },
+  {
+    event_category: "application",
+    event_name: "refund",
+    event_type: "refund_initiated",
+    version: 1,
+  },
   { event_category: "application", event_name: "refund", event_type: "refund_pending", version: 1 },
   { event_category: "application", event_name: "refund", event_type: "refund_done", version: 1 },
   { event_category: "application", event_name: "refund", event_type: "refund_failed", version: 1 },
@@ -34,11 +39,12 @@ export type ListSubscribersResult =
   | { ok: true; subscribers: FyndSubscriber[]; total: number }
   | { ok: false; error: string };
 
-export type RegisterWebhookResult =
-  | { ok: true; message: string }
-  | { ok: false; error: string };
+export type RegisterWebhookResult = { ok: true; message: string } | { ok: false; error: string };
 
-function parseCredentials(fyndCredentials: string | null | undefined, log?: FyndLogFn): { clientId: string; clientSecret: string } | null {
+function parseCredentials(
+  fyndCredentials: string | null | undefined,
+  log?: FyndLogFn,
+): { clientId: string; clientSecret: string } | null {
   if (!fyndCredentials?.trim()) return null;
   try {
     const raw = String(fyndCredentials).trim();
@@ -46,11 +52,16 @@ function parseCredentials(fyndCredentials: string | null | undefined, log?: Fynd
     const platform = parsed?.platform ?? parsed;
     const clientId = platform?.clientId ?? platform?.client_id;
     const clientSecret = platform?.clientSecret ?? platform?.client_secret;
-    if (clientId && clientSecret) return { clientId: String(clientId).trim(), clientSecret: String(clientSecret).trim() };
+    if (clientId && clientSecret)
+      return { clientId: String(clientId).trim(), clientSecret: String(clientSecret).trim() };
   } catch (e) {
     // defensive Error narrowing in catch
     /* v8 ignore start */
-    log?.("fynd-webhook-api", "Parse credentials failed", e instanceof Error ? e.message : String(e));
+    log?.(
+      "fynd-webhook-api",
+      "Parse credentials failed",
+      e instanceof Error ? e.message : String(e),
+    );
     /* v8 ignore stop */
   }
   return null;
@@ -65,7 +76,7 @@ export async function listFyndWebhookSubscribers(
     fyndApplicationId?: string | null;
     fyndCredentials?: string | null;
   },
-  log?: FyndLogFn
+  log?: FyndLogFn,
 ): Promise<ListSubscribersResult> {
   const baseUrl = getFyndBaseUrl(settings);
   const companyId = settings?.fyndCompanyId?.trim();
@@ -75,7 +86,13 @@ export async function listFyndWebhookSubscribers(
   if (!creds) return { ok: false, error: "Fynd credentials are not configured." };
 
   try {
-    const token = await fetchFyndPlatformToken(baseUrl, companyId, creds.clientId, creds.clientSecret, log);
+    const token = await fetchFyndPlatformToken(
+      baseUrl,
+      companyId,
+      creds.clientId,
+      creds.clientSecret,
+      log,
+    );
     const path = `/service/platform/webhook/v1.0/company/${companyId}/subscriber/?page_no=1&page_size=50`;
     const url = `${baseUrl}${path}`;
     log?.("fynd-webhook-api", "List subscribers", path);
@@ -97,7 +114,10 @@ export async function listFyndWebhookSubscribers(
           : res.status === 401
             ? " Invalid credentials."
             : "";
-      return { ok: false, error: `Fynd Webhook API ${res.status}: ${(text || "Unknown error").slice(0, 200)}${hint}` };
+      return {
+        ok: false,
+        error: `Fynd Webhook API ${res.status}: ${(text || "Unknown error").slice(0, 200)}${hint}`,
+      };
     }
 
     let data: {
@@ -110,7 +130,11 @@ export async function listFyndWebhookSubscribers(
         email_id?: string;
         created_on?: string;
         updated_on?: string;
-        event_configs?: Array<{ event_name?: string; event_type?: string; event_category?: string }>;
+        event_configs?: Array<{
+          event_name?: string;
+          event_type?: string;
+          event_category?: string;
+        }>;
       }>;
       page?: { item_total?: number };
     };
@@ -150,12 +174,14 @@ export async function listFyndWebhookSubscribers(
 /** Check if our webhook URL is already registered */
 export function findSubscriberWithUrl(
   subscribers: FyndSubscriber[],
-  webhookUrl: string
+  webhookUrl: string,
 ): FyndSubscriber | undefined {
   const normalized = webhookUrl.replace(/\/$/, "").toLowerCase();
   // defensive nullish webhook_url
   /* v8 ignore start */
-  return subscribers.find((s) => (s.webhook_url ?? "").replace(/\/$/, "").toLowerCase() === normalized);
+  return subscribers.find(
+    (s) => (s.webhook_url ?? "").replace(/\/$/, "").toLowerCase() === normalized,
+  );
   /* v8 ignore stop */
 }
 
@@ -171,7 +197,7 @@ export async function registerFyndWebhook(
   webhookUrl: string,
   subscriberName: string,
   notificationEmail: string,
-  log?: FyndLogFn
+  log?: FyndLogFn,
 ): Promise<RegisterWebhookResult> {
   const baseUrl = getFyndBaseUrl(settings);
   const companyId = settings?.fyndCompanyId?.trim();
@@ -192,7 +218,13 @@ export async function registerFyndWebhook(
   }
 
   try {
-    const token = await fetchFyndPlatformToken(baseUrl, companyId, creds.clientId, creds.clientSecret, log);
+    const token = await fetchFyndPlatformToken(
+      baseUrl,
+      companyId,
+      creds.clientId,
+      creds.clientSecret,
+      log,
+    );
 
     const body = {
       webhook_config: {
@@ -233,9 +265,14 @@ export async function registerFyndWebhook(
       /* v8 ignore start */
       let errMsg = text || "Unknown error";
       try {
-        const parsed = JSON.parse(text) as { message?: string; error?: string; err?: Array<{ msg?: string; path?: string }> };
+        const parsed = JSON.parse(text) as {
+          message?: string;
+          error?: string;
+          err?: Array<{ msg?: string; path?: string }>;
+        };
         if (Array.isArray(parsed.err) && parsed.err.length > 0) {
-          errMsg = parsed.err.map((e) => `${e.path ?? ""}: ${e.msg ?? ""}`.trim()).join("; ") || errMsg;
+          errMsg =
+            parsed.err.map((e) => `${e.path ?? ""}: ${e.msg ?? ""}`.trim()).join("; ") || errMsg;
         } else {
           errMsg = parsed.message ?? parsed.error ?? errMsg;
         }
@@ -249,7 +286,10 @@ export async function registerFyndWebhook(
           : res.status === 400
             ? " Check webhook URL format, application ID, and request body structure."
             : "";
-      return { ok: false, error: `Fynd Webhook API ${res.status}: ${String(errMsg).slice(0, 400)}${hint}` };
+      return {
+        ok: false,
+        error: `Fynd Webhook API ${res.status}: ${String(errMsg).slice(0, 400)}${hint}`,
+      };
     }
 
     let message = "Webhook registered successfully.";

@@ -204,11 +204,7 @@ export const whatsappCircuitBreaker = new CircuitBreaker("whatsapp", 3, 60_000);
 /**
  * Record an external API timeout.
  */
-export function recordTimeout(
-  service: string,
-  operation: string,
-  timeoutMs: number,
-): void {
+export function recordTimeout(service: string, operation: string, timeoutMs: number): void {
   externalTimeoutCounter.add(1, { service, operation, timeout_ms: String(timeoutMs) });
   securityLogger.warn(
     { service, operation, timeoutMs },

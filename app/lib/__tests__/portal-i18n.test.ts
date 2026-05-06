@@ -75,7 +75,9 @@ describe("t (template interpolation)", () => {
 
   it("interpolates {key} placeholders", () => {
     const labels = { "portal.policyBanner": "Returns accepted within {days} days of delivery." };
-    expect(t("portal.policyBanner", labels, { days: "30" })).toBe("Returns accepted within 30 days of delivery.");
+    expect(t("portal.policyBanner", labels, { days: "30" })).toBe(
+      "Returns accepted within 30 days of delivery.",
+    );
   });
 
   it("falls back to English when key is missing in labels", () => {

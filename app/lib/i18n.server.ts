@@ -63,10 +63,7 @@ export function formatDateTime(
   }
 }
 
-export function formatNumber(
-  value: number,
-  locale?: string | null,
-): string {
+export function formatNumber(value: number, locale?: string | null): string {
   try {
     return new Intl.NumberFormat(locale || DEFAULT_LOCALE).format(value);
   } catch {

@@ -65,9 +65,7 @@ describe("bulk_reject — per-row update failure (lines 237-238)", () => {
     expect(res.status).toBe(200);
     expect(body.successCount).toBe(0);
     expect(body.errorCount).toBe(1);
-    expect(body.results).toEqual([
-      { id: "rc-throw", success: false, error: "update-blew-up" },
-    ]);
+    expect(body.results).toEqual([{ id: "rc-throw", success: false, error: "update-blew-up" }]);
     // No event row should be persisted when the status-flip itself failed.
     expect(prismaMock.returnEvent.create).not.toHaveBeenCalled();
     expect(errSpy).toHaveBeenCalledWith(
@@ -109,10 +107,12 @@ describe("bulk_reject — per-row update failure (lines 237-238)", () => {
       { id: "rc-bad", status: "pending", customerEmailNorm: null, shopifyOrderName: "#1" },
       { id: "rc-ok-2", status: "pending", customerEmailNorm: null, shopifyOrderName: "#1" },
     ]);
-    prismaMock.returnCase.update.mockImplementation(async ({ where }: { where: { id: string } }) => {
-      if (where.id === "rc-bad") throw new Error("row-locked");
-      return { id: where.id };
-    });
+    prismaMock.returnCase.update.mockImplementation(
+      async ({ where }: { where: { id: string } }) => {
+        if (where.id === "rc-bad") throw new Error("row-locked");
+        return { id: where.id };
+      },
+    );
 
     const body = await (
       await call({

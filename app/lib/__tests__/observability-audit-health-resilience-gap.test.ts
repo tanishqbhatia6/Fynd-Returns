@@ -93,8 +93,9 @@ describe("observability/resilience.server — uncovered branches", () => {
     cb.recordFailure();
     expect(cb.getStatus().state).toBe("open");
 
-    const stateChangeMock = metrics.circuitBreakerStateChange
-      .add as unknown as ReturnType<typeof vi.fn>;
+    const stateChangeMock = metrics.circuitBreakerStateChange.add as unknown as ReturnType<
+      typeof vi.fn
+    >;
     const callsAfterOpen = stateChangeMock.mock.calls.length;
     expect(callsAfterOpen).toBeGreaterThan(0);
 
@@ -294,9 +295,8 @@ describe("observability/audit.server — sanity touch (no new gaps)", () => {
   });
 
   it("auditSettingsChange + auditReturnAction reach the helper wrappers", async () => {
-    const { auditSettingsChange, auditReturnAction } = await import(
-      "../observability/audit.server"
-    );
+    const { auditSettingsChange, auditReturnAction } =
+      await import("../observability/audit.server");
     auditSettingsChange(
       "branding.theme",
       "shop.myshopify.com",

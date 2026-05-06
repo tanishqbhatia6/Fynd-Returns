@@ -1,6 +1,15 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Form, Link, useLoaderData, useSearchParams, useNavigate, useRevalidator, useRouteError, isRouteErrorResponse } from "react-router";
+import {
+  Form,
+  Link,
+  useLoaderData,
+  useSearchParams,
+  useNavigate,
+  useRevalidator,
+  useRouteError,
+  isRouteErrorResponse,
+} from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
@@ -44,7 +53,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const where: Record<string, unknown> = { shopId: shop.id };
   if (status) {
-    const list = status.split(",").map((s) => s.trim()).filter(Boolean);
+    const list = status
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     where.status = list.length > 1 ? { in: list } : list[0];
   }
   if (resolutionType) where.resolutionType = resolutionType;
@@ -73,7 +85,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   try {
-    const [returns, totalCount, pendingCount, inProgressCount, approvedCount, rejectedCount, allCount] = await Promise.all([
+    const [
+      returns,
+      totalCount,
+      pendingCount,
+      inProgressCount,
+      approvedCount,
+      rejectedCount,
+      allCount,
+    ] = await Promise.all([
       prisma.returnCase.findMany({
         where,
         include: { items: { take: 3 } },
@@ -82,24 +102,79 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         take: PAGE_SIZE,
       }),
       prisma.returnCase.count({ where }),
-      prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["pending", "initiated"] } } }),
-      prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["processing", "in progress"] } } }),
-      prisma.returnCase.count({ where: { shopId: shop.id, status: { in: ["approved", "completed"] } } }),
+      prisma.returnCase.count({
+        where: { shopId: shop.id, status: { in: ["pending", "initiated"] } },
+      }),
+      prisma.returnCase.count({
+        where: { shopId: shop.id, status: { in: ["processing", "in progress"] } },
+      }),
+      prisma.returnCase.count({
+        where: { shopId: shop.id, status: { in: ["approved", "completed"] } },
+      }),
       prisma.returnCase.count({ where: { shopId: shop.id, status: "rejected" } }),
       prisma.returnCase.count({ where: { shopId: shop.id } }),
     ]);
     const totalPages = Math.ceil(totalCount / PAGE_SIZE);
-    return { returns, query, status, resolutionType, sourceChannel, page, totalCount, totalPages, pendingCount, inProgressCount, approvedCount, rejectedCount, allCount, error: null, shopLocale: shop?.settings?.shopLocale ?? "en", shopTimezone: shop?.settings?.shopTimezone ?? "UTC" };
+    return {
+      returns,
+      query,
+      status,
+      resolutionType,
+      sourceChannel,
+      page,
+      totalCount,
+      totalPages,
+      pendingCount,
+      inProgressCount,
+      approvedCount,
+      rejectedCount,
+      allCount,
+      error: null,
+      shopLocale: shop?.settings?.shopLocale ?? "en",
+      shopTimezone: shop?.settings?.shopTimezone ?? "UTC",
+    };
   } catch (err) {
     console.error("Returns loader error:", err);
-    return { returns: [], query, status, resolutionType: "", sourceChannel: "", page: 1, totalCount: 0, totalPages: 1, pendingCount: 0, inProgressCount: 0, approvedCount: 0, rejectedCount: 0, allCount: 0, error: "Failed to load returns. Please try again.", shopLocale: "en", shopTimezone: "UTC" };
+    return {
+      returns: [],
+      query,
+      status,
+      resolutionType: "",
+      sourceChannel: "",
+      page: 1,
+      totalCount: 0,
+      totalPages: 1,
+      pendingCount: 0,
+      inProgressCount: 0,
+      approvedCount: 0,
+      rejectedCount: 0,
+      allCount: 0,
+      error: "Failed to load returns. Please try again.",
+      shopLocale: "en",
+      shopTimezone: "UTC",
+    };
   }
 };
 
 /* Styles moved to app/styles.css — see .returns-* classes */
 
 export default function ReturnsList() {
-  const { returns, query, status, page, totalCount, totalPages, pendingCount, inProgressCount, approvedCount, rejectedCount, allCount, error, shopLocale, shopTimezone } = useLoaderData<typeof loader>();
+  const {
+    returns,
+    query,
+    status,
+    page,
+    totalCount,
+    totalPages,
+    pendingCount,
+    inProgressCount,
+    approvedCount,
+    rejectedCount,
+    allCount,
+    error,
+    shopLocale,
+    shopTimezone,
+  } = useLoaderData<typeof loader>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -112,11 +187,18 @@ export default function ReturnsList() {
   const [rejectionReason, setRejectionReason] = useState("");
   const rejectInputRef = useRef<HTMLTextAreaElement>(null);
 
-  useEffect(() => { setSelectedIds(new Set()); }, [page, status, query]);
-  useEffect(() => { if (showRejectModal && rejectInputRef.current) rejectInputRef.current.focus(); }, [showRejectModal]);
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [page, status, query]);
+  useEffect(() => {
+    if (showRejectModal && rejectInputRef.current) rejectInputRef.current.focus();
+  }, [showRejectModal]);
   useEffect(() => {
     if (bulkSuccess || bulkError) {
-      const t = setTimeout(() => { setBulkSuccess(null); setBulkError(null); }, 5000);
+      const t = setTimeout(() => {
+        setBulkSuccess(null);
+        setBulkError(null);
+      }, 5000);
       return () => clearTimeout(t);
     }
   }, [bulkSuccess, bulkError]);
@@ -129,20 +211,25 @@ export default function ReturnsList() {
   const toggleSelection = useCallback((id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
   const toggleSelectAll = useCallback(() => {
     setSelectedIds((prev) => {
-      if (selectableReturns.length > 0 && selectableReturns.every((r) => prev.has(r.id))) return new Set();
+      if (selectableReturns.length > 0 && selectableReturns.every((r) => prev.has(r.id)))
+        return new Set();
       return new Set(selectableReturns.map((r) => r.id));
     });
   }, [selectableReturns]);
 
   const executeBulkAction = useCallback(
-    async (action: "bulk_approve" | "bulk_reject" | "bulk_change_resolution", extra?: { reason?: string; resolutionType?: string }) => {
+    async (
+      action: "bulk_approve" | "bulk_reject" | "bulk_change_resolution",
+      extra?: { reason?: string; resolutionType?: string },
+    ) => {
       const ids = Array.from(selectedIds);
       // defensive: bulk action buttons are disabled when no rows are selected
       /* v8 ignore start */
@@ -162,9 +249,22 @@ export default function ReturnsList() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-        const data = (await res.json()) as { successCount?: number; errorCount?: number; error?: string; results?: Array<{ id: string; success: boolean; error?: string }> };
-        if (!res.ok) { setBulkError(data.error || "Bulk action failed"); return; }
-        const label = action === "bulk_approve" ? "approved" : action === "bulk_reject" ? "rejected" : "updated";
+        const data = (await res.json()) as {
+          successCount?: number;
+          errorCount?: number;
+          error?: string;
+          results?: Array<{ id: string; success: boolean; error?: string }>;
+        };
+        if (!res.ok) {
+          setBulkError(data.error || "Bulk action failed");
+          return;
+        }
+        const label =
+          action === "bulk_approve"
+            ? "approved"
+            : action === "bulk_reject"
+              ? "rejected"
+              : "updated";
         if (data.errorCount && data.errorCount > 0) {
           // Surface the per-row failures so the merchant knows EXACTLY which IDs
           // failed and why — was previously just "5 failed: <first error>" which
@@ -180,11 +280,16 @@ export default function ReturnsList() {
             grouped.set(reason, list);
           }
           const detail = Array.from(grouped.entries())
-            .map(([reason, ids]) => `${ids.length} (${ids.slice(0, 3).join(", ")}${ids.length > 3 ? `, +${ids.length - 3} more` : ""}): ${reason}`)
+            .map(
+              ([reason, ids]) =>
+                `${ids.length} (${ids.slice(0, 3).join(", ")}${ids.length > 3 ? `, +${ids.length - 3} more` : ""}): ${reason}`,
+            )
             .join(" • ");
           setBulkError(`${data.successCount ?? 0} ${label}, ${data.errorCount} failed — ${detail}`);
         } else {
-          setBulkSuccess(`${data.successCount} return${data.successCount === 1 ? "" : "s"} ${label} successfully`);
+          setBulkSuccess(
+            `${data.successCount} return${data.successCount === 1 ? "" : "s"} ${label} successfully`,
+          );
         }
         /* v8 ignore stop */
         setSelectedIds(new Set());
@@ -201,7 +306,10 @@ export default function ReturnsList() {
     [selectedIds, revalidator],
   );
 
-  const handleBulkApprove = useCallback(() => executeBulkAction("bulk_approve"), [executeBulkAction]);
+  const handleBulkApprove = useCallback(
+    () => executeBulkAction("bulk_approve"),
+    [executeBulkAction],
+  );
   const handleBulkRejectConfirm = useCallback(() => {
     const reason = rejectionReason.trim();
     if (!reason) return;
@@ -209,9 +317,12 @@ export default function ReturnsList() {
     setRejectionReason("");
     executeBulkAction("bulk_reject", { reason });
   }, [rejectionReason, executeBulkAction]);
-  const handleBulkResolutionChange = useCallback((resolutionType: string) => {
-    executeBulkAction("bulk_change_resolution", { resolutionType });
-  }, [executeBulkAction]);
+  const handleBulkResolutionChange = useCallback(
+    (resolutionType: string) => {
+      executeBulkAction("bulk_change_resolution", { resolutionType });
+    },
+    [executeBulkAction],
+  );
 
   const goToPage = (p: number) => {
     const next = new URLSearchParams(searchParams);
@@ -219,7 +330,8 @@ export default function ReturnsList() {
     setSearchParams(next);
   };
 
-  const allSelectableSelected = selectableReturns.length > 0 && selectableReturns.every((r) => selectedIds.has(r.id));
+  const allSelectableSelected =
+    selectableReturns.length > 0 && selectableReturns.every((r) => selectedIds.has(r.id));
   const someSelected = selectedIds.size > 0;
 
   // defensive locale `||` fallback + try/catch fallback for invalid dates
@@ -228,19 +340,63 @@ export default function ReturnsList() {
     try {
       const dt = new Date(d);
       return {
-        date: new Intl.DateTimeFormat(shopLocale || "en", { day: "numeric", month: "short", year: "2-digit" }).format(dt),
-        time: new Intl.DateTimeFormat(shopLocale || "en", { hour: "2-digit", minute: "2-digit" }).format(dt),
+        date: new Intl.DateTimeFormat(shopLocale || "en", {
+          day: "numeric",
+          month: "short",
+          year: "2-digit",
+        }).format(dt),
+        time: new Intl.DateTimeFormat(shopLocale || "en", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }).format(dt),
       };
-    } catch { return { date: String(d).slice(0, 10), time: "" }; }
+    } catch {
+      return { date: String(d).slice(0, 10), time: "" };
+    }
   };
   /* v8 ignore stop */
 
   const stats = [
-    { label: "Total", value: allCount, color: "#334155", bg: "#f8fafc", border: "#e2e8f0", filterStatus: "" },
-    { label: "Pending", value: pendingCount, color: "#d97706", bg: "#fffbeb", border: "#fde68a", filterStatus: "pending,initiated" },
-    { label: "In Progress", value: inProgressCount, color: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", filterStatus: "processing,in progress" },
-    { label: "Approved", value: approvedCount, color: "#059669", bg: "#ecfdf5", border: "#a7f3d0", filterStatus: "approved,completed" },
-    { label: "Rejected", value: rejectedCount, color: "#dc2626", bg: "#fef2f2", border: "#fecaca", filterStatus: "rejected" },
+    {
+      label: "Total",
+      value: allCount,
+      color: "#334155",
+      bg: "#f8fafc",
+      border: "#e2e8f0",
+      filterStatus: "",
+    },
+    {
+      label: "Pending",
+      value: pendingCount,
+      color: "#d97706",
+      bg: "#fffbeb",
+      border: "#fde68a",
+      filterStatus: "pending,initiated",
+    },
+    {
+      label: "In Progress",
+      value: inProgressCount,
+      color: "#3b82f6",
+      bg: "#eff6ff",
+      border: "#bfdbfe",
+      filterStatus: "processing,in progress",
+    },
+    {
+      label: "Approved",
+      value: approvedCount,
+      color: "#059669",
+      bg: "#ecfdf5",
+      border: "#a7f3d0",
+      filterStatus: "approved,completed",
+    },
+    {
+      label: "Rejected",
+      value: rejectedCount,
+      color: "#dc2626",
+      bg: "#fef2f2",
+      border: "#fecaca",
+      filterStatus: "rejected",
+    },
   ];
 
   return (
@@ -250,21 +406,70 @@ export default function ReturnsList() {
         {/* v8 ignore start */}
         {/* defensive: error rarely populated in fixtures; render branch covered separately */}
         {error && (
-          <div style={{ padding: "12px 16px", marginBottom: 16, borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", fontSize: 13, display: "flex", alignItems: "center", gap: 10 }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            <div><strong>{error}</strong><span style={{ opacity: 0.8, marginLeft: 6 }}>Try refreshing the page.</span></div>
+          <div
+            style={{
+              padding: "12px 16px",
+              marginBottom: 16,
+              borderRadius: 10,
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              color: "#991b1b",
+              fontSize: 13,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <div>
+              <strong>{error}</strong>
+              <span style={{ opacity: 0.8, marginLeft: 6 }}>Try refreshing the page.</span>
+            </div>
           </div>
         )}
         {/* v8 ignore stop */}
 
         {/* ── Success / Error toast ── */}
         {bulkSuccess && (
-          <div style={{ padding: "10px 16px", marginBottom: 12, borderRadius: 8, background: "#ecfdf5", border: "1px solid #a7f3d0", color: "#065f46", fontSize: 13, fontWeight: 600 }}>
+          <div
+            style={{
+              padding: "10px 16px",
+              marginBottom: 12,
+              borderRadius: 8,
+              background: "#ecfdf5",
+              border: "1px solid #a7f3d0",
+              color: "#065f46",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
             {bulkSuccess}
           </div>
         )}
         {bulkError && (
-          <div style={{ padding: "10px 16px", marginBottom: 12, borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#991b1b", fontSize: 13, fontWeight: 600 }}>
+          <div
+            style={{
+              padding: "10px 16px",
+              marginBottom: 12,
+              borderRadius: 8,
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              color: "#991b1b",
+              fontSize: 13,
+              fontWeight: 600,
+            }}
+          >
             {bulkError}
           </div>
         )}
@@ -274,12 +479,16 @@ export default function ReturnsList() {
           {stats.map((s) => {
             // isActive: defensive `||` + `!status && ...` for "Total" tile when no filter
             /* v8 ignore next */
-            const isActive = (status === s.filterStatus) || (!status && s.filterStatus === "");
+            const isActive = status === s.filterStatus || (!status && s.filterStatus === "");
             return (
               <div
                 key={s.label}
                 /* v8 ignore start - stat-card click + isActive style ternaries (zero-value branch unhit) */
-                onClick={() => s.value > 0 || s.filterStatus === "" ? setSearchParams(s.filterStatus ? { status: s.filterStatus } : {}) : undefined}
+                onClick={() =>
+                  s.value > 0 || s.filterStatus === ""
+                    ? setSearchParams(s.filterStatus ? { status: s.filterStatus } : {})
+                    : undefined
+                }
                 className={`returns-stat-card${isActive ? " returns-stat-card--active" : ""}`}
                 style={{
                   background: isActive ? s.bg : undefined,
@@ -288,8 +497,12 @@ export default function ReturnsList() {
                   cursor: s.value > 0 || s.filterStatus === "" ? "pointer" : "default",
                 }}
               >
-                <div className="stat-value" style={{ color: s.color }}>{s.value}</div>
-                <div className="stat-label" style={{ color: s.color }}>{s.label}</div>
+                <div className="stat-value" style={{ color: s.color }}>
+                  {s.value}
+                </div>
+                <div className="stat-label" style={{ color: s.color }}>
+                  {s.label}
+                </div>
               </div>
             );
           })}
@@ -307,7 +520,10 @@ export default function ReturnsList() {
             { status: "cancelled", desc: "Voided" },
           ].map((item) => (
             <span key={item.status} className="returns-legend-item">
-              <span className="returns-legend-dot" style={{ background: getStatusColor(item.status) }} />
+              <span
+                className="returns-legend-dot"
+                style={{ background: getStatusColor(item.status) }}
+              />
               <span className="returns-legend-label">{item.status}</span>
               <span className="returns-legend-desc">{item.desc}</span>
             </span>
@@ -329,15 +545,27 @@ export default function ReturnsList() {
           </div>
           <div style={{ flex: "0 0 140px" }}>
             <label className="field-label">Status</label>
-            <select name="status" defaultValue={status} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
+            <select
+              name="status"
+              defaultValue={status}
+              className="app-select"
+              style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}
+            >
               {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
           </div>
           <div style={{ flex: "0 0 140px" }}>
             <label className="field-label">Resolution</label>
-            <select name="resolutionType" defaultValue={searchParams.get("resolutionType") || ""} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
+            <select
+              name="resolutionType"
+              defaultValue={searchParams.get("resolutionType") || ""}
+              className="app-select"
+              style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}
+            >
               <option value="">All types</option>
               <option value="refund">Refund</option>
               <option value="exchange">Exchange</option>
@@ -347,7 +575,12 @@ export default function ReturnsList() {
           </div>
           <div style={{ flex: "0 0 140px" }}>
             <label className="field-label">Channel</label>
-            <select name="sourceChannel" defaultValue={searchParams.get("sourceChannel") || ""} className="app-select" style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}>
+            <select
+              name="sourceChannel"
+              defaultValue={searchParams.get("sourceChannel") || ""}
+              className="app-select"
+              style={{ width: "100%", padding: "9px 14px", fontSize: 13 }}
+            >
               <option value="">All channels</option>
               <option value="web">Online Store</option>
               <option value="pos">POS</option>
@@ -357,23 +590,94 @@ export default function ReturnsList() {
           </div>
           <div style={{ flex: "0 0 130px" }}>
             <label className="field-label">From</label>
-            <input type="date" name="from" defaultValue={searchParams.get("from") || ""} className="app-input" style={{ width: "100%", padding: "7px 10px", fontSize: 13 }} />
+            <input
+              type="date"
+              name="from"
+              defaultValue={searchParams.get("from") || ""}
+              className="app-input"
+              style={{ width: "100%", padding: "7px 10px", fontSize: 13 }}
+            />
           </div>
           <div style={{ flex: "0 0 130px" }}>
             <label className="field-label">To</label>
-            <input type="date" name="to" defaultValue={searchParams.get("to") || ""} className="app-input" style={{ width: "100%", padding: "7px 10px", fontSize: 13 }} />
+            <input
+              type="date"
+              name="to"
+              defaultValue={searchParams.get("to") || ""}
+              className="app-input"
+              style={{ width: "100%", padding: "7px 10px", fontSize: 13 }}
+            />
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 1 }}>
-            <button type="submit" className="app-btn-primary" style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "#4f46e5", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Search</button>
-            {(query || status || searchParams.get("resolutionType") || searchParams.get("sourceChannel") || searchParams.get("from") || searchParams.get("to")) && (
+            <button
+              type="submit"
+              className="app-btn-primary"
+              style={{
+                padding: "9px 20px",
+                borderRadius: 8,
+                border: "none",
+                background: "#4f46e5",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+              }}
+            >
+              Search
+            </button>
+            {(query ||
+              status ||
+              searchParams.get("resolutionType") ||
+              searchParams.get("sourceChannel") ||
+              searchParams.get("from") ||
+              searchParams.get("to")) && (
               <Link to="/app/returns" style={{ textDecoration: "none" }}>
-                <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Clear</button>
+                <button
+                  type="button"
+                  style={{
+                    padding: "9px 16px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    color: "#374151",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear
+                </button>
               </Link>
             )}
           </div>
           <Link to="/app/returns/create" style={{ textDecoration: "none" }}>
-            <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "none", background: "#059669", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            <button
+              type="button"
+              style={{
+                padding: "9px 16px",
+                borderRadius: 8,
+                border: "none",
+                background: "#059669",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
               Create Return
             </button>
           </Link>
@@ -391,11 +695,38 @@ export default function ReturnsList() {
                 if (toDate) p.set("to", toDate);
                 return `/api/returns/export?${p.toString()}`;
               })()}
-              target="_blank" rel="noopener noreferrer"
+              target="_blank"
+              rel="noopener noreferrer"
               style={{ textDecoration: "none", marginLeft: "auto" }}
             >
-              <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <button
+                type="button"
+                style={{
+                  padding: "9px 16px",
+                  borderRadius: 8,
+                  border: "1px solid #d1d5db",
+                  background: "#fff",
+                  color: "#374151",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
                 Export current view
               </button>
             </a>
@@ -406,12 +737,31 @@ export default function ReturnsList() {
         {totalCount > 0 && (
           <div className="returns-count-bar">
             <span style={{ fontSize: 12, color: "#6b7280" }}>
-              Showing <strong style={{ color: "#111827" }}>{(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}</strong> of <strong style={{ color: "#111827" }}>{totalCount}</strong>
+              Showing{" "}
+              <strong style={{ color: "#111827" }}>
+                {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, totalCount)}
+              </strong>{" "}
+              of <strong style={{ color: "#111827" }}>{totalCount}</strong>
             </span>
             {status && (
-              <span style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 20, background: "#eef2ff", color: "#4f46e5", border: "1px solid #c7d2fe" }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  padding: "3px 10px",
+                  borderRadius: 20,
+                  background: "#eef2ff",
+                  color: "#4f46e5",
+                  border: "1px solid #c7d2fe",
+                }}
+              >
                 {status}
-                <Link to={`/app/returns${query ? `?query=${query}` : ""}`} style={{ textDecoration: "none", color: "inherit", marginLeft: 6, opacity: 0.7 }}>×</Link>
+                <Link
+                  to={`/app/returns${query ? `?query=${query}` : ""}`}
+                  style={{ textDecoration: "none", color: "inherit", marginLeft: 6, opacity: 0.7 }}
+                >
+                  ×
+                </Link>
               </span>
             )}
           </div>
@@ -422,27 +772,76 @@ export default function ReturnsList() {
         {returns.length === 0 ? (
           <div className="returns-empty-state">
             <div style={{ marginBottom: 14, opacity: 0.4 }}>
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              <svg
+                width="48"
+                height="48"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1"
+              >
+                <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+                <line x1="12" y1="22.08" x2="12" y2="12" />
+              </svg>
             </div>
-            <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: "#111827" }}>No returns found</p>
-            <p style={{ maxWidth: 360, margin: "0 auto 20px", fontSize: 13, color: "#6b7280", lineHeight: 1.5 }}>
+            <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 8, color: "#111827" }}>
+              No returns found
+            </p>
+            <p
+              style={{
+                maxWidth: 360,
+                margin: "0 auto 20px",
+                fontSize: 13,
+                color: "#6b7280",
+                lineHeight: 1.5,
+              }}
+            >
               {query || status
                 ? "No returns match your criteria. Try adjusting your filters."
                 : "Returns will appear here when customers submit them via your portal."}
             </p>
             {!query && !status && (
               <Link to="/app/portal" style={{ textDecoration: "none" }}>
-                <button type="button" style={{ padding: "9px 20px", borderRadius: 8, border: "none", background: "#4f46e5", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>View Portal</button>
+                <button
+                  type="button"
+                  style={{
+                    padding: "9px 20px",
+                    borderRadius: 8,
+                    border: "none",
+                    background: "#4f46e5",
+                    color: "#fff",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  View Portal
+                </button>
               </Link>
             )}
             {(query || status) && (
               <Link to="/app/returns" style={{ textDecoration: "none" }}>
-                <button type="button" style={{ padding: "9px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>Clear filters</button>
+                <button
+                  type="button"
+                  style={{
+                    padding: "9px 16px",
+                    borderRadius: 8,
+                    border: "1px solid #d1d5db",
+                    background: "#fff",
+                    color: "#374151",
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  Clear filters
+                </button>
               </Link>
             )}
           </div>
         ) : (
-        /* v8 ignore stop */
+          /* v8 ignore stop */
           <>
             <div className="returns-table-wrap">
               <div style={{ overflowX: "auto" }}>
@@ -456,8 +855,18 @@ export default function ReturnsList() {
                           checked={allSelectableSelected}
                           onChange={toggleSelectAll}
                           disabled={selectableReturns.length === 0}
-                          title={allSelectableSelected ? "Deselect all" : "Select all actionable returns"}
-                          style={{ width: 16, height: 16, cursor: selectableReturns.length === 0 ? "default" : "pointer", accentColor: "#4f46e5", opacity: selectableReturns.length === 0 ? 0.25 : 1, margin: 0, display: "block" }}
+                          title={
+                            allSelectableSelected ? "Deselect all" : "Select all actionable returns"
+                          }
+                          style={{
+                            width: 16,
+                            height: 16,
+                            cursor: selectableReturns.length === 0 ? "default" : "pointer",
+                            accentColor: "#4f46e5",
+                            opacity: selectableReturns.length === 0 ? 0.25 : 1,
+                            margin: 0,
+                            display: "block",
+                          }}
                           /* v8 ignore stop */
                         />
                       </th>
@@ -478,9 +887,21 @@ export default function ReturnsList() {
                       const isSelectable = selectableIds.has(r.id);
                       const isSelected = selectedIds.has(r.id);
                       const resType = r.resolutionType;
-                      const syncStatus = (r as Record<string, unknown>).fyndSyncStatus as string | null;
-                      const channel = (r as Record<string, unknown>).sourceChannel as string | null | undefined;
-                      const hasFynd = !!(fyndOrdId || fyndRetId || fyndRetNo || fyndShipId || r.forwardAwb || r.returnAwb);
+                      const syncStatus = (r as Record<string, unknown>).fyndSyncStatus as
+                        | string
+                        | null;
+                      const channel = (r as Record<string, unknown>).sourceChannel as
+                        | string
+                        | null
+                        | undefined;
+                      const hasFynd = !!(
+                        fyndOrdId ||
+                        fyndRetId ||
+                        fyndRetNo ||
+                        fyndShipId ||
+                        r.forwardAwb ||
+                        r.returnAwb
+                      );
 
                       return (
                         <tr
@@ -502,8 +923,18 @@ export default function ReturnsList() {
                               disabled={!isSelectable}
                               onChange={() => {}}
                               /* v8 ignore start - per-row checkbox style ternaries; isSelectable both branches */
-                              title={isSelectable ? undefined : `Cannot select: return is ${r.status}`}
-                              style={{ width: 16, height: 16, cursor: !isSelectable ? "default" : "pointer", accentColor: "#4f46e5", opacity: !isSelectable ? 0.25 : 1, margin: 0, display: "block" }}
+                              title={
+                                isSelectable ? undefined : `Cannot select: return is ${r.status}`
+                              }
+                              style={{
+                                width: 16,
+                                height: 16,
+                                cursor: !isSelectable ? "default" : "pointer",
+                                accentColor: "#4f46e5",
+                                opacity: !isSelectable ? 0.25 : 1,
+                                margin: 0,
+                                display: "block",
+                              }}
                               /* v8 ignore stop */
                             />
                           </td>
@@ -521,10 +952,20 @@ export default function ReturnsList() {
                               {/* v8 ignore stop */}
                             </Link>
                             {/* v8 ignore start - channel tag config; non-web channels not all exercised */}
-                            {channel && channel !== "web" && (() => {
-                              const cfg: Record<string, string> = { pos: "POS", draft_order: "DRAFT", b2b: "B2B" };
-                              return <span className="returns-channel-tag">{cfg[channel] ?? channel.toUpperCase()}</span>;
-                            })()}
+                            {channel &&
+                              channel !== "web" &&
+                              (() => {
+                                const cfg: Record<string, string> = {
+                                  pos: "POS",
+                                  draft_order: "DRAFT",
+                                  b2b: "B2B",
+                                };
+                                return (
+                                  <span className="returns-channel-tag">
+                                    {cfg[channel] ?? channel.toUpperCase()}
+                                  </span>
+                                );
+                              })()}
                             {/* v8 ignore stop */}
                           </td>
 
@@ -534,19 +975,23 @@ export default function ReturnsList() {
                             {/* v8 ignore start */}
                             <div className="order-name">{r.shopifyOrderName || "—"}</div>
                             {/* v8 ignore stop */}
-                            {fyndOrdId && (
-                              <div className="fynd-order-id">{String(fyndOrdId)}</div>
-                            )}
+                            {fyndOrdId && <div className="fynd-order-id">{String(fyndOrdId)}</div>}
                           </td>
 
                           {/* Status — primary badge + resolution pill + sync indicator */}
                           <td>
                             <div className="returns-status-cell">
-                              <span className="returns-status-badge" style={{
-                                background: getStatusBg(r.status),
-                                color: getStatusColor(r.status),
-                              }}>
-                                <span className="returns-status-dot" style={{ background: getStatusColor(r.status) }} />
+                              <span
+                                className="returns-status-badge"
+                                style={{
+                                  background: getStatusBg(r.status),
+                                  color: getStatusColor(r.status),
+                                }}
+                              >
+                                <span
+                                  className="returns-status-dot"
+                                  style={{ background: getStatusColor(r.status) }}
+                                />
                                 {r.status}
                               </span>
                               {/* Resolution type — outlined pill, distinct from status */}
@@ -561,23 +1006,52 @@ export default function ReturnsList() {
                                 <span className="returns-refund-tag">{r.refundStatus}</span>
                               )}
                               {/* Sync indicator — icon + label */}
-                              {syncStatus && (() => {
-                                const syncCfg: Record<string, { icon: string; label: string; cls: string }> = {
-                                  synced: { icon: "\u2713", label: "Synced", cls: "sync--ok" },
-                                  processing: { icon: "\u21BB", label: "Syncing", cls: "sync--busy" },
-                                  failed: { icon: "\u2717", label: "Sync failed", cls: "sync--fail" },
-                                  retry_scheduled: { icon: "\u21BB", label: "Retrying", cls: "sync--busy" },
-                                  pending_consolidation: { icon: "\u2022", label: "Queued", cls: "sync--wait" },
-                                  pending: { icon: "\u2022", label: "Pending", cls: "sync--wait" },
-                                };
-                                const c = syncCfg[syncStatus];
-                                if (!c) return null;
-                                return <span className={`returns-sync ${c.cls}`}>{c.icon} {c.label}</span>;
-                              })()}
+                              {syncStatus &&
+                                (() => {
+                                  const syncCfg: Record<
+                                    string,
+                                    { icon: string; label: string; cls: string }
+                                  > = {
+                                    synced: { icon: "\u2713", label: "Synced", cls: "sync--ok" },
+                                    processing: {
+                                      icon: "\u21BB",
+                                      label: "Syncing",
+                                      cls: "sync--busy",
+                                    },
+                                    failed: {
+                                      icon: "\u2717",
+                                      label: "Sync failed",
+                                      cls: "sync--fail",
+                                    },
+                                    retry_scheduled: {
+                                      icon: "\u21BB",
+                                      label: "Retrying",
+                                      cls: "sync--busy",
+                                    },
+                                    pending_consolidation: {
+                                      icon: "\u2022",
+                                      label: "Queued",
+                                      cls: "sync--wait",
+                                    },
+                                    pending: {
+                                      icon: "\u2022",
+                                      label: "Pending",
+                                      cls: "sync--wait",
+                                    },
+                                  };
+                                  const c = syncCfg[syncStatus];
+                                  if (!c) return null;
+                                  return (
+                                    <span className={`returns-sync ${c.cls}`}>
+                                      {c.icon} {c.label}
+                                    </span>
+                                  );
+                                })()}
                               {/* Cancel request warning */}
-                              {!!(r as Record<string, unknown>).cancellationRequestedAt && r.status.toLowerCase() === "approved" && (
-                                <span className="returns-cancel-tag">Cancel req.</span>
-                              )}
+                              {!!(r as Record<string, unknown>).cancellationRequestedAt &&
+                                r.status.toLowerCase() === "approved" && (
+                                  <span className="returns-cancel-tag">Cancel req.</span>
+                                )}
                               {/* v8 ignore stop */}
                             </div>
                           </td>
@@ -588,19 +1062,34 @@ export default function ReturnsList() {
                             {hasFynd ? (
                               <div className="fynd-details-cell">
                                 {fyndOrdId && (
-                                  <div className="fynd-row"><span className="fynd-label">Order</span><span className="fynd-value">{fyndOrdId}</span></div>
+                                  <div className="fynd-row">
+                                    <span className="fynd-label">Order</span>
+                                    <span className="fynd-value">{fyndOrdId}</span>
+                                  </div>
                                 )}
                                 {(fyndRetId || fyndRetNo) && (
-                                  <div className="fynd-row"><span className="fynd-label">Return</span><span className="fynd-value">{fyndRetId || fyndRetNo}</span></div>
+                                  <div className="fynd-row">
+                                    <span className="fynd-label">Return</span>
+                                    <span className="fynd-value">{fyndRetId || fyndRetNo}</span>
+                                  </div>
                                 )}
                                 {fyndShipId && (
-                                  <div className="fynd-row"><span className="fynd-label">Shipment</span><span className="fynd-value">{fyndShipId}</span></div>
+                                  <div className="fynd-row">
+                                    <span className="fynd-label">Shipment</span>
+                                    <span className="fynd-value">{fyndShipId}</span>
+                                  </div>
                                 )}
                                 {r.forwardAwb && (
-                                  <div className="fynd-row"><span className="fynd-label">Fwd AWB</span><span className="fynd-value">{r.forwardAwb}</span></div>
+                                  <div className="fynd-row">
+                                    <span className="fynd-label">Fwd AWB</span>
+                                    <span className="fynd-value">{r.forwardAwb}</span>
+                                  </div>
                                 )}
                                 {r.returnAwb && (
-                                  <div className="fynd-row"><span className="fynd-label">Ret AWB</span><span className="fynd-value">{r.returnAwb}</span></div>
+                                  <div className="fynd-row">
+                                    <span className="fynd-label">Ret AWB</span>
+                                    <span className="fynd-value">{r.returnAwb}</span>
+                                  </div>
                                 )}
                               </div>
                             ) : (
@@ -616,30 +1105,73 @@ export default function ReturnsList() {
                                 {/* defensive customer name ternary */}
                                 {/* v8 ignore start */}
                                 {r.customerName ? (
-                                  <span style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>{r.customerName}</span>
+                                  <span style={{ fontSize: 13, color: "#111827", fontWeight: 500 }}>
+                                    {r.customerName}
+                                  </span>
                                 ) : (
                                   <span style={{ fontSize: 12, color: "#d1d5db" }}>—</span>
                                 )}
                                 {/* v8 ignore stop */}
                                 {/* v8 ignore start - fraud-risk colour ternaries not all exercised */}
-                                {(r as { fraudRiskLevel?: string | null }).fraudRiskLevel && (r as { fraudRiskLevel?: string }).fraudRiskLevel !== "low" && (() => {
-                                  const fl = (r as { fraudRiskLevel?: string }).fraudRiskLevel!;
-                                  const c = fl === "critical" ? "#DC2626" : fl === "high" ? "#EA580C" : "#D97706";
-                                  const bg = fl === "critical" ? "#FEE2E2" : fl === "high" ? "#FFEDD5" : "#FEF3C7";
-                                  return <span title={`${fl} fraud risk`} style={{ flexShrink: 0, width: 8, height: 8, borderRadius: 4, background: c, boxShadow: `0 0 0 2px ${bg}` }} />;
-                                })()}
+                                {(r as { fraudRiskLevel?: string | null }).fraudRiskLevel &&
+                                  (r as { fraudRiskLevel?: string }).fraudRiskLevel !== "low" &&
+                                  (() => {
+                                    const fl = (r as { fraudRiskLevel?: string }).fraudRiskLevel!;
+                                    const c =
+                                      fl === "critical"
+                                        ? "#DC2626"
+                                        : fl === "high"
+                                          ? "#EA580C"
+                                          : "#D97706";
+                                    const bg =
+                                      fl === "critical"
+                                        ? "#FEE2E2"
+                                        : fl === "high"
+                                          ? "#FFEDD5"
+                                          : "#FEF3C7";
+                                    return (
+                                      <span
+                                        title={`${fl} fraud risk`}
+                                        style={{
+                                          flexShrink: 0,
+                                          width: 8,
+                                          height: 8,
+                                          borderRadius: 4,
+                                          background: c,
+                                          boxShadow: `0 0 0 2px ${bg}`,
+                                        }}
+                                      />
+                                    );
+                                  })()}
                                 {/* v8 ignore stop */}
                                 {(r as { isGiftReturn?: boolean }).isGiftReturn && (
-                                  <span title="Gift return" style={{ flexShrink: 0, fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "#EDE9FE", color: "#7C3AED", fontWeight: 700 }}>GIFT</span>
+                                  <span
+                                    title="Gift return"
+                                    style={{
+                                      flexShrink: 0,
+                                      fontSize: 10,
+                                      padding: "1px 5px",
+                                      borderRadius: 4,
+                                      background: "#EDE9FE",
+                                      color: "#7C3AED",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    GIFT
+                                  </span>
                                 )}
                               </div>
                               {r.customerEmailNorm && (
-                                <span style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.3 }}>{r.customerEmailNorm}</span>
+                                <span style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.3 }}>
+                                  {r.customerEmailNorm}
+                                </span>
                               )}
                               {/* defensive customer phone optional render */}
                               {/* v8 ignore start */}
                               {(r as { customerPhoneNorm?: string | null }).customerPhoneNorm && (
-                                <span style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.3 }}>{(r as { customerPhoneNorm?: string }).customerPhoneNorm}</span>
+                                <span style={{ fontSize: 11, color: "#9ca3af", lineHeight: 1.3 }}>
+                                  {(r as { customerPhoneNorm?: string }).customerPhoneNorm}
+                                </span>
                               )}
                               {/* v8 ignore stop */}
                             </div>
@@ -647,12 +1179,17 @@ export default function ReturnsList() {
 
                           {/* Created */}
                           <td className="text-tabular nowrap">
-                            {(() => { const p = fmtDateParts(r.createdAt); return (
-                              <div style={{ lineHeight: 1.4 }}>
-                                <div style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>{p.date}</div>
-                                <div style={{ fontSize: 11, color: "#9ca3af" }}>{p.time}</div>
-                              </div>
-                            ); })()}
+                            {(() => {
+                              const p = fmtDateParts(r.createdAt);
+                              return (
+                                <div style={{ lineHeight: 1.4 }}>
+                                  <div style={{ fontSize: 12, color: "#374151", fontWeight: 500 }}>
+                                    {p.date}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "#9ca3af" }}>{p.time}</div>
+                                </div>
+                              );
+                            })()}
                           </td>
                         </tr>
                       );
@@ -665,8 +1202,21 @@ export default function ReturnsList() {
             {/* ── Pagination ── */}
             {totalPages > 1 && (
               <div className="returns-pagination">
-                <button className="app-pagination-btn" disabled={page <= 1} onClick={() => goToPage(page - 1)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"/></svg>
+                <button
+                  className="app-pagination-btn"
+                  disabled={page <= 1}
+                  onClick={() => goToPage(page - 1)}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
                 </button>
                 {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                   let p: number;
@@ -675,11 +1225,30 @@ export default function ReturnsList() {
                   else if (page >= totalPages - 3) p = totalPages - 6 + i;
                   else p = page - 3 + i;
                   return (
-                    <button key={p} className={`app-pagination-btn ${p === page ? "active" : ""}`} onClick={() => goToPage(p)}>{p}</button>
+                    <button
+                      key={p}
+                      className={`app-pagination-btn ${p === page ? "active" : ""}`}
+                      onClick={() => goToPage(p)}
+                    >
+                      {p}
+                    </button>
                   );
                 })}
-                <button className="app-pagination-btn" disabled={page >= totalPages} onClick={() => goToPage(page + 1)}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"/></svg>
+                <button
+                  className="app-pagination-btn"
+                  disabled={page >= totalPages}
+                  onClick={() => goToPage(page + 1)}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
                 </button>
               </div>
             )}
@@ -688,16 +1257,26 @@ export default function ReturnsList() {
       </div>
 
       {/* ── Floating Bulk Action Bar ── */}
-      <div className={`returns-bulk-bar ${someSelected ? "returns-bulk-bar--visible" : "returns-bulk-bar--hidden"}`}>
+      <div
+        className={`returns-bulk-bar ${someSelected ? "returns-bulk-bar--visible" : "returns-bulk-bar--hidden"}`}
+      >
         <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.95 }}>
           {selectedIds.size} selected
         </span>
         <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.2)" }} />
-        <button onClick={handleBulkApprove} disabled={bulkLoading} className="bulk-btn bulk-btn--approve">
+        <button
+          onClick={handleBulkApprove}
+          disabled={bulkLoading}
+          className="bulk-btn bulk-btn--approve"
+        >
           {/* v8 ignore next - bulkLoading "Processing..." label only during async */}
           {bulkLoading ? "Processing..." : "Approve"}
         </button>
-        <button onClick={() => setShowRejectModal(true)} disabled={bulkLoading} className="bulk-btn bulk-btn--reject">
+        <button
+          onClick={() => setShowRejectModal(true)}
+          disabled={bulkLoading}
+          className="bulk-btn bulk-btn--reject"
+        >
           Reject
         </button>
         <div style={{ width: 1, height: 22, background: "rgba(255,255,255,0.15)" }} />
@@ -706,17 +1285,28 @@ export default function ReturnsList() {
           defaultValue=""
           // defensive bulk select onChange
           /* v8 ignore start */
-          onChange={(e) => { if (e.target.value) { handleBulkResolutionChange(e.target.value); e.target.value = ""; } }}
+          onChange={(e) => {
+            if (e.target.value) {
+              handleBulkResolutionChange(e.target.value);
+              e.target.value = "";
+            }
+          }}
           /* v8 ignore stop */
           className="bulk-select"
         >
-          <option value="" disabled>Change resolution...</option>
+          <option value="" disabled>
+            Change resolution...
+          </option>
           <option value="refund">Refund</option>
           <option value="exchange">Exchange</option>
           <option value="store_credit">Store Credit</option>
           <option value="replacement">Replacement</option>
         </select>
-        <button onClick={() => setSelectedIds(new Set())} disabled={bulkLoading} className="bulk-btn--clear">
+        <button
+          onClick={() => setSelectedIds(new Set())}
+          disabled={bulkLoading}
+          className="bulk-btn--clear"
+        >
           Clear
         </button>
       </div>
@@ -724,7 +1314,13 @@ export default function ReturnsList() {
       {/* ── Rejection Modal ── */}
       {/* v8 ignore start - modal only shown when showRejectModal is true */}
       {showRejectModal && (
-        <div className="returns-modal-overlay" onClick={() => { setShowRejectModal(false); setRejectionReason(""); }}>
+        <div
+          className="returns-modal-overlay"
+          onClick={() => {
+            setShowRejectModal(false);
+            setRejectionReason("");
+          }}
+        >
           <div className="returns-modal" onClick={(e) => e.stopPropagation()}>
             <h3 style={{ margin: "0 0 6px", fontSize: 17, fontWeight: 700, color: "#1e293b" }}>
               Reject {selectedIds.size} Return{selectedIds.size === 1 ? "" : "s"}
@@ -740,18 +1336,33 @@ export default function ReturnsList() {
               maxLength={500}
               rows={3}
               style={{
-                width: "100%", padding: "10px 14px", borderRadius: 8,
-                border: "1px solid #d1d5db", fontSize: 13, resize: "vertical",
-                fontFamily: "inherit", outline: "none", boxSizing: "border-box",
+                width: "100%",
+                padding: "10px 14px",
+                borderRadius: 8,
+                border: "1px solid #d1d5db",
+                fontSize: 13,
+                resize: "vertical",
+                fontFamily: "inherit",
+                outline: "none",
+                boxSizing: "border-box",
                 transition: "border-color 0.15s, box-shadow 0.15s",
               }}
-              onFocus={(e) => { e.target.style.borderColor = "#6366f1"; e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)"; }}
-              onBlur={(e) => { e.target.style.borderColor = "#d1d5db"; e.target.style.boxShadow = "none"; }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#6366f1";
+                e.target.style.boxShadow = "0 0 0 3px rgba(99,102,241,0.12)";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "#d1d5db";
+                e.target.style.boxShadow = "none";
+              }}
               onKeyDown={(e) => {
                 // defensive Cmd/Ctrl+Enter and Escape keyboard shortcuts
                 /* v8 ignore start */
                 if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleBulkRejectConfirm();
-                if (e.key === "Escape") { setShowRejectModal(false); setRejectionReason(""); }
+                if (e.key === "Escape") {
+                  setShowRejectModal(false);
+                  setRejectionReason("");
+                }
                 /* v8 ignore stop */
               }}
             />
@@ -760,25 +1371,41 @@ export default function ReturnsList() {
             </div>
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 14 }}>
               <button
-                onClick={() => { setShowRejectModal(false); setRejectionReason(""); }}
-                style={{
-                  padding: "8px 18px", borderRadius: 7, border: "1px solid #d1d5db",
-                  background: "#fff", color: "#374151", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectionReason("");
                 }}
-              >Cancel</button>
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: 7,
+                  border: "1px solid #d1d5db",
+                  background: "#fff",
+                  color: "#374151",
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleBulkRejectConfirm}
                 disabled={!rejectionReason.trim()}
                 style={{
-                  padding: "8px 18px", borderRadius: 7, border: "none",
+                  padding: "8px 18px",
+                  borderRadius: 7,
+                  border: "none",
                   /* v8 ignore start - empty/non-empty rejectionReason ternaries not all exercised */
                   background: rejectionReason.trim() ? "#dc2626" : "#e5e7eb",
                   color: rejectionReason.trim() ? "#fff" : "#9ca3af",
-                  fontSize: 13, fontWeight: 700,
+                  fontSize: 13,
+                  fontWeight: 700,
                   cursor: rejectionReason.trim() ? "pointer" : "not-allowed",
                   /* v8 ignore stop */
                 }}
-              >Reject All</button>
+              >
+                Reject All
+              </button>
             </div>
           </div>
         </div>
@@ -798,13 +1425,20 @@ export function ErrorBoundary() {
   const error = useRouteError();
   const msg = isRouteErrorResponse(error)
     ? error.data || `Error ${error.status}`
-    : error instanceof Error ? error.message : "An unexpected error occurred.";
+    : error instanceof Error
+      ? error.message
+      : "An unexpected error occurred.";
   return (
     <AppPage heading="Returns">
       <div className="app-content layout-full">
         <div className="app-alert app-alert-error" style={{ marginBottom: 20 }}>
           <p style={{ fontWeight: 600, fontSize: 14 }}>{msg}</p>
-          <a href="/app/returns" style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}>Try again</a>
+          <a
+            href="/app/returns"
+            style={{ fontSize: 13, fontWeight: 600, color: "#005bd3", textDecoration: "none" }}
+          >
+            Try again
+          </a>
         </div>
       </div>
     </AppPage>

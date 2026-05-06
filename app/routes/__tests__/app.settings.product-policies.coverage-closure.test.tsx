@@ -36,19 +36,11 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import {
-  act,
-  waitFor as rtlWaitFor,
-  fireEvent,
-  configure,
-} from "@testing-library/react";
-import ProductPoliciesSettings, {
-  type ProductPolicyRule,
-} from "../app.settings.product-policies";
+import { act, waitFor as rtlWaitFor, fireEvent, configure } from "@testing-library/react";
+import ProductPoliciesSettings, { type ProductPolicyRule } from "../app.settings.product-policies";
 
 configure({ asyncUtilTimeout: 8000 });
-const waitFor: typeof rtlWaitFor = (cb, opts) =>
-  rtlWaitFor(cb, { timeout: 8000, ...opts });
+const waitFor: typeof rtlWaitFor = (cb, opts) => rtlWaitFor(cb, { timeout: 8000, ...opts });
 
 const populated: { rules: ProductPolicyRule[] } = {
   rules: [
@@ -78,9 +70,7 @@ describe("app.settings.product-policies — coverage closure", () => {
       loaderData: populated,
     });
     await waitFor(() => {
-      const removes = container.querySelectorAll(
-        'button[aria-label="Remove rule"]',
-      );
+      const removes = container.querySelectorAll('button[aria-label="Remove rule"]');
       expect(removes.length).toBe(2);
     });
 
@@ -92,14 +82,14 @@ describe("app.settings.product-policies — coverage closure", () => {
     await act(async () => {
       fireEvent.change(matchValueInput!, { target: { value: "clearance,final" } });
     });
-    await waitFor(() => { expect(matchValueInput!.value).toBe("clearance,final"); });
+    await waitFor(() => {
+      expect(matchValueInput!.value).toBe("clearance,final");
+    });
 
     // Click an in-bounds Move-down (row 0, direction +1) → exercises the
     // non-guarded body of moveRule (lines 112-115).
     const moveDownBtns = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(
-        'button[aria-label="Move down"]',
-      ),
+      container.querySelectorAll<HTMLButtonElement>('button[aria-label="Move down"]'),
     );
     expect(moveDownBtns.length).toBe(2);
     fireEvent.click(moveDownBtns[0]);
@@ -109,19 +99,13 @@ describe("app.settings.product-policies — coverage closure", () => {
     // buttons even after we mutate `.disabled = false`. Bypass by reaching
     // through the React fiber to invoke the bound onClick callback directly.
     await waitFor(() => {
-      expect(
-        container.querySelectorAll('button[aria-label="Move up"]').length,
-      ).toBe(2);
+      expect(container.querySelectorAll('button[aria-label="Move up"]').length).toBe(2);
     });
     function invokeOnClick(btn: HTMLButtonElement) {
       // Look up the React 19 fiber and pull the props.onClick handler.
-      const fiberKey = Object.keys(btn).find((k) =>
-        k.startsWith("__reactProps$"),
-      );
+      const fiberKey = Object.keys(btn).find((k) => k.startsWith("__reactProps$"));
       if (!fiberKey) return false;
-      const props = (btn as unknown as Record<string, { onClick?: () => void }>)[
-        fiberKey
-      ];
+      const props = (btn as unknown as Record<string, { onClick?: () => void }>)[fiberKey];
       if (typeof props?.onClick === "function") {
         props.onClick();
         return true;
@@ -144,21 +128,17 @@ describe("app.settings.product-policies — coverage closure", () => {
       loaderData: populated,
     });
     await waitFor(() => {
-      const removes = container.querySelectorAll(
-        'button[aria-label="Remove rule"]',
-      );
+      const removes = container.querySelectorAll('button[aria-label="Remove rule"]');
       expect(removes.length).toBe(2);
     });
     const removeBtns = Array.from(
-      container.querySelectorAll<HTMLButtonElement>(
-        'button[aria-label="Remove rule"]',
-      ),
+      container.querySelectorAll<HTMLButtonElement>('button[aria-label="Remove rule"]'),
     );
-    await act(async () => { fireEvent.click(removeBtns[0]); });
+    await act(async () => {
+      fireEvent.click(removeBtns[0]);
+    });
     await waitFor(() => {
-      const remaining = container.querySelectorAll(
-        'button[aria-label="Remove rule"]',
-      );
+      const remaining = container.querySelectorAll('button[aria-label="Remove rule"]');
       expect(remaining.length).toBe(1);
     });
   });

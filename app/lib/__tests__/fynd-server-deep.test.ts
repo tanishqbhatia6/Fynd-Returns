@@ -32,8 +32,11 @@ vi.mock("../observability/logger.server", () => ({
 }));
 
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: { setAttribute: () => void; end: () => void }) => Promise<T>) =>
-    fn({ setAttribute: () => {}, end: () => {} }),
+  withSpan: async <T>(
+    _n: string,
+    _a: unknown,
+    fn: (s: { setAttribute: () => void; end: () => void }) => Promise<T>,
+  ) => fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
 }));
@@ -44,7 +47,7 @@ vi.mock("../observability/metrics.server", () => ({
 }));
 
 vi.mock("../observability/resilience.server", () => ({
-  fyndCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  fyndCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
   recordTimeout: vi.fn(),
   recordFallback: vi.fn(),
 }));
@@ -62,11 +65,7 @@ vi.mock("../fynd-fdk.server", () => ({
 
 // --- module under test ----------------------------------------------------
 
-import {
-  createFyndClientOrError,
-  FyndPlatformClient,
-  type FyndSettings,
-} from "../fynd.server";
+import { createFyndClientOrError, FyndPlatformClient, type FyndSettings } from "../fynd.server";
 
 // --- helpers --------------------------------------------------------------
 
@@ -83,7 +82,9 @@ function jsonResponse(body: unknown, init: { status?: number } = {}) {
   });
 }
 
-function settings(overrides: Partial<FyndSettings & { fyndApiType?: string | null }> = {}): FyndSettings & { fyndApiType?: string | null } {
+function settings(
+  overrides: Partial<FyndSettings & { fyndApiType?: string | null }> = {},
+): FyndSettings & { fyndApiType?: string | null } {
   return {
     fyndApplicationId: "app-1",
     fyndCompanyId: uniqueId("co"),
@@ -106,7 +107,7 @@ afterEach(() => {
 describe("createFyndClientOrError — early-error paths", () => {
   beforeEach(() => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ access_token: "tok-default", expires_in: 3600 })
+      jsonResponse({ access_token: "tok-default", expires_in: 3600 }),
     ) as typeof fetch;
   });
 
@@ -158,10 +159,9 @@ describe("createFyndClientOrError — early-error paths", () => {
   });
 
   it("rejects on requirePlatform when companyId is missing", async () => {
-    const res = await createFyndClientOrError(
-      settings({ fyndCompanyId: null }),
-      { requirePlatform: true },
-    );
+    const res = await createFyndClientOrError(settings({ fyndCompanyId: null }), {
+      requirePlatform: true,
+    });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Company ID is missing/);
   });
@@ -181,7 +181,7 @@ describe("createFyndClientOrError — early-error paths", () => {
 describe("createFyndClientOrError — happy paths", () => {
   beforeEach(() => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ access_token: "tok-happy", expires_in: 3600 })
+      jsonResponse({ access_token: "tok-happy", expires_in: 3600 }),
     ) as typeof fetch;
   });
 
@@ -203,10 +203,9 @@ describe("createFyndClientOrError — happy paths", () => {
   });
 
   it("supports decrypted credentials (encrypted blob with ':')", async () => {
-    const res = await createFyndClientOrError(
-      settings({ fyndCredentials: "enc:abc123" }),
-      { requirePlatform: true },
-    );
+    const res = await createFyndClientOrError(settings({ fyndCredentials: "enc:abc123" }), {
+      requirePlatform: true,
+    });
     expect(res.ok).toBe(true);
   });
 
@@ -223,34 +222,31 @@ describe("createFyndClientOrError — OAuth failure path", () => {
     globalThis.fetch = vi.fn(async () => {
       throw new Error("ECONNREFUSED upstream Fynd");
     }) as typeof fetch;
-    const res = await createFyndClientOrError(
-      settings({ fyndCompanyId: uniqueId("co-fail") }),
-      { requirePlatform: true },
-    );
+    const res = await createFyndClientOrError(settings({ fyndCompanyId: uniqueId("co-fail") }), {
+      requirePlatform: true,
+    });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Fynd login failed/);
   });
 
   it("returns ok:false on 401 token response (requirePlatform=true)", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "unauth" }, { status: 401 })
+      jsonResponse({ message: "unauth" }, { status: 401 }),
     ) as typeof fetch;
-    const res = await createFyndClientOrError(
-      settings({ fyndCompanyId: uniqueId("co-401") }),
-      { requirePlatform: true },
-    );
+    const res = await createFyndClientOrError(settings({ fyndCompanyId: uniqueId("co-401") }), {
+      requirePlatform: true,
+    });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Fynd login failed.*401/);
   });
 
   it("returns ok:false on 401 token response (requirePlatform=false)", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "unauth" }, { status: 401 })
+      jsonResponse({ message: "unauth" }, { status: 401 }),
     ) as typeof fetch;
-    const res = await createFyndClientOrError(
-      settings({ fyndCompanyId: uniqueId("co-401b") }),
-      { requirePlatform: false },
-    );
+    const res = await createFyndClientOrError(settings({ fyndCompanyId: uniqueId("co-401b") }), {
+      requirePlatform: false,
+    });
     expect(res.ok).toBe(false);
     if (!res.ok) expect(res.error).toMatch(/Fynd login failed/);
   });
@@ -282,7 +278,9 @@ describe("FyndPlatformClient.getShipments", () => {
 
     expect(calledMethod).toBe("GET");
     expect(calledAuth).toBe(`Bearer ${token}`);
-    expect(calledUrl).toContain(`${baseUrl}/service/platform/order/v1.0/company/${companyId}/order-details`);
+    expect(calledUrl).toContain(
+      `${baseUrl}/service/platform/order/v1.0/company/${companyId}/order-details`,
+    );
     expect(calledUrl).toContain("order_id=FYORD0000000001");
     expect(Array.isArray(result)).toBe(true);
     expect(result).toHaveLength(2);
@@ -302,7 +300,7 @@ describe("FyndPlatformClient.getShipments", () => {
 
   it("falls back to body.order when shipments is missing", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ order: { id: "FYORD-XYZ", status: "placed" } })
+      jsonResponse({ order: { id: "FYORD-XYZ", status: "placed" } }),
     ) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
     const result = await client.getShipments("FYORD-XYZ");
@@ -310,9 +308,7 @@ describe("FyndPlatformClient.getShipments", () => {
   });
 
   it("returns the raw response when neither shipments nor order present", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ unexpected: "shape" })
-    ) as typeof fetch;
+    globalThis.fetch = vi.fn(async () => jsonResponse({ unexpected: "shape" })) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
     const result = await client.getShipments("FYORD-1");
     expect(result).toEqual({ unexpected: "shape" });
@@ -320,33 +316,30 @@ describe("FyndPlatformClient.getShipments", () => {
 
   it("throws helpful error on 401 from platform request", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "Unauthorized" }, { status: 401 })
+      jsonResponse({ message: "Unauthorized" }, { status: 401 }),
     ) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
-    await expect(client.getShipments("FYORD-401"))
-      .rejects.toThrow(/401/);
-    await expect(client.getShipments("FYORD-401"))
-      .rejects.toThrow(/Invalid or expired credentials/);
+    await expect(client.getShipments("FYORD-401")).rejects.toThrow(/401/);
+    await expect(client.getShipments("FYORD-401")).rejects.toThrow(
+      /Invalid or expired credentials/,
+    );
   });
 
   it("throws helpful error on 403 with required scopes hint", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "Forbidden" }, { status: 403 })
+      jsonResponse({ message: "Forbidden" }, { status: 403 }),
     ) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
-    await expect(client.getShipments("FYORD-403"))
-      .rejects.toThrow(/403/);
-    await expect(client.getShipments("FYORD-403"))
-      .rejects.toThrow(/scopes/);
+    await expect(client.getShipments("FYORD-403")).rejects.toThrow(/403/);
+    await expect(client.getShipments("FYORD-403")).rejects.toThrow(/scopes/);
   });
 
   it("throws helpful error on 5xx with 'Fynd server error'", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "boom" }, { status: 503 })
+      jsonResponse({ message: "boom" }, { status: 503 }),
     ) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
-    await expect(client.getShipments("FYORD-503"))
-      .rejects.toThrow(/Fynd server error/);
+    await expect(client.getShipments("FYORD-503")).rejects.toThrow(/Fynd server error/);
   });
 
   it("throws network-error message when fetch rejects with ECONNREFUSED", async () => {
@@ -354,8 +347,7 @@ describe("FyndPlatformClient.getShipments", () => {
       throw new Error("ECONNREFUSED");
     }) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
-    await expect(client.getShipments("FYORD-NET"))
-      .rejects.toThrow(/Network error/);
+    await expect(client.getShipments("FYORD-NET")).rejects.toThrow(/Network error/);
   });
 
   it("rethrows unexpected (non-network, non-abort) errors verbatim", async () => {
@@ -367,8 +359,9 @@ describe("FyndPlatformClient.getShipments", () => {
   });
 
   it("returns null when response body is empty (200, no content)", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response("", { status: 200, headers: { "Content-Type": "application/json" } })
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response("", { status: 200, headers: { "Content-Type": "application/json" } }),
     ) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
     // request() returns null which then flows through getShipments fallback chain
@@ -447,7 +440,7 @@ describe("FyndPlatformClient.updateShipmentStatus", () => {
 
   it("propagates 4xx/5xx errors with helpful messages", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "bad request" }, { status: 400 })
+      jsonResponse({ message: "bad request" }, { status: 400 }),
     ) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
     await expect(
@@ -459,7 +452,7 @@ describe("FyndPlatformClient.updateShipmentStatus", () => {
 
   it("propagates 403 with scopes hint", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "no scopes" }, { status: 403 })
+      jsonResponse({ message: "no scopes" }, { status: 403 }),
     ) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
     await expect(
@@ -470,9 +463,7 @@ describe("FyndPlatformClient.updateShipmentStatus", () => {
   });
 
   it("returns null when the API replies 200 with empty body", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      new Response("", { status: 200 })
-    ) as typeof fetch;
+    globalThis.fetch = vi.fn(async () => new Response("", { status: 200 })) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
     const result = await client.updateShipmentStatus("FYORD-1", {
       statuses: [{ shipments: [{ identifier: "S1" }], status: "return_initiated" }],
@@ -571,7 +562,7 @@ describe("FyndPlatformClient.searchShipmentsByExternalOrderId", () => {
       jsonResponse({
         items: [{ id: "FYSHIP9876543210", order_id: "FY1234567890ABC", extra: "kept" }],
         page: { current: 1 },
-      })
+      }),
     ) as typeof fetch;
 
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
@@ -587,7 +578,7 @@ describe("FyndPlatformClient.searchShipmentsByExternalOrderId", () => {
     globalThis.fetch = vi.fn(async () =>
       jsonResponse({
         shipments: [{ shipment_id: "FYSHIP4444444444", bag_id: "FYBAG3333333333" }],
-      })
+      }),
     ) as typeof fetch;
 
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
@@ -600,7 +591,7 @@ describe("FyndPlatformClient.searchShipmentsByExternalOrderId", () => {
     globalThis.fetch = vi.fn(async () =>
       jsonResponse({
         data: { items: [{ id: "FYSHIP1111111111", order_id: "1234567" }] },
-      })
+      }),
     ) as typeof fetch;
 
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
@@ -610,9 +601,7 @@ describe("FyndPlatformClient.searchShipmentsByExternalOrderId", () => {
   });
 
   it("returns undefined ids when items list is empty", async () => {
-    globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ items: [] })
-    ) as typeof fetch;
+    globalThis.fetch = vi.fn(async () => jsonResponse({ items: [] })) as typeof fetch;
 
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
     const res = await client.searchShipmentsByExternalOrderId("EXT-EMPTY");
@@ -622,7 +611,7 @@ describe("FyndPlatformClient.searchShipmentsByExternalOrderId", () => {
 
   it("returns undefined ids when first item is non-object (defensive)", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ items: ["not an object"] })
+      jsonResponse({ items: ["not an object"] }),
     ) as typeof fetch;
 
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
@@ -633,12 +622,11 @@ describe("FyndPlatformClient.searchShipmentsByExternalOrderId", () => {
 
   it("propagates a 401 from shipments-listing as a thrown error", async () => {
     globalThis.fetch = vi.fn(async () =>
-      jsonResponse({ message: "unauth" }, { status: 401 })
+      jsonResponse({ message: "unauth" }, { status: 401 }),
     ) as typeof fetch;
 
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
-    await expect(client.searchShipmentsByExternalOrderId("EXT-401"))
-      .rejects.toThrow(/401/);
+    await expect(client.searchShipmentsByExternalOrderId("EXT-401")).rejects.toThrow(/401/);
   });
 
   it("propagates network errors as 'Network error'", async () => {
@@ -646,8 +634,9 @@ describe("FyndPlatformClient.searchShipmentsByExternalOrderId", () => {
       throw new Error("ENOTFOUND host");
     }) as typeof fetch;
     const client = new FyndPlatformClient(baseUrl, companyId, appId, token);
-    await expect(client.searchShipmentsByExternalOrderId("EXT-NET"))
-      .rejects.toThrow(/Network error/);
+    await expect(client.searchShipmentsByExternalOrderId("EXT-NET")).rejects.toThrow(
+      /Network error/,
+    );
   });
 
   it("uses GET method and Bearer token", async () => {

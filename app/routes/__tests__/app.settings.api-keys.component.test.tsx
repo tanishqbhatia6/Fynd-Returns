@@ -257,7 +257,9 @@ describe("ApiKeysSettings (default export)", () => {
       expect((cb as HTMLInputElement).checked).toBe(true);
     });
     // Each checkbox carries the perm_<perm> name from PERMISSIONS_LIST.
-    const cbNames = Array.from(checkboxes).map((cb) => (cb as HTMLInputElement).name).sort();
+    const cbNames = Array.from(checkboxes)
+      .map((cb) => (cb as HTMLInputElement).name)
+      .sort();
     expect(cbNames).toEqual([
       "perm_manage_webhooks",
       "perm_read_returns",
@@ -276,7 +278,9 @@ describe("ApiKeysSettings (default export)", () => {
     expect(cancel).toBeTruthy();
 
     // Toggling the name field via fireEvent.change exercises the controlled input flow.
-    await act(async () => { fireEvent.change(nameInput!, { target: { value: "My ERP" } }); });
+    await act(async () => {
+      fireEvent.change(nameInput!, { target: { value: "My ERP" } });
+    });
     await waitFor(() => {
       expect((container.querySelector("input[name='name']") as HTMLInputElement).value).toBe(
         "My ERP",
@@ -284,12 +288,20 @@ describe("ApiKeysSettings (default export)", () => {
     });
 
     // Clicking a permission checkbox toggles it off — covers the checkbox onChange path.
-    await act(async () => { fireEvent.click(checkboxes[0]); });
-    await waitFor(() => { expect((checkboxes[0] as HTMLInputElement).checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(checkboxes[0]);
+    });
+    await waitFor(() => {
+      expect((checkboxes[0] as HTMLInputElement).checked).toBe(false);
+    });
 
     // Clicking Cancel closes the form.
-    await act(async () => { fireEvent.click(cancel!); });
-    await waitFor(() => { expect(container.querySelector("input[name='name']")).toBeNull(); });
+    await act(async () => {
+      fireEvent.click(cancel!);
+    });
+    await waitFor(() => {
+      expect(container.querySelector("input[name='name']")).toBeNull();
+    });
   });
 
   it("submitting the generate form posts via fetcher.Form with hidden _action=generate", async () => {
@@ -386,8 +398,12 @@ describe("ApiKeysSettings (default export)", () => {
     ) as HTMLButtonElement;
     expect(copyBtn).toBeTruthy();
 
-    await act(async () => { fireEvent.click(copyBtn); });
-    await waitFor(() => { expect(writeText).toHaveBeenCalledWith("rpm_full_secret_xxx"); });
+    await act(async () => {
+      fireEvent.click(copyBtn);
+    });
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("rpm_full_secret_xxx");
+    });
 
     // Synchronous setCopiedKey(true) → label flips to "Copied!".
     await waitFor(() => {

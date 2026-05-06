@@ -17,13 +17,20 @@ export type AutoApproveResult = "approve" | "manual_review" | null;
 
 function compareNumeric(actual: number, operator: string, target: number): boolean {
   switch (operator) {
-    case "eq": return actual === target;
-    case "neq": return actual !== target;
-    case "gt": return actual > target;
-    case "gte": return actual >= target;
-    case "lt": return actual < target;
-    case "lte": return actual <= target;
-    default: return false;
+    case "eq":
+      return actual === target;
+    case "neq":
+      return actual !== target;
+    case "gt":
+      return actual > target;
+    case "gte":
+      return actual >= target;
+    case "lt":
+      return actual < target;
+    case "lte":
+      return actual <= target;
+    default:
+      return false;
   }
 }
 
@@ -31,11 +38,16 @@ function compareString(actual: string, operator: string, target: string): boolea
   const a = actual.toLowerCase();
   const t = target.toLowerCase();
   switch (operator) {
-    case "eq": return a === t;
-    case "neq": return a !== t;
-    case "contains": return a.includes(t);
-    case "not_contains": return !a.includes(t);
-    default: return false;
+    case "eq":
+      return a === t;
+    case "neq":
+      return a !== t;
+    case "contains":
+      return a.includes(t);
+    case "not_contains":
+      return !a.includes(t);
+    default:
+      return false;
   }
 }
 

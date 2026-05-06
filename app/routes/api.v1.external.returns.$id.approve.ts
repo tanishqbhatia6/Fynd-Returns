@@ -19,14 +19,22 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   if (!auth.ok) return auth.response;
 
   // Per-API-key fairness — see api.v1.external.returns.ts for the pattern.
-  const perKey = await checkPerKeyRateLimit(request, "external.returns.approve", auth.keyId ?? "anon");
+  const perKey = await checkPerKeyRateLimit(
+    request,
+    "external.returns.approve",
+    auth.keyId ?? "anon",
+  );
   if (perKey) return perKey;
 
   const id = params.id;
   if (!id) return apiError(400, "BAD_REQUEST", "Return ID is required");
 
   let body: { note?: string; resolutionType?: string } = {};
-  try { body = await request.json(); } catch { /* empty body ok */ }
+  try {
+    body = await request.json();
+  } catch {
+    /* empty body ok */
+  }
 
   try {
     const returnCase = await prisma.returnCase.findFirst({
@@ -42,11 +50,16 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     const updateData: Record<string, unknown> = { status: "approved" };
     if (body.resolutionType) {
       if (!VALID_RESOLUTION_TYPES.has(body.resolutionType)) {
-        return apiError(400, "BAD_REQUEST", `Invalid resolutionType. Must be one of: ${[...VALID_RESOLUTION_TYPES].join(", ")}`);
+        return apiError(
+          400,
+          "BAD_REQUEST",
+          `Invalid resolutionType. Must be one of: ${[...VALID_RESOLUTION_TYPES].join(", ")}`,
+        );
       }
       updateData.resolutionType = body.resolutionType;
     }
-    if (body.note) updateData.adminNotes = [returnCase.adminNotes, body.note].filter(Boolean).join("\n");
+    if (body.note)
+      updateData.adminNotes = [returnCase.adminNotes, body.note].filter(Boolean).join("\n");
 
     const updated = await prisma.returnCase.update({
       where: { id },

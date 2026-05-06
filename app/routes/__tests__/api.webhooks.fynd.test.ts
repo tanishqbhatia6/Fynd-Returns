@@ -53,7 +53,11 @@ afterEach(() => {
 
 describe("loader", () => {
   it("returns simple ok response on GET", async () => {
-    const res = await loader({ request: new Request("https://a/x"), params: {}, context: {} } as never);
+    const res = await loader({
+      request: new Request("https://a/x"),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.ok).toBe(true);
@@ -93,7 +97,8 @@ describe("action guards", () => {
     delete process.env.FYND_WEBHOOK_SECRET;
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(503);
   });
@@ -103,47 +108,68 @@ describe("action guards", () => {
     authenticateWebhookMock.mockReturnValueOnce({ ok: false, reason: "hmac_mismatch" });
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(401);
   });
 
   it("allows through in dev when no secret set (loader continues past auth)", async () => {
     delete process.env.FYND_WEBHOOK_SECRET;
-    processFyndWebhookMock.mockResolvedValueOnce({ ok: true, action: "updated", returnCaseId: "rc-1" });
+    processFyndWebhookMock.mockResolvedValueOnce({
+      ok: true,
+      action: "updated",
+      returnCaseId: "rc-1",
+    });
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
   });
 
   it("400 on unparseable JSON; logs to DB", async () => {
-    unwrapFyndWebhookPayloadMock.mockImplementationOnce(() => { throw new Error("bad json"); });
+    unwrapFyndWebhookPayloadMock.mockImplementationOnce(() => {
+      throw new Error("bad json");
+    });
     const res = await action({
       request: mkReq("{broken"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
-    expect(prismaMock.fyndWebhookLog.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ action: "error" }),
-    }));
+    expect(prismaMock.fyndWebhookLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ action: "error" }),
+      }),
+    );
   });
 
   it("401 on stale webhook (timestamp > 5min old)", async () => {
     const oldTs = new Date(Date.now() - 10 * 60_000).toISOString();
     const res = await action({
-      request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" }), { "x-webhook-timestamp": oldTs }),
-      params: {}, context: {},
+      request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" }), {
+        "x-webhook-timestamp": oldTs,
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(401);
   });
 
   it("ignores invalid timestamp values (lets through)", async () => {
-    processFyndWebhookMock.mockResolvedValueOnce({ ok: true, action: "updated", returnCaseId: "rc-1" });
+    processFyndWebhookMock.mockResolvedValueOnce({
+      ok: true,
+      action: "updated",
+      returnCaseId: "rc-1",
+    });
     const res = await action({
-      request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" }), { "x-webhook-timestamp": "not-a-date" }),
-      params: {}, context: {},
+      request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" }), {
+        "x-webhook-timestamp": "not-a-date",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
   });
@@ -154,7 +180,8 @@ describe("idempotency + dispatch", () => {
     prismaMock.fyndWebhookLog.findFirst.mockResolvedValueOnce({ id: "dup" });
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -164,19 +191,29 @@ describe("idempotency + dispatch", () => {
 
   it("continues even if dedup query throws", async () => {
     prismaMock.fyndWebhookLog.findFirst.mockRejectedValueOnce(new Error("db"));
-    processFyndWebhookMock.mockResolvedValueOnce({ ok: true, action: "updated", returnCaseId: "rc-1" });
+    processFyndWebhookMock.mockResolvedValueOnce({
+      ok: true,
+      action: "updated",
+      returnCaseId: "rc-1",
+    });
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
   });
 
   it("calls processFyndWebhook + returns result shape", async () => {
-    processFyndWebhookMock.mockResolvedValueOnce({ ok: true, action: "refund_triggered", returnCaseId: "rc-9" });
+    processFyndWebhookMock.mockResolvedValueOnce({
+      ok: true,
+      action: "refund_triggered",
+      returnCaseId: "rc-9",
+    });
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "refund_done" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const body = await res.json();
     expect(body).toEqual({ ok: true, action: "refund_triggered", returnCaseId: "rc-9" });
@@ -186,7 +223,8 @@ describe("idempotency + dispatch", () => {
     processFyndWebhookMock.mockResolvedValueOnce({ ok: false, error: "DB locked" });
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(500);
   });
@@ -195,7 +233,8 @@ describe("idempotency + dispatch", () => {
     processFyndWebhookMock.mockRejectedValueOnce(new Error("crash"));
     const res = await action({
       request: mkReq(JSON.stringify({ shipment_id: "SH-1", status: "delivered" })),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(500);
   });

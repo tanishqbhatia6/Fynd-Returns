@@ -45,10 +45,17 @@ const {
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null),
-  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(async () => new Map()),
+  fetchVariantInfoMock: vi.fn<(...args: unknown[]) => Promise<Map<string, unknown>>>(
+    async () => new Map(),
+  ),
   closeShopifyReturnBestEffortMock: vi.fn(async () => ({ ok: true })),
-  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: false, error: "disabled" })),
-  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
+    ok: false,
+    error: "disabled",
+  })),
+  sendApprovalNotificationMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(
+    async () => undefined,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -70,10 +77,24 @@ import { handleProcessReplacement } from "../process-replacement.server";
 import type { ReturnHandlerContext, ReturnActionBody } from "../types";
 
 const DRAFT_OK = {
-  data: { draftOrderCreate: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" }, userErrors: [] } },
+  data: {
+    draftOrderCreate: {
+      draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1" },
+      userErrors: [],
+    },
+  },
 };
 const COMPLETE_OK = {
-  data: { draftOrderComplete: { draftOrder: { id: "gid://shopify/DraftOrder/1", name: "D1", order: { id: "gid://shopify/Order/9", name: "#9" } }, userErrors: [] } },
+  data: {
+    draftOrderComplete: {
+      draftOrder: {
+        id: "gid://shopify/DraftOrder/1",
+        name: "D1",
+        order: { id: "gid://shopify/Order/9", name: "#9" },
+      },
+      userErrors: [],
+    },
+  },
 };
 
 function mkAdmin(createRes: unknown, completeRes: unknown): ReturnHandlerContext["admin"] {
@@ -102,17 +123,33 @@ function mkCtx(overrides: Partial<ReturnHandlerContext> = {}): ReturnHandlerCont
       currency: "USD",
       refundStatus: null,
       cancellationRequestedAt: null,
-      fyndOrderId: null, fyndShipmentId: null, fyndReturnId: null, fyndPayloadJson: null,
+      fyndOrderId: null,
+      fyndShipmentId: null,
+      fyndReturnId: null,
+      fyndPayloadJson: null,
       fyndCurrentStatus: null,
       shopifyReturnId: null,
       exchangeOrderId: null,
       resolutionType: null,
       isGreenReturn: false,
       items: [
-        { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: "Item 1" },
+        {
+          id: "li-1",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "SKU-1",
+          price: "10.00",
+          reasonCode: null,
+          notes: null,
+          title: "Item 1",
+        },
       ],
     } as never,
-    shop: { id: "shop-1", shopDomain: "store.myshopify.com", settings: { fyndApiType: "platform" } },
+    shop: {
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    },
     admin: {
       graphql: vi.fn(async () => ({
         json: async () => DRAFT_OK,
@@ -154,8 +191,11 @@ beforeEach(() => {
 describe("handleProcessReplacement — outer catch fallback", () => {
   function setupHappyOrder() {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
   }
 
@@ -164,7 +204,9 @@ describe("handleProcessReplacement — outer catch fallback", () => {
     // Make returnCase.update throw with an empty Error → rawMessage === ""
     prismaMock.returnCase.update.mockRejectedValueOnce(new Error(""));
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody);
+    const res = await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("Replacement could not be processed. Please try again.");
@@ -173,7 +215,9 @@ describe("handleProcessReplacement — outer catch fallback", () => {
       .map((c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data)
       .find((d) => d.eventType === "replacement_failed");
     expect(failed).toBeDefined();
-    expect(JSON.parse(failed!.payloadJson).error).toBe("Replacement could not be processed. Please try again.");
+    expect(JSON.parse(failed!.payloadJson).error).toBe(
+      "Replacement could not be processed. Please try again.",
+    );
   });
 
   it("swallows secondary prisma error when logging replacement_failed event", async () => {
@@ -183,7 +227,9 @@ describe("handleProcessReplacement — outer catch fallback", () => {
     // Secondary failure: writing the replacement_failed event also throws
     prismaMock.returnEvent.create.mockRejectedValueOnce(new Error("secondary boom"));
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody);
+    const res = await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toContain("primary boom");
@@ -191,9 +237,13 @@ describe("handleProcessReplacement — outer catch fallback", () => {
 
   it("propagates non-empty error message from a thrown Error", async () => {
     setupHappyOrder();
-    prismaMock.returnCase.update.mockRejectedValueOnce(new Error("update unique constraint failed"));
+    prismaMock.returnCase.update.mockRejectedValueOnce(
+      new Error("update unique constraint failed"),
+    );
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody);
+    const res = await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody);
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toContain("update unique constraint failed");
@@ -204,8 +254,11 @@ describe("handleProcessReplacement — outer catch fallback", () => {
 describe("handleProcessReplacement — userErrors scope path", () => {
   it("403 with reinstall hint when userErrors mention write_draft_orders scope", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       admin: {
@@ -214,14 +267,18 @@ describe("handleProcessReplacement — userErrors scope path", () => {
             data: {
               draftOrderCreate: {
                 draftOrder: null,
-                userErrors: [{ field: ["input"], message: "Access denied: missing write_draft_orders scope" }],
+                userErrors: [
+                  { field: ["input"], message: "Access denied: missing write_draft_orders scope" },
+                ],
               },
             },
           }),
         })),
       } as never,
     });
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody);
+    const res = await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody);
     // userErrors scope path returns 400 (not 403 — that is only the top-level errors path)
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -234,17 +291,26 @@ describe("handleProcessReplacement — userErrors scope path", () => {
 describe("handleProcessReplacement — inventory edge cases", () => {
   it("clamps negative inventoryAvailable to 0 in stockoutLines", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        id: "gid://shopify/LineItem/1", title: "Item 1", sku: "SKU-1", price: "10.00", quantity: 1,
-        variantId: "gid://shopify/ProductVariant/V1",
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map([
-      ["gid://shopify/ProductVariant/V1", { inventoryAvailable: -3 }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map([["gid://shopify/ProductVariant/V1", { inventoryAvailable: -3 }]]),
+    );
     const ctx = mkCtx();
-    const res = await handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody);
+    const res = await handleProcessReplacement(ctx, {
+      action: "process_replacement",
+    } as ReturnActionBody);
     expect(res.status).toBe(409);
     const body = await res.json();
     expect(body.stockoutLines[0].available).toBe(0);
@@ -252,15 +318,22 @@ describe("handleProcessReplacement — inventory edge cases", () => {
 
   it("skips stockout when inventoryAvailable is null (treated as unlimited)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        id: "gid://shopify/LineItem/1", title: "Item 1", sku: "SKU-1", price: "10.00", quantity: 1,
-        variantId: "gid://shopify/ProductVariant/V1",
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
-    fetchVariantInfoMock.mockResolvedValueOnce(new Map([
-      ["gid://shopify/ProductVariant/V1", { inventoryAvailable: null }],
-    ]));
+    fetchVariantInfoMock.mockResolvedValueOnce(
+      new Map([["gid://shopify/ProductVariant/V1", { inventoryAvailable: null }]]),
+    );
     const ctx = mkCtx({ admin: mkAdmin(DRAFT_OK, COMPLETE_OK) });
     await expectRedirect(
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
@@ -270,11 +343,18 @@ describe("handleProcessReplacement — inventory edge cases", () => {
 
   it("skips stockout when inventoryMap has no entry for the variant", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{
-        id: "gid://shopify/LineItem/1", title: "Item 1", sku: "SKU-1", price: "10.00", quantity: 1,
-        variantId: "gid://shopify/ProductVariant/V1",
-      }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "SKU-1",
+          price: "10.00",
+          quantity: 1,
+          variantId: "gid://shopify/ProductVariant/V1",
+        },
+      ],
     });
     // fetchVariantInfo returns empty Map → `info` is undefined → skip
     fetchVariantInfoMock.mockResolvedValueOnce(new Map());
@@ -290,15 +370,27 @@ describe("handleProcessReplacement — inventory edge cases", () => {
 describe("handleProcessReplacement — line-item fallbacks", () => {
   it("title falls back to item.sku when shopifyItem and item have no title", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       // line-item with no title
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: null, sku: "SKU-1", price: "10.00", quantity: 1 }],
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: null, sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
         items: [
-          { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: "SKU-1", price: "10.00", reasonCode: null, notes: null, title: null },
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "SKU-1",
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
       admin: mkAdmin(DRAFT_OK, COMPLETE_OK),
@@ -307,22 +399,36 @@ describe("handleProcessReplacement — line-item fallbacks", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items[0].title).toBe("SKU-1");
   });
 
   it("title falls back to 'Replacement item' when title and sku are absent", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: null, sku: null, price: null, quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: null, sku: null, price: null, quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
         items: [
           // No title, no sku
-          { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: null },
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: null,
+          },
         ],
       } as never,
       admin: mkAdmin(DRAFT_OK, COMPLETE_OK),
@@ -331,7 +437,9 @@ describe("handleProcessReplacement — line-item fallbacks", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items[0].title).toBe("Replacement item");
     expect(items[0].originalUnitPrice).toBe("0.00");
@@ -340,16 +448,34 @@ describe("handleProcessReplacement — line-item fallbacks", () => {
 
   it("sku resolves from shopify line-item when item.sku is null", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
       // shopify line-item carries the SKU
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "Item 1", sku: "FROM-SHOPIFY", price: "12.00", quantity: 1 }],
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/1",
+          title: "Item 1",
+          sku: "FROM-SHOPIFY",
+          price: "12.00",
+          quantity: 1,
+        },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
         items: [
           // item has no sku
-          { id: "li-1", shopifyLineItemId: "gid://shopify/LineItem/1", qty: 1, sku: null, price: null, reasonCode: null, notes: null, title: "Item 1" },
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: null,
+            price: null,
+            reasonCode: null,
+            notes: null,
+            title: "Item 1",
+          },
         ],
       } as never,
       admin: mkAdmin(DRAFT_OK, COMPLETE_OK),
@@ -358,7 +484,9 @@ describe("handleProcessReplacement — line-item fallbacks", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as { data: { exchangeItemsJson: string } };
+    const update = prismaMock.returnCase.update.mock.calls[0][0] as unknown as {
+      data: { exchangeItemsJson: string };
+    };
     const items = JSON.parse(update.data.exchangeItemsJson);
     expect(items[0].sku).toBe("FROM-SHOPIFY");
     // originalUnitPrice resolved from shopifyItem.price
@@ -370,8 +498,11 @@ describe("handleProcessReplacement — line-item fallbacks", () => {
 describe("handleProcessReplacement — draft input fallbacks", () => {
   it("uses returnCase.id when returnRequestNo is null (tags + note + customAttribute)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const captured: Array<unknown> = [];
     let n = 0;
@@ -385,9 +516,7 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
         graphql: vi.fn(async (_q: unknown, opts: unknown) => {
           n++;
           captured.push(opts);
-          return n === 1
-            ? { json: async () => DRAFT_OK }
-            : { json: async () => COMPLETE_OK };
+          return n === 1 ? { json: async () => DRAFT_OK } : { json: async () => COMPLETE_OK };
         }),
       } as never,
     });
@@ -395,18 +524,31 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const createCall = captured[0] as { variables: { input: { tags: string[]; note: string; customAttributes: Array<{ key: string; value: string }> } } };
+    const createCall = captured[0] as {
+      variables: {
+        input: {
+          tags: string[];
+          note: string;
+          customAttributes: Array<{ key: string; value: string }>;
+        };
+      };
+    };
     expect(createCall.variables.input.tags).toContain("rpm-replacement-rc-1");
     expect(createCall.variables.input.note).toContain("Replacement for return rc-1");
     // shopifyOrderName null → empty string fallback in customAttribute
-    const replFor = createCall.variables.input.customAttributes.find((a) => a.key === "rpm_replacement_for")!;
+    const replFor = createCall.variables.input.customAttributes.find(
+      (a) => a.key === "rpm_replacement_for",
+    )!;
     expect(replFor.value).toBe("");
   });
 
   it("does NOT include shippingAddress when order has no shippingAddress", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
       // no shippingAddress
     });
     const captured: Array<unknown> = [];
@@ -416,9 +558,7 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
         graphql: vi.fn(async (_q: unknown, opts: unknown) => {
           n++;
           captured.push(opts);
-          return n === 1
-            ? { json: async () => DRAFT_OK }
-            : { json: async () => COMPLETE_OK };
+          return n === 1 ? { json: async () => DRAFT_OK } : { json: async () => COMPLETE_OK };
         }),
       } as never,
     });
@@ -426,20 +566,30 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const input = (captured[0] as { variables: { input: Record<string, unknown> } }).variables.input;
+    const input = (captured[0] as { variables: { input: Record<string, unknown> } }).variables
+      .input;
     expect(input.shippingAddress).toBeUndefined();
   });
 
   it("falls back to provinceCode/countryCode when province/country are empty in shippingAddress", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
       shippingAddress: {
-        address1: "1 Main", address2: null, city: "X",
-        province: null, provinceCode: "CA",
-        country: null, countryCode: "US",
+        address1: "1 Main",
+        address2: null,
+        city: "X",
+        province: null,
+        provinceCode: "CA",
+        country: null,
+        countryCode: "US",
         zip: "12345",
-        firstName: "A", lastName: "B", phone: "+1",
+        firstName: "A",
+        lastName: "B",
+        phone: "+1",
       },
     });
     const captured: Array<unknown> = [];
@@ -449,9 +599,7 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
         graphql: vi.fn(async (_q: unknown, opts: unknown) => {
           n++;
           captured.push(opts);
-          return n === 1
-            ? { json: async () => DRAFT_OK }
-            : { json: async () => COMPLETE_OK };
+          return n === 1 ? { json: async () => DRAFT_OK } : { json: async () => COMPLETE_OK };
         }),
       } as never,
     });
@@ -459,7 +607,11 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const input = (captured[0] as { variables: { input: { shippingAddress: { province?: string; country?: string } } } }).variables.input;
+    const input = (
+      captured[0] as {
+        variables: { input: { shippingAddress: { province?: string; country?: string } } };
+      }
+    ).variables.input;
     expect(input.shippingAddress.province).toBe("CA");
     expect(input.shippingAddress.country).toBe("US");
   });
@@ -469,8 +621,11 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
 describe("handleProcessReplacement — Fynd client missing transition method", () => {
   it("skips Fynd push when client returned by createFyndClientOrError lacks updateShipmentStatus", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     // ok:true but no updateShipmentStatus key on client → "in" check returns false
     createFyndClientOrErrorMock.mockResolvedValueOnce({
@@ -485,8 +640,9 @@ describe("handleProcessReplacement — Fynd client missing transition method", (
       handleProcessReplacement(ctx, { action: "process_replacement" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    const eventTypes = prismaMock.returnEvent.create.mock.calls
-      .map((c) => (c[0] as { data: { eventType: string } }).data.eventType);
+    const eventTypes = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
     expect(eventTypes).not.toContain("fynd_replacement_synced");
     expect(eventTypes).not.toContain("fynd_replacement_sync_failed");
   });
@@ -496,8 +652,11 @@ describe("handleProcessReplacement — Fynd client missing transition method", (
 describe("handleProcessReplacement — Fynd payload parse error", () => {
   it("treats malformed fyndPayloadJson as no-status (allows replacement to proceed)", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
@@ -516,8 +675,11 @@ describe("handleProcessReplacement — Fynd payload parse error", () => {
 
   it("payload without status field passes the Fynd gate", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
@@ -535,8 +697,11 @@ describe("handleProcessReplacement — Fynd payload parse error", () => {
 
   it("allowed Fynd status (return_bag_delivered) lets replacement proceed", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       returnCase: {
@@ -557,8 +722,11 @@ describe("handleProcessReplacement — Fynd payload parse error", () => {
 describe("handleProcessReplacement — non-Error thrown values", () => {
   function setupHappyOrder() {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
   }
 
@@ -587,7 +755,9 @@ describe("handleProcessReplacement — non-Error thrown values", () => {
 
   it("Fynd push: stringifies non-Error thrown value into the failure event payload", async () => {
     setupHappyOrder();
-    const updateShipmentStatus = vi.fn(async () => { throw "fynd-string-error"; });
+    const updateShipmentStatus = vi.fn(async () => {
+      throw "fynd-string-error";
+    });
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { updateShipmentStatus, getShipments: vi.fn() },
@@ -615,8 +785,11 @@ describe("handleProcessReplacement — non-Error thrown values", () => {
 describe("handleProcessReplacement — sessionEmail null fallback", () => {
   it("uses 'shop-admin' as audit identity when sessionEmail is null", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     const ctx = mkCtx({
       sessionEmail: null,
@@ -638,8 +811,11 @@ describe("handleProcessReplacement — sessionEmail null fallback", () => {
 describe("handleProcessReplacement — Response thrown in catch", () => {
   it("re-throws non-redirect Response (>=400) without converting to JSON 500", async () => {
     fetchOrderMock.mockResolvedValueOnce({
-      id: "gid://shopify/Order/1", email: "u@example.com",
-      lineItems: [{ id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 }],
+      id: "gid://shopify/Order/1",
+      email: "u@example.com",
+      lineItems: [
+        { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
+      ],
     });
     // Make returnCase.update reject with a Response (not a redirect)
     const rejectionResponse = new Response("nope", { status: 502 });

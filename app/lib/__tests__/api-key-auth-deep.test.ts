@@ -39,14 +39,16 @@ function makeRequest(headers: Record<string, string> = {}): Request {
   return new Request("https://app.example.com/api/external/returns", { headers });
 }
 
-function buildCandidate(over: Partial<{
-  id: string;
-  keyPrefix: string;
-  keyHash: string;
-  permissions: string;
-  shopId: string;
-  shopDomain: string;
-}> = {}) {
+function buildCandidate(
+  over: Partial<{
+    id: string;
+    keyPrefix: string;
+    keyHash: string;
+    permissions: string;
+    shopId: string;
+    shopDomain: string;
+  }> = {},
+) {
   return {
     id: over.id ?? "key-1",
     keyPrefix: over.keyPrefix ?? "rpm_abcd",
@@ -219,10 +221,11 @@ describe("authenticateApiKey: bcrypt mismatch", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns 401 when the only candidate's hash does not match", async () => {
-    const wrongHash = await bcrypt.hash("rpm_some_other_key_xxxxxxxxxxxxxxxxxxxxxxxx", FAST_BCRYPT_ROUNDS);
-    mockPrisma.apiKey.findMany.mockResolvedValue([
-      buildCandidate({ keyHash: wrongHash }),
-    ]);
+    const wrongHash = await bcrypt.hash(
+      "rpm_some_other_key_xxxxxxxxxxxxxxxxxxxxxxxx",
+      FAST_BCRYPT_ROUNDS,
+    );
+    mockPrisma.apiKey.findMany.mockResolvedValue([buildCandidate({ keyHash: wrongHash })]);
 
     const req = makeRequest({ "X-API-Key": "rpm_abcd" + "1".repeat(36) });
     const result = await authenticateApiKey(req, "read_returns");
@@ -398,9 +401,7 @@ describe("authenticateApiKey: success path", () => {
   it("fires lastUsedAt update with a Date on success (fire-and-forget)", async () => {
     const fullKey = "rpm_abcd" + "6".repeat(36);
     const keyHash = await bcrypt.hash(fullKey, FAST_BCRYPT_ROUNDS);
-    mockPrisma.apiKey.findMany.mockResolvedValue([
-      buildCandidate({ id: "key-touch", keyHash }),
-    ]);
+    mockPrisma.apiKey.findMany.mockResolvedValue([buildCandidate({ id: "key-touch", keyHash })]);
 
     const req = makeRequest({ "X-API-Key": fullKey });
     await authenticateApiKey(req, "read_returns");
@@ -414,9 +415,7 @@ describe("authenticateApiKey: success path", () => {
   it("does not throw when the lastUsedAt update rejects (catch swallows)", async () => {
     const fullKey = "rpm_abcd" + "7".repeat(36);
     const keyHash = await bcrypt.hash(fullKey, FAST_BCRYPT_ROUNDS);
-    mockPrisma.apiKey.findMany.mockResolvedValue([
-      buildCandidate({ keyHash }),
-    ]);
+    mockPrisma.apiKey.findMany.mockResolvedValue([buildCandidate({ keyHash })]);
     mockPrisma.apiKey.update.mockRejectedValueOnce(new Error("db down"));
 
     const req = makeRequest({ "X-API-Key": fullKey });

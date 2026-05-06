@@ -59,9 +59,7 @@ describe("createFyndLogger — extra redaction & passthrough", () => {
   // ---------- Auth header redaction ----------
 
   it("redacts Bearer JWT-shaped tokens", () => {
-    const logs = logOne(
-      "Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature",
-    );
+    const logs = logOne("Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.payload.signature");
     expect(logs[0].detail).not.toContain("eyJhbGciOiJIUzI1NiJ9");
     expect(logs[0].detail).not.toContain("signature");
     expect(logs[0].detail).toContain("[REDACTED]");
@@ -78,9 +76,7 @@ describe("createFyndLogger — extra redaction & passthrough", () => {
   });
 
   it("redacts multiple sensitive patterns in the same string", () => {
-    const logs = logOne(
-      "clientSecret=topsecret applicationToken=anothersecret Bearer thirdsecret",
-    );
+    const logs = logOne("clientSecret=topsecret applicationToken=anothersecret Bearer thirdsecret");
     const detail = logs[0].detail || "";
     expect(detail).not.toContain("topsecret");
     expect(detail).not.toContain("anothersecret");

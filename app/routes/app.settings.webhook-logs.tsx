@@ -19,7 +19,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const dateFrom = url.searchParams.get("dateFrom") ?? "";
   const dateTo = url.searchParams.get("dateTo") ?? "";
 
-   
   const where: any = {};
   if (actionFilter) where.action = actionFilter;
   if (statusFilter) where.fyndStatus = statusFilter;
@@ -89,7 +88,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       totalAll += row._count.id;
     }
 
-    const successCount = (actionCounts["refund_in_progress"] ?? 0) + (actionCounts["refund_completed"] ?? 0) + (actionCounts["status_updated"] ?? 0) + (actionCounts["status_noted"] ?? 0);
+    const successCount =
+      (actionCounts["refund_in_progress"] ?? 0) +
+      (actionCounts["refund_completed"] ?? 0) +
+      (actionCounts["status_updated"] ?? 0) +
+      (actionCounts["status_noted"] ?? 0);
     const errorCount = actionCounts["error"] ?? 0;
     const ignoredCount = actionCounts["ignored"] ?? 0;
     const duplicateCount = actionCounts["duplicate_ignored"] ?? 0;
@@ -133,10 +136,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page,
       totalPages,
       totalCount,
-      analytics: { total: totalAll, successCount, errorCount, ignoredCount, duplicateCount, successRate, actionCounts },
+      analytics: {
+        total: totalAll,
+        successCount,
+        errorCount,
+        ignoredCount,
+        duplicateCount,
+        successRate,
+        actionCounts,
+      },
       filters: { actionFilter, statusFilter, searchQuery, dateFrom, dateTo },
-      actionOptions: mkOpts(distinctActions.map((r) => r.action).filter((a): a is string => !!a), "All actions"),
-      statusOptions: mkOpts(distinctStatuses.map((r) => r.fyndStatus).filter((s): s is string => !!s), "All statuses"),
+      actionOptions: mkOpts(
+        distinctActions.map((r) => r.action).filter((a): a is string => !!a),
+        "All actions",
+      ),
+      statusOptions: mkOpts(
+        distinctStatuses.map((r) => r.fyndStatus).filter((s): s is string => !!s),
+        "All statuses",
+      ),
       loaderError: null,
     };
   } catch (err) {
@@ -146,7 +163,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page: 1,
       totalPages: 1,
       totalCount: 0,
-      analytics: { total: 0, successCount: 0, errorCount: 0, ignoredCount: 0, duplicateCount: 0, successRate: 100, actionCounts: {} },
+      analytics: {
+        total: 0,
+        successCount: 0,
+        errorCount: 0,
+        ignoredCount: 0,
+        duplicateCount: 0,
+        successRate: 100,
+        actionCounts: {},
+      },
       filters: { actionFilter: "", statusFilter: "", searchQuery: "", dateFrom: "", dateTo: "" },
       actionOptions: [{ value: "", label: "All actions" }],
       statusOptions: [{ value: "", label: "All statuses" }],
@@ -170,10 +195,18 @@ function ActionBadge({ action }: { action: string | null }) {
   const a = action ?? "unknown";
   const s = map[a] ?? { bg: "#F3F4F6", color: "#6B7280", label: a.replace(/_/g, " ") };
   return (
-    <span style={{
-      display: "inline-block", fontSize: 10, fontWeight: 600, padding: "2px 7px",
-      borderRadius: 4, background: s.bg, color: s.color, whiteSpace: "nowrap",
-    }}>
+    <span
+      style={{
+        display: "inline-block",
+        fontSize: 10,
+        fontWeight: 600,
+        padding: "2px 7px",
+        borderRadius: 4,
+        background: s.bg,
+        color: s.color,
+        whiteSpace: "nowrap",
+      }}
+    >
       {s.label}
     </span>
   );
@@ -182,23 +215,60 @@ function ActionBadge({ action }: { action: string | null }) {
 function StatusPill({ status }: { status: string | null }) {
   if (!status) return <span style={{ color: "#D1D5DB", fontSize: 11 }}>—</span>;
   return (
-    <span style={{
-      display: "inline-block", fontSize: 10, fontWeight: 500, padding: "2px 6px",
-      borderRadius: 4, background: "#F3F4F6", color: "#374151", whiteSpace: "nowrap",
-      maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis",
-    }} title={status}>
+    <span
+      style={{
+        display: "inline-block",
+        fontSize: 10,
+        fontWeight: 500,
+        padding: "2px 6px",
+        borderRadius: 4,
+        background: "#F3F4F6",
+        color: "#374151",
+        whiteSpace: "nowrap",
+        maxWidth: 120,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+      }}
+      title={status}
+    >
       {status.replace(/_/g, " ")}
     </span>
   );
 }
 
-function StatCard({ label, value, color, sub }: { label: string; value: number | string; color: string; sub?: string }) {
+function StatCard({
+  label,
+  value,
+  color,
+  sub,
+}: {
+  label: string;
+  value: number | string;
+  color: string;
+  sub?: string;
+}) {
   return (
-    <div style={{
-      flex: "1 1 100px", padding: "12px 14px",
-      background: "white", borderRadius: 10, border: "1px solid #E5E7EB",
-    }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase" as const, letterSpacing: "0.04em", marginBottom: 3 }}>{label}</div>
+    <div
+      style={{
+        flex: "1 1 100px",
+        padding: "12px 14px",
+        background: "white",
+        borderRadius: 10,
+        border: "1px solid #E5E7EB",
+      }}
+    >
+      <div
+        style={{
+          fontSize: 10,
+          fontWeight: 600,
+          color: "#9CA3AF",
+          textTransform: "uppercase" as const,
+          letterSpacing: "0.04em",
+          marginBottom: 3,
+        }}
+      >
+        {label}
+      </div>
       <div style={{ fontSize: 20, fontWeight: 700, color }}>{value}</div>
       {/* defensive optional sub render */}
       {/* v8 ignore start */}
@@ -250,9 +320,15 @@ function RetryButton({ log }: { log: LogEntry }) {
       type="button"
       onClick={handleRetry}
       style={{
-        padding: "2px 8px", fontSize: 10, fontWeight: 600, borderRadius: 4,
-        border: "1px solid #D1D5DB", background: "white", color: "#6366F1",
-        cursor: "pointer", whiteSpace: "nowrap",
+        padding: "2px 8px",
+        fontSize: 10,
+        fontWeight: 600,
+        borderRadius: 4,
+        border: "1px solid #D1D5DB",
+        background: "white",
+        color: "#6366F1",
+        cursor: "pointer",
+        whiteSpace: "nowrap",
       }}
     >
       Retry
@@ -266,10 +342,14 @@ function DetailPanel({ log }: { log: LogEntry }) {
   return (
     <div style={{ padding: "12px 16px", background: "#F8FAFC", borderBottom: "1px solid #E5E7EB" }}>
       {/* Info Grid */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-        gap: "10px 20px", marginBottom: 14,
-      }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+          gap: "10px 20px",
+          marginBottom: 14,
+        }}
+      >
         <Field label="Log ID" value={log.id} mono />
         <Field label="Fynd Order ID" value={log.orderId} mono />
         <Field label="Shopify Order (Affiliate)" value={log.affiliateOrderId} mono highlight />
@@ -282,7 +362,17 @@ function DetailPanel({ log }: { log: LogEntry }) {
         {log.trackingUrl && (
           <div>
             <div style={fieldLabelStyle}>Tracking URL</div>
-            <a href={log.trackingUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: "#3B82F6", textDecoration: "none", wordBreak: "break-all" }}>
+            <a
+              href={log.trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                fontSize: 12,
+                color: "#3B82F6",
+                textDecoration: "none",
+                wordBreak: "break-all",
+              }}
+            >
               {/* defensive truncation branch */}
               {/* v8 ignore start */}
               {log.trackingUrl.length > 50 ? log.trackingUrl.slice(0, 50) + "..." : log.trackingUrl}
@@ -299,12 +389,36 @@ function DetailPanel({ log }: { log: LogEntry }) {
 
       {/* Error */}
       {log.error && (
-        <div style={{
-          padding: "8px 10px", marginBottom: 12,
-          background: "#FEE2E2", borderRadius: 6, border: "1px solid #FECACA",
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "#991B1B", textTransform: "uppercase" as const, marginBottom: 3 }}>Error</div>
-          <div style={{ fontSize: 12, color: "#7F1D1D", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{log.error}</div>
+        <div
+          style={{
+            padding: "8px 10px",
+            marginBottom: 12,
+            background: "#FEE2E2",
+            borderRadius: 6,
+            border: "1px solid #FECACA",
+          }}
+        >
+          <div
+            style={{
+              fontSize: 10,
+              fontWeight: 700,
+              color: "#991B1B",
+              textTransform: "uppercase" as const,
+              marginBottom: 3,
+            }}
+          >
+            Error
+          </div>
+          <div
+            style={{
+              fontSize: 12,
+              color: "#7F1D1D",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {log.error}
+          </div>
         </div>
       )}
 
@@ -314,16 +428,30 @@ function DetailPanel({ log }: { log: LogEntry }) {
   );
 }
 
-function Field({ label, value, mono, highlight }: { label: string; value: string | null | undefined; mono?: boolean; highlight?: boolean }) {
+function Field({
+  label,
+  value,
+  mono,
+  highlight,
+}: {
+  label: string;
+  value: string | null | undefined;
+  mono?: boolean;
+  highlight?: boolean;
+}) {
   return (
     <div>
       <div style={fieldLabelStyle}>{label}</div>
-      <div style={{
-        fontSize: 12, marginTop: 2, wordBreak: "break-all",
-        fontFamily: mono ? "'SF Mono', Menlo, Consolas, monospace" : "inherit",
-        color: value ? (highlight ? "#059669" : "#1E293B") : "#D1D5DB",
-        fontWeight: highlight && value ? 600 : 400,
-      }}>
+      <div
+        style={{
+          fontSize: 12,
+          marginTop: 2,
+          wordBreak: "break-all",
+          fontFamily: mono ? "'SF Mono', Menlo, Consolas, monospace" : "inherit",
+          color: value ? (highlight ? "#059669" : "#1E293B") : "#D1D5DB",
+          fontWeight: highlight && value ? 600 : 400,
+        }}
+      >
         {value || "—"}
       </div>
     </div>
@@ -331,18 +459,37 @@ function Field({ label, value, mono, highlight }: { label: string; value: string
 }
 
 const fieldLabelStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: "#94A3B8",
-  textTransform: "uppercase", letterSpacing: "0.04em",
+  fontSize: 10,
+  fontWeight: 600,
+  color: "#94A3B8",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
 };
 
 /* ─── Main Page ─── */
 
 export default function WebhookLogsPage() {
-  const { logs, page, totalPages, totalCount, analytics, filters, actionOptions, statusOptions, loaderError } = useLoaderData<typeof loader>();
+  const {
+    logs,
+    page,
+    totalPages,
+    totalCount,
+    analytics,
+    filters,
+    actionOptions,
+    statusOptions,
+    loaderError,
+  } = useLoaderData<typeof loader>();
   const [, setSearchParams] = useSearchParams();
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const revalidator = useRevalidator();
-  const bulkFetcher = useFetcher<{ ok?: boolean; total?: number; succeeded?: number; stillIgnored?: number; failed?: number }>();
+  const bulkFetcher = useFetcher<{
+    ok?: boolean;
+    total?: number;
+    succeeded?: number;
+    stillIgnored?: number;
+    failed?: number;
+  }>();
   const isBulkRetrying = bulkFetcher.state !== "idle";
   const bulkResult = bulkFetcher.data;
 
@@ -367,7 +514,11 @@ export default function WebhookLogsPage() {
   };
 
   const clearFilters = () => {
-    setActionFilter(""); setStatusFilter(""); setSearchQuery(""); setDateFrom(""); setDateTo("");
+    setActionFilter("");
+    setStatusFilter("");
+    setSearchQuery("");
+    setDateFrom("");
+    setDateTo("");
     setSearchParams({ page: "1" });
   };
 
@@ -385,7 +536,8 @@ export default function WebhookLogsPage() {
   const toggleRow = (id: string) => {
     setExpandedRows((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -393,7 +545,12 @@ export default function WebhookLogsPage() {
   const fmtTime = (iso: string) => {
     const d = new Date(iso);
     return new Intl.DateTimeFormat(undefined, {
-      day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit", hour12: true,
+      day: "2-digit",
+      month: "short",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
     }).format(d);
   };
 
@@ -402,9 +559,18 @@ export default function WebhookLogsPage() {
   return (
     <AppPage heading="Fynd Webhook Logs">
       <div className="app-content layout-wide">
-
         {loaderError && (
-          <div style={{ padding: "12px 16px", marginBottom: 14, background: "#FEF2F2", border: "1px solid #FECACA", borderRadius: 8, color: "#991B1B", fontSize: 13 }}>
+          <div
+            style={{
+              padding: "12px 16px",
+              marginBottom: 14,
+              background: "#FEF2F2",
+              border: "1px solid #FECACA",
+              borderRadius: 8,
+              color: "#991B1B",
+              fontSize: 13,
+            }}
+          >
             {loaderError}
           </div>
         )}
@@ -413,31 +579,97 @@ export default function WebhookLogsPage() {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
           <StatCard label="Total" value={analytics.total} color="#0F172A" />
           <StatCard label="Processed" value={analytics.successCount} color="#059669" />
-          <StatCard label="Tracked" value={(analytics.actionCounts as Record<string, number>)["status_updated"] ?? 0} color="#3730A3" />
-          <StatCard label="Errors" value={analytics.errorCount} color={analytics.errorCount > 0 ? "#DC2626" : "#059669"} />
+          <StatCard
+            label="Tracked"
+            value={(analytics.actionCounts as Record<string, number>)["status_updated"] ?? 0}
+            color="#3730A3"
+          />
+          <StatCard
+            label="Errors"
+            value={analytics.errorCount}
+            color={analytics.errorCount > 0 ? "#DC2626" : "#059669"}
+          />
           <StatCard label="Ignored" value={analytics.ignoredCount} color="#6B7280" />
-          <StatCard label="Success" value={`${analytics.successRate}%`} color={analytics.successRate >= 95 ? "#059669" : "#DC2626"} />
+          <StatCard
+            label="Success"
+            value={`${analytics.successRate}%`}
+            color={analytics.successRate >= 95 ? "#059669" : "#DC2626"}
+          />
         </div>
 
         {/* Action Breakdown Bar */}
         {analytics.total > 0 && (
-          <div style={{ marginBottom: 16, padding: "10px 14px", background: "white", borderRadius: 8, border: "1px solid #E5E7EB" }}>
-            <div style={{ display: "flex", gap: 4, height: 6, borderRadius: 3, overflow: "hidden", marginBottom: 6 }}>
+          <div
+            style={{
+              marginBottom: 16,
+              padding: "10px 14px",
+              background: "white",
+              borderRadius: 8,
+              border: "1px solid #E5E7EB",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                gap: 4,
+                height: 6,
+                borderRadius: 3,
+                overflow: "hidden",
+                marginBottom: 6,
+              }}
+            >
               {Object.entries(analytics.actionCounts).map(([action, count]) => {
                 const pct = (count / analytics.total) * 100;
-                const c: Record<string, string> = { refund_completed: "#059669", refund_in_progress: "#3B82F6", status_updated: "#6366F1", status_noted: "#3B82F6", ignored: "#D1D5DB", error: "#DC2626", duplicate_ignored: "#F59E0B" };
+                const c: Record<string, string> = {
+                  refund_completed: "#059669",
+                  refund_in_progress: "#3B82F6",
+                  status_updated: "#6366F1",
+                  status_noted: "#3B82F6",
+                  ignored: "#D1D5DB",
+                  error: "#DC2626",
+                  duplicate_ignored: "#F59E0B",
+                };
                 // defensive ternary/fallback color
                 /* v8 ignore start */
-                return <div key={action} style={{ width: `${pct}%`, minWidth: pct > 0 ? 3 : 0, background: c[action] ?? "#9CA3AF", borderRadius: 2 }} title={`${action}: ${count}`} />;
+                return (
+                  <div
+                    key={action}
+                    style={{
+                      width: `${pct}%`,
+                      minWidth: pct > 0 ? 3 : 0,
+                      background: c[action] ?? "#9CA3AF",
+                      borderRadius: 2,
+                    }}
+                    title={`${action}: ${count}`}
+                  />
+                );
                 /* v8 ignore stop */
               })}
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {Object.entries(analytics.actionCounts).map(([action, count]) => {
-                const c: Record<string, string> = { refund_completed: "#059669", refund_in_progress: "#3B82F6", status_updated: "#6366F1", status_noted: "#3B82F6", ignored: "#9CA3AF", error: "#DC2626", duplicate_ignored: "#F59E0B" };
+                const c: Record<string, string> = {
+                  refund_completed: "#059669",
+                  refund_in_progress: "#3B82F6",
+                  status_updated: "#6366F1",
+                  status_noted: "#3B82F6",
+                  ignored: "#9CA3AF",
+                  error: "#DC2626",
+                  duplicate_ignored: "#F59E0B",
+                };
                 return (
-                  <div key={action} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}>
-                    <span style={{ width: 7, height: 7, borderRadius: "50%", background: c[action] ?? "#9CA3AF" }} />
+                  <div
+                    key={action}
+                    style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11 }}
+                  >
+                    <span
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        background: c[action] ?? "#9CA3AF",
+                      }}
+                    />
                     <span style={{ color: "#374151" }}>{action.replace(/_/g, " ")}</span>
                     <span style={{ color: "#9CA3AF" }}>({count})</span>
                   </div>
@@ -448,27 +680,53 @@ export default function WebhookLogsPage() {
         )}
 
         {/* Filters */}
-        <div style={{
-          display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end",
-          marginBottom: 14, padding: "10px 14px",
-          background: "white", borderRadius: 8, border: "1px solid #E5E7EB",
-        }}>
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            flexWrap: "wrap",
+            alignItems: "flex-end",
+            marginBottom: 14,
+            padding: "10px 14px",
+            background: "white",
+            borderRadius: 8,
+            border: "1px solid #E5E7EB",
+          }}
+        >
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <label style={filterLabelStyle}>Action</label>
-            <select value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={selectStyle}>
-              {actionOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <select
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              style={selectStyle}
+            >
+              {actionOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <label style={filterLabelStyle}>Status</label>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={selectStyle}>
-              {statusOptions.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              style={selectStyle}
+            >
+              {statusOptions.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
             </select>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3, flex: "1 1 180px" }}>
             <label style={filterLabelStyle}>Search</label>
             <input
-              type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Shipment, order, carrier, customer, AWB..."
               onKeyDown={(e) => e.key === "Enter" && applyFilters()}
               style={{ ...inputBaseStyle, width: "100%" }}
@@ -476,30 +734,56 @@ export default function WebhookLogsPage() {
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <label style={filterLabelStyle}>From</label>
-            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={inputBaseStyle} />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              style={inputBaseStyle}
+            />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
             <label style={filterLabelStyle}>To</label>
-            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={inputBaseStyle} />
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              style={inputBaseStyle}
+            />
           </div>
-          <button onClick={applyFilters} style={primaryBtnStyle}>Filter</button>
-          {hasFilters && <button onClick={clearFilters} style={ghostBtnStyle}>Clear</button>}
+          <button onClick={applyFilters} style={primaryBtnStyle}>
+            Filter
+          </button>
+          {hasFilters && (
+            <button onClick={clearFilters} style={ghostBtnStyle}>
+              Clear
+            </button>
+          )}
           {analytics.ignoredCount > 0 && (
             <button
               onClick={() => {
                 bulkFetcher.submit(
                   { action: "retry_all_ignored" },
-                  { method: "POST", action: "/api/webhooks/fynd/retry", encType: "application/json" },
+                  {
+                    method: "POST",
+                    action: "/api/webhooks/fynd/retry",
+                    encType: "application/json",
+                  },
                 );
               }}
               disabled={isBulkRetrying}
               style={{
-                padding: "6px 14px", fontSize: 12, fontWeight: 600,
-                borderRadius: 5, border: "none",
+                padding: "6px 14px",
+                fontSize: 12,
+                fontWeight: 600,
+                borderRadius: 5,
+                border: "none",
                 // defensive bulk retry visual states
                 /* v8 ignore start */
-                background: isBulkRetrying ? "#9CA3AF" : "#6366F1", color: "white",
-                cursor: isBulkRetrying ? "default" : "pointer", height: 30, whiteSpace: "nowrap",
+                background: isBulkRetrying ? "#9CA3AF" : "#6366F1",
+                color: "white",
+                cursor: isBulkRetrying ? "default" : "pointer",
+                height: 30,
+                whiteSpace: "nowrap",
                 /* v8 ignore stop */
               }}
             >
@@ -510,27 +794,43 @@ export default function WebhookLogsPage() {
             </button>
           )}
           <div style={{ flex: 1 }} />
-          <span style={{ fontSize: 11, color: "#9CA3AF" }}>{totalCount} log{totalCount !== 1 ? "s" : ""}{hasFilters ? " (filtered)" : ""}</span>
+          <span style={{ fontSize: 11, color: "#9CA3AF" }}>
+            {totalCount} log{totalCount !== 1 ? "s" : ""}
+            {hasFilters ? " (filtered)" : ""}
+          </span>
         </div>
 
         {/* Bulk Retry Result */}
         {bulkResult && bulkResult.ok && (
-          <div style={{
-            padding: "10px 14px", marginBottom: 14,
-            background: bulkResult.succeeded ? "#F0FDF4" : "#FFFBEB",
-            border: `1px solid ${bulkResult.succeeded ? "#BBF7D0" : "#FDE68A"}`,
-            borderRadius: 8, display: "flex", alignItems: "center", gap: 10,
-          }}>
+          <div
+            style={{
+              padding: "10px 14px",
+              marginBottom: 14,
+              background: bulkResult.succeeded ? "#F0FDF4" : "#FFFBEB",
+              border: `1px solid ${bulkResult.succeeded ? "#BBF7D0" : "#FDE68A"}`,
+              borderRadius: 8,
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
             <div style={{ flex: 1, fontSize: 13, color: "#1E293B" }}>
-              Bulk retry complete: <strong style={{ color: "#059669" }}>{bulkResult.succeeded} matched</strong>,{" "}
+              Bulk retry complete:{" "}
+              <strong style={{ color: "#059669" }}>{bulkResult.succeeded} matched</strong>,{" "}
               <span style={{ color: "#F59E0B" }}>{bulkResult.stillIgnored} still ignored</span>,{" "}
               <span style={{ color: "#DC2626" }}>{bulkResult.failed} failed</span>
             </div>
             <button
               onClick={() => revalidator.revalidate()}
               style={{
-                padding: "4px 10px", fontSize: 11, fontWeight: 600, borderRadius: 4,
-                border: "1px solid #D1D5DB", background: "white", color: "#374151", cursor: "pointer",
+                padding: "4px 10px",
+                fontSize: 11,
+                fontWeight: 600,
+                borderRadius: 4,
+                border: "1px solid #D1D5DB",
+                background: "white",
+                color: "#374151",
+                cursor: "pointer",
               }}
             >
               Refresh
@@ -539,14 +839,34 @@ export default function WebhookLogsPage() {
         )}
 
         {/* Table */}
-        <div style={{ background: "white", borderRadius: 8, border: "1px solid #E5E7EB", overflow: "hidden" }}>
+        <div
+          style={{
+            background: "white",
+            borderRadius: 8,
+            border: "1px solid #E5E7EB",
+            overflow: "hidden",
+          }}
+        >
           {logs.length === 0 ? (
             <div style={{ padding: 40, textAlign: "center", color: "#9CA3AF" }}>
-              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>No webhook logs found</div>
-              <div style={{ fontSize: 12 }}>{hasFilters ? "Try adjusting your filters." : "Webhook logs appear when Fynd sends updates."}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
+                No webhook logs found
+              </div>
+              <div style={{ fontSize: 12 }}>
+                {hasFilters
+                  ? "Try adjusting your filters."
+                  : "Webhook logs appear when Fynd sends updates."}
+              </div>
             </div>
           ) : (
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, tableLayout: "fixed" }}>
+            <table
+              style={{
+                width: "100%",
+                borderCollapse: "collapse",
+                fontSize: 13,
+                tableLayout: "fixed",
+              }}
+            >
               <colgroup>
                 <col style={{ width: "110px" }} />
                 <col style={{ width: "22%" }} />
@@ -582,27 +902,71 @@ export default function WebhookLogsPage() {
                       >
                         {/* Time */}
                         <td style={tdStyle}>
-                          <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap" }}>{fmtTime(log.createdAt)}</div>
-                          {log.eventType && <div style={{ fontSize: 10, color: "#A78BFA", marginTop: 1 }}>{log.eventType}</div>}
+                          <div style={{ fontSize: 11, color: "#6B7280", whiteSpace: "nowrap" }}>
+                            {fmtTime(log.createdAt)}
+                          </div>
+                          {log.eventType && (
+                            <div style={{ fontSize: 10, color: "#A78BFA", marginTop: 1 }}>
+                              {log.eventType}
+                            </div>
+                          )}
                         </td>
                         {/* IDs */}
                         <td style={tdStyle}>
                           {log.shipmentId && (
-                            <div style={{ fontSize: 11, fontFamily: "monospace", color: "#374151", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={log.shipmentId}>
-                              <span style={{ color: "#9CA3AF", fontSize: 9 }}>SHP </span>{log.shipmentId}
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontFamily: "monospace",
+                                color: "#374151",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={log.shipmentId}
+                            >
+                              <span style={{ color: "#9CA3AF", fontSize: 9 }}>SHP </span>
+                              {log.shipmentId}
                             </div>
                           )}
                           {log.orderId && (
-                            <div style={{ fontSize: 11, fontFamily: "monospace", color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={log.orderId}>
-                              <span style={{ color: "#9CA3AF", fontSize: 9 }}>ORD </span>{log.orderId}
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontFamily: "monospace",
+                                color: "#6B7280",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={log.orderId}
+                            >
+                              <span style={{ color: "#9CA3AF", fontSize: 9 }}>ORD </span>
+                              {log.orderId}
                             </div>
                           )}
                           {log.affiliateOrderId && (
-                            <div style={{ fontSize: 11, fontFamily: "monospace", color: "#059669", fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={log.affiliateOrderId}>
-                              <span style={{ color: "#9CA3AF", fontSize: 9, fontWeight: 400 }}>SPF </span>{log.affiliateOrderId}
+                            <div
+                              style={{
+                                fontSize: 11,
+                                fontFamily: "monospace",
+                                color: "#059669",
+                                fontWeight: 600,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={log.affiliateOrderId}
+                            >
+                              <span style={{ color: "#9CA3AF", fontSize: 9, fontWeight: 400 }}>
+                                SPF{" "}
+                              </span>
+                              {log.affiliateOrderId}
                             </div>
                           )}
-                          {!log.shipmentId && !log.orderId && !log.affiliateOrderId && <span style={{ color: "#D1D5DB", fontSize: 11 }}>—</span>}
+                          {!log.shipmentId && !log.orderId && !log.affiliateOrderId && (
+                            <span style={{ color: "#D1D5DB", fontSize: 11 }}>—</span>
+                          )}
                         </td>
                         {/* Status + Customer */}
                         <td style={tdStyle}>
@@ -610,24 +974,61 @@ export default function WebhookLogsPage() {
                           {/* defensive optional email title */}
                           {/* v8 ignore start */}
                           {log.customerName && (
-                            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={`${log.customerName} ${log.customerEmail ?? ""}`}>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: "#6B7280",
+                                marginTop: 2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={`${log.customerName} ${log.customerEmail ?? ""}`}
+                            >
                               {log.customerName}
                             </div>
                           )}
                           {/* v8 ignore stop */}
                           {!log.customerName && log.customerEmail && (
-                            <div style={{ fontSize: 10, color: "#6B7280", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{log.customerEmail}</div>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: "#6B7280",
+                                marginTop: 2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {log.customerEmail}
+                            </div>
                           )}
                         </td>
                         {/* Carrier + AWB */}
                         <td style={tdStyle}>
-                          {log.carrier && <div style={{ fontSize: 11, color: "#374151", fontWeight: 500 }}>{log.carrier}</div>}
+                          {log.carrier && (
+                            <div style={{ fontSize: 11, color: "#374151", fontWeight: 500 }}>
+                              {log.carrier}
+                            </div>
+                          )}
                           {log.awbNumber && (
-                            <div style={{ fontSize: 10, fontFamily: "monospace", color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={log.awbNumber}>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                fontFamily: "monospace",
+                                color: "#6B7280",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                              title={log.awbNumber}
+                            >
                               {log.awbNumber}
                             </div>
                           )}
-                          {!log.carrier && !log.awbNumber && <span style={{ color: "#D1D5DB", fontSize: 11 }}>—</span>}
+                          {!log.carrier && !log.awbNumber && (
+                            <span style={{ color: "#D1D5DB", fontSize: 11 }}>—</span>
+                          )}
                         </td>
                         {/* Action */}
                         <td style={tdStyle}>
@@ -636,7 +1037,18 @@ export default function WebhookLogsPage() {
                             <RetryButton log={log} />
                           </div>
                           {log.error && (
-                            <div style={{ fontSize: 10, color: "#DC2626", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 100 }} title={log.error}>
+                            <div
+                              style={{
+                                fontSize: 10,
+                                color: "#DC2626",
+                                marginTop: 2,
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                                maxWidth: 100,
+                              }}
+                              title={log.error}
+                            >
                               {log.error.slice(0, 40)}...
                             </div>
                           )}
@@ -647,7 +1059,12 @@ export default function WebhookLogsPage() {
                             <Link
                               to={`/app/returns/${log.returnCaseId}`}
                               onClick={(e) => e.stopPropagation()}
-                              style={{ fontSize: 11, color: "#3B82F6", fontWeight: 500, textDecoration: "none" }}
+                              style={{
+                                fontSize: 11,
+                                color: "#3B82F6",
+                                fontWeight: 500,
+                                textDecoration: "none",
+                              }}
                             >
                               View
                             </Link>
@@ -657,8 +1074,18 @@ export default function WebhookLogsPage() {
                         </td>
                         {/* Chevron */}
                         <td style={{ ...tdStyle, textAlign: "center" }}>
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"
-                            style={{ transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform 0.15s" }}>
+                          <svg
+                            width="12"
+                            height="12"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="#9CA3AF"
+                            strokeWidth="2"
+                            style={{
+                              transform: isExpanded ? "rotate(180deg)" : "none",
+                              transition: "transform 0.15s",
+                            }}
+                          >
                             <polyline points="6 9 12 15 18 9" />
                           </svg>
                         </td>
@@ -679,21 +1106,43 @@ export default function WebhookLogsPage() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div style={{
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              padding: "10px 14px", borderTop: "1px solid #E5E7EB", background: "#F9FAFB",
-            }}>
-              <span style={{ fontSize: 12, color: "#6B7280" }}>Page {page}/{totalPages}</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 14px",
+                borderTop: "1px solid #E5E7EB",
+                background: "#F9FAFB",
+              }}
+            >
+              <span style={{ fontSize: 12, color: "#6B7280" }}>
+                Page {page}/{totalPages}
+              </span>
               <div style={{ display: "flex", gap: 4 }}>
                 <PageBtn label="Prev" disabled={page <= 1} onClick={() => goToPage(page - 1)} />
                 {getPageNums(page, totalPages).map((p, i) =>
                   p === null ? (
-                    <span key={`d${i}`} style={{ padding: "0 3px", color: "#9CA3AF", fontSize: 12 }}>...</span>
+                    <span
+                      key={`d${i}`}
+                      style={{ padding: "0 3px", color: "#9CA3AF", fontSize: 12 }}
+                    >
+                      ...
+                    </span>
                   ) : (
-                    <PageBtn key={p} label={String(p)} active={p === page} onClick={() => goToPage(p)} />
-                  )
+                    <PageBtn
+                      key={p}
+                      label={String(p)}
+                      active={p === page}
+                      onClick={() => goToPage(p)}
+                    />
+                  ),
                 )}
-                <PageBtn label="Next" disabled={page >= totalPages} onClick={() => goToPage(page + 1)} />
+                <PageBtn
+                  label="Next"
+                  disabled={page >= totalPages}
+                  onClick={() => goToPage(page + 1)}
+                />
               </div>
             </div>
           )}
@@ -705,15 +1154,34 @@ export default function WebhookLogsPage() {
 
 /* ─── Small Helpers ─── */
 
-function PageBtn({ label, disabled, active, onClick }: { label: string; disabled?: boolean; active?: boolean; onClick: () => void }) {
+function PageBtn({
+  label,
+  disabled,
+  active,
+  onClick,
+}: {
+  label: string;
+  disabled?: boolean;
+  active?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <button disabled={disabled} onClick={onClick} style={{
-      padding: "4px 10px", fontSize: 11, fontWeight: active ? 700 : 500,
-      borderRadius: 5, border: "1px solid #D1D5DB",
-      background: active ? "#0F172A" : disabled ? "#F3F4F6" : "white",
-      color: active ? "white" : disabled ? "#D1D5DB" : "#374151",
-      cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.5 : 1, minWidth: 28,
-    }}>
+    <button
+      disabled={disabled}
+      onClick={onClick}
+      style={{
+        padding: "4px 10px",
+        fontSize: 11,
+        fontWeight: active ? 700 : 500,
+        borderRadius: 5,
+        border: "1px solid #D1D5DB",
+        background: active ? "#0F172A" : disabled ? "#F3F4F6" : "white",
+        color: active ? "white" : disabled ? "#D1D5DB" : "#374151",
+        cursor: disabled ? "default" : "pointer",
+        opacity: disabled ? 0.5 : 1,
+        minWidth: 28,
+      }}
+    >
       {label}
     </button>
   );
@@ -729,35 +1197,59 @@ function getPageNums(cur: number, total: number): (number | null)[] {
 /* ─── Shared Styles ─── */
 
 const thStyle: React.CSSProperties = {
-  padding: "8px 10px", textAlign: "left", fontSize: 10, fontWeight: 600,
-  color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.04em",
+  padding: "8px 10px",
+  textAlign: "left",
+  fontSize: 10,
+  fontWeight: 600,
+  color: "#9CA3AF",
+  textTransform: "uppercase",
+  letterSpacing: "0.04em",
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: "8px 10px", verticalAlign: "top",
+  padding: "8px 10px",
+  verticalAlign: "top",
 };
 
 const filterLabelStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 600, color: "#9CA3AF",
+  fontSize: 10,
+  fontWeight: 600,
+  color: "#9CA3AF",
 };
 
 const inputBaseStyle: React.CSSProperties = {
-  padding: "6px 8px", fontSize: 12, borderRadius: 5,
-  border: "1px solid #D1D5DB", background: "white",
+  padding: "6px 8px",
+  fontSize: 12,
+  borderRadius: 5,
+  border: "1px solid #D1D5DB",
+  background: "white",
 };
 
 const selectStyle: React.CSSProperties = {
-  ...inputBaseStyle, minWidth: 110,
+  ...inputBaseStyle,
+  minWidth: 110,
 };
 
 const primaryBtnStyle: React.CSSProperties = {
-  padding: "6px 14px", fontSize: 12, fontWeight: 600,
-  borderRadius: 5, border: "none",
-  background: "#0F172A", color: "white", cursor: "pointer", height: 30,
+  padding: "6px 14px",
+  fontSize: 12,
+  fontWeight: 600,
+  borderRadius: 5,
+  border: "none",
+  background: "#0F172A",
+  color: "white",
+  cursor: "pointer",
+  height: 30,
 };
 
 const ghostBtnStyle: React.CSSProperties = {
-  padding: "6px 12px", fontSize: 12, fontWeight: 500,
-  borderRadius: 5, border: "1px solid #D1D5DB",
-  background: "white", color: "#6B7280", cursor: "pointer", height: 30,
+  padding: "6px 12px",
+  fontSize: 12,
+  fontWeight: 500,
+  borderRadius: 5,
+  border: "1px solid #D1D5DB",
+  background: "white",
+  color: "#6B7280",
+  cursor: "pointer",
+  height: 30,
 };

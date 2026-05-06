@@ -13,10 +13,9 @@ describe("evaluateAutoApproveRules", () => {
   });
 
   it("returns null for null/undefined rules", () => {
-    const result = evaluateAutoApproveRules(
-      null as unknown as AutoApproveRule[],
-      { orderValue: 100 },
-    );
+    const result = evaluateAutoApproveRules(null as unknown as AutoApproveRule[], {
+      orderValue: 100,
+    });
     expect(result).toBeNull();
   });
 
@@ -80,10 +79,7 @@ describe("evaluateAutoApproveRules", () => {
   });
 
   describe("orderValue comparisons", () => {
-    const makeRule = (
-      operator: AutoApproveRule["operator"],
-      value: string,
-    ): AutoApproveRule => ({
+    const makeRule = (operator: AutoApproveRule["operator"], value: string): AutoApproveRule => ({
       field: "orderValue",
       operator,
       value,
@@ -91,77 +87,56 @@ describe("evaluateAutoApproveRules", () => {
     });
 
     it("eq matches equal values", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("eq", "100")], { orderValue: 100 }),
-      ).toBe("approve");
-      expect(
-        evaluateAutoApproveRules([makeRule("eq", "100")], { orderValue: 99 }),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("eq", "100")], { orderValue: 100 })).toBe(
+        "approve",
+      );
+      expect(evaluateAutoApproveRules([makeRule("eq", "100")], { orderValue: 99 })).toBeNull();
     });
 
     it("neq matches unequal values", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("neq", "100")], { orderValue: 99 }),
-      ).toBe("approve");
-      expect(
-        evaluateAutoApproveRules([makeRule("neq", "100")], { orderValue: 100 }),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("neq", "100")], { orderValue: 99 })).toBe(
+        "approve",
+      );
+      expect(evaluateAutoApproveRules([makeRule("neq", "100")], { orderValue: 100 })).toBeNull();
     });
 
     it("gt matches greater values", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("gt", "100")], { orderValue: 101 }),
-      ).toBe("approve");
-      expect(
-        evaluateAutoApproveRules([makeRule("gt", "100")], { orderValue: 100 }),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("gt", "100")], { orderValue: 101 })).toBe(
+        "approve",
+      );
+      expect(evaluateAutoApproveRules([makeRule("gt", "100")], { orderValue: 100 })).toBeNull();
     });
 
     it("gte matches greater-or-equal values", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("gte", "100")], { orderValue: 100 }),
-      ).toBe("approve");
-      expect(
-        evaluateAutoApproveRules([makeRule("gte", "100")], { orderValue: 99 }),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("gte", "100")], { orderValue: 100 })).toBe(
+        "approve",
+      );
+      expect(evaluateAutoApproveRules([makeRule("gte", "100")], { orderValue: 99 })).toBeNull();
     });
 
     it("lt matches lesser values", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("lt", "100")], { orderValue: 99 }),
-      ).toBe("approve");
-      expect(
-        evaluateAutoApproveRules([makeRule("lt", "100")], { orderValue: 100 }),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("lt", "100")], { orderValue: 99 })).toBe("approve");
+      expect(evaluateAutoApproveRules([makeRule("lt", "100")], { orderValue: 100 })).toBeNull();
     });
 
     it("lte matches lesser-or-equal values", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("lte", "100")], { orderValue: 100 }),
-      ).toBe("approve");
-      expect(
-        evaluateAutoApproveRules([makeRule("lte", "100")], { orderValue: 101 }),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("lte", "100")], { orderValue: 100 })).toBe(
+        "approve",
+      );
+      expect(evaluateAutoApproveRules([makeRule("lte", "100")], { orderValue: 101 })).toBeNull();
     });
 
     it("returns false when orderValue is missing from context", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("gt", "100")], {}),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("gt", "100")], {})).toBeNull();
     });
 
     it("returns false when rule value is non-numeric", () => {
-      expect(
-        evaluateAutoApproveRules([makeRule("gt", "abc")], { orderValue: 100 }),
-      ).toBeNull();
+      expect(evaluateAutoApproveRules([makeRule("gt", "abc")], { orderValue: 100 })).toBeNull();
     });
   });
 
   describe("returnReason comparisons", () => {
-    const makeRule = (
-      operator: AutoApproveRule["operator"],
-      value: string,
-    ): AutoApproveRule => ({
+    const makeRule = (operator: AutoApproveRule["operator"], value: string): AutoApproveRule => ({
       field: "returnReason",
       operator,
       value,
@@ -206,10 +181,7 @@ describe("evaluateAutoApproveRules", () => {
   });
 
   describe("productTag comparisons", () => {
-    const makeRule = (
-      operator: AutoApproveRule["operator"],
-      value: string,
-    ): AutoApproveRule => ({
+    const makeRule = (operator: AutoApproveRule["operator"], value: string): AutoApproveRule => ({
       field: "productTag",
       operator,
       value,
@@ -258,10 +230,7 @@ describe("evaluateAutoApproveRules", () => {
   });
 
   describe("customerReturnCount comparisons", () => {
-    const makeRule = (
-      operator: AutoApproveRule["operator"],
-      value: string,
-    ): AutoApproveRule => ({
+    const makeRule = (operator: AutoApproveRule["operator"], value: string): AutoApproveRule => ({
       field: "customerReturnCount",
       operator,
       value,

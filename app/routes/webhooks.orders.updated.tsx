@@ -66,7 +66,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* v8 ignore start - defensive type guard + nullish fallback on optional payload fields */
     const attrs = Array.isArray(p.note_attributes)
       ? (p.note_attributes as Array<{ name?: string; value?: string }>).map((a) => ({
-          key: a.name ?? "", value: a.value ?? "",
+          key: a.name ?? "",
+          value: a.value ?? "",
         }))
       : [];
     /* v8 ignore stop */
@@ -75,7 +76,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Fast path: skip the DB+API round-trip unless there's actual work to do.
     // Work is: (a) a fyndOrderId to map, (b) a cancellation we need to
     // propagate to return cases, or (c) a sourceChannel we can backfill.
-    const isCancellationEvent = !!cancelledAt || financialStatus === "refunded" || financialStatus === "voided";
+    const isCancellationEvent =
+      !!cancelledAt || financialStatus === "refunded" || financialStatus === "voided";
     if (!fyndOrderId && !isCancellationEvent && !sourceChannel) {
       return new Response();
     }
@@ -87,7 +89,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     if (fyndOrderId) {
       const gid = p.admin_graphql_api_id
         ? String(p.admin_graphql_api_id)
-        : p.id ? `gid://shopify/Order/${p.id}` : null;
+        : p.id
+          ? `gid://shopify/Order/${p.id}`
+          : null;
 
       if (gid) {
         try {
@@ -96,12 +100,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             variables: {
               input: {
                 id: gid,
-                metafields: [{
-                  namespace: "$app",
-                  key: "fynd_order_id",
-                  value: fyndOrderId,
-                  type: "single_line_text_field",
-                }],
+                metafields: [
+                  {
+                    namespace: "$app",
+                    key: "fynd_order_id",
+                    value: fyndOrderId,
+                    type: "single_line_text_field",
+                  },
+                ],
               },
             },
           });
@@ -109,7 +115,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           // Best-effort — the DB mapping below is the authoritative path.
           /* v8 ignore start - defensive Error narrowing in catch */
           console.error("[webhook:orders/updated] metafield write failed", {
-            shop, orderName, fyndOrderId,
+            shop,
+            orderName,
+            fyndOrderId,
             error: err instanceof Error ? err.message : String(err),
           });
           /* v8 ignore stop */
@@ -119,15 +127,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       try {
         /* v8 ignore start - defensive fallback chains for optional payload fields */
         await prisma.fyndOrderMapping.upsert({
-          where: { shopId_shopifyOrderName: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderName}` } },
-          create: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderName}`, shopifyOrderId: gid ?? undefined, fyndOrderId, searchStrategy: "orders_updated_webhook" },
+          where: {
+            shopId_shopifyOrderName: {
+              shopId: shopRecord.id,
+              shopifyOrderName: orderNameRaw || `#${orderName}`,
+            },
+          },
+          create: {
+            shopId: shopRecord.id,
+            shopifyOrderName: orderNameRaw || `#${orderName}`,
+            shopifyOrderId: gid ?? undefined,
+            fyndOrderId,
+            searchStrategy: "orders_updated_webhook",
+          },
           update: { fyndOrderId, ...(gid ? { shopifyOrderId: gid } : {}) },
         });
         /* v8 ignore stop */
       } catch (err) {
         /* v8 ignore start - defensive Error narrowing in catch */
         console.error("[webhook:orders/updated] mapping upsert failed", {
-          shop, orderName, fyndOrderId,
+          shop,
+          orderName,
+          fyndOrderId,
           error: err instanceof Error ? err.message : String(err),
         });
         /* v8 ignore stop */
@@ -184,7 +205,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       } catch (err) {
         /* v8 ignore start - defensive Error narrowing in catch */
         console.error("[webhook:orders/updated] sourceChannel backfill failed", {
-          shop, orderName,
+          shop,
+          orderName,
           error: err instanceof Error ? err.message : String(err),
         });
         /* v8 ignore stop */

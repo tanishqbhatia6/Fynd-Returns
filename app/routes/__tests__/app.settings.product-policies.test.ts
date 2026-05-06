@@ -35,16 +35,34 @@ beforeEach(() => {
 describe("loader", () => {
   it("returns empty rules when no settings", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1", settings: null });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data).toEqual({ rules: [] });
   });
 
   it("parses valid productPoliciesJson", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({
       id: "shop-1",
-      settings: { productPoliciesJson: JSON.stringify([{ id: "r1", matchType: "tags", matchValue: "final-sale", windowDays: 14, returnable: false }]) },
+      settings: {
+        productPoliciesJson: JSON.stringify([
+          {
+            id: "r1",
+            matchType: "tags",
+            matchValue: "final-sale",
+            windowDays: 14,
+            returnable: false,
+          },
+        ]),
+      },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.rules).toHaveLength(1);
     expect(data.rules[0]).toMatchObject({ matchType: "tags", returnable: false });
   });
@@ -54,7 +72,11 @@ describe("loader", () => {
       id: "shop-1",
       settings: { productPoliciesJson: "{not json" },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.rules).toEqual([]);
   });
 
@@ -63,7 +85,11 @@ describe("loader", () => {
       id: "shop-1",
       settings: { productPoliciesJson: JSON.stringify({ field: "x" }) },
     });
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.rules).toEqual([]);
   });
 });
@@ -80,9 +106,9 @@ describe("action", () => {
     expect(stored).toHaveLength(1);
     expect(stored[0]).toMatchObject({
       matchType: "tags",
-      matchValue: "final-sale",   // trimmed
-      windowDays: 0,               // clamped from -5
-      returnable: true,            // default
+      matchValue: "final-sale", // trimmed
+      windowDays: 0, // clamped from -5
+      returnable: true, // default
     });
     // generated id when none supplied
     expect(typeof stored[0].id).toBe("string");
@@ -92,10 +118,18 @@ describe("action", () => {
   it("preserves explicit id and returnable=false", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const rules = JSON.stringify([
-      { id: "rule-keep", matchType: "product_type", matchValue: "perishable", windowDays: 0, returnable: false },
+      {
+        id: "rule-keep",
+        matchType: "product_type",
+        matchValue: "perishable",
+        windowDays: 0,
+        returnable: false,
+      },
     ]);
     await action({ request: formReq({ rulesJson: rules }), params: {}, context: {} } as never);
-    const stored = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson,
+    );
     expect(stored[0]).toMatchObject({ id: "rule-keep", returnable: false });
   });
 
@@ -108,7 +142,9 @@ describe("action", () => {
       null,
     ]);
     await action({ request: formReq({ rulesJson: rules }), params: {}, context: {} } as never);
-    const stored = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson,
+    );
     expect(stored).toHaveLength(1);
   });
 
@@ -116,7 +152,8 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ rulesJson: "{not json" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: false, error: "Invalid rules format." });
   });
@@ -125,7 +162,9 @@ describe("action", () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({ request: formReq({}), params: {}, context: {} } as never);
     expect(res).toEqual({ success: true });
-    const stored = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson,
+    );
     expect(stored).toEqual([]);
   });
 
@@ -134,18 +173,19 @@ describe("action", () => {
     prismaMock.shopSettings.upsert.mockRejectedValueOnce(new Error("DB unavailable"));
     const res = await action({
       request: formReq({ rulesJson: JSON.stringify([]) }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: false, error: "DB unavailable" });
   });
 
   it("converts non-numeric windowDays to default 30", async () => {
     findOrCreateShopMock.mockResolvedValueOnce({ id: "shop-1" });
-    const rules = JSON.stringify([
-      { matchType: "tags", matchValue: "x", windowDays: "abc" },
-    ]);
+    const rules = JSON.stringify([{ matchType: "tags", matchValue: "x", windowDays: "abc" }]);
     await action({ request: formReq({ rulesJson: rules }), params: {}, context: {} } as never);
-    const stored = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson,
+    );
     expect(stored[0].windowDays).toBe(30);
   });
 
@@ -155,7 +195,9 @@ describe("action", () => {
       { matchType: "tags", matchValue: "x", windowDays: 30, policyText: "   " },
     ]);
     await action({ request: formReq({ rulesJson: rules }), params: {}, context: {} } as never);
-    const stored = JSON.parse(prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson);
+    const stored = JSON.parse(
+      prismaMock.shopSettings.upsert.mock.calls[0][0].update.productPoliciesJson,
+    );
     expect(stored[0].policyText).toBeUndefined();
   });
 });

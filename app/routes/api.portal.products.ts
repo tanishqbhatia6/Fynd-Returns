@@ -14,7 +14,11 @@ import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 // portal request thread indefinitely. 10s matches the Fynd client.
 const SHOPIFY_FETCH_TIMEOUT_MS = 10_000;
 
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS): Promise<Response> {
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = SHOPIFY_FETCH_TIMEOUT_MS,
+): Promise<Response> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -133,10 +137,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // Filter to only show products with available variants
-    const availableProducts = products.map(p => ({
-      ...p,
-      variants: p.variants.filter(v => v.available),
-    })).filter(p => p.variants.length > 0);
+    const availableProducts = products
+      .map((p) => ({
+        ...p,
+        variants: p.variants.filter((v) => v.available),
+      }))
+      .filter((p) => p.variants.length > 0);
 
     return Response.json({ products: availableProducts });
   } catch (err) {
@@ -174,7 +180,7 @@ function mapProduct(p: {
     productType: p.product_type || "",
     vendor: p.vendor || "",
     imageUrl: mainImage,
-    variants: (p.variants || []).map(v => ({
+    variants: (p.variants || []).map((v) => ({
       id: String(v.id),
       title: v.title,
       price: v.price,

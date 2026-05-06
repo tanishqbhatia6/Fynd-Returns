@@ -125,8 +125,8 @@ describe("docs.tsx — `|| CHAPTERS[0]` fallback (line 2013) and prev/next null 
     });
     // Fallback chapter is CHAPTERS[0] = "welcome", whose title is
     // "Welcome to Fynd Returns". The chapter content (h1) renders that.
-    const h1s = Array.from(container.querySelectorAll("h1")).map(
-      (h) => (h.textContent || "").trim(),
+    const h1s = Array.from(container.querySelectorAll("h1")).map((h) =>
+      (h.textContent || "").trim(),
     );
     expect(h1s).toContain("Welcome to Fynd Returns");
   });
@@ -251,8 +251,8 @@ describe("billing.tsx — ReasonLabel default arm (line 220)", () => {
     await waitFor(() => {
       expect(container.textContent).toMatch(/Subscription required/);
     });
-    const chooseLink = Array.from(container.querySelectorAll("a")).find(
-      (a) => a.textContent?.trim().startsWith("Choose a plan"),
+    const chooseLink = Array.from(container.querySelectorAll("a")).find((a) =>
+      a.textContent?.trim().startsWith("Choose a plan"),
     );
     expect(chooseLink).toBeTruthy();
     expect(chooseLink?.getAttribute("href")).toBe(UPGRADE_URL);

@@ -72,7 +72,11 @@ describe("checkPerKeyRateLimit", () => {
       const res = await checkPerKeyRateLimit(req, "external.postman", "key-A");
       expect(res).toBeNull();
     }
-    const blockedA = await checkPerKeyRateLimit(makeRequest(uniqueIp()), "external.postman", "key-A");
+    const blockedA = await checkPerKeyRateLimit(
+      makeRequest(uniqueIp()),
+      "external.postman",
+      "key-A",
+    );
     expect(blockedA?.status).toBe(429);
 
     // key-B should still have a fresh bucket.
@@ -248,7 +252,12 @@ describe("sanitizeReturnDetail — items and events shapes", () => {
         { id: "e-1", source: "admin", eventType: "approved", happenedAt: "2026-01-01T00:00:00Z" },
         { id: "e-2", source: "portal", eventType: "submitted", happenedAt: "2026-01-02T00:00:00Z" },
         { id: "e-3", source: "fynd", eventType: "delivered", happenedAt: "2026-01-03T00:00:00Z" },
-        { id: "e-4", source: "system", eventType: "auto-refunded", happenedAt: "2026-01-04T00:00:00Z" },
+        {
+          id: "e-4",
+          source: "system",
+          eventType: "auto-refunded",
+          happenedAt: "2026-01-04T00:00:00Z",
+        },
       ],
     });
     expect(result.events).toHaveLength(4);

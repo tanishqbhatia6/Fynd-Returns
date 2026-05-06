@@ -20,7 +20,8 @@ vi.mock("../fynd-config.server", () => ({
 }));
 
 vi.mock("../encryption.server", () => ({
-  decrypt: (s: string) => JSON.stringify({ platform: { clientId: "dec_id", clientSecret: "dec_secret" } }),
+  decrypt: (s: string) =>
+    JSON.stringify({ platform: { clientId: "dec_id", clientSecret: "dec_secret" } }),
 }));
 
 import {
@@ -50,7 +51,7 @@ afterEach(() => {
 
 describe("FYND_WEBHOOK_EVENTS", () => {
   it("covers the refund lifecycle + shipment updates", () => {
-    const types = FYND_WEBHOOK_EVENTS.map(e => e.event_type);
+    const types = FYND_WEBHOOK_EVENTS.map((e) => e.event_type);
     expect(types).toContain("refund_initiated");
     expect(types).toContain("refund_pending");
     expect(types).toContain("refund_done");
@@ -100,16 +101,23 @@ describe("listFyndWebhookSubscribers", () => {
   it("returns subscribers on 200 response", async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
-      text: async () => JSON.stringify({
-        items: [
-          {
-            id: 1, name: "My webhook", webhook_url: "https://x.com/hook",
-            status: "active", provider: "rest", email_id: "a@b.com",
-            event_configs: [{ event_name: "refund", event_type: "refund_done", event_category: "application" }],
-          },
-        ],
-        page: { item_total: 1 },
-      }),
+      text: async () =>
+        JSON.stringify({
+          items: [
+            {
+              id: 1,
+              name: "My webhook",
+              webhook_url: "https://x.com/hook",
+              status: "active",
+              provider: "rest",
+              email_id: "a@b.com",
+              event_configs: [
+                { event_name: "refund", event_type: "refund_done", event_category: "application" },
+              ],
+            },
+          ],
+          page: { item_total: 1 },
+        }),
     });
     const r = await listFyndWebhookSubscribers(settings);
     expect(r.ok).toBe(true);
@@ -179,7 +187,8 @@ describe("listFyndWebhookSubscribers", () => {
 
   it("sends Authorization: Bearer <token> header", async () => {
     fetchSpy.mockResolvedValue({
-      ok: true, text: async () => JSON.stringify({ items: [], page: { item_total: 0 } }),
+      ok: true,
+      text: async () => JSON.stringify({ items: [], page: { item_total: 0 } }),
     });
     await listFyndWebhookSubscribers(settings);
     const init = fetchSpy.mock.calls[0][1] as { headers: Record<string, string> };
@@ -283,14 +292,18 @@ describe("registerFyndWebhook", () => {
   });
 
   it("returns Fynd-provided message when present", async () => {
-    fetchSpy.mockResolvedValue({ ok: true, text: async () => JSON.stringify({ message: "Webhook upserted" }) });
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      text: async () => JSON.stringify({ message: "Webhook upserted" }),
+    });
     const r = await registerFyndWebhook(settings, good.url, good.name, good.email);
     if (r.ok) expect(r.message).toBe("Webhook upserted");
   });
 
   it("returns 403 with scope hint on forbidden response", async () => {
     fetchSpy.mockResolvedValue({
-      ok: false, status: 403,
+      ok: false,
+      status: 403,
       text: async () => '{"message":"Forbidden"}',
     });
     const r = await registerFyndWebhook(settings, good.url, good.name, good.email);
@@ -303,7 +316,8 @@ describe("registerFyndWebhook", () => {
 
   it("returns 400 with format hint on bad request", async () => {
     fetchSpy.mockResolvedValue({
-      ok: false, status: 400,
+      ok: false,
+      status: 400,
       text: async () => '{"message":"bad input"}',
     });
     const r = await registerFyndWebhook(settings, good.url, good.name, good.email);
@@ -315,13 +329,15 @@ describe("registerFyndWebhook", () => {
 
   it("parses Fynd's `err[]` array when present", async () => {
     fetchSpy.mockResolvedValue({
-      ok: false, status: 400,
-      text: async () => JSON.stringify({
-        err: [
-          { path: "webhook_config.name", msg: "required" },
-          { path: "webhook_config.notification_email", msg: "invalid format" },
-        ],
-      }),
+      ok: false,
+      status: 400,
+      text: async () =>
+        JSON.stringify({
+          err: [
+            { path: "webhook_config.name", msg: "required" },
+            { path: "webhook_config.notification_email", msg: "invalid format" },
+          ],
+        }),
     });
     const r = await registerFyndWebhook(settings, good.url, good.name, good.email);
     if (!r.ok) {
@@ -340,13 +356,9 @@ describe("registerFyndWebhook", () => {
   it("calls the log callback during request", async () => {
     fetchSpy.mockResolvedValue({ ok: true, text: async () => "{}" });
     const logs: Array<{ step: string; message: string }> = [];
-    await registerFyndWebhook(
-      settings,
-      good.url,
-      good.name,
-      good.email,
-      (step, message) => { logs.push({ step, message }); },
-    );
-    expect(logs.some(l => l.step === "fynd-webhook-api")).toBe(true);
+    await registerFyndWebhook(settings, good.url, good.name, good.email, (step, message) => {
+      logs.push({ step, message });
+    });
+    expect(logs.some((l) => l.step === "fynd-webhook-api")).toBe(true);
   });
 });

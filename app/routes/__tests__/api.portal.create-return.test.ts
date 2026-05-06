@@ -31,7 +31,9 @@ const {
   verifyPortalCsrfMock: vi.fn(() => true),
   withRestCredentialsMock: vi.fn((admin: unknown) => admin),
   fetchOrderByFyndAffiliateIdMock: vi.fn(),
-  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback)),
+  parseJsonArrayMock: vi.fn((s: string | null, fallback: unknown[]) =>
+    s ? JSON.parse(s) : fallback,
+  ),
 }));
 Object.assign(prismaMock, createPrismaMock());
 // Add models used by create-return but not in the base factory
@@ -106,14 +108,28 @@ function jsonReq(body: unknown, method = "POST") {
 beforeEach(() => {
   process.env = { ...origEnv };
   resetPrismaMock(prismaMock);
-  ((prismaMock as unknown as Record<string, unknown>).fyndOrderMapping as Record<string, { mockReset?: () => void; mockResolvedValue?: (v: unknown) => void }>).upsert.mockReset?.();
-  ((prismaMock as unknown as Record<string, unknown>).fyndOrderMapping as Record<string, { mockReset?: () => void; mockResolvedValue?: (v: unknown) => void }>).findFirst.mockReset?.();
+  (
+    (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping as Record<
+      string,
+      { mockReset?: () => void; mockResolvedValue?: (v: unknown) => void }
+    >
+  ).upsert.mockReset?.();
+  (
+    (prismaMock as unknown as Record<string, unknown>).fyndOrderMapping as Record<
+      string,
+      { mockReset?: () => void; mockResolvedValue?: (v: unknown) => void }
+    >
+  ).findFirst.mockReset?.();
   shopifyModuleMock.unauthenticated.admin.mockReset();
-  checkRateLimitMock.mockReset().mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
+  checkRateLimitMock
+    .mockReset()
+    .mockResolvedValue({ allowed: true, remaining: 5, retryAfterMs: 0 });
   verifyPortalCsrfMock.mockReset().mockReturnValue(true);
   withRestCredentialsMock.mockReset().mockImplementation((a: unknown) => a);
   fetchOrderByFyndAffiliateIdMock.mockReset();
-  parseJsonArrayMock.mockReset().mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
+  parseJsonArrayMock
+    .mockReset()
+    .mockImplementation((s: string | null, fallback: unknown[]) => (s ? JSON.parse(s) : fallback));
 });
 
 afterEach(() => {
@@ -169,8 +185,13 @@ describe("CSRF gating", () => {
     process.env.PORTAL_CSRF_REQUIRED = "true";
     verifyPortalCsrfMock.mockReturnValueOnce(false);
     const res = await action({
-      request: jsonReq({ shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
   });
@@ -179,8 +200,14 @@ describe("CSRF gating", () => {
     process.env.PORTAL_CSRF_REQUIRED = "false";
     verifyPortalCsrfMock.mockReturnValueOnce(false);
     const res = await action({
-      request: jsonReq({ shop: "store", shopifyOrderName: "1001", orderId: "o", portalCsrfToken: "bad" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "o",
+        portalCsrfToken: "bad",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
   });
@@ -190,8 +217,13 @@ describe("CSRF gating", () => {
     // No token; shop not found will short-circuit after CSRF pass
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     const res = await action({
-      request: jsonReq({ shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(404);
     expect(verifyPortalCsrfMock).not.toHaveBeenCalled();
@@ -202,33 +234,56 @@ describe("CSRF gating", () => {
 
 describe("param validation", () => {
   it("400 when shop missing", async () => {
-    const res = await action({ request: jsonReq({ shopifyOrderName: "1001" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shopifyOrderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when shopifyOrderName missing", async () => {
-    const res = await action({ request: jsonReq({ shop: "store" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shop: "store" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when order name > 64 chars", async () => {
-    const res = await action({ request: jsonReq({ shop: "store", shopifyOrderName: "#" + "x".repeat(100) }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shop: "store", shopifyOrderName: "#" + "x".repeat(100) }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
   });
 
   it("400 when orderId missing in auto (non-manual) mode", async () => {
-    const res = await action({ request: jsonReq({ shop: "store", shopifyOrderName: "1001" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: jsonReq({ shop: "store", shopifyOrderName: "1001" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res.status).toBe(400);
-    expect(await res.json()).toEqual(expect.objectContaining({
-      error: expect.stringMatching(/orderId/i),
-    }));
+    expect(await res.json()).toEqual(
+      expect.objectContaining({
+        error: expect.stringMatching(/orderId/i),
+      }),
+    );
   });
 
   it("adds # prefix automatically to order name", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     await action({
-      request: jsonReq({ shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+      }),
+      params: {},
+      context: {},
     } as never);
     // Shop wasn't found, but the flow reached past order-name validation → confirms # was accepted
     expect(prismaMock.shop.findUnique).toHaveBeenCalled();
@@ -241,8 +296,13 @@ describe("shop lookup", () => {
   it("404 when shop not found", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     const res = await action({
-      request: jsonReq({ shop: "missing", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "missing",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+      }),
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(404);
   });
@@ -250,12 +310,19 @@ describe("shop lookup", () => {
   it("normalises non-dotted shop to .myshopify.com", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     await action({
-      request: jsonReq({ shop: "mystore", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1" }),
-      params: {}, context: {},
+      request: jsonReq({
+        shop: "mystore",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+      }),
+      params: {},
+      context: {},
     } as never);
-    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(expect.objectContaining({
-      where: { shopDomain: "mystore.myshopify.com" },
-    }));
+    expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { shopDomain: "mystore.myshopify.com" },
+      }),
+    );
   });
 });
 
@@ -266,16 +333,28 @@ describe("blocklist", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
       shopDomain: "store.myshopify.com",
-      settings: { id: "s-1", blocklistEnabled: true, returnWindowDays: 30, returnOffersEnabled: false },
+      settings: {
+        id: "s-1",
+        blocklistEnabled: true,
+        returnWindowDays: 30,
+        returnOffersEnabled: false,
+      },
     });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
-    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({ id: "b-1", type: "email", value: "bad@actor.com" });
+    prismaMock.blocklistEntry.findFirst.mockResolvedValueOnce({
+      id: "b-1",
+      type: "email",
+      value: "bad@actor.com",
+    });
     const res = await action({
       request: jsonReq({
-        shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1",
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
         customerEmail: "bad@actor.com",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(403);
     const body = await res.json();
@@ -286,16 +365,24 @@ describe("blocklist", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
       id: "shop-1",
       shopDomain: "store.myshopify.com",
-      settings: { id: "s-1", blocklistEnabled: false, returnWindowDays: 30, returnOffersEnabled: false },
+      settings: {
+        id: "s-1",
+        blocklistEnabled: false,
+        returnWindowDays: 30,
+        returnOffersEnabled: false,
+      },
     });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     // No call to blocklistEntry.findFirst should happen
     await action({
       request: jsonReq({
-        shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1",
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
         customerEmail: "bad@actor.com",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never).catch(() => {});
     expect(prismaMock.blocklistEntry.findFirst).not.toHaveBeenCalled();
   });
@@ -309,7 +396,9 @@ describe("accept offer flow", () => {
       id: "shop-1",
       shopDomain: "store.myshopify.com",
       settings: {
-        id: "s-1", blocklistEnabled: false, returnWindowDays: 30,
+        id: "s-1",
+        blocklistEnabled: false,
+        returnWindowDays: 30,
         returnOffersEnabled: true,
         returnOffersJson: offersJson,
       },
@@ -318,16 +407,26 @@ describe("accept offer flow", () => {
 
   it("400 when returnOffersEnabled=false", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({
-      id: "shop-1", shopDomain: "store.myshopify.com",
-      settings: { id: "s-1", blocklistEnabled: false, returnWindowDays: 30, returnOffersEnabled: false },
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: {
+        id: "s-1",
+        blocklistEnabled: false,
+        returnWindowDays: 30,
+        returnOffersEnabled: false,
+      },
     });
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
       request: jsonReq({
-        shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1",
-        acceptOffer: true, items: [{ lineItemId: "li-1", qty: 1 }],
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+        acceptOffer: true,
+        items: [{ lineItemId: "li-1", qty: 1 }],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -335,27 +434,41 @@ describe("accept offer flow", () => {
   });
 
   it("400 when no offers match the reason/tag combination", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(mkShopWithOffers(JSON.stringify([
-      { reasonCode: "defective", offerType: "discount_pct", offerValue: 20, message: "20% off" },
-    ])));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      mkShopWithOffers(
+        JSON.stringify([
+          {
+            reasonCode: "defective",
+            offerType: "discount_pct",
+            offerValue: 20,
+            message: "20% off",
+          },
+        ]),
+      ),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const res = await action({
       request: jsonReq({
-        shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1",
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
         acceptOffer: true,
         items: [{ lineItemId: "li-1", qty: 1, reasonCode: "size" }], // doesn't match "defective"
         lineItemsWithPrice: [{ id: "li-1", productTags: [] }],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(400);
     expect((await res.json()).error).toMatch(/No matching offer/);
   });
 
   it("500 when Shopify discount-code creation fails", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(mkShopWithOffers(JSON.stringify([
-      { offerType: "discount_pct", offerValue: 15, message: "15% off" },
-    ])));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      mkShopWithOffers(
+        JSON.stringify([{ offerType: "discount_pct", offerValue: 15, message: "15% off" }]),
+      ),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     // Stub admin.graphql to return userErrors
     const graphql = vi.fn().mockResolvedValue({
@@ -371,19 +484,25 @@ describe("accept offer flow", () => {
 
     const res = await action({
       request: jsonReq({
-        shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1",
-        acceptOffer: true, items: [{ lineItemId: "li-1", qty: 1 }],
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+        acceptOffer: true,
+        items: [{ lineItemId: "li-1", qty: 1 }],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(500);
     expect((await res.json()).error).toMatch(/code already in use/);
   });
 
   it("success: generates discount code with matched offer", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(mkShopWithOffers(JSON.stringify([
-      { offerType: "discount_flat", offerValue: 10, message: "10 off" },
-    ])));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      mkShopWithOffers(
+        JSON.stringify([{ offerType: "discount_flat", offerValue: 10, message: "10 off" }]),
+      ),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     const graphql = vi.fn().mockResolvedValue({
       json: async () => ({
@@ -399,10 +518,14 @@ describe("accept offer flow", () => {
 
     const res = await action({
       request: jsonReq({
-        shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1",
-        acceptOffer: true, items: [{ lineItemId: "li-1", qty: 1 }],
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+        acceptOffer: true,
+        items: [{ lineItemId: "li-1", qty: 1 }],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
@@ -413,17 +536,23 @@ describe("accept offer flow", () => {
   });
 
   it("500 when Shopify GraphQL itself throws mid-flight", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce(mkShopWithOffers(JSON.stringify([
-      { offerType: "discount_pct", offerValue: 25, message: "25% off" },
-    ])));
+    prismaMock.shop.findUnique.mockResolvedValueOnce(
+      mkShopWithOffers(
+        JSON.stringify([{ offerType: "discount_pct", offerValue: 25, message: "25% off" }]),
+      ),
+    );
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
     shopifyModuleMock.unauthenticated.admin.mockRejectedValueOnce(new Error("shopify down"));
     const res = await action({
       request: jsonReq({
-        shop: "store", shopifyOrderName: "1001", orderId: "gid://shopify/Order/1",
-        acceptOffer: true, items: [{ lineItemId: "li-1", qty: 1 }],
+        shop: "store",
+        shopifyOrderName: "1001",
+        orderId: "gid://shopify/Order/1",
+        acceptOffer: true,
+        items: [{ lineItemId: "li-1", qty: 1 }],
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res.status).toBe(500);
   });

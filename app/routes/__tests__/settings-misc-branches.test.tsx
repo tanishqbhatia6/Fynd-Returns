@@ -213,8 +213,12 @@ describe("app.settings.api-keys — uncovered branches", () => {
     const copy = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Copy",
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(copy); });
-    await waitFor(() => { expect(writeText).toHaveBeenCalledWith("rpm_branchcov_key"); });
+    await act(async () => {
+      fireEvent.click(copy);
+    });
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith("rpm_branchcov_key");
+    });
   });
 });
 
@@ -352,7 +356,7 @@ describe("app.settings.setup — uncovered alert branches", () => {
     expect(container.textContent).toContain("Testing…");
   });
 
-  it("renders the debug logs panel including a log row WITHOUT detail (covers `e.detail ? ... : \"\"` false branch)", async () => {
+  it('renders the debug logs panel including a log row WITHOUT detail (covers `e.detail ? ... : ""` false branch)', async () => {
     loaderState.value = baseLoader;
     fetcherState.data = {
       debugLogs: [
@@ -390,9 +394,7 @@ describe("app.settings.permissions — uncovered branches", () => {
       loaderData: baseLoader,
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Permission settings saved successfully.",
-      );
+      expect(container.textContent).toContain("Permission settings saved successfully.");
     });
   });
 
@@ -416,9 +418,7 @@ describe("app.settings.permissions — uncovered branches", () => {
       loaderData: baseLoader,
     });
     await waitFor(() => {
-      expect(container.textContent).toContain(
-        "Failed to save permission settings.",
-      );
+      expect(container.textContent).toContain("Failed to save permission settings.");
     });
   });
 
@@ -436,10 +436,18 @@ describe("app.settings.permissions — uncovered branches", () => {
       expect(toggle).toBeTruthy();
     });
     expect(toggle!.checked).toBe(false);
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(true); });
-    await act(async () => { fireEvent.click(toggle!); });
-    await waitFor(() => { expect(toggle!.checked).toBe(false); });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(true);
+    });
+    await act(async () => {
+      fireEvent.click(toggle!);
+    });
+    await waitFor(() => {
+      expect(toggle!.checked).toBe(false);
+    });
   });
 
   it("renders submit button in loading state when fetcher.state !== 'idle'", async () => {

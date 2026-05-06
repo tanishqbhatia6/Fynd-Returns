@@ -53,12 +53,18 @@ export function AppPage({
       <header className="app-page-header">
         <div className="app-page-header__left">
           {backHref && (
-            <Link
-              to={backHref}
-              aria-label="Back"
-              className="app-page-back"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <Link to={backHref} aria-label="Back" className="app-page-back">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
                 <polyline points="15 18 9 12 15 6" />
               </svg>
             </Link>
@@ -73,9 +79,7 @@ export function AppPage({
         </div>
         {/* v8 ignore start */}
         {/* defensive: actions prop only passed by some pages */}
-        {actions && (
-          <div className="app-page-header__actions">{actions}</div>
-        )}
+        {actions && <div className="app-page-header__actions">{actions}</div>}
         {/* v8 ignore stop */}
       </header>
       {children}

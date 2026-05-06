@@ -166,7 +166,9 @@ describe("loader branches", () => {
     });
     prismaMock.returnCase.findMany.mockRejectedValueOnce(new Error("db down"));
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const req = new Request("https://app.example/app/returns?status=pending&resolutionType=refund&sourceChannel=pos&from=2026-01-01&to=2026-12-31");
+    const req = new Request(
+      "https://app.example/app/returns?status=pending&resolutionType=refund&sourceChannel=pos&from=2026-01-01&to=2026-12-31",
+    );
     const result = await loader({ request: req, params: {}, context: {} } as never);
     expect(result.error).toMatch(/Failed to load/i);
     expect(result.returns).toEqual([]);
@@ -181,7 +183,9 @@ describe("UI branches", () => {
       loaderData: baseLoaderData,
     });
     await waitFor(() => expect(container.querySelector("table.returns-table")).toBeTruthy());
-    const exportLink = container.querySelector('a[href*="/api/returns/export"]') as HTMLAnchorElement;
+    const exportLink = container.querySelector(
+      'a[href*="/api/returns/export"]',
+    ) as HTMLAnchorElement;
     expect(exportLink).toBeTruthy();
     expect(exportLink.href).toContain("range=last_30");
     expect(exportLink.href).toContain("from=2026-01-01");

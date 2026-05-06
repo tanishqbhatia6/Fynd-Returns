@@ -57,7 +57,12 @@ describe("bulk_approve — N>10 batched", () => {
   it("processes 15 pending returns in one shot (all success)", async () => {
     const ids = Array.from({ length: 15 }, (_, i) => `rc-${i}`);
     prismaMock.returnCase.findMany.mockResolvedValueOnce(
-      ids.map((id) => ({ id, status: "pending", customerEmailNorm: null, shopifyOrderName: `#${id}` })),
+      ids.map((id) => ({
+        id,
+        status: "pending",
+        customerEmailNorm: null,
+        shopifyOrderName: `#${id}`,
+      })),
     );
     prismaMock.returnCase.updateMany.mockResolvedValue({ count: 1 });
 
@@ -72,10 +77,16 @@ describe("bulk_approve — N>10 batched", () => {
 
   it("mixes 12 pending + 3 already-approved → 12 successes, 3 terminal errors", async () => {
     const pending = Array.from({ length: 12 }, (_, i) => ({
-      id: `rc-p${i}`, status: "pending", customerEmailNorm: null, shopifyOrderName: "#1",
+      id: `rc-p${i}`,
+      status: "pending",
+      customerEmailNorm: null,
+      shopifyOrderName: "#1",
     }));
     const terminal = Array.from({ length: 3 }, (_, i) => ({
-      id: `rc-a${i}`, status: "approved", customerEmailNorm: null, shopifyOrderName: "#1",
+      id: `rc-a${i}`,
+      status: "approved",
+      customerEmailNorm: null,
+      shopifyOrderName: "#1",
     }));
     prismaMock.returnCase.findMany.mockResolvedValueOnce([...pending, ...terminal]);
     prismaMock.returnCase.updateMany.mockResolvedValue({ count: 1 });
@@ -85,12 +96,17 @@ describe("bulk_approve — N>10 batched", () => {
 
     expect(body.successCount).toBe(12);
     expect(body.errorCount).toBe(3);
-    expect(body.results.filter((r: { error?: string }) => r.error?.includes("already approved"))).toHaveLength(3);
+    expect(
+      body.results.filter((r: { error?: string }) => r.error?.includes("already approved")),
+    ).toHaveLength(3);
   });
 
   it("fans out approval emails for all 11 customers with email addresses", async () => {
     const cases = Array.from({ length: 11 }, (_, i) => ({
-      id: `rc-${i}`, status: "pending", customerEmailNorm: `u${i}@x.com`, shopifyOrderName: `#${1000 + i}`,
+      id: `rc-${i}`,
+      status: "pending",
+      customerEmailNorm: `u${i}@x.com`,
+      shopifyOrderName: `#${1000 + i}`,
     }));
     prismaMock.returnCase.findMany.mockResolvedValueOnce(cases);
     prismaMock.returnCase.updateMany.mockResolvedValue({ count: 1 });
@@ -109,7 +125,9 @@ describe("bulk_approve — N>10 batched", () => {
     const body = await (await call({ action: "bulk_approve", returnIds: ids })).json();
     // count=0 still counts as success per route, with "Already approved" hint.
     expect(body.successCount).toBe(13);
-    expect(body.results.every((r: { error?: string }) => r.error === "Already approved")).toBe(true);
+    expect(body.results.every((r: { error?: string }) => r.error === "Already approved")).toBe(
+      true,
+    );
     // No event row when no actual update happened.
     expect(prismaMock.returnEvent.create).not.toHaveBeenCalled();
   });
@@ -129,7 +147,9 @@ describe("bulk_approve — N>10 batched", () => {
     const body = await (await call({ action: "bulk_approve", returnIds: ids })).json();
     expect(body.errorCount).toBe(1);
     expect(body.successCount).toBe(11);
-    const failed = body.results.find((r: { error?: string }) => r.error?.includes("simulated-deadlock"));
+    const failed = body.results.find((r: { error?: string }) =>
+      r.error?.includes("simulated-deadlock"),
+    );
     expect(failed).toBeDefined();
   });
 
@@ -137,15 +157,24 @@ describe("bulk_approve — N>10 batched", () => {
     const found = Array.from({ length: 10 }, (_, i) => `rc-found-${i}`);
     const missing = Array.from({ length: 5 }, (_, i) => `rc-miss-${i}`);
     prismaMock.returnCase.findMany.mockResolvedValueOnce(
-      found.map((id) => ({ id, status: "pending", customerEmailNorm: null, shopifyOrderName: "#1" })),
+      found.map((id) => ({
+        id,
+        status: "pending",
+        customerEmailNorm: null,
+        shopifyOrderName: "#1",
+      })),
     );
     prismaMock.returnCase.updateMany.mockResolvedValue({ count: 1 });
 
-    const body = await (await call({ action: "bulk_approve", returnIds: [...found, ...missing] })).json();
+    const body = await (
+      await call({ action: "bulk_approve", returnIds: [...found, ...missing] })
+    ).json();
     expect(body.results).toHaveLength(15);
     expect(body.successCount).toBe(10);
     expect(body.errorCount).toBe(5);
-    const missingErrors = body.results.filter((r: { error?: string }) => r.error?.includes("not found"));
+    const missingErrors = body.results.filter((r: { error?: string }) =>
+      r.error?.includes("not found"),
+    );
     expect(missingErrors).toHaveLength(5);
   });
 
@@ -191,7 +220,9 @@ describe("bulk_reject — N>10 batched", () => {
     );
 
     const reason = "duplicate-order";
-    const body = await (await call({ action: "bulk_reject", returnIds: ids, rejectionReason: reason })).json();
+    const body = await (
+      await call({ action: "bulk_reject", returnIds: ids, rejectionReason: reason })
+    ).json();
     expect(body.successCount).toBe(14);
     expect(prismaMock.returnEvent.create).toHaveBeenCalledTimes(14);
     for (const [arg] of prismaMock.returnEvent.create.mock.calls) {
@@ -214,7 +245,10 @@ describe("bulk_reject — N>10 batched", () => {
 
   it("skips the 4 terminal rows, rejects the 8 pending ones (12 total)", async () => {
     const pending = Array.from({ length: 8 }, (_, i) => ({
-      id: `rc-p${i}`, status: "pending", customerEmailNorm: null, shopifyOrderName: "#1",
+      id: `rc-p${i}`,
+      status: "pending",
+      customerEmailNorm: null,
+      shopifyOrderName: "#1",
     }));
     const terminals = [
       { id: "rc-app", status: "approved", customerEmailNorm: null, shopifyOrderName: "#1" },
@@ -225,7 +259,9 @@ describe("bulk_reject — N>10 batched", () => {
     prismaMock.returnCase.findMany.mockResolvedValueOnce([...pending, ...terminals]);
 
     const ids = [...pending, ...terminals].map((r) => r.id);
-    const body = await (await call({ action: "bulk_reject", returnIds: ids, rejectionReason: "x" })).json();
+    const body = await (
+      await call({ action: "bulk_reject", returnIds: ids, rejectionReason: "x" })
+    ).json();
     expect(body.successCount).toBe(8);
     expect(body.errorCount).toBe(4);
     expect(prismaMock.returnCase.update).toHaveBeenCalledTimes(8);
@@ -239,19 +275,32 @@ describe("bulk_reject — N>10 batched", () => {
       shopifyOrderName: "#1",
     }));
     prismaMock.returnCase.findMany.mockResolvedValueOnce(cases);
-    await call({ action: "bulk_reject", returnIds: cases.map((c) => c.id), rejectionReason: "dup" });
+    await call({
+      action: "bulk_reject",
+      returnIds: cases.map((c) => c.id),
+      rejectionReason: "dup",
+    });
     // 6 even-indexed rows have an email.
     expect(sendRejectionMock).toHaveBeenCalledTimes(6);
   });
 
   it("notification failure on one row does not break the per-row success", async () => {
     const cases = Array.from({ length: 11 }, (_, i) => ({
-      id: `rc-${i}`, status: "pending", customerEmailNorm: `u${i}@x.com`, shopifyOrderName: "#1",
+      id: `rc-${i}`,
+      status: "pending",
+      customerEmailNorm: `u${i}@x.com`,
+      shopifyOrderName: "#1",
     }));
     prismaMock.returnCase.findMany.mockResolvedValueOnce(cases);
     sendRejectionMock.mockRejectedValueOnce(new Error("smtp-fail"));
 
-    const body = await (await call({ action: "bulk_reject", returnIds: cases.map((c) => c.id), rejectionReason: "dup" })).json();
+    const body = await (
+      await call({
+        action: "bulk_reject",
+        returnIds: cases.map((c) => c.id),
+        rejectionReason: "dup",
+      })
+    ).json();
     expect(body.successCount).toBe(11);
     expect(body.errorCount).toBe(0);
   });
@@ -265,17 +314,21 @@ describe("bulk_change_resolution — N>10 batched", () => {
   it("changes resolution on 13 mixed-status rows (skipping 2 rejected/cancelled)", async () => {
     const cases = [
       ...Array.from({ length: 13 }, (_, i) => ({
-        id: `rc-ok${i}`, status: i % 2 === 0 ? "pending" : "approved", resolutionType: "refund",
+        id: `rc-ok${i}`,
+        status: i % 2 === 0 ? "pending" : "approved",
+        resolutionType: "refund",
       })),
       { id: "rc-skip-rej", status: "rejected", resolutionType: "refund" },
       { id: "rc-skip-can", status: "cancelled", resolutionType: "refund" },
     ];
     prismaMock.returnCase.findMany.mockResolvedValueOnce(cases);
-    const body = await (await call({
-      action: "bulk_change_resolution",
-      returnIds: cases.map((c) => c.id),
-      resolutionType: "exchange",
-    })).json();
+    const body = await (
+      await call({
+        action: "bulk_change_resolution",
+        returnIds: cases.map((c) => c.id),
+        resolutionType: "exchange",
+      })
+    ).json();
 
     expect(body.successCount).toBe(13);
     expect(body.errorCount).toBe(2);
@@ -306,7 +359,9 @@ describe("bulk_change_resolution — N>10 batched", () => {
 
   it("isolates per-row DB failures across an 11-batch", async () => {
     const cases = Array.from({ length: 11 }, (_, i) => ({
-      id: `rc-${i}`, status: "pending", resolutionType: "refund",
+      id: `rc-${i}`,
+      status: "pending",
+      resolutionType: "refund",
     }));
     prismaMock.returnCase.findMany.mockResolvedValueOnce(cases);
     let nth = 0;
@@ -316,43 +371,58 @@ describe("bulk_change_resolution — N>10 batched", () => {
       return { ...where, ...data };
     });
 
-    const body = await (await call({
-      action: "bulk_change_resolution",
-      returnIds: cases.map((c) => c.id),
-      resolutionType: "exchange",
-    })).json();
+    const body = await (
+      await call({
+        action: "bulk_change_resolution",
+        returnIds: cases.map((c) => c.id),
+        resolutionType: "exchange",
+      })
+    ).json();
 
     expect(body.successCount).toBe(9);
     expect(body.errorCount).toBe(2);
     const failures = body.results.filter((r: { success: boolean }) => !r.success);
     expect(failures.map((f: { error?: string }) => f.error)).toEqual(
-      expect.arrayContaining([expect.stringMatching(/db-fail-3/), expect.stringMatching(/db-fail-7/)]),
+      expect.arrayContaining([
+        expect.stringMatching(/db-fail-3/),
+        expect.stringMatching(/db-fail-7/),
+      ]),
     );
   });
 
   it("rejects unknown resolutionType (validation guard) before any DB call", async () => {
     const ids = Array.from({ length: 11 }, (_, i) => `rc-${i}`);
-    const res = await call({ action: "bulk_change_resolution", returnIds: ids, resolutionType: "gift_card" });
+    const res = await call({
+      action: "bulk_change_resolution",
+      returnIds: ids,
+      resolutionType: "gift_card",
+    });
     expect(res.status).toBe(400);
     expect(prismaMock.returnCase.findMany).not.toHaveBeenCalled();
   });
 
   it("appends not-found entries for ids that don't belong to the shop (10 found + 4 missing)", async () => {
     const found = Array.from({ length: 10 }, (_, i) => ({
-      id: `rc-${i}`, status: "pending", resolutionType: "refund",
+      id: `rc-${i}`,
+      status: "pending",
+      resolutionType: "refund",
     }));
     const missing = ["rc-x1", "rc-x2", "rc-x3", "rc-x4"];
     prismaMock.returnCase.findMany.mockResolvedValueOnce(found);
 
-    const body = await (await call({
-      action: "bulk_change_resolution",
-      returnIds: [...found.map((f) => f.id), ...missing],
-      resolutionType: "exchange",
-    })).json();
+    const body = await (
+      await call({
+        action: "bulk_change_resolution",
+        returnIds: [...found.map((f) => f.id), ...missing],
+        resolutionType: "exchange",
+      })
+    ).json();
 
     expect(body.results).toHaveLength(14);
     expect(body.successCount).toBe(10);
     expect(body.errorCount).toBe(4);
-    expect(body.results.filter((r: { error?: string }) => r.error?.includes("not found"))).toHaveLength(4);
+    expect(
+      body.results.filter((r: { error?: string }) => r.error?.includes("not found")),
+    ).toHaveLength(4);
   });
 });

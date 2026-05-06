@@ -48,9 +48,16 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
   // Identify missing fields
   const fyndFields = [
-    "sku", "fyndShipmentId", "fyndBagId", "fyndArticleId",
-    "fyndAffiliateLineId", "fyndSellerIdentifier", "fyndItemId",
-    "fyndQuantityAvailable", "fyndPriceEffective", "fyndSize",
+    "sku",
+    "fyndShipmentId",
+    "fyndBagId",
+    "fyndArticleId",
+    "fyndAffiliateLineId",
+    "fyndSellerIdentifier",
+    "fyndItemId",
+    "fyndQuantityAvailable",
+    "fyndPriceEffective",
+    "fyndSize",
   ] as const;
 
   const missingFields: string[] = [];
@@ -81,8 +88,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
             searchType: "external_order_id",
             pageSize: 50,
           });
-          const rawItems = (searchRes as Record<string, unknown>)?.items ??
-            (searchRes as Record<string, unknown>)?.shipments ?? [];
+          const rawItems =
+            (searchRes as Record<string, unknown>)?.items ??
+            (searchRes as Record<string, unknown>)?.shipments ??
+            [];
           const shipments = Array.isArray(rawItems) ? rawItems : [];
 
           // Extract relevant bag data from each shipment
@@ -93,10 +102,17 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
               shipment_id: s.shipment_id ?? s.id,
               status: s.status ?? s.shipment_status,
               bags: bags.map((bag) => {
-                const articles = Array.isArray(bag.articles) ? bag.articles
-                  : Array.isArray(bag.items) ? bag.items
-                  : bag.item ? [bag.item] : [];
-                const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<string, unknown>;
+                const articles = Array.isArray(bag.articles)
+                  ? bag.articles
+                  : Array.isArray(bag.items)
+                    ? bag.items
+                    : bag.item
+                      ? [bag.item]
+                      : [];
+                const affiliateBagDetails = (bag.affiliate_bag_details ?? {}) as Record<
+                  string,
+                  unknown
+                >;
                 return {
                   bag_id: bag.bag_id ?? bag.id,
                   quantity: bag.quantity,
@@ -105,7 +121,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
                   },
                   articles: (articles as Record<string, unknown>[]).map((article) => {
                     const itemObj = (article.item ?? article) as Record<string, unknown>;
-                    const priceInfo = (bag.prices ?? bag.price_info ?? article.price_info ?? {}) as Record<string, unknown>;
+                    const priceInfo = (bag.prices ??
+                      bag.price_info ??
+                      article.price_info ??
+                      {}) as Record<string, unknown>;
                     return {
                       seller_identifier: article.seller_identifier,
                       article_id: article.article_id ?? article._id,
@@ -130,26 +149,29 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }
   }
 
-  return Response.json({
-    returnCase: {
-      id: returnCase.id,
-      returnRequestNo: returnCase.returnRequestNo,
-      shopifyOrderName: returnCase.shopifyOrderName,
-      shopifyOrderId: returnCase.shopifyOrderId,
-      fyndOrderId: returnCase.fyndOrderId,
-      fyndShipmentId: returnCase.fyndShipmentId,
-      fyndReturnId: returnCase.fyndReturnId,
-      fyndReturnNo: returnCase.fyndReturnNo,
-      status: returnCase.status,
-      createdByChannel: returnCase.createdByChannel,
-      createdAt: returnCase.createdAt,
+  return Response.json(
+    {
+      returnCase: {
+        id: returnCase.id,
+        returnRequestNo: returnCase.returnRequestNo,
+        shopifyOrderName: returnCase.shopifyOrderName,
+        shopifyOrderId: returnCase.shopifyOrderId,
+        fyndOrderId: returnCase.fyndOrderId,
+        fyndShipmentId: returnCase.fyndShipmentId,
+        fyndReturnId: returnCase.fyndReturnId,
+        fyndReturnNo: returnCase.fyndReturnNo,
+        status: returnCase.status,
+        createdByChannel: returnCase.createdByChannel,
+        createdAt: returnCase.createdAt,
+      },
+      items,
+      missingFields,
+      missingFieldCount: missingFields.length,
+      liveFyndData,
+      liveFyndError,
     },
-    items,
-    missingFields,
-    missingFieldCount: missingFields.length,
-    liveFyndData,
-    liveFyndError,
-  }, {
-    headers: { "Content-Type": "application/json" },
-  });
+    {
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }

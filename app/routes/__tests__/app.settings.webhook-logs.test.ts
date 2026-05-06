@@ -77,7 +77,8 @@ describe("loader", () => {
     prismaMock.fyndWebhookLog.findMany.mockResolvedValueOnce([]);
     await loader({
       request: mkReq("dateFrom=2025-01-01&dateTo=2025-01-31"),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     const arg = prismaMock.fyndWebhookLog.count.mock.calls[0][0];
     expect(arg.where.createdAt.gte).toBeInstanceOf(Date);

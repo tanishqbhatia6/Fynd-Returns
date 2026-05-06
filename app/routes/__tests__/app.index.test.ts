@@ -7,17 +7,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const {
-  prismaMock,
-  authenticateMock,
-  runFyndRetryQueueMock,
-  pollStaleReturnsMock,
-} = vi.hoisted(() => ({
-  prismaMock: {} as ReturnType<typeof createPrismaMock>,
-  authenticateMock: vi.fn(),
-  runFyndRetryQueueMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-  pollStaleReturnsMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
-}));
+const { prismaMock, authenticateMock, runFyndRetryQueueMock, pollStaleReturnsMock } = vi.hoisted(
+  () => ({
+    prismaMock: {} as ReturnType<typeof createPrismaMock>,
+    authenticateMock: vi.fn(),
+    runFyndRetryQueueMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+    pollStaleReturnsMock: vi.fn<(...args: unknown[]) => Promise<undefined>>(async () => undefined),
+  }),
+);
 Object.assign(prismaMock, createPrismaMock());
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
@@ -206,9 +203,7 @@ describe("app._index loader", () => {
       .mockResolvedValueOnce(1) // fyndSyncedCount
       .mockResolvedValueOnce(0) // pendingCount
       .mockResolvedValueOnce(0); // rejectedCount
-    prismaMock.returnCase.groupBy.mockResolvedValueOnce([
-      { status: "approved", _count: 3 },
-    ]);
+    prismaMock.returnCase.groupBy.mockResolvedValueOnce([{ status: "approved", _count: 3 }]);
 
     const data = await loader({
       request: mkReq("/app"),
@@ -240,16 +235,22 @@ describe("app._index loader", () => {
     // returnsForDaily, approvedWithEvents, retainedCases, refundedForAmount,
     // fraudAlertReturns are all findMany calls. Override the call that
     // matches retainedCases with non-empty refundJson.
-    prismaMock.returnCase.findMany.mockImplementation(async (args: { where?: { resolutionType?: { in?: string[] } }; select?: { refundJson?: boolean } } | undefined) => {
-      if (args?.where?.resolutionType?.in?.includes("exchange")) {
-        return [
-          { refundJson: JSON.stringify({ amount: "100.00" }) },
-          { refundJson: JSON.stringify({ amount: "50.50" }) },
-          { refundJson: "not json {{" }, // gracefully skipped
-        ];
-      }
-      return [];
-    });
+    prismaMock.returnCase.findMany.mockImplementation(
+      async (
+        args:
+          | { where?: { resolutionType?: { in?: string[] } }; select?: { refundJson?: boolean } }
+          | undefined,
+      ) => {
+        if (args?.where?.resolutionType?.in?.includes("exchange")) {
+          return [
+            { refundJson: JSON.stringify({ amount: "100.00" }) },
+            { refundJson: JSON.stringify({ amount: "50.50" }) },
+            { refundJson: "not json {{" }, // gracefully skipped
+          ];
+        }
+        return [];
+      },
+    );
 
     const data = await loader({
       request: mkReq("/app"),
@@ -283,17 +284,19 @@ describe("app._index loader", () => {
 
   it("computes avgRefundAmount only over rows with positive amount", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(mkShop());
-    prismaMock.returnCase.findMany.mockImplementation(async (args: { where?: { refundStatus?: string } } | undefined) => {
-      if (args?.where?.refundStatus === "refunded") {
-        return [
-          { refundJson: JSON.stringify({ amount: "60" }) },
-          { refundJson: JSON.stringify({ amount: "40" }) },
-          { refundJson: JSON.stringify({ amount: "0" }) }, // excluded (not >0)
-          { refundJson: JSON.stringify({}) }, // excluded (no amount)
-        ];
-      }
-      return [];
-    });
+    prismaMock.returnCase.findMany.mockImplementation(
+      async (args: { where?: { refundStatus?: string } } | undefined) => {
+        if (args?.where?.refundStatus === "refunded") {
+          return [
+            { refundJson: JSON.stringify({ amount: "60" }) },
+            { refundJson: JSON.stringify({ amount: "40" }) },
+            { refundJson: JSON.stringify({ amount: "0" }) }, // excluded (not >0)
+            { refundJson: JSON.stringify({}) }, // excluded (no amount)
+          ];
+        }
+        return [];
+      },
+    );
 
     const data = await loader({
       request: mkReq("/app"),
@@ -357,18 +360,22 @@ describe("app._index loader", () => {
         shopifyOrderName: "#1001",
       },
     ];
-    prismaMock.returnCase.findMany.mockImplementation(async (args: { where?: { fraudRiskLevel?: { in?: string[] } } } | undefined) => {
-      if (args?.where?.fraudRiskLevel?.in?.includes("critical")) {
-        return fraudReturns;
-      }
-      return [];
-    });
-    prismaMock.returnCase.count.mockImplementation(async (args: { where?: { fraudRiskLevel?: { in?: string[] } } } | undefined) => {
-      if (args?.where?.fraudRiskLevel?.in?.includes("critical")) {
-        return 1;
-      }
-      return 0;
-    });
+    prismaMock.returnCase.findMany.mockImplementation(
+      async (args: { where?: { fraudRiskLevel?: { in?: string[] } } } | undefined) => {
+        if (args?.where?.fraudRiskLevel?.in?.includes("critical")) {
+          return fraudReturns;
+        }
+        return [];
+      },
+    );
+    prismaMock.returnCase.count.mockImplementation(
+      async (args: { where?: { fraudRiskLevel?: { in?: string[] } } } | undefined) => {
+        if (args?.where?.fraudRiskLevel?.in?.includes("critical")) {
+          return 1;
+        }
+        return 0;
+      },
+    );
 
     const data = await loader({
       request: mkReq("/app"),
@@ -382,12 +389,14 @@ describe("app._index loader", () => {
 
   it("gracefully degrades to defaults when fraud columns are missing (catch path)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(mkShop());
-    prismaMock.returnCase.findMany.mockImplementation(async (args: { where?: { fraudRiskLevel?: { in?: string[] } } } | undefined) => {
-      if (args?.where?.fraudRiskLevel?.in?.includes("critical")) {
-        throw new Error("column rc.fraudRiskLevel does not exist");
-      }
-      return [];
-    });
+    prismaMock.returnCase.findMany.mockImplementation(
+      async (args: { where?: { fraudRiskLevel?: { in?: string[] } } } | undefined) => {
+        if (args?.where?.fraudRiskLevel?.in?.includes("critical")) {
+          throw new Error("column rc.fraudRiskLevel does not exist");
+        }
+        return [];
+      },
+    );
 
     const data = await loader({
       request: mkReq("/app"),

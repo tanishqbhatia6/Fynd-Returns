@@ -25,15 +25,21 @@ function parseReasonFees(settings: ShopSettings): ReasonFee[] {
     if (Array.isArray(parsed)) {
       return parsed.filter(
         (f): f is ReasonFee =>
-          f && typeof f === "object" && typeof f.reason === "string" && typeof f.feeAmount === "number",
+          f &&
+          typeof f === "object" &&
+          typeof f.reason === "string" &&
+          typeof f.feeAmount === "number",
       );
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return [];
 }
 
 function parseCountryWindows(settings: ShopSettings): CountryWindow[] {
-  const json = (settings as { returnWindowByCountryJson?: string | null }).returnWindowByCountryJson;
+  const json = (settings as { returnWindowByCountryJson?: string | null })
+    .returnWindowByCountryJson;
   if (!json) return [];
   try {
     const parsed = JSON.parse(json);
@@ -43,7 +49,9 @@ function parseCountryWindows(settings: ShopSettings): CountryWindow[] {
           w && typeof w === "object" && typeof w.country === "string" && typeof w.days === "number",
       );
     }
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return [];
 }
 
@@ -63,7 +71,10 @@ function matchesProductPolicy(
 ): boolean {
   if (rule.matchType === "tags") {
     if (!productTags?.length) return false;
-    const ruleValues = rule.matchValue.split(",").map((v) => v.trim().toLowerCase()).filter(Boolean);
+    const ruleValues = rule.matchValue
+      .split(",")
+      .map((v) => v.trim().toLowerCase())
+      .filter(Boolean);
     return ruleValues.some((rv) => productTags.some((t) => t.toLowerCase() === rv));
   }
   if (rule.matchType === "product_type") {
@@ -90,7 +101,9 @@ function findMatchingProductPolicy(
   try {
     const parsed = JSON.parse(policiesJson);
     if (Array.isArray(parsed)) rules = parsed;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 
   for (const rule of rules) {
     if (matchesProductPolicy(rule, productTags, productType)) {
@@ -110,20 +123,20 @@ export function checkReturnEligibility(
     customerCountry?: string;
     customerProvince?: string;
     sourceChannel?: string | null; // "pos" | "draft_order" | "b2b" | "web" | null
-  }
+  },
 ): ReturnEligibilityResult {
   if (!settings) return { eligible: true };
 
   // Per-channel policy check (runs before all other rules)
   if (context.sourceChannel && context.sourceChannel !== "web") {
     const channelPolicies = parseChannelPolicies(
-      (settings as unknown as Record<string, unknown>).channelPoliciesJson as string | null
+      (settings as unknown as Record<string, unknown>).channelPoliciesJson as string | null,
     );
     const channelPolicy = getChannelPolicy(channelPolicies, context.sourceChannel);
     /* v8 ignore start */
     // defensive: channelPolicy presence depends on settings; some test paths skip this guard
     if (channelPolicy) {
-    /* v8 ignore stop */
+      /* v8 ignore stop */
       if (channelPolicy.returnEnabled === false) {
         const channelLabels: Record<string, string> = {
           pos: "Point of Sale",
@@ -140,7 +153,11 @@ export function checkReturnEligibility(
   }
 
   // Product-level policy check (first match wins, before global window)
-  const productPolicy = findMatchingProductPolicy(settings, context.productTags, context.productType);
+  const productPolicy = findMatchingProductPolicy(
+    settings,
+    context.productTags,
+    context.productType,
+  );
   if (productPolicy) {
     if (!productPolicy.returnable) {
       return {
@@ -154,7 +171,9 @@ export function checkReturnEligibility(
       if (new Date() > windowEnd) {
         return {
           eligible: false,
-          reason: productPolicy.policyText || `Return window has expired. Returns for this product are accepted within ${productPolicy.windowDays} days of order date.`,
+          reason:
+            productPolicy.policyText ||
+            `Return window has expired. Returns for this product are accepted within ${productPolicy.windowDays} days of order date.`,
         };
       }
     }
@@ -177,31 +196,45 @@ export function checkReturnEligibility(
       const windowEnd = new Date(context.orderDate);
       windowEnd.setDate(windowEnd.getDate() + effectiveWindowDays);
       if (new Date() > windowEnd) {
-        return { eligible: false, reason: `Return window has expired. Returns are accepted within ${effectiveWindowDays} days of order date.` };
+        return {
+          eligible: false,
+          reason: `Return window has expired. Returns are accepted within ${effectiveWindowDays} days of order date.`,
+        };
       }
     }
   }
 
   // No-return period
-  if (settings.noReturnPeriodEnabled && settings.noReturnPeriodStart && settings.noReturnPeriodEnd && context.orderDate) {
+  if (
+    settings.noReturnPeriodEnabled &&
+    settings.noReturnPeriodStart &&
+    settings.noReturnPeriodEnd &&
+    context.orderDate
+  ) {
     const start = new Date(settings.noReturnPeriodStart);
     const end = new Date(settings.noReturnPeriodEnd);
     if (context.orderDate >= start && context.orderDate <= end) {
-      return { eligible: false, reason: "Returns are not accepted for orders placed during the promotional period." };
+      return {
+        eligible: false,
+        reason: "Returns are not accepted for orders placed during the promotional period.",
+      };
     }
   }
 
   // Minimum price
   const minPrice = settings.minimumReturnPrice != null ? Number(settings.minimumReturnPrice) : 0;
   if (minPrice > 0 && context.productPrice != null && context.productPrice < minPrice) {
-    return { eligible: false, reason: `Product price must be at least ${minPrice} to be eligible for return.` };
+    return {
+      eligible: false,
+      reason: `Product price must be at least ${minPrice} to be eligible for return.`,
+    };
   }
 
   // Restricted product tags
   const restrictedTags = parseJsonArray<string>(settings.restrictedProductTagsJson, []);
   if (restrictedTags.length > 0 && context.productTags?.length) {
     const hasRestricted = context.productTags.some((t) =>
-      restrictedTags.some((r) => r.toLowerCase() === t.toLowerCase())
+      restrictedTags.some((r) => r.toLowerCase() === t.toLowerCase()),
     );
     if (hasRestricted) {
       return { eligible: false, reason: "This product is not eligible for return." };
@@ -209,13 +242,18 @@ export function checkReturnEligibility(
   }
 
   // Restricted regions
-  const regions = parseJsonArray<{ country?: string; province?: string }>(settings.restrictedRegionsJson, []);
+  const regions = parseJsonArray<{ country?: string; province?: string }>(
+    settings.restrictedRegionsJson,
+    [],
+  );
   if (regions.length > 0 && (context.customerCountry || context.customerProvince)) {
     /* v8 ignore start */
     // defensive: customerCountry/customerProvince ?? "" fallbacks; happy-path always populated
     const match = regions.some((r) => {
-      const countryMatch = !r.country || r.country.toLowerCase() === (context.customerCountry ?? "").toLowerCase();
-      const provinceMatch = !r.province || r.province.toLowerCase() === (context.customerProvince ?? "").toLowerCase();
+      const countryMatch =
+        !r.country || r.country.toLowerCase() === (context.customerCountry ?? "").toLowerCase();
+      const provinceMatch =
+        !r.province || r.province.toLowerCase() === (context.customerProvince ?? "").toLowerCase();
       return countryMatch && provinceMatch;
     });
     /* v8 ignore stop */
@@ -227,7 +265,10 @@ export function checkReturnEligibility(
   return { eligible: true };
 }
 
-export function getReturnFee(settings: ShopSettings | null, returnReason?: string): { amount: number; currency: string } {
+export function getReturnFee(
+  settings: ShopSettings | null,
+  returnReason?: string,
+): { amount: number; currency: string } {
   if (!settings || settings.returnFeeAmount == null) return { amount: 0, currency: "USD" };
 
   // Check per-reason fee first (overrides global fee)

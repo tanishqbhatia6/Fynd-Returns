@@ -45,16 +45,36 @@ beforeEach(() => {
 describe("loader", () => {
   it("returns empty keys when shop not found", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data).toEqual({ keys: [] });
   });
 
   it("returns keys list scoped by shopId", async () => {
-    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", shopDomain: "store.myshopify.com" });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+    });
     prismaMock.apiKey.findMany.mockResolvedValueOnce([
-      { id: "k-1", name: "CI key", keyPrefix: "rpm_x", permissions: '["read_returns"]', isActive: true, lastUsedAt: null, revokedAt: null, createdAt: new Date() },
+      {
+        id: "k-1",
+        name: "CI key",
+        keyPrefix: "rpm_x",
+        permissions: '["read_returns"]',
+        isActive: true,
+        lastUsedAt: null,
+        revokedAt: null,
+        createdAt: new Date(),
+      },
     ]);
-    const data = await loader({ request: new Request("https://x"), params: {}, context: {} } as never);
+    const data = await loader({
+      request: new Request("https://x"),
+      params: {},
+      context: {},
+    } as never);
     expect(data.keys).toHaveLength(1);
     expect(prismaMock.apiKey.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -67,7 +87,11 @@ describe("loader", () => {
 describe("action: generate", () => {
   it("rejects missing name", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    const res = await action({ request: formReq({ _action: "generate" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ _action: "generate" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Key name is required" });
   });
 
@@ -75,7 +99,8 @@ describe("action: generate", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ _action: "generate", name: "x".repeat(150) }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ error: "Key name must be 100 characters or less" });
   });
@@ -84,7 +109,8 @@ describe("action: generate", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ _action: "generate", name: "valid" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ error: "Select at least one permission" });
   });
@@ -98,30 +124,39 @@ describe("action: generate", () => {
         perm_read_returns: "on",
         perm_write_returns: "on",
       }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toMatchObject({
       generatedKey: "rpm_secret_FULLKEY",
       keyName: "CI key",
     });
-    expect(prismaMock.apiKey.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        shopId: "shop-1",
-        name: "CI key",
-        keyPrefix: "rpm_secret",
-        permissions: expect.stringContaining("read_returns"),
+    expect(prismaMock.apiKey.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          shopId: "shop-1",
+          name: "CI key",
+          keyPrefix: "rpm_secret",
+          permissions: expect.stringContaining("read_returns"),
+        }),
       }),
-    }));
+    );
     // permissions stored as JSON array of selected ones only
     const { data } = prismaMock.apiKey.create.mock.calls[0][0];
-    expect(JSON.parse(data.permissions)).toEqual(expect.arrayContaining(["read_returns", "write_returns"]));
+    expect(JSON.parse(data.permissions)).toEqual(
+      expect.arrayContaining(["read_returns", "write_returns"]),
+    );
   });
 });
 
 describe("action: revoke", () => {
   it("rejects missing keyId", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    const res = await action({ request: formReq({ _action: "revoke" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ _action: "revoke" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Key ID required" });
   });
 
@@ -129,7 +164,8 @@ describe("action: revoke", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ _action: "revoke", keyId: "k-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: "API key revoked" });
     const updateArg = prismaMock.apiKey.update.mock.calls[0][0];
@@ -141,7 +177,11 @@ describe("action: revoke", () => {
 describe("action: delete", () => {
   it("rejects missing keyId", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    const res = await action({ request: formReq({ _action: "delete" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ _action: "delete" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Key ID required" });
   });
 
@@ -149,7 +189,8 @@ describe("action: delete", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     const res = await action({
       request: formReq({ _action: "delete", keyId: "k-1" }),
-      params: {}, context: {},
+      params: {},
+      context: {},
     } as never);
     expect(res).toEqual({ success: "API key deleted" });
     expect(prismaMock.apiKey.delete).toHaveBeenCalledWith({ where: { id: "k-1" } });
@@ -159,13 +200,21 @@ describe("action: delete", () => {
 describe("action: shop-not-found / unknown action", () => {
   it("returns error when shop missing", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
-    const res = await action({ request: formReq({ _action: "generate" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ _action: "generate" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Shop not found" });
   });
 
   it("rejects unknown _action", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
-    const res = await action({ request: formReq({ _action: "garbage" }), params: {}, context: {} } as never);
+    const res = await action({
+      request: formReq({ _action: "garbage" }),
+      params: {},
+      context: {},
+    } as never);
     expect(res).toEqual({ error: "Unknown action" });
   });
 });

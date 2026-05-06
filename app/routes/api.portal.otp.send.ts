@@ -35,15 +35,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     const session = await prisma.lookupSession.findUnique({ where: { id: sessionId } });
     if (!session || session.expiresAt < new Date()) {
-      return withCors(Response.json({ error: "Invalid or expired session" }, { status: 400 }), request);
+      return withCors(
+        Response.json({ error: "Invalid or expired session" }, { status: 400 }),
+        request,
+      );
     }
     if (session.attemptsCount >= MAX_OTP_ATTEMPTS) {
-      return withCors(Response.json({ error: "Too many OTP attempts. Please start over." }, { status: 429 }), request);
+      return withCors(
+        Response.json({ error: "Too many OTP attempts. Please start over." }, { status: 429 }),
+        request,
+      );
     }
 
     if (session.otpSentAt && Date.now() - session.otpSentAt.getTime() < OTP_COOLDOWN_MS) {
-      const waitSec = Math.ceil((OTP_COOLDOWN_MS - (Date.now() - session.otpSentAt.getTime())) / 1000);
-      return withCors(Response.json({ error: `Please wait ${waitSec}s before requesting another OTP` }, { status: 429 }), request);
+      const waitSec = Math.ceil(
+        (OTP_COOLDOWN_MS - (Date.now() - session.otpSentAt.getTime())) / 1000,
+      );
+      return withCors(
+        Response.json(
+          { error: `Please wait ${waitSec}s before requesting another OTP` },
+          { status: 429 },
+        ),
+        request,
+      );
     }
 
     const otp = String(crypto.randomInt(100000, 1000000));
@@ -61,7 +75,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const target = session.lookupValueNorm;
     if (target && target.includes("@")) {
       try {
-        const shopRecord = await prisma.shop.findUnique({ where: { id: session.shopId }, select: { shopDomain: true } });
+        const shopRecord = await prisma.shop.findUnique({
+          where: { id: session.shopId },
+          select: { shopDomain: true },
+        });
         if (shopRecord) {
           await sendOtpEmail({
             shopDomain: shopRecord.shopDomain,
@@ -79,6 +96,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return withCors(Response.json({ success: true }), request);
   } catch (err) {
     console.error("Portal OTP send:", err);
-    return withCors(Response.json({ error: "Failed to send verification code" }, { status: 500 }), request);
+    return withCors(
+      Response.json({ error: "Failed to send verification code" }, { status: 500 }),
+      request,
+    );
   }
 };

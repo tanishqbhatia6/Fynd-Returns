@@ -39,7 +39,6 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
   DeliveryMethod: { Http: "http" },
 }));
 
-
 // ── Mutable fetcher state — driven by per-test setup ──
 // The component calls useFetcher() twice per render (orderFetcher first,
 // submitFetcher second). We track call index modulo 2 and return shared
@@ -67,13 +66,11 @@ const navigateMock = vi.fn();
 let useFetcherCalls = 0;
 
 vi.mock("react-router", async () => {
-  const actual =
-    await vi.importActual<typeof import("react-router")>("react-router");
+  const actual = await vi.importActual<typeof import("react-router")>("react-router");
   return {
     ...actual,
     useFetcher: () => {
-      const fetcher =
-        useFetcherCalls % 2 === 0 ? orderFetcherShared : submitFetcherShared;
+      const fetcher = useFetcherCalls % 2 === 0 ? orderFetcherShared : submitFetcherShared;
       useFetcherCalls += 1;
       return fetcher;
     },
@@ -222,9 +219,7 @@ async function mountWithOrder(
   });
   await waitFor(
     () => {
-      expect(result.container.textContent).toContain(
-        "Select Items to Return",
-      );
+      expect(result.container.textContent).toContain("Select Items to Return");
     },
     { timeout: 5000 },
   );
@@ -243,10 +238,10 @@ describe("app.returns.create — step 1 lookup", () => {
     ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "  #1042  " } });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const searchBtn = buttons.find((b) =>
-      /Search/i.test(b.textContent || ""),
-    ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(searchBtn); });
+    const searchBtn = buttons.find((b) => /Search/i.test(b.textContent || "")) as HTMLButtonElement;
+    await act(async () => {
+      fireEvent.click(searchBtn);
+    });
     await waitFor(() => {
       expect(orderFetcherShared.load).toHaveBeenCalledWith(
         expect.stringContaining("orderNumber=1042"),
@@ -260,8 +255,12 @@ describe("app.returns.create — step 1 lookup", () => {
       'input[placeholder="e.g. 1042, #1042"]',
     ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "1042" } });
-    await act(async () => { fireEvent.keyDown(input, { key: "Enter" }); });
-    await waitFor(() => { expect(orderFetcherShared.load).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.keyDown(input, { key: "Enter" });
+    });
+    await waitFor(() => {
+      expect(orderFetcherShared.load).toHaveBeenCalled();
+    });
   });
 
   it("shows order error from fetcher.data.error", async () => {
@@ -298,24 +297,18 @@ describe("app.returns.create — step 2 item selection (single shipment)", () =>
     });
 
     // Click the first line-item checkbox
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     expect(checkboxes.length).toBeGreaterThan(0);
     fireEvent.click(checkboxes[0]);
 
     // Now expanded — qty/reason/condition + notes appear
     await waitFor(() => {
-      const numInput = result.container.querySelector(
-        'input[type="number"]',
-      ) as HTMLInputElement;
+      const numInput = result.container.querySelector('input[type="number"]') as HTMLInputElement;
       expect(numInput).toBeTruthy();
     });
 
     // Change qty (try out-of-range to exercise clamp)
-    const qtyInput = result.container.querySelector(
-      'input[type="number"]',
-    ) as HTMLInputElement;
+    const qtyInput = result.container.querySelector('input[type="number"]') as HTMLInputElement;
     fireEvent.change(qtyInput, { target: { value: "99" } });
     fireEvent.change(qtyInput, { target: { value: "0" } });
     fireEvent.change(qtyInput, { target: { value: "2" } });
@@ -327,9 +320,7 @@ describe("app.returns.create — step 2 item selection (single shipment)", () =>
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
 
     // Notes input (text input, not number — pick the last text input in the row)
-    const notesInputs = result.container.querySelectorAll(
-      'input[type="text"]',
-    );
+    const notesInputs = result.container.querySelectorAll('input[type="text"]');
     if (notesInputs.length > 0) {
       fireEvent.change(notesInputs[notesInputs.length - 1], {
         target: { value: "Doesn't fit" },
@@ -338,9 +329,7 @@ describe("app.returns.create — step 2 item selection (single shipment)", () =>
 
     // Click Next → should advance to step 3
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
 
     await waitFor(() => {
@@ -354,52 +343,36 @@ describe("app.returns.create — step 2 item selection (single shipment)", () =>
       expect(result.container.textContent).toContain("Select Items to Return");
     });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Please select at least one item to return.",
-      );
+      expect(result.container.textContent).toContain("Please select at least one item to return.");
     });
   });
 
   it("shows validation error when reason is missing on a selected item", async () => {
     const result = await mountWithOrder();
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Please select a return reason",
-      );
+      expect(result.container.textContent).toContain("Please select a return reason");
     });
   });
 
   it("shows validation error when condition is missing", async () => {
     const result = await mountWithOrder();
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     const selects = result.container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Please select the item condition",
-      );
+      expect(result.container.textContent).toContain("Please select the item condition");
     });
   });
 
@@ -420,9 +393,7 @@ describe("app.returns.create — step 2 item selection (single shipment)", () =>
 
   it("toggling a checked item removes it from selection", async () => {
     const result = await mountWithOrder();
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     await waitFor(() => {
       expect(result.container.textContent).toContain("1 item selected");
@@ -439,9 +410,7 @@ describe("app.returns.create — step 2 item selection (single shipment)", () =>
       expect(result.container.textContent).toContain("Select Items to Return");
     });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const backBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Back",
-    ) as HTMLButtonElement;
+    const backBtn = buttons.find((b) => b.textContent?.trim() === "Back") as HTMLButtonElement;
     fireEvent.click(backBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Look up Order");
@@ -464,9 +433,7 @@ describe("app.returns.create — step 2 multi-shipment branch", () => {
     expect(result.container.textContent).toContain("Delivered To Customer");
 
     // Select item from eligible shipment 1
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     // First checkbox corresponds to li-3 (eligible). Item from ineligible
     // shipment should be disabled.
     const enabled = Array.from(checkboxes).find(
@@ -482,17 +449,13 @@ describe("app.returns.create — step 2 multi-shipment branch", () => {
 
 describe("app.returns.create — step 3 customer & CRM", () => {
   async function advanceToStep3(result: ReturnType<typeof renderWithRouter>) {
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     const selects = result.container.querySelectorAll("select");
     fireEvent.change(selects[0], { target: { value: "size_issue" } });
     fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const nextBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Customer Information");
@@ -502,9 +465,7 @@ describe("app.returns.create — step 3 customer & CRM", () => {
   it("renders customer form with prefilled data", async () => {
     const result = await mountWithOrder();
     await advanceToStep3(result);
-    const emailInput = result.container.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
+    const emailInput = result.container.querySelector('input[type="email"]') as HTMLInputElement;
     expect(emailInput.value).toBe("buyer@example.com");
   });
 
@@ -513,21 +474,15 @@ describe("app.returns.create — step 3 customer & CRM", () => {
     await advanceToStep3(result);
 
     // Edit name (first text input on step 3)
-    const textInputs = result.container.querySelectorAll(
-      'input[type="text"]',
-    );
+    const textInputs = result.container.querySelectorAll('input[type="text"]');
     if (textInputs[0]) {
       fireEvent.change(textInputs[0], { target: { value: "Jane Updated" } });
     }
     // Phone
-    const phoneInput = result.container.querySelector(
-      'input[type="tel"]',
-    ) as HTMLInputElement;
+    const phoneInput = result.container.querySelector('input[type="tel"]') as HTMLInputElement;
     fireEvent.change(phoneInput, { target: { value: "+15550000000" } });
     // Email
-    const emailInput = result.container.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
+    const emailInput = result.container.querySelector('input[type="email"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: "new@example.com" } });
 
     // Modify several other text fields
@@ -543,9 +498,7 @@ describe("app.returns.create — step 3 customer & CRM", () => {
       /^Exchange$/i.test(l.textContent?.trim() || ""),
     ) as HTMLLabelElement;
     if (exchangeLabel) {
-      fireEvent.click(
-        exchangeLabel.querySelector('input[type="radio"]') as HTMLInputElement,
-      );
+      fireEvent.click(exchangeLabel.querySelector('input[type="radio"]') as HTMLInputElement);
     }
 
     // Exchange preference textarea now appears
@@ -555,12 +508,14 @@ describe("app.returns.create — step 3 customer & CRM", () => {
     });
 
     // Toggle override checkbox
-    const allCheckboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const allCheckboxes = result.container.querySelectorAll('input[type="checkbox"]');
     const overrideCb = allCheckboxes[allCheckboxes.length - 1] as HTMLInputElement;
-    await act(async () => { fireEvent.click(overrideCb); });
-    await waitFor(() => { expect(overrideCb.checked).toBe(true); });
+    await act(async () => {
+      fireEvent.click(overrideCb);
+    });
+    await waitFor(() => {
+      expect(overrideCb.checked).toBe(true);
+    });
 
     // Edit textareas (CRM notes + exchange pref)
     const tas = result.container.querySelectorAll("textarea");
@@ -574,34 +529,24 @@ describe("app.returns.create — step 3 customer & CRM", () => {
       /^Refund$/i.test(l.textContent?.trim() || ""),
     ) as HTMLLabelElement;
     if (refundLabel) {
-      fireEvent.click(
-        refundLabel.querySelector('input[type="radio"]') as HTMLInputElement,
-      );
+      fireEvent.click(refundLabel.querySelector('input[type="radio"]') as HTMLInputElement);
     }
     const storeCreditLabel = labels.find((l) =>
       /^Store Credit$/i.test(l.textContent?.trim() || ""),
     ) as HTMLLabelElement;
     if (storeCreditLabel) {
-      fireEvent.click(
-        storeCreditLabel.querySelector(
-          'input[type="radio"]',
-        ) as HTMLInputElement,
-      );
+      fireEvent.click(storeCreditLabel.querySelector('input[type="radio"]') as HTMLInputElement);
     }
     const replaceLabel = labels.find((l) =>
       /^Replacement$/i.test(l.textContent?.trim() || ""),
     ) as HTMLLabelElement;
     if (replaceLabel) {
-      fireEvent.click(
-        replaceLabel.querySelector('input[type="radio"]') as HTMLInputElement,
-      );
+      fireEvent.click(replaceLabel.querySelector('input[type="radio"]') as HTMLInputElement);
     }
 
     // Pop back to step 2 then forward again
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const backBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Back",
-    ) as HTMLButtonElement;
+    const backBtn = buttons.find((b) => b.textContent?.trim() === "Back") as HTMLButtonElement;
     fireEvent.click(backBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Select Items to Return");
@@ -611,19 +556,13 @@ describe("app.returns.create — step 3 customer & CRM", () => {
   it("blocks Review when email is empty", async () => {
     const result = await mountWithOrder();
     await advanceToStep3(result);
-    const emailInput = result.container.querySelector(
-      'input[type="email"]',
-    ) as HTMLInputElement;
+    const emailInput = result.container.querySelector('input[type="email"]') as HTMLInputElement;
     fireEvent.change(emailInput, { target: { value: "" } });
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const reviewBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Review",
-    ) as HTMLButtonElement;
+    const reviewBtn = buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement;
     fireEvent.click(reviewBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "Customer email is required.",
-      );
+      expect(result.container.textContent).toContain("Customer email is required.");
     });
   });
 
@@ -631,9 +570,7 @@ describe("app.returns.create — step 3 customer & CRM", () => {
     const result = await mountWithOrder();
     await advanceToStep3(result);
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const reviewBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Review",
-    ) as HTMLButtonElement;
+    const reviewBtn = buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement;
     fireEvent.click(reviewBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Return Items");
@@ -645,9 +582,7 @@ describe("app.returns.create — step 3 customer & CRM", () => {
 describe("app.returns.create — step 4 review & submit", () => {
   async function advanceToStep4(result: ReturnType<typeof renderWithRouter>) {
     // Select item 0 + item 1 (item 1 has null variantTitle/sku)
-    const checkboxes = result.container.querySelectorAll(
-      'input[type="checkbox"]',
-    );
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
     fireEvent.click(checkboxes[0]);
     fireEvent.click(checkboxes[1]);
     const allSelects = result.container.querySelectorAll("select");
@@ -656,27 +591,20 @@ describe("app.returns.create — step 4 review & submit", () => {
     fireEvent.change(allSelects[1], { target: { value: "new_with_tags" } });
     fireEvent.change(allSelects[2], { target: { value: "damaged" } });
     fireEvent.change(allSelects[3], { target: { value: "used_fair" } });
-    const step2Buttons = Array.from(
-      result.container.querySelectorAll("button"),
-    );
-    const nextBtn = step2Buttons.find(
-      (b) => b.textContent?.trim() === "Next",
-    ) as HTMLButtonElement;
+    const step2Buttons = Array.from(result.container.querySelectorAll("button"));
+    const nextBtn = step2Buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Customer Information");
     });
 
     // Set crm ticket + notes so the optional review rows render
-    const textInputs = result.container.querySelectorAll(
-      'input[type="text"]',
-    );
+    const textInputs = result.container.querySelectorAll('input[type="text"]');
     // CRM Ticket field is later in the form; just hit a couple
     if (textInputs.length > 0) {
-      fireEvent.change(
-        textInputs[textInputs.length - 2] || textInputs[0],
-        { target: { value: "TICK-99" } },
-      );
+      fireEvent.change(textInputs[textInputs.length - 2] || textInputs[0], {
+        target: { value: "TICK-99" },
+      });
     }
     const tas = result.container.querySelectorAll("textarea");
     if (tas[0]) {
@@ -694,9 +622,7 @@ describe("app.returns.create — step 4 review & submit", () => {
       /^Exchange$/i.test(l.textContent?.trim() || ""),
     ) as HTMLLabelElement;
     if (exchangeLabel) {
-      fireEvent.click(
-        exchangeLabel.querySelector('input[type="radio"]') as HTMLInputElement,
-      );
+      fireEvent.click(exchangeLabel.querySelector('input[type="radio"]') as HTMLInputElement);
     }
     const tas2 = result.container.querySelectorAll("textarea");
     if (tas2[1]) {
@@ -704,9 +630,7 @@ describe("app.returns.create — step 4 review & submit", () => {
     }
 
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const reviewBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Review",
-    ) as HTMLButtonElement;
+    const reviewBtn = buttons.find((b) => b.textContent?.trim() === "Review") as HTMLButtonElement;
     fireEvent.click(reviewBtn);
     await waitFor(() => {
       expect(result.container.textContent).toContain("Return Items");
@@ -719,9 +643,7 @@ describe("app.returns.create — step 4 review & submit", () => {
     expect(result.container.textContent).toContain("Estimated Refund:");
     expect(result.container.textContent).toContain("Customer Information");
     expect(result.container.textContent).toContain("CRM & Resolution");
-    expect(result.container.textContent).toContain(
-      "Eligibility gates will be overridden",
-    );
+    expect(result.container.textContent).toContain("Eligibility gates will be overridden");
   });
 
   it("submit fires submitFetcher.submit with serialised body", async () => {
@@ -731,8 +653,12 @@ describe("app.returns.create — step 4 review & submit", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    await act(async () => { fireEvent.click(submitBtn); });
-    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
+    await act(async () => {
+      fireEvent.click(submitBtn);
+    });
+    await waitFor(() => {
+      expect(submitFetcherShared.submit).toHaveBeenCalled();
+    });
     const [body, opts] = submitFetcherShared.submit.mock.calls[0];
     expect(typeof body).toBe("string");
     const parsed = JSON.parse(body as string);
@@ -751,14 +677,10 @@ describe("app.returns.create — step 4 review & submit", () => {
     const result = await mountWithOrder();
     await advanceToStep4(result);
     const buttons = Array.from(result.container.querySelectorAll("button"));
-    const backBtn = buttons.find(
-      (b) => b.textContent?.trim() === "Back",
-    ) as HTMLButtonElement;
+    const backBtn = buttons.find((b) => b.textContent?.trim() === "Back") as HTMLButtonElement;
     fireEvent.click(backBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain(
-        "CRM & Resolution Details",
-      );
+      expect(result.container.textContent).toContain("CRM & Resolution Details");
     });
   });
 

@@ -74,15 +74,19 @@ function mkCtxWithNullRequestNo(): ReturnHandlerContext {
 
 beforeEach(() => resetPrismaMock(prismaMock));
 
-describe("handler `returnRequestNo || \"\"` fallback paths", () => {
+describe('handler `returnRequestNo || ""` fallback paths', () => {
   it("handleProcessRefund accepts null returnRequestNo (line 43 fallback)", async () => {
     // Manual-return short-circuit returns 400 before any external calls.
-    const res = await handleProcessRefund(mkCtxWithNullRequestNo(), { action: "process_refund" } as ReturnActionBody);
+    const res = await handleProcessRefund(mkCtxWithNullRequestNo(), {
+      action: "process_refund",
+    } as ReturnActionBody);
     expect((res as Response).status).toBe(400);
   });
 
   it("handleProcessReplacement accepts null returnRequestNo (line 48 fallback)", async () => {
-    const res = await handleProcessReplacement(mkCtxWithNullRequestNo(), { action: "process_replacement" } as ReturnActionBody);
+    const res = await handleProcessReplacement(mkCtxWithNullRequestNo(), {
+      action: "process_replacement",
+    } as ReturnActionBody);
     // Some validation error (no items, no order resolution), but withSpan opened first.
     expect((res as Response).status).toBeGreaterThanOrEqual(400);
   });
@@ -91,7 +95,9 @@ describe("handler `returnRequestNo || \"\"` fallback paths", () => {
     // Without Fynd config the handler throws a redirect Response. The
     // withSpan attributes (incl. `returnRequestNo || ""`) evaluate first.
     await expect(
-      handleRefreshFyndDetails(mkCtxWithNullRequestNo(), { action: "refresh_fynd_details" } as ReturnActionBody),
+      handleRefreshFyndDetails(mkCtxWithNullRequestNo(), {
+        action: "refresh_fynd_details",
+      } as ReturnActionBody),
     ).rejects.toBeInstanceOf(Response);
   });
 });

@@ -90,12 +90,15 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   const externalOrderId = (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim();
   /* v8 ignore stop */
 
-  const derivedTargetShipId = returnCase.fyndShipmentId?.trim()
-    || (storedFyndOrderId && looksLikeShipmentId(storedFyndOrderId) ? storedFyndOrderId : null)
-    || (storedFyndReturnId && looksLikeShipmentId(storedFyndReturnId) ? storedFyndReturnId : null)
-    || null;
+  const derivedTargetShipId =
+    returnCase.fyndShipmentId?.trim() ||
+    (storedFyndOrderId && looksLikeShipmentId(storedFyndOrderId) ? storedFyndOrderId : null) ||
+    (storedFyndReturnId && looksLikeShipmentId(storedFyndReturnId) ? storedFyndReturnId : null) ||
+    null;
 
-  const hasItems = returnCase.items.some(it => (it.sku || it.shopifyLineItemId) && it.shopifyLineItemId !== "manual");
+  const hasItems = returnCase.items.some(
+    (it) => (it.sku || it.shopifyLineItemId) && it.shopifyLineItemId !== "manual",
+  );
   const wouldUseFastPath = !!(derivedTargetShipId && hasItems);
 
   // Try to get affiliateOrderId from Shopify
@@ -118,9 +121,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     affiliateOrderId,
     shopifyOrderFetchError,
     storedFyndOrderId,
-    storedFyndOrderId_looksLikeShipmentId: storedFyndOrderId ? looksLikeShipmentId(storedFyndOrderId) : null,
+    storedFyndOrderId_looksLikeShipmentId: storedFyndOrderId
+      ? looksLikeShipmentId(storedFyndOrderId)
+      : null,
     storedFyndReturnId,
-    storedFyndReturnId_looksLikeShipmentId: storedFyndReturnId ? looksLikeShipmentId(storedFyndReturnId) : null,
+    storedFyndReturnId_looksLikeShipmentId: storedFyndReturnId
+      ? looksLikeShipmentId(storedFyndReturnId)
+      : null,
     derivedTargetShipId,
     hasReturnItems: hasItems,
     wouldUseFastPath,
@@ -138,7 +145,9 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     error?: string;
   }> = [];
 
-  const settings = shop.settings as NonNullable<typeof shop.settings> & { fyndApiType?: string | null } | undefined;
+  const settings = shop.settings as
+    | (NonNullable<typeof shop.settings> & { fyndApiType?: string | null })
+    | undefined;
   let fyndClient: FyndPlatformClient | null = null;
   let fyndClientError: string | null = null;
 
@@ -148,8 +157,8 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       : { ok: false as const, error: "Fynd not configured" };
     if (result.ok && "getShipments" in result.client) {
       fyndClient = result.client as FyndPlatformClient;
-    /* v8 ignore start */
-    // defensive: client-error branch hard to trigger
+      /* v8 ignore start */
+      // defensive: client-error branch hard to trigger
     } else if (!result.ok) {
       fyndClientError = result.error;
     }
@@ -179,7 +188,10 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
       // Step 2: If search returned items, try getShipments with orderId
       /* v8 ignore start - defensive `??` fallbacks for unknown shape */
-      const items = (searchRes as Record<string, unknown>)?.items ?? (searchRes as Record<string, unknown>)?.shipments ?? [];
+      const items =
+        (searchRes as Record<string, unknown>)?.items ??
+        (searchRes as Record<string, unknown>)?.shipments ??
+        [];
       /* v8 ignore stop */
       const orderId = (searchRes as Record<string, unknown>)?.orderId;
 
@@ -212,10 +224,13 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
         const shipSearchUrl = `/service/platform/order/v1.0/company/{companyId}/shipments-listing?group_entity=shipments&page_no=1&page_size=10&search_value=${encodeURIComponent(derivedTargetShipId)}&search_type=shipment_id`;
         try {
           const t2 = Date.now();
-          const shipSearchRes = await fyndClient.searchShipmentsByExternalOrderId(derivedTargetShipId, {
-            searchType: "shipment_id" as "external_order_id",
-            pageSize: 10,
-          });
+          const shipSearchRes = await fyndClient.searchShipmentsByExternalOrderId(
+            derivedTargetShipId,
+            {
+              searchType: "shipment_id" as "external_order_id",
+              pageSize: 10,
+            },
+          );
           apiTrace.push({
             step: "3. Verify shipment exists (search by shipment_id)",
             request: { method: "GET", url: shipSearchUrl },
@@ -274,7 +289,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
   let fastPathPayload: unknown = null;
   if (wouldUseFastPath && derivedTargetShipId) {
     const products = returnCase.items
-      .filter(it => (it.sku || it.shopifyLineItemId) && it.shopifyLineItemId !== "manual")
+      .filter((it) => (it.sku || it.shopifyLineItemId) && it.shopifyLineItemId !== "manual")
       .map((item, idx) => ({
         line_number: idx + 1,
         quantity: item.qty,
@@ -283,20 +298,33 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
 
     /* v8 ignore start - defensive ternary/`||` fallbacks for empty products / missing reason */
     fastPathPayload = {
-      _endpoint: "PUT /service/platform/order-manage/v1.0/company/{companyId}/shipment/status-internal",
-      statuses: [{
-        shipments: [{
-          identifier: derivedTargetShipId,
-          products: products.length > 0 ? products : [{ line_number: 1, quantity: 1, identifier: "default" }],
-          reasons: {
-            products: (products.length > 0 ? products : [{ line_number: 1, quantity: 1, identifier: "default" }]).map(p => ({
-              filters: [{ identifier: p.identifier, line_number: p.line_number, quantity: p.quantity }],
-              data: { reason_id: 122, reason_text: returnCase.items[0]?.reasonCode || "Other" },
-            })),
-          },
-        }],
-        status: "return_initiated",
-      }],
+      _endpoint:
+        "PUT /service/platform/order-manage/v1.0/company/{companyId}/shipment/status-internal",
+      statuses: [
+        {
+          shipments: [
+            {
+              identifier: derivedTargetShipId,
+              products:
+                products.length > 0
+                  ? products
+                  : [{ line_number: 1, quantity: 1, identifier: "default" }],
+              reasons: {
+                products: (products.length > 0
+                  ? products
+                  : [{ line_number: 1, quantity: 1, identifier: "default" }]
+                ).map((p) => ({
+                  filters: [
+                    { identifier: p.identifier, line_number: p.line_number, quantity: p.quantity },
+                  ],
+                  data: { reason_id: 122, reason_text: returnCase.items[0]?.reasonCode || "Other" },
+                })),
+              },
+            },
+          ],
+          status: "return_initiated",
+        },
+      ],
       task: false,
       force_transition: false,
       lock_after_transition: false,
@@ -305,16 +333,19 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     /* v8 ignore stop */
   }
 
-  return Response.json({
-    _title: `Diagnostic Report for ${returnCase.returnRequestNo || id}`,
-    _timestamp: new Date().toISOString(),
-    dbColumns,
-    dbItems,
-    analysis,
-    fyndClientError,
-    apiTrace,
-    fastPathPayload,
-  }, {
-    headers: { "Content-Type": "application/json" },
-  });
+  return Response.json(
+    {
+      _title: `Diagnostic Report for ${returnCase.returnRequestNo || id}`,
+      _timestamp: new Date().toISOString(),
+      dbColumns,
+      dbItems,
+      analysis,
+      fyndClientError,
+      apiTrace,
+      fastPathPayload,
+    },
+    {
+      headers: { "Content-Type": "application/json" },
+    },
+  );
 }

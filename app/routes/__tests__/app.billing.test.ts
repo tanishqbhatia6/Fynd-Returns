@@ -81,10 +81,7 @@ describe("app.billing loader", () => {
       reason: "subscription_active",
       subscriptionName: "Growth",
     });
-    expect(getBillingStatusMock).toHaveBeenCalledWith(
-      "store.myshopify.com",
-      expect.any(Object),
-    );
+    expect(getBillingStatusMock).toHaveBeenCalledWith("store.myshopify.com", expect.any(Object));
   });
 
   it("returns subscription_missing status for shops with no active plan", async () => {
@@ -185,8 +182,8 @@ describe("app.billing loader", () => {
 
   it("propagates errors thrown by getBillingStatus", async () => {
     getBillingStatusMock.mockRejectedValueOnce(new Error("graphql failure"));
-    await expect(
-      loader({ request: mkReq(), params: {}, context: {} } as never),
-    ).rejects.toThrow("graphql failure");
+    await expect(loader({ request: mkReq(), params: {}, context: {} } as never)).rejects.toThrow(
+      "graphql failure",
+    );
   });
 });

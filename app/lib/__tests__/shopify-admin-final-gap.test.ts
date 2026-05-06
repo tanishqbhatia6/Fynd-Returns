@@ -18,7 +18,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
+  withSpan: async <T>(_name: string, _attrs: unknown, fn: (span: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -27,7 +27,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import {
@@ -47,17 +47,15 @@ type Canned = unknown | Error;
 function makeAdmin(responses: Canned[]) {
   let i = 0;
   const calls: Array<{ query: string; variables?: Record<string, unknown> }> = [];
-  const graphql = vi.fn(
-    async (query: string, opts?: { variables?: Record<string, unknown> }) => {
-      calls.push({ query, variables: opts?.variables });
-      const r = responses[i++] ?? { data: {} };
-      if (r instanceof Error) throw r;
-      return new Response(JSON.stringify(r), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    },
-  );
+  const graphql = vi.fn(async (query: string, opts?: { variables?: Record<string, unknown> }) => {
+    calls.push({ query, variables: opts?.variables });
+    const r = responses[i++] ?? { data: {} };
+    if (r instanceof Error) throw r;
+    return new Response(JSON.stringify(r), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  });
   return { admin: { graphql } as AdminGraphQL, graphql, calls };
 }
 
@@ -102,14 +100,25 @@ describe("closeShopifyReturnBestEffort — logEvent rejection paths", () => {
 
   it("swallows logEvent rejection after successful close", async () => {
     const { admin } = makeAdmin([
-      { data: { returnClose: { return: { id: "gid://shopify/Return/9", status: "CLOSED" }, userErrors: [] } } },
+      {
+        data: {
+          returnClose: {
+            return: { id: "gid://shopify/Return/9", status: "CLOSED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi
       .fn<(e: { eventType: string; payloadJson: string }) => Promise<void>>()
       .mockRejectedValueOnce(new Error("post-close log fail"));
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc3", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc3",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { logEvent },
     );
     expect(r.ok).toBe(true);
@@ -119,14 +128,25 @@ describe("closeShopifyReturnBestEffort — logEvent rejection paths", () => {
 
   it("logs declined event on decline action with logEvent reject", async () => {
     const { admin } = makeAdmin([
-      { data: { returnDecline: { return: { id: "gid://shopify/Return/9", status: "DECLINED" }, userErrors: [] } } },
+      {
+        data: {
+          returnDecline: {
+            return: { id: "gid://shopify/Return/9", status: "DECLINED" },
+            userErrors: [],
+          },
+        },
+      },
     ]);
     const logEvent = vi
       .fn<(e: { eventType: string; payloadJson: string }) => Promise<void>>()
       .mockRejectedValueOnce(new Error("decline log fail"));
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc4", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc4",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { action: "decline", declineReason: "OTHER", logEvent },
     );
     expect(r.ok).toBe(true);
@@ -135,14 +155,22 @@ describe("closeShopifyReturnBestEffort — logEvent rejection paths", () => {
 
   it("returns ok=false when both close and logEvent fail", async () => {
     const { admin } = makeAdmin([
-      { data: { returnClose: { return: null, userErrors: [{ message: "Some unrecoverable error" }] } } },
+      {
+        data: {
+          returnClose: { return: null, userErrors: [{ message: "Some unrecoverable error" }] },
+        },
+      },
     ]);
     const logEvent = vi
       .fn<(e: { eventType: string; payloadJson: string }) => Promise<void>>()
       .mockRejectedValueOnce(new Error("log fail"));
     const r = await closeShopifyReturnBestEffort(
       admin,
-      { id: "rc5", shopifyReturnId: "gid://shopify/Return/9", shopifyOrderId: "gid://shopify/Order/1" },
+      {
+        id: "rc5",
+        shopifyReturnId: "gid://shopify/Return/9",
+        shopifyOrderId: "gid://shopify/Order/1",
+      },
       { logEvent },
     );
     expect(r.ok).toBe(false);
@@ -151,10 +179,11 @@ describe("closeShopifyReturnBestEffort — logEvent rejection paths", () => {
 
   it("works without logEvent option (no-op)", async () => {
     const { admin } = makeAdmin([]);
-    const r = await closeShopifyReturnBestEffort(
-      admin,
-      { id: "rc6", shopifyReturnId: null, shopifyOrderId: null },
-    );
+    const r = await closeShopifyReturnBestEffort(admin, {
+      id: "rc6",
+      shopifyReturnId: null,
+      shopifyOrderId: null,
+    });
     expect(r.ok).toBe(true);
     expect(r.skipped).toBe(true);
   });
@@ -218,13 +247,20 @@ describe("createShopifyReturn — in-flight return subtraction by gid + sku", ()
       { data: { returnCreate: { return: { id: "gid://shopify/Return/200" }, userErrors: [] } } },
     ]);
     const r = await createShopifyReturn(admin, "1", [
-      { shopifyLineItemId: "gid://shopify/LineItem/9", qty: 3, sku: "SKU-X", reasonCode: "defective" },
+      {
+        shopifyLineItemId: "gid://shopify/LineItem/9",
+        qty: 3,
+        sku: "SKU-X",
+        reasonCode: "defective",
+      },
     ]);
     expect(r.success).toBe(true);
     // The decrement closure ran via both gid (line 1831) and sku (line 1834).
     // The chosen returnLineItem qty must be ≤ 5-2 = 3.
     const createCall = calls.find((c) => c.query.includes("returnCreate"));
-    const returnInput = (createCall?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }).returnInput;
+    const returnInput = (
+      createCall?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput;
     const totalQty = returnInput.returnLineItems.reduce((s, x) => s + x.quantity, 0);
     expect(totalQty).toBeLessThanOrEqual(3);
     expect(totalQty).toBeGreaterThan(0);
@@ -349,7 +385,9 @@ describe("createShopifyReturn — in-flight return subtraction by gid + sku", ()
     expect(r.success).toBe(true);
     // CLOSED return is terminal → no subtraction → full qty=3 should go through.
     const createCall = calls.find((c) => c.query.includes("returnCreate"));
-    const ri = (createCall?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }).returnInput;
+    const ri = (
+      createCall?.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput;
     const totalQty = ri.returnLineItems.reduce((s, x) => s + x.quantity, 0);
     expect(totalQty).toBe(3);
   });
@@ -457,7 +495,13 @@ describe("createShopifyReturn — pickBest reduce body", () => {
     ]);
     expect(r.success).toBe(true);
     const createCall = calls.find((c) => c.query.includes("returnCreate"));
-    const ri = (createCall?.variables as { returnInput: { returnLineItems: Array<{ fulfillmentLineItemId: string; quantity: number }> } }).returnInput;
+    const ri = (
+      createCall?.variables as {
+        returnInput: {
+          returnLineItems: Array<{ fulfillmentLineItemId: string; quantity: number }>;
+        };
+      }
+    ).returnInput;
     // qty=4 should spread across the two FLIs (2+2 or 2+3-1).
     const totalQty = ri.returnLineItems.reduce((s, x) => s + x.quantity, 0);
     expect(totalQty).toBe(4);
@@ -509,11 +553,7 @@ describe("fetchOrderByFyndAffiliateId — timeout", () => {
       lineItems: { nodes: [] },
     };
     const empty = { data: { orders: { nodes: [] } } };
-    const { admin } = makeAdmin([
-      empty,
-      empty,
-      { data: { orders: { nodes: [orderNode] } } },
-    ]);
+    const { admin } = makeAdmin([empty, empty, { data: { orders: { nodes: [orderNode] } } }]);
     const r = await fetchOrderByFyndAffiliateId(admin, "FYNDSHOPIFY12345");
     expect(r).not.toBeNull();
     expect(r?.id).toBe("gid://shopify/Order/1");
@@ -575,10 +615,11 @@ describe("closeShopifyReturnBestEffort — outer catch swallows top-level throw"
     const admin = {
       graphql: vi.fn().mockRejectedValue(new Error("explode")),
     } as unknown as AdminGraphQL;
-    const r = await closeShopifyReturnBestEffort(
-      admin,
-      { id: "rc-x", shopifyReturnId: "gid://shopify/Return/1", shopifyOrderId: "gid://shopify/Order/1" },
-    );
+    const r = await closeShopifyReturnBestEffort(admin, {
+      id: "rc-x",
+      shopifyReturnId: "gid://shopify/Return/1",
+      shopifyOrderId: "gid://shopify/Order/1",
+    });
     // closeShopifyReturn itself catches and returns success:false, so best-effort
     // returns ok:false with no thrown error reaching the outer catch.
     expect(r.ok).toBe(false);

@@ -180,11 +180,13 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
                 }
               : {}),
           };
-          if (li.variantId) {
+          // Shopify ignores explicit `sku` when `variantId` is provided — the
+          // resulting order line uses the variant's actual SKU. If the chosen
+          // variant has NO sku, fall through to a custom line item with an
+          // explicit SKU so Fynd's downstream order-create finds a marketplace
+          // identifier (`mkp_identifiers: [None]` blocker).
+          if (li.variantId && li.sku) {
             base.variantId = li.variantId;
-            // Always carry sku alongside variantId so Fynd order-create has
-            // a marketplace identifier; variant lookup may not surface it.
-            if (li.sku) base.sku = li.sku;
           } else {
             base.title = li.title;
             base.originalUnitPrice = li.originalUnitPrice;

@@ -219,13 +219,17 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
 
       const draftLineItems = exchangeLines.map((line) => {
         const base: Record<string, unknown> = { quantity: line.returnedQty };
-        // Always include sku so downstream Fynd order-creation has a marketplace
-        // identifier — fall back through replacement → returned sku to avoid
-        // empty `mkp_identifiers` causing Fynd's order-create to fail.
+        // Resolve a marketplace identifier so downstream Fynd order-create has
+        // a non-null SKU (without it Fynd rejects the order with
+        // `mkp_identifiers: [None]`).
         const fallbackSku = line.replacementSku || line.returnedSku || null;
-        if (line.replacementVariantId) {
+        // Shopify ignores explicit `sku` when `variantId` is provided — the
+        // resulting order line uses the variant's actual SKU. So when the
+        // chosen variant has NO SKU at all, we fall through to a custom line
+        // item with an explicit SKU instead — the only way to guarantee the
+        // SKU survives onto the order webhook Fynd consumes.
+        if (line.replacementVariantId && line.replacementSku) {
           base.variantId = line.replacementVariantId;
-          if (fallbackSku) base.sku = fallbackSku;
         } else {
           base.title = line.replacementTitle;
           base.originalUnitPrice = line.replacementUnitPrice;

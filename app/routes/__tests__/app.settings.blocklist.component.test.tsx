@@ -21,7 +21,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent } from "@testing-library/react";
+import { fireEvent, act, waitFor } from "@testing-library/react";
 
 // ── Mocks for module-top-level imports in app/routes/app.settings.blocklist.tsx ──
 vi.mock("../../shopify.server", () => ({
@@ -244,22 +244,22 @@ describe("BlocklistSettings — add-entry modal", () => {
     expect(valueInput.value).toBe("fraud@example.com");
   });
 
-  it("reason input is controlled and reflects user-entered text", () => {
+  it("reason input is controlled and reflects user-entered text", async () => {
     const { container } = render(<BlocklistSettings />);
     const reasonInput = container.querySelector("input[name='reason']") as HTMLInputElement;
-    fireEvent.change(reasonInput, { target: { value: "Suspected fraud" } });
-    expect(reasonInput.value).toBe("Suspected fraud");
+    await act(async () => { fireEvent.change(reasonInput, { target: { value: "Suspected fraud" } }); });
+    await waitFor(() => { expect(reasonInput.value).toBe("Suspected fraud"); });
   });
 
-  it("clears value+reason inputs after successful add (success+intent=add effect)", () => {
+  it("clears value+reason inputs after successful add (success+intent=add effect)", async () => {
     // First render: user types into the controlled inputs.
     mockUseFetcher.mockReturnValue(makeFetcher());
     const { container, rerender } = render(<BlocklistSettings />);
     const valueInput = container.querySelector("input[name='value']") as HTMLInputElement;
     const reasonInput = container.querySelector("input[name='reason']") as HTMLInputElement;
     fireEvent.change(valueInput, { target: { value: "spam@example.com" } });
-    fireEvent.change(reasonInput, { target: { value: "spam" } });
-    expect(valueInput.value).toBe("spam@example.com");
+    await act(async () => { fireEvent.change(reasonInput, { target: { value: "spam" } }); });
+    await waitFor(() => { expect(valueInput.value).toBe("spam@example.com"); });
     expect(reasonInput.value).toBe("spam");
 
     // Re-render with fetcher now reporting success for an "add" intent — the

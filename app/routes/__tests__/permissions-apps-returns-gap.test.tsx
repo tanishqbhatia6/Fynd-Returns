@@ -10,7 +10,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 
 // ───────────────────────────────────────────────────────────────────────────────
 //  Module-top-level mocks shared across both suites
@@ -120,11 +120,11 @@ describe("Permissions — toggle onChange (gap)", () => {
     expect(toggle.checked).toBe(false);
 
     // Trigger the onChange handler — covers line 173.
-    fireEvent.click(toggle);
-    expect(toggle.checked).toBe(true);
+    await act(async () => { fireEvent.click(toggle); });
+    await waitFor(() => { expect(toggle.checked).toBe(true); });
 
-    fireEvent.click(toggle);
-    expect(toggle.checked).toBe(false);
+    await act(async () => { fireEvent.click(toggle); });
+    await waitFor(() => { expect(toggle.checked).toBe(false); });
   });
 
   it("supports a direct change event with target.checked=true", async () => {
@@ -142,8 +142,8 @@ describe("Permissions — toggle onChange (gap)", () => {
     const toggle = container.querySelector(
       "input[type='checkbox'][name='readAllOrdersEnabled']",
     ) as HTMLInputElement;
-    fireEvent.change(toggle, { target: { checked: true } });
-    expect(toggle.checked).toBe(true);
+    await act(async () => { fireEvent.change(toggle, { target: { checked: true } }); });
+    await waitFor(() => { expect(toggle.checked).toBe(true); });
   });
 });
 

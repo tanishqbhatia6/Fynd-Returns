@@ -36,7 +36,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor, fireEvent } from "@testing-library/react";
+import { waitFor, fireEvent, act } from "@testing-library/react";
 import CreateReturn from "../app.returns.create";
 
 const baseLoaderData = {
@@ -143,8 +143,8 @@ describe("app.returns.create component (default export)", () => {
       ) as HTMLInputElement | null;
       expect(input).toBeTruthy();
     });
-    fireEvent.change(input!, { target: { value: "1042" } });
-    expect(input!.value).toBe("1042");
+    await act(async () => { fireEvent.change(input!, { target: { value: "1042" } }); });
+    await waitFor(() => { expect(input!.value).toBe("1042"); });
   });
 
   it("does not render step 2/3/4 sections initially", async () => {

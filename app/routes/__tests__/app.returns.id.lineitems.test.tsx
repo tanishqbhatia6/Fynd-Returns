@@ -128,7 +128,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import Component from "../app.returns.$id";
 
 // ── Fixtures ──
@@ -460,9 +460,9 @@ describe("app.returns.$id — line-item table + Fynd-shipment rendering", () => 
     const summary = Array.from(container.querySelectorAll("summary")).find(
       (s) => (s.textContent || "").trim() === "Fynd IDs",
     ) as HTMLElement;
-    fireEvent.click(summary);
+    await act(async () => { fireEvent.click(summary); });
     // Still rendered after click — no crash + items still in DOM
-    expect(container.textContent).toContain("Test Product Alpha");
+    await waitFor(() => { expect(container.textContent).toContain("Test Product Alpha"); });
   });
 
   it("renders shopifyOrder details panel when shopifyOrder is provided", async () => {

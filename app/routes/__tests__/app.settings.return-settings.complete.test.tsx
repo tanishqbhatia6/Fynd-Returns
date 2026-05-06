@@ -64,7 +64,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import ReturnSettings, { action } from "../app.settings.return-settings";
 
 const baseLoaderData = {
@@ -175,8 +175,8 @@ describe("return-settings — final-mile coverage", () => {
     ) as HTMLInputElement | null;
     expect(autoRadio).toBeTruthy();
     expect(autoRadio?.checked).toBe(false);
-    fireEvent.click(autoRadio!);
-    expect(autoRadio?.checked).toBe(true);
+    await act(async () => { fireEvent.click(autoRadio!); });
+    await waitFor(() => { expect(autoRadio?.checked).toBe(true); });
   });
 
   it("toggles Fynd Return-Gate ON from OFF when initial statuses array is empty (line 1116 truthy arm)", async () => {
@@ -202,8 +202,8 @@ describe("return-settings — final-mile coverage", () => {
     fireEvent.click(cb!); // ON — entered branch where setter runs with truthy
     expect(cb!.checked).toBe(true);
     // Toggle OFF again — exercises the `if (!e.target.checked) setAllowedFyndReturnStatuses([])` branch
-    fireEvent.click(cb!);
-    expect(cb!.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb!); });
+    await waitFor(() => { expect(cb!.checked).toBe(false); });
   });
 
   it("renders gift / scheduled / donate toggles ON via loader and submits to exercise true-state branches", async () => {
@@ -410,11 +410,11 @@ describe("return-settings — final-mile coverage", () => {
     expect(cb).toBeTruthy();
     // gate is currently ON (preset is non-none) — toggle OFF (truthy if-branch)
     expect(cb!.checked).toBe(true);
-    fireEvent.click(cb!);
-    expect(cb!.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb!); });
+    await waitFor(() => { expect(cb!.checked).toBe(false); });
     // Toggle back ON — preset state in component is now "none" (cleared by the OFF click),
     // so the else-if `refundGatePreset === "none"` branch fires and seeds after_delivery.
-    fireEvent.click(cb!);
-    expect(cb!.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb!); });
+    await waitFor(() => { expect(cb!.checked).toBe(true); });
   });
 });

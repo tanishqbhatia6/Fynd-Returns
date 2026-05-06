@@ -42,7 +42,7 @@ vi.mock("../../components/json-viewer", () => ({
 vi.mock("@shopify/app-bridge-react", () => ({}));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor, fireEvent } from "@testing-library/react";
+import { waitFor, fireEvent, act } from "@testing-library/react";
 import WebhookLogsPage from "../app.settings.webhook-logs";
 
 const baseLoaderData = {
@@ -419,9 +419,9 @@ describe("WebhookLogsPage — populated rows + RetryButton states", () => {
     const link = Array.from(container.querySelectorAll("a")).find(
       (a) => a.getAttribute("href") === "/app/returns/rc-1",
     );
-    fireEvent.click(link!);
+    await act(async () => { fireEvent.click(link!); });
     // Row should not have expanded — payload viewer not mounted
-    expect(container.querySelector("[data-testid='payload-viewer']")).toBeNull();
+    await waitFor(() => { expect(container.querySelector("[data-testid='payload-viewer']")).toBeNull(); });
   });
 
   it("renders the error action row with the error preview and the Retry button", async () => {
@@ -681,8 +681,8 @@ describe("WebhookLogsPage — filter interactions", () => {
     });
     const selects = container.querySelectorAll("select");
     const actionSelect = selects[0] as HTMLSelectElement;
-    fireEvent.change(actionSelect, { target: { value: "error" } });
-    expect(actionSelect.value).toBe("error");
+    await act(async () => { fireEvent.change(actionSelect, { target: { value: "error" } }); });
+    await waitFor(() => { expect(actionSelect.value).toBe("error"); });
   });
 
   it("changes the status filter dropdown selection", async () => {
@@ -695,8 +695,8 @@ describe("WebhookLogsPage — filter interactions", () => {
     });
     const selects = container.querySelectorAll("select");
     const statusSelect = selects[1] as HTMLSelectElement;
-    fireEvent.change(statusSelect, { target: { value: "delivered" } });
-    expect(statusSelect.value).toBe("delivered");
+    await act(async () => { fireEvent.change(statusSelect, { target: { value: "delivered" } }); });
+    await waitFor(() => { expect(statusSelect.value).toBe("delivered"); });
   });
 
   it("updates the search box value on user input", async () => {
@@ -708,8 +708,8 @@ describe("WebhookLogsPage — filter interactions", () => {
       expect(container.querySelector("input[type='text']")).toBeTruthy();
     });
     const search = container.querySelector("input[type='text']") as HTMLInputElement;
-    fireEvent.change(search, { target: { value: "shp-123" } });
-    expect(search.value).toBe("shp-123");
+    await act(async () => { fireEvent.change(search, { target: { value: "shp-123" } }); });
+    await waitFor(() => { expect(search.value).toBe("shp-123"); });
   });
 
   it("submits the search query when Enter is pressed in the search box", async () => {
@@ -721,8 +721,8 @@ describe("WebhookLogsPage — filter interactions", () => {
       expect(container.querySelector("input[type='text']")).toBeTruthy();
     });
     const search = container.querySelector("input[type='text']") as HTMLInputElement;
-    fireEvent.change(search, { target: { value: "alice" } });
-    expect(() => fireEvent.keyDown(search, { key: "Enter" })).not.toThrow();
+    await act(async () => { fireEvent.change(search, { target: { value: "alice" } }); });
+    await waitFor(() => { expect(() => fireEvent.keyDown(search, { key: "Enter" })).not.toThrow(); });
   });
 
   it("does not crash when a non-Enter key is pressed in the search box", async () => {
@@ -749,8 +749,8 @@ describe("WebhookLogsPage — filter interactions", () => {
     const from = dates[0] as HTMLInputElement;
     const to = dates[1] as HTMLInputElement;
     fireEvent.change(from, { target: { value: "2025-01-01" } });
-    fireEvent.change(to, { target: { value: "2025-01-31" } });
-    expect(from.value).toBe("2025-01-01");
+    await act(async () => { fireEvent.change(to, { target: { value: "2025-01-31" } }); });
+    await waitFor(() => { expect(from.value).toBe("2025-01-01"); });
     expect(to.value).toBe("2025-01-31");
   });
 

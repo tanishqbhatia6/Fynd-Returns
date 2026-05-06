@@ -116,7 +116,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import Component from "../app.returns.$id";
 
 const baseItem = {
@@ -271,10 +271,10 @@ describe("app.returns.$id — internal & customer-facing notes UI", () => {
       { timeout: 5000 },
     );
     const ta = container.querySelector('textarea[name="note"]') as HTMLTextAreaElement;
-    fireEvent.change(ta, { target: { value: "first edit" } });
-    expect(ta.value).toBe("first edit");
-    fireEvent.change(ta, { target: { value: "second edit with more detail" } });
-    expect(ta.value).toBe("second edit with more detail");
+    await act(async () => { fireEvent.change(ta, { target: { value: "first edit" } }); });
+    await waitFor(() => { expect(ta.value).toBe("first edit"); });
+    await act(async () => { fireEvent.change(ta, { target: { value: "second edit with more detail" } }); });
+    await waitFor(() => { expect(ta.value).toBe("second edit with more detail"); });
   });
 
   it("internal notes textarea defaults to empty string when adminNotes is null", async () => {
@@ -663,14 +663,14 @@ describe("app.returns.$id — customer info card & edit-customer-address modal",
       { timeout: 5000 },
     );
     const addr1 = container.querySelector('input[name="customerAddress1"]') as HTMLInputElement;
-    fireEvent.change(addr1, { target: { value: "777 New Lane" } });
-    expect(addr1.value).toBe("777 New Lane");
+    await act(async () => { fireEvent.change(addr1, { target: { value: "777 New Lane" } }); });
+    await waitFor(() => { expect(addr1.value).toBe("777 New Lane"); });
     const country = container.querySelector('input[name="customerCountry"]') as HTMLInputElement;
-    fireEvent.change(country, { target: { value: "Canada" } });
-    expect(country.value).toBe("Canada");
+    await act(async () => { fireEvent.change(country, { target: { value: "Canada" } }); });
+    await waitFor(() => { expect(country.value).toBe("Canada"); });
     const landmark = container.querySelector('input[name="customerLandmark"]') as HTMLInputElement;
-    fireEvent.change(landmark, { target: { value: "Near the park" } });
-    expect(landmark.value).toBe("Near the park");
+    await act(async () => { fireEvent.change(landmark, { target: { value: "Near the park" } }); });
+    await waitFor(() => { expect(landmark.value).toBe("Near the park"); });
   });
 
   it("renders mailto / tel links for email & phone in the customer card", async () => {

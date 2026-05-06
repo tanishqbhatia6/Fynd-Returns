@@ -12,7 +12,7 @@
  */
 import React from "react";
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/react";
+import { render, fireEvent, waitFor, act } from "@testing-library/react";
 
 vi.mock("../../shopify.server", () => ({
   default: {},
@@ -341,28 +341,28 @@ describe("CustomersPage — populated list (low/medium/high risk)", () => {
 });
 
 describe("CustomersPage — interactive: search & sort & expand", () => {
-  it("typing + Enter in the search box runs the search handler without throwing", () => {
+  it("typing + Enter in the search box runs the search handler without throwing", async () => {
     const { container } = renderRoute(baseLoaderData);
     const input = container.querySelector("input[aria-label='Search customers']") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "needle" } });
-    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
-    expect(input.value).toBe("needle");
+    await act(async () => { fireEvent.keyDown(input, { key: "Enter", code: "Enter" }); });
+    await waitFor(() => { expect(input.value).toBe("needle"); });
   });
 
-  it("typing + Enter on whitespace-only value still runs the handler", () => {
+  it("typing + Enter on whitespace-only value still runs the handler", async () => {
     const { container } = renderRoute(baseLoaderData);
     const input = container.querySelector("input[aria-label='Search customers']") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "   " } });
-    fireEvent.keyDown(input, { key: "Enter", code: "Enter" });
-    expect(input).toBeTruthy();
+    await act(async () => { fireEvent.keyDown(input, { key: "Enter", code: "Enter" }); });
+    await waitFor(() => { expect(input).toBeTruthy(); });
   });
 
-  it("non-Enter keys in the search input do not trigger the search handler", () => {
+  it("non-Enter keys in the search input do not trigger the search handler", async () => {
     const { container } = renderRoute(baseLoaderData);
     const input = container.querySelector("input[aria-label='Search customers']") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "xyz" } });
-    fireEvent.keyDown(input, { key: "a", code: "KeyA" });
-    expect(input.value).toBe("xyz");
+    await act(async () => { fireEvent.keyDown(input, { key: "a", code: "KeyA" }); });
+    await waitFor(() => { expect(input.value).toBe("xyz"); });
   });
 
   it("clicking 'Highest Refund' sort button runs the sort handler", () => {
@@ -372,18 +372,18 @@ describe("CustomersPage — interactive: search & sort & expand", () => {
     fireEvent.click(button!);
   });
 
-  it("clicking 'Most Recent' sort button runs the sort handler", () => {
+  it("clicking 'Most Recent' sort button runs the sort handler", async () => {
     const { container } = renderRoute(populatedLoaderData);
     const button = Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Most Recent");
-    fireEvent.click(button!);
-    expect(button).toBeTruthy();
+    await act(async () => { fireEvent.click(button!); });
+    await waitFor(() => { expect(button).toBeTruthy(); });
   });
 
-  it("clicking 'Most Returns' sort button when sort=amount runs the handler", () => {
+  it("clicking 'Most Returns' sort button when sort=amount runs the handler", async () => {
     const { container } = renderRoute({ ...populatedLoaderData, sortBy: "amount" }, ["/app/customers?sort=amount"]);
     const button = Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.trim() === "Most Returns");
-    fireEvent.click(button!);
-    expect(button).toBeTruthy();
+    await act(async () => { fireEvent.click(button!); });
+    await waitFor(() => { expect(button).toBeTruthy(); });
   });
 
   it("renders Clear button when query is active and clicking it runs the handler", () => {
@@ -527,14 +527,14 @@ describe("CustomersPage — expanded detail panel", () => {
 });
 
 describe("CustomersPage — pagination", () => {
-  it("renders pagination buttons when totalPages > 1 and clicking next runs the handler", () => {
+  it("renders pagination buttons when totalPages > 1 and clicking next runs the handler", async () => {
     const { container } = renderRoute({ ...populatedLoaderData, page: 1, totalPages: 3 });
     expect(container.querySelector(".returns-pagination")).toBeTruthy();
     const pagBtns = container.querySelectorAll(".app-pagination-btn");
     expect(pagBtns.length).toBeGreaterThan(0);
     const next = pagBtns[pagBtns.length - 1] as HTMLButtonElement;
-    fireEvent.click(next);
-    expect(next).toBeTruthy();
+    await act(async () => { fireEvent.click(next); });
+    await waitFor(() => { expect(next).toBeTruthy(); });
   });
 
   it("disables prev arrow on page 1", () => {
@@ -580,12 +580,12 @@ describe("CustomersPage — pagination", () => {
     fireEvent.click(pageThree!);
   });
 
-  it("clicking the prev arrow when page > 1 invokes goToPage with page-1", () => {
+  it("clicking the prev arrow when page > 1 invokes goToPage with page-1", async () => {
     const { container } = renderRoute({ ...populatedLoaderData, page: 2, totalPages: 3 }, ["/app/customers?page=2"]);
     const prev = container.querySelectorAll(".app-pagination-btn")[0] as HTMLButtonElement;
     expect(prev.disabled).toBe(false);
-    fireEvent.click(prev);
-    expect(prev).toBeTruthy();
+    await act(async () => { fireEvent.click(prev); });
+    await waitFor(() => { expect(prev).toBeTruthy(); });
   });
 });
 

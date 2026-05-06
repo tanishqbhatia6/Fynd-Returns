@@ -25,7 +25,7 @@
  */
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, cleanup, act } from "@testing-library/react";
+import { render, fireEvent, cleanup, act, waitFor } from "@testing-library/react";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
 // ── Hoisted module mocks for server-side imports ─────────────────────────
@@ -564,26 +564,26 @@ describe("component — copy-to-clipboard buttons (.then body)", () => {
 });
 
 describe("component — radio onChange handlers for the chosen default", () => {
-  it("clicking 'prod' radio when initial appMode is 'dev' fires setAppMode (line 828)", () => {
+  it("clicking 'prod' radio when initial appMode is 'dev' fires setAppMode (line 828)", async () => {
     loaderHolder.current = { ...baseLoaderData, appMode: "dev" as const };
     const { container } = renderWith();
     const prod = container.querySelector(
       "input[type='radio'][name='appMode'][value='prod']",
     ) as HTMLInputElement;
     expect(prod.checked).toBe(false);
-    fireEvent.click(prod);
-    expect(prod.checked).toBe(true);
+    await act(async () => { fireEvent.click(prod); });
+    await waitFor(() => { expect(prod.checked).toBe(true); });
   });
 
-  it("clicking 'uat' radio when initial fyndEnvironment is 'prod' fires setFyndEnvironment (line 855)", () => {
+  it("clicking 'uat' radio when initial fyndEnvironment is 'prod' fires setFyndEnvironment (line 855)", async () => {
     loaderHolder.current = { ...baseLoaderData, fyndEnvironment: "prod" };
     const { container } = renderWith();
     const uat = container.querySelector(
       "input[type='radio'][name='fyndEnvironment'][value='uat']",
     ) as HTMLInputElement;
     expect(uat.checked).toBe(false);
-    fireEvent.click(uat);
-    expect(uat.checked).toBe(true);
+    await act(async () => { fireEvent.click(uat); });
+    await waitFor(() => { expect(uat.checked).toBe(true); });
   });
 });
 
@@ -615,7 +615,7 @@ describe("component — Gorgias toggle + API key + webhook rotation feedback", (
     expect(widget).toBeTruthy();
   });
 
-  it("renders the rotate-confirm dialog text in the Rotate button onClick path", () => {
+  it("renders the rotate-confirm dialog text in the Rotate button onClick path", async () => {
     // Spy a confirm that records the message and accepts the dialog.
     const confirmSpy = vi.spyOn(globalThis, "confirm").mockImplementation((msg) => {
       expect(typeof msg).toBe("string");
@@ -626,8 +626,8 @@ describe("component — Gorgias toggle + API key + webhook rotation feedback", (
     const rotateBtn = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.includes("Rotate webhook secret"),
     ) as HTMLButtonElement;
-    fireEvent.click(rotateBtn);
-    expect(confirmSpy).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(rotateBtn); });
+    await waitFor(() => { expect(confirmSpy).toHaveBeenCalled(); });
     confirmSpy.mockRestore();
   });
 });

@@ -246,10 +246,12 @@ describe("app.returns.create — step 1 lookup", () => {
     const searchBtn = buttons.find((b) =>
       /Search/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    fireEvent.click(searchBtn);
-    expect(orderFetcherShared.load).toHaveBeenCalledWith(
-      expect.stringContaining("orderNumber=1042"),
-    );
+    await act(async () => { fireEvent.click(searchBtn); });
+    await waitFor(() => {
+      expect(orderFetcherShared.load).toHaveBeenCalledWith(
+        expect.stringContaining("orderNumber=1042"),
+      );
+    });
   });
 
   it("submits search via Enter key", async () => {
@@ -258,8 +260,8 @@ describe("app.returns.create — step 1 lookup", () => {
       'input[placeholder="e.g. 1042, #1042"]',
     ) as HTMLInputElement;
     fireEvent.change(input, { target: { value: "1042" } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(orderFetcherShared.load).toHaveBeenCalled();
+    await act(async () => { fireEvent.keyDown(input, { key: "Enter" }); });
+    await waitFor(() => { expect(orderFetcherShared.load).toHaveBeenCalled(); });
   });
 
   it("shows order error from fetcher.data.error", async () => {
@@ -557,8 +559,8 @@ describe("app.returns.create — step 3 customer & CRM", () => {
       'input[type="checkbox"]',
     );
     const overrideCb = allCheckboxes[allCheckboxes.length - 1] as HTMLInputElement;
-    fireEvent.click(overrideCb);
-    expect(overrideCb.checked).toBe(true);
+    await act(async () => { fireEvent.click(overrideCb); });
+    await waitFor(() => { expect(overrideCb.checked).toBe(true); });
 
     // Edit textareas (CRM notes + exchange pref)
     const tas = result.container.querySelectorAll("textarea");
@@ -729,8 +731,8 @@ describe("app.returns.create — step 4 review & submit", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    fireEvent.click(submitBtn);
-    expect(submitFetcherShared.submit).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(submitBtn); });
+    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
     const [body, opts] = submitFetcherShared.submit.mock.calls[0];
     expect(typeof body).toBe("string");
     const parsed = JSON.parse(body as string);

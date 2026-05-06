@@ -128,7 +128,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import Component from "../app.returns.$id";
 
 // ── Loader fixture builders ──
@@ -373,9 +373,9 @@ describe("app.returns.$id — Fynd integration UI panel", () => {
     const form = syncBtn!.closest("form") as HTMLFormElement;
     expect(form).toBeTruthy();
     form.addEventListener("submit", (e) => e.preventDefault());
-    fireEvent.click(syncBtn!);
+    await act(async () => { fireEvent.click(syncBtn!); });
     // Survives the click without throwing
-    expect(syncBtn).toBeTruthy();
+    await waitFor(() => { expect(syncBtn).toBeTruthy(); });
   });
 
   it("renders the 'Refresh' Fynd details button bound to refresh_fynd_details action", async () => {

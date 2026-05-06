@@ -124,7 +124,7 @@ vi.mock("react-router", async () => {
 });
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import ApiKeysSettings from "../app.settings.api-keys";
 import FyndSetup from "../app.settings.setup";
 import PermissionsPage from "../app.settings.permissions";
@@ -213,8 +213,8 @@ describe("app.settings.api-keys — uncovered branches", () => {
     const copy = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Copy",
     ) as HTMLButtonElement;
-    fireEvent.click(copy);
-    expect(writeText).toHaveBeenCalledWith("rpm_branchcov_key");
+    await act(async () => { fireEvent.click(copy); });
+    await waitFor(() => { expect(writeText).toHaveBeenCalledWith("rpm_branchcov_key"); });
   });
 });
 
@@ -436,10 +436,10 @@ describe("app.settings.permissions — uncovered branches", () => {
       expect(toggle).toBeTruthy();
     });
     expect(toggle!.checked).toBe(false);
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(true);
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(false);
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(true); });
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(false); });
   });
 
   it("renders submit button in loading state when fetcher.state !== 'idle'", async () => {

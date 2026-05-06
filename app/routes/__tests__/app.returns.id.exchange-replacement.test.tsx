@@ -127,7 +127,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import Component from "../app.returns.$id";
 
 // ── Loader fixture builders (subset of fields the component reads) ──
@@ -331,8 +331,8 @@ describe("app.returns.$id — exchange/replacement modal branches", () => {
     const btn = Array.from(container.querySelectorAll("s-button, button")).find(
       (b) => (b.textContent || "").trim() === "Process Exchange",
     );
-    fireEvent.click(btn as Element);
-    expect(container.querySelector(".app-modal-overlay")).toBeFalsy();
+    await act(async () => { fireEvent.click(btn as Element); });
+    await waitFor(() => { expect(container.querySelector(".app-modal-overlay")).toBeFalsy(); });
   });
 
   it("shows the Process Replacement button + disclaimer on a replacement return", async () => {
@@ -624,8 +624,8 @@ describe("app.returns.$id — exchange/replacement modal branches", () => {
     expect(radios.length).toBeGreaterThanOrEqual(4);
     // Exchange option is index 1, Replacement is index 3 (refund=0, store_credit=2).
     fireEvent.click(radios[1]);
-    fireEvent.click(radios[3]);
-    expect(container.textContent).toContain("Replacement");
+    await act(async () => { fireEvent.click(radios[3]); });
+    await waitFor(() => { expect(container.textContent).toContain("Replacement"); });
     expect(container.textContent).toContain("Exchange");
   });
 

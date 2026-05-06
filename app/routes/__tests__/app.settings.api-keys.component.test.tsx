@@ -114,7 +114,7 @@ vi.mock("react-router", async () => {
 });
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import { afterEach } from "vitest";
 import ApiKeysSettings from "../app.settings.api-keys";
 
@@ -276,18 +276,20 @@ describe("ApiKeysSettings (default export)", () => {
     expect(cancel).toBeTruthy();
 
     // Toggling the name field via fireEvent.change exercises the controlled input flow.
-    fireEvent.change(nameInput!, { target: { value: "My ERP" } });
-    expect((container.querySelector("input[name='name']") as HTMLInputElement).value).toBe(
-      "My ERP",
-    );
+    await act(async () => { fireEvent.change(nameInput!, { target: { value: "My ERP" } }); });
+    await waitFor(() => {
+      expect((container.querySelector("input[name='name']") as HTMLInputElement).value).toBe(
+        "My ERP",
+      );
+    });
 
     // Clicking a permission checkbox toggles it off — covers the checkbox onChange path.
-    fireEvent.click(checkboxes[0]);
-    expect((checkboxes[0] as HTMLInputElement).checked).toBe(false);
+    await act(async () => { fireEvent.click(checkboxes[0]); });
+    await waitFor(() => { expect((checkboxes[0] as HTMLInputElement).checked).toBe(false); });
 
     // Clicking Cancel closes the form.
-    fireEvent.click(cancel!);
-    expect(container.querySelector("input[name='name']")).toBeNull();
+    await act(async () => { fireEvent.click(cancel!); });
+    await waitFor(() => { expect(container.querySelector("input[name='name']")).toBeNull(); });
   });
 
   it("submitting the generate form posts via fetcher.Form with hidden _action=generate", async () => {
@@ -384,8 +386,8 @@ describe("ApiKeysSettings (default export)", () => {
     ) as HTMLButtonElement;
     expect(copyBtn).toBeTruthy();
 
-    fireEvent.click(copyBtn);
-    expect(writeText).toHaveBeenCalledWith("rpm_full_secret_xxx");
+    await act(async () => { fireEvent.click(copyBtn); });
+    await waitFor(() => { expect(writeText).toHaveBeenCalledWith("rpm_full_secret_xxx"); });
 
     // Synchronous setCopiedKey(true) → label flips to "Copied!".
     await waitFor(() => {

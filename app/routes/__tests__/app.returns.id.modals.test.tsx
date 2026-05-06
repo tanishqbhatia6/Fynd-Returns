@@ -122,7 +122,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { fireEvent, waitFor, act } from "@testing-library/react";
 import Component from "../app.returns.$id";
 
 // ── Shared loader fixtures ──
@@ -406,8 +406,8 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
     const select = container.querySelector(
       'select[aria-label="Select restock location"]',
     ) as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "gid://shopify/Location/2" } });
-    expect(select.value).toBe("gid://shopify/Location/2");
+    await act(async () => { fireEvent.change(select, { target: { value: "gid://shopify/Location/2" } }); });
+    await waitFor(() => { expect(select.value).toBe("gid://shopify/Location/2"); });
   });
 
   it("shows the bonus-credit preview block when bonusCreditEnabled and store_credit is selected", async () => {
@@ -543,8 +543,8 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
     const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
     expect(checkbox).toBeTruthy();
     expect(checkbox.checked).toBe(true); // default
-    fireEvent.click(checkbox);
-    expect(checkbox.checked).toBe(false);
+    await act(async () => { fireEvent.click(checkbox); });
+    await waitFor(() => { expect(checkbox.checked).toBe(false); });
   });
 
   it("clicking the modal body does NOT close the refund modal (event propagation stopped)", async () => {
@@ -557,8 +557,8 @@ describe("app.returns.$id — refund + exchange modal interactions", () => {
       expect(container.querySelector(".app-modal")).toBeTruthy();
     });
     const modalBody = container.querySelector(".app-modal") as HTMLElement;
-    fireEvent.click(modalBody);
+    await act(async () => { fireEvent.click(modalBody); });
     // Modal still open
-    expect(container.querySelector(".app-modal-overlay")).toBeTruthy();
+    await waitFor(() => { expect(container.querySelector(".app-modal-overlay")).toBeTruthy(); });
   });
 });

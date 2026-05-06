@@ -98,7 +98,7 @@ vi.mock("react-router", async () => {
 });
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render, waitFor, act } from "@testing-library/react";
 import {
   createMemoryRouter,
   RouterProvider,
@@ -593,8 +593,8 @@ describe("app.returns.create — branch gaps", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    fireEvent.click(submitBtn);
-    expect(submitFetcherShared.submit).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(submitBtn); });
+    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
     const [body] = submitFetcherShared.submit.mock.calls[0];
     const parsed = JSON.parse(body as string);
     // Empty customer city/province/etc. should be omitted (|| undefined branch)
@@ -768,8 +768,8 @@ describe("app.returns.create — branch gaps", () => {
     ) as NodeListOf<HTMLInputElement>;
     const disabled = Array.from(checkboxes).find((cb) => cb.disabled);
     expect(disabled).toBeTruthy();
-    fireEvent.click(disabled!);
-    expect(container.textContent).toContain("0 items selected");
+    await act(async () => { fireEvent.click(disabled!); });
+    await waitFor(() => { expect(container.textContent).toContain("0 items selected"); });
   });
 
   it("multi-shipment item without 'quantity' field hits `?? 1` fallback (line 535) AND submit body's orderData.id/createdAt fallbacks (lines 647/666)", async () => {

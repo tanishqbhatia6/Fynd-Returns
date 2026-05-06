@@ -57,7 +57,7 @@ vi.mock("../../components/AppPage", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor, fireEvent } from "@testing-library/react";
+import { waitFor, fireEvent, act } from "@testing-library/react";
 import FyndSetup, { action } from "../app.settings.setup";
 import * as shopifyServer from "../../shopify.server";
 import * as db from "../../db.server";
@@ -341,10 +341,12 @@ describe("Step 3 — Webhook setup card", () => {
     });
     const copy = findButtonByText(container, "Copy");
     expect(copy).not.toBeNull();
-    fireEvent.click(copy!);
-    expect(writeText).toHaveBeenCalledWith(
-      "https://example.com/api/webhooks/fynd/shop_123",
-    );
+    await act(async () => { fireEvent.click(copy!); });
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        "https://example.com/api/webhooks/fynd/shop_123",
+      );
+    });
   });
 
   it("renders legacy URL details when legacyWebhookUrl is provided", async () => {

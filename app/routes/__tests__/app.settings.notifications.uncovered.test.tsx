@@ -258,8 +258,8 @@ describe("notifications – event toggles", () => {
       "input[name='notificationNewReturn']",
     ) as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(false); });
   });
 
   it("toggles notificationApproved off when clicked", async () => {
@@ -268,8 +268,8 @@ describe("notifications – event toggles", () => {
     const cb = container.querySelector(
       "input[name='notificationApproved']",
     ) as HTMLInputElement;
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(false); });
   });
 
   it("toggles notificationRejected on when clicked", async () => {
@@ -279,8 +279,8 @@ describe("notifications – event toggles", () => {
       "input[name='notificationRejected']",
     ) as HTMLInputElement;
     expect(cb.checked).toBe(false);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(true); });
   });
 
   it("toggles notificationRefunded off when clicked", async () => {
@@ -289,8 +289,8 @@ describe("notifications – event toggles", () => {
     const cb = container.querySelector(
       "input[name='notificationRefunded']",
     ) as HTMLInputElement;
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(false); });
   });
 
   it("toggles adminSoundEnabled off and on", async () => {
@@ -300,10 +300,10 @@ describe("notifications – event toggles", () => {
       "input[name='adminSoundEnabled']",
     ) as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(false);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(false); });
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(true); });
   });
 
   it("toggles smtpSecure on", async () => {
@@ -312,8 +312,8 @@ describe("notifications – event toggles", () => {
     const cb = container.querySelector(
       "input[name='smtpSecure']",
     ) as HTMLInputElement;
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(true); });
   });
 });
 
@@ -326,8 +326,8 @@ describe("notifications – field input changes", () => {
     const inp = container.querySelector(
       "input[name='smtpHost']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "smtp.test.com" } });
-    expect(inp.value).toBe("smtp.test.com");
+    await act(async () => { fireEvent.change(inp, { target: { value: "smtp.test.com" } }); });
+    await waitFor(() => { expect(inp.value).toBe("smtp.test.com"); });
   });
 
   it("updates smtpPort when changed", async () => {
@@ -336,8 +336,8 @@ describe("notifications – field input changes", () => {
     const inp = container.querySelector(
       "input[name='smtpPort']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "465" } });
-    expect(inp.value).toBe("465");
+    await act(async () => { fireEvent.change(inp, { target: { value: "465" } }); });
+    await waitFor(() => { expect(inp.value).toBe("465"); });
   });
 
   it("updates smtpUser when changed", async () => {
@@ -346,8 +346,8 @@ describe("notifications – field input changes", () => {
     const inp = container.querySelector(
       "input[name='smtpUser']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "new@ex.com" } });
-    expect(inp.value).toBe("new@ex.com");
+    await act(async () => { fireEvent.change(inp, { target: { value: "new@ex.com" } }); });
+    await waitFor(() => { expect(inp.value).toBe("new@ex.com"); });
   });
 
   it("updates smtpPass when changed (overwrites placeholder)", async () => {
@@ -356,8 +356,8 @@ describe("notifications – field input changes", () => {
     const inp = container.querySelector(
       "input[name='smtpPass']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "newpass" } });
-    expect(inp.value).toBe("newpass");
+    await act(async () => { fireEvent.change(inp, { target: { value: "newpass" } }); });
+    await waitFor(() => { expect(inp.value).toBe("newpass"); });
   });
 
   it("updates smtpFromEmail when changed", async () => {
@@ -366,8 +366,8 @@ describe("notifications – field input changes", () => {
     const inp = container.querySelector(
       "input[name='smtpFromEmail']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "from@ex.com" } });
-    expect(inp.value).toBe("from@ex.com");
+    await act(async () => { fireEvent.change(inp, { target: { value: "from@ex.com" } }); });
+    await waitFor(() => { expect(inp.value).toBe("from@ex.com"); });
   });
 
   it("updates smtpFromName when changed", async () => {
@@ -376,8 +376,8 @@ describe("notifications – field input changes", () => {
     const inp = container.querySelector(
       "input[name='smtpFromName']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "MyStore" } });
-    expect(inp.value).toBe("MyStore");
+    await act(async () => { fireEvent.change(inp, { target: { value: "MyStore" } }); });
+    await waitFor(() => { expect(inp.value).toBe("MyStore"); });
   });
 
   it("updates adminNotifyEmail when changed", async () => {
@@ -386,8 +386,8 @@ describe("notifications – field input changes", () => {
     const inp = container.querySelector(
       "input[name='adminNotifyEmail']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "ops@ex.com" } });
-    expect(inp.value).toBe("ops@ex.com");
+    await act(async () => { fireEvent.change(inp, { target: { value: "ops@ex.com" } }); });
+    await waitFor(() => { expect(inp.value).toBe("ops@ex.com"); });
   });
 });
 
@@ -474,8 +474,8 @@ describe("notifications – default email previews", () => {
     const chip = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Return Approved",
     ) as HTMLButtonElement | undefined;
-    fireEvent.click(chip!);
-    expect(container.innerHTML).toContain("Return Approved");
+    await act(async () => { fireEvent.click(chip!); });
+    await waitFor(() => { expect(container.innerHTML).toContain("Return Approved"); });
   });
 
   it("clicking 'Return Rejected' chip renders the rejected preview", async () => {
@@ -484,8 +484,8 @@ describe("notifications – default email previews", () => {
     const chip = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Return Rejected",
     ) as HTMLButtonElement | undefined;
-    fireEvent.click(chip!);
-    expect(container.innerHTML).toContain("Return Declined");
+    await act(async () => { fireEvent.click(chip!); });
+    await waitFor(() => { expect(container.innerHTML).toContain("Return Declined"); });
   });
 
   it("clicking 'Refund Processed' chip renders the refunded preview", async () => {
@@ -494,8 +494,8 @@ describe("notifications – default email previews", () => {
     const chip = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Refund Processed",
     ) as HTMLButtonElement | undefined;
-    fireEvent.click(chip!);
-    expect(container.innerHTML).toContain("Refund Processed");
+    await act(async () => { fireEvent.click(chip!); });
+    await waitFor(() => { expect(container.innerHTML).toContain("Refund Processed"); });
   });
 
   it("clicking 'New Return (Admin)' chip renders the new-return preview", async () => {
@@ -504,8 +504,8 @@ describe("notifications – default email previews", () => {
     const chip = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "New Return (Admin)",
     ) as HTMLButtonElement | undefined;
-    fireEvent.click(chip!);
-    expect(container.innerHTML).toContain("New Return Request");
+    await act(async () => { fireEvent.click(chip!); });
+    await waitFor(() => { expect(container.innerHTML).toContain("New Return Request"); });
   });
 
   it("clicking the same chip twice toggles the preview off", async () => {
@@ -515,8 +515,8 @@ describe("notifications – default email previews", () => {
       (b) => b.textContent?.trim() === "Return Approved",
     ) as HTMLButtonElement | undefined;
     fireEvent.click(chip!);
-    fireEvent.click(chip!);
-    expect(container.textContent).toContain("Click a template above to preview");
+    await act(async () => { fireEvent.click(chip!); });
+    await waitFor(() => { expect(container.textContent).toContain("Click a template above to preview"); });
   });
 });
 
@@ -595,8 +595,8 @@ describe("notifications – per-event template editor", () => {
       i.value.toLowerCase().includes("approved"),
     );
     expect(subj).toBeTruthy();
-    fireEvent.change(subj!, { target: { value: "New Subject" } });
-    expect(subj!.value).toBe("New Subject");
+    await act(async () => { fireEvent.change(subj!, { target: { value: "New Subject" } }); });
+    await waitFor(() => { expect(subj!.value).toBe("New Subject"); });
   });
 
   it("editing the body textarea updates its value", async () => {
@@ -604,8 +604,8 @@ describe("notifications – per-event template editor", () => {
     await waitForRender(container);
     clickCustomizeFor(container, "Approved");
     const ta = container.querySelector("textarea") as HTMLTextAreaElement;
-    fireEvent.change(ta, { target: { value: "<p>brand new body</p>" } });
-    expect(ta.value).toBe("<p>brand new body</p>");
+    await act(async () => { fireEvent.change(ta, { target: { value: "<p>brand new body</p>" } }); });
+    await waitFor(() => { expect(ta.value).toBe("<p>brand new body</p>"); });
   });
 
   it("clicking 'Cancel' closes the editor", async () => {
@@ -616,8 +616,8 @@ describe("notifications – per-event template editor", () => {
     const cancel = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.trim() === "Cancel",
     ) as HTMLButtonElement;
-    fireEvent.click(cancel);
-    expect(container.querySelector("textarea")).toBeNull();
+    await act(async () => { fireEvent.click(cancel); });
+    await waitFor(() => { expect(container.querySelector("textarea")).toBeNull(); });
   });
 
   it("clicking 'Preview' inside the editor toggles to iframe view", async () => {
@@ -764,8 +764,8 @@ describe("notifications – WhatsApp + OTP", () => {
     const cb = container.querySelector(
       "input[name='whatsappEnabled']",
     ) as HTMLInputElement;
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(true); });
     const sel = container.querySelector(
       "select[name='whatsappProvider']",
     ) as HTMLSelectElement | null;
@@ -782,8 +782,8 @@ describe("notifications – WhatsApp + OTP", () => {
     const sel = container.querySelector(
       "select[name='whatsappProvider']",
     ) as HTMLSelectElement;
-    fireEvent.change(sel, { target: { value: "twilio" } });
-    expect(sel.value).toBe("twilio");
+    await act(async () => { fireEvent.change(sel, { target: { value: "twilio" } }); });
+    await waitFor(() => { expect(sel.value).toBe("twilio"); });
     // For twilio provider, the Phone Number ID input should not be
     // rendered (only meta_cloud shows it).
     expect(
@@ -817,8 +817,8 @@ describe("notifications – WhatsApp + OTP", () => {
     const inp = container.querySelector(
       "input[name='whatsappApiKey']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "secret123" } });
-    expect(inp.value).toBe("secret123");
+    await act(async () => { fireEvent.change(inp, { target: { value: "secret123" } }); });
+    await waitFor(() => { expect(inp.value).toBe("secret123"); });
   });
 
   it("editing WhatsApp Phone Number ID updates input value (meta_cloud)", async () => {
@@ -831,8 +831,8 @@ describe("notifications – WhatsApp + OTP", () => {
     const inp = container.querySelector(
       "input[name='whatsappPhoneNumberId']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "9876543210" } });
-    expect(inp.value).toBe("9876543210");
+    await act(async () => { fireEvent.change(inp, { target: { value: "9876543210" } }); });
+    await waitFor(() => { expect(inp.value).toBe("9876543210"); });
   });
 
   it("editing WhatsApp From Number updates input value", async () => {
@@ -845,8 +845,8 @@ describe("notifications – WhatsApp + OTP", () => {
     const inp = container.querySelector(
       "input[name='whatsappFromNumber']",
     ) as HTMLInputElement;
-    fireEvent.change(inp, { target: { value: "+12025550123" } });
-    expect(inp.value).toBe("+12025550123");
+    await act(async () => { fireEvent.change(inp, { target: { value: "+12025550123" } }); });
+    await waitFor(() => { expect(inp.value).toBe("+12025550123"); });
   });
 
   it("renders hidden whatsapp inputs when disabled (preserves form values)", async () => {
@@ -867,8 +867,8 @@ describe("notifications – WhatsApp + OTP", () => {
       "input[name='portalOtpEmailEnabled']",
     ) as HTMLInputElement;
     expect(cb.checked).toBe(false);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(true); });
   });
 
   it("SMS/WhatsApp OTP toggle is rendered (off by default)", async () => {
@@ -878,8 +878,8 @@ describe("notifications – WhatsApp + OTP", () => {
       "input[name='portalOtpSmsEnabled']",
     ) as HTMLInputElement;
     expect(cb.checked).toBe(false);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(true);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(true); });
   });
 });
 

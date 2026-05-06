@@ -78,7 +78,7 @@ vi.mock("react-router", async () => {
 });
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor, fireEvent } from "@testing-library/react";
+import { waitFor, fireEvent, act } from "@testing-library/react";
 import CreateReturn, { loader } from "../app.returns.create";
 import { authenticate } from "../../shopify.server";
 
@@ -292,8 +292,8 @@ describe("app.returns.create — gap coverage", () => {
 
     const selects = result.container.querySelectorAll("select");
     // [0] Reason, [1] Condition for the expanded item
-    fireEvent.change(selects[1], { target: { value: "used_like_new" } });
-    expect((selects[1] as HTMLSelectElement).value).toBe("used_like_new");
+    await act(async () => { fireEvent.change(selects[1], { target: { value: "used_like_new" } }); });
+    await waitFor(() => { expect((selects[1] as HTMLSelectElement).value).toBe("used_like_new"); });
   });
 
   it("multi-shipment: edits Notes textarea onChange (line 997)", async () => {
@@ -317,8 +317,8 @@ describe("app.returns.create — gap coverage", () => {
       expect(tas.length).toBeGreaterThanOrEqual(1);
     });
     const tas = result.container.querySelectorAll("textarea");
-    fireEvent.change(tas[0], { target: { value: "scratched packaging" } });
-    expect((tas[0] as HTMLTextAreaElement).value).toBe("scratched packaging");
+    await act(async () => { fireEvent.change(tas[0], { target: { value: "scratched packaging" } }); });
+    await waitFor(() => { expect((tas[0] as HTMLTextAreaElement).value).toBe("scratched packaging"); });
   });
 
   it("multi-shipment: edits qty input within shipment row", async () => {
@@ -344,8 +344,8 @@ describe("app.returns.create — gap coverage", () => {
     // Trigger clamps: above max (4) and below min (0) and a regular value
     fireEvent.change(qty, { target: { value: "99" } });
     fireEvent.change(qty, { target: { value: "0" } });
-    fireEvent.change(qty, { target: { value: "3" } });
-    expect(qty.value).toBe("3");
+    await act(async () => { fireEvent.change(qty, { target: { value: "3" } }); });
+    await waitFor(() => { expect(qty.value).toBe("3"); });
   });
 
   it("multi-shipment: edits Reason select onChange", async () => {
@@ -366,8 +366,8 @@ describe("app.returns.create — gap coverage", () => {
       expect(selects.length).toBeGreaterThanOrEqual(2);
     });
     const selects = result.container.querySelectorAll("select");
-    fireEvent.change(selects[0], { target: { value: "damaged" } });
-    expect((selects[0] as HTMLSelectElement).value).toBe("damaged");
+    await act(async () => { fireEvent.change(selects[0], { target: { value: "damaged" } }); });
+    await waitFor(() => { expect((selects[0] as HTMLSelectElement).value).toBe("damaged"); });
   });
 
   it("multi-shipment: validateStep2 fails when condition missing on selected item", async () => {
@@ -430,8 +430,8 @@ describe("app.returns.create — gap coverage", () => {
     expect(agentInput).toBeTruthy();
     // Default value seeded as "Admin"
     expect(agentInput.value).toBe("Admin");
-    fireEvent.change(agentInput, { target: { value: "Casey Agent" } });
-    expect(agentInput.value).toBe("Casey Agent");
+    await act(async () => { fireEvent.change(agentInput, { target: { value: "Casey Agent" } }); });
+    await waitFor(() => { expect(agentInput.value).toBe("Casey Agent"); });
   });
 
   it("step 3: empty agent name still allowed; submit defaults to 'Admin'", async () => {
@@ -473,8 +473,8 @@ describe("app.returns.create — gap coverage", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    fireEvent.click(submitBtn);
-    expect(submitFetcherShared.submit).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(submitBtn); });
+    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
     const [body] = submitFetcherShared.submit.mock.calls[0];
     const parsed = JSON.parse(body as string);
     expect(parsed.createdByStaff).toBe("Admin");
@@ -627,8 +627,8 @@ describe("app.returns.create — gap coverage", () => {
     const submitBtn = buttons.find((b) =>
       /Submit Return/i.test(b.textContent || ""),
     ) as HTMLButtonElement;
-    fireEvent.click(submitBtn);
-    expect(submitFetcherShared.submit).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(submitBtn); });
+    await waitFor(() => { expect(submitFetcherShared.submit).toHaveBeenCalled(); });
   });
 
   it("validateStep2 fails with 'Quantity must be at least 1' when item qty seeded to 0 (lines 581-582)", async () => {

@@ -31,7 +31,7 @@
  */
 import * as React from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, fireEvent, cleanup, act } from "@testing-library/react";
+import { render, fireEvent, cleanup, act, waitFor } from "@testing-library/react";
 
 // ── Module-top-level mocks for server-only imports in the route file ──
 // The route imports shopify.server / db.server / lib/* purely for the
@@ -590,22 +590,22 @@ describe("app.settings.integrations — interactive handlers", () => {
     expect(btn.textContent).toBe("Copy secret");
   });
 
-  it("App Mode 'dev' radio onChange flips the controlled state", () => {
+  it("App Mode 'dev' radio onChange flips the controlled state", async () => {
     const { container } = renderWith();
     const dev = container.querySelector(
       "input[type='radio'][name='appMode'][value='dev']",
     ) as HTMLInputElement;
-    fireEvent.click(dev);
-    expect(dev.checked).toBe(true);
+    await act(async () => { fireEvent.click(dev); });
+    await waitFor(() => { expect(dev.checked).toBe(true); });
   });
 
-  it("Fynd Environment 'prod' radio onChange flips the controlled state", () => {
+  it("Fynd Environment 'prod' radio onChange flips the controlled state", async () => {
     const { container } = renderWith();
     const prod = container.querySelector(
       "input[type='radio'][name='fyndEnvironment'][value='prod']",
     ) as HTMLInputElement;
-    fireEvent.click(prod);
-    expect(prod.checked).toBe(true);
+    await act(async () => { fireEvent.click(prod); });
+    await waitFor(() => { expect(prod.checked).toBe(true); });
   });
 
   it("allowExchange toggle onChange mutates the track + knob style", () => {
@@ -623,41 +623,41 @@ describe("app.settings.integrations — interactive handlers", () => {
     fireEvent.click(cb);
   });
 
-  it("Rotate button confirm() returning true allows submission (no preventDefault)", () => {
+  it("Rotate button confirm() returning true allows submission (no preventDefault)", async () => {
     const confirmSpy = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
     const { container } = renderWith();
     const rotateBtn = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.includes("Rotate webhook secret"),
     ) as HTMLButtonElement;
-    fireEvent.click(rotateBtn);
-    expect(confirmSpy).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(rotateBtn); });
+    await waitFor(() => { expect(confirmSpy).toHaveBeenCalled(); });
     confirmSpy.mockRestore();
   });
 
-  it("Rotate button confirm() returning false invokes preventDefault", () => {
+  it("Rotate button confirm() returning false invokes preventDefault", async () => {
     const confirmSpy = vi.spyOn(globalThis, "confirm").mockReturnValue(false);
     const { container } = renderWith();
     const rotateBtn = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.includes("Rotate webhook secret"),
     ) as HTMLButtonElement;
-    fireEvent.click(rotateBtn);
-    expect(confirmSpy).toHaveBeenCalled();
+    await act(async () => { fireEvent.click(rotateBtn); });
+    await waitFor(() => { expect(confirmSpy).toHaveBeenCalled(); });
     confirmSpy.mockRestore();
   });
 
-  it("Generate button (no existing secret) does not invoke confirm()", () => {
+  it("Generate button (no existing secret) does not invoke confirm()", async () => {
     loaderHolder.current = { ...baseLoaderData, fyndWebhookSecretConfigured: false };
     const confirmSpy = vi.spyOn(globalThis, "confirm").mockReturnValue(true);
     const { container } = renderWith();
     const genBtn = Array.from(container.querySelectorAll("button")).find(
       (b) => b.textContent?.includes("Generate webhook secret"),
     ) as HTMLButtonElement;
-    fireEvent.click(genBtn);
-    expect(confirmSpy).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.click(genBtn); });
+    await waitFor(() => { expect(confirmSpy).not.toHaveBeenCalled(); });
     confirmSpy.mockRestore();
   });
 
-  it("readonly inputs and textareas select on focus", () => {
+  it("readonly inputs and textareas select on focus", async () => {
     webhookFetcherHolder.current = {
       data: { success: true, fyndWebhookSecretJustGenerated: "focusable" },
       state: "idle",
@@ -667,29 +667,29 @@ describe("app.settings.integrations — interactive handlers", () => {
       "input[aria-label='Per-shop Fynd webhook URL']",
     ) as HTMLInputElement;
     const selectSpy = vi.spyOn(url, "select");
-    fireEvent.focus(url);
-    expect(selectSpy).toHaveBeenCalled();
+    await act(async () => { fireEvent.focus(url); });
+    await waitFor(() => { expect(selectSpy).toHaveBeenCalled(); });
 
     const secret = container.querySelector(
       "input[aria-label='Generated webhook secret (one-time display)']",
     ) as HTMLInputElement;
     const selectSpy2 = vi.spyOn(secret, "select");
-    fireEvent.focus(secret);
-    expect(selectSpy2).toHaveBeenCalled();
+    await act(async () => { fireEvent.focus(secret); });
+    await waitFor(() => { expect(selectSpy2).toHaveBeenCalled(); });
 
     const curl = container.querySelector(
       "textarea[aria-label='curl example using header auth']",
     ) as HTMLTextAreaElement;
     const selectSpy3 = vi.spyOn(curl, "select");
-    fireEvent.focus(curl);
-    expect(selectSpy3).toHaveBeenCalled();
+    await act(async () => { fireEvent.focus(curl); });
+    await waitFor(() => { expect(selectSpy3).toHaveBeenCalled(); });
 
     const sample = container.querySelector(
       "textarea[aria-label='Sample Fynd webhook payload']",
     ) as HTMLTextAreaElement;
     const selectSpy4 = vi.spyOn(sample, "select");
-    fireEvent.focus(sample);
-    expect(selectSpy4).toHaveBeenCalled();
+    await act(async () => { fireEvent.focus(sample); });
+    await waitFor(() => { expect(selectSpy4).toHaveBeenCalled(); });
   });
 });
 

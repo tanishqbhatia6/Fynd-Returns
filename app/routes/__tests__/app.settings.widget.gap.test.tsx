@@ -120,8 +120,8 @@ describe("widget gap coverage — label overrides editor", () => {
     const inputs = container.querySelectorAll(
       'input[type="text"].app-input',
     ) as NodeListOf<HTMLInputElement>;
-    fireEvent.change(inputs[0], { target: { value: "Custom heading" } });
-    expect(inputs[0].value).toBe("Custom heading");
+    await act(async () => { fireEvent.change(inputs[0], { target: { value: "Custom heading" } }); });
+    await waitFor(() => { expect(inputs[0].value).toBe("Custom heading"); });
 
     // Hidden field that mirrors the override map should now contain the value
     const hidden = container.querySelector(
@@ -146,8 +146,8 @@ describe("widget gap coverage — label overrides editor", () => {
       'input[type="text"].app-input',
     ) as NodeListOf<HTMLInputElement>;
     expect(inputs[0].value).toBe("Existing override");
-    fireEvent.change(inputs[0], { target: { value: "   " } });
-    expect(inputs[0].value).toBe("");
+    await act(async () => { fireEvent.change(inputs[0], { target: { value: "   " } }); });
+    await waitFor(() => { expect(inputs[0].value).toBe(""); });
 
     const hidden = container.querySelector(
       'input[type="hidden"][name="portalLabelsJson"]',
@@ -324,9 +324,9 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
 
     // 1 MB > 512 KB max
     const huge = makeFile("big.png", "image/png", 1024 * 1024);
-    fireEvent.change(fileInput, { target: { files: [huge] } });
+    await act(async () => { fireEvent.change(fileInput, { target: { files: [huge] } }); });
 
-    expect(alertSpy).toHaveBeenCalledTimes(1);
+    await waitFor(() => { expect(alertSpy).toHaveBeenCalledTimes(1); });
     expect(alertSpy.mock.calls[0][0]).toMatch(/Image too large/i);
     // No image rendered after rejection
     expect(container.querySelector('img[alt="Brand logo"]')).toBeFalsy();
@@ -345,9 +345,9 @@ describe("widget gap coverage — branding (logo + favicon)", () => {
     const fileInput = container.querySelector(
       'input[type="file"][accept*="image/png"]',
     ) as HTMLInputElement;
-    fireEvent.change(fileInput, { target: { files: [] } });
+    await act(async () => { fireEvent.change(fileInput, { target: { files: [] } }); });
     // Component shouldn't crash, nothing rendered
-    expect(container.querySelector('img[alt="Brand logo"]')).toBeFalsy();
+    await waitFor(() => { expect(container.querySelector('img[alt="Brand logo"]')).toBeFalsy(); });
   });
 
   it("uploads a favicon via the favicon-specific file input", async () => {
@@ -430,8 +430,8 @@ describe("widget gap coverage — theme controls", () => {
       'select[name="fontFamily"]',
     ) as HTMLSelectElement;
     const second = FONT_OPTIONS[1].value;
-    fireEvent.change(sel, { target: { value: second } });
-    expect(sel.value).toBe(second);
+    await act(async () => { fireEvent.change(sel, { target: { value: second } }); });
+    await waitFor(() => { expect(sel.value).toBe(second); });
   });
 
   it("changes the primary color value", async () => {
@@ -447,8 +447,8 @@ describe("widget gap coverage — theme controls", () => {
     const input = container.querySelector(
       'input[type="color"][name="primaryColor"]',
     ) as HTMLInputElement;
-    fireEvent.input(input, { target: { value: "#abcdef" } });
-    expect(input.value).toBe("#abcdef");
+    await act(async () => { fireEvent.input(input, { target: { value: "#abcdef" } }); });
+    await waitFor(() => { expect(input.value).toBe("#abcdef"); });
   });
 
   it("renders hidden inputs for theme fields not exposed in the UI", async () => {
@@ -539,8 +539,8 @@ describe("widget gap coverage — toggles + form submission", () => {
     const sel = container.querySelector(
       'select[name="defaultTab"]',
     ) as HTMLSelectElement;
-    fireEvent.change(sel, { target: { value: "order" } });
-    expect(sel.value).toBe("order");
+    await act(async () => { fireEvent.change(sel, { target: { value: "order" } }); });
+    await waitFor(() => { expect(sel.value).toBe("order"); });
   });
 
   it("changes the portal language selection", async () => {
@@ -558,8 +558,8 @@ describe("widget gap coverage — toggles + form submission", () => {
     ) as HTMLSelectElement;
     const someOtherLang = SUPPORTED_LANGUAGES.find((l) => l.code !== "en")?.code;
     if (someOtherLang) {
-      fireEvent.change(sel, { target: { value: someOtherLang } });
-      expect(sel.value).toBe(someOtherLang);
+      await act(async () => { fireEvent.change(sel, { target: { value: someOtherLang } }); });
+      await waitFor(() => { expect(sel.value).toBe(someOtherLang); });
     }
   });
 

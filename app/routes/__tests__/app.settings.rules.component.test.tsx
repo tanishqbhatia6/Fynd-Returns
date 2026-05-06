@@ -46,7 +46,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor, fireEvent } from "@testing-library/react";
+import { waitFor, fireEvent, act } from "@testing-library/react";
 import ReturnRules from "../app.settings.rules";
 
 const baseLoaderData = {
@@ -147,8 +147,8 @@ describe("app.settings.rules component (default export)", () => {
       ) as HTMLInputElement | null;
       expect(reasonInput).toBeTruthy();
     });
-    fireEvent.change(reasonInput!, { target: { value: "Late delivery" } });
-    expect(reasonInput!.value).toBe("Late delivery");
+    await act(async () => { fireEvent.change(reasonInput!, { target: { value: "Late delivery" } }); });
+    await waitFor(() => { expect(reasonInput!.value).toBe("Late delivery"); });
     // Click the Add button next to the reason input. There may be multiple
     // "Add" buttons on the page, so pick the one inside the same parent.
     const addBtn = reasonInput!.parentElement?.querySelector(

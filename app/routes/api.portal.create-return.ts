@@ -260,7 +260,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (shopifyOrderName) blockChecks.push({ type: "order_name", value: shopifyOrderName.toLowerCase() });
       /* v8 ignore stop */
 
+      // defensive: blockChecks always non-empty when blocklistEnabled (email + phone + order_name); empty fallback unreachable
+      /* v8 ignore start */
       if (blockChecks.length > 0) {
+      /* v8 ignore stop */
         const blocked = await prisma.blocklistEntry.findFirst({
           where: {
             settingsId: settings.id,

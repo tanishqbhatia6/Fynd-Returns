@@ -93,7 +93,10 @@ export async function isSafeOutboundUrl(rawUrl: string, opts?: { allowHttp?: boo
   // checks see the bare address.
   let host = parsed.hostname.toLowerCase();
   if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
+  /* v8 ignore start */
+  // defensive: parsed.hostname is non-empty for valid URLs; URL constructor already errored otherwise
   if (!host) return { ok: false, reason: "missing_host" };
+  /* v8 ignore stop */
   if (PRIVATE_HOSTNAMES.has(host)) return { ok: false, reason: "private_hostname" };
   // Direct-IP hostnames: short-circuit DNS, check the literal directly.
   if (/^\d+\.\d+\.\d+\.\d+$/.test(host)) {

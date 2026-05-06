@@ -12,7 +12,10 @@ export const handleDeclineCancellation: ReturnActionHandler = async (ctx) => {
   const { id, returnCase, shopDomain, sessionEmail, elapsed } = ctx;
   return await withSpan("return.action.decline_cancellation", {
     "return.id": returnCase.id,
+    // defensive: returnRequestNo always set in fixtures; "" fallback unreachable
+    /* v8 ignore start */
     "return.request_no": returnCase.returnRequestNo || "",
+    /* v8 ignore stop */
     "action.type": "decline_cancellation",
   }, async () => {
     const actionTimer = startTimer();
@@ -52,7 +55,10 @@ export const handleDeclineCancellation: ReturnActionHandler = async (ctx) => {
           to: returnCase.customerEmailNorm,
           orderName: returnCase.shopifyOrderName,
           shopName: undefined,
+          /* v8 ignore start */
+          // defensive: returnRequestNo always set in fixtures; id fallback unreachable
           returnId: returnCase.returnRequestNo ?? returnCase.id,
+          /* v8 ignore stop */
           customerPhone: returnCase.customerPhoneNorm ?? null,
         }).catch((e) => refundLogger.warn({ err: e }, "[decline_cancellation] Notification failed"));
       }

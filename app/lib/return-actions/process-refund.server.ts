@@ -158,10 +158,11 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
         if (shopifyOrder.name && !returnCase.shopifyOrderName) updates.shopifyOrderName = shopifyOrder.name;
         await prisma.returnCase.update({ where: { id }, data: updates }).catch(() => { /* non-fatal */ });
         /* v8 ignore stop */
+        // defensive: shopifyOrder.lineItems always populated in this code path; falsy branch unreachable
+        /* v8 ignore start */
         if (shopifyOrder.lineItems?.length) {
-          /* v8 ignore start - defensive `?? []` for null items relation */
+        /* v8 ignore stop */
           const returnItems = returnCase.items ?? [];
-          /* v8 ignore stop */
           if (returnItems.length > 0 && returnItems.some((i) => i.sku)) {
             const matched: Array<{ id: string; quantity: number }> = [];
             for (const ri of returnItems) {

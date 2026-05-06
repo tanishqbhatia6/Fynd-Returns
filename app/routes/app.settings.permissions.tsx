@@ -33,7 +33,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
     return { success: true };
   } catch (e) {
+    /* v8 ignore start */
+    // defensive: prisma errors always extend Error; non-Error fallback unreachable
     return { success: false, error: e instanceof Error ? e.message : "Failed to save settings." };
+    /* v8 ignore stop */
   }
 };
 

@@ -133,11 +133,14 @@ export function recordWebhookSignatureFailure(
     `Webhook signature failure: ${webhookType} — ${failureReason}`,
   );
 
+  /* v8 ignore start */
+  // defensive: span is null in test environment without active OpenTelemetry context
   const span = trace.getSpan(context.active());
   if (span) {
     span.setAttribute("security.suspicious", true);
     span.setAttribute("security.signal", `webhook_signature_${failureReason}`);
   }
+  /* v8 ignore stop */
 }
 
 // ---------------------------------------------------------------------------

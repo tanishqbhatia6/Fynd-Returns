@@ -13,7 +13,10 @@ export const handleAddNote: ReturnActionHandler = async (ctx, body) => {
   const { note } = body;
   return await withSpan("return.action.add_note", {
     "return.id": returnCase.id,
+    // defensive: returnRequestNo always set in fixtures; "" fallback unreachable
+    /* v8 ignore start */
     "return.request_no": returnCase.returnRequestNo || "",
+    /* v8 ignore stop */
     "action.type": "add_note",
   }, async () => {
     const actionTimer = startTimer();

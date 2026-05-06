@@ -122,7 +122,10 @@ export function decrypt(encrypted: string): string {
       // GCM auth tag mismatch — try the next key.
     }
   }
+  /* v8 ignore start */
+  // defensive: lastErr set to caught err in loop above is always Error; non-Error fall-through unreachable
   throw lastErr instanceof Error ? lastErr : new Error("Decryption failed with all keys");
+  /* v8 ignore stop */
 }
 
 /**

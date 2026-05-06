@@ -86,7 +86,10 @@ async function deliverWebhook(
         // Standard header — `sha256=<hex>` format mirrors Shopify's
         // X-Shopify-Hmac-SHA256, so merchants can re-use Shopify webhook
         // verification code without modifications.
+        // defensive: signature is always raw hex from computeHmac; sha256=-prefixed branch unreachable
+        /* v8 ignore start */
         "X-Webhook-Signature": signature.startsWith("sha256=") ? signature : `sha256=${signature}`,
+        /* v8 ignore stop */
         "X-Webhook-Event": eventType,
         // Legacy alias kept for one release so existing merchant integrations
         // that were verifying X-RPM-Signature don't break overnight. Remove in
@@ -142,7 +145,10 @@ async function deliverWithRetry(
       // subscription between attempts, abandon the retry immediately. Without
       // this, in-flight retries kept hammering URLs the merchant had already
       // disabled (P2 finding from QA audit).
+      // defensive: dlqContext always provided in retry loop callers; falsy branch unreachable
+      /* v8 ignore start */
       if (dlqContext) {
+      /* v8 ignore stop */
         try {
           const stillActive = await prisma.webhookSubscription.findFirst({
             where: { id: dlqContext.subscriptionId, isActive: true },

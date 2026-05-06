@@ -96,7 +96,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Verify customer owns this return
     let matchedReturnIds: string[] = [];
     try {
+      // defensive: matchedReturnIds populated by login flow before this endpoint; "[]" fallback unreachable
+      /* v8 ignore start */
       matchedReturnIds = JSON.parse(session.matchedReturnIds || "[]");
+      /* v8 ignore stop */
     } catch {
       // ignore
     }

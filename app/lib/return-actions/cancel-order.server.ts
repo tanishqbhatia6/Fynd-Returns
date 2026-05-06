@@ -47,7 +47,10 @@ export const handleCancelOrder: ReturnActionHandler = async (ctx, body) => {
           orderGid = `gid://shopify/Order/${orderGid}`;
         } else {
           const orderByName = returnCase.shopifyOrderName
+            /* v8 ignore start */
+            // defensive: shopifyOrderName ?? "" — first operand truthy by outer ternary, fallback unreachable
             ? await fetchOrderByOrderNumber(admin as never, (returnCase.shopifyOrderName ?? "").replace(/^#/, "").trim())
+            /* v8 ignore stop */
             : null;
           if (!orderByName?.id) {
             returnActionCounter.add(1, { action: "cancel_order", outcome: "error" });

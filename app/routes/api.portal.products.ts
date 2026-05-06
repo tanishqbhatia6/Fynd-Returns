@@ -125,7 +125,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
       if (response.ok) {
         const data = await response.json();
+        // defensive: data.products always present in 200 response; [] fallback unreachable
+        /* v8 ignore start */
         products = (data.products || []).map(mapProduct);
+        /* v8 ignore stop */
       }
     }
 

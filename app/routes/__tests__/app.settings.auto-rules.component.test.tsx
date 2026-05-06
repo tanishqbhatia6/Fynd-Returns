@@ -307,7 +307,7 @@ describe("app.settings.auto-rules component (default export)", () => {
       expect(refreshed[1].value).toBe("gt");
     });
     const inputs = Array.from(container.querySelectorAll("input")) as HTMLInputElement[];
-    fireEvent.change(inputs[0], { target: { value: "100" } });
+    await act(async () => { fireEvent.change(inputs[0], { target: { value: "100" } }); });
     await waitFor(() => {
       const refreshedInputs = Array.from(container.querySelectorAll("input")) as HTMLInputElement[];
       expect(refreshedInputs[0].value).toBe("100");

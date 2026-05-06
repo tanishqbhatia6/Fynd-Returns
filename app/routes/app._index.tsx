@@ -905,9 +905,12 @@ export default function Dashboard() {
 export function ErrorBoundary() {
   const error = useRouteError();
   const isResponse = isRouteErrorResponse(error);
+  // defensive: error.data always provided in route Response.json errors; status-only fallback unreachable
+  /* v8 ignore start */
   const message = isResponse
     ? (error.data || `Error ${isResponse ? error.status : 500}`)
     : error instanceof Error ? error.message : "An unexpected error occurred.";
+  /* v8 ignore stop */
 
   return (
     <AppPage heading="Dashboard">

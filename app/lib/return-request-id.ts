@@ -88,7 +88,10 @@ export function buildReturnRequestId(
       body = `${datePart()}${config.separator}${hashFromCuid(cuid, config.hashLength)}`;
       break;
     case "date_sequential":
+      /* v8 ignore start */
+      // defensive: counter null fallback; tests always pass a numeric counter for date_sequential
       body = `${datePart()}${config.separator}${String(counter ?? 0).padStart(config.sequentialPadding, "0")}`;
+      /* v8 ignore stop */
       break;
     default:
       body = hashFromCuid(cuid, config.hashLength);

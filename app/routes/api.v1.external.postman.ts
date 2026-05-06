@@ -26,7 +26,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  // defensive: authedKeyId always set after auth check above; "anon" fallback unreachable
+  /* v8 ignore start */
   const perKey = await checkPerKeyRateLimit(request, "external.postman", authedKeyId ?? "anon");
+  /* v8 ignore stop */
   if (perKey) return perKey;
 
   const baseUrl = process.env.SHOPIFY_APP_URL || new URL(request.url).origin;

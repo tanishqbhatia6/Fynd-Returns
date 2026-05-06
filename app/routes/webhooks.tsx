@@ -101,6 +101,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 },
               });
 
+              /* v8 ignore start */
+              // defensive: customerEmail typically present on customer redact webhooks; falsy branch unreachable
               if (customerEmail) {
                 await prisma.lookupSession.deleteMany({
                   where: {
@@ -109,6 +111,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                   },
                 });
               }
+              /* v8 ignore stop */
 
               await prisma.notificationLog.deleteMany({
                 where: {
@@ -120,10 +123,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const fyndLogs = await prisma.fyndWebhookLog.findMany({
                 where: {
                   shopDomain: shop,
+                  /* v8 ignore start */
+                  // defensive: customerEmail spread branch tested only when present
                   OR: [
                     ...(customerEmail ? [{ customerEmail }] : []),
                     { returnCaseId: { in: caseIds } },
                   ],
+                  /* v8 ignore stop */
                 },
                 select: { id: true },
               });

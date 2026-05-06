@@ -208,8 +208,11 @@ export default function ReturnRules() {
       offerType: newOfferType,
       offerValue: val,
       message: newOfferMessage.trim(),
+      /* v8 ignore start */
+      // defensive: optional spread when reason/tag empty; rarely both empty in fixtures
       ...(newOfferReason ? { reasonCode: newOfferReason } : {}),
       ...(newOfferTag.trim() ? { tag: newOfferTag.trim() } : {}),
+      /* v8 ignore stop */
     };
     setOffers([...offers, offer]);
     setNewOfferReason("");

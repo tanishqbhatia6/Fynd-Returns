@@ -40,7 +40,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // tolerant decrypt returns plaintext as-is for any pre-rollout rows. Comparison is
   // timing-safe to avoid leaking the prefix via string-equality timing.
   if (shop.settings.gorgiasApiKey) {
+    /* v8 ignore start */
+    // defensive: decrypt always returns string; ?? "" fallback unreachable
     const storedPlain = decryptIfEncrypted(shop.settings.gorgiasApiKey) ?? "";
+    /* v8 ignore stop */
     let ok = false;
     try {
       const a = Buffer.from(apiKey, "utf8");

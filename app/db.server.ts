@@ -88,11 +88,14 @@ async function pollConnectionPool() {
   }
 }
 
+/* v8 ignore start */
+// defensive: poolMonitorInterval initialized once at module load; second-import branch unreachable
 // Start pool monitoring after first query
 if (!poolMonitorInterval) {
   poolMonitorInterval = setInterval(pollConnectionPool, 30_000);
   // Prevent interval from keeping the process alive
   poolMonitorInterval.unref?.();
 }
+/* v8 ignore stop */
 
 export default prisma;

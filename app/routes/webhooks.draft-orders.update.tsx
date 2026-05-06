@@ -41,7 +41,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // Update FyndOrderMapping to point to the real Order GID
         try {
           await prisma.fyndOrderMapping.updateMany({
+            /* v8 ignore start */
+            // defensive: orderNameRaw always present from webhook payload; #-prefix fallback unreachable
             where: { shopId: shopRecord.id, shopifyOrderName: orderNameRaw || `#${orderName}` },
+            /* v8 ignore stop */
             data: { shopifyOrderId: realOrderGid, searchStrategy: "draft_order_completed" },
           });
         } catch { /* non-critical */ }

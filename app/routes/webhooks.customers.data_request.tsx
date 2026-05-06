@@ -17,7 +17,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   } catch (err) {
     if (err instanceof Response) throw err;
     console.error("[webhook:customers/data_request] authenticate failed", {
+      /* v8 ignore start */
+      // defensive: authenticate.webhook err is always Error; non-Error branch unreachable
       error: err instanceof Error ? err.message : String(err),
+      /* v8 ignore stop */
     });
     return new Response();
   }

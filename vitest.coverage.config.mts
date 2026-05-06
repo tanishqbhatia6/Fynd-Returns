@@ -38,17 +38,17 @@ export default defineConfig({
       ],
       // Thresholds = CI floor. Recent ratchets:
       //   ...40.65% → 41% (Phase 1 close) → 48.6% (component infra + 5
-      //   settings loader files added) → 98/90/96/99 after the big
-      //   coverage push (22 new test files + 15+ v8 ignore pragmas on
-      //   demonstrably unreachable defensive code) → 99/91/97/99 after
-      //   fixing /* v8 ignore next */ + // comment pragma syntax (the
-      //   trailing comment swallowed the pragma) and the app.returns.$id
-      //   100%-lines closure (16 more component tests).
+      //   settings loader files added) → 98/90/96/99 (big coverage push,
+      //   22 new test files + 15+ v8 ignore pragmas) → 99/91/97/99 (fix
+      //   ineffective /* v8 ignore next */ + // comment pragmas; close
+      //   app.returns.$id) → 99/91/98/100 (catch-callback closures for
+      //   fynd-webhook + process-refund + shopify-admin: lines hit
+      //   exactly 100%).
       thresholds: {
         statements: 99,
         branches: 91,
-        functions: 97,
-        lines: 99,
+        functions: 98,
+        lines: 100,
       },
     },
   },

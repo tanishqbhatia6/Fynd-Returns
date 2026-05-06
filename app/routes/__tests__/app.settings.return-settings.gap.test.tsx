@@ -151,8 +151,8 @@ describe("ReturnSettings — gap coverage", () => {
     // the description text "After bag reaches warehouse".
     await waitFor(() => {
       expect(container.textContent).toContain("Recommended");
+      expect(container.textContent).toContain("After bag reaches warehouse");
     });
-    expect(container.textContent).toContain("After bag reaches warehouse");
   });
 
   it("toggles Fynd refund-gate OFF from enabled state → resets to none and clears statuses (line 1230-1232)", async () => {

@@ -22,6 +22,10 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./app/test/setup.ts", "./app/test/setup.dom.ts"],
     testTimeout: 10_000,
+    // React-19 transition timing makes some component tests flaky under the
+    // default forks-pool concurrency. The coverage run isn't time-critical;
+    // serializing avoids the parallel-scheduler races without changing tests.
+    fileParallelism: false,
     coverage: {
       enabled: true,
       provider: "v8",

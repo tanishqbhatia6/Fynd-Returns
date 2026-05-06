@@ -272,14 +272,16 @@ describe("ReturnSettings — final-mile branch coverage", () => {
       "input[type='checkbox']",
     ) as HTMLInputElement;
     expect(cb.checked).toBe(true);
-    fireEvent.click(cb);
-    expect(cb.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb); });
+    await waitFor(() => { expect(cb.checked).toBe(false); });
     // Now "No statuses selected" warning still hidden because handed_over remains.
-    fireEvent.click(
-      labels[0]
-        .closest("div")!
-        .querySelectorAll("input[type='checkbox']")[0] as HTMLInputElement,
-    );
+    await act(async () => {
+      fireEvent.click(
+        labels[0]
+          .closest("div")!
+          .querySelectorAll("input[type='checkbox']")[0] as HTMLInputElement,
+      );
+    });
   });
 
   it("toggles Fynd Return Consolidation ON via the toggle onChange (line ~1410)", async () => {

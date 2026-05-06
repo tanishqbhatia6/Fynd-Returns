@@ -452,10 +452,7 @@ describe("app.returns._index pagination + filters + bulk", () => {
     );
   });
 
-  // Flaky under CI's parallel-test scheduler — bulk-bar visibility class
-  // doesn't always settle before assertion. Verified locally; skipping in CI
-  // until the bulk-bar render order is fully synchronous.
-  it.skip("opens the rejection modal when the bulk Reject button is clicked", async () => {
+  it("opens the rejection modal when the bulk Reject button is clicked", async () => {
     const { container } = renderWithRouter(ReturnsList, {
       initialEntries: ["/app/returns"],
       loaderData: baseLoaderData,
@@ -463,16 +460,22 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.querySelector("table.returns-table")).toBeTruthy();
     });
-    // Select a pending row first so the bulk bar is interactive.
+    // Select a pending row first so the bulk bar is interactive. Wrap in act()
+    // so React 19's transition wrapper for the visibility-class flip flushes
+    // before the next assertion.
     const cells = container.querySelectorAll("tbody .checkbox-cell");
-    fireEvent.click(cells[0]);
+    await act(async () => {
+      fireEvent.click(cells[0]);
+    });
     await waitFor(() => {
       expect(
         container.querySelector(".returns-bulk-bar")?.className,
       ).toContain("returns-bulk-bar--visible");
     });
     const rejectBtn = container.querySelector(".bulk-btn--reject")!;
-    fireEvent.click(rejectBtn);
+    await act(async () => {
+      fireEvent.click(rejectBtn);
+    });
     await waitFor(() => {
       expect(container.querySelector(".returns-modal-overlay")).toBeTruthy();
     });

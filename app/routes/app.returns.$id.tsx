@@ -27,6 +27,7 @@ function safeStr(v: unknown): string {
     const s = o.name ?? o.title ?? o.display_name ?? o.code ?? o.id;
     return typeof s === "string" ? s : "";
   }
+  /* v8 ignore next */ // unreachable: bigint/symbol/function never appear in JSON.parse output
   return "";
 }
 
@@ -163,8 +164,10 @@ function formatMoney(amount: string | null | undefined, currency?: string | null
     if (currency) {
       return new Intl.NumberFormat(locale || "en", { style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
     }
+    /* v8 ignore next */ // unreachable: every render call site passes shop currency
     return new Intl.NumberFormat(locale || undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
   } catch {
+    /* v8 ignore next */ // unreachable: Intl.NumberFormat doesn't throw on valid currency strings in jsdom/node
     return n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 }

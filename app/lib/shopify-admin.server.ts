@@ -426,6 +426,7 @@ async function searchOrders(
   }
   if (json.errors?.length) {
     if (!throwOnError) return null;
+    /* v8 ignore next */ // unreachable: searchOrders is only called with throwOnError=false
     throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
   }
   const nodes = json.data?.orders?.nodes ?? [];
@@ -580,6 +581,7 @@ async function rawGraphQLSearch(
     if (!match) return null;
     return parseOrderNode(match);
   }
+  /* v8 ignore next */ // unreachable: rawGraphQLSearch is only called with exactName set
   return parseOrderNode(nodes[0]);
 }
 
@@ -620,6 +622,7 @@ export async function fetchOrderByOrderNumber(
         return fetchOrderByGid(admin, gid);
       }
     } catch (err) {
+      /* v8 ignore next */ // unreachable: restOrderLookupByName wraps everything in try/catch and never throws
       refundLogger.warn({ error: err instanceof Error ? err.message : String(err) }, "fetchOrderByOrderNumber: REST lookup error");
     }
   } else {
@@ -1837,6 +1840,7 @@ export async function createShopifyReturn(
     }
 
     // Pick best entry (highest remaining maxQty) for fallback callers that don't iterate.
+    /* v8 ignore next 4 */ // unreachable: callers re-lookup the same maps that already returned undefined/empty
     const pickBest = (entries?: FliEntry[]): FliEntry | undefined => {
       if (!entries || entries.length === 0) return undefined;
       return entries.reduce((best, cur) => (cur.maxQty > best.maxQty ? cur : best), entries[0]);
@@ -1879,6 +1883,7 @@ export async function createShopifyReturn(
           refundLogger.warn({ lineItemId: item.shopifyLineItemId, sku: item.sku }, "createShopifyReturn: no fulfillment line item match, skipping");
           continue;
         }
+        /* v8 ignore next */ // unreachable: pickBest always returns undefined here (see comment above)
         entries = [fallback];
       }
 

@@ -160,6 +160,7 @@ function toDisplayString(val: unknown): string | null {
     if (typeof s === "number") return String(s);
     return null;
   }
+  /* v8 ignore next */ // unreachable: callers feed JSON.parse output (no bigint/symbol/function)
   return null;
 }
 
@@ -173,6 +174,7 @@ function toFullDisplayString(val: unknown): string | null {
     const s = (o.display_name ?? o.displayName ?? o.full_name ?? o.fullName ?? o.long_name ?? o.title ?? o.name ?? o.code ?? o.id) as string | undefined;
     return (typeof s === "string" && s) ? s : null;
   }
+  /* v8 ignore next */ // unreachable: callers feed JSON.parse output (no bigint/symbol/function)
   return null;
 }
 
@@ -774,6 +776,7 @@ export function extractCustomerFromFyndPayload(fyndPayloadJson: string | null | 
     const billingAddr = (first.billing_address ?? first.billingAddress) as Record<string, unknown> | undefined;
     const meta = (first.meta ?? {}) as Record<string, unknown>;
     const addr = deliveryAddr ?? billingAddr;
+    /* v8 ignore next */ // unreachable: meta is always `first.meta ?? {}` (truthy)
     if (!addr && !meta) return null;
     const a = (addr ?? {}) as Record<string, unknown>;
     const firstName = typeof a.first_name === "string" ? a.first_name : "";

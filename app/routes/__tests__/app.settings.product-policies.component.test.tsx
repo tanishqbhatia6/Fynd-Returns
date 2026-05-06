@@ -40,7 +40,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor, fireEvent } from "@testing-library/react";
+import { act, waitFor, fireEvent } from "@testing-library/react";
 import ProductPoliciesSettings, {
   type ProductPolicyRule,
 } from "../app.settings.product-policies";
@@ -164,9 +164,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     expect((numberInputs[0] as HTMLInputElement).value).toBe("14");
   });
 
-  // Flaky under CI's parallel scheduler — same React 19 transition timing issue as
-  // other "click then re-count" tests in this suite. Verified locally; skipping on CI.
-  it.skip("removing a rule via the trash icon reduces the rendered card count", async () => {
+  it("removing a rule via the trash icon reduces the rendered card count", async () => {
     const { container } = renderWithRouter(ProductPoliciesSettings, {
       initialEntries: ["/app/settings/product-policies"],
       loaderData: populatedLoaderData,
@@ -183,7 +181,7 @@ describe("ProductPoliciesSettings (default export)", () => {
         "button[aria-label='Remove rule']",
       ),
     );
-    fireEvent.click(removeButtons[0]);
+    await act(async () => { fireEvent.click(removeButtons[0]); });
 
     await waitFor(() => {
       const remaining = container.querySelectorAll(
@@ -296,7 +294,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     }, WAIT);
   });
 
-  it.skip("typing into the matchValue input updates that rule's matchValue (controlled input)", async () => {
+  it("typing into the matchValue input updates that rule's matchValue (controlled input)", async () => {
     const { container } = renderWithRouter(ProductPoliciesSettings, {
       initialEntries: ["/app/settings/product-policies"],
       loaderData: populatedLoaderData,
@@ -313,7 +311,9 @@ describe("ProductPoliciesSettings (default export)", () => {
     const matchValueInput = textInputs.find((i) => i.value === "final-sale");
     expect(matchValueInput).toBeTruthy();
 
-    fireEvent.change(matchValueInput!, { target: { value: "clearance" } });
+    await act(async () => {
+      fireEvent.change(matchValueInput!, { target: { value: "clearance" } });
+    });
 
     await waitFor(() => {
       const refreshed = Array.from(

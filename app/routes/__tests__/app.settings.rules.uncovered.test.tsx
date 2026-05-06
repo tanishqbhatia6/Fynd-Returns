@@ -53,6 +53,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 
 import { renderWithRouter } from "../../test/component-helpers";
 import {
+  act,
   waitFor as rtlWaitFor,
   fireEvent,
   configure,
@@ -314,7 +315,7 @@ describe("app.settings.rules — uncovered component branches", () => {
     fireEvent.click(removeFeeButtons[0]);
   });
 
-  it.skip("adds and removes windows-by-country entries (covers country/days onChange and remove)", async () => {
+  it("adds and removes windows-by-country entries (covers country/days onChange and remove)", async () => {
     const { container } = renderWithRouter(ReturnRules, {
       initialEntries: ["/app/settings/rules"],
       loaderData: baseLoaderData,
@@ -338,7 +339,7 @@ describe("app.settings.rules — uncovered component branches", () => {
       (b) => b.textContent?.trim() === "+ Add country",
     );
     expect(addCountryBtn).toBeTruthy();
-    fireEvent.click(addCountryBtn!);
+    await act(async () => { fireEvent.click(addCountryBtn!); });
 
     // Now there should be 2 country inputs.
     await waitFor(() => {

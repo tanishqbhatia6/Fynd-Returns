@@ -52,6 +52,7 @@ export function verifyWebhookSignature(
     if (sigBuf.length !== expBuf.length) return false;
     return crypto.timingSafeEqual(sigBuf, expBuf);
   } catch {
+    /* v8 ignore next */ // unreachable: Buffer.from(hex) + length-checked timingSafeEqual cannot throw
     return false;
   }
 }

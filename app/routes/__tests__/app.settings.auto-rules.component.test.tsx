@@ -87,7 +87,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor, fireEvent } from "@testing-library/react";
+import { act, waitFor, fireEvent } from "@testing-library/react";
 import AutoApproveRulesSettings, { loader, action } from "../app.settings.auto-rules";
 
 type LoaderData = {
@@ -229,7 +229,7 @@ describe("app.settings.auto-rules component (default export)", () => {
     expect(container.textContent).not.toContain("No rules configured");
   });
 
-  it.skip("removes a rule when its 'Remove' button is clicked", async () => {
+  it("removes a rule when its 'Remove' button is clicked", async () => {
     mockLoaderState.value = populatedLoader;
     const { container } = renderWithRouter(AutoApproveRulesSettings, {
       initialEntries: ["/app/settings/auto-rules"],
@@ -240,7 +240,7 @@ describe("app.settings.auto-rules component (default export)", () => {
     });
     const removeButtons = Array.from(container.querySelectorAll("button"))
       .filter((b) => b.textContent?.trim() === "Remove");
-    fireEvent.click(removeButtons[0]);
+    await act(async () => { fireEvent.click(removeButtons[0]); });
     await waitFor(() => {
       expect(container.textContent).toContain("Rules (1)");
     });

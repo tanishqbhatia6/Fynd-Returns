@@ -59,7 +59,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import ReturnSettings from "../app.settings.return-settings";
 
 const baseLoaderData = {
@@ -139,13 +139,13 @@ function findSectionToggle(container: HTMLElement, headingText: string): HTMLInp
 }
 
 describe("ReturnSettings — gap coverage", () => {
-  it.skip("toggles Fynd refund-gate ON from preset=none → seeds after_delivery preset (line 1233-1236)", async () => {
+  it("toggles Fynd refund-gate ON from preset=none → seeds after_delivery preset (line 1233-1236)", async () => {
     const { container } = renderForm({ refundGatePreset: "none" });
     await ready(container);
     const toggle = findSectionToggle(container, "Fynd Status Gate for Refunds");
     expect(toggle).toBeTruthy();
     expect(toggle!.checked).toBe(false);
-    fireEvent.click(toggle!);
+    await act(async () => { fireEvent.click(toggle!); });
     // After turning ON with preset="none", the else-if branch fires and
     // selects "after_delivery", which renders the "Recommended" badge and
     // the description text "After bag reaches warehouse".
@@ -300,7 +300,7 @@ describe("ReturnSettings — gap coverage", () => {
     );
   });
 
-  it.skip("clicks both refundLocationMode radios (lines 998, 1008)", async () => {
+  it("clicks both refundLocationMode radios (lines 998, 1008)", async () => {
     const { container } = renderForm({
       shopLocations: [
         { id: "gid://shopify/Location/1", name: "Main", isActive: true },
@@ -315,9 +315,9 @@ describe("ReturnSettings — gap coverage", () => {
     ) as HTMLInputElement;
     expect(auto).toBeTruthy();
     expect(manual).toBeTruthy();
-    fireEvent.click(manual);
+    await act(async () => { fireEvent.click(manual); });
     expect(manual.checked).toBe(true);
-    fireEvent.click(auto);
+    await act(async () => { fireEvent.click(auto); });
     expect(auto.checked).toBe(true);
   });
 

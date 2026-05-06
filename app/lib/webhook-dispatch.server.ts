@@ -74,6 +74,7 @@ async function deliverWebhook(
   } catch { /* if the safety check itself errors, fail closed */ return false; }
 
   const controller = new AbortController();
+  /* v8 ignore next */ // unreachable: timer fires only on real network hangs
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, {

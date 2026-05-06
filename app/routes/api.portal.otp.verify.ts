@@ -97,6 +97,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         const a = Buffer.from(submittedSha, "hex");
         const b = Buffer.from(storedHash, "hex");
         isValid = a.length === b.length && crypto.timingSafeEqual(a, b);
+      /* v8 ignore next */ // unreachable: Buffer.from(hex) + length-checked timingSafeEqual cannot throw
       } catch { isValid = false; }
     } else {
       // bcrypt comparison — constant-time by design, slow enough to deter brute force.

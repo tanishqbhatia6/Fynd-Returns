@@ -56,7 +56,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { fireEvent, waitFor } from "@testing-library/react";
+import { act, fireEvent, waitFor } from "@testing-library/react";
 import ReturnSettings from "../app.settings.return-settings";
 
 type LoaderData = Parameters<typeof renderWithRouter>[1] extends infer _T
@@ -228,7 +228,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     expect(radio).toBeTruthy();
   });
 
-  it.skip("toggles the no-return-period checkbox and reveals date inputs", async () => {
+  it("toggles the no-return-period checkbox and reveals date inputs", async () => {
     const { container } = renderForm();
     await waitFor(() =>
       expect(
@@ -238,7 +238,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const cb = container.querySelector(
       "input[name='noReturnPeriodEnabled']",
     ) as HTMLInputElement;
-    fireEvent.click(cb);
+    await act(async () => { fireEvent.click(cb); });
     await waitFor(() =>
       expect(
         container.querySelector("input[name='noReturnPeriodStart']"),
@@ -518,7 +518,7 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     expect(container.textContent).toContain("Refund Flow");
   });
 
-  it.skip("renders the Fynd consolidation window options when consolidation is on", async () => {
+  it("renders the Fynd consolidation window options when consolidation is on", async () => {
     const { container } = renderForm({
       fyndConsolidateReturns: true,
       fyndConsolidateWindowHours: 8,
@@ -535,8 +535,10 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     expect(radios.find((r) => r.value === "8")?.checked).toBe(true);
     // Click the 24h option
     const r24 = radios.find((r) => r.value === "24");
-    if (r24) fireEvent.click(r24);
-    expect(container.textContent).toContain("24h batch window");
+    if (r24) await act(async () => { fireEvent.click(r24); });
+    await waitFor(() => {
+      expect(container.textContent).toContain("24h batch window");
+    });
   });
 
   it("toggles scheduledReport frequency to monthly to render the day-of-month input", async () => {

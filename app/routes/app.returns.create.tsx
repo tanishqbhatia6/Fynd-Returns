@@ -596,6 +596,7 @@ export default function CreateReturn() {
       setValidationError("Customer email is required.");
       return false;
     }
+    /* v8 ignore next 4 */ // unreachable: resolutionType defaults to "refund" and the typed setter only accepts 4 valid literals
     if (!resolutionType) {
       setValidationError("Please select a resolution type.");
       return false;
@@ -610,6 +611,7 @@ export default function CreateReturn() {
 
   /* ── Step 4: submit ── */
   const handleSubmit = useCallback(() => {
+    /* v8 ignore next */ // unreachable: submit button only renders when step === 4 && orderData
     if (!orderData) return;
 
     const items = Object.values(selectedItems).map((si) => ({

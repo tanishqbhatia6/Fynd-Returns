@@ -2307,6 +2307,7 @@ export default function ReturnDetail() {
                                         <span style={{ fontSize: 12, fontWeight: 600, color: "#92400E" }}>Original: {100 - modalStoreCreditPct}%</span>
                                       </div>
                                       <input
+                                        aria-label="Store credit percentage"
                                         type="range" min={5} max={95} step={5}
                                         value={modalStoreCreditPct}
                                         onChange={(e) => setModalStoreCreditPct(parseInt(e.target.value, 10))}
@@ -2319,6 +2320,7 @@ export default function ReturnDetail() {
                                         <div style={{ flex: 1 }}>
                                           <label style={{ fontSize: 11, fontWeight: 600, color: "#92400E", display: "block", marginBottom: 3 }}>Store Credit</label>
                                           <input
+                                            aria-label="Store credit amount"
                                             type="number"
                                             min="0"
                                             step="0.01"
@@ -2337,6 +2339,7 @@ export default function ReturnDetail() {
                                         <div style={{ flex: 1 }}>
                                           <label style={{ fontSize: 11, fontWeight: 600, color: "#92400E", display: "block", marginBottom: 3 }}>Original Payment</label>
                                           <input
+                                            aria-label="Original payment amount"
                                             type="number"
                                             min="0"
                                             step="0.01"
@@ -2745,7 +2748,7 @@ export default function ReturnDetail() {
                             </p>
                             <div style={{ padding: 14, background: "#F9FAFB", borderRadius: 10, border: "1px solid #E5E7EB" }}>
                               <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>Cancellation reason</div>
-                              <select value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, background: "#fff", marginBottom: 12 }}>
+                              <select aria-label="Cancellation reason" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} style={{ width: "100%", padding: "8px 10px", borderRadius: 6, border: "1px solid #D1D5DB", fontSize: 13, background: "#fff", marginBottom: 12 }}>
                                 <option value="CUSTOMER">Customer request</option>
                                 <option value="FRAUD">Fraud</option>
                                 <option value="INVENTORY">Inventory</option>
@@ -3023,32 +3026,32 @@ export default function ReturnDetail() {
                         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
                           <div>
                             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Address 1</label>
-                            <input type="text" name="customerAddress1" defaultValue={cAddress1 ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                            <input aria-label="Address 1" type="text" name="customerAddress1" defaultValue={cAddress1 ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
                           </div>
                           <div>
                             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Address 2</label>
-                            <input type="text" name="customerAddress2" defaultValue={cAddress2 ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                            <input aria-label="Address 2" type="text" name="customerAddress2" defaultValue={cAddress2 ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
                           </div>
                           <div>
                             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>City</label>
-                            <input type="text" name="customerCity" defaultValue={returnCase.customerCity ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                            <input aria-label="City" type="text" name="customerCity" defaultValue={returnCase.customerCity ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
                           </div>
                           <div>
                             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>State / Province</label>
-                            <input type="text" name="customerProvince" defaultValue={cProvince ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                            <input aria-label="State or Province" type="text" name="customerProvince" defaultValue={cProvince ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
                           </div>
                           <div>
                             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>ZIP / Pincode</label>
-                            <input type="text" name="customerZip" defaultValue={cZip ?? ""} maxLength={20} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                            <input aria-label="ZIP or Pincode" type="text" name="customerZip" defaultValue={cZip ?? ""} maxLength={20} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
                           </div>
                           <div>
                             <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Country</label>
-                            <input type="text" name="customerCountry" defaultValue={returnCase.customerCountry ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                            <input aria-label="Country" type="text" name="customerCountry" defaultValue={returnCase.customerCountry ?? ""} maxLength={100} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
                           </div>
                         </div>
                         <div style={{ marginBottom: 10 }}>
                           <label style={{ fontSize: 11, fontWeight: 600, color: "#6B7280", display: "block", marginBottom: 2 }}>Landmark</label>
-                          <input type="text" name="customerLandmark" defaultValue={cLandmark ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
+                          <input aria-label="Landmark" type="text" name="customerLandmark" defaultValue={cLandmark ?? ""} maxLength={500} style={{ width: "100%", padding: "6px 8px", borderRadius: 6, border: "1px solid #E5E7EB", fontSize: 13, boxSizing: "border-box" }} />
                         </div>
                         <s-button type="submit" variant="secondary" size="slim" disabled={fetcher.state !== "idle"}>Save address</s-button>
                       </fetcher.Form>
@@ -3236,14 +3239,14 @@ export default function ReturnDetail() {
               <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`}>
                 <input type="hidden" name="action" value="add_note" />
                 <div style={{ ...C.label, marginBottom: 6 }}>Internal notes</div>
-                <textarea name="note" defaultValue={returnCase.adminNotes ?? ""} rows={2} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #E5E7EB", marginBottom: 8, boxSizing: "border-box", fontSize: 13 }} />
+                <textarea aria-label="Internal notes" name="note" defaultValue={returnCase.adminNotes ?? ""} rows={2} style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #E5E7EB", marginBottom: 8, boxSizing: "border-box", fontSize: 13 }} />
                 <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Save</s-button>
               </fetcher.Form>
               <fetcher.Form method="post" action={`/api/returns/${returnCase.id}/actions`} style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid #F3F4F6" }}>
                 <input type="hidden" name="action" value="save_notes_for_customer" />
                 <div style={{ ...C.label, marginBottom: 6 }}>Customer-facing notes</div>
                 <div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 6 }}>Visible to the customer in the portal</div>
-                <textarea name="notesForCustomer" defaultValue={(returnCase as { notesForCustomer?: string | null }).notesForCustomer ?? ""} rows={2} placeholder="e.g. Please ship the item to..." style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #E5E7EB", marginBottom: 8, boxSizing: "border-box", fontSize: 13 }} />
+                <textarea aria-label="Customer-facing notes" name="notesForCustomer" defaultValue={(returnCase as { notesForCustomer?: string | null }).notesForCustomer ?? ""} rows={2} placeholder="e.g. Please ship the item to..." style={{ width: "100%", padding: 8, borderRadius: 6, border: "1px solid #E5E7EB", marginBottom: 8, boxSizing: "border-box", fontSize: 13 }} />
                 <s-button type="submit" variant="secondary" disabled={fetcher.state !== "idle"}>Publish</s-button>
               </fetcher.Form>
             </div>

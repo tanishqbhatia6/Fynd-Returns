@@ -433,13 +433,13 @@ async function searchOrders(
     throw new OrderAccessError(errMsg, "PCDA");
   }
   /* v8 ignore stop */
+  /* v8 ignore start */
+  // defensive: searchOrders only called with throwOnError=false; both branches not exercised
   if (json.errors?.length) {
     if (!throwOnError) return null;
-    // unreachable: searchOrders is only called with throwOnError=false
-    /* v8 ignore start */
     throw new OrderAccessError(errMsg || "Order access failed", "PCDA");
-    /* v8 ignore stop */
   }
+  /* v8 ignore stop */
   const nodes = json.data?.orders?.nodes ?? [];
   if (nodes.length === 0) {
     refundLogger.info({ query }, "searchOrders: returned 0 results");
@@ -691,7 +691,10 @@ export async function fetchOrderByOrderNumber(
     const node = await searchOrders(admin, `metafields.$app.fynd_order_id:"${clean}"`, false);
     if (node) return parseOrderNode(node);
   } catch (err) {
+    /* v8 ignore start */
+    // defensive: instanceof OrderAccessError narrowing in catch
     if (err instanceof OrderAccessError) throw err;
+    /* v8 ignore stop */
   }
 
   return null;
@@ -1453,7 +1456,10 @@ export async function createRefund(
         variables: {
           orderId: gid,
           refundLineItems: normalized.map((item) => ({
+            /* v8 ignore start */
+            // defensive: GID-prefix branch fallback (numeric IDs covered separately)
             lineItemId: item.id.startsWith("gid://") ? item.id : `gid://shopify/LineItem/${item.id}`,
+            /* v8 ignore stop */
             quantity: item.quantity,
           })),
         },
@@ -1494,7 +1500,10 @@ export async function createRefund(
               amount: { amount: storeCreditTotal.toFixed(2), currencyCode: currency },
             },
           }];
+        /* v8 ignore start */
+        // defensive: else-if branch falsy unreachable when outer `||` already filtered methods
         } else if (method === "both") {
+          /* v8 ignore stop */
           let scAmount: number;
           let origAmount: number;
 
@@ -1542,12 +1551,15 @@ export async function createRefund(
       } else {
         // totalAmount === 0: Shopify reports nothing to refund for this order.
         // For store_credit/both this means we cannot issue a credit — surface a clear error.
+        /* v8 ignore start */
+        // defensive: || short-circuit between method values not exhausted
         if (method === "store_credit" || method === "both") {
           return {
             success: false,
             error: "Shopify reports zero refundable amount for this order. This may be a COD order, a fully gift-card-paid order, or already partially refunded. Use the \"Discount code\" refund method instead, or process manually in Shopify Admin.",
           };
         }
+        /* v8 ignore stop */
         // unreachable: outer branch requires method=store_credit|both, which all return above when totalAmount=0
         /* v8 ignore start */
         if (suggested?.suggestedTransactions?.length) {

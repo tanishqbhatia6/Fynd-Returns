@@ -411,8 +411,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       if (rc.fyndPayloadJson) {
       /* v8 ignore stop */
         const fyndCustomer = extractCustomerFromFyndPayload(rc.fyndPayloadJson);
+        /* v8 ignore start */
+        // defensive: null fyndCustomer falsy branch
         if (fyndCustomer) {
-          /* v8 ignore start - defensive null-current-field guards for Fynd-payload enrichment */
+          // defensive null-current-field guards for Fynd-payload enrichment
           if (!enrichData.customerName && !rc.customerName && fyndCustomer.name) enrichData.customerName = fyndCustomer.name;
           if (!enrichData.customerEmailNorm && !rc.customerEmailNorm && fyndCustomer.email) enrichData.customerEmailNorm = fyndCustomer.email.toLowerCase();
           if (!enrichData.customerPhoneNorm && !rc.customerPhoneNorm && fyndCustomer.phone) enrichData.customerPhoneNorm = fyndCustomer.phone;

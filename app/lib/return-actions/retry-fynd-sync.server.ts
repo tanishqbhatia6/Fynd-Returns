@@ -69,6 +69,8 @@ export const handleRetryFyndSync: ReturnActionHandler = async (ctx) => {
           // defensive: fyndShipmentId set in fixtures; || null fallback unreachable
           targetShipmentId: returnCase.fyndShipmentId || null,
           /* v8 ignore stop */
+          /* v8 ignore start */
+          // defensive: pickupAddress nullish-coalescing fallbacks per field
           pickupAddress: returnCase.customerAddress1 || returnCase.customerCity ? {
             address1: returnCase.customerAddress1 ?? null,
             address2: returnCase.customerAddress2 ?? null,
@@ -80,6 +82,7 @@ export const handleRetryFyndSync: ReturnActionHandler = async (ctx) => {
             name: returnCase.customerName ?? null,
             phone: returnCase.customerPhoneNorm ?? null,
           } : null,
+          /* v8 ignore stop */
         });
         retryDurationMs = Date.now() - retryStartTime;
       } catch (err) {

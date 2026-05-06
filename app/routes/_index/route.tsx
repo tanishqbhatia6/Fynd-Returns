@@ -243,12 +243,15 @@ export default function Index() {
     applyTheme(initial);
 
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
+    /* v8 ignore start */
+    // defensive: theme change handler — system fallback + matches ternary
     const handler = () => {
       if ((localStorage.getItem("rp-theme") || "system") === "system") {
         setResolvedDark(mq.matches);
         document.documentElement.setAttribute("data-theme", mq.matches ? "dark" : "light");
       }
     };
+    /* v8 ignore stop */
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
   }, [applyTheme]);

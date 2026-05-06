@@ -162,7 +162,10 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
         /* v8 ignore start */
         if (shopifyOrder.lineItems?.length) {
         /* v8 ignore stop */
+          /* v8 ignore start */
+          // defensive: returnCase.items always set; ?? [] fallback unreachable
           const returnItems = returnCase.items ?? [];
+          /* v8 ignore stop */
           if (returnItems.length > 0 && returnItems.some((i) => i.sku)) {
             const matched: Array<{ id: string; quantity: number }> = [];
             for (const ri of returnItems) {

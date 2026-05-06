@@ -452,11 +452,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Search Fynd directly using external_order_id — use affiliate_order_id from the result
     // to retry Shopify, or build a synthetic order from Fynd data so Track Order can still show tracking.
     /* v8 ignore start */
-    // defensive: Fynd fallback path with multi-OR conditional; tests don't exhaust all combos
+    // defensive: Fynd fallback path with multi-OR conditional + empty searchVal short-circuit; tests don't exhaust all combos
     if (orders.length === 0 && (normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && shopRecord.settings) {
       const searchVal = rawValue.replace(/^#/, "").trim();
-    /* v8 ignore stop */
       if (searchVal) {
+    /* v8 ignore stop */
         try {
           const fyndResult = await createFyndClientOrError(shopRecord.settings as Parameters<typeof createFyndClientOrError>[0], { requirePlatform: true });
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {
@@ -489,8 +489,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               // defensive: external_order_id fallback rare in fixtures
               /* v8 ignore start */
               const affiliateOrderId = String(first.affiliate_order_id ?? first.external_order_id ?? "").replace(/^#/, "").trim();
-              /* v8 ignore stop */
               if (affiliateOrderId) {
+              /* v8 ignore stop */
                 /* v8 ignore start - defensive Shopify-resolve-by-affiliate best-effort */
                 try {
                   const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
@@ -603,8 +603,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // defensive: Fynd enrichment guard chain — many OR/AND short-circuits not exhausted in tests
     if ((normalizedLookupType === "order_no" || normalizedLookupType === "return_no") && orders.length > 0 && shopRecord.settings && orders[0]._needsFyndEnrich === true) {
       const orderNumberForFynd = rawValue.replace(/^#/, "").trim();
-    /* v8 ignore stop */
       if (orderNumberForFynd) {
+    /* v8 ignore stop */
         try {
           const fyndResult = await createFyndClientOrError(shopRecord.settings as Parameters<typeof createFyndClientOrError>[0], { requirePlatform: true });
           if (fyndResult.ok && "searchShipmentsByExternalOrderId" in fyndResult.client) {

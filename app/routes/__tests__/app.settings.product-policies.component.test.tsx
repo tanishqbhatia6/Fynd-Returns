@@ -338,7 +338,7 @@ describe("ProductPoliciesSettings (default export)", () => {
     ) as HTMLInputElement;
     expect(numberInput.value).toBe("14");
 
-    fireEvent.change(numberInput, { target: { value: "60" } });
+    await act(async () => { fireEvent.change(numberInput, { target: { value: "60" } }); });
     await waitFor(() => {
       expect(
         (container.querySelector("input[type='number']") as HTMLInputElement)
@@ -346,10 +346,12 @@ describe("ProductPoliciesSettings (default export)", () => {
       ).toBe("60");
     }, WAIT);
 
-    fireEvent.change(
-      container.querySelector("input[type='number']") as HTMLInputElement,
-      { target: { value: "abc" } },
-    );
+    await act(async () => {
+      fireEvent.change(
+        container.querySelector("input[type='number']") as HTMLInputElement,
+        { target: { value: "abc" } },
+      );
+    });
     await waitFor(() => {
       expect(
         (container.querySelector("input[type='number']") as HTMLInputElement)
@@ -357,10 +359,12 @@ describe("ProductPoliciesSettings (default export)", () => {
       ).toBe("0");
     }, WAIT);
 
-    fireEvent.change(
-      container.querySelector("input[type='number']") as HTMLInputElement,
-      { target: { value: "-5" } },
-    );
+    await act(async () => {
+      fireEvent.change(
+        container.querySelector("input[type='number']") as HTMLInputElement,
+        { target: { value: "-5" } },
+      );
+    });
     await waitFor(() => {
       expect(
         (container.querySelector("input[type='number']") as HTMLInputElement)

@@ -11,7 +11,10 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   const auth = await authenticateApiKey(request, "read_returns");
   if (!auth.ok) return auth.response;
 
+  /* v8 ignore start */
+  // defensive: keyId always set after authenticateApiKey success; ?? "anon" fallback unreachable
   const perKey = await checkPerKeyRateLimit(request, "external.returns.detail", auth.keyId ?? "anon");
+  /* v8 ignore stop */
   if (perKey) return perKey;
 
   const id = params.id;

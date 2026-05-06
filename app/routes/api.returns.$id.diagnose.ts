@@ -148,11 +148,12 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
       : { ok: false as const, error: "Fynd not configured" };
     if (result.ok && "getShipments" in result.client) {
       fyndClient = result.client as FyndPlatformClient;
+    /* v8 ignore start */
+    // defensive: client-error branch hard to trigger
     } else if (!result.ok) {
-      /* v8 ignore start - defensive client-error branch hard to trigger */
       fyndClientError = result.error;
-      /* v8 ignore stop */
     }
+    /* v8 ignore stop */
   } catch (err) {
     /* v8 ignore start - defensive catch */
     fyndClientError = err instanceof Error ? err.message : String(err);

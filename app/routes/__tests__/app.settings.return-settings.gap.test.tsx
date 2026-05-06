@@ -258,8 +258,8 @@ describe("ReturnSettings — gap coverage", () => {
     await ready(container);
     const toggle = findSectionToggle(container, "Sync Refund Status to Fynd");
     expect(toggle).toBeTruthy();
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(true);
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(true); });
   });
 
   it("clicks the 'original' payment-method radio (line 897)", async () => {

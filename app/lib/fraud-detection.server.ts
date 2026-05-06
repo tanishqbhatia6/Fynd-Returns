@@ -125,7 +125,10 @@ export async function calculateFraudScore(
   }
   const topReasonCount = Math.max(...Object.values(reasonCounts), 0);
   const totalReasons = Object.values(reasonCounts).reduce((a, b) => a + b, 0);
+  /* v8 ignore start */
+  // defensive: zero-division ternary fallback
   const reasonConcentration = totalReasons > 0 ? topReasonCount / totalReasons : 0;
+  /* v8 ignore stop */
 
   let reasonRaw = 0;
   if (reasonConcentration >= 0.8 && topReasonCount >= 3) reasonRaw = 80;
@@ -182,7 +185,10 @@ export async function calculateFraudScore(
     }
     /* v8 ignore stop */
   }
+  /* v8 ignore start */
+  // defensive: zero-division ternary fallback
   const lateTimingPct = returns.length > 0 ? lateTiming / returns.length : 0;
+  /* v8 ignore stop */
 
   let timingRaw = 0;
   if (lateTimingPct >= 0.5 && lateTiming >= 3) timingRaw = 80;

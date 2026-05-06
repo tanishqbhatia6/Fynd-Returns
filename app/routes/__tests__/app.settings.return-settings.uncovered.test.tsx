@@ -379,10 +379,10 @@ describe("ReturnSettings — uncovered branch coverage", () => {
     const cb = fulfillmentLabels[0].querySelector(
       "input[type='checkbox']",
     ) as HTMLInputElement;
-    fireEvent.click(cb); // turn on
-    expect(cb.checked).toBe(true);
-    fireEvent.click(cb); // turn off
-    expect(cb.checked).toBe(false);
+    await act(async () => { fireEvent.click(cb); }); // turn on
+    await waitFor(() => { expect(cb.checked).toBe(true); });
+    await act(async () => { fireEvent.click(cb); }); // turn off
+    await waitFor(() => { expect(cb.checked).toBe(false); });
   });
 
   it("enables the Fynd return-status gate and toggles forward + delivery statuses", async () => {

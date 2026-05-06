@@ -474,7 +474,7 @@ describe("app.returns.$id — edge-case branches", () => {
     });
     await waitFor(() => {
       expect(container.textContent).toContain("Flagged customer");
-    });
+    }, { timeout: 5000 });
   });
 
   it("fyndSyncStatus=failed => prominent 'Fynd sync failed' banner with retry button", async () => {

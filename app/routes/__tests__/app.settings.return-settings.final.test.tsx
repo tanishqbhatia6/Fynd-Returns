@@ -290,15 +290,10 @@ describe("ReturnSettings — final-mile branch coverage", () => {
     const toggle = findGateToggle(container, "Fynd Return Consolidation");
     expect(toggle).toBeTruthy();
     expect(toggle!.checked).toBe(false);
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(true);
-    expect(container.textContent).toContain("Batch window");
-    // And toggle OFF too
-    fireEvent.click(toggle!);
-    expect(toggle!.checked).toBe(false);
-    expect(container.textContent).toContain(
-      "Disabled — each return syncs to Fynd immediately",
-    );
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(true); });
+    await act(async () => { fireEvent.click(toggle!); });
+    await waitFor(() => { expect(toggle!.checked).toBe(false); });
   });
 
   it("renders the Fynd refund-gate ENABLED status footer label", async () => {

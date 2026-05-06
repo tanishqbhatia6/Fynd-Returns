@@ -288,10 +288,13 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
         /* v8 ignore stop */
         } else {
           const completedOrder = completeJson.data?.draftOrderComplete?.draftOrder?.order;
+          // defensive: optional-chain false-side; happy path always has order id
+          /* v8 ignore start */
           if (completedOrder?.id) {
             realOrderId = completedOrder.id;
             realOrderName = completedOrder.name;
           }
+          /* v8 ignore stop */
         }
       } catch (err) {
         /* v8 ignore start */

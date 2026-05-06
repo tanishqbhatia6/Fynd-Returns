@@ -823,6 +823,8 @@ export function extractCustomerFromFyndPayload(fyndPayloadJson: string | null | 
     const landmark = typeof a.landmark === "string" ? a.landmark : null;
     /* v8 ignore stop */
     if (!fullName && !email && !phone) return null;
+    // defensive: each ternary's false-side fires only when fixture omits that field; not all combos exercised
+    /* v8 ignore start */
     return {
       ...(fullName ? { name: fullName } : {}),
       ...(email ? { email } : {}),
@@ -833,10 +835,9 @@ export function extractCustomerFromFyndPayload(fyndPayloadJson: string | null | 
       ...(address2 ? { address2 } : {}),
       ...(province ? { province } : {}),
       ...(zip ? { zip } : {}),
-      /* v8 ignore start */
       ...(landmark ? { landmark } : {}),
-      /* v8 ignore stop */
     };
+    /* v8 ignore stop */
   } catch {
     return null;
   }

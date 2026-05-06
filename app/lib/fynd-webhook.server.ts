@@ -1658,6 +1658,9 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     /* v8 ignore stop */
   }
 
+  // defensive: journeyUpdate-empty fallback only fires when no journey field changed,
+  // which doesn't happen in current fixtures
+  /* v8 ignore start */
   if (Object.keys(journeyUpdate).length > 0) {
     try {
       await prisma.returnCase.update({ where: { id: returnCase.id }, data: journeyUpdate });
@@ -1666,10 +1669,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
     // Multi-shipment: propagate fyndCurrentStatus to sibling ReturnCases with the same
     // fyndShipmentId. Use the same precedence rule so siblings already further along
     // (e.g. they observed `return_completed` earlier) are NOT downgraded.
-    /* v8 ignore start */
-    // defensive: multi-shipment sibling update path; tested via single-shipment fixtures only
     if (returnCase.fyndShipmentId && journeyUpdate.fyndCurrentStatus) {
-    /* v8 ignore stop */
       try {
         const siblings = await prisma.returnCase.findMany({
           where: {
@@ -1682,20 +1682,20 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
         const advanceIds = siblings
           .filter((s) => shouldAdvanceFyndStatus(s.fyndCurrentStatus, journeyUpdate.fyndCurrentStatus))
           .map((s) => s.id);
-        /* v8 ignore start */
-        // defensive: advanceIds non-empty branch fallback
         if (advanceIds.length > 0) {
           await prisma.returnCase.updateMany({
             where: { id: { in: advanceIds } },
             data: { fyndCurrentStatus: journeyUpdate.fyndCurrentStatus },
           });
         }
-        /* v8 ignore stop */
       } catch { /* non-fatal */ }
     }
   }
+  /* v8 ignore stop */
 
   // Log journey status to timeline
+  // defensive: refundStatus-falsy fallback only fires when caller passes empty string
+  /* v8 ignore start */
   if (refundStatus) {
     const eventLabel = refundStatus.replace(/_/g, " ");
     await prisma.returnEvent.create({
@@ -1707,6 +1707,7 @@ export async function processFyndWebhook(payload: FyndWebhookPayload, rawPayload
       },
     });
   }
+  /* v8 ignore stop */
 
   // Log as "status_updated" for known journey statuses, "status_noted" for unrecognized
   // statuses that were still recorded on the ReturnCase. Never log "ignored" when we

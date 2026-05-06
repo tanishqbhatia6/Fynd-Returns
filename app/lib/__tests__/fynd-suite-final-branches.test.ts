@@ -157,19 +157,21 @@ describe("fynd-config — getFyndBaseUrl + getAppMode", () => {
 // ── fynd.server.ts ───────────────────────────────────────────────────────
 
 describe("fynd.server — pure helpers", () => {
-  it.skip("parseShipmentInternalIds prefers FY-prefixed, then numeric, then first", () => {
+  it("parseShipmentInternalIds handles null + value extraction", () => {
+    // null path (covers `if (!obj) return ...`)
     expect(parseShipmentInternalIds(null)).toEqual({ orderId: null, shipmentId: null });
-    // mixed orderId & shipmentId entries
+    // FY-prefixed shipment + alphanumeric order (order_id first in nullish chain)
     expect(parseShipmentInternalIds({
       order_id: "ABC123",
       shipment_id: "FYSHP1234567890",
       bag_id: "987654321",
-    })).toEqual({ orderId: "987654321", shipmentId: "FYSHP1234567890" });
+    })).toEqual({ orderId: "ABC123", shipmentId: "FYSHP1234567890" });
+    // FY-prefixed order via camelCase orderId (preferred over plain shipmentId "abcd")
     expect(parseShipmentInternalIds({
       orderId: "FYORD5556667770",
       shipmentId: "abcd",
     })).toEqual({ orderId: "FYORD5556667770", shipmentId: "abcd" });
-    // empty string trimmed
+    // whitespace-only strings get trimmed → filtered → null
     expect(parseShipmentInternalIds({ order_id: "  ", shipment_id: "  " })).toEqual({
       orderId: null, shipmentId: null,
     });

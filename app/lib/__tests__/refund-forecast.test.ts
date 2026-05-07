@@ -132,6 +132,18 @@ describe("computeRefundForecast — defensive fallbacks", () => {
     ]);
     expect(out.byCurrency.USD).toBeTruthy();
   });
+
+  it("normalises an empty status string without crashing (line 83 falsy branch)", () => {
+    // Empty status hits the `(s.status || "").toLowerCase()` fallback
+    // and is then excluded from both buckets (no APPROVED/IN_REVIEW match).
+    const out = computeRefundForecast([
+      snap({ status: "", itemTotalPrice: 999 }),
+    ]);
+    expect(out.approvedNotYetRefunded).toBe(0);
+    expect(out.inReviewLiability).toBe(0);
+    // No crash; result is well-formed
+    expect(out.projectedTotal).toBe(0);
+  });
 });
 
 describe("computeRefundForecast — percentile timing", () => {

@@ -17,6 +17,7 @@ import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import { AppPage } from "../components/AppPage";
 import { Banner } from "../components/Banner";
 import { Toast } from "../components/Toast";
+import { FilterChips, type FilterChip } from "../components/FilterChips";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -331,6 +332,67 @@ export default function ReturnsList() {
     next.set("page", String(p));
     setSearchParams(next);
   };
+
+  const removeFilter = (key: string) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete(key);
+    next.delete("page"); // reset paging when filters change
+    setSearchParams(next);
+  };
+
+  const clearAllFilters = () => {
+    const next = new URLSearchParams();
+    // Preserve nothing — every filter goes
+    setSearchParams(next);
+  };
+
+  const STATUS_LABEL_MAP: Record<string, string> = {
+    initiated: "Initiated",
+    pending: "Pending",
+    processing: "Processing",
+    approved: "Approved",
+    completed: "Completed",
+    rejected: "Rejected",
+    cancelled: "Cancelled",
+  };
+  const RESOLUTION_LABEL_MAP: Record<string, string> = {
+    refund: "Refund",
+    exchange: "Exchange",
+    store_credit: "Store credit",
+    replacement: "Replacement",
+  };
+  const CHANNEL_LABEL_MAP: Record<string, string> = {
+    web: "Online store",
+    pos: "POS",
+    draft_order: "Draft order",
+    b2b: "B2B",
+  };
+  const activeFilterChips: FilterChip[] = [];
+  if (query) activeFilterChips.push({ key: "query", label: `Search: ${query}` });
+  if (status)
+    activeFilterChips.push({
+      key: "status",
+      label: `Status: ${status
+        .split(",")
+        .map((s) => STATUS_LABEL_MAP[s.trim()] ?? s)
+        .join(", ")}`,
+    });
+  const resolutionParam = searchParams.get("resolutionType") || "";
+  if (resolutionParam)
+    activeFilterChips.push({
+      key: "resolutionType",
+      label: `Resolution: ${RESOLUTION_LABEL_MAP[resolutionParam] ?? resolutionParam}`,
+    });
+  const channelParam = searchParams.get("sourceChannel") || "";
+  if (channelParam)
+    activeFilterChips.push({
+      key: "sourceChannel",
+      label: `Channel: ${CHANNEL_LABEL_MAP[channelParam] ?? channelParam}`,
+    });
+  if (searchParams.get("from"))
+    activeFilterChips.push({ key: "from", label: `From: ${searchParams.get("from")}` });
+  if (searchParams.get("to"))
+    activeFilterChips.push({ key: "to", label: `To: ${searchParams.get("to")}` });
 
   const allSelectableSelected =
     selectableReturns.length > 0 && selectableReturns.every((r) => selectedIds.has(r.id));
@@ -684,6 +746,13 @@ export default function ReturnsList() {
             </a>
           )}
         </Form>
+
+        {/* ── Active filter chips (removable) ── */}
+        <FilterChips
+          chips={activeFilterChips}
+          onRemove={removeFilter}
+          onClearAll={clearAllFilters}
+        />
 
         {/* ── Count Bar ── */}
         {totalCount > 0 && (

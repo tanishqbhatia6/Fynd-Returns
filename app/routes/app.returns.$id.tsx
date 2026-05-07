@@ -14,6 +14,15 @@ import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import {
+  computeSlaBreaches,
+  worstSlaLevel,
+  describeSlaBreach,
+  slaStageLabel,
+  type SlaBreach,
+} from "../lib/sla.server";
+import { Banner } from "../components/Banner";
+import { DocumentDownloadGroup } from "../components/DocumentDownload";
+import {
   fetchOrder,
   fetchOrderByOrderNumber,
   fetchOrderByFyndAffiliateId,
@@ -1233,8 +1242,36 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       /* non-fatal */
     }
 
+    // SLA breach computation — depends on three timestamps:
+    //   approvedAt:   first event whose type is "approved"
+    //   pickedUpAt:   first journey step whose status is return_bag_picked
+    //   refundedAt:   refundJson present on a completed/approved case
+    // All three are tolerantly null when not present; the SLA module
+    // skips stages it can't compute.
+    const events = (returnCase.events ?? []) as Array<{
+      eventType: string;
+      happenedAt: Date;
+    }>;
+    const approvedEvent = events.find((e) => e.eventType === "approved");
+    const approvedAt = approvedEvent?.happenedAt ?? null;
+    const pickedUpStep = (returnJourney ?? []).find(
+      (s) => (s as { status?: string }).status === "return_bag_picked",
+    ) as { time?: string } | undefined;
+    const pickedUpAt = pickedUpStep?.time ? new Date(pickedUpStep.time) : null;
+    const refundedAt =
+      returnCase.refundJson && returnCase.status === "completed" ? returnCase.updatedAt : null;
+    const slaBreaches: SlaBreach[] = computeSlaBreaches({
+      status: returnCase.status,
+      resolutionType: returnCase.resolutionType,
+      createdAt: returnCase.createdAt,
+      approvedAt,
+      pickedUpAt,
+      refundedAt,
+    });
+
     return {
       returnCase,
+      slaBreaches,
       shopDomain: session.shop,
       shopifyOrder,
       isManualReturn,
@@ -1294,6 +1331,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 export default function ReturnDetail() {
   const {
     returnCase,
+    slaBreaches,
     shopDomain,
     shopifyOrder,
     isManualReturn,
@@ -1788,6 +1826,40 @@ export default function ReturnDetail() {
   return (
     <AppPage heading={`Return ${returnRequestId}`} headingExtra={liveBadge}>
       <div className="app-content layout-wide">
+        {/* ── SLA breach banner — surfaces the worst breach so admins can
+             see overdue work without scrolling. Only renders when at least
+             one stage is at warning or breached level. ── */}
+        {(() => {
+          const tone =
+            slaBreaches && slaBreaches.length
+              ? worstSlaLevel(slaBreaches)
+              : "ok";
+          if (tone === "ok") return null;
+          const breached = slaBreaches.filter((b) => b.level === "breached");
+          const warnings = slaBreaches.filter((b) => b.level === "warning");
+          const items = [...breached, ...warnings];
+          return (
+            <Banner
+              tone={tone === "breached" ? "critical" : "warning"}
+              title={
+                tone === "breached"
+                  ? "SLA breach — work is overdue"
+                  : "SLA warning — approaching breach"
+              }
+            >
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {items.map((b) => (
+                  <li key={b.stage}>
+                    <strong>{slaStageLabel(b.stage)}:</strong> {describeSlaBreach(b)}{" "}
+                    <span style={{ opacity: 0.75 }}>
+                      ({b.elapsedHours}h of {b.thresholdHours}h)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Banner>
+          );
+        })()}
         {/* ── Alerts ── */}
         {fetcher.data?.success && !fetcher.data?.error && (
           <div className="app-alert app-alert-success" style={{ marginBottom: 16 }}>
@@ -4101,58 +4173,44 @@ export default function ReturnDetail() {
                               </a>
                             </div>
                           )}
-                          {(effLabelUrl || retReturnLabelUrl) && (
-                            <div>
-                              <div style={C.label}>Return Label</div>
-                              <a
-                                href={effLabelUrl || retReturnLabelUrl!}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: "#059669",
-                                  textDecoration: "none",
-                                }}
-                              >
-                                Download &darr;
-                              </a>
-                            </div>
-                          )}
-                          {(effInvoiceUrl || retReturnInvoiceUrl) && (
-                            <div>
-                              <div style={C.label}>Return Invoice</div>
-                              <a
-                                href={effInvoiceUrl || retReturnInvoiceUrl!}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: "#059669",
-                                  textDecoration: "none",
-                                }}
-                              >
-                                Download &darr;
-                              </a>
-                            </div>
-                          )}
-                          {rl?.qrCodeUrl && (
-                            <div>
-                              <div style={C.label}>QR Code</div>
-                              <a
-                                href={rl.qrCodeUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  fontSize: 13,
-                                  fontWeight: 600,
-                                  color: "#059669",
-                                  textDecoration: "none",
-                                }}
-                              >
-                                View &rarr;
-                              </a>
+                          {/* Documents — Fynd-generated PDFs surfaced as
+                              proper button-shaped download CTAs (label,
+                              invoice, QR). Spans the whole row in this
+                              3-col grid via gridColumn:'1 / -1'. */}
+                          {(effLabelUrl ||
+                            retReturnLabelUrl ||
+                            effInvoiceUrl ||
+                            retReturnInvoiceUrl ||
+                            rl?.qrCodeUrl) && (
+                            <div style={{ gridColumn: "1 / -1" }}>
+                              <DocumentDownloadGroup
+                                heading="Return paperwork"
+                                documents={[
+                                  effLabelUrl || retReturnLabelUrl
+                                    ? {
+                                        url: (effLabelUrl || retReturnLabelUrl) as string,
+                                        kind: "label" as const,
+                                        label: "Return label",
+                                        hint: "PDF",
+                                      }
+                                    : null,
+                                  effInvoiceUrl || retReturnInvoiceUrl
+                                    ? {
+                                        url: (effInvoiceUrl || retReturnInvoiceUrl) as string,
+                                        kind: "invoice" as const,
+                                        label: "Return invoice",
+                                        hint: "PDF",
+                                      }
+                                    : null,
+                                  rl?.qrCodeUrl
+                                    ? {
+                                        url: rl.qrCodeUrl,
+                                        kind: "qr" as const,
+                                        label: "QR code",
+                                      }
+                                    : null,
+                                ]}
+                              />
                             </div>
                           )}
                           {retShipmentId && (

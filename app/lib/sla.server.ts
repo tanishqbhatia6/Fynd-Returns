@@ -27,7 +27,7 @@ export const DEFAULT_SLA_HOURS = {
   refund: 120,
 } as const;
 
-export type SlaConfig = Partial<typeof DEFAULT_SLA_HOURS>;
+export type SlaConfig = Partial<Record<keyof typeof DEFAULT_SLA_HOURS, number>>;
 
 export type SlaStage = "approval" | "pickup" | "refund";
 

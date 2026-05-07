@@ -98,6 +98,58 @@ describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale
     expect(state.step).toBe(5);
   });
 
+  it('shows "Picked Up" stage 3 when fyndCurrentStatus is stuck at "refund_initiated" but the LATEST journey event is return_bag_picked', () => {
+    // Real production repro (return MFK-470J4PX2, order FYNDSHOPIFYX14321).
+    // Fynd fired refund_initiated EARLY (pre-pickup), which set the sticky
+    // fyndCurrentStatus to "refund_initiated" + refundStatus="in_progress".
+    // Then return_bag_picked arrived, was appended to the journey, but the
+    // forward-only precedence guard refused to overwrite the sticky note.
+    // Old logic short-circuited on isRefundFyndStatus=true and rendered
+    // step 5. New logic: latest journey event is the source of truth.
+    const state = computeAdminReturnState(
+      "approved",
+      "in_progress",
+      journey(
+        { status: "refund_initiated", time: "2026-05-07T05:30:00Z" },
+        { status: "return_bag_picked", time: "2026-05-07T05:50:00Z" },
+      ),
+      "refund_initiated",
+    );
+    expect(state.label).toBe("Picked Up");
+    expect(state.step).toBe(3);
+  });
+
+  it('shows "In Transit" when latest journey is return_bag_in_transit even though fyndCurrentStatus="refund_initiated"', () => {
+    const state = computeAdminReturnState(
+      "approved",
+      "in_progress",
+      journey(
+        { status: "refund_initiated", time: "2026-05-07T05:30:00Z" },
+        { status: "return_bag_picked", time: "2026-05-07T05:50:00Z" },
+        { status: "return_bag_in_transit", time: "2026-05-07T06:10:00Z" },
+      ),
+      "refund_initiated",
+    );
+    expect(state.label).toBe("In Transit");
+    expect(state.step).toBe(4);
+  });
+
+  it("STILL shows Refund Processing when latest journey IS a refund token (genuine refund stage)", () => {
+    // Inverse: pickup happened first, then refund_initiated arrived as the
+    // latest journey entry — that IS the live state and must show step 5.
+    const state = computeAdminReturnState(
+      "approved",
+      "in_progress",
+      journey(
+        { status: "return_bag_picked", time: "2026-05-07T05:30:00Z" },
+        { status: "return_bag_delivered", time: "2026-05-07T07:00:00Z" },
+        { status: "refund_initiated", time: "2026-05-07T08:00:00Z" },
+      ),
+      "refund_initiated",
+    );
+    expect(state.step).toBe(5);
+  });
+
   it("STILL shows Refund Processing when refundStatus=in_progress and journey is empty (no Fynd state)", () => {
     // Edge case: shop without Fynd integration. refundStatus is the only
     // signal. We must still surface "Refund Processing" so the admin sees

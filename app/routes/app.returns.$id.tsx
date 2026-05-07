@@ -197,31 +197,32 @@ export function computeAdminReturnState(
       return processing(finalLabelInProgress, 5, "Credit note generated, refund in progress");
     return processing(finalLabelInProgress, 5, "Credit note generated, awaiting refund");
   }
-  // Bug #16 fix: live Fynd journey state takes precedence over a stale
-  // `refundStatus = "in_progress"`. Earlier this branch used to fire on
-  // either a refund-token Fynd status OR a stale DB flag, which forced
-  // step=5 ("Received" / "Refund Processing") even when the actual Fynd
-  // shipment was at return_bag_picked (step 3). Now:
-  //   1. If the latest Fynd journey is at a pre-refund logistics stage
-  //      (anything that maps to step ≤ 4), fall through to the journey
-  //      checks below — they correctly assign step 3 for return_bag_picked.
-  //   2. Only show "Refund Processing" when the Fynd state is genuinely
-  //      a refund-stage token (`refund_*` prefix or credit_note family).
-  //   3. We still honour `r === "in_progress"` for shops where the Fynd
-  //      journey is unreachable but a refund has truly been initiated —
-  //      but only when the Fynd journey hasn't reported a pre-refund
-  //      logistics state already.
+  // Bug #16 fix v2: the LATEST journey event is the source of truth.
+  // Fynd often fires `refund_initiated` ahead of the physical pickup
+  // (they pre-create the refund record), which (a) sets fyndCurrentStatus
+  // to a refund-token and (b) sets refundStatus="in_progress". Later, a
+  // return_bag_picked webhook arrives and gets appended to the journey,
+  // but the precedence guard refuses to overwrite the higher-ranked
+  // `refund_initiated` sticky note. Result: this function used to see
+  // f="refund_initiated", short-circuit to step 5, and never inspect the
+  // journey at all — even though the customer's package was demonstrably
+  // at "Picked Up" (step 3).
+  //
+  // The fix:
+  //   - If the LATEST journey event is a return-logistics token (anything
+  //     that maps to step ≤ 4), trust it. Fall through to the journey
+  //     checks below regardless of the sticky `fyndCurrentStatus` or the
+  //     sticky `refundStatus`.
+  //   - Only when the latest journey entry is itself refund-staged (or
+  //     when there is no journey at all and we have to fall back on the
+  //     sticky flags) do we render "Refund Processing".
+  const PRE_REFUND_LOGISTICS_RE =
+    /(^|_)(return_bag_picked|return_bag_in_transit|out_for_delivery_to_store|return_bag_out_for_delivery|return_initiated|return_dp_assigned|out_for_pickup|dp_out_for_pickup|bag_confirmed|return_accepted|return_bag_delivered|return_delivered)(_|$)/;
+  const latestJsIsLogistics = PRE_REFUND_LOGISTICS_RE.test(latestJs);
   const isRefundFyndStatus = /(^|_)refund(_|$)/.test(f);
-  const fyndIsAtPreRefundLogistics =
-    /(^|_)return_bag_picked|return_bag_in_transit|out_for_delivery_to_store|return_bag_out_for_delivery|return_initiated|return_dp_assigned|out_for_pickup|dp_out_for_pickup|bag_confirmed/.test(
-      f,
-    ) ||
-    journey.some((j) =>
-      /(^|_)return_bag_picked|return_bag_in_transit|out_for_delivery_to_store|return_bag_out_for_delivery|return_initiated|return_dp_assigned|out_for_pickup|dp_out_for_pickup/.test(
-        (j.status || "").toLowerCase().replace(/\s+/g, "_"),
-      ),
-    );
-  if (isRefundFyndStatus || (r === "in_progress" && !fyndIsAtPreRefundLogistics))
+  // Only short-circuit to "Refund Processing" when the LATEST journey
+  // event is NOT itself a logistics state. The latest event always wins.
+  if (!latestJsIsLogistics && (isRefundFyndStatus || r === "in_progress"))
     return processing(
       finalLabelInProgress,
       5,

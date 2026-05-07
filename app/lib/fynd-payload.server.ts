@@ -1334,6 +1334,20 @@ export function extractFyndJourney(
     const steps: FyndJourneyStep[] = [];
     const seen = new Set<string>();
 
+    // Heuristic when bag_state_mapper.journey_type is missing: classify
+    // by the status token itself. This prevents forward-shipping events
+    // (bag_picked/delivery_done/in_transit on an originally-delivered
+    // order) from leaking into the return journey and causing the
+    // timeline to jump stages.
+    const isReturnSideStatus = (s: string) =>
+      /^(return_|out_for_pickup|dp_out_for_pickup|out_for_delivery_to_store|rto_|deadstock)/i.test(
+        s,
+      );
+    const isForwardSideStatus = (s: string) =>
+      /^(bag_confirmed|bag_invoiced|bag_packed|bag_picked|delivery_done|handed_over_to_customer|out_for_delivery|in_transit)$/i.test(
+        s,
+      );
+
     const processBag = (bag: Record<string, unknown>) => {
       const bagStatusList = (bag.bag_status ?? bag.status_updates ?? []) as Record<
         string,
@@ -1342,9 +1356,17 @@ export function extractFyndJourney(
       for (const bs of bagStatusList) {
         const mapper = (bs.bag_state_mapper ?? bs.state_mapper ?? {}) as Record<string, unknown>;
         const jt = String(mapper.journey_type ?? mapper.journeyType ?? "").toLowerCase();
-        // Only skip when journey_type is explicitly set to a different type; include steps when absent.
-        if (jt && jt !== journeyType) continue;
         const status = String(bs.status ?? bs.shipment_status ?? "").trim();
+        // Skip when journey_type is explicitly set to a different type.
+        if (jt && jt !== journeyType) continue;
+        // When journey_type is missing, fall back to the status token to
+        // separate forward vs return events. Status-name heuristic is
+        // accurate for all known Fynd taxonomy.
+        if (!jt && status) {
+          const sLower = status.toLowerCase();
+          if (journeyType === "return" && isForwardSideStatus(sLower)) continue;
+          if (journeyType === "forward" && isReturnSideStatus(sLower)) continue;
+        }
         const displayName = String(
           mapper.display_name ??
             mapper.displayName ??

@@ -200,6 +200,15 @@ function computeAdminReturnState(
       5,
       isExchange ? "Exchange is being processed" : "Refund is being processed",
     );
+  // Bug #13 fix: status mapping must use ONLY return-side journey events.
+  // Forward-shipping events (delivery_done = original delivery to customer,
+  // bag_picked = picked from warehouse, in_transit = forward in-transit,
+  // out_for_delivery = forward out-for-delivery) sit in the journey array
+  // for every successfully-delivered order. Matching them as return-side
+  // stages caused the timeline to jump from "Picked Up" to "Received" the
+  // moment a return was created on a previously-delivered order, even
+  // though Fynd was still showing only "RETURN PICKED" (return_bag_picked).
+  // Each check below is now restricted to return-prefixed status tokens.
   if (
     latestJs.includes("return_accepted") ||
     journeyHas("return_accepted") ||
@@ -208,36 +217,31 @@ function computeAdminReturnState(
     return ok("Return Accepted", 5, "Return received and accepted at warehouse");
   if (
     latestJs.includes("return_delivered") ||
-    latestJs.includes("delivery_done") ||
     latestJs.includes("return_bag_delivered") ||
     journeyHas("return_delivered") ||
-    journeyHas("delivery_done") ||
     journeyHas("return_bag_delivered") ||
     f.includes("return_delivered") ||
-    f.includes("delivery_done") ||
     f.includes("return_bag_delivered")
   )
     return ok("Return Received", 5, "Return package delivered to warehouse");
   if (
-    latestJs.includes("out_for_delivery") ||
-    journeyHas("out_for_delivery") ||
-    f.includes("out_for_delivery")
+    latestJs.includes("return_bag_out_for_delivery") ||
+    latestJs.includes("out_for_delivery_to_store") ||
+    journeyHas("return_bag_out_for_delivery") ||
+    journeyHas("out_for_delivery_to_store") ||
+    f.includes("return_bag_out_for_delivery") ||
+    f.includes("out_for_delivery_to_store")
   )
     return transit("Out for Delivery", 4, "Package out for delivery to warehouse");
   if (
-    latestJs.includes("in_transit") ||
     latestJs.includes("return_bag_in_transit") ||
-    journeyHas("in_transit") ||
     journeyHas("return_bag_in_transit") ||
-    f.includes("in_transit") ||
     f.includes("return_bag_in_transit")
   )
     return transit("In Transit", 4, "Return package in transit to warehouse");
   if (
-    latestJs.includes("bag_picked") ||
     latestJs.includes("return_bag_picked") ||
-    journeyHas("bag_picked") ||
-    f.includes("bag_picked") ||
+    journeyHas("return_bag_picked") ||
     f.includes("return_bag_picked")
   )
     return transit("Picked Up", 3, "Return package picked up by courier");
@@ -1539,6 +1543,54 @@ export default function ReturnDetail() {
     return () => clearTimeout(t);
   }, [fyndSyncStatus, hasRealShipmentData, pollCount, revalidator, returnCase.updatedAt]);
 
+  // Live page updates — Bug #14. Picks up Fynd-webhook-driven status changes
+  // without a manual reload. Quiet polling cadence (15s) only while the tab
+  // is visible and no user action is in flight; pauses on hidden tabs to
+  // avoid background work and refetches on focus to reflect any state change
+  // that happened while the user was away.
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date>(new Date());
+  useEffect(() => {
+    let cancelled = false;
+    const onLoaderRefresh = () => setLastSyncedAt(new Date());
+    const tick = () => {
+      if (cancelled) return;
+      // Skip the tick when:
+      //  - the tab is hidden (user not looking)
+      //  - a fetcher action is in flight (user is interacting)
+      //  - the existing Fynd-sync poller is already running (avoid double work)
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (fetcher.state !== "idle") return;
+      if (revalidator.state !== "idle") return;
+      revalidator.revalidate();
+      onLoaderRefresh();
+    };
+    const interval = setInterval(tick, 15000);
+    const onVisibility = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        revalidator.revalidate();
+        onLoaderRefresh();
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", onVisibility);
+    }
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      if (typeof document !== "undefined") {
+        document.removeEventListener("visibilitychange", onVisibility);
+      }
+    };
+    // Intentionally ESLint-bypass: stable refs (revalidator/fetcher) — react
+    // to mount only; the body reads the latest .state on every tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // When the loader data refreshes (returnCase.updatedAt changes), surface
+  // the sync time so the small "Live" badge ticks.
+  useEffect(() => {
+    setLastSyncedAt(new Date());
+  }, [returnCase.updatedAt]);
+
   // Close refund/exchange modals on successful action; keep open on error
   useEffect(() => {
     if (fetcher.state === "idle" && fetcher.data?.success && !fetcher.data?.error) {
@@ -1700,8 +1752,41 @@ export default function ReturnDetail() {
   const courier = forwardCourier;
   const firstShipment = fwdShipment ?? retShipmentFromPayload;
 
+  // Bug #14: render "Live" badge — small visual cue that the page is
+  // auto-refreshing in the background. Shows when the last loader refetch
+  // happened so users know the status they're seeing is fresh.
+  const liveBadge = (
+    <span
+      title={`Auto-refreshes every 15s. Last synced: ${lastSyncedAt.toLocaleTimeString()}`}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "3px 10px",
+        borderRadius: 999,
+        background: revalidator.state === "loading" ? "#FEF3C7" : "#DCFCE7",
+        color: revalidator.state === "loading" ? "#92400E" : "#166534",
+        fontSize: 11,
+        fontWeight: 600,
+        marginLeft: 8,
+        verticalAlign: "middle",
+      }}
+    >
+      <span
+        style={{
+          width: 7,
+          height: 7,
+          borderRadius: "50%",
+          background: revalidator.state === "loading" ? "#D97706" : "#16A34A",
+          display: "inline-block",
+        }}
+      />
+      {revalidator.state === "loading" ? "Updating…" : "Live"}
+    </span>
+  );
+
   return (
-    <AppPage heading={`Return ${returnRequestId}`}>
+    <AppPage heading={`Return ${returnRequestId}`} headingExtra={liveBadge}>
       <div className="app-content layout-wide">
         {/* ── Alerts ── */}
         {fetcher.data?.success && !fetcher.data?.error && (

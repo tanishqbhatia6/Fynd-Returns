@@ -30,6 +30,12 @@ export interface AppPageProps {
   backHref?: string;
   /** Right-side action area in the header (Save buttons, filters, etc.). */
   actions?: React.ReactNode;
+  /**
+   * Inline content rendered next to the heading (e.g. a "Live" badge that
+   * indicates background polling is active). Sits on the same line as the
+   * H1 — keep it small.
+   */
+  headingExtra?: React.ReactNode;
   /** Page body. */
   children: React.ReactNode;
   /** Extra className appended to the outer .app-page div. */
@@ -41,6 +47,7 @@ export function AppPage({
   subtitle,
   backHref,
   actions,
+  headingExtra,
   children,
   className,
 }: AppPageProps) {
@@ -70,7 +77,10 @@ export function AppPage({
             </Link>
           )}
           <div style={{ minWidth: 0 }}>
-            <h1 className="app-page-title">{heading}</h1>
+            <h1 className="app-page-title">
+              {heading}
+              {headingExtra}
+            </h1>
             {/* v8 ignore start */}
             {/* defensive: subtitle prop not passed by every caller; truthy/falsy combos vary */}
             {subtitle && <div className="app-page-subtitle">{subtitle}</div>}

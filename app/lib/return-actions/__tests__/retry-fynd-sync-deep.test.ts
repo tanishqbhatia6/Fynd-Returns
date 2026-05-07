@@ -596,4 +596,19 @@ describe("handleRetryFyndSync — Shopify Return creation as side effect", () =>
     await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndSuccess=1");
     expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
   });
+
+  it("logs the 'reused id' branch when another worker already persisted a real id", async () => {
+    // Wrapper returns success=true, shopifyReturnId set, claimed=false —
+    // i.e. another worker created the return; we just reuse the id. The
+    // handler's log-message ternary picks the "already existed" arm.
+    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
+    createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
+    claimAndCreateShopifyReturnMock.mockResolvedValueOnce({
+      success: true,
+      shopifyReturnId: "gid://shopify/Return/REUSED",
+      claimed: false,
+    });
+    await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndSuccess=1");
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
+  });
 });

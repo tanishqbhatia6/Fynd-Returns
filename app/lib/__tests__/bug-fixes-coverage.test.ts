@@ -120,7 +120,7 @@ function makeCase(
 describe("Bug #1 — bag-aware Fynd payload", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("uses fyndBagId as identifier when present (single line, qty preserved)", async () => {
+  it("uses fyndBagId as identifier when present (multi-qty bag, qty preserved up to bag capacity)", async () => {
     const client = makeFyndClient();
     const rc = makeCase({
       items: [
@@ -132,6 +132,10 @@ describe("Bug #1 — bag-aware Fynd payload", () => {
           fyndLineNumber: 3,
           shopifyLineItemId: "gid://shopify/LineItem/1",
           qty: 2,
+          // Multi-qty bag: this single bag holds 2 units. Bug #11 fix
+          // caps qty to fyndQuantityAvailable; setting it to 2 lets the
+          // requested qty pass through unchanged.
+          fyndQuantityAvailable: 2,
           reasonCode: "Defective",
           createdAt: new Date(),
           updatedAt: new Date(),

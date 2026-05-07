@@ -5113,6 +5113,16 @@
           var availableQty = avail
             ? Math.max(0, avail.availableQty || 0)
             : Math.max(0, orderedQty - returnedQty);
+          // CRITICAL: when this row IS a single Fynd bag (bagId set), cap the
+          // qty input to the bag's own quantity. The aggregate availableQty
+          // (e.g. 3 across 3 bags of the same SKU) is misleading on a
+          // per-bag row — submitting qty=3 against a single bag id makes
+          // Fynd reject the sync with "Requested quantity > available bags
+          // quantity". Multi-bag returns are handled by ticking multiple
+          // bag rows, not by inflating one row's qty.
+          if (bagId && typeof li.quantity === 'number' && li.quantity >= 1) {
+            availableQty = Math.min(availableQty, li.quantity);
+          }
           var fullyReturned = avail ? !!avail.alreadyInReturn : (availableQty <= 0);
           return '<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:' + (fullyReturned ? '#F9FAFB' : 'var(--portal-surface)') + ';opacity:' + (fullyReturned ? '0.6' : '1') + ';">' +
             '<input type="checkbox" id="item-' + li.id + '-' + (shipmentId || 'flat') + '" data-id="' + li.id + '"' +

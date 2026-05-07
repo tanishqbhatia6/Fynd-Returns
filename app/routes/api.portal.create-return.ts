@@ -650,11 +650,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           request,
         );
       }
-      itemsToCreate = items.map((it) => ({
+      itemsToCreate = items.map((it) => {
+        // CRITICAL: when this item targets a specific Fynd bag, cap its qty
+        // to the bag's own capacity (typically 1). Returning N against a
+        // single-bag id makes Fynd reject the whole sync with
+        //   "Requested quantity > available bags quantity".
+        // To return multiple bags, the portal sends multiple items — one
+        // per bagId — each with qty <= that bag's capacity.
+        let safeQty = Math.min(Math.max(1, Math.floor(it.qty)), 999);
+        if (it.fyndBagId) {
+          const bagCap = typeof it.fyndQuantityAvailable === "number"
+            && Number.isFinite(it.fyndQuantityAvailable)
+            && it.fyndQuantityAvailable > 0
+              ? Math.floor(it.fyndQuantityAvailable)
+              : 1;
+          safeQty = Math.min(safeQty, bagCap);
+        }
+        return ({
         // defensive: per-field truthy/typeof guards on optional Fynd metadata
         /* v8 ignore start */
         lineItemId: String(it.lineItemId).slice(0, 256),
-        qty: Math.min(Math.max(1, Math.floor(it.qty)), 999),
+        qty: safeQty,
         reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
         condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
         fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
@@ -675,7 +691,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
         fyndLineNumber: typeof it.fyndLineNumber === "number" ? it.fyndLineNumber : undefined,
         /* v8 ignore stop */
-      }));
+        });
+      });
     }
 
     // ── Resolve non-GID lineItemIds to real Shopify line item GIDs ──

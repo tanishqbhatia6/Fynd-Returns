@@ -80,11 +80,24 @@ function buildProductsPayload(
     const lineNum = explicitLineNum ?? nextSeqLineNumber++;
     /* v8 ignore stop */
 
-    // Bag-aware path: when Fynd's bag id is known, target the specific bag
-    // with quantity=1. For multi-qty single-bag items we still fan out one
-    // entry per qty unit to keep Fynd's per-bag accounting explicit.
+    // Bag-aware path: when Fynd's bag id is known, target the specific bag.
+    //
+    // CRITICAL: each Fynd bag has its own discrete quantity (often 1, since
+    // multi-qty Shopify lines get split into one bag per unit on Fynd's side).
+    // Sending `quantity: N` against a single bag that has `qty: 1` triggers
+    //   "Requested quantity is greater than available bags quantity for
+    //    line_number: X and shipment_id: ..."
+    // Cap the requested qty against the bag's own capacity (captured at
+    // portal time as `fyndQuantityAvailable`). To return more than one
+    // bag's worth, the portal creates one ReturnItem per bag — each with
+    // its own bagId — and this loop emits one entry per item.
     if (fyndBagId && item.qty > 0) {
-      const qty = Math.max(1, Math.floor(item.qty));
+      const bagCap = (item as { fyndQuantityAvailable?: number | null }).fyndQuantityAvailable;
+      const cap =
+        typeof bagCap === "number" && Number.isFinite(bagCap) && bagCap > 0
+          ? Math.floor(bagCap)
+          : 1;
+      const qty = Math.min(Math.max(1, Math.floor(item.qty)), cap);
       products.push({ line_number: lineNum, quantity: qty, identifier: fyndBagId });
       reasonProducts.push({
         filters: [{ identifier: fyndBagId, line_number: lineNum, quantity: qty }],

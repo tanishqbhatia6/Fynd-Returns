@@ -123,6 +123,17 @@ describe("computeRefundForecast — multi-currency split", () => {
   });
 });
 
+describe("computeRefundForecast — defensive fallbacks", () => {
+  it("treats unparseable currency as USD bucket (defensive)", () => {
+    const out = computeRefundForecast([
+      // simulate a row where status & currency normalisation runs through
+      // the defensive empty-string fallbacks (status undefined string)
+      snap({ status: "approved", currency: "" }),
+    ]);
+    expect(out.byCurrency.USD).toBeTruthy();
+  });
+});
+
 describe("computeRefundForecast — percentile timing", () => {
   it("returns null percentiles when fewer than 5 refunded samples", () => {
     const out = computeRefundForecast([

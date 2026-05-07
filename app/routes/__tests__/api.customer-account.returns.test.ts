@@ -355,6 +355,49 @@ describe("GET /api/customer-account/returns — happy path", () => {
     }
   });
 
+  it("falls back to row id when returnRequestNo is null", async () => {
+    const db = (await import("../../db.server")).default as unknown as {
+      shop: { findUnique: ReturnType<typeof vi.fn> };
+      session: { findFirst: ReturnType<typeof vi.fn> };
+      returnCase: { findMany: ReturnType<typeof vi.fn> };
+    };
+    db.shop.findUnique.mockResolvedValueOnce({ id: "s1", shopDomain: "shop.myshopify.com" });
+    db.session.findFirst.mockResolvedValueOnce({ accessToken: "shpat_abc" });
+    db.returnCase.findMany.mockResolvedValueOnce([
+      {
+        id: "rc-no-rrn",
+        returnRequestNo: null,
+        status: "approved",
+        refundStatus: null,
+        resolutionType: "refund",
+        fyndReturnNo: null,
+        returnAwb: null,
+        createdAt: new Date("2026-05-01T00:00:00Z"),
+      },
+    ]);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: { customer: { id: "gid://shopify/Customer/42", email: "x@example.com" } },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    try {
+      const { loader } = await import("../api.customer-account.returns");
+      const res = await loader({
+        request: makeReq(signValid({})),
+        params: {},
+        context: {},
+      } as never);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.returns[0].returnRequestNo).toBe("rc-no-rrn"); // id used as fallback
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
   it("respects rate limit (429 when limiter denies)", async () => {
     const rl = await import("../../lib/rate-limit.server");
     (rl.checkRateLimit as unknown as ReturnType<typeof vi.fn>).mockResolvedValueOnce({

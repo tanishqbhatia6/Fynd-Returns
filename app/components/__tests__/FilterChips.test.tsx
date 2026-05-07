@@ -90,4 +90,16 @@ describe("<FilterChips />", () => {
     const region = container.querySelector('[role="region"]');
     expect(region?.getAttribute("aria-label")).toBe("Active filters");
   });
+
+  it("appends a custom className to the chip-row element", () => {
+    const { container } = render(
+      <FilterChips
+        chips={[{ key: "status", label: "x" }]}
+        onRemove={() => {}}
+        className="my-extra-cls"
+      />,
+    );
+    const root = container.querySelector(".app-filter-chips") as HTMLElement;
+    expect(root.classList.contains("my-extra-cls")).toBe(true);
+  });
 });

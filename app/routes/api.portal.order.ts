@@ -1003,10 +1003,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                         : typeof article.quantity === "number"
                           ? article.quantity
                           : 1;
-                    // Try to match to a Shopify line item by SKU
-                    const matchedShopify = sku
+                    // Match Fynd bag → Shopify line item.
+                    // 1. By SKU (preferred — covers normal Shopify→Fynd integrations).
+                    // 2. By affiliate_line_id when the integration set it.
+                    // 3. Single-line fallback: when the Shopify order has just
+                    //    one line item, every bag must belong to it (Fynd often
+                    //    leaves seller_identifier null, in which case SKU match
+                    //    fails — without this fallback the bag-distribution
+                    //    lookup at create-return time misses, surfacing as a
+                    //    spurious "quantities no longer available" 409).
+                    const articleAffiliateLineId =
+                      String(
+                        (bag.affiliate_bag_details as Record<string, unknown> | undefined)
+                          ?.affiliate_line_id ??
+                          (bag as Record<string, unknown>).affiliate_line_id ??
+                          "",
+                      ).trim() || null;
+                    let matchedShopify = sku
                       ? shopifyLineItems.find((li) => li.sku === sku)
                       : null;
+                    if (!matchedShopify && articleAffiliateLineId) {
+                      matchedShopify = shopifyLineItems.find(
+                        (li) =>
+                          li.id === articleAffiliateLineId ||
+                          li.id.endsWith(`/${articleAffiliateLineId}`),
+                      );
+                    }
+                    if (!matchedShopify && shopifyLineItems.length === 1) {
+                      matchedShopify = shopifyLineItems[0];
+                    }
                     const title =
                       matchedShopify?.title ??
                       (safeStr(itemObj.name, "") || safeStr(itemObj.item_name, "") || "Item");
@@ -1087,9 +1112,27 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                     const skuVal = bag.seller_identifier ?? bag.article_id ?? null;
                     const sku = skuVal != null ? String(skuVal) : null;
                     const qty = typeof bag.quantity === "number" ? bag.quantity : 1;
-                    const matchedShopify = sku
+                    // Same multi-tier match as the article-level path above.
+                    const bagAffiliateLineIdForMatch =
+                      String(
+                        (bag.affiliate_bag_details as Record<string, unknown> | undefined)
+                          ?.affiliate_line_id ??
+                          (bag as Record<string, unknown>).affiliate_line_id ??
+                          "",
+                      ).trim() || null;
+                    let matchedShopify = sku
                       ? shopifyLineItems.find((li) => li.sku === sku)
                       : null;
+                    if (!matchedShopify && bagAffiliateLineIdForMatch) {
+                      matchedShopify = shopifyLineItems.find(
+                        (li) =>
+                          li.id === bagAffiliateLineIdForMatch ||
+                          li.id.endsWith(`/${bagAffiliateLineIdForMatch}`),
+                      );
+                    }
+                    if (!matchedShopify && shopifyLineItems.length === 1) {
+                      matchedShopify = shopifyLineItems[0];
+                    }
                     const title =
                       matchedShopify?.title ??
                       (safeStr(bagItem.name, "") || safeStr(bagItem.item_name, "") || "Item");

@@ -7,6 +7,7 @@ import { findOrCreateShop } from "../lib/shop.server";
 import { testSmtpConnection } from "../lib/notification.server";
 import { encryptIfNeeded, decryptIfEncrypted, looksEncrypted } from "../lib/encryption.server";
 import { AppPage } from "../components/AppPage";
+import { renderEmailPreview } from "../lib/email-template-preview";
 
 // Sentinel returned to the client in place of the actual SMTP password. The form
 // preserves this value when saving "as-is" (no change). Any other non-empty value is
@@ -532,6 +533,22 @@ export default function Notifications() {
     { key: "status", label: "Status" },
     { key: "refundAmount", label: "Refund Amount" },
   ];
+
+  // Sample values used to render the live email-template preview.
+  // These mirror the merge-variable shape produced by
+  // notification.server.ts at send-time, so what merchants see in the
+  // preview matches what their customers will receive.
+  const SAMPLE_TEMPLATE_DATA: Record<string, string> = {
+    orderName: "#1023",
+    customerEmail: "jane@example.com",
+    shopName: "Your store",
+    returnId: "RPM-A1B2C3",
+    status: "Approved",
+    refundAmount: "$129.00",
+  };
+
+  const renderPreviewBody = (raw: string): string =>
+    renderEmailPreview(raw, SAMPLE_TEMPLATE_DATA);
 
   const startEditing = useCallback(
     (key: string) => {
@@ -1582,18 +1599,35 @@ export default function Notifications() {
                               }}
                             />
                           ) : (
-                            <iframe
-                              sandbox=""
-                              srcDoc={templateBody}
-                              title="Template preview"
-                              style={{
-                                width: "100%",
-                                minHeight: 160,
-                                border: "var(--rpm-border)",
-                                borderRadius: "var(--rpm-radius-sm)",
-                                background: "#fff",
-                              }}
-                            />
+                            <div>
+                              <div
+                                style={{
+                                  fontSize: 11,
+                                  color: "var(--rpm-text-muted)",
+                                  marginBottom: 6,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                }}
+                              >
+                                <span aria-hidden="true">🔁</span>
+                                Live preview · merge tags substituted with
+                                sample data ({SAMPLE_TEMPLATE_DATA.customerEmail},
+                                order {SAMPLE_TEMPLATE_DATA.orderName})
+                              </div>
+                              <iframe
+                                sandbox=""
+                                srcDoc={renderPreviewBody(templateBody)}
+                                title="Template preview"
+                                style={{
+                                  width: "100%",
+                                  minHeight: 200,
+                                  border: "var(--rpm-border)",
+                                  borderRadius: "var(--rpm-radius-sm)",
+                                  background: "#fff",
+                                }}
+                              />
+                            </div>
                           )}
                         </div>
 

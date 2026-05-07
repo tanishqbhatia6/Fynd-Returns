@@ -35,6 +35,17 @@ describe("<DocumentDownload />", () => {
     expect(a.hasAttribute("download")).toBe(true);
     expect(a.getAttribute("href")).toBe("https://example.test/x.pdf");
   });
+
+  it("renders neutral tone with grey palette instead of brand-green", () => {
+    const { container } = render(<DocumentDownload url="https://x" tone="neutral" />);
+    const a = container.querySelector("a") as HTMLElement;
+    // neutral fg is #475569, neutral border is #e2e8f0
+    expect(a.style.color).toBe("rgb(71, 85, 105)");
+    expect(a.style.border).toContain("rgb(226, 232, 240)");
+    const iconWrap = container.querySelector('[aria-hidden="true"]') as HTMLElement;
+    // neutral icon background is #f1f5f9
+    expect(iconWrap.style.background).toBe("rgb(241, 245, 249)");
+  });
 });
 
 describe("<DocumentDownloadGroup />", () => {

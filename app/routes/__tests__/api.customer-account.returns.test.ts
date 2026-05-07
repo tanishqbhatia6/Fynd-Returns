@@ -86,6 +86,70 @@ describe("GET /api/customer-account/returns — auth", () => {
     expect(res.status).toBe(401);
   });
 
+  it("returns 204 on CORS preflight (OPTIONS)", async () => {
+    const { loader } = await import("../api.customer-account.returns");
+    const res = await loader({
+      request: new Request("https://app.example/api/customer-account/returns", {
+        method: "OPTIONS",
+      }),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(204);
+  });
+
+  it("returns 401 when Authorization header lacks Bearer prefix", async () => {
+    const { loader } = await import("../api.customer-account.returns");
+    const headers = new Headers({ Authorization: "Basic dXNlcjpwYXNz" });
+    const req = new Request("https://app.example/api/customer-account/returns", {
+      method: "GET",
+      headers,
+    });
+    const res = await loader({ request: req, params: {}, context: {} } as never);
+    expect(res.status).toBe(401);
+    const body = await res.json();
+    expect(body.error).toMatch(/Missing Authorization/);
+  });
+
+  it("returns 401 when token verifies but is missing dest claim", async () => {
+    // dest is required for shop lookup; absent dest must reject
+    const tokenWithoutDest = jwt.sign(
+      {
+        aud: "client-id-abc",
+        sub: "gid://shopify/Customer/42",
+        exp: Math.floor(Date.now() / 1000) + 300,
+      },
+      SECRET,
+      { algorithm: "HS256" },
+    );
+    const { loader } = await import("../api.customer-account.returns");
+    const res = await loader({
+      request: makeReq(tokenWithoutDest),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 401 when token verifies but is missing sub claim", async () => {
+    const tokenWithoutSub = jwt.sign(
+      {
+        dest: "shop.myshopify.com",
+        aud: "client-id-abc",
+        exp: Math.floor(Date.now() / 1000) + 300,
+      },
+      SECRET,
+      { algorithm: "HS256" },
+    );
+    const { loader } = await import("../api.customer-account.returns");
+    const res = await loader({
+      request: makeReq(tokenWithoutSub),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(401);
+  });
+
   it("returns 401 when token signature is wrong", async () => {
     const tampered = jwt.sign(
       {

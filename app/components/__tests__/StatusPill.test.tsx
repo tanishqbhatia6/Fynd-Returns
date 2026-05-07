@@ -30,4 +30,11 @@ describe("<StatusPill />", () => {
     const dot = container.querySelector('span[aria-hidden="true"]');
     expect(dot).toBeTruthy();
   });
+
+  it("returns the empty-string status unchanged from titleCase (line 21 guard)", () => {
+    const { container } = render(<StatusPill status="" />);
+    // The pill renders the empty status without crashing; label text is empty
+    const span = container.querySelector(".app-status-pill") as HTMLElement;
+    expect(span).toBeTruthy();
+  });
 });

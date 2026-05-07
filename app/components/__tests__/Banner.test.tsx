@@ -47,4 +47,18 @@ describe("<Banner />", () => {
     render(<Banner action={<button type="button">Retry</button>}>m</Banner>);
     expect(screen.getByText("Retry")).toBeTruthy();
   });
+
+  it("appends a custom className to the alert element (line 71 branch)", () => {
+    const { container } = render(
+      <Banner className="my-custom-cls">m</Banner>,
+    );
+    const root = container.querySelector(".app-alert") as HTMLElement;
+    expect(root.classList.contains("my-custom-cls")).toBe(true);
+  });
+
+  it("title alone with no body text uses 0px margin (line 78 children-less branch)", () => {
+    const { container } = render(<Banner title="Heads up" />);
+    const strong = container.querySelector("strong") as HTMLElement;
+    expect(strong.style.marginBottom).toBe("0px");
+  });
 });

@@ -212,6 +212,61 @@ describe("describeSlaBreach", () => {
   });
 });
 
+describe("input handling — defensive branches", () => {
+  it("uses current time when `now` is omitted", () => {
+    // Stale createdAt → some breach should fire when now defaults
+    const r = computeSlaBreaches({
+      status: "pending",
+      resolutionType: "refund",
+      createdAt: new Date("2020-01-01T00:00:00Z"), // very old
+    });
+    expect(r[0].level).toBe("breached");
+  });
+
+  it("treats string-typed createdAt the same as Date", () => {
+    const r = computeSlaBreaches({
+      status: "pending",
+      resolutionType: "refund",
+      createdAt: "2026-05-01T00:00:00Z",
+      now: new Date("2026-05-01T05:00:00Z"),
+    });
+    expect(r).toHaveLength(1);
+    expect(r[0].stage).toBe("approval");
+  });
+
+  it("ignores invalid date strings (returns no breach when createdAt is unparseable)", () => {
+    const r = computeSlaBreaches({
+      status: "pending",
+      resolutionType: "refund",
+      createdAt: "not a date",
+      now: new Date("2026-05-10T00:00:00Z"),
+    });
+    expect(r).toEqual([]);
+  });
+
+  it("handles empty status / resolutionType strings gracefully", () => {
+    const r = computeSlaBreaches({
+      status: "",
+      resolutionType: "",
+      createdAt: new Date("2026-05-01T00:00:00Z"),
+      now: new Date("2026-05-01T05:00:00Z"),
+    });
+    expect(r[0].stage).toBe("approval");
+  });
+
+  it("handles undefined resolutionType (falls into pickup-required default)", () => {
+    const r = computeSlaBreaches({
+      status: "approved",
+      resolutionType: undefined,
+      createdAt: new Date("2026-05-01T00:00:00Z"),
+      approvedAt: new Date("2026-05-01T01:00:00Z"),
+      now: new Date("2026-05-01T05:00:00Z"),
+    });
+    // Pickup applies when resolution is undefined / "" (treated as physical return)
+    expect(r.find((b) => b.stage === "pickup")).toBeTruthy();
+  });
+});
+
 describe("slaStageLabel", () => {
   it("returns human label per stage", () => {
     expect(slaStageLabel("approval")).toBe("Approval");

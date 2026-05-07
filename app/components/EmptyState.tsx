@@ -67,9 +67,9 @@ export function EmptyState({
           style={{
             fontSize: isCompact ? 13 : 14,
             color: "var(--rpm-text-muted, #64748b)",
-            marginBottom: action ? (isCompact ? 12 : 20) : 0,
             maxWidth: 460,
-            margin: "0 auto",
+            marginInline: "auto",
+            marginBottom: action ? (isCompact ? 12 : 20) : 0,
             lineHeight: 1.55,
           }}
         >

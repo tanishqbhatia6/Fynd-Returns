@@ -23,6 +23,19 @@ describe("<Skeleton />", () => {
     expect(span.style.width).toBe("120px");
     expect(span.style.height).toBe("20px");
   });
+
+  it("appends custom className in aria-hidden (decorative) branch", () => {
+    const { container } = render(<Skeleton className="extra-cls" />);
+    const span = container.querySelector(".app-skeleton") as HTMLElement;
+    expect(span.classList.contains("extra-cls")).toBe(true);
+  });
+
+  it("appends custom className in aria-labelled (status) branch", () => {
+    const { container } = render(<Skeleton ariaLabel="Loading" className="status-cls" />);
+    const span = container.querySelector(".app-skeleton") as HTMLElement;
+    expect(span.getAttribute("role")).toBe("status");
+    expect(span.classList.contains("status-cls")).toBe(true);
+  });
 });
 
 describe("<SkeletonRows />", () => {

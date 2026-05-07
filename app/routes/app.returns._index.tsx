@@ -15,6 +15,8 @@ import prisma from "../db.server";
 import { formatReturnRequestId } from "../lib/return-request-id";
 import { getStatusColor, getStatusBg } from "../lib/status-colors";
 import { AppPage } from "../components/AppPage";
+import { Banner } from "../components/Banner";
+import { Toast } from "../components/Toast";
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -406,72 +408,22 @@ export default function ReturnsList() {
         {/* v8 ignore start */}
         {/* defensive: error rarely populated in fixtures; render branch covered separately */}
         {error && (
-          <div
-            style={{
-              padding: "12px 16px",
-              marginBottom: 16,
-              borderRadius: 10,
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              color: "#991b1b",
-              fontSize: 13,
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-            >
-              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-            <div>
-              <strong>{error}</strong>
-              <span style={{ opacity: 0.8, marginLeft: 6 }}>Try refreshing the page.</span>
-            </div>
-          </div>
+          <Banner tone="critical" title={error}>
+            Try refreshing the page.
+          </Banner>
         )}
         {/* v8 ignore stop */}
 
-        {/* ── Success / Error toast ── */}
+        {/* ── Bulk action feedback (floating toasts) ── */}
         {bulkSuccess && (
-          <div
-            style={{
-              padding: "10px 16px",
-              marginBottom: 12,
-              borderRadius: 8,
-              background: "#ecfdf5",
-              border: "1px solid #a7f3d0",
-              color: "#065f46",
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
+          <Toast tone="success" onDismiss={() => setBulkSuccess(null)}>
             {bulkSuccess}
-          </div>
+          </Toast>
         )}
         {bulkError && (
-          <div
-            style={{
-              padding: "10px 16px",
-              marginBottom: 12,
-              borderRadius: 8,
-              background: "#fef2f2",
-              border: "1px solid #fecaca",
-              color: "#991b1b",
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
+          <Toast tone="critical" duration={6000} onDismiss={() => setBulkError(null)}>
             {bulkError}
-          </div>
+          </Toast>
         )}
 
         {/* ── Stats Bar ── */}

@@ -1,0 +1,18 @@
+api_version = "2026-01"
+
+[[extensions]]
+type = "ui_extension"
+name = "Customer Account — My Returns"
+handle = "customer-account-returns"
+
+[extensions.capabilities]
+network_access = true
+api_access = true
+
+[[extensions.targeting]]
+target = "customer-account.order-index.block.render"
+module = "./src/Extension.tsx"
+
+[[extensions.targeting]]
+target = "customer-account.profile.block.render"
+module = "./src/Extension.tsx"

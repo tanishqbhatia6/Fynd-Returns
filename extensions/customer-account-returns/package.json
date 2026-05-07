@@ -1,0 +1,12 @@
+{
+  "name": "customer-account-returns",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "shopify app build"
+  },
+  "dependencies": {
+    "@shopify/ui-extensions": "^2026.1.0",
+    "preact": "^10.28.4"
+  }
+}

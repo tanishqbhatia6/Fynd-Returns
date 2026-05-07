@@ -92,31 +92,33 @@ describe("Bug #15 — createShopifyReturn idempotency on duplicate-call", () => 
               },
             ],
           },
-          returns: {
-            edges: [
-              {
-                node: {
-                  id: "gid://shopify/Return/R1",
-                  status: "OPEN",
-                  returnLineItems: {
-                    edges: [
-                      {
-                        node: {
-                          quantity: 1,
-                          fulfillmentLineItem: {
-                            id: "gid://shopify/FulfillmentLineItem/A",
-                            lineItem: {
-                              id: "gid://shopify/LineItem/100",
-                              sku: "SKU-A",
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/R1",
+                    status: "OPEN",
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: {
+                                id: "gid://shopify/LineItem/100",
+                                sku: "SKU-A",
+                              },
                             },
                           },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
       },
@@ -161,28 +163,30 @@ describe("Bug #15 — createShopifyReturn idempotency on duplicate-call", () => 
               },
             ],
           },
-          returns: {
-            edges: [
-              {
-                node: {
-                  id: "gid://shopify/Return/R1",
-                  status: "OPEN",
-                  returnLineItems: {
-                    edges: [
-                      {
-                        node: {
-                          quantity: 2, // ← different from the requested qty=1
-                          fulfillmentLineItem: {
-                            id: "gid://shopify/FulfillmentLineItem/A",
-                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/R1",
+                    status: "OPEN",
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 2, // ← different from the requested qty=1
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
                           },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
       },
@@ -234,28 +238,30 @@ describe("Bug #15 — createShopifyReturn idempotency on duplicate-call", () => 
               },
             ],
           },
-          returns: {
-            edges: [
-              {
-                node: {
-                  id: "gid://shopify/Return/R-OLD",
-                  status: "CLOSED", // ← terminal, ignored
-                  returnLineItems: {
-                    edges: [
-                      {
-                        node: {
-                          quantity: 1,
-                          fulfillmentLineItem: {
-                            id: "gid://shopify/FulfillmentLineItem/A",
-                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/R-OLD",
+                    status: "CLOSED", // ← terminal, ignored
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
                           },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
       },
@@ -313,37 +319,39 @@ describe("Bug #15 — createShopifyReturn idempotency on duplicate-call", () => 
               },
             ],
           },
-          returns: {
-            edges: [
-              {
-                node: {
-                  id: "gid://shopify/Return/R1",
-                  status: "OPEN",
-                  returnLineItems: {
-                    edges: [
-                      {
-                        node: {
-                          quantity: 1,
-                          fulfillmentLineItem: {
-                            id: "gid://shopify/FulfillmentLineItem/A",
-                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/R1",
+                    status: "OPEN",
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
                           },
                         },
-                      },
-                      {
-                        node: {
-                          quantity: 1,
-                          fulfillmentLineItem: {
-                            id: "gid://shopify/FulfillmentLineItem/B",
-                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/B",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
                           },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
       },
@@ -398,28 +406,30 @@ describe("Bug #15 — createShopifyReturn idempotency on duplicate-call", () => 
               },
             ],
           },
-          returns: {
-            edges: [
-              {
-                node: {
-                  id: "gid://shopify/Return/R1",
-                  status: "OPEN",
-                  returnLineItems: {
-                    edges: [
-                      {
-                        node: {
-                          quantity: 1,
-                          fulfillmentLineItem: {
-                            id: "gid://shopify/FulfillmentLineItem/A",
-                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/R1",
+                    status: "OPEN",
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
                           },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
       },
@@ -462,28 +472,30 @@ describe("Bug #15 — createShopifyReturn idempotency on duplicate-call", () => 
               },
             ],
           },
-          returns: {
-            edges: [
-              {
-                node: {
-                  id: "gid://shopify/Return/R1",
-                  status: "OPEN",
-                  returnLineItems: {
-                    edges: [
-                      {
-                        node: {
-                          quantity: 1,
-                          fulfillmentLineItem: {
-                            id: "gid://shopify/FulfillmentLineItem/A",
-                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/R1",
+                    status: "OPEN",
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
                           },
                         },
-                      },
-                    ],
+                      ],
+                    },
                   },
                 },
-              },
-            ],
+              ],
+            },
           },
         },
       },
@@ -502,5 +514,36 @@ describe("Bug #15 — createShopifyReturn idempotency on duplicate-call", () => 
     expect(result.success).toBe(true);
     expect(result.shopifyReturnId).toBe("gid://shopify/Return/R-NEW");
     expect(calls.find((c) => c.query.includes("returnCreate"))).toBeTruthy();
+  });
+
+  it("queries returns scoped to the specific order, not shop-wide (regression: prevents busy-shop misses)", async () => {
+    // Earlier the query used `returns(first: 50)` at the top level of
+    // Query, which returns shop-wide returns. On busy shops the freshly-
+    // created return for THIS order rolls off the first 50 within seconds
+    // (newer returns from other orders push it down), the idempotency
+    // scan misses, and a duplicate Shopify return gets created.
+    //
+    // Pin: the query must read from `order(id: $orderId).returns`, not
+    // top-level `returns`.
+    const { admin, calls } = makeAdmin([
+      { data: { returnableFulfillments: { edges: [] }, order: { returns: { edges: [] } } } },
+    ]);
+    await createShopifyReturn(admin, "gid://shopify/Order/1", [
+      { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1, sku: "SKU-A" },
+    ]);
+    // Strip the `# ...` comment lines before matching so a comment that
+    // happens to mention "Query.returns(...)" doesn't fool the assertion.
+    const queryText = calls[0].query
+      .split("\n")
+      .filter((l) => !l.trim().startsWith("#"))
+      .join("\n");
+    // Must scope returns to this order
+    expect(queryText).toMatch(/order\s*\(\s*id:\s*\$orderId\s*\)\s*\{[\s\S]*returns\s*\(/);
+    // Exactly one `returns(first:...)` selector — inside the order block.
+    // Two occurrences would mean a top-level shop-wide query was re-added
+    // alongside the order-scoped one.
+    const returnsCalls = queryText.match(/\breturns\s*\(\s*first:/g);
+    expect(returnsCalls).not.toBeNull();
+    expect(returnsCalls!.length).toBe(1);
   });
 });

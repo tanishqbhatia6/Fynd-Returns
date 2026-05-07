@@ -1960,19 +1960,28 @@ const RETURNABLE_FULFILLMENTS_QUERY = `#graphql
         }
       }
     }
-    returns(first: 50) {
-      edges {
-        node {
-          id
-          status
-          returnLineItems(first: 50) {
-            edges {
-              node {
-                ... on ReturnLineItem {
-                  quantity
-                  fulfillmentLineItem {
-                    id
-                    lineItem { id sku }
+    # Bug #15 sub-bug: this MUST be order-scoped, not shop-wide.
+    # Earlier this used Query.returns(first: 50) at the top level, which
+    # returns shop-wide returns — for high-volume merchants the freshly-
+    # created return for THIS order rolls off the page within seconds, the
+    # idempotency guard below misses, and the create mutation fires twice.
+    # Scoping via order(id).returns guarantees we always see this order's
+    # own returns, regardless of shop activity volume.
+    order(id: $orderId) {
+      returns(first: 50) {
+        edges {
+          node {
+            id
+            status
+            returnLineItems(first: 50) {
+              edges {
+                node {
+                  ... on ReturnLineItem {
+                    quantity
+                    fulfillmentLineItem {
+                      id
+                      lineItem { id sku }
+                    }
                   }
                 }
               }
@@ -2068,25 +2077,27 @@ export async function createShopifyReturn(
               };
             }>;
           };
-          returns?: {
-            edges?: Array<{
-              node?: {
-                id: string;
-                status?: string | null;
-                returnLineItems?: {
-                  edges?: Array<{
-                    node?: {
-                      quantity: number;
-                      fulfillmentLineItem?: {
-                        id: string;
-                        lineItem?: { id: string; sku?: string | null };
+          order?: {
+            returns?: {
+              edges?: Array<{
+                node?: {
+                  id: string;
+                  status?: string | null;
+                  returnLineItems?: {
+                    edges?: Array<{
+                      node?: {
+                        quantity: number;
+                        fulfillmentLineItem?: {
+                          id: string;
+                          lineItem?: { id: string; sku?: string | null };
+                        };
                       };
-                    };
-                  }>;
+                    }>;
+                  };
                 };
-              };
-            }>;
-          };
+              }>;
+            };
+          } | null;
         };
         errors?: Array<{ message?: string }>;
       };
@@ -2126,7 +2137,7 @@ export async function createShopifyReturn(
         requestPerLi.set(ri.shopifyLineItemId, (requestPerLi.get(ri.shopifyLineItemId) ?? 0) + q);
       }
       if (requestPerLi.size > 0) {
-        for (const retEdge of fulfillmentsJson.data?.returns?.edges ?? []) {
+        for (const retEdge of fulfillmentsJson.data?.order?.returns?.edges ?? []) {
           const ret = retEdge.node;
           if (!ret?.id) continue;
           const status = (ret.status ?? "").toUpperCase();
@@ -2202,7 +2213,7 @@ export async function createShopifyReturn(
       // same units. We treat OPEN-status returns as already consuming returnable qty.
       const NON_TERMINAL_RETURN_STATUSES = new Set(["OPEN", "REQUESTED", "IN_PROGRESS"]);
       /* v8 ignore start */ // defensive: each `?? 0|[]|""` is a per-edge fallback for optional GraphQL fields — only one path hit per fixture
-      for (const retEdge of fulfillmentsJson.data?.returns?.edges ?? []) {
+      for (const retEdge of fulfillmentsJson.data?.order?.returns?.edges ?? []) {
         const ret = retEdge.node;
         if (!ret) continue;
         const status = (ret.status ?? "").toUpperCase();

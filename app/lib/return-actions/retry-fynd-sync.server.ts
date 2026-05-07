@@ -8,7 +8,8 @@ import {
   fyndSyncCounter,
 } from "../observability/metrics.server";
 import { annotateSLO } from "../observability/slo.server";
-import { fetchOrder, fetchOrderByOrderNumber, createShopifyReturn } from "../shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber } from "../shopify-admin.server";
+import { claimAndCreateShopifyReturn } from "../shopify-return-claim.server";
 import { createFyndClientOrError } from "../fynd.server";
 import { createReturnOnFynd } from "../fynd-returns.server";
 import { refundLogger } from "../observability/logger.server";
@@ -209,7 +210,12 @@ export const handleRetryFyndSync: ReturnActionHandler = async (ctx) => {
               (returnCase as { isGreenReturn?: boolean }).isGreenReturn !== true;
             if (canCreateReturn) {
               try {
-                const shopifyReturnResult = await createShopifyReturn(
+                // Bug #15 final fix: claim+create wrapper handles the
+                // shopifyReturnId DB writeback atomically AND prevents
+                // concurrent calls (admin clicks Retry repeatedly, two
+                // browser tabs, etc.) from each firing returnCreate.
+                const shopifyReturnResult = await claimAndCreateShopifyReturn(
+                  id,
                   admin as never,
                   retryOrderId,
                   (returnCase.items ?? []).map((item) => ({
@@ -222,26 +228,16 @@ export const handleRetryFyndSync: ReturnActionHandler = async (ctx) => {
                   { requestedAt: returnCase.createdAt.toISOString() },
                 );
                 if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
-                  // Bug #15: must NOT swallow errors here — see approve.server.ts.
-                  try {
-                    await prisma.returnCase.update({
-                      where: { id },
-                      data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                    });
-                  } catch (writeErr) {
-                    refundLogger.error(
-                      {
-                        shopifyReturnId: shopifyReturnResult.shopifyReturnId,
-                        err: writeErr,
-                      },
-                      "[retry_fynd_sync] CRITICAL: Shopify Return created but DB writeback failed — duplicate-prevention may regress",
-                    );
-                  }
                   refundLogger.info(
-                    { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                    "[retry_fynd_sync] Also created Shopify Return",
+                    {
+                      shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                      claimed: shopifyReturnResult.claimed,
+                    },
+                    shopifyReturnResult.claimed
+                      ? "[retry_fynd_sync] Also created Shopify Return"
+                      : "[retry_fynd_sync] Shopify Return already existed; reused id",
                   );
-                } else {
+                } else if (!shopifyReturnResult.success) {
                   refundLogger.warn(
                     { error: shopifyReturnResult.error },
                     "[retry_fynd_sync] Shopify Return creation failed (non-fatal)",

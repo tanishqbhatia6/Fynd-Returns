@@ -1328,8 +1328,15 @@ describe("single-shipment enrichment bag-level fallback", () => {
     } as never);
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.shipments[0].items[0].id).toBe("bag-nm");
-    expect(body.shipments[0].items[0].title).toBe("Item"); // default fallback
+    // Bug-fix 423be4b — single-line fallback. When the bag has no SKU /
+    // no affiliate_line_id and the Shopify order has exactly one line
+    // item, the bag is claimed by that line. Previously the bag's `id`
+    // would have fallen back to the bag id ("bag-nm") and the
+    // bag-distribution lookup at create-return time would miss it.
+    expect(body.shipments[0].items[0].id).toBe("li-other");
+    // Title resolves from the matched Shopify line, not the bag default.
+    expect(body.shipments[0].items[0].title).toBe("Other");
+    // SKU stays null because the bag itself has no seller_identifier.
     expect(body.shipments[0].items[0].sku).toBeNull();
   });
 });

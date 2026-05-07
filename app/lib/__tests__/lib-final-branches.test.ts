@@ -46,6 +46,7 @@ const {
   fetchOrderLineItemsByNameMock,
   closeShopifyReturnBestEffortMock,
   createShopifyReturnMock,
+  claimAndCreateShopifyReturnMock,
   createFyndClientOrErrorMock,
   createReturnOnFyndMock,
   sendRefundNotificationMock,
@@ -59,6 +60,7 @@ const {
   fetchOrderLineItemsByNameMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   closeShopifyReturnBestEffortMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  claimAndCreateShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   createReturnOnFyndMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   sendRefundNotificationMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
@@ -75,6 +77,9 @@ vi.mock("../shopify-admin.server", () => ({
   fetchOrderLineItemsByName: fetchOrderLineItemsByNameMock,
   closeShopifyReturnBestEffort: closeShopifyReturnBestEffortMock,
   createShopifyReturn: createShopifyReturnMock,
+}));
+vi.mock("../shopify-return-claim.server", () => ({
+  claimAndCreateShopifyReturn: claimAndCreateShopifyReturnMock,
 }));
 vi.mock("../fynd.server", () => ({
   createFyndClientOrError: createFyndClientOrErrorMock,
@@ -241,6 +246,9 @@ beforeEach(() => {
   createShopifyReturnMock
     .mockReset()
     .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/Z" });
+  claimAndCreateShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/Z", claimed: true });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
   createReturnOnFyndMock.mockReset();
   sendRefundNotificationMock.mockReset().mockResolvedValue(undefined);
@@ -701,25 +709,22 @@ describe("handleRetryFyndSync — branch gaps", () => {
     );
   });
 
-  it("Shopify Return side-effect: returnCase.update rejection → .catch() arrow (line 177)", async () => {
-    // Force the success-path branch where shopifyReturnId is missing AND
-    // createShopifyReturn returns a real id, so the inner
-    // `prisma.returnCase.update({...}).catch(() => {})` on line 177 fires.
-    // Make THAT update reject. The redirect must still succeed.
+  it("Shopify Return side-effect: claim wrapper handles success even if a downstream DB writeback fails", async () => {
+    // After the Bug #15 final fix, the writeback into shopifyReturnId is
+    // performed inside claimAndCreateShopifyReturn (the wrapper) — not in
+    // the retry handler itself. We mock the wrapper to return success and
+    // verify the retry handler still redirects normally.
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn() } as never,
     });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-X" });
     fetchOrderMock.mockResolvedValueOnce({ affiliateOrderId: "AFF-1" });
-    createShopifyReturnMock.mockResolvedValueOnce({
+    claimAndCreateShopifyReturnMock.mockResolvedValueOnce({
       success: true,
       shopifyReturnId: "gid://shopify/Return/SIDE-EFFECT",
+      claimed: true,
     });
-    // First update (synced) succeeds; second update (shopifyReturnId persist) rejects.
-    prismaMock.returnCase.update
-      .mockResolvedValueOnce({ id: "rc-1" })
-      .mockRejectedValueOnce(new Error("update boom"));
 
     const ctx = mkRetryCtx({
       returnCase: {
@@ -732,10 +737,10 @@ describe("handleRetryFyndSync — branch gaps", () => {
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
       "fyndSuccess=1",
     );
-    expect(createShopifyReturnMock).toHaveBeenCalled();
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
   });
 
-  it("returnCase.items=null on success path → empty items array passed to createShopifyReturn", async () => {
+  it("returnCase.items=null on success path → empty items array passed into the claim wrapper", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({
       ok: true,
       client: { getShipments: vi.fn() } as never,
@@ -747,7 +752,7 @@ describe("handleRetryFyndSync — branch gaps", () => {
       returnCase: {
         ...mkRetryCtx().returnCase,
         items: null, // forces (returnCase.items ?? []) ?? [] branch
-        shopifyReturnId: null, // need the side-effect to attempt createShopifyReturn
+        shopifyReturnId: null, // need the side-effect to attempt claim
         shopifyOrderId: "gid://shopify/Order/77",
       } as never,
     });
@@ -755,9 +760,9 @@ describe("handleRetryFyndSync — branch gaps", () => {
       handleRetryFyndSync(ctx, { action: "retry_fynd_sync" } as ReturnActionBody),
       "fyndSuccess=1",
     );
-    // createShopifyReturn called with empty items array.
-    const args = createShopifyReturnMock.mock.calls[0]!;
-    expect(Array.isArray(args[2])).toBe(true);
-    expect((args[2] as unknown[]).length).toBe(0);
+    // claimAndCreateShopifyReturn args: (returnCaseId, admin, orderId, items, options)
+    const args = claimAndCreateShopifyReturnMock.mock.calls[0]!;
+    expect(Array.isArray(args[3])).toBe(true);
+    expect((args[3] as unknown[]).length).toBe(0);
   });
 });

@@ -9,7 +9,8 @@ import {
   returnsApprovedCounter,
 } from "../observability/metrics.server";
 import { annotateSLO } from "../observability/slo.server";
-import { fetchOrder, fetchOrderByOrderNumber, createShopifyReturn } from "../shopify-admin.server";
+import { fetchOrder, fetchOrderByOrderNumber } from "../shopify-admin.server";
+import { claimAndCreateShopifyReturn } from "../shopify-return-claim.server";
 import { createFyndClientOrError } from "../fynd.server";
 import { createReturnOnFynd } from "../fynd-returns.server";
 import { sendApprovalNotification } from "../notification.server";
@@ -97,10 +98,15 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
             !returnCase.shopifyReturnId;
           if (canCreateConsReturn) {
             try {
-              const shopifyReturnResult = await createShopifyReturn(
+              // Bug #15 final fix: use the claim+create wrapper so concurrent
+              // calls (admin double-click, retry handler, multiple browser
+              // tabs) cannot each fire returnCreate. The wrapper does the
+              // shopifyReturnId DB writeback atomically — no separate update
+              // needed here.
+              const shopifyReturnResult = await claimAndCreateShopifyReturn(
+                returnCase.id,
                 admin as never,
                 consOrderId,
-                // defensive items array fallback + nested nullish coalescing
                 /* v8 ignore start */
                 (returnCase.items ?? []).map((item) => ({
                   shopifyLineItemId: item.shopifyLineItemId,
@@ -113,29 +119,16 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
                 { requestedAt: returnCase.createdAt.toISOString() },
               );
               if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
-                // Bug #15: must NOT swallow errors here — if this update
-                // fails the next approve/retry sees shopifyReturnId=null
-                // and creates a duplicate Shopify return on the order.
-                // Any DB error here surfaces with the existing error path.
-                try {
-                  await prisma.returnCase.update({
-                    where: { id },
-                    data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                  });
-                } catch (writeErr) {
-                  refundLogger.error(
-                    {
-                      shopifyReturnId: shopifyReturnResult.shopifyReturnId,
-                      err: writeErr,
-                    },
-                    "[Approve:consolidation] CRITICAL: Shopify Return created but DB writeback failed — duplicate-prevention may regress",
-                  );
-                }
                 refundLogger.info(
-                  { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                  "[Approve:consolidation] Shopify Return created",
+                  {
+                    shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                    claimed: shopifyReturnResult.claimed,
+                  },
+                  shopifyReturnResult.claimed
+                    ? "[Approve:consolidation] Shopify Return created"
+                    : "[Approve:consolidation] Shopify Return already existed; reused id",
                 );
-              } else {
+              } else if (!shopifyReturnResult.success) {
                 refundLogger.warn(
                   { error: shopifyReturnResult.error },
                   "[Approve:consolidation] Shopify Return creation failed (non-fatal)",
@@ -428,7 +421,11 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
 
         if (shouldCreateShopifyReturn) {
           try {
-            const shopifyReturnResult = await createShopifyReturn(
+            // Bug #15 final fix: claim+create wrapper handles the
+            // shopifyReturnId DB writeback atomically AND prevents
+            // concurrent calls from each firing returnCreate.
+            const shopifyReturnResult = await claimAndCreateShopifyReturn(
+              id,
               admin as never,
               effectiveOrderId,
               (returnCase.items ?? []).map((item) => ({
@@ -442,38 +439,33 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
             );
 
             if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
-              // Bug #15: must NOT swallow errors here — see consolidation branch above.
-              try {
-                await prisma.returnCase.update({
-                  where: { id },
-                  data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                });
-              } catch (writeErr) {
-                refundLogger.error(
-                  {
-                    shopifyReturnId: shopifyReturnResult.shopifyReturnId,
-                    err: writeErr,
-                  },
-                  "[Approve] CRITICAL: Shopify Return created but DB writeback failed — duplicate-prevention may regress",
-                );
+              // Only emit the "shopify_return_created" event when this
+              // worker actually created the return — re-using an existing
+              // id from a concurrent call should NOT log a fresh creation.
+              if (shopifyReturnResult.claimed) {
+                await prisma.returnEvent
+                  .create({
+                    data: {
+                      returnCaseId: id,
+                      source: "admin",
+                      eventType: "shopify_return_created",
+                      payloadJson: JSON.stringify({
+                        shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                        itemCount: (returnCase.items ?? []).length,
+                        adminEmail: sessionEmail,
+                      }),
+                    },
+                  })
+                  .catch(() => {});
               }
-              await prisma.returnEvent
-                .create({
-                  data: {
-                    returnCaseId: id,
-                    source: "admin",
-                    eventType: "shopify_return_created",
-                    payloadJson: JSON.stringify({
-                      shopifyReturnId: shopifyReturnResult.shopifyReturnId,
-                      itemCount: (returnCase.items ?? []).length,
-                      adminEmail: sessionEmail,
-                    }),
-                  },
-                })
-                .catch(() => {});
               refundLogger.info(
-                { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                "[Approve] Shopify Return created",
+                {
+                  shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                  claimed: shopifyReturnResult.claimed,
+                },
+                shopifyReturnResult.claimed
+                  ? "[Approve] Shopify Return created"
+                  : "[Approve] Shopify Return already existed; reused id",
               );
             } else {
               refundLogger.warn(

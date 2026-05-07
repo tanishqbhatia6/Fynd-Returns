@@ -1120,30 +1120,34 @@ describe("createShopifyReturn", () => {
             },
           })),
         },
-        returns: {
-          edges: (opts.returns ?? []).map((r) => ({
-            node: {
-              id: r.id ?? "gid://shopify/Return/1",
-              status: r.status ?? "OPEN",
-              returnLineItems: {
-                edges: (r.lineItems ?? []).map((li) => ({
-                  node: {
-                    quantity: li.quantity ?? 1,
-                    fulfillmentLineItem: {
-                      id: li.fliId ?? "gid://shopify/FulfillmentLineItem/1",
-                      lineItem:
-                        li.lineItemGid !== null
-                          ? {
-                              id: li.lineItemGid ?? "gid://shopify/LineItem/1",
-                              sku: li.sku ?? null,
-                            }
-                          : null,
+        // Bug #15 final fix: returns is now scoped via order(id).returns,
+        // not the top-level Query.returns. Mock the same nesting.
+        order: {
+          returns: {
+            edges: (opts.returns ?? []).map((r) => ({
+              node: {
+                id: r.id ?? "gid://shopify/Return/1",
+                status: r.status ?? "OPEN",
+                returnLineItems: {
+                  edges: (r.lineItems ?? []).map((li) => ({
+                    node: {
+                      quantity: li.quantity ?? 1,
+                      fulfillmentLineItem: {
+                        id: li.fliId ?? "gid://shopify/FulfillmentLineItem/1",
+                        lineItem:
+                          li.lineItemGid !== null
+                            ? {
+                                id: li.lineItemGid ?? "gid://shopify/LineItem/1",
+                                sku: li.sku ?? null,
+                              }
+                            : null,
+                      },
                     },
-                  },
-                })),
+                  })),
+                },
               },
-            },
-          })),
+            })),
+          },
         },
       },
       errors: opts.errors,

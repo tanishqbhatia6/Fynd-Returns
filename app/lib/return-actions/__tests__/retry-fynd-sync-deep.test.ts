@@ -26,6 +26,7 @@ const {
   fetchOrderMock,
   fetchOrderByOrderNumberMock,
   createShopifyReturnMock,
+  claimAndCreateShopifyReturnMock,
 } = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
@@ -33,6 +34,7 @@ const {
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  claimAndCreateShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -47,6 +49,13 @@ vi.mock("../../shopify-admin.server", () => ({
   fetchOrder: fetchOrderMock,
   fetchOrderByOrderNumber: fetchOrderByOrderNumberMock,
   createShopifyReturn: createShopifyReturnMock,
+}));
+// Bug #15 final fix: handleRetryFyndSync now calls claimAndCreateShopifyReturn
+// from the new shopify-return-claim module. Mock that here so the side-effect
+// behaviour (calls Shopify create on retry, skips on green/non-GID/etc) can be
+// verified without exercising the real prisma-based claim logic.
+vi.mock("../../shopify-return-claim.server", () => ({
+  claimAndCreateShopifyReturn: claimAndCreateShopifyReturnMock,
 }));
 
 import { handleRetryFyndSync } from "../retry-fynd-sync.server";
@@ -115,6 +124,9 @@ beforeEach(() => {
   createShopifyReturnMock
     .mockReset()
     .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99" });
+  claimAndCreateShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99", claimed: true });
 });
 
 describe("handleRetryFyndSync — status guard", () => {
@@ -480,19 +492,17 @@ describe("handleRetryFyndSync — Shopify Return creation as side effect", () =>
   it("creates Shopify Return when missing AND order is GID AND not green return", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
-    createShopifyReturnMock.mockResolvedValueOnce({
+    // Wrapper succeeded (won the race). The wrapper does the DB writeback
+    // internally; the handler no longer issues a separate update.
+    claimAndCreateShopifyReturnMock.mockResolvedValueOnce({
       success: true,
       shopifyReturnId: "gid://shopify/Return/123",
+      claimed: true,
     });
 
     await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndSuccess=1");
 
-    expect(createShopifyReturnMock).toHaveBeenCalled();
-    const updates = prismaMock.returnCase.update.mock.calls;
-    const sideEffect = updates.find(
-      (c) => c[0].data?.shopifyReturnId === "gid://shopify/Return/123",
-    );
-    expect(sideEffect).toBeDefined();
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
   });
 
   it("skips Shopify Return creation when shopifyReturnId already set", async () => {
@@ -511,7 +521,7 @@ describe("handleRetryFyndSync — Shopify Return creation as side effect", () =>
       ),
       "fyndSuccess=1",
     );
-    expect(createShopifyReturnMock).not.toHaveBeenCalled();
+    expect(claimAndCreateShopifyReturnMock).not.toHaveBeenCalled();
   });
 
   it("skips Shopify Return creation when isGreenReturn=true", async () => {
@@ -530,7 +540,7 @@ describe("handleRetryFyndSync — Shopify Return creation as side effect", () =>
       ),
       "fyndSuccess=1",
     );
-    expect(createShopifyReturnMock).not.toHaveBeenCalled();
+    expect(claimAndCreateShopifyReturnMock).not.toHaveBeenCalled();
   });
 
   it("skips Shopify Return creation when shopifyOrderId starts with manual:", async () => {
@@ -549,13 +559,17 @@ describe("handleRetryFyndSync — Shopify Return creation as side effect", () =>
       ),
       "fyndSuccess=1",
     );
-    expect(createShopifyReturnMock).not.toHaveBeenCalled();
+    expect(claimAndCreateShopifyReturnMock).not.toHaveBeenCalled();
   });
 
   it("Shopify Return creation failure is non-fatal — still redirects success", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
-    createShopifyReturnMock.mockResolvedValueOnce({ success: false, error: "no fulfillment" });
+    claimAndCreateShopifyReturnMock.mockResolvedValueOnce({
+      success: false,
+      error: "no fulfillment",
+      claimed: true,
+    });
 
     await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndSuccess=1");
   });
@@ -563,8 +577,23 @@ describe("handleRetryFyndSync — Shopify Return creation as side effect", () =>
   it("Shopify Return creation crash is non-fatal — still redirects success", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
-    createShopifyReturnMock.mockRejectedValueOnce(new Error("network"));
+    claimAndCreateShopifyReturnMock.mockRejectedValueOnce(new Error("network"));
 
     await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndSuccess=1");
+  });
+
+  it("does NOT issue returnCreate when another worker holds the claim (concurrent-call defence)", async () => {
+    // Bug #15 final fix: when claimAndCreateShopifyReturn returns
+    // claimed=false because another worker is mid-call, the handler
+    // must accept that gracefully — no error, no extra DB writeback,
+    // no double-create. This pins that behaviour.
+    createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
+    createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
+    claimAndCreateShopifyReturnMock.mockResolvedValueOnce({
+      success: true,
+      claimed: false,
+    });
+    await expectRedirect(handleRetryFyndSync(mkCtx(), RETRY_BODY), "fyndSuccess=1");
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
   });
 });

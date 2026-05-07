@@ -26,6 +26,7 @@ const {
   fetchOrderMock,
   fetchOrderByOrderNumberMock,
   createShopifyReturnMock,
+  claimAndCreateShopifyReturnMock,
   returnActionCounterAdd,
   appErrorCounterAdd,
   returnActionDurationRecord,
@@ -37,6 +38,7 @@ const {
   fetchOrderMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   fetchOrderByOrderNumberMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   createShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
+  claimAndCreateShopifyReturnMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   returnActionCounterAdd: vi.fn(),
   appErrorCounterAdd: vi.fn(),
   returnActionDurationRecord: vi.fn(),
@@ -55,6 +57,9 @@ vi.mock("../../shopify-admin.server", () => ({
   fetchOrder: fetchOrderMock,
   fetchOrderByOrderNumber: fetchOrderByOrderNumberMock,
   createShopifyReturn: createShopifyReturnMock,
+}));
+vi.mock("../../shopify-return-claim.server", () => ({
+  claimAndCreateShopifyReturn: claimAndCreateShopifyReturnMock,
 }));
 vi.mock("../../observability/metrics.server", () => ({
   returnActionCounter: { add: returnActionCounterAdd },
@@ -159,6 +164,13 @@ beforeEach(() => {
   createShopifyReturnMock
     .mockReset()
     .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99" });
+  claimAndCreateShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({
+      success: true,
+      shopifyReturnId: "gid://shopify/Return/99",
+      claimed: true,
+    });
   returnActionCounterAdd.mockReset();
   appErrorCounterAdd.mockReset();
   returnActionDurationRecord.mockReset();
@@ -278,8 +290,8 @@ describe("handleRetryFyndSync — gap coverage", () => {
   it("defaults items to [] when returnCase.items is null (Shopify Return side-effect)", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkRetryClient() });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
-    // shopifyReturnId is null + numeric order id + items=null → should still call createShopifyReturn
-    // with an empty array (the `?? []` branch on line 164).
+    // shopifyReturnId is null + numeric order id + items=null → claim+create
+    // wrapper is invoked with an empty items array (the `?? []` default).
     await expectRedirect(
       handleRetryFyndSync(
         mkRetryCtx({
@@ -293,10 +305,11 @@ describe("handleRetryFyndSync — gap coverage", () => {
       ),
       "fyndSuccess=1",
     );
-    expect(createShopifyReturnMock).toHaveBeenCalled();
-    const args = createShopifyReturnMock.mock.calls[0]!;
-    // args[2] is the items array — should be empty (default branch)
-    expect(args[2]).toEqual([]);
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
+    const args = claimAndCreateShopifyReturnMock.mock.calls[0]!;
+    // claimAndCreateShopifyReturn args: (returnCaseId, admin, orderId, items, options)
+    // args[3] is the items array — should be empty (default branch).
+    expect(args[3]).toEqual([]);
   });
 
   it("maps each return item into Shopify Return payload (covers arrow callback on line 164)", async () => {
@@ -333,8 +346,9 @@ describe("handleRetryFyndSync — gap coverage", () => {
       ),
       "fyndSuccess=1",
     );
-    expect(createShopifyReturnMock).toHaveBeenCalled();
-    const mappedItems = createShopifyReturnMock.mock.calls[0]![2] as Array<{
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
+    // claimAndCreateShopifyReturn args: (returnCaseId, admin, orderId, items, options)
+    const mappedItems = claimAndCreateShopifyReturnMock.mock.calls[0]![3] as Array<{
       shopifyLineItemId: string;
       qty: number;
       reasonCode: string | null;

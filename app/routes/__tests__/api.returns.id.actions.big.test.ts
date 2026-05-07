@@ -19,6 +19,7 @@ const {
   fetchOrderMock,
   fetchOrderByOrderNumberMock,
   createShopifyReturnMock,
+  claimAndCreateShopifyReturnMock,
   createFyndClientOrErrorMock,
   createReturnOnFyndMock,
   sendApprovalNotificationMock,
@@ -38,6 +39,11 @@ const {
   createShopifyReturnMock: vi.fn(async () => ({
     success: true,
     shopifyReturnId: "gid://shopify/Return/1",
+  })),
+  claimAndCreateShopifyReturnMock: vi.fn(async () => ({
+    success: true,
+    shopifyReturnId: "gid://shopify/Return/1",
+    claimed: true,
   })),
   createFyndClientOrErrorMock: vi.fn(),
   createReturnOnFyndMock: vi.fn(),
@@ -74,6 +80,9 @@ vi.mock("../../lib/shopify-admin.server", () => ({
   fetchOrderLineItemsOnly: vi.fn(),
   fetchOrderLineItemsByName: vi.fn(),
   withRestCredentials: withRestCredentialsMock,
+}));
+vi.mock("../../lib/shopify-return-claim.server", () => ({
+  claimAndCreateShopifyReturn: claimAndCreateShopifyReturnMock,
 }));
 
 vi.mock("../../lib/fynd.server", () => ({
@@ -211,6 +220,9 @@ beforeEach(() => {
   createShopifyReturnMock
     .mockReset()
     .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1" });
+  claimAndCreateShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1", claimed: true });
   createFyndClientOrErrorMock.mockReset();
   createReturnOnFyndMock.mockReset();
   sendApprovalNotificationMock.mockReset().mockResolvedValue(undefined);
@@ -313,7 +325,8 @@ describe('action: "approve"', () => {
         }),
       }),
     );
-    expect(createShopifyReturnMock).toHaveBeenCalled();
+    // Bug #15 final fix: handler now invokes the claim+create wrapper.
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalled();
     expect(sendApprovalNotificationMock).toHaveBeenCalled();
   });
 
@@ -342,7 +355,7 @@ describe('action: "approve"', () => {
       mkReturnCase({ shopifyOrderId: "manual:abc" }),
     );
     await callAction(mkJsonReq({ action: "approve" }));
-    expect(createShopifyReturnMock).not.toHaveBeenCalled();
+    expect(claimAndCreateShopifyReturnMock).not.toHaveBeenCalled();
   });
 });
 

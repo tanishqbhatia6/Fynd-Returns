@@ -82,7 +82,7 @@ function fulfillmentsResp(opts: {
           },
         ],
       },
-      returns: { edges: [] },
+      order: { returns: { edges: [] } },
     },
   };
 }
@@ -220,28 +220,30 @@ describe("createShopifyReturn — line-item resolution", () => {
             },
           ],
         },
-        returns: {
-          edges: [
-            {
-              node: {
-                id: "gid://shopify/Return/9",
-                status: "OPEN",
-                returnLineItems: {
-                  edges: [
-                    {
-                      node: {
-                        quantity: 2,
-                        fulfillmentLineItem: {
-                          id: "gid://shopify/FulfillmentLineItem/1",
-                          lineItem: { id: "gid://shopify/LineItem/100", sku: null },
+        order: {
+          returns: {
+            edges: [
+              {
+                node: {
+                  id: "gid://shopify/Return/9",
+                  status: "OPEN",
+                  returnLineItems: {
+                    edges: [
+                      {
+                        node: {
+                          quantity: 2,
+                          fulfillmentLineItem: {
+                            id: "gid://shopify/FulfillmentLineItem/1",
+                            lineItem: { id: "gid://shopify/LineItem/100", sku: null },
+                          },
                         },
                       },
-                    },
-                  ],
+                    ],
+                  },
                 },
               },
-            },
-          ],
+            ],
+          },
         },
       },
     };
@@ -258,7 +260,9 @@ describe("createShopifyReturn — line-item resolution", () => {
   });
 
   it("returns failure when no fulfillment line items exist", async () => {
-    const empty = { data: { returnableFulfillments: { edges: [] }, returns: { edges: [] } } };
+    const empty = {
+      data: { returnableFulfillments: { edges: [] }, order: { returns: { edges: [] } } },
+    };
     const { admin } = makeAdmin([empty]);
     const r = await createShopifyReturn(admin, "1", [
       { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1 },

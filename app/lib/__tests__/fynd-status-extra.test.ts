@@ -329,9 +329,14 @@ describe("classifyFyndRefundStatus — extra parameterised coverage", () => {
       isInProgress: true,
       isComplete: false,
     },
-    // Bare "in_progress"/"processing"/"under_process" (in REFUND_IN_PROGRESS list)
-    { label: "in_progress bare", input: "in_progress", isInProgress: true, isComplete: false },
-    { label: "processing bare", input: "processing", isInProgress: true, isComplete: false },
+    // Bug #16 follow-up: bare lifecycle keywords are NO LONGER classified as
+    // refund-in-progress. Only namespaced refund_*-prefixed tokens or
+    // "under process"/"under_process" qualify. Generic "in_progress" /
+    // "processing" used to leak in via the loose REFUND_IN_PROGRESS list,
+    // but conflated shipment lifecycle with refund lifecycle and locked the
+    // admin timeline at "Refund Processing" while Fynd was at return_bag_picked.
+    { label: "in_progress bare", input: "in_progress", isInProgress: false, isComplete: false },
+    { label: "processing bare", input: "processing", isInProgress: false, isComplete: false },
     { label: "under_process bare", input: "under_process", isInProgress: true, isComplete: false },
 
     // Complete

@@ -142,7 +142,10 @@ describe("unwrapFyndWebhookPayload", () => {
     expect(payload.affiliate_order_id).toBe("AFF_ORDER_123");
   });
 
-  it("extracts refund_status from nested status fields", () => {
+  it("keeps lifecycle status separate from refund_status (bug #16 follow-up)", () => {
+    // Old behaviour: unwrap leaked `current_shipment_status` into refund_status.
+    // New behaviour: refund_status stays undefined when no genuine refund_status
+    // field was provided. Lifecycle goes to current_shipment_status only.
     const raw = JSON.stringify({
       shipment: {
         current_shipment_status: "return_bag_out_for_delivery",
@@ -153,7 +156,8 @@ describe("unwrapFyndWebhookPayload", () => {
     const { payload } = unwrapFyndWebhookPayload(raw);
 
     expect(payload.shipment_id).toBe("SHIP999");
-    expect(payload.refund_status).toBe("return_bag_out_for_delivery");
+    expect(payload.refund_status).toBeUndefined();
+    expect(payload.current_shipment_status).toBe("return_bag_out_for_delivery");
   });
 
   it("does not treat array body.shipment as envelope", () => {

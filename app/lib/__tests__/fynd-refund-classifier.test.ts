@@ -50,13 +50,25 @@ describe("classifyFyndRefundStatus", () => {
       "Refund Pending",
       "UNDER PROCESS",
       "under_process",
-      "in_progress",
-      "processing",
     ];
     for (const status of inProgressStatuses) {
       it(`"${status}" is in_progress`, () => {
         const r = classifyFyndRefundStatus(status);
         expect(r.isInProgress).toBe(true);
+        expect(r.isComplete).toBe(false);
+      });
+    }
+  });
+
+  // Bug #16 follow-up: bare "in_progress" / "processing" must NOT be
+  // classified as refund-in-progress. They previously did, which produced
+  // the production symptom of "Refund Processing" appearing while Fynd
+  // was at return_bag_picked.
+  describe("Bug #16 — bare lifecycle keywords must NOT be classified", () => {
+    for (const status of ["in_progress", "processing"]) {
+      it(`"${status}" is NOT classified as in_progress`, () => {
+        const r = classifyFyndRefundStatus(status);
+        expect(r.isInProgress).toBe(false);
         expect(r.isComplete).toBe(false);
       });
     }

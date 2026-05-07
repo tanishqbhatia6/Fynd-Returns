@@ -222,12 +222,21 @@ export const handleRetryFyndSync: ReturnActionHandler = async (ctx) => {
                   { requestedAt: returnCase.createdAt.toISOString() },
                 );
                 if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
-                  await prisma.returnCase
-                    .update({
+                  // Bug #15: must NOT swallow errors here — see approve.server.ts.
+                  try {
+                    await prisma.returnCase.update({
                       where: { id },
                       data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                    })
-                    .catch(() => {});
+                    });
+                  } catch (writeErr) {
+                    refundLogger.error(
+                      {
+                        shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                        err: writeErr,
+                      },
+                      "[retry_fynd_sync] CRITICAL: Shopify Return created but DB writeback failed — duplicate-prevention may regress",
+                    );
+                  }
                   refundLogger.info(
                     { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
                     "[retry_fynd_sync] Also created Shopify Return",

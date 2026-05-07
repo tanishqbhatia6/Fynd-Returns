@@ -113,12 +113,24 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
                 { requestedAt: returnCase.createdAt.toISOString() },
               );
               if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
-                await prisma.returnCase
-                  .update({
+                // Bug #15: must NOT swallow errors here — if this update
+                // fails the next approve/retry sees shopifyReturnId=null
+                // and creates a duplicate Shopify return on the order.
+                // Any DB error here surfaces with the existing error path.
+                try {
+                  await prisma.returnCase.update({
                     where: { id },
                     data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                  })
-                  .catch(() => {});
+                  });
+                } catch (writeErr) {
+                  refundLogger.error(
+                    {
+                      shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                      err: writeErr,
+                    },
+                    "[Approve:consolidation] CRITICAL: Shopify Return created but DB writeback failed — duplicate-prevention may regress",
+                  );
+                }
                 refundLogger.info(
                   { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
                   "[Approve:consolidation] Shopify Return created",
@@ -430,12 +442,21 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
             );
 
             if (shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId) {
-              await prisma.returnCase
-                .update({
+              // Bug #15: must NOT swallow errors here — see consolidation branch above.
+              try {
+                await prisma.returnCase.update({
                   where: { id },
                   data: { shopifyReturnId: shopifyReturnResult.shopifyReturnId },
-                })
-                .catch(() => {});
+                });
+              } catch (writeErr) {
+                refundLogger.error(
+                  {
+                    shopifyReturnId: shopifyReturnResult.shopifyReturnId,
+                    err: writeErr,
+                  },
+                  "[Approve] CRITICAL: Shopify Return created but DB writeback failed — duplicate-prevention may regress",
+                );
+              }
               await prisma.returnEvent
                 .create({
                   data: {

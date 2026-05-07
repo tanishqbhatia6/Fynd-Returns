@@ -2104,6 +2104,60 @@ export async function createShopifyReturn(
       }
       /* v8 ignore stop */
 
+      // Bug #15 idempotency guard (early). BEFORE building the FLI maps
+      // and running the distribution loop, check whether any existing
+      // OPEN/REQUESTED/IN_PROGRESS Shopify return on this order already
+      // matches the customer's request. Match is computed by line-item
+      // GID + total-qty, which is invariant across multi-fulfillment
+      // distributions (a single qty-3 LI may show up across 3 FLIs in
+      // the existing return; what matters is the per-LI totals).
+      // Returning the existing return's id here protects against:
+      //  - silent .catch(() => {}) on shopifyReturnId writeback in
+      //    approve.server.ts / retry-fynd-sync.server.ts
+      //  - portal duplicate submissions producing two ReturnCases
+      //  - eventual-consistency in returnableFulfillments after the
+      //    fresh return is created
+      const NON_TERMINAL_RETURN_STATUSES_EARLY = new Set(["OPEN", "REQUESTED", "IN_PROGRESS"]);
+      const requestPerLi = new Map<string, number>();
+      for (const ri of returnItems) {
+        if (!ri.shopifyLineItemId?.startsWith("gid://shopify/LineItem/")) continue;
+        const q = Math.max(0, Math.floor(ri.qty || 0));
+        if (q <= 0) continue;
+        requestPerLi.set(ri.shopifyLineItemId, (requestPerLi.get(ri.shopifyLineItemId) ?? 0) + q);
+      }
+      if (requestPerLi.size > 0) {
+        for (const retEdge of fulfillmentsJson.data?.returns?.edges ?? []) {
+          const ret = retEdge.node;
+          if (!ret?.id) continue;
+          const status = (ret.status ?? "").toUpperCase();
+          if (status && !NON_TERMINAL_RETURN_STATUSES_EARLY.has(status)) continue;
+          const existingPerLi = new Map<string, number>();
+          for (const lineEdge of ret.returnLineItems?.edges ?? []) {
+            const node = lineEdge.node;
+            const lineItemGid = node?.fulfillmentLineItem?.lineItem?.id;
+            const qty = node?.quantity ?? 0;
+            if (!lineItemGid || qty <= 0) continue;
+            existingPerLi.set(lineItemGid, (existingPerLi.get(lineItemGid) ?? 0) + qty);
+          }
+          if (existingPerLi.size !== requestPerLi.size) continue;
+          let allMatch = true;
+          for (const [lineItemGid, qty] of requestPerLi) {
+            if (existingPerLi.get(lineItemGid) !== qty) {
+              allMatch = false;
+              break;
+            }
+          }
+          if (allMatch) {
+            refundLogger.info(
+              { existingReturnId: ret.id, orderGid, requestPerLi: [...requestPerLi.entries()] },
+              "createShopifyReturn: idempotent — existing OPEN return matches customer request; reusing",
+            );
+            shopifyApiDuration.record(timer(), { operation: "return.create", status_code: "200" });
+            return { success: true, shopifyReturnId: ret.id };
+          }
+        }
+      }
+
       // Build maps: order lineItem GID → fulfillmentLineItem, and SKU → fulfillmentLineItem.
       // We accumulate qty across fulfillments for the same lineItem GID (a 3-qty product
       // split into 3 separate fulfillments produces three edges with qty=1 each — the
@@ -2159,6 +2213,14 @@ export async function createShopifyReturn(
           const consumedFliId = node.fulfillmentLineItem.id;
           const consumedQty = node.quantity ?? 0;
           if (consumedQty <= 0) continue;
+          // Bug #15 sub-bug: fulfillmentLineItemMap and skuMap share the
+          // SAME `arr` reference at build-time (see line ~2127), so
+          // decrementing both maps double-counts. We only need to decrement
+          // ONCE per FLI — the entry tracked by lineItem.id (and shared with
+          // skuMap) is the same object. SKU-fallback decrement is only
+          // needed when no lineItem.id is set on the existing return's
+          // line item (rare). This matches the pre-existing intent and
+          // closes the duplicate-counting source.
           const decrement = (entries?: FliEntry[]) => {
             // unreachable: callers always pass result of map.get() under a truthy lineItem.id/sku check, never undefined here
             /* v8 ignore start */
@@ -2172,8 +2234,9 @@ export async function createShopifyReturn(
           };
           if (node.fulfillmentLineItem.lineItem?.id) {
             decrement(fulfillmentLineItemMap.get(node.fulfillmentLineItem.lineItem.id));
-          }
-          if (node.fulfillmentLineItem.lineItem?.sku) {
+          } else if (node.fulfillmentLineItem.lineItem?.sku) {
+            // Only fall back to SKU-keyed decrement when no lineItem.id was
+            // present (so we haven't already touched the entry above).
             decrement(skuMap.get(node.fulfillmentLineItem.lineItem.sku.toLowerCase().trim()));
           }
         }

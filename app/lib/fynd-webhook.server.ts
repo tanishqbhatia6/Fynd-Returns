@@ -150,9 +150,19 @@ export function shouldAdvanceFyndStatus(
   return incRank >= curRank;
 }
 
-/** Known Fynd shipment/return journey statuses that should be tracked (not "ignored") */
-const FYND_JOURNEY_STATUSES = new Set([
-  // Forward journey
+/**
+ * Webhook event taxonomy. Prod-readiness audit (Pattern E).
+ *
+ * Every Fynd webhook is one of these categories. Classifying once at the
+ * top of the handler prevents the cross-domain conflations that produced
+ * bug #13 (return vs forward), bug #16 (refund vs lifecycle), and the
+ * upstream poisoning that kept the timeline stuck. Each downstream
+ * branch (refund mark, journey advance, auto-refund decision, etc.)
+ * should consume only the field appropriate to its category.
+ */
+export type FyndWebhookCategory = "forward" | "return" | "refund" | "rto" | "unknown";
+
+const FORWARD_STATUSES = new Set([
   "bag_confirmed",
   "bag_invoiced",
   "dp_assigned",
@@ -161,7 +171,9 @@ const FYND_JOURNEY_STATUSES = new Set([
   "out_for_delivery",
   "delivery_done",
   "handed_over_to_customer",
-  // Return journey
+]);
+
+const RETURN_LIFECYCLE_STATUSES = new Set([
   "return_initiated",
   "return_dp_assigned",
   "return_bag_in_transit",
@@ -170,28 +182,76 @@ const FYND_JOURNEY_STATUSES = new Set([
   "return_bag_picked",
   "return_accepted",
   "return_completed",
-  // Return delivery/warehouse statuses
   "return_bag_out_for_delivery",
   "out_for_delivery_to_store",
-  // Return failure/rejection statuses
   "return_bag_not_received",
   "bag_not_received",
   "return_bag_rejected",
-  // Return cancellation
   "return_request_cancelled",
-  // RTO journey
-  "rto_initiated",
-  "rto_dp_assigned",
-  "rto_bag_in_transit",
-  "rto_bag_delivered",
-  "rto_bag_accepted",
-  // Edge cases
   "bag_not_picked",
   "out_for_pickup",
   "dp_out_for_pickup",
   "deadstock",
   "deadstock_defective",
   "return_bag_lost",
+]);
+
+const REFUND_LIFECYCLE_STATUSES = new Set([
+  "credit_note_generated",
+  "credit_note",
+  "refund_initiated",
+  "refund_pending",
+  "refund_processing",
+  "refund_in_progress",
+  "refund_under_process",
+  "refund_done",
+  "refund_completed",
+  "refunded",
+]);
+
+const RTO_STATUSES = new Set([
+  "rto_initiated",
+  "rto_dp_assigned",
+  "rto_bag_in_transit",
+  "rto_bag_delivered",
+  "rto_bag_accepted",
+]);
+
+/**
+ * Classify a Fynd webhook based on its lifecycle + refund signals. Caller
+ * should pass the LIFECYCLE status (extractLifecycleStatus) AND the refund
+ * status (extractRefundStatus) — both are needed because Fynd sometimes
+ * sends a refund_status alongside a still-active shipment status.
+ *
+ *   refund > rto > return > forward > unknown
+ *
+ * is the precedence: a refund event takes priority over a return-stage one
+ * because once Fynd has emitted refund_initiated the merchant cares about
+ * the refund clock, not the in-progress return logistics. Return takes
+ * priority over forward because once we've started a return, an
+ * out-of-order forward webhook (delivery_done re-arriving) shouldn't
+ * downgrade the case.
+ */
+export function classifyFyndWebhookEvent(
+  lifecycleStatus: string | null | undefined,
+  refundStatus: string | null | undefined,
+): FyndWebhookCategory {
+  const refund = (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  const lifecycle = (lifecycleStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  if (refund && REFUND_LIFECYCLE_STATUSES.has(refund)) return "refund";
+  if (lifecycle && REFUND_LIFECYCLE_STATUSES.has(lifecycle)) return "refund";
+  if (lifecycle && RTO_STATUSES.has(lifecycle)) return "rto";
+  if (lifecycle && RETURN_LIFECYCLE_STATUSES.has(lifecycle)) return "return";
+  if (lifecycle && FORWARD_STATUSES.has(lifecycle)) return "forward";
+  return "unknown";
+}
+
+/** Known Fynd shipment/return journey statuses that should be tracked (not "ignored").
+ *  Built from the typed sets above so the two stay in sync. */
+const FYND_JOURNEY_STATUSES = new Set([
+  ...FORWARD_STATUSES,
+  ...RETURN_LIFECYCLE_STATUSES,
+  ...RTO_STATUSES,
 ]);
 
 export type FyndWebhookPayload = {
@@ -310,8 +370,19 @@ function extractLifecycleStatus(payload: FyndWebhookPayload): string | null {
   return coerceStr(s);
 }
 
-function extractAffiliateOrderId(payload: FyndWebhookPayload): string | null {
-  /* v8 ignore start */ // defensive: extractor coalesces over many fallback fields — only one path hit per test
+/**
+ * Affiliate order id from a Fynd webhook. Prod-readiness audit (Pattern C):
+ * narrowed to ONLY genuine `affiliate_order_id`-named fields. Previously this
+ * extractor fell back to `external_order_id` and `channel_order_id`, which
+ * are semantically *different* IDs (one channel's external reference vs
+ * another's; can mean Shopify order name on some Fynd payloads, but a
+ * different-channel reference on others). Conflating them caused order
+ * lookups to mis-link a webhook to the wrong ReturnCase. If a caller needs
+ * the external/channel id specifically, use `extractExternalOrderId` or
+ * `extractChannelOrderId` below.
+ */
+export function extractAffiliateOrderId(payload: FyndWebhookPayload): string | null {
+  /* v8 ignore start */ // defensive: extractor coalesces over fallback fields — only one path hit per test
   const meta = payload.meta as Record<string, unknown> | undefined;
   const affiliateDetails = payload.affiliate_details as Record<string, unknown> | undefined;
   const firstBag = Array.isArray(payload.bags)
@@ -323,13 +394,40 @@ function extractAffiliateOrderId(payload: FyndWebhookPayload): string | null {
     payload.affiliateOrderId ??
     (affiliateDetails?.affiliate_order_id as string | undefined) ??
     (bagAffDetails?.affiliate_order_id as string | undefined) ??
-    payload.external_order_id ??
-    payload.channel_order_id ??
     (meta?.affiliate_order_id as string | undefined) ??
-    (meta?.external_order_id as string | undefined) ??
-    (meta?.channel_order_id as string | undefined) ??
     payload.order?.affiliate_order_id ??
     payload.shipments?.[0]?.order?.affiliate_order_id;
+  return coerceStr(s);
+  /* v8 ignore stop */
+}
+
+/**
+ * External order id (the partner-channel's reference for the order, e.g.
+ * Shopify's order name when Fynd's source is a Shopify channel). Returned
+ * separately from affiliate_order_id so callers can decide which one is
+ * actually authoritative for their lookup. Both fall through to the same
+ * id-deduplication via `extractOrderIdentifiers`.
+ */
+export function extractExternalOrderId(payload: FyndWebhookPayload): string | null {
+  /* v8 ignore start */
+  const meta = payload.meta as Record<string, unknown> | undefined;
+  const s =
+    payload.external_order_id ??
+    (meta?.external_order_id as string | undefined);
+  return coerceStr(s);
+  /* v8 ignore stop */
+}
+
+/**
+ * Channel order id — yet another taxonomy from Fynd. Same separation
+ * rationale as extractExternalOrderId.
+ */
+export function extractChannelOrderId(payload: FyndWebhookPayload): string | null {
+  /* v8 ignore start */
+  const meta = payload.meta as Record<string, unknown> | undefined;
+  const s =
+    payload.channel_order_id ??
+    (meta?.channel_order_id as string | undefined);
   return coerceStr(s);
   /* v8 ignore stop */
 }
@@ -350,10 +448,24 @@ function extractOrderId(payload: FyndWebhookPayload): string | null {
   /* v8 ignore stop */
 }
 
-/** Collect all order identifiers for multi-strategy lookup */
+/**
+ * Collect all order identifiers for multi-strategy lookup. After the
+ * Pattern C narrowing of extractAffiliateOrderId we still want to TRY
+ * each id taxonomy when looking up the matching ReturnCase — but the
+ * fallback chain now happens HERE (where the consumer is responsible
+ * for de-duplication), not silently inside the affiliate-id extractor
+ * (where two different ids could be returned interchangeably). External
+ * and channel order ids are appended last so affiliate-first preference
+ * is preserved.
+ */
 function extractOrderIdentifiers(payload: FyndWebhookPayload): string[] {
   const ids = new Set<string>();
-  for (const id of [extractAffiliateOrderId(payload), extractOrderId(payload)]) {
+  for (const id of [
+    extractAffiliateOrderId(payload),
+    extractOrderId(payload),
+    extractExternalOrderId(payload),
+    extractChannelOrderId(payload),
+  ]) {
     if (id) ids.add(id);
   }
   return [...ids];
@@ -370,7 +482,7 @@ function extractShopDomain(payload: FyndWebhookPayload): string | null {
 }
 
 /** Extract customer info from webhook payload (delivery_address, billing_address, meta) */
-function extractCustomerFromWebhookPayload(payload: FyndWebhookPayload): {
+export function extractCustomerFromWebhookPayload(payload: FyndWebhookPayload): {
   name?: string;
   email?: string;
   phone?: string;
@@ -381,34 +493,44 @@ function extractCustomerFromWebhookPayload(payload: FyndWebhookPayload): {
   zip?: string;
 } | null {
   /* v8 ignore start */ // defensive: payload field-extractor with many type-narrowing fallbacks — only one path hit per test
-  const addr = payload.delivery_address ?? payload.billing_address;
+  // Prod-readiness audit (Pattern C, customer extractor): the previous
+  // implementation chose `delivery_address ?? billing_address` at the top
+  // level. If `delivery_address` was an empty object `{}` (truthy, but
+  // with no fields populated) the function would NOT fall back to
+  // billing_address at all — we'd return null even when billing carried
+  // the customer data. Now fallback is per-field, with delivery
+  // preferred (it's the pickup-relevant address for refunds) and
+  // billing used as the last-resort source for any missing field.
+  const delivery = (payload.delivery_address ?? null) as Record<string, unknown> | null;
+  const billing = (payload.billing_address ?? null) as Record<string, unknown> | null;
   const meta = payload.meta as Record<string, unknown> | undefined;
-  if (!addr && !meta) return null;
-  const a = (addr ?? {}) as Record<string, unknown>;
-  const firstName = typeof a.first_name === "string" ? a.first_name : "";
-  const lastName = typeof a.last_name === "string" ? a.last_name : "";
+  if (!delivery && !billing && !meta) return null;
+
+  // Per-field: prefer delivery, fall back to billing. typeof guards
+  // each field so partially-populated objects on either side don't
+  // poison the merge.
+  const pickStr = (key: string): string | null =>
+    (typeof delivery?.[key] === "string" ? (delivery[key] as string) : null) ??
+    (typeof billing?.[key] === "string" ? (billing[key] as string) : null);
+
+  const firstName = pickStr("first_name") ?? "";
+  const lastName = pickStr("last_name") ?? "";
   const fullName =
-    typeof a.name === "string" ? a.name : [firstName, lastName].filter(Boolean).join(" ");
+    pickStr("name") ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
+
   const email =
-    (typeof a.email === "string" ? a.email : null) ??
-    (typeof meta?.email === "string" ? meta.email : null);
+    pickStr("email") ?? (typeof meta?.email === "string" ? (meta.email as string) : null);
   const phone =
-    (typeof a.phone === "string" ? a.phone : null) ??
-    (typeof a.mobile === "string" ? a.mobile : null) ??
-    (typeof meta?.mobile === "string" ? meta.mobile : null) ??
-    (typeof meta?.phone === "string" ? meta.phone : null);
-  const city = typeof a.city === "string" ? a.city : null;
-  const country = typeof a.country === "string" ? a.country : null;
-  const address1 =
-    (typeof a.address1 === "string" ? a.address1 : null) ??
-    (typeof a.address === "string" ? a.address : null);
-  const province =
-    (typeof a.state === "string" ? a.state : null) ??
-    (typeof a.province === "string" ? a.province : null);
-  const zip =
-    (typeof a.pincode === "string" ? a.pincode : null) ??
-    (typeof a.zip === "string" ? a.zip : null) ??
-    (typeof a.postal_code === "string" ? a.postal_code : null);
+    pickStr("phone") ??
+    pickStr("mobile") ??
+    (typeof meta?.mobile === "string" ? (meta.mobile as string) : null) ??
+    (typeof meta?.phone === "string" ? (meta.phone as string) : null);
+  const city = pickStr("city");
+  const country = pickStr("country");
+  const address1 = pickStr("address1") ?? pickStr("address");
+  const province = pickStr("state") ?? pickStr("province");
+  const zip = pickStr("pincode") ?? pickStr("zip") ?? pickStr("postal_code");
+
   if (!fullName && !email && !phone) return null;
   return {
     ...(fullName ? { name: fullName } : {}),
@@ -837,6 +959,11 @@ export async function processFyndWebhook(
   // journey-tracking code paths still see return_bag_picked etc., even
   // though the refund classifier no longer falls back to it.
   const lifecycleStatus = extractLifecycleStatus(payload);
+  // Pattern E (taxonomy): classify ONCE at the top so every downstream
+  // branch knows what kind of event it's looking at and doesn't have
+  // to re-derive that from a single overloaded string. Wired into the
+  // log enrichment below so cloud logs include the category.
+  const eventCategory = classifyFyndWebhookEvent(lifecycleStatus, refundStatus);
   const orderIds = extractOrderIdentifiers(payload);
   const affiliateOrderId = extractAffiliateOrderId(payload);
   const orderId = extractOrderId(payload);
@@ -850,6 +977,10 @@ export async function processFyndWebhook(
     affiliateOrderId: affiliateOrderId ?? undefined,
     fyndStatus: refundStatus ?? undefined,
     eventType: eventType ?? undefined,
+    // Pattern E: emit category in webhook logs for cross-environment
+    // diagnosis ("which webhook category am I dealing with?") without
+    // having to re-derive from refund_status / current_shipment_status.
+    eventCategory,
     carrier: shippingInfo?.carrier ?? undefined,
     awbNumber: shippingInfo?.awb ?? undefined,
     trackingUrl: shippingInfo?.trackingUrl ?? undefined,
@@ -1332,7 +1463,12 @@ export async function processFyndWebhook(
     } else {
       await prisma.returnCase
         .update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } })
-        .catch(() => {});
+        .catch((err) =>
+          console.warn(
+            "[Fynd webhook] Idempotent fyndCurrentStatus update failed (non-fatal):",
+            { id: returnCase.id, statusLower, err },
+          ),
+        );
     }
     await prisma.returnEvent.create({
       data: {
@@ -1383,7 +1519,12 @@ export async function processFyndWebhook(
         logEvent: async (evt) => {
           await prisma.returnEvent
             .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
-            .catch(() => {});
+            .catch((err) =>
+              console.warn(
+                "[Fynd webhook] returnEvent log failed during manual-return close (non-fatal):",
+                { id: returnCase.id, evt, err },
+              ),
+            );
         },
       });
       /* v8 ignore start */ // defensive: shopifyOrderName || "your order" fallback for missing-name edge case; only one path hit per test
@@ -1589,7 +1730,12 @@ export async function processFyndWebhook(
           logEvent: async (evt) => {
             await prisma.returnEvent
               .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
-              .catch(() => {});
+              .catch((err) =>
+                console.warn(
+                  "[Fynd webhook] returnEvent log failed during refund-complete close (non-fatal):",
+                  { id: returnCase.id, evt, err },
+                ),
+              );
           },
         });
         /* v8 ignore start */ // defensive: orderId ?? affiliateOrderId ?? orderIds[0] ?? null fallback chain + rawPayload ?? stringify — only one path hit per test
@@ -1658,7 +1804,12 @@ export async function processFyndWebhook(
       logEvent: async (evt) => {
         await prisma.returnEvent
           .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
-          .catch(() => {});
+          .catch((err) =>
+            console.warn(
+              "[Fynd webhook] returnEvent log failed during refund close (non-fatal):",
+              { id: returnCase.id, evt, err },
+            ),
+          );
       },
     });
     /* v8 ignore start */ // defensive: shopifyOrderName || "your order" + refundDetails.X ?? undefined — only one path hit per test
@@ -1757,7 +1908,12 @@ export async function processFyndWebhook(
               }),
             },
           })
-          .catch(() => {});
+          .catch((err) =>
+            console.warn(
+              "[Fynd webhook] auto_refund_blocked_by_config_error event log failed (non-fatal):",
+              { id: returnCase.id, err },
+            ),
+          );
       }
       /* v8 ignore stop */
 
@@ -1765,7 +1921,12 @@ export async function processFyndWebhook(
         // Skip auto-refund but still update the status
         await prisma.returnCase
           .update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } })
-          .catch(() => {});
+          .catch((err) =>
+            console.warn(
+              "[Fynd webhook] fyndCurrentStatus update failed (auto-refund-gated path, non-fatal):",
+              { id: returnCase.id, statusLower, err },
+            ),
+          );
       } else {
         let orderIdForRefund = returnCase.shopifyOrderId;
         /* v8 ignore start */ // defensive: items ?? [] fallback for legacy ReturnCase rows; only one path hit per test
@@ -1944,7 +2105,12 @@ export async function processFyndWebhook(
                     .create({
                       data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt },
                     })
-                    .catch(() => {});
+                    .catch((err) =>
+                      console.warn(
+                        "[Fynd webhook] returnEvent log failed during auto-refund close (non-fatal):",
+                        { id: returnCase.id, evt, err },
+                      ),
+                    );
                 },
               });
               /* v8 ignore start */ // defensive: shopifyOrderName || "your order" + refundDetails.X ?? undefined — only one path hit per test
@@ -1994,7 +2160,12 @@ export async function processFyndWebhook(
     } else {
       await prisma.returnCase
         .update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } })
-        .catch(() => {});
+        .catch((err) =>
+          console.warn(
+            "[Fynd webhook] fyndCurrentStatus update failed (credit-note-gen, auto-refund-disabled path, non-fatal):",
+            { id: returnCase.id, statusLower, err },
+          ),
+        );
       await prisma.returnEvent.create({
         data: {
           returnCaseId: returnCase.id,

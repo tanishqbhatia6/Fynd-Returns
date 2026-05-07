@@ -2695,7 +2695,12 @@ export async function closeShopifyReturnBestEffort(
           eventType: "shopify_return_close_skipped",
           payloadJson: JSON.stringify({ reason: "manual_return", returnCaseId: returnCase.id }),
         })
-        .catch(() => {});
+        .catch((err) =>
+          refundLogger.warn(
+            { err, returnCaseId: returnCase.id },
+            "closeShopifyReturnBestEffort: shopify_return_close_skipped log failed (manual_return path, non-fatal)",
+          ),
+        );
       return { ok: true, skipped: true };
     }
 
@@ -2726,7 +2731,12 @@ export async function closeShopifyReturnBestEffort(
               sweepFailed: sweep.failed,
             }),
           })
-          .catch(() => {});
+          .catch((err) =>
+            refundLogger.warn(
+              { err, returnCaseId: returnCase.id },
+              "closeShopifyReturnBestEffort: sweep-summary log failed (no_tracked_return_id path, non-fatal)",
+            ),
+          );
         return { ok: true, skipped: sweep.closed.length === 0 };
       }
       refundLogger.info(
@@ -2738,7 +2748,12 @@ export async function closeShopifyReturnBestEffort(
           eventType: "shopify_return_close_skipped",
           payloadJson: JSON.stringify({ reason: "no_return_id", returnCaseId: returnCase.id }),
         })
-        .catch(() => {});
+        .catch((err) =>
+          refundLogger.warn(
+            { err, returnCaseId: returnCase.id },
+            "closeShopifyReturnBestEffort: shopify_return_close_skipped log failed (no_return_id path, non-fatal)",
+          ),
+        );
       return { ok: true, skipped: true };
     }
 
@@ -2778,7 +2793,12 @@ export async function closeShopifyReturnBestEffort(
           ...(sweepFailed.length > 0 ? { sweepFailed } : {}),
         }),
       })
-      .catch(() => {});
+      .catch((err) =>
+        refundLogger.warn(
+          { err, returnCaseId: returnCase.id, shopifyReturnId },
+          "closeShopifyReturnBestEffort: result-summary log failed (non-fatal)",
+        ),
+      );
 
     return {
       ok: result.success === true,

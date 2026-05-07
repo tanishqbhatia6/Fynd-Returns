@@ -2719,16 +2719,22 @@ export default function ReturnDetail() {
                 progressSteps[0].time = null;
               }
 
+              // Prod-readiness audit (Pattern D): the previous matcher
+              // used `st.includes(key)` — a substring match. That meant a
+              // forward-side `delivery_done` event ALSO matched any key
+              // ending in `_done` and could light up a return-stage
+              // timestamp. Even after Bug #13 filtered the journey itself,
+              // the substring matcher remained permissive. Now we
+              // exact-match on the normalised status token, so each
+              // journey event sets at most one step's time.
               const rj = (returnJourney ?? []) as FyndJourneyStep[];
               for (const step of rj) {
                 const st = (step.status || "").toLowerCase().replace(/\s+/g, "_");
-                for (const key of Object.keys(RETURN_JOURNEY_MAP)) {
-                  if (st.includes(key) && step.time) {
-                    const idx = RETURN_JOURNEY_MAP[key];
-                    if (!progressSteps[idx]?.time) {
-                      progressSteps[idx].time = step.time;
-                    }
-                  }
+                if (!st || !step.time) continue;
+                const idx = RETURN_JOURNEY_MAP[st];
+                if (typeof idx !== "number") continue;
+                if (!progressSteps[idx]?.time) {
+                  progressSteps[idx].time = step.time;
                 }
               }
               /* v8 ignore stop */

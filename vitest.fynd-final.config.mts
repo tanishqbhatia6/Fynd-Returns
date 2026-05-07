@@ -5,7 +5,15 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
-    include: ["app/lib/__tests__/fynd*.test.ts", "app/routes/__tests__/*fynd*.test.ts", "app/routes/__tests__/webhooks*.test.ts"],
+    include: [
+      "app/lib/__tests__/fynd*.test.ts",
+      "app/routes/__tests__/*fynd*.test.ts",
+      "app/routes/__tests__/webhooks*.test.ts",
+      "app/lib/__tests__/multi-bag-coverage.test.ts",
+      "app/lib/__tests__/bug-fixes-coverage.test.ts",
+      "app/lib/__tests__/shopify-admin-multi-bag-return.test.ts",
+      "app/lib/__tests__/return-status-mapping.test.ts",
+    ],
     environment: "node",
     globals: true,
     setupFiles: ["./app/test/setup.ts"],

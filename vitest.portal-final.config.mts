@@ -5,7 +5,10 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
-    include: ["app/routes/__tests__/api.portal.*.test.ts"],
+    include: [
+      "app/routes/__tests__/api.portal.*.test.ts",
+      "app/routes/__tests__/api-portal-*.test.ts",
+    ],
     environment: "node",
     globals: true,
     setupFiles: ["./app/test/setup.ts"],

@@ -87,7 +87,7 @@ type UnifiedReturnState = {
   icon: string;
 };
 
-function computeAdminReturnState(
+export function computeAdminReturnState(
   appStatus: string,
   refundStatus: string | null | undefined,
   returnJourney: FyndJourneyStep[],
@@ -197,14 +197,31 @@ function computeAdminReturnState(
       return processing(finalLabelInProgress, 5, "Credit note generated, refund in progress");
     return processing(finalLabelInProgress, 5, "Credit note generated, awaiting refund");
   }
-  // Only truly refund-flagged Fynd statuses should map to "Refund Processing". The previous
-  // `f.includes("refund")` was too loose and matched logistics events like "return_initiated"
-  // (which contains "return", not "refund") was not the issue — but the in-progress regex in
-  // the webhook used to flip `refundStatus = "in_progress"` for logistics events, and this
-  // branch then fired regardless. Webhook is fixed; here we still narrow to actual refund
-  // tokens for defence in depth.
+  // Bug #16 fix: live Fynd journey state takes precedence over a stale
+  // `refundStatus = "in_progress"`. Earlier this branch used to fire on
+  // either a refund-token Fynd status OR a stale DB flag, which forced
+  // step=5 ("Received" / "Refund Processing") even when the actual Fynd
+  // shipment was at return_bag_picked (step 3). Now:
+  //   1. If the latest Fynd journey is at a pre-refund logistics stage
+  //      (anything that maps to step ≤ 4), fall through to the journey
+  //      checks below — they correctly assign step 3 for return_bag_picked.
+  //   2. Only show "Refund Processing" when the Fynd state is genuinely
+  //      a refund-stage token (`refund_*` prefix or credit_note family).
+  //   3. We still honour `r === "in_progress"` for shops where the Fynd
+  //      journey is unreachable but a refund has truly been initiated —
+  //      but only when the Fynd journey hasn't reported a pre-refund
+  //      logistics state already.
   const isRefundFyndStatus = /(^|_)refund(_|$)/.test(f);
-  if (isRefundFyndStatus || r === "in_progress")
+  const fyndIsAtPreRefundLogistics =
+    /(^|_)return_bag_picked|return_bag_in_transit|out_for_delivery_to_store|return_bag_out_for_delivery|return_initiated|return_dp_assigned|out_for_pickup|dp_out_for_pickup|bag_confirmed/.test(
+      f,
+    ) ||
+    journey.some((j) =>
+      /(^|_)return_bag_picked|return_bag_in_transit|out_for_delivery_to_store|return_bag_out_for_delivery|return_initiated|return_dp_assigned|out_for_pickup|dp_out_for_pickup/.test(
+        (j.status || "").toLowerCase().replace(/\s+/g, "_"),
+      ),
+    );
+  if (isRefundFyndStatus || (r === "in_progress" && !fyndIsAtPreRefundLogistics))
     return processing(
       finalLabelInProgress,
       5,

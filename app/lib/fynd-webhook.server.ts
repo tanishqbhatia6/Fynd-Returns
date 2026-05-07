@@ -24,15 +24,23 @@ import {
 import { sendRefundNotification } from "./notification.server";
 import { isLikelyFyndId } from "./fynd-payload.server";
 
-/** Fynd refund statuses that indicate refund is in progress */
+/** Fynd refund statuses that indicate refund is in progress.
+ * Bug #16 fix: removed the generic "in_progress" and "processing" entries.
+ * Those collided with shipment-status payloads (e.g. an admin update sets
+ * status = "in_progress" generically), which combined with the
+ * extractRefundStatus → payload.status fallback turned every generic
+ * shipment-state webhook into a "refund-is-processing" classification,
+ * locking refundStatus to "in_progress" prematurely. Only true Fynd
+ * refund-lifecycle tokens belong here. */
 const REFUND_IN_PROGRESS = [
   "refund_initiated",
   "refund_pending",
+  "refund_processing",
+  "refund_in_progress",
+  "refund_under_process",
   "under process",
   "under_process",
   "UNDER PROCESS",
-  "in_progress",
-  "processing",
 ];
 
 /** Fynd refund statuses that indicate refund is complete */
@@ -268,14 +276,34 @@ function extractShipmentId(payload: FyndWebhookPayload): string | null {
 }
 
 function extractRefundStatus(payload: FyndWebhookPayload): string | null {
+  // Bug #16 fix: ONLY refund-specific fields. Earlier the function fell
+  // back to payload.status (shipment/bag status) and payload.shipments[0]
+  // .status, which classified return_bag_picked / return_initiated /
+  // delivery_done webhooks as if they were refund events. The refund
+  // classifier (`classifyFyndRefundStatus`) then mis-flipped
+  // `refundStatus = "in_progress"` based on shipment lifecycle, which
+  // poisoned the timeline-state computation downstream. Refund status is
+  // ONLY ever in `refund_status` / `refund_status_flag` per Fynd's spec.
   const s =
     payload.refund_status ??
     payload.refund_status_flag ??
-    payload.status ??
     payload.shipments?.[0]?.refund_status ??
+    payload.order?.shipments?.[0]?.refund_status;
+  return coerceStr(s);
+}
+
+/**
+ * Lifecycle status (shipment / bag / journey) — distinct from refund status.
+ * Use this when the webhook handler needs to know what stage the *return
+ * journey* is at, NOT whether a refund has fired. The same field used to
+ * be returned by extractRefundStatus, which is what produced bug #16.
+ */
+function extractLifecycleStatus(payload: FyndWebhookPayload): string | null {
+  const s =
+    payload.status ??
     payload.shipments?.[0]?.status ??
-    payload.order?.shipments?.[0]?.refund_status ??
-    payload.order?.shipments?.[0]?.status;
+    payload.order?.shipments?.[0]?.status ??
+    payload.current_shipment_status;
   return coerceStr(s);
 }
 
@@ -789,6 +817,10 @@ export async function processFyndWebhook(
 ): Promise<ProcessFyndWebhookResult> {
   const shipmentId = extractShipmentId(payload);
   const refundStatus = extractRefundStatus(payload);
+  // Bug #16: lifecycle (shipment/bag) status is now read separately so
+  // journey-tracking code paths still see return_bag_picked etc., even
+  // though the refund classifier no longer falls back to it.
+  const lifecycleStatus = extractLifecycleStatus(payload);
   const orderIds = extractOrderIdentifiers(payload);
   const affiliateOrderId = extractAffiliateOrderId(payload);
   const orderId = extractOrderId(payload);
@@ -1963,18 +1995,26 @@ export async function processFyndWebhook(
   }
 
   // ─── Journey status processing ───
-  // Check if this is a known Fynd shipment journey status
+  // Bug #16: lifecycleStatus is the canonical shipment/bag status now that
+  // extractRefundStatus no longer falls back to payload.status. Try both
+  // sources so journey-only webhooks (return_bag_picked, etc.) still
+  // advance fyndCurrentStatus correctly.
   /* v8 ignore start */ // defensive: refundStatus ?? "" fallback for null webhook status; only one path hit per test
+  const lifecycleLower = (lifecycleStatus ?? "").toLowerCase().replace(/\s+/g, "_");
   const isKnownJourneyStatus =
     FYND_JOURNEY_STATUSES.has(statusLower) ||
-    FYND_JOURNEY_STATUSES.has((refundStatus ?? "").toLowerCase());
+    FYND_JOURNEY_STATUSES.has((refundStatus ?? "").toLowerCase()) ||
+    FYND_JOURNEY_STATUSES.has(lifecycleLower);
 
-  // Update fyndCurrentStatus on every webhook — use statusLower for journey statuses,
-  // fall back to refundStatus for refund-specific webhooks
+  // Update fyndCurrentStatus on every webhook — prefer the lifecycle field
+  // when it carries a known journey status; fall back to the refund status
+  // string for refund-specific webhooks.
   const journeyUpdate: Record<string, string> = {};
-  const effectiveStatus = isKnownJourneyStatus
-    ? statusLower
-    : (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  const effectiveStatus = FYND_JOURNEY_STATUSES.has(lifecycleLower)
+    ? lifecycleLower
+    : isKnownJourneyStatus
+      ? statusLower
+      : (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
   /* v8 ignore stop */
   if (effectiveStatus && shouldAdvanceFyndStatus(returnCase.fyndCurrentStatus, effectiveStatus)) {
     // Forward-only: don't downgrade. Out-of-order webhooks (e.g. an old

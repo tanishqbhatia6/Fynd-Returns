@@ -19,7 +19,7 @@ import {
   describeSlaBreach,
   slaStageLabel,
   type SlaBreach,
-} from "../lib/sla.server";
+} from "../lib/sla";
 import { calculateFraudScore, type FraudScore } from "../lib/fraud-detection.server";
 import { Banner } from "../components/Banner";
 import { DocumentDownloadGroup } from "../components/DocumentDownload";

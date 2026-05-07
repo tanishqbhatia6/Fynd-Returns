@@ -9,7 +9,7 @@ import {
   slaStageLabel,
   DEFAULT_SLA_HOURS,
   type ReturnCaseSlaInput,
-} from "../sla.server";
+} from "../sla";
 
 const HOUR = 60 * 60 * 1000;
 

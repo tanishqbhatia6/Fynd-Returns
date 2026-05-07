@@ -5154,14 +5154,31 @@
             '</div>' +
             (!fullyReturned ? '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
               '<span style="font-size:0.75rem;color:var(--portal-text-muted);">' + (t('portal.order.qty') || 'Qty') + '</span>' +
-              '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="' + availableQty + '" data-id="' + li.id + '" data-row-key="' + escapeHtml(rowKey) + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
+              // Bug: qty input used to default to availableQty (the MAX).
+              // For a qty=5 line that meant the input pre-filled to 5,
+              // and customers who ticked without touching the input
+              // submitted qty=5 — we'd return ALL units against their
+              // intent. Now we default to 1 (the customer's most likely
+              // intent — return ONE unit) and let them increase up to
+              // availableQty if they really want more. data-max keeps the
+              // existing on-blur clamp.
+              '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="1" data-id="' + li.id + '" data-row-key="' + escapeHtml(rowKey) + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
+              (li.quantity > 1 ? '<span style="font-size:0.7rem;color:var(--portal-text-muted);">/ ' + availableQty + '</span>' : '') +
             '</div>' : '') +
             '</div>';
         }
 
         // Multi-shipment: group items by shipment with eligibility badges
-        var hasMultiShipment = createOrderData._shipments && createOrderData._shipments.length > 1;
-        if (hasMultiShipment) {
+        // Bag-aware view triggers whenever Fynd shipment data is present
+        // (i.e. ANY _shipments entry exists), not just the multi-shipment
+        // case. A single-shipment Fynd order can still have N bags for
+        // a multi-quantity line — those need to render as N separate
+        // bag rows so the customer can pick exactly which units to
+        // return without having to type the right qty in a single
+        // multi-unit input. Falls back to the flat list only for
+        // non-Fynd / manual orders that have no shipment metadata.
+        var hasFyndShipments = createOrderData._shipments && createOrderData._shipments.length >= 1;
+        if (hasFyndShipments) {
           var shipmentQtyMap = createOrderData._shipmentReturnedQtyMap || {};
           list.innerHTML = createOrderData._shipments.map(function(ship, idx) {
             var statusLabel = (ship.shipmentStatus || '').replace(/_/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });

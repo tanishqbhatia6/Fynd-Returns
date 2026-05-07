@@ -23,6 +23,11 @@ import { verifyPortalCsrfToken } from "../lib/portal-auth.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
+import {
+  buildBagIndex,
+  distributeBagAllocations,
+  type ShipmentSnapshot,
+} from "../lib/bag-distribution.server";
 
 type ReturnOffer = {
   reasonCode?: string;
@@ -650,49 +655,95 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           request,
         );
       }
-      itemsToCreate = items.map((it) => {
-        // CRITICAL: when this item targets a specific Fynd bag, cap its qty
-        // to the bag's own capacity (typically 1). Returning N against a
-        // single-bag id makes Fynd reject the whole sync with
-        //   "Requested quantity > available bags quantity".
-        // To return multiple bags, the portal sends multiple items — one
-        // per bagId — each with qty <= that bag's capacity.
-        let safeQty = Math.min(Math.max(1, Math.floor(it.qty)), 999);
-        if (it.fyndBagId) {
-          const bagCap = typeof it.fyndQuantityAvailable === "number"
-            && Number.isFinite(it.fyndQuantityAvailable)
-            && it.fyndQuantityAvailable > 0
-              ? Math.floor(it.fyndQuantityAvailable)
-              : 1;
-          safeQty = Math.min(safeQty, bagCap);
+      // The portal now sends ONE item per Shopify line at the LINE
+      // level (no bagId). The backend distributes that line-level qty
+      // across the available Fynd bags using the shipment snapshot
+      // attached to the request. Distribution happens here so it's
+      // semantic-aware (skips ineligible shipments, subtracts already-
+      // returned units, picks bags greedily) and so the resulting
+      // ReturnItems have the right per-bag metadata for the Fynd sync.
+      //
+      // Backward-compat: if a caller still sends `fyndBagId` per-item
+      // (older clients, admin-mode), we keep the legacy per-bag path
+      // and skip the distributor.
+      const hasBagAware = items.some((it) => !!it.fyndBagId);
+      const shipmentsSnapshot = Array.isArray(body.shipmentsSnapshot)
+        ? (body.shipmentsSnapshot as ShipmentSnapshot[])
+        : null;
+      if (!hasBagAware && shipmentsSnapshot && shipmentsSnapshot.length > 0) {
+        // Customer-portal path: distribute line-level qty across bags.
+        const bagIndex = buildBagIndex(shipmentsSnapshot);
+        const inputs = items.map((it) => ({
+          lineItemId: String(it.lineItemId).slice(0, 256),
+          qty: Math.min(Math.max(1, Math.floor(it.qty)), 999),
+          reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
+          condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
+        }));
+        const { items: distributed, unsatisfied } = distributeBagAllocations(inputs, bagIndex);
+        if (unsatisfied.size > 0) {
+          // The customer asked for more units than Fynd actually has
+          // available across all eligible shipments. Surface this
+          // explicitly rather than silently under-creating — it's
+          // either stale order data on the client (race against an
+          // admin's manual return) or a malicious payload.
+          const detail = [...unsatisfied.entries()]
+            .map(([k, v]) => `line ${k.slice(-12)}: ${v} unit(s) unavailable`)
+            .join("; ");
+          return withCors(
+            Response.json(
+              {
+                error:
+                  "Some requested quantities are no longer available. Refresh and try again. Details: " +
+                  detail,
+              },
+              { status: 409 },
+            ),
+            request,
+          );
         }
-        return ({
-        // defensive: per-field truthy/typeof guards on optional Fynd metadata
-        /* v8 ignore start */
-        lineItemId: String(it.lineItemId).slice(0, 256),
-        qty: safeQty,
-        reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
-        condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
-        fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
-        fyndBagId: it.fyndBagId ? String(it.fyndBagId).slice(0, 256) : undefined,
-        fyndArticleId: it.fyndArticleId ? String(it.fyndArticleId).slice(0, 256) : undefined,
-        fyndAffiliateLineId: it.fyndAffiliateLineId
-          ? String(it.fyndAffiliateLineId).slice(0, 256)
-          : undefined,
-        fyndSellerIdentifier: it.fyndSellerIdentifier
-          ? String(it.fyndSellerIdentifier).slice(0, 256)
-          : undefined,
-        fyndItemId: it.fyndItemId ? String(it.fyndItemId).slice(0, 256) : undefined,
-        fyndQuantityAvailable:
-          typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
-        fyndPriceEffective: it.fyndPriceEffective
-          ? String(it.fyndPriceEffective).slice(0, 64)
-          : undefined,
-        fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
-        fyndLineNumber: typeof it.fyndLineNumber === "number" ? it.fyndLineNumber : undefined,
-        /* v8 ignore stop */
+        itemsToCreate = distributed;
+      } else {
+        // Legacy / admin-mode path: caller already provides bagIds per
+        // item, just normalise + cap. CRITICAL: cap qty to bag capacity
+        // when fyndBagId is set (one bag = one bag's worth, never N).
+        itemsToCreate = items.map((it) => {
+          let safeQty = Math.min(Math.max(1, Math.floor(it.qty)), 999);
+          if (it.fyndBagId) {
+            const bagCap = typeof it.fyndQuantityAvailable === "number"
+              && Number.isFinite(it.fyndQuantityAvailable)
+              && it.fyndQuantityAvailable > 0
+                ? Math.floor(it.fyndQuantityAvailable)
+                : 1;
+            safeQty = Math.min(safeQty, bagCap);
+          }
+          return ({
+          // defensive: per-field truthy/typeof guards on optional Fynd metadata
+          /* v8 ignore start */
+          lineItemId: String(it.lineItemId).slice(0, 256),
+          qty: safeQty,
+          reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
+          condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
+          fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
+          fyndBagId: it.fyndBagId ? String(it.fyndBagId).slice(0, 256) : undefined,
+          fyndArticleId: it.fyndArticleId ? String(it.fyndArticleId).slice(0, 256) : undefined,
+          fyndAffiliateLineId: it.fyndAffiliateLineId
+            ? String(it.fyndAffiliateLineId).slice(0, 256)
+            : undefined,
+          fyndSellerIdentifier: it.fyndSellerIdentifier
+            ? String(it.fyndSellerIdentifier).slice(0, 256)
+            : undefined,
+          fyndItemId: it.fyndItemId ? String(it.fyndItemId).slice(0, 256) : undefined,
+          fyndQuantityAvailable:
+            typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
+          fyndPriceEffective: it.fyndPriceEffective
+            ? String(it.fyndPriceEffective).slice(0, 64)
+            : undefined,
+          fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
+          fyndLineNumber: typeof it.fyndLineNumber === "number" ? it.fyndLineNumber : undefined,
+          /* v8 ignore stop */
+          });
         });
-      });
+      }
     }
 
     // ── Resolve non-GID lineItemIds to real Shopify line item GIDs ──

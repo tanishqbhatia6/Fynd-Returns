@@ -5124,15 +5124,22 @@
             availableQty = Math.min(availableQty, li.quantity);
           }
           var fullyReturned = avail ? !!avail.alreadyInReturn : (availableQty <= 0);
-          return '<div style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:' + (fullyReturned ? '#F9FAFB' : 'var(--portal-surface)') + ';opacity:' + (fullyReturned ? '0.6' : '1') + ';">' +
-            '<input type="checkbox" id="item-' + li.id + '-' + (shipmentId || 'flat') + '" data-id="' + li.id + '"' +
+          // Unique row key — for multi-bag-same-SKU rows, the Shopify line
+          // item GID is shared across rows, so we MUST disambiguate by
+          // bagId-or-fallback so per-row qty input lookup is unambiguous
+          // at submission time. Without this, multiple bag-rows of the same
+          // SKU all read the FIRST row's qty input (regression: returning
+          // wrong quantity / creating Shopify returns for the wrong bag).
+          var rowKey = (li.id || '') + '::' + (shipmentId || 'flat') + '::' + (bagId || '0');
+          return '<div data-row-key="' + escapeHtml(rowKey) + '" style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:' + (fullyReturned ? '#F9FAFB' : 'var(--portal-surface)') + ';opacity:' + (fullyReturned ? '0.6' : '1') + ';">' +
+            '<input type="checkbox" id="item-' + li.id + '-' + (shipmentId || 'flat') + '-' + (bagId || 'nb') + '" data-row-key="' + escapeHtml(rowKey) + '" data-id="' + li.id + '"' +
               (shipmentId ? ' data-shipment-id="' + escapeHtml(shipmentId) + '"' : '') +
               (bagId ? ' data-bag-id="' + escapeHtml(bagId) + '"' : '') +
               (li.fyndLineNumber != null ? ' data-line-number="' + li.fyndLineNumber + '"' : '') +
               (fullyReturned ? ' disabled' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:' + (fullyReturned ? 'not-allowed' : 'pointer') + ';">' +
             (li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || 'Item') + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : '') +
             '<div style="flex:1;min-width:0;">' +
-              '<label for="item-' + li.id + '-' + (shipmentId || 'flat') + '" style="cursor:' + (fullyReturned ? 'default' : 'pointer') + ';font-size:0.875rem;font-weight:500;line-height:1.4;display:block;">' +
+              '<label for="item-' + li.id + '-' + (shipmentId || 'flat') + '-' + (bagId || 'nb') + '" style="cursor:' + (fullyReturned ? 'default' : 'pointer') + ';font-size:0.875rem;font-weight:500;line-height:1.4;display:block;">' +
                 escapeHtml(li.title) +
                 (li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : '') +
                 (li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : '') +
@@ -5147,7 +5154,7 @@
             '</div>' +
             (!fullyReturned ? '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
               '<span style="font-size:0.75rem;color:var(--portal-text-muted);">' + (t('portal.order.qty') || 'Qty') + '</span>' +
-              '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="' + availableQty + '" data-id="' + li.id + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
+              '<input type="number" class="item-qty form-input" min="1" max="' + availableQty + '" value="' + availableQty + '" data-id="' + li.id + '" data-row-key="' + escapeHtml(rowKey) + '" data-max="' + availableQty + '" style="width:60px;padding:8px;text-align:center;font-size:0.875rem;">' +
             '</div>' : '') +
             '</div>';
         }
@@ -5501,7 +5508,12 @@
         var reasonCode = document.getElementById('createReason').value;
         var items = [];
         checked.forEach(function(cb) {
-          var qtyInput = document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]');
+          // Bug #12 fix: per-row qty input lookup (multi-bag-same-SKU rows
+          // share `data-id`; without `data-row-key` we'd read the first
+          // row's qty for every ticked row).
+          var rowKey = cb.dataset.rowKey || cb.dataset.id;
+          var qtyInput = document.querySelector('.item-qty[data-row-key="' + rowKey + '"]')
+            || document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]');
           // Find the original Fynd-shipment item so we forward the same
           // bag/article/line-number metadata the main-submission path sends.
           // Without this, the offer-accept path would persist a returnItem
@@ -5700,8 +5712,24 @@
       checked.forEach(cb => {
         const li = createOrderData.lineItems.find(l => l.id === cb.dataset.id);
         const returnedQty = (createOrderData._returnedQtyMap || {})[cb.dataset.id] || 0;
-        const availableQty = li ? Math.max(0, (li.quantity || 1) - returnedQty) : 1;
-        const qtyInput = document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]');
+        // Bug #12 fix: when a Shopify line item has multiple Fynd bags
+        // (multi-qty SKU split into per-unit bags), every row shares the
+        // same Shopify line GID. Look up the qty input by THIS row's
+        // unique `data-row-key`, not the shared `data-id` — otherwise
+        // every ticked row reads the FIRST row's qty input and we send
+        // wrong quantities (e.g. submitting bag B with bag A's qty,
+        // which causes Shopify to return all units instead of just one).
+        const rowKey = cb.dataset.rowKey || cb.dataset.id;
+        const qtyInput = document.querySelector('.item-qty[data-row-key="' + rowKey + '"]')
+          || document.querySelector('.item-qty[data-id="' + cb.dataset.id + '"]'); // legacy fallback
+        // Available qty for THIS row: when the row is bag-aware, we cap to
+        // the bag's own quantity (typically 1); otherwise fall back to
+        // line-item availability minus already-returned.
+        let availableQty = li ? Math.max(0, (li.quantity || 1) - returnedQty) : 1;
+        if (cb.dataset.bagId && qtyInput) {
+          const dm = parseInt(qtyInput.dataset.max || String(availableQty), 10);
+          if (!isNaN(dm) && dm > 0) availableQty = Math.min(availableQty, dm);
+        }
         let qty = parseInt(qtyInput?.value || '1', 10);
         if (isNaN(qty) || qty < 1) qty = 1;
         if (qty > availableQty) qty = availableQty;

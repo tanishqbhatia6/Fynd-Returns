@@ -20,6 +20,7 @@ import {
   slaStageLabel,
   type SlaBreach,
 } from "../lib/sla.server";
+import { calculateFraudScore, type FraudScore } from "../lib/fraud-detection.server";
 import { Banner } from "../components/Banner";
 import { DocumentDownloadGroup } from "../components/DocumentDownload";
 import {
@@ -1269,9 +1270,28 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       refundedAt,
     });
 
+    // Customer fraud / abuse risk — computed for the customer email
+    // associated with this return. Tolerantly null when no email is
+    // captured yet (manual returns sometimes lack it). Failures swallowed
+    // (the return-detail page must render even if scoring throws).
+    let fraudScore: FraudScore | null = null;
+    if (returnCase.customerEmailNorm) {
+      try {
+        fraudScore = await calculateFraudScore(
+          shop.id,
+          returnCase.customerEmailNorm,
+          shopSettings?.returnWindowDays ?? 30,
+        );
+      } catch (err) {
+        console.error("[return-detail] fraud-score failed:", err);
+        fraudScore = null;
+      }
+    }
+
     return {
       returnCase,
       slaBreaches,
+      fraudScore,
       shopDomain: session.shop,
       shopifyOrder,
       isManualReturn,
@@ -1332,6 +1352,7 @@ export default function ReturnDetail() {
   const {
     returnCase,
     slaBreaches,
+    fraudScore,
     shopDomain,
     shopifyOrder,
     isManualReturn,
@@ -1829,6 +1850,29 @@ export default function ReturnDetail() {
         {/* ── SLA breach banner — surfaces the worst breach so admins can
              see overdue work without scrolling. Only renders when at least
              one stage is at warning or breached level. ── */}
+        {/* ── Customer-risk banner — surfaces the fraud-detection score
+             so admins see "this customer has a critical-risk pattern"
+             before they hit Approve. Only renders for high/critical. ── */}
+        {fraudScore && (fraudScore.level === "high" || fraudScore.level === "critical") && (
+          <Banner
+            tone={fraudScore.level === "critical" ? "critical" : "warning"}
+            title={`Customer risk: ${fraudScore.level} (score ${fraudScore.score}/100)`}
+          >
+            <div style={{ marginBottom: 6 }}>
+              Recent return patterns trigger an abuse signal. Review this case
+              before approving.
+            </div>
+            {fraudScore.factors.length > 0 && (
+              <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
+                {fraudScore.factors.slice(0, 3).map((f, i) => (
+                  <li key={i}>
+                    <strong>{f.name}</strong> ({f.score}pt) — {f.description}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Banner>
+        )}
         {(() => {
           const tone =
             slaBreaches && slaBreaches.length

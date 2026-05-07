@@ -1,0 +1,430 @@
+{%- comment -%}
+  Fynd Returns — "Track your return" app block.
+
+  Embeddable storefront block that lets a customer paste a return ID +
+  email (or phone) and see the live return-stage timeline. Calls the
+  public, rate-limited, CORS-aware track endpoint at:
+     {app-host}/api/portal/track?shop=&returnRequestNo=&email=
+  The endpoint enforces email/phone match against the stored
+  customerEmailNorm/customerPhoneNorm to prevent enumeration. No PII
+  beyond what was originally submitted is leaked.
+
+  Stages rendered match the timeline in the admin return-detail page
+  (post Bug #13 fix): Requested → Approved → Picked Up → In Transit →
+  Out for Delivery → Received → Completed.
+
+  Merchants configure: heading, button label, accent color, and the
+  app-host URL (must be set on first install — defaults to the
+  Railway production host but can be overridden for staging/testing).
+{%- endcomment -%}
+
+{%- liquid
+  assign heading = block.settings.heading | default: 'Track your return'
+  assign description = block.settings.description | default: 'Enter your return request number and the email used at checkout to see live status.'
+  assign button_label = block.settings.button_label | default: 'Track return'
+  assign accent = block.settings.accent_color | default: '#0f172a'
+  assign accent_text = block.settings.accent_text | default: '#ffffff'
+  assign app_host = block.settings.app_host | default: 'https://returnpromax-web-production.up.railway.app'
+  assign block_id = block.id | replace: '_', '-'
+-%}
+
+<div
+  class="fynd-track"
+  data-fynd-track="{{ block_id }}"
+  data-app-host="{{ app_host }}"
+  data-shop="{{ shop.permanent_domain }}"
+  {{ block.shopify_attributes }}
+>
+  {%- if heading != blank -%}
+    <h3 class="fynd-track__heading">{{ heading }}</h3>
+  {%- endif -%}
+  {%- if description != blank -%}
+    <p class="fynd-track__description">{{ description }}</p>
+  {%- endif -%}
+
+  <form class="fynd-track__form" novalidate>
+    <label class="fynd-track__label" for="fynd-track__rrn-{{ block_id }}">
+      Return request number
+    </label>
+    <input
+      class="fynd-track__input"
+      id="fynd-track__rrn-{{ block_id }}"
+      name="returnRequestNo"
+      type="text"
+      autocomplete="off"
+      required
+    />
+
+    <label class="fynd-track__label" for="fynd-track__email-{{ block_id }}">
+      Email or phone
+    </label>
+    <input
+      class="fynd-track__input"
+      id="fynd-track__email-{{ block_id }}"
+      name="contact"
+      type="text"
+      autocomplete="email"
+      required
+    />
+
+    <button
+      class="fynd-track__button"
+      type="submit"
+      style="background:{{ accent }};color:{{ accent_text }};"
+    >
+      {{ button_label }}
+    </button>
+  </form>
+
+  <div class="fynd-track__status" hidden role="status" aria-live="polite"></div>
+  <div class="fynd-track__result" hidden></div>
+</div>
+
+<style>
+  .fynd-track {
+    max-width: 520px;
+    margin: 24px auto;
+    padding: 24px;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    font-family: inherit;
+  }
+  .fynd-track__heading {
+    margin: 0 0 6px;
+    font-size: 1.25rem;
+    line-height: 1.3;
+  }
+  .fynd-track__description {
+    margin: 0 0 16px;
+    color: #475569;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+  }
+  .fynd-track__form {
+    display: grid;
+    gap: 8px;
+  }
+  .fynd-track__label {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    margin-top: 6px;
+    color: #0f172a;
+  }
+  .fynd-track__input {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 0.9375rem;
+    line-height: 1.4;
+    background: #fff;
+    color: #0f172a;
+  }
+  .fynd-track__input:focus {
+    outline: 2px solid {{ accent }};
+    outline-offset: 1px;
+  }
+  .fynd-track__button {
+    margin-top: 12px;
+    padding: 10px 16px;
+    border: none;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+  }
+  .fynd-track__button:disabled {
+    opacity: 0.55;
+    cursor: progress;
+  }
+  .fynd-track__status {
+    margin-top: 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.875rem;
+  }
+  .fynd-track__status[data-tone="error"] {
+    background: #fef2f2;
+    color: #991b1b;
+  }
+  .fynd-track__status[data-tone="info"] {
+    background: #eff6ff;
+    color: #1e40af;
+  }
+  .fynd-track__result {
+    margin-top: 18px;
+    padding: 16px;
+    background: #f8fafc;
+    border-radius: 10px;
+  }
+  .fynd-track__result-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    font-size: 0.875rem;
+    border-bottom: 1px dashed #e2e8f0;
+  }
+  .fynd-track__result-row:last-child {
+    border-bottom: 0;
+  }
+  .fynd-track__result-row > span:first-child {
+    color: #64748b;
+  }
+  .fynd-track__result-row > span:last-child {
+    color: #0f172a;
+    font-weight: 600;
+    text-align: right;
+  }
+  .fynd-track__timeline {
+    margin-top: 14px;
+    padding: 0;
+    list-style: none;
+  }
+  .fynd-track__timeline li {
+    position: relative;
+    padding: 10px 0 10px 28px;
+    font-size: 0.875rem;
+    color: #0f172a;
+  }
+  .fynd-track__timeline li::before {
+    content: '';
+    position: absolute;
+    left: 6px;
+    top: 14px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: {{ accent }};
+  }
+  .fynd-track__timeline li::after {
+    content: '';
+    position: absolute;
+    left: 10px;
+    top: 24px;
+    bottom: -10px;
+    width: 2px;
+    background: #cbd5e1;
+  }
+  .fynd-track__timeline li:last-child::after {
+    display: none;
+  }
+  .fynd-track__timeline-time {
+    display: block;
+    color: #64748b;
+    font-size: 0.75rem;
+    margin-top: 2px;
+  }
+</style>
+
+<script>
+  (function () {
+    var root = document.querySelector('[data-fynd-track="{{ block_id }}"]');
+    if (!root || root.dataset.fyndBound === '1') return;
+    root.dataset.fyndBound = '1';
+
+    var form = root.querySelector('.fynd-track__form');
+    var statusEl = root.querySelector('.fynd-track__status');
+    var resultEl = root.querySelector('.fynd-track__result');
+    var button = form.querySelector('button[type="submit"]');
+    var appHost = (root.dataset.appHost || '').replace(/\/$/, '');
+    var shop = root.dataset.shop || '';
+
+    function setStatus(message, tone) {
+      if (!message) {
+        statusEl.hidden = true;
+        statusEl.textContent = '';
+        statusEl.removeAttribute('data-tone');
+        return;
+      }
+      statusEl.hidden = false;
+      statusEl.dataset.tone = tone || 'info';
+      statusEl.textContent = message;
+    }
+
+    function escapeHtml(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function formatDate(iso) {
+      if (!iso) return '';
+      try {
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return '';
+        return d.toLocaleString();
+      } catch (e) {
+        return '';
+      }
+    }
+
+    function statusLabel(s) {
+      var map = {
+        requested: 'Requested',
+        pending: 'Pending review',
+        approved: 'Approved',
+        rejected: 'Rejected',
+        cancelled: 'Cancelled',
+        completed: 'Completed',
+      };
+      return map[(s || '').toLowerCase()] || s || '—';
+    }
+
+    function render(data) {
+      var rows = [
+        ['Return ID', escapeHtml(data.returnRequestNo)],
+        ['Status', escapeHtml(statusLabel(data.status))],
+      ];
+      if (data.refundStatus) rows.push(['Refund', escapeHtml(data.refundStatus)]);
+      if (data.fyndReturnNo) rows.push(['Carrier ref', escapeHtml(data.fyndReturnNo)]);
+      if (data.returnAwb) rows.push(['Tracking #', escapeHtml(data.returnAwb)]);
+      rows.push(['Created', escapeHtml(formatDate(data.createdAt))]);
+
+      var rowsHtml = rows
+        .map(function (r) {
+          return '<div class="fynd-track__result-row"><span>' + r[0] + '</span><span>' + r[1] + '</span></div>';
+        })
+        .join('');
+
+      var timelineHtml = '';
+      if (Array.isArray(data.returnJourney) && data.returnJourney.length > 0) {
+        var steps = data.returnJourney
+          .map(function (step) {
+            var name = escapeHtml(step.displayName || step.status || '');
+            var when = formatDate(step.time || step.updatedAt);
+            return (
+              '<li>' +
+              name +
+              (when ? '<span class="fynd-track__timeline-time">' + escapeHtml(when) + '</span>' : '') +
+              '</li>'
+            );
+          })
+          .join('');
+        timelineHtml = '<ul class="fynd-track__timeline">' + steps + '</ul>';
+      }
+
+      var noteHtml = '';
+      if (data.notesForCustomer) {
+        noteHtml =
+          '<p style="margin-top:14px;padding:10px 12px;background:#fffbeb;border-radius:8px;font-size:0.875rem;color:#92400e;">' +
+          escapeHtml(data.notesForCustomer) +
+          '</p>';
+      }
+
+      resultEl.innerHTML = rowsHtml + noteHtml + timelineHtml;
+      resultEl.hidden = false;
+    }
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      var rrn = (form.elements.returnRequestNo.value || '').trim();
+      var contact = (form.elements.contact.value || '').trim();
+      if (!rrn || !contact) {
+        setStatus('Both fields are required.', 'error');
+        return;
+      }
+      if (!appHost) {
+        setStatus('Tracker is not configured. Contact the store.', 'error');
+        return;
+      }
+      var url =
+        appHost +
+        '/api/portal/track?shop=' +
+        encodeURIComponent(shop) +
+        '&returnRequestNo=' +
+        encodeURIComponent(rrn);
+      if (contact.indexOf('@') !== -1) url += '&email=' + encodeURIComponent(contact.toLowerCase());
+      else url += '&phone=' + encodeURIComponent(contact);
+
+      button.disabled = true;
+      setStatus('Looking up your return…', 'info');
+      resultEl.hidden = true;
+      resultEl.innerHTML = '';
+
+      fetch(url, { method: 'GET', credentials: 'omit' })
+        .then(function (res) {
+          return res
+            .json()
+            .then(function (body) {
+              return { status: res.status, body: body };
+            })
+            .catch(function () {
+              return { status: res.status, body: { error: 'Unexpected response.' } };
+            });
+        })
+        .then(function (r) {
+          if (r.status === 200) {
+            setStatus('');
+            render(r.body);
+          } else if (r.status === 429) {
+            setStatus('Too many requests. Try again in a moment.', 'error');
+          } else if (r.status === 404) {
+            setStatus(
+              'No matching return found. Check the return ID and the email or phone you used at checkout.',
+              'error'
+            );
+          } else {
+            setStatus(
+              (r.body && r.body.error) || 'Could not look up the return right now.',
+              'error'
+            );
+          }
+        })
+        .catch(function () {
+          setStatus('Network error. Please try again.', 'error');
+        })
+        .finally(function () {
+          button.disabled = false;
+        });
+    });
+  })();
+</script>
+
+{% schema %}
+{
+  "name": "Track a return",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Heading",
+      "default": "Track your return"
+    },
+    {
+      "type": "textarea",
+      "id": "description",
+      "label": "Description",
+      "default": "Enter your return request number and the email used at checkout to see live status."
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Button label",
+      "default": "Track return"
+    },
+    {
+      "type": "color",
+      "id": "accent_color",
+      "label": "Accent color",
+      "default": "#0f172a"
+    },
+    {
+      "type": "color",
+      "id": "accent_text",
+      "label": "Accent text",
+      "default": "#ffffff"
+    },
+    {
+      "type": "url",
+      "id": "app_host",
+      "label": "App host URL",
+      "info": "Backend host that serves the public track endpoint. Default points to production."
+    }
+  ]
+}
+{% endschema %}

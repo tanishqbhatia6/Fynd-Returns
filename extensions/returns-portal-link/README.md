@@ -1,10 +1,18 @@
 # Returns portal link — theme app extension
 
-This theme app extension adds two merchant-installable app blocks that
-surface the Fynd Returns customer portal inside the storefront theme.
-Nothing here duplicates portal logic — the portal itself is served by
-Shopify App Proxy at `/apps/returns`. These blocks are CTAs that send
-customers there.
+This theme app extension adds three merchant-installable app blocks that
+surface Fynd Returns inside the storefront theme:
+
+1. **`returns-entry`** — prominent CTA that links to the portal.
+2. **`order-status-link`** — inline subtle link variant.
+3. **`track-return`** — embeddable form that lets a customer track an
+   existing return live (no portal redirect required).
+
+The portal itself is served by Shopify App Proxy at `/apps/returns`.
+The first two blocks are CTAs that send customers there. The third
+block calls the public `/api/portal/track` endpoint directly (CORS-
+gated, rate-limited, email/phone-match required) so customers can
+check status without leaving the page.
 
 ---
 
@@ -25,6 +33,32 @@ it into any theme section via the theme editor.
 | Alignment | `Center` | left / center / right |
 | Button background | `#0f172a` | Button colour |
 | Button text | `#ffffff` | Button label colour |
+
+### 3. `track-return.liquid` — embeddable "Track your return" form
+
+A self-contained block with a small form (return ID + email/phone) and
+a results panel that shows status, refund state, courier reference,
+tracking number, and the live return-stage timeline.
+
+**How it works**
+
+- The form `POST`s to `{app-host}/api/portal/track` over CORS (the
+  endpoint accepts `*.myshopify.com` origins).
+- The endpoint requires a matching email or phone — pure return ID is
+  not enough — to prevent enumeration of other customers' returns.
+- Rate-limited (per IP, per shop) by `app/lib/rate-limit.server.ts`.
+- No PII beyond what the customer originally submitted is leaked.
+
+**Settings**
+
+| Setting | Default | Description |
+|---|---|---|
+| Heading | `Track your return` | Block heading |
+| Description | Default copy | Sub-heading description |
+| Button label | `Track return` | Submit-button text |
+| Accent color | `#0f172a` | Button background + focus ring |
+| Accent text | `#ffffff` | Button label colour |
+| App host URL | Production Railway URL | Backend host. Override for staging |
 
 ### 2. `order-status-link.liquid` — inline "Need to return something?" link
 

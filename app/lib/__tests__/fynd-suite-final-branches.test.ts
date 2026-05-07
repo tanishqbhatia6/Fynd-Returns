@@ -629,7 +629,9 @@ describe("fynd-webhook — pure functions", () => {
     expect(classifyFyndRefundStatus("refund_initiated").isInProgress).toBe(true);
     expect(classifyFyndRefundStatus("refund_pending").isInProgress).toBe(true);
     expect(classifyFyndRefundStatus("UNDER PROCESS").isInProgress).toBe(true);
-    expect(classifyFyndRefundStatus("processing").isInProgress).toBe(true);
+    // Bug #16 follow-up: bare "processing" no longer matches; only refund_*-prefixed tokens.
+    expect(classifyFyndRefundStatus("processing").isInProgress).toBe(false);
+    expect(classifyFyndRefundStatus("refund_processing").isInProgress).toBe(true);
     expect(classifyFyndRefundStatus("Refund Initiated").isInProgress).toBe(true);
     expect(classifyFyndRefundStatus("refund_done").isComplete).toBe(true);
     expect(classifyFyndRefundStatus("refunded").isComplete).toBe(true);
@@ -675,7 +677,12 @@ describe("fynd-webhook — pure functions", () => {
       JSON.stringify({ shipment_id: "S2", status: "ok", event: "evt-name" }),
     );
     expect(r2.eventType).toBe("evt-name");
-    expect(r2.payload.refund_status).toBe("ok");
+    // Bug #16 follow-up: lifecycle status no longer leaks into refund_status.
+    // payload.status carries the shipment-lifecycle value; refund_status stays
+    // null/undefined when no genuine refund_status field was provided.
+    expect(r2.payload.refund_status).toBeUndefined();
+    expect(r2.payload.status).toBe("ok");
+    expect(r2.payload.current_shipment_status).toBe("ok");
 
     // status object with extracted nested object → "" fallback
     const r3 = unwrapFyndWebhookPayload(
@@ -683,11 +690,12 @@ describe("fynd-webhook — pure functions", () => {
     );
     expect(r3.payload.status).toBe("");
 
-    // current_shipment_status fallback path
+    // current_shipment_status fallback path — lifecycle field, NOT refund_status
     const r4 = unwrapFyndWebhookPayload(
       JSON.stringify({ shipment_id: "S4", current_shipment_status: "csp_status" }),
     );
-    expect(r4.payload.refund_status).toBe("csp_status");
+    expect(r4.payload.refund_status).toBeUndefined();
+    expect(r4.payload.current_shipment_status).toBe("csp_status");
 
     // firstShipment.refund_status fallback
     const r5 = unwrapFyndWebhookPayload(
@@ -697,13 +705,14 @@ describe("fynd-webhook — pure functions", () => {
     );
     expect(r5.payload.refund_status).toBe("rs_first");
 
-    // firstShipment.status fallback (when no refund/inner status)
+    // firstShipment.status fallback — lifecycle, NOT refund_status
     const r6 = unwrapFyndWebhookPayload(
       JSON.stringify({
         shipments: [{ shipment_id: "SS2", status: "ss_status" }],
       }),
     );
-    expect(r6.payload.refund_status).toBe("ss_status");
+    expect(r6.payload.refund_status).toBeUndefined();
+    expect(r6.payload.current_shipment_status).toBe("ss_status");
   });
 
   it.skip("unwrapFyndWebhookPayload — full bag/shipment/affiliate promotion paths", () => {

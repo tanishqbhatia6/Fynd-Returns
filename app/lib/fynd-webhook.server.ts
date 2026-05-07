@@ -115,12 +115,15 @@ const FYND_STATUS_PRECEDENCE: Record<string, number> = {
   refund_processing: 32,
   refund_in_progress: 32,
   refund_under_process: 32,
-  in_progress: 32,
-  processing: 32,
+  // Bug #16 follow-up (Pattern B): the bare-word entries `in_progress`,
+  // `processing`, `completed` were removed. Same conflation risk as the
+  // REFUND_IN_PROGRESS list — a generic shipment-status webhook could
+  // promote `fyndCurrentStatus = "in_progress"` (rank 32) and BLOCK any
+  // later return_bag_picked event (rank 23) from advancing the journey.
+  // Only namespaced refund-lifecycle tokens belong here.
   refund_done: 40,
   refund_completed: 40,
   refunded: 40,
-  completed: 40,
   return_completed: 41,
   // RTO branch (treated as terminal-ish)
   rto_initiated: 35,
@@ -730,20 +733,33 @@ export function unwrapFyndWebhookPayload(rawBodyText: string): {
     event?.type ??
     event?.name ??
     (typeof body?.event === "string" ? (body.event as string) : undefined);
-  const statusOrRefund =
+
+  // Bug #16 follow-up (Pattern A, deeper layer): keep refund_status and
+  // shipment-lifecycle-status separate. Earlier this function set
+  // `refund_status` from any of (refund_status | status | current_shipment_
+  // status | shipments[0].status), conflating shipment lifecycle (e.g.
+  // return_bag_picked) with refund lifecycle. Downstream code then
+  // wrote `refundStatus = "in_progress"` to our DB based on the
+  // shipment status. Now refund_status is taken ONLY from
+  // refund_status / refund_status_flag fields.
+  const refundStatusOnly =
     (typeof inner?.refund_status === "string" && inner.refund_status) ||
-    (typeof inner?.status === "string" && inner.status) ||
-    (typeof inner?.current_shipment_status === "string" && inner.current_shipment_status) ||
+    (typeof inner?.refund_status_flag === "string" && inner.refund_status_flag) ||
     (typeof firstShipment?.refund_status === "string" && firstShipment.refund_status) ||
+    null;
+  // current_shipment_status is the lifecycle field — kept separately and
+  // populated from any lifecycle source (status | shipments[0].status |
+  // current_shipment_status). NOT used as refund_status.
+  const lifecycleOnly =
+    (typeof inner?.current_shipment_status === "string" && inner.current_shipment_status) ||
+    (typeof inner?.status === "string" && inner.status) ||
     (typeof firstShipment?.status === "string" && firstShipment.status) ||
-    eventType;
+    null;
   /* v8 ignore stop */
   const payload = {
     ...inner,
-    ...(statusOrRefund && {
-      refund_status: statusOrRefund,
-      current_shipment_status: statusOrRefund,
-    }),
+    ...(refundStatusOnly && { refund_status: refundStatusOnly }),
+    ...(lifecycleOnly && { current_shipment_status: lifecycleOnly }),
   } as FyndWebhookPayload;
 
   return { payload, eventType };

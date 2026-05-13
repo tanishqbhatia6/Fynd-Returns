@@ -31,6 +31,24 @@ import {
 } from "../return-action-errors.server";
 import type { ReturnActionHandler } from "./types";
 
+const normalizeFyndGateStatus = (status: string) =>
+  status
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, "_")
+    .replace(/_+/g, "_");
+
+const mergeRefundLineItems = (items: Array<{ id: string; quantity: number }>) => {
+  const merged = new Map<string, number>();
+  for (const item of items) {
+    if (!item.id) continue;
+    const qty = Math.max(0, Math.floor(Number(item.quantity) || 0));
+    if (qty <= 0) continue;
+    merged.set(item.id, (merged.get(item.id) ?? 0) + qty);
+  }
+  return [...merged.entries()].map(([id, quantity]) => ({ id, quantity }));
+};
+
 export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
   const { id, returnCase, shop, admin, sessionEmail, shopDomain, elapsed, logShopifyReturnEvent } =
     ctx;
@@ -102,7 +120,7 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
               const parsed = JSON.parse(raw) as unknown;
               if (Array.isArray(parsed) && parsed.length > 0) {
                 allowedFyndStatuses = parsed
-                  .map((s) => String(s).toLowerCase().trim())
+                  .map((s) => normalizeFyndGateStatus(String(s)))
                   .filter(Boolean);
               }
             }
@@ -111,7 +129,7 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
           }
 
           if (allowedFyndStatuses.length > 0) {
-            const currentFyndStatus = (returnCase.fyndCurrentStatus ?? "").toLowerCase().trim();
+            const currentFyndStatus = normalizeFyndGateStatus(returnCase.fyndCurrentStatus ?? "");
             if (!currentFyndStatus) {
               returnActionCounter.add(1, { action: "process_refund", outcome: "error" });
               return Response.json(
@@ -122,7 +140,11 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                 { status: 400 },
               );
             }
-            if (!allowedFyndStatuses.includes(currentFyndStatus)) {
+            const creditNoteAllowed =
+              currentFyndStatus.includes("credit_note") &&
+              (allowedFyndStatuses.includes("credit_note") ||
+                allowedFyndStatuses.includes("credit_note_generated"));
+            if (!allowedFyndStatuses.includes(currentFyndStatus) && !creditNoteAllowed) {
               const displayAllowed = allowedFyndStatuses.map((s) => `"${s}"`).join(", ");
               returnActionCounter.add(1, { action: "process_refund", outcome: "error" });
               return Response.json(
@@ -648,6 +670,7 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
         }
 
         const skipLocation = isGreenReturn;
+        lineItemsForRefund = mergeRefundLineItems(lineItemsForRefund);
         /* v8 ignore start - defensive `||`/ternary fallbacks for createRefund args */
         const result = await createRefund(
           admin as never,
@@ -725,7 +748,11 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
           logEvent: logShopifyReturnEvent,
         });
 
-        if (returnCase.fyndShipmentId) {
+        if (
+          returnCase.fyndShipmentId &&
+          (shop.settings as { syncRefundToFynd?: boolean | null } | null)?.syncRefundToFynd !==
+            false
+        ) {
           try {
             const fyndClientResult = await createFyndClientOrError(
               shop.settings as Parameters<typeof createFyndClientOrError>[0],

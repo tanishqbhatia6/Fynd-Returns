@@ -183,6 +183,8 @@ export function computeAdminReturnState(
 
   /* v8 ignore start */
   // defensive: long ||-chain status mapping cascades — many fynd status keywords not exhausted in fixtures
+  if (s === "rejected") return error("Rejected", "Return request has been declined");
+  if (s === "cancelled") return error("Cancelled", "Return has been cancelled");
   if (r === "refunded" || (s === "completed" && r === "refunded"))
     return done(
       finalLabelDone,
@@ -296,8 +298,6 @@ export function computeAdminReturnState(
     f.includes("bag_confirmed")
   )
     return ok("Return Confirmed", 2, "Confirmed on Fynd logistics");
-  if (s === "rejected") return error("Rejected", "Return request has been declined");
-  if (s === "cancelled") return error("Cancelled", "Return has been cancelled");
   if (s === "completed")
     return ok("Return Received", 5, "Return received, awaiting refund processing");
   if (s === "approved") return ok("Approved", 2, "Return approved, awaiting logistics pickup");
@@ -1877,8 +1877,7 @@ export default function ReturnDetail() {
             title={`Customer risk: ${fraudScore.level} (score ${fraudScore.score}/100)`}
           >
             <div style={{ marginBottom: 6 }}>
-              Recent return patterns trigger an abuse signal. Review this case
-              before approving.
+              Recent return patterns trigger an abuse signal. Review this case before approving.
             </div>
             {fraudScore.factors.length > 0 && (
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13 }}>
@@ -1892,10 +1891,7 @@ export default function ReturnDetail() {
           </Banner>
         )}
         {(() => {
-          const tone =
-            slaBreaches && slaBreaches.length
-              ? worstSlaLevel(slaBreaches)
-              : "ok";
+          const tone = slaBreaches && slaBreaches.length ? worstSlaLevel(slaBreaches) : "ok";
           if (tone === "ok") return null;
           const breached = slaBreaches.filter((b) => b.level === "breached");
           const warnings = slaBreaches.filter((b) => b.level === "warning");

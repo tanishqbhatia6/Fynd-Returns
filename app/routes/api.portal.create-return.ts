@@ -60,7 +60,7 @@ async function createDiscountCode(
     ) => Promise<Response>;
   },
   offer: ReturnOffer,
-  shopDomain: string,
+  _shopDomain: string,
 ): Promise<{ code: string; error?: string }> {
   const code = `KEEP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`;
   const isPercentage = offer.offerType === "discount_pct";
@@ -120,8 +120,6 @@ async function createDiscountCode(
     /* v8 ignore stop */
   }
 }
-
-const NON_TERMINAL_STATUSES = ["initiated", "pending", "processing", "in progress", "approved"];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -672,7 +670,55 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         : null;
       if (!hasBagAware && shipmentsSnapshot && shipmentsSnapshot.length > 0) {
         // Customer-portal path: distribute line-level qty across bags.
-        const bagIndex = buildBagIndex(shipmentsSnapshot);
+        const snapshotShipmentIds = [
+          ...new Set(shipmentsSnapshot.map((s) => s.shipmentId).filter(Boolean) as string[]),
+        ];
+        const snapshotBagIds = [
+          ...new Set(
+            shipmentsSnapshot
+              .flatMap((s) => s.items ?? [])
+              .map((i) => i.bagId)
+              .filter(Boolean) as string[],
+          ),
+        ];
+        const reservedBagQtyMap: Record<string, number> = {};
+        if (snapshotShipmentIds.length > 0 || snapshotBagIds.length > 0) {
+          const returnCaseOrderFilters: Array<Record<string, unknown>> = [
+            { shopifyOrderName: { equals: shopifyOrderName, mode: "insensitive" } },
+            { shopifyOrderId: effectiveOrderId },
+          ];
+          if (!effectiveOrderId.startsWith("gid://")) {
+            returnCaseOrderFilters.push({
+              fyndOrderId: { equals: effectiveOrderId, mode: "insensitive" },
+            });
+          }
+          const existingBagReturns = await prisma.returnItem.findMany({
+            where: {
+              OR: [
+                ...(snapshotShipmentIds.length > 0
+                  ? [{ fyndShipmentId: { in: snapshotShipmentIds } }]
+                  : []),
+                ...(snapshotBagIds.length > 0 ? [{ fyndBagId: { in: snapshotBagIds } }] : []),
+              ],
+              returnCase: {
+                shopId: shopRecord.id,
+                status: { notIn: ["rejected", "cancelled"] },
+                OR: returnCaseOrderFilters,
+              },
+            },
+            select: { fyndShipmentId: true, fyndBagId: true, qty: true },
+          });
+          for (const returned of existingBagReturns) {
+            if (!returned.fyndBagId) continue;
+            reservedBagQtyMap[returned.fyndBagId] =
+              (reservedBagQtyMap[returned.fyndBagId] ?? 0) + returned.qty;
+            if (returned.fyndShipmentId) {
+              const scopedKey = `${returned.fyndShipmentId}::${returned.fyndBagId}`;
+              reservedBagQtyMap[scopedKey] = (reservedBagQtyMap[scopedKey] ?? 0) + returned.qty;
+            }
+          }
+        }
+        const bagIndex = buildBagIndex(shipmentsSnapshot, reservedBagQtyMap);
         const inputs = items.map((it) => ({
           lineItemId: String(it.lineItemId).slice(0, 256),
           qty: Math.min(Math.max(1, Math.floor(it.qty)), 999),
@@ -709,39 +755,40 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         itemsToCreate = items.map((it) => {
           let safeQty = Math.min(Math.max(1, Math.floor(it.qty)), 999);
           if (it.fyndBagId) {
-            const bagCap = typeof it.fyndQuantityAvailable === "number"
-              && Number.isFinite(it.fyndQuantityAvailable)
-              && it.fyndQuantityAvailable > 0
+            const bagCap =
+              typeof it.fyndQuantityAvailable === "number" &&
+              Number.isFinite(it.fyndQuantityAvailable) &&
+              it.fyndQuantityAvailable > 0
                 ? Math.floor(it.fyndQuantityAvailable)
                 : 1;
             safeQty = Math.min(safeQty, bagCap);
           }
-          return ({
-          // defensive: per-field truthy/typeof guards on optional Fynd metadata
-          /* v8 ignore start */
-          lineItemId: String(it.lineItemId).slice(0, 256),
-          qty: safeQty,
-          reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
-          condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
-          fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
-          fyndBagId: it.fyndBagId ? String(it.fyndBagId).slice(0, 256) : undefined,
-          fyndArticleId: it.fyndArticleId ? String(it.fyndArticleId).slice(0, 256) : undefined,
-          fyndAffiliateLineId: it.fyndAffiliateLineId
-            ? String(it.fyndAffiliateLineId).slice(0, 256)
-            : undefined,
-          fyndSellerIdentifier: it.fyndSellerIdentifier
-            ? String(it.fyndSellerIdentifier).slice(0, 256)
-            : undefined,
-          fyndItemId: it.fyndItemId ? String(it.fyndItemId).slice(0, 256) : undefined,
-          fyndQuantityAvailable:
-            typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
-          fyndPriceEffective: it.fyndPriceEffective
-            ? String(it.fyndPriceEffective).slice(0, 64)
-            : undefined,
-          fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
-          fyndLineNumber: typeof it.fyndLineNumber === "number" ? it.fyndLineNumber : undefined,
-          /* v8 ignore stop */
-          });
+          return {
+            // defensive: per-field truthy/typeof guards on optional Fynd metadata
+            /* v8 ignore start */
+            lineItemId: String(it.lineItemId).slice(0, 256),
+            qty: safeQty,
+            reasonCode: it.reasonCode ? String(it.reasonCode).slice(0, 256) : undefined,
+            condition: it.condition ? String(it.condition).slice(0, 64) : undefined,
+            fyndShipmentId: it.fyndShipmentId ? String(it.fyndShipmentId).slice(0, 256) : undefined,
+            fyndBagId: it.fyndBagId ? String(it.fyndBagId).slice(0, 256) : undefined,
+            fyndArticleId: it.fyndArticleId ? String(it.fyndArticleId).slice(0, 256) : undefined,
+            fyndAffiliateLineId: it.fyndAffiliateLineId
+              ? String(it.fyndAffiliateLineId).slice(0, 256)
+              : undefined,
+            fyndSellerIdentifier: it.fyndSellerIdentifier
+              ? String(it.fyndSellerIdentifier).slice(0, 256)
+              : undefined,
+            fyndItemId: it.fyndItemId ? String(it.fyndItemId).slice(0, 256) : undefined,
+            fyndQuantityAvailable:
+              typeof it.fyndQuantityAvailable === "number" ? it.fyndQuantityAvailable : undefined,
+            fyndPriceEffective: it.fyndPriceEffective
+              ? String(it.fyndPriceEffective).slice(0, 64)
+              : undefined,
+            fyndSize: it.fyndSize ? String(it.fyndSize).slice(0, 64) : undefined,
+            fyndLineNumber: typeof it.fyndLineNumber === "number" ? it.fyndLineNumber : undefined,
+            /* v8 ignore stop */
+          };
         });
       }
     }
@@ -1107,6 +1154,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             where: {
               affiliateOrderId: { equals: fyndMapping.fyndOrderId, mode: "insensitive" },
               fyndStatus: { not: null },
+              shopDomain,
             },
             orderBy: { createdAt: "desc" },
             select: { fyndStatus: true },
@@ -1143,6 +1191,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               where: {
                 shipmentId: fyndMapping.fyndShipmentId,
                 fyndStatus: { not: null },
+                shopDomain,
               },
               orderBy: { createdAt: "desc" },
               select: { fyndStatus: true },

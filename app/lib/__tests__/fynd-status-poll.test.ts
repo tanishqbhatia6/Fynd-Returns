@@ -14,20 +14,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  * — we use vi.useFakeTimers() to control Date.now().
  */
 
-const { prismaMock, createFyndClientOrErrorMock, getShipmentsMock } = vi.hoisted(() => ({
-  prismaMock: {
-    returnCase: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn().mockResolvedValue({}),
+const { prismaMock, createFyndClientOrErrorMock, getShipmentsMock, searchShipmentsMock } =
+  vi.hoisted(() => ({
+    prismaMock: {
+      returnCase: {
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      returnEvent: {
+        create: vi.fn().mockResolvedValue({}),
+      },
     },
-    returnEvent: {
-      create: vi.fn().mockResolvedValue({}),
-    },
-  },
-  createFyndClientOrErrorMock: vi.fn(),
-  getShipmentsMock: vi.fn(),
-}));
+    createFyndClientOrErrorMock: vi.fn(),
+    getShipmentsMock: vi.fn(),
+    searchShipmentsMock: vi.fn(),
+  }));
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 
@@ -51,17 +53,22 @@ vi.mock("../observability/tracing.server", () => ({
 
 import { pollStaleReturns, refreshSingleReturn } from "../fynd-status-poll.server";
 
-function mkShipmentClient(): { getShipments: typeof getShipmentsMock } {
-  return { getShipments: getShipmentsMock };
+function mkShipmentClient(): {
+  getShipments: typeof getShipmentsMock;
+  searchShipmentsByExternalOrderId: typeof searchShipmentsMock;
+} {
+  return { getShipments: getShipmentsMock, searchShipmentsByExternalOrderId: searchShipmentsMock };
 }
 
 function mkReturn(
   overrides: {
     id?: string;
     shopId?: string;
+    status?: string;
     fyndShipmentId?: string | null;
     fyndOrderId?: string | null;
     forwardAwb?: string | null;
+    shopifyOrderName?: string | null;
     settings?: unknown;
   } = {},
 ) {
@@ -78,8 +85,10 @@ function mkReturn(
   return {
     id: overrides.id ?? "rc-1",
     shopId: overrides.shopId ?? "shop-1",
+    status: overrides.status ?? "approved",
     fyndShipmentId: "fyndShipmentId" in overrides ? overrides.fyndShipmentId : "SH1",
     fyndOrderId: overrides.fyndOrderId ?? "ORD1",
+    shopifyOrderName: overrides.shopifyOrderName ?? "#1001",
     forwardAwb: overrides.forwardAwb ?? null,
     shop: {
       id: overrides.shopId ?? "shop-1",
@@ -103,6 +112,7 @@ beforeEach(() => {
   prismaMock.returnEvent.create.mockReset().mockResolvedValue({});
   createFyndClientOrErrorMock.mockReset();
   getShipmentsMock.mockReset();
+  searchShipmentsMock.mockReset();
 });
 
 afterEach(() => {
@@ -177,11 +187,13 @@ describe("pollStaleReturns — per-return behaviour", () => {
     );
   });
 
-  it("transitions status to completed when shipment_status contains 'delivered'", async () => {
+  it("transitions status to completed when return shipment is delivered", async () => {
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
-      items: [{ shipment_id: "SH1", shipment_status: "delivered" }],
+      items: [
+        { shipment_id: "SH1", journey_type: "return", shipment_status: "return_bag_delivered" },
+      ],
     });
     await pollStaleReturns();
     expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
@@ -225,7 +237,7 @@ describe("pollStaleReturns — per-return behaviour", () => {
     expect(call.data.forwardAwb).toBeUndefined();
   });
 
-  it("logs fynd_status_poll event when journey has steps", async () => {
+  it("logs fynd_status_poll event when return journey has steps", async () => {
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
@@ -237,8 +249,8 @@ describe("pollStaleReturns — per-return behaviour", () => {
             {
               bag_status: [
                 {
-                  status: "bag_picked",
-                  bag_state_mapper: { journey_type: "forward", display_name: "Picked up" },
+                  status: "return_bag_picked",
+                  bag_state_mapper: { journey_type: "return", display_name: "Picked up" },
                   updated_at: "2026-04-22T10:00:00Z",
                 },
               ],
@@ -339,11 +351,13 @@ describe("refreshSingleReturn", () => {
     expect(prismaMock.returnCase.update).toHaveBeenCalled();
   });
 
-  it("transitions status to completed on delivered_done", async () => {
+  it("transitions status to completed on return_bag_delivered", async () => {
     prismaMock.returnCase.findUnique.mockResolvedValue(mkReturn());
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
-      items: [{ shipment_id: "SH1", shipment_status: "delivery_done" }],
+      items: [
+        { shipment_id: "SH1", journey_type: "return", shipment_status: "return_bag_delivered" },
+      ],
     });
     await refreshSingleReturn("rc-1");
     expect(prismaMock.returnCase.update).toHaveBeenCalledWith(

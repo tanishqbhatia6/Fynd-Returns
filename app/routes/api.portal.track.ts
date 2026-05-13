@@ -71,8 +71,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return withCors(Response.json({ error: "Return not found" }, { status: 404 }), request);
   }
 
-  const isApprovedOrCompleted = ["approved", "completed"].includes(rc.status.toLowerCase());
-  const returnJourney = isApprovedOrCompleted
+  const shouldShowReturnJourney = ["approved", "processing", "in progress", "completed"].includes(
+    rc.status.toLowerCase(),
+  );
+  const returnJourney = shouldShowReturnJourney
     ? extractFyndJourney((rc as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
     : null;
 

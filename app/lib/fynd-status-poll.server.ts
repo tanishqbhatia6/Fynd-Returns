@@ -11,6 +11,7 @@ import {
   extractFyndJourney,
   isLikelyFyndId,
 } from "./fynd-payload.server";
+import { shouldAdvanceFyndStatus } from "./fynd-webhook.server";
 import { fyndLogger } from "./observability/logger.server";
 import { withSpan } from "./observability/tracing.server";
 
@@ -18,6 +19,74 @@ const STALE_THRESHOLD_MS = 30 * 60_000; // 30 minutes
 const BATCH_SIZE = 5;
 let lastPollRun = 0;
 const POLL_THROTTLE_MS = 10 * 60_000; // 10 minutes
+
+function normalizeFyndStatus(status: string | null | undefined): string | null {
+  const normalized = (status ?? "").toLowerCase().replace(/\s+/g, "_").trim();
+  return normalized || null;
+}
+
+const APP_STATUS_ORDER: Record<string, number> = {
+  initiated: 0,
+  pending: 1,
+  approved: 2,
+  "in progress": 3,
+  processing: 3,
+  completed: 4,
+};
+
+function applyReturnProgress(
+  updateData: Record<string, unknown>,
+  currentStatus: string,
+  returnStatus: string,
+) {
+  const currentLevel = APP_STATUS_ORDER[currentStatus.toLowerCase()] ?? 0;
+  if (
+    ["return_initiated", "bag_confirmed"].includes(returnStatus) &&
+    currentLevel < APP_STATUS_ORDER.approved
+  ) {
+    updateData.status = "approved";
+  }
+  if (
+    [
+      "return_dp_assigned",
+      "return_bag_picked",
+      "return_bag_in_transit",
+      "out_for_pickup",
+      "dp_out_for_pickup",
+      "return_bag_out_for_delivery",
+      "out_for_delivery_to_store",
+    ].includes(returnStatus) &&
+    currentLevel < APP_STATUS_ORDER["in progress"]
+  ) {
+    updateData.status = "in progress";
+  }
+  if (
+    ["return_bag_delivered", "return_delivered", "return_accepted", "return_completed"].includes(
+      returnStatus,
+    ) &&
+    currentLevel < APP_STATUS_ORDER.completed
+  ) {
+    updateData.status = "completed";
+  }
+}
+
+async function fetchFyndReturnPayload(
+  client: FyndPlatformClient,
+  rc: { fyndOrderId?: string | null; shopifyOrderName?: string | null },
+): Promise<{ payload: unknown; orderId?: string | null } | null> {
+  if (rc.fyndOrderId) {
+    return { payload: await client.getShipments(rc.fyndOrderId), orderId: rc.fyndOrderId };
+  }
+
+  const orderName = rc.shopifyOrderName?.replace(/^#/, "").trim();
+  if (!orderName) return null;
+
+  const listing = await client.searchShipmentsByExternalOrderId(orderName);
+  if (listing.orderId) {
+    return { payload: await client.getShipments(listing.orderId), orderId: listing.orderId };
+  }
+  return { payload: listing, orderId: null };
+}
 
 export async function pollStaleReturns(): Promise<{ checked: number; updated: number }> {
   if (Date.now() - lastPollRun < POLL_THROTTLE_MS) {
@@ -64,31 +133,52 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
             }
             if (!client) continue;
 
-            const fyndOrderId = rc.fyndOrderId ?? rc.fyndShipmentId;
-            const shipmentsRes = await client.getShipments(fyndOrderId);
-            if (shipmentsRes) {
-              const payloadJson = JSON.stringify(shipmentsRes);
+            const fetchResult = await fetchFyndReturnPayload(client, rc);
+            if (fetchResult?.payload) {
+              const payloadJson = JSON.stringify(fetchResult.payload);
               const parsed = parseFyndOrderDetailsForTab(payloadJson);
-              const forwardJourney = extractFyndJourney(payloadJson, "forward");
+              const returnJourney = extractFyndJourney(payloadJson, "return");
+              const returnShipment =
+                parsed?.shipments?.find((ship) => {
+                  const status = normalizeFyndStatus(ship.shipmentStatus);
+                  return (
+                    ship.journeyType === "return" ||
+                    !!status?.startsWith("return_") ||
+                    status === "out_for_pickup" ||
+                    status === "dp_out_for_pickup" ||
+                    status === "out_for_delivery_to_store"
+                  );
+                }) ?? null;
+              const latestReturnStep =
+                returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
+              const returnStatus =
+                normalizeFyndStatus(returnShipment?.shipmentStatus) ??
+                normalizeFyndStatus(latestReturnStep?.status);
 
               const updateData: Record<string, unknown> = {
                 lastFyndStatusCheck: new Date(),
                 fyndPayloadJson: payloadJson,
+                ...(fetchResult.orderId && !rc.fyndOrderId
+                  ? { fyndOrderId: fetchResult.orderId }
+                  : {}),
               };
 
-              if (parsed?.shipments?.[0]?.shipmentStatus) {
-                const fyndStatus = parsed.shipments[0].shipmentStatus.toLowerCase();
-                if (fyndStatus.includes("delivered") || fyndStatus.includes("delivery_done")) {
-                  updateData.status = "completed";
+              if (returnStatus) {
+                if (shouldAdvanceFyndStatus(rc.fyndCurrentStatus, returnStatus)) {
+                  updateData.fyndCurrentStatus = returnStatus;
                 }
+                applyReturnProgress(updateData, rc.status, returnStatus);
+              }
 
-                if (
-                  parsed.shipments[0].forwardAwb &&
-                  !rc.forwardAwb &&
-                  !isLikelyFyndId(parsed.shipments[0].forwardAwb)
-                ) {
-                  updateData.forwardAwb = parsed.shipments[0].forwardAwb;
-                }
+              const forwardShipment =
+                parsed?.shipments?.find((ship) => ship.journeyType !== "return") ??
+                parsed?.shipments?.[0];
+              if (
+                forwardShipment?.forwardAwb &&
+                !rc.forwardAwb &&
+                !isLikelyFyndId(forwardShipment.forwardAwb)
+              ) {
+                updateData.forwardAwb = forwardShipment.forwardAwb;
               }
 
               await prisma.returnCase.update({
@@ -96,8 +186,8 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
                 data: updateData,
               });
 
-              if (forwardJourney.length > 0) {
-                const latestStep = forwardJourney[forwardJourney.length - 1];
+              if (returnJourney.length > 0) {
+                const latestStep = returnJourney[returnJourney.length - 1];
                 await prisma.returnEvent.create({
                   data: {
                     returnCaseId: rc.id,
@@ -157,32 +247,54 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
     if (!clientResult.ok || !("getShipments" in clientResult.client)) return false;
 
     const client = clientResult.client as FyndPlatformClient;
-    const fyndOrderId = rc.fyndOrderId ?? rc.fyndShipmentId;
-    const shipmentsRes = await client.getShipments(fyndOrderId);
-    if (!shipmentsRes) return false;
+    const fetchResult = await fetchFyndReturnPayload(client, rc);
+    if (!fetchResult?.payload) return false;
 
-    const payloadJson = JSON.stringify(shipmentsRes);
+    const payloadJson = JSON.stringify(fetchResult.payload);
     const parsed = parseFyndOrderDetailsForTab(payloadJson);
+    const returnJourney = extractFyndJourney(payloadJson, "return");
+    const returnShipment =
+      parsed?.shipments?.find((ship) => {
+        const status = normalizeFyndStatus(ship.shipmentStatus);
+        return (
+          ship.journeyType === "return" ||
+          !!status?.startsWith("return_") ||
+          status === "out_for_pickup" ||
+          status === "dp_out_for_pickup" ||
+          status === "out_for_delivery_to_store"
+        );
+      }) ?? null;
+    const latestReturnStep =
+      returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
+    const returnStatus =
+      normalizeFyndStatus(returnShipment?.shipmentStatus) ??
+      normalizeFyndStatus(latestReturnStep?.status);
 
     const updateData: Record<string, unknown> = {
       lastFyndStatusCheck: new Date(),
       fyndPayloadJson: payloadJson,
+      ...(fetchResult.orderId && !rc.fyndOrderId ? { fyndOrderId: fetchResult.orderId } : {}),
     };
 
     // defensive: parsed.shipments optional chain; happy-path always populated in fixtures
     /* v8 ignore start */
-    if (parsed?.shipments?.[0]) {
+    const forwardShipment =
+      parsed?.shipments?.find((ship) => ship.journeyType !== "return") ?? parsed?.shipments?.[0];
+    if (forwardShipment) {
       /* v8 ignore stop */
-      const ship = parsed.shipments[0];
-      if (ship.forwardAwb && !rc.forwardAwb && !isLikelyFyndId(ship.forwardAwb))
-        updateData.forwardAwb = ship.forwardAwb;
-      // defensive: shipmentStatus ?? "" fallback unreachable in fixtures
-      /* v8 ignore start */
-      const status = (ship.shipmentStatus ?? "").toLowerCase();
-      /* v8 ignore stop */
-      if (status.includes("delivered") || status.includes("delivery_done")) {
-        updateData.status = "completed";
+      if (
+        forwardShipment.forwardAwb &&
+        !rc.forwardAwb &&
+        !isLikelyFyndId(forwardShipment.forwardAwb)
+      )
+        updateData.forwardAwb = forwardShipment.forwardAwb;
+    }
+
+    if (returnStatus) {
+      if (shouldAdvanceFyndStatus(rc.fyndCurrentStatus, returnStatus)) {
+        updateData.fyndCurrentStatus = returnStatus;
       }
+      applyReturnProgress(updateData, rc.status, returnStatus);
     }
 
     await prisma.returnCase.update({

@@ -347,6 +347,7 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
               ? { fyndSyncRetries: 0, fyndSyncNextRetry: retryNextTime }
               : {}),
             ...(fyndReturnId && { fyndReturnId }),
+            ...(fyndReturnId && { fyndCurrentStatus: "return_initiated" }),
             ...(fyndReturnNo && { fyndReturnNo }),
             ...(fyndOrderId && { fyndOrderId }),
             ...(fyndShipmentId && { fyndShipmentId }),

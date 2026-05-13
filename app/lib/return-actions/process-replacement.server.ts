@@ -92,11 +92,18 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
         // defensive: Fynd-status guard chain — multiple optional branches not all exercised
         if (returnCase.fyndReturnId) {
           let fyndCurrentStatus: string | null = null;
+          if (returnCase.fyndCurrentStatus) {
+            fyndCurrentStatus = returnCase.fyndCurrentStatus.toLowerCase().replace(/\s+/g, "_");
+          }
           try {
             const payload = returnCase.fyndPayloadJson
               ? (JSON.parse(returnCase.fyndPayloadJson) as Record<string, unknown>)
               : null;
-            fyndCurrentStatus = payload?.status ? String(payload.status) : null;
+            if (!fyndCurrentStatus) {
+              fyndCurrentStatus = payload?.status
+                ? String(payload.status).toLowerCase().replace(/\s+/g, "_")
+                : null;
+            }
           } catch {
             /* ignore */
           }

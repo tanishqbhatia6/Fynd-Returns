@@ -580,6 +580,27 @@ describe("handleProcessRefund — Fynd allowlist with multiple statuses", () => 
     expect(body.error).toContain("credit_note_generated");
   });
 
+  it("normalizes Fynd credit-note status labels before enforcing allowlist", async () => {
+    const ctx = mkCtx({
+      returnCase: {
+        ...mkCtx().returnCase,
+        fyndShipmentId: "SH-1",
+        fyndCurrentStatus: "Credit Note Generated",
+      } as never,
+      shop: {
+        id: "shop-1",
+        shopDomain: "store.myshopify.com",
+        settings: {
+          allowedFyndStatusesForRefund: JSON.stringify(["credit_note_generated"]),
+        },
+      },
+    });
+    await expectRedirect(
+      handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
+      "/app/returns/rc-1",
+    );
+  });
+
   it("allowlist with empty array is treated as feature disabled (refund proceeds)", async () => {
     const ctx = mkCtx({
       returnCase: {
@@ -618,6 +639,47 @@ describe("handleProcessRefund — Fynd allowlist with multiple statuses", () => 
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
+  });
+});
+
+describe("handleProcessRefund — refund line item safety", () => {
+  it("coalesces duplicate Shopify line items before creating the refund", async () => {
+    const ctx = mkCtx({
+      returnCase: {
+        ...mkCtx().returnCase,
+        items: [
+          {
+            id: "li-1",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "SKU-1",
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: "Item 1",
+          },
+          {
+            id: "li-2",
+            shopifyLineItemId: "gid://shopify/LineItem/1",
+            qty: 1,
+            sku: "SKU-1",
+            price: "10.00",
+            reasonCode: null,
+            notes: null,
+            title: "Item 1",
+          },
+        ],
+      } as never,
+    });
+
+    await expectRedirect(
+      handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
+      "/app/returns/rc-1",
+    );
+
+    expect(createRefundMock.mock.calls[0][2]).toEqual([
+      { id: "gid://shopify/LineItem/1", quantity: 2 },
+    ]);
   });
 });
 
@@ -858,6 +920,10 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
         fyndOrderId: "FY-O-1",
         fyndCurrentStatus: "return_bag_delivered",
       } as never,
+      shop: {
+        ...mkCtx().shop,
+        settings: { fyndApiType: "platform", syncRefundToFynd: true },
+      } as never,
     });
     let call = 0;
     const updateShipmentStatus = vi.fn(async () => {
@@ -898,6 +964,10 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
         fyndOrderId: "FY-O-1",
         fyndCurrentStatus: "return_accepted",
       } as never,
+      shop: {
+        ...mkCtx().shop,
+        settings: { fyndApiType: "platform", syncRefundToFynd: true },
+      } as never,
     });
     const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
       async () => undefined,
@@ -925,6 +995,10 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
         fyndShipmentId: "SH-1",
         fyndOrderId: null,
         fyndCurrentStatus: "return_accepted",
+      } as never,
+      shop: {
+        ...mkCtx().shop,
+        settings: { fyndApiType: "platform", syncRefundToFynd: true },
       } as never,
     });
     const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(

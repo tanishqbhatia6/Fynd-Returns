@@ -8,32 +8,33 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
  *   - findMany query filters (status whitelist, fyndShipmentId not null,
  *     OR cutoff, ordering, batch size, includes)
  *   - return value tallies for mixed batches (success + skip + failure)
- *   - fallback to fyndShipmentId when fyndOrderId is null when calling
- *     getShipments
+ *   - fallback to shipment listing search when fyndOrderId is null
  *   - per-shop client cache: separate creation per shopId, cached null
  *     not retried
  *   - no journey -> no returnEvent.create
- *   - delivery_done variant transitions to completed
+ *   - forward delivery_done does not complete a return
  *   - NOT overwriting an existing forwardAwb
  *   - graceful continue when getShipments returns null/falsy (no update)
  *   - swallows error from the fallback `update` in the catch branch
  *   - throttle is bypassed/applied based on Date.now math (boundary)
  */
 
-const { prismaMock, createFyndClientOrErrorMock, getShipmentsMock } = vi.hoisted(() => ({
-  prismaMock: {
-    returnCase: {
-      findMany: vi.fn(),
-      findUnique: vi.fn(),
-      update: vi.fn().mockResolvedValue({}),
+const { prismaMock, createFyndClientOrErrorMock, getShipmentsMock, searchShipmentsMock } =
+  vi.hoisted(() => ({
+    prismaMock: {
+      returnCase: {
+        findMany: vi.fn(),
+        findUnique: vi.fn(),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      returnEvent: {
+        create: vi.fn().mockResolvedValue({}),
+      },
     },
-    returnEvent: {
-      create: vi.fn().mockResolvedValue({}),
-    },
-  },
-  createFyndClientOrErrorMock: vi.fn(),
-  getShipmentsMock: vi.fn(),
-}));
+    createFyndClientOrErrorMock: vi.fn(),
+    getShipmentsMock: vi.fn(),
+    searchShipmentsMock: vi.fn(),
+  }));
 
 vi.mock("../../db.server", () => ({ default: prismaMock }));
 
@@ -56,17 +57,22 @@ vi.mock("../observability/tracing.server", () => ({
 
 import { pollStaleReturns } from "../fynd-status-poll.server";
 
-function mkShipmentClient(): { getShipments: typeof getShipmentsMock } {
-  return { getShipments: getShipmentsMock };
+function mkShipmentClient(): {
+  getShipments: typeof getShipmentsMock;
+  searchShipmentsByExternalOrderId: typeof searchShipmentsMock;
+} {
+  return { getShipments: getShipmentsMock, searchShipmentsByExternalOrderId: searchShipmentsMock };
 }
 
 function mkReturn(
   overrides: {
     id?: string;
     shopId?: string;
+    status?: string;
     fyndShipmentId?: string | null;
     fyndOrderId?: string | null;
     forwardAwb?: string | null;
+    shopifyOrderName?: string | null;
     settings?: unknown;
   } = {},
 ) {
@@ -81,8 +87,10 @@ function mkReturn(
   return {
     id: overrides.id ?? "rc-1",
     shopId: overrides.shopId ?? "shop-1",
+    status: overrides.status ?? "approved",
     fyndShipmentId: "fyndShipmentId" in overrides ? overrides.fyndShipmentId : "SH1",
     fyndOrderId: "fyndOrderId" in overrides ? overrides.fyndOrderId : "ORD1",
+    shopifyOrderName: overrides.shopifyOrderName ?? "#1001",
     forwardAwb: overrides.forwardAwb ?? null,
     shop: {
       id: overrides.shopId ?? "shop-1",
@@ -102,6 +110,7 @@ beforeEach(() => {
   prismaMock.returnEvent.create.mockReset().mockResolvedValue({});
   createFyndClientOrErrorMock.mockReset();
   getShipmentsMock.mockReset();
+  searchShipmentsMock.mockReset();
 });
 
 afterEach(() => {
@@ -183,17 +192,19 @@ describe("pollStaleReturns — fyndOrderId fallback", () => {
     expect(getShipmentsMock).toHaveBeenCalledWith("ORD-EXPLICIT");
   });
 
-  it("falls back to fyndShipmentId when fyndOrderId is null", async () => {
+  it("searches Fynd by Shopify order name when fyndOrderId is null", async () => {
     prismaMock.returnCase.findMany.mockResolvedValue([
-      mkReturn({ fyndOrderId: null, fyndShipmentId: "SH-FALLBACK" }),
+      mkReturn({ fyndOrderId: null, fyndShipmentId: "SH-FALLBACK", shopifyOrderName: "#1001" }),
     ]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
+    searchShipmentsMock.mockResolvedValue({ orderId: "ORD-FROM-LISTING" });
     getShipmentsMock.mockResolvedValue({
       items: [{ shipment_id: "SH-FALLBACK", shipment_status: "in_transit" }],
     });
 
     await pollStaleReturns();
-    expect(getShipmentsMock).toHaveBeenCalledWith("SH-FALLBACK");
+    expect(searchShipmentsMock).toHaveBeenCalledWith("1001");
+    expect(getShipmentsMock).toHaveBeenCalledWith("ORD-FROM-LISTING");
   });
 });
 
@@ -240,7 +251,7 @@ describe("pollStaleReturns — payload-driven update fields", () => {
     expect(prismaMock.returnEvent.create).not.toHaveBeenCalled();
   });
 
-  it("transitions status to completed on shipment_status containing 'delivery_done'", async () => {
+  it("does not transition status to completed on forward delivery_done", async () => {
     prismaMock.returnCase.findMany.mockResolvedValue([mkReturn()]);
     createFyndClientOrErrorMock.mockResolvedValue({ ok: true, client: mkShipmentClient() });
     getShipmentsMock.mockResolvedValue({
@@ -249,7 +260,7 @@ describe("pollStaleReturns — payload-driven update fields", () => {
 
     await pollStaleReturns();
     const call = prismaMock.returnCase.update.mock.calls[0][0] as { data: { status?: string } };
-    expect(call.data.status).toBe("completed");
+    expect(call.data.status).toBeUndefined();
   });
 
   it("does NOT overwrite an existing forwardAwb on the return case", async () => {

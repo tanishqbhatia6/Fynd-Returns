@@ -1019,9 +1019,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                           (bag as Record<string, unknown>).affiliate_line_id ??
                           "",
                       ).trim() || null;
-                    let matchedShopify = sku
-                      ? shopifyLineItems.find((li) => li.sku === sku)
-                      : null;
+                    let matchedShopify = sku ? shopifyLineItems.find((li) => li.sku === sku) : null;
                     if (!matchedShopify && articleAffiliateLineId) {
                       matchedShopify = shopifyLineItems.find(
                         (li) =>
@@ -1120,9 +1118,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
                           (bag as Record<string, unknown>).affiliate_line_id ??
                           "",
                       ).trim() || null;
-                    let matchedShopify = sku
-                      ? shopifyLineItems.find((li) => li.sku === sku)
-                      : null;
+                    let matchedShopify = sku ? shopifyLineItems.find((li) => li.sku === sku) : null;
                     if (!matchedShopify && bagAffiliateLineIdForMatch) {
                       matchedShopify = shopifyLineItems.find(
                         (li) =>
@@ -1639,6 +1635,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
             existingReturns: formattedReturns,
             activeReturns,
+            portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
           },
           { status: 200 },
         ),
@@ -1656,6 +1653,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               "We couldn't fetch your order automatically. Use the form below to submit your return request—the store will process it manually.",
             existingReturns: formattedReturns,
             activeReturns,
+            portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
           },
           { status: 200 },
         ),
@@ -1671,6 +1669,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             "We couldn't find this order automatically. Please use the form below to submit your return request.",
           existingReturns: formattedReturns,
           activeReturns,
+          portalCsrfToken: createPortalCsrfToken(shopRecord.shopDomain),
         },
         { status: 200 },
       ),

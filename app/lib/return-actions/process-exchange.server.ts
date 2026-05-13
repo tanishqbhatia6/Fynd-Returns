@@ -114,16 +114,20 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
 
         if (returnCase.fyndReturnId) {
           let fyndCurrentStatus: string | null = null;
+          if (returnCase.fyndCurrentStatus) {
+            fyndCurrentStatus = returnCase.fyndCurrentStatus.toLowerCase().replace(/\s+/g, "_");
+          }
           try {
             const payload = returnCase.fyndPayloadJson
               ? (JSON.parse(returnCase.fyndPayloadJson) as Record<string, unknown>)
               : null;
-            fyndCurrentStatus = payload?.status ? String(payload.status) : null;
+            if (!fyndCurrentStatus) {
+              fyndCurrentStatus = payload?.status
+                ? String(payload.status).toLowerCase().replace(/\s+/g, "_")
+                : null;
+            }
           } catch {
             /* ignore */
-          }
-          if (!fyndCurrentStatus && returnCase.fyndCurrentStatus) {
-            fyndCurrentStatus = returnCase.fyndCurrentStatus;
           }
           if (fyndCurrentStatus && !FYND_EXCHANGE_ALLOWED_STATUSES.has(fyndCurrentStatus)) {
             returnActionCounter.add(1, { action: "process_exchange", outcome: "error" });

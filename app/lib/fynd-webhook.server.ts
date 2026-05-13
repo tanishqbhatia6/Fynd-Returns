@@ -15,7 +15,6 @@ import {
   createRefund,
   closeShopifyReturnBestEffort,
   fetchOrder,
-  fetchOrderByOrderNumber,
   fetchOrderByFyndAffiliateId,
   extractShopifyOrderNumberVariants,
   withRestCredentials,
@@ -411,9 +410,7 @@ export function extractAffiliateOrderId(payload: FyndWebhookPayload): string | n
 export function extractExternalOrderId(payload: FyndWebhookPayload): string | null {
   /* v8 ignore start */
   const meta = payload.meta as Record<string, unknown> | undefined;
-  const s =
-    payload.external_order_id ??
-    (meta?.external_order_id as string | undefined);
+  const s = payload.external_order_id ?? (meta?.external_order_id as string | undefined);
   return coerceStr(s);
   /* v8 ignore stop */
 }
@@ -425,9 +422,7 @@ export function extractExternalOrderId(payload: FyndWebhookPayload): string | nu
 export function extractChannelOrderId(payload: FyndWebhookPayload): string | null {
   /* v8 ignore start */
   const meta = payload.meta as Record<string, unknown> | undefined;
-  const s =
-    payload.channel_order_id ??
-    (meta?.channel_order_id as string | undefined);
+  const s = payload.channel_order_id ?? (meta?.channel_order_id as string | undefined);
   return coerceStr(s);
   /* v8 ignore stop */
 }
@@ -515,8 +510,7 @@ export function extractCustomerFromWebhookPayload(payload: FyndWebhookPayload): 
 
   const firstName = pickStr("first_name") ?? "";
   const lastName = pickStr("last_name") ?? "";
-  const fullName =
-    pickStr("name") ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
+  const fullName = pickStr("name") ?? ([firstName, lastName].filter(Boolean).join(" ") || null);
 
   const email =
     pickStr("email") ?? (typeof meta?.email === "string" ? (meta.email as string) : null);
@@ -975,7 +969,7 @@ export async function processFyndWebhook(
   /* v8 ignore start */ // defensive: each `?? undefined` collapses null/undefined for prisma — only one path hit per call
   const logEnrichment = {
     affiliateOrderId: affiliateOrderId ?? undefined,
-    fyndStatus: refundStatus ?? undefined,
+    fyndStatus: lifecycleStatus ?? undefined,
     eventType: eventType ?? undefined,
     // Pattern E: emit category in webhook logs for cross-environment
     // diagnosis ("which webhook category am I dealing with?") without
@@ -1013,10 +1007,18 @@ export async function processFyndWebhook(
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
 
-  // Multi-strategy lookup: fyndShipmentId first, then fyndOrderId (try all order identifiers)
+  const webhookShop = webhookShopDomain
+    ? await prisma.shop.findUnique({ where: { shopDomain: webhookShopDomain } }).catch(() => null)
+    : null;
+
+  // Multi-strategy lookup: fyndShipmentId first, then fyndOrderId (try all order identifiers).
+  // When the per-shop webhook route injects _shop_domain, keep every lookup scoped to
+  // that shop. Fynd IDs are not a strong enough global tenant boundary.
   let returnCase = shipmentId
     ? await prisma.returnCase.findFirst({
-        where: { fyndShipmentId: shipmentId },
+        where: webhookShop
+          ? { shopId: webhookShop.id, fyndShipmentId: shipmentId }
+          : { fyndShipmentId: shipmentId },
         include: { items: true, shop: true },
       })
     : null;
@@ -1024,7 +1026,7 @@ export async function processFyndWebhook(
   if (!returnCase && orderIds.length > 0) {
     for (const oid of orderIds) {
       returnCase = await prisma.returnCase.findFirst({
-        where: { fyndOrderId: oid },
+        where: webhookShop ? { shopId: webhookShop.id, fyndOrderId: oid } : { fyndOrderId: oid },
         include: { items: true, shop: true },
       });
       if (returnCase) break;
@@ -1038,7 +1040,7 @@ export async function processFyndWebhook(
       if (affiliateOrderId) mappingWhere.push({ fyndOrderId: affiliateOrderId });
       if (shipmentId) mappingWhere.push({ fyndShipmentId: shipmentId });
       const mapping = await prisma.fyndOrderMapping.findFirst({
-        where: { OR: mappingWhere },
+        where: webhookShop ? { shopId: webhookShop.id, OR: mappingWhere } : { OR: mappingWhere },
       });
       if (mapping?.shopifyOrderName) {
         returnCase = await prisma.returnCase.findFirst({
@@ -1063,7 +1065,9 @@ export async function processFyndWebhook(
       for (const variant of variants) {
         for (const candidate of [variant, `#${variant}`]) {
           returnCase = await prisma.returnCase.findFirst({
-            where: { shopifyOrderName: candidate },
+            where: webhookShop
+              ? { shopId: webhookShop.id, shopifyOrderName: candidate }
+              : { shopifyOrderName: candidate },
             include: { items: true, shop: true },
           });
           if (returnCase) {
@@ -1084,7 +1088,12 @@ export async function processFyndWebhook(
   if (!returnCase && affiliateOrderId) {
     try {
       returnCase = await prisma.returnCase.findFirst({
-        where: { fyndOrderId: { equals: affiliateOrderId, mode: "insensitive" } },
+        where: webhookShop
+          ? {
+              shopId: webhookShop.id,
+              fyndOrderId: { equals: affiliateOrderId, mode: "insensitive" },
+            }
+          : { fyndOrderId: { equals: affiliateOrderId, mode: "insensitive" } },
         include: { items: true, shop: true },
       });
       if (returnCase)
@@ -1105,7 +1114,12 @@ export async function processFyndWebhook(
         if (!clean) continue;
         for (const candidate of [clean, `#${clean}`]) {
           returnCase = await prisma.returnCase.findFirst({
-            where: { shopifyOrderName: { equals: candidate, mode: "insensitive" } },
+            where: webhookShop
+              ? {
+                  shopId: webhookShop.id,
+                  shopifyOrderName: { equals: candidate, mode: "insensitive" },
+                }
+              : { shopifyOrderName: { equals: candidate, mode: "insensitive" } },
             include: { items: true, shop: true },
           });
           if (returnCase) {
@@ -1131,7 +1145,9 @@ export async function processFyndWebhook(
         if (oid.startsWith("gid://") || /^\d+$/.test(oid)) {
           const gid = oid.startsWith("gid://") ? oid : `gid://shopify/Order/${oid}`;
           returnCase = await prisma.returnCase.findFirst({
-            where: { shopifyOrderId: gid },
+            where: webhookShop
+              ? { shopId: webhookShop.id, shopifyOrderId: gid }
+              : { shopifyOrderId: gid },
             include: { items: true, shop: true },
           });
           if (returnCase) {
@@ -1150,7 +1166,9 @@ export async function processFyndWebhook(
   if (!returnCase) {
     if (webhookShopDomain) {
       try {
-        const shop = await prisma.shop.findUnique({ where: { shopDomain: webhookShopDomain } });
+        const shop =
+          webhookShop ??
+          (await prisma.shop.findUnique({ where: { shopDomain: webhookShopDomain } }));
         if (shop) {
           /* v8 ignore start */
           // defensive: shop-scoped variant matching chain — many fallback combos not exhausted
@@ -1244,8 +1262,10 @@ export async function processFyndWebhook(
   /* v8 ignore stop */
   // Update shipping info from webhook payload (always update, not just first time)
   const shipping = extractShippingFromWebhookPayload(payload);
-  /* v8 ignore start */ // defensive: refundStatus ?? "" fallback for null webhook status; rare edge case
-  const earlyStatusLower = (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  /* v8 ignore start */ // defensive: status fallback for null webhook status; rare edge case
+  const earlyStatusLower = (lifecycleStatus ?? refundStatus ?? "")
+    .toLowerCase()
+    .replace(/\s+/g, "_");
   /* v8 ignore stop */
   const journeyType = detectJourneyType(earlyStatusLower, payload);
   /* v8 ignore start */ // defensive: shipping conditional spreads — each `shipping.X ? {...} : {}` is per-field optional; only one path hit per test
@@ -1464,10 +1484,11 @@ export async function processFyndWebhook(
       await prisma.returnCase
         .update({ where: { id: returnCase.id }, data: { fyndCurrentStatus: statusLower } })
         .catch((err) =>
-          console.warn(
-            "[Fynd webhook] Idempotent fyndCurrentStatus update failed (non-fatal):",
-            { id: returnCase.id, statusLower, err },
-          ),
+          console.warn("[Fynd webhook] Idempotent fyndCurrentStatus update failed (non-fatal):", {
+            id: returnCase.id,
+            statusLower,
+            err,
+          }),
         );
     }
     await prisma.returnEvent.create({
@@ -1805,10 +1826,11 @@ export async function processFyndWebhook(
         await prisma.returnEvent
           .create({ data: { returnCaseId: returnCase.id, source: "fynd_webhook", ...evt } })
           .catch((err) =>
-            console.warn(
-              "[Fynd webhook] returnEvent log failed during refund close (non-fatal):",
-              { id: returnCase.id, evt, err },
-            ),
+            console.warn("[Fynd webhook] returnEvent log failed during refund close (non-fatal):", {
+              id: returnCase.id,
+              evt,
+              err,
+            }),
           );
       },
     });
@@ -2202,6 +2224,7 @@ export async function processFyndWebhook(
     : isKnownJourneyStatus
       ? statusLower
       : (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  const transitionStatus = FYND_JOURNEY_STATUSES.has(lifecycleLower) ? lifecycleLower : statusLower;
   /* v8 ignore stop */
   if (effectiveStatus && shouldAdvanceFyndStatus(returnCase.fyndCurrentStatus, effectiveStatus)) {
     // Forward-only: don't downgrade. Out-of-order webhooks (e.g. an old
@@ -2228,7 +2251,7 @@ export async function processFyndWebhook(
   if (isKnownJourneyStatus) {
     // Return journey: approved → in progress → completed
     if (
-      (statusLower === "return_initiated" || statusLower === "bag_confirmed") &&
+      (transitionStatus === "return_initiated" || transitionStatus === "bag_confirmed") &&
       currentLevel < 2
     ) {
       journeyUpdate.status = "approved";
@@ -2245,7 +2268,7 @@ export async function processFyndWebhook(
         "dp_out_for_pickup",
         "return_bag_out_for_delivery",
         "out_for_delivery_to_store",
-      ].includes(statusLower) &&
+      ].includes(transitionStatus) &&
       currentLevel < 3
     ) {
       /* v8 ignore stop */
@@ -2255,7 +2278,7 @@ export async function processFyndWebhook(
     // defensive: long includes() OR-chain + currentLevel guard; not every value tested
     if (
       ["return_bag_delivered", "return_delivered", "return_accepted", "return_completed"].includes(
-        statusLower,
+        transitionStatus,
       ) &&
       currentLevel < 4
     ) {
@@ -2281,6 +2304,7 @@ export async function processFyndWebhook(
       try {
         const siblings = await prisma.returnCase.findMany({
           where: {
+            shopId: returnCase.shopId,
             fyndShipmentId: returnCase.fyndShipmentId,
             id: { not: returnCase.id },
             status: { notIn: ["rejected", "cancelled"] },
@@ -2305,17 +2329,22 @@ export async function processFyndWebhook(
   }
   /* v8 ignore stop */
 
-  // Log journey status to timeline
-  // defensive: refundStatus-falsy fallback only fires when caller passes empty string
+  // Log journey status to timeline. Lifecycle-only webhooks are the normal Fynd
+  // logistics path, so do not require refundStatus here.
   /* v8 ignore start */
-  if (refundStatus) {
-    const eventLabel = refundStatus.replace(/_/g, " ");
+  const timelineStatus = effectiveStatus || lifecycleLower || statusLower;
+  if (timelineStatus) {
+    const eventLabel = timelineStatus.replace(/_/g, " ");
     await prisma.returnEvent.create({
       data: {
         returnCaseId: returnCase.id,
         source: "fynd_webhook",
         eventType: eventLabel,
-        payloadJson: JSON.stringify({ fynd_status: refundStatus, shipment_id: shipmentId }),
+        payloadJson: JSON.stringify({
+          fynd_status: timelineStatus,
+          fynd_refund_status: refundStatus,
+          shipment_id: shipmentId,
+        }),
       },
     });
   }

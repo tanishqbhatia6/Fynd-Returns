@@ -2437,7 +2437,7 @@
       'portal.status.refundCompleted': 'Refund Completed', 'portal.status.refundProcessing': 'Refund Processing',
       'portal.status.returnApproved': 'Return Approved', 'portal.status.returnDeclined': 'Return Declined',
       'portal.status.returnConfirmed': 'Return Confirmed', 'portal.status.returnAccepted': 'Return Accepted',
-      'portal.status.returnReceived': 'Return Received', 'portal.status.pickedUp': 'Picked Up',
+      'portal.status.returnReceived': 'Return Received', 'portal.status.received': 'Received', 'portal.status.pickedUp': 'Picked Up',
       'portal.status.courierEnRoute': 'Courier En Route', 'portal.status.pickupScheduled': 'Pickup Scheduled',
       'portal.status.refundCompletedDesc': 'Your refund has been processed successfully.',
       'portal.progress.placed': 'Placed', 'portal.progress.confirmed': 'Confirmed', 'portal.progress.shipped': 'Shipped',
@@ -2562,6 +2562,7 @@
       'portal.status.returnApproved': 'Return Approved',
       'portal.status.returnConfirmed': 'Return Confirmed',
       'portal.status.returnReceived': 'Return Received',
+      'portal.status.received': 'Received',
       'portal.status.returningToSeller': 'Returning to seller',
       'portal.status.shipped': 'Shipped',
       'portal.summary.orderSummary': 'Order summary',
@@ -2781,8 +2782,15 @@
         latestJourneyStatus = (journey[journey.length - 1].status || '').toLowerCase().replace(/\s+/g, '_');
       }
 
+      if (s === 'rejected') {
+        return { label: t('portal.status.returnDeclined'), cls: 'error', step: -1, description: t('portal.statusDesc.returnDeclined') };
+      }
+      if (s === 'cancelled') {
+        return { label: t('portal.status.cancelled'), cls: 'error', step: -1, description: t('portal.statusDesc.returnCancelled') };
+      }
+
       // 1. Refund state is the final arbiter
-      if (r === 'refunded' || s === 'completed' && r === 'refunded') {
+      if (r === 'refunded' || (s === 'completed' && r === 'refunded')) {
         return { label: finalDoneLabel, cls: 'ok', step: 6, description: isExchange ? 'Your exchange has been processed.' : t('portal.status.refundCompletedDesc') };
       }
 
@@ -2797,31 +2805,35 @@
       // containing "refund" (including future logistics tokens that aren't true refund
       // states). The webhook also no longer auto-flips refundStatus to "in_progress"
       // for non-refund events.
+      var PRE_REFUND_LOGISTICS_RE = /(^|_)(return_bag_picked|return_bag_in_transit|out_for_delivery_to_store|return_bag_out_for_delivery|return_initiated|return_dp_assigned|out_for_pickup|dp_out_for_pickup|bag_confirmed|return_accepted|return_bag_delivered|return_delivered)(_|$)/;
+      var latestJsIsLogistics = PRE_REFUND_LOGISTICS_RE.test(latestJourneyStatus);
       var isRefundFyndStatus = /(^|_)refund(_|$)/.test(f);
-      if (isRefundFyndStatus || r === 'in_progress') {
+      if (!latestJsIsLogistics && (isRefundFyndStatus || r === 'in_progress')) {
         return { label: finalProcessingLabel, cls: 'processing', step: 5, description: isExchange ? 'Your exchange is being processed.' : t('portal.statusDesc.refundProcessing') };
       }
 
       if (latestJourneyStatus.includes('return_accepted') || journeyHas('return_accepted') || f.includes('return_accepted')) {
         return { label: t('portal.status.returnAccepted'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnAccepted') };
       }
-      if (latestJourneyStatus.includes('return_delivered') || latestJourneyStatus.includes('delivery_done') || latestJourneyStatus.includes('return_bag_delivered') ||
-          f.includes('return_delivered') || f.includes('delivery_done') || f.includes('return_bag_delivered') ||
-          journeyHas('return_delivered') || journeyHas('delivery_done') || journeyHas('return_bag_delivered')) {
+      if (latestJourneyStatus.includes('return_delivered') || latestJourneyStatus.includes('return_bag_delivered') ||
+          f.includes('return_delivered') || f.includes('return_bag_delivered') ||
+          journeyHas('return_delivered') || journeyHas('return_bag_delivered')) {
         return { label: t('portal.status.returnReceived'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnReceived') };
       }
 
-      if (latestJourneyStatus.includes('out_for_delivery') || f.includes('out_for_delivery') || journeyHas('out_for_delivery')) {
+      if (latestJourneyStatus.includes('return_bag_out_for_delivery') || latestJourneyStatus.includes('out_for_delivery_to_store') ||
+          f.includes('return_bag_out_for_delivery') || f.includes('out_for_delivery_to_store') ||
+          journeyHas('return_bag_out_for_delivery') || journeyHas('out_for_delivery_to_store')) {
         return { label: t('portal.status.outForDelivery'), cls: 'transit', step: 4, description: t('portal.statusDesc.outForDeliveryReturn') };
       }
 
-      if (latestJourneyStatus.includes('in_transit') || latestJourneyStatus.includes('return_bag_in_transit') ||
-          f.includes('in_transit') || f.includes('return_bag_in_transit') || journeyHas('in_transit') || journeyHas('return_bag_in_transit')) {
+      if (latestJourneyStatus.includes('return_bag_in_transit') ||
+          f.includes('return_bag_in_transit') || journeyHas('return_bag_in_transit')) {
         return { label: t('portal.status.inTransit'), cls: 'transit', step: 4, description: t('portal.statusDesc.inTransitReturn') };
       }
 
-      if (latestJourneyStatus.includes('bag_picked') || latestJourneyStatus.includes('return_bag_picked') ||
-          f.includes('picked') || journeyHas('bag_picked') || journeyHas('return_bag_picked')) {
+      if (latestJourneyStatus.includes('return_bag_picked') ||
+          f.includes('return_bag_picked') || journeyHas('return_bag_picked')) {
         return { label: t('portal.status.pickedUp'), cls: 'transit', step: 3, description: t('portal.statusDesc.pickedUp') };
       }
 
@@ -2840,12 +2852,6 @@
         return { label: t('portal.status.returnConfirmed'), cls: 'ok', step: 2, description: t('portal.statusDesc.returnConfirmed') };
       }
 
-      if (s === 'rejected') {
-        return { label: t('portal.status.returnDeclined'), cls: 'error', step: -1, description: t('portal.statusDesc.returnDeclined') };
-      }
-      if (s === 'cancelled') {
-        return { label: t('portal.status.cancelled'), cls: 'error', step: -1, description: t('portal.statusDesc.returnCancelled') };
-      }
       if (s === 'completed') {
         return { label: t('portal.status.returnReceived'), cls: 'ok', step: 5, description: t('portal.statusDesc.returnReceivedAwaitingRefund') };
       }
@@ -5441,7 +5447,8 @@
             reasonCode: reason,
             manualItemDescription: itemDesc,
             customerNotes: customNotesRaw || undefined,
-            customerMedia: customerMedia.length > 0 ? customerMedia : undefined
+            customerMedia: customerMedia.length > 0 ? customerMedia : undefined,
+            portalCsrfToken: window.__RPM_PORTAL_CSRF__ || undefined
           })
         }, 30000);
         document.getElementById('create-step2-manual').classList.remove('active');

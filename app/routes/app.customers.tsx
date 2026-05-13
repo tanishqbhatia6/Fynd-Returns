@@ -201,6 +201,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
             customerCity: true,
             customerCountry: true,
             status: true,
+            currency: true,
             refundJson: true,
             refundStatus: true,
             resolutionType: true,
@@ -312,7 +313,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     let totalRefundAmount = 0;
     // Aggregate version of the per-row amountIsEstimate flag.
     let totalRefundAmountIsEstimate = false;
-    let currency = firstOrder?.refundCurrency || "";
+    let currency =
+      firstOrder?.refundCurrency || group.returns.find((r) => r.currency)?.currency || "";
     const statusBreakdown: Record<string, number> = {};
     const resolutionBreakdown: Record<string, number> = {};
     let totalItemCount = 0;
@@ -325,7 +327,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       const orderName = r.shopifyOrderName;
       const shopifyRefund = orderRefundMap.get(orderName);
       let refundAmount = 0;
-      let refundCurrency = "";
+      let refundCurrency = r.currency || "";
       // Track whether the amount came from an authoritative source (Shopify refund
       // record or stored refundJson) or was estimated from item prices. Estimates
       // can drift from actual Shopify refunds (discounts, taxes, partial refunds);
@@ -345,7 +347,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           try {
             const refund = JSON.parse(r.refundJson) as { amount?: string; currency?: string };
             refundAmount = parseFloat(refund.amount ?? "0") || 0;
-            refundCurrency = refund.currency ?? "";
+            refundCurrency = refund.currency ?? refundCurrency;
           } catch {
             /* skip */
           }

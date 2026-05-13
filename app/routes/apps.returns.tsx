@@ -6,6 +6,7 @@ import prisma from "../db.server";
 import { parsePortalTheme, applyPortalThemeToHtml } from "../lib/portal-theme.server";
 import { parsePortalConfig } from "../lib/portal-config.server";
 import { getPortalLabels } from "../lib/portal-i18n";
+import { createPortalCsrfToken } from "../lib/portal-auth.server";
 
 let cachedTemplate: string | null = null;
 
@@ -151,6 +152,7 @@ window.__RPM_LOCALE__=${JSON.stringify(effectiveLocale)};
 window.__RPM_CURRENCY__=${JSON.stringify(shopCurrency)};
 window.__RPM_TIMEZONE__=${JSON.stringify(shopTimezone)};
 window.__RPM_FEATURES__=${escapeJsonInHtml(JSON.stringify(portalFeatureFlags))};
+window.__RPM_PORTAL_CSRF__=${JSON.stringify(createPortalCsrfToken(shopDomain))};
 </script>`;
   const isRtl = ["ar", "he", "fa", "ur"].includes(effectiveLocale.split("-")[0].toLowerCase());
 

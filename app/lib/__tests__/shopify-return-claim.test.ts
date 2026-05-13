@@ -66,7 +66,7 @@ describe("claimAndCreateShopifyReturn — winner path", () => {
     expect(result.claimed).toBe(true);
     expect(createShopifyReturnMock).toHaveBeenCalledOnce();
     // Final writeback puts the real id into shopifyReturnId
-    const writebacks = prismaMock.returnCase.update.mock.calls;
+    const writebacks = prismaMock.returnCase.update.mock.calls as Array<[{ data: unknown }]>;
     expect(writebacks).toHaveLength(1);
     expect(writebacks[0][0].data).toEqual({ shopifyReturnId: "gid://shopify/Return/R1" });
   });
@@ -132,7 +132,7 @@ describe("claimAndCreateShopifyReturn — failure paths", () => {
     expect(result.success).toBe(false);
     expect(result.claimed).toBe(true);
     // Two updateMany calls: 1) claim, 2) revert.
-    const calls = prismaMock.returnCase.updateMany.mock.calls;
+    const calls = prismaMock.returnCase.updateMany.mock.calls as Array<[{ data: unknown }]>;
     expect(calls).toHaveLength(2);
     expect(calls[1][0].data).toEqual({ shopifyReturnId: null });
   });
@@ -152,7 +152,7 @@ describe("claimAndCreateShopifyReturn — failure paths", () => {
       ),
     ).rejects.toThrow("network down");
 
-    const calls = prismaMock.returnCase.updateMany.mock.calls;
+    const calls = prismaMock.returnCase.updateMany.mock.calls as Array<[{ data: unknown }]>;
     expect(calls).toHaveLength(2);
     expect(calls[1][0].data).toEqual({ shopifyReturnId: null });
   });

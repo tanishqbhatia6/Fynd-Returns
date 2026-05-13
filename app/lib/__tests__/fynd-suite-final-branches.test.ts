@@ -1005,12 +1005,13 @@ describe("fynd-status-poll — refreshSingleReturn coverage", () => {
     expect(await refreshSingleReturn("rc-x")).toBe(false);
   });
 
-  it("happy path — backfills forwardAwb (real AWB) and marks completed when delivered", async () => {
+  it("happy path — backfills forwardAwb (real AWB) without completing on forward delivery", async () => {
     prismaMock.returnCase.findUnique.mockResolvedValue({
       id: "rc-x",
       fyndShipmentId: "S1",
       fyndOrderId: "FYORD",
       forwardAwb: null,
+      status: "approved",
       shop: { settings: { fyndCredentials: "x" } },
     });
     createFyndClientOrErrorMock.mockResolvedValue({
@@ -1031,15 +1032,16 @@ describe("fynd-status-poll — refreshSingleReturn coverage", () => {
       data: { forwardAwb?: string; status?: string };
     };
     expect(call.data.forwardAwb).toBe("REALAWB1");
-    expect(call.data.status).toBe("completed");
+    expect(call.data.status).toBeUndefined();
   });
 
   it("does NOT backfill forwardAwb when AWB looks like a Fynd ID", async () => {
     prismaMock.returnCase.findUnique.mockResolvedValue({
       id: "rc-x",
       fyndShipmentId: "S1",
-      fyndOrderId: null,
+      fyndOrderId: "FYORD",
       forwardAwb: null,
+      status: "approved",
       shop: { settings: { fyndCredentials: "x" } },
     });
     createFyndClientOrErrorMock.mockResolvedValue({

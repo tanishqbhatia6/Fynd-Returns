@@ -2,6 +2,9 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { sendApprovalNotification, sendRejectionNotification } from "../lib/notification.server";
+import { createFyndClientOrError } from "../lib/fynd.server";
+import { createReturnOnFynd } from "../lib/fynd-returns.server";
+import { fetchOrder, fetchOrderByOrderNumber, withRestCredentials } from "../lib/shopify-admin.server";
 
 const TERMINAL_STATUSES = ["approved", "rejected", "completed", "cancelled"];
 const MAX_BULK_IDS = 100;
@@ -24,9 +27,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
 
-  const { session } = await authenticate.admin(request);
+  const { session, admin: rawAdmin } = await authenticate.admin(request);
   const shop = await prisma.shop.findUnique({
     where: { shopDomain: session.shop },
+    include: { settings: true },
   });
   if (!shop) {
     return Response.json({ error: "Shop not found" }, { status: 404 });
@@ -90,6 +94,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       id: { in: returnIds },
       shopId: shop.id,
     },
+    include: { items: true },
   });
 
   const foundIds = new Set(returnCases.map((r) => r.id));
@@ -126,12 +131,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
       try {
         // Idempotent transition — same pattern as the single-row approve.
+        const needsFyndSync = !(rc as { isGreenReturn?: boolean }).isGreenReturn && !!shop.settings;
         const upd = await prisma.returnCase.updateMany({
           where: {
             id: rc.id,
             status: { in: ["pending", "initiated", "processing", "in progress"] },
           },
-          data: { status: "approved", resolutionType: bulkResolutionType },
+          data: {
+            status: "approved",
+            resolutionType: bulkResolutionType,
+            ...(needsFyndSync ? { fyndSyncStatus: "pending", fyndSyncError: null } : {}),
+          },
         });
         if (upd.count === 0) {
           results.push({ id: rc.id, success: true, error: "Already approved" });
@@ -148,6 +158,101 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }),
           },
         });
+
+        if (needsFyndSync) {
+          try {
+            const fyndResult = await createFyndClientOrError(shop.settings as never, {
+              requirePlatform: true,
+            });
+            if (fyndResult.ok && "getShipments" in fyndResult.client) {
+              let affiliateOrderId: string | null = null;
+              if (rawAdmin && !rc.shopifyOrderId?.startsWith("manual:")) {
+                try {
+                  const admin = withRestCredentials(
+                    rawAdmin,
+                    session.shop,
+                    session.accessToken ?? "",
+                  );
+                  const order = rc.shopifyOrderId
+                    ? await fetchOrder(admin as never, rc.shopifyOrderId)
+                    : await fetchOrderByOrderNumber(
+                        admin as never,
+                        (rc.shopifyOrderName ?? "").replace(/^#/, "").trim(),
+                      );
+                  affiliateOrderId = order?.affiliateOrderId ?? null;
+                } catch (orderErr) {
+                  console.warn(`[BulkApprove] Order lookup failed for ${rc.id}:`, orderErr);
+                }
+              }
+
+              const rcForSync = { ...rc, status: "approved", resolutionType: bulkResolutionType };
+              const sync = await createReturnOnFynd(fyndResult.client, rcForSync as never, {
+                affiliateOrderId,
+                targetShipmentId: rc.fyndShipmentId || null,
+              });
+              if (sync.success && (sync.fyndReturnId || sync.fyndShipmentId || sync.alreadyExists)) {
+                await prisma.returnCase.update({
+                  where: { id: rc.id },
+                  data: {
+                    fyndSyncStatus: "synced",
+                    fyndSyncError: null,
+                    ...(sync.fyndReturnId && { fyndReturnId: sync.fyndReturnId }),
+                    ...(sync.fyndReturnId && { fyndCurrentStatus: "return_initiated" }),
+                    ...(sync.fyndReturnNo && { fyndReturnNo: sync.fyndReturnNo }),
+                    ...(sync.fyndOrderId && { fyndOrderId: sync.fyndOrderId }),
+                    ...(sync.fyndShipmentId && { fyndShipmentId: sync.fyndShipmentId }),
+                    ...(sync.fyndPayload != null && {
+                      fyndPayloadJson: JSON.stringify(sync.fyndPayload),
+                    }),
+                  },
+                });
+                await prisma.returnEvent.create({
+                  data: {
+                    returnCaseId: rc.id,
+                    source: "admin",
+                    eventType: "fynd_sync",
+                    payloadJson: JSON.stringify({
+                      action: "bulk_approval_sync",
+                      status: "success",
+                      fyndReturnId: sync.fyndReturnId ?? null,
+                      fyndReturnNo: sync.fyndReturnNo ?? null,
+                      fyndOrderId: sync.fyndOrderId ?? null,
+                      fyndShipmentId: sync.fyndShipmentId ?? null,
+                      alreadyExists: sync.alreadyExists ?? false,
+                    }),
+                  },
+                });
+              } else {
+                throw new Error(sync.error || "Fynd sync did not return a return ID");
+              }
+            } else {
+              throw new Error(
+                fyndResult.ok
+                  ? "Fynd return creation requires Platform API."
+                  : fyndResult.error,
+              );
+            }
+          } catch (syncErr) {
+            const error = syncErr instanceof Error ? syncErr.message : String(syncErr);
+            console.warn(`[BulkApprove] Fynd sync failed for ${rc.id}:`, error);
+            await prisma.returnCase.update({
+              where: { id: rc.id },
+              data: { fyndSyncStatus: "failed", fyndSyncError: error },
+            });
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: rc.id,
+                source: "admin",
+                eventType: "fynd_sync_failed",
+                payloadJson: JSON.stringify({
+                  action: "bulk_approval_sync",
+                  status: "failed",
+                  error,
+                }),
+              },
+            });
+          }
+        }
 
         if (rc.customerEmailNorm) {
           try {

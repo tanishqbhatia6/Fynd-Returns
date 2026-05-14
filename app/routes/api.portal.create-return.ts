@@ -19,10 +19,15 @@ import {
 } from "../lib/return-request-id";
 import { nextReturnIdCounter } from "../lib/return-id-counter.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
-import { verifyPortalCsrfToken } from "../lib/portal-auth.server";
+import {
+  hashLookupValue,
+  verifyPortalCsrfToken,
+  verifyPortalToken,
+} from "../lib/portal-auth.server";
 import { evaluateAutoApproveRules, parseAutoApproveRules } from "../lib/auto-approve.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
+import { calculateFraudScore } from "../lib/fraud-detection.server";
 import {
   buildBagIndex,
   distributeBagAllocations,
@@ -119,6 +124,43 @@ async function createDiscountCode(
     };
     /* v8 ignore stop */
   }
+}
+
+type LiveOrderForValidation = Awaited<ReturnType<typeof fetchOrder>>;
+
+function latestDeliveredAtFromOrder(
+  order: { fulfillments?: Array<{ deliveredAt?: string | null }> } | null | undefined,
+): string | null {
+  const delivered = (order?.fulfillments ?? [])
+    .map((f) => f.deliveredAt)
+    .filter((d): d is string => Boolean(d))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return delivered[delivered.length - 1] ?? null;
+}
+
+function returnPolicyDateFromBody(body: Record<string, unknown>): Date {
+  const raw =
+    (body.orderDeliveredAt as string | undefined) ||
+    (body.orderProcessedAt as string | undefined) ||
+    (body.orderCreatedAt as string | undefined);
+  return raw ? new Date(raw) : new Date();
+}
+
+function clientIpFromRequest(request: Request): string | null {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const raw =
+    forwarded?.split(",")[0]?.trim() ||
+    request.headers.get("cf-connecting-ip")?.trim() ||
+    request.headers.get("x-real-ip")?.trim() ||
+    null;
+  return raw && raw.length <= 128 ? raw : null;
+}
+
+function fraudLevel(score: number): "low" | "medium" | "high" | "critical" {
+  if (score >= 81) return "critical";
+  if (score >= 61) return "high";
+  if (score >= 31) return "medium";
+  return "low";
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -299,6 +341,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const shopSession = await prisma.session.findFirst({ where: { shop: shopDomain } });
     const shopAccessToken = shopSession?.accessToken ?? "";
     /* v8 ignore stop */
+
+    if (manualMode && settings?.portalOtpEmailEnabled) {
+      const portalToken = body.portalToken as string | undefined;
+      const portalClaims = portalToken ? verifyPortalToken(portalToken) : null;
+      const expectedHash = customerEmail ? hashLookupValue(customerEmail) : null;
+      if (
+        !portalClaims ||
+        portalClaims.shopId !== shopRecord.id ||
+        portalClaims.lookupType !== "email" ||
+        !expectedHash ||
+        portalClaims.lookupValueHash !== expectedHash
+      ) {
+        return withCors(
+          Response.json(
+            { error: "Please verify your email before submitting a manual return." },
+            { status: 403 },
+          ),
+          request,
+        );
+      }
+    }
 
     // Blocklist check
     if (settings?.blocklistEnabled && settings.id) {
@@ -535,6 +598,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       price?: string;
       imageUrl?: string;
       productTags?: string[];
+      productType?: string | null;
     }> = [];
 
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1045,12 +1109,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     // Server-side fulfillment status validation (non-manual mode)
+    let liveOrderForValidation: LiveOrderForValidation | null = null;
     if (!manualMode && orderId) {
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
-        const liveOrder = await fetchOrder(admin, orderId);
+        const liveOrder = await fetchOrder(admin, effectiveOrderId);
+        liveOrderForValidation = liveOrder;
         if (liveOrder) {
+          if (liveOrder.sourceName) {
+            capturedSourceChannel = normalizeSourceChannel(liveOrder.sourceName);
+          }
           // defensive: nullish-coalesce defaults rarely hit
           /* v8 ignore start */
           const fulfillStatus = (liveOrder.displayFulfillmentStatus ?? "").toUpperCase();
@@ -1237,8 +1306,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
 
     if (!manualMode) {
-      const orderCreatedAt = body.orderCreatedAt as string | undefined;
-      const orderDate = orderCreatedAt ? new Date(orderCreatedAt) : new Date();
+      const orderDate = returnPolicyDateFromBody(body as Record<string, unknown>);
       const windowEnd = new Date(orderDate);
       windowEnd.setDate(windowEnd.getDate() + returnWindowDays);
       if (new Date() > windowEnd) {
@@ -1260,6 +1328,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         price?: string;
         imageUrl?: string;
         productTags?: string[];
+        productType?: string | null;
       }>;
       const validLineIds = new Set(lineItemsWithPrice.map((l) => l.id));
       for (const sel of itemsToCreate) {
@@ -1284,16 +1353,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
         // defensive: optional-chain `?? []` fallbacks on price/tags
         /* v8 ignore start */
-        const price = li?.price ? parseFloat(li.price) : undefined;
-        const tags = li?.productTags ?? [];
+        const liveLineId = lineItemIdMapping.get(sel.lineItemId) ?? sel.lineItemId;
+        const liveLine = liveOrderForValidation?.lineItems?.find((line) => line.id === liveLineId);
+        const price = liveLine?.price
+          ? parseFloat(liveLine.price)
+          : li?.price
+            ? parseFloat(li.price)
+            : undefined;
+        const tags = liveLine?.productTags ?? li?.productTags ?? [];
+        const productType = liveLine?.productType ?? li?.productType ?? null;
+        const sourceChannel =
+          normalizeSourceChannel(liveOrderForValidation?.sourceName ?? null) ??
+          capturedSourceChannel;
+        const liveOrderDate =
+          latestDeliveredAtFromOrder(liveOrderForValidation) ??
+          liveOrderForValidation?.processedAt ??
+          liveOrderForValidation?.createdAt;
         /* v8 ignore stop */
         const eligibility = checkReturnEligibility(settings, {
-          orderDate: orderCreatedAt ? new Date(orderCreatedAt) : new Date(),
+          orderDate: liveOrderDate ? new Date(liveOrderDate) : orderDate,
           productPrice: price,
           productTags: tags.length ? tags : undefined,
+          productType,
           customerCountry: body.shippingCountry,
           customerProvince: body.shippingProvince,
-          sourceChannel: capturedSourceChannel,
+          sourceChannel,
         });
         if (!eligibility.eligible) {
           return withCors(
@@ -1340,9 +1424,92 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
+    let fraudScoreForReturn: Awaited<ReturnType<typeof calculateFraudScore>> | null = null;
+    if (customerEmail) {
+      try {
+        fraudScoreForReturn = await calculateFraudScore(
+          shopRecord.id,
+          customerEmail,
+          returnWindowDays,
+        );
+      } catch (err) {
+        console.warn("[Portal create-return] Fraud scoring failed:", err);
+      }
+    }
+    if (!fraudScoreForReturn) {
+      fraudScoreForReturn = { score: 0, level: "low", factors: [] };
+    }
+    const ipForRisk = clientIpFromRequest(request);
+    let ipMatchedBlockedCustomer = false;
+    if (ipForRisk && settings?.id) {
+      try {
+        ipMatchedBlockedCustomer = Boolean(
+          await prisma.blocklistEntry.findFirst({
+            where: { settingsId: settings.id, type: "ip", value: ipForRisk },
+            select: { id: true },
+          }),
+        );
+      } catch (err) {
+        console.warn("[Portal create-return] IP fraud lookup failed:", err);
+      }
+    }
+    const firstReasonCode = itemsToCreate[0]?.reasonCode?.toLowerCase() ?? "";
+    const genericReasons = new Set([
+      "other",
+      "changed_mind",
+      "change_of_mind",
+      "no_longer_needed",
+      "not_needed",
+      "unknown",
+      "generic",
+    ]);
+    const riskAdditions: Array<{
+      name: string;
+      description: string;
+      score: number;
+      weight: number;
+    }> = [];
+    if (ipMatchedBlockedCustomer) {
+      riskAdditions.push({
+        name: "Blocked IP match",
+        description: "Return was submitted from an IP address on the fraud/blocklist",
+        score: 45,
+        weight: 45,
+      });
+    }
+    if (!customerMediaJson) {
+      riskAdditions.push({
+        name: "No evidence attached",
+        description: "Customer did not attach photos or video evidence",
+        score: 15,
+        weight: 15,
+      });
+    }
+    if (genericReasons.has(firstReasonCode)) {
+      riskAdditions.push({
+        name: "Generic reason",
+        description: `Return reason "${firstReasonCode}" needs manual review when combined with other risk signals`,
+        score: 15,
+        weight: 15,
+      });
+    }
+    if (riskAdditions.length > 0) {
+      const score = Math.min(
+        100,
+        fraudScoreForReturn.score + riskAdditions.reduce((sum, f) => sum + f.score, 0),
+      );
+      fraudScoreForReturn = {
+        score,
+        level: fraudLevel(score),
+        factors: [...fraudScoreForReturn.factors, ...riskAdditions],
+      };
+    }
+    const highFraudManualReview =
+      fraudScoreForReturn?.level === "high" || fraudScoreForReturn?.level === "critical";
+
     // Determine status using auto-approve rules
     let status: string;
-    if (settings?.autoApproveEnabled) {
+    if (settings?.autoApproveEnabled && !highFraudManualReview) {
       const autoRules = parseAutoApproveRules(settings.autoApproveRulesJson);
       if (autoRules.length > 0) {
         // Build context for rule evaluation
@@ -1627,11 +1794,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
         // defensive: orderProcessedAt fallback chain rare in fixtures
         /* v8 ignore start */
-        const orderCreatedAtValue = body.orderCreatedAt
-          ? new Date(body.orderCreatedAt as string)
+        const orderCreatedAtValue = body.orderDeliveredAt
+          ? new Date(body.orderDeliveredAt as string)
           : body.orderProcessedAt
             ? new Date(body.orderProcessedAt as string)
-            : null;
+            : body.orderCreatedAt
+              ? new Date(body.orderCreatedAt as string)
+              : null;
         /* v8 ignore stop */
 
         const rc = await tx.returnCase.create({
@@ -1669,10 +1838,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               return joined ? joined.slice(0, 1000) : null;
             })(),
             createdByChannel: (body.createdByChannel as string) ?? "portal",
-            sourceChannel: capturedSourceChannel,
+            sourceChannel: manualMode ? "manual" : capturedSourceChannel,
             createdByStaff: (body.createdByStaff as string) ?? null,
             crmTicketId: (body.crmTicketId as string) ?? null,
             crmNotes: (body.crmNotes as string) ?? null,
+            fraudRiskScore: fraudScoreForReturn?.score ?? null,
+            fraudRiskLevel: fraudScoreForReturn?.level ?? null,
             isGreenReturn: qualifiesForGreenReturn,
             fyndSyncStatus: status === "approved" && !qualifiesForGreenReturn ? "pending" : null,
             orderProcessedAt: orderCreatedAtValue,
@@ -1783,6 +1954,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           });
         }
 
+        if (highFraudManualReview && fraudScoreForReturn) {
+          await tx.returnEvent.create({
+            data: {
+              returnCaseId: rc.id,
+              source: "system",
+              eventType: "fraud_manual_review",
+              payloadJson: JSON.stringify({
+                score: fraudScoreForReturn.score,
+                level: fraudScoreForReturn.level,
+                factors: fraudScoreForReturn.factors,
+              }),
+            },
+          });
+        }
+
         return { ...rc, returnRequestNo };
       });
     } catch (txErr) {
@@ -1852,6 +2038,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 ...(fyndSync.fyndReturnNo && { fyndReturnNo: fyndSync.fyndReturnNo }),
                 ...(fyndSync.fyndOrderId && { fyndOrderId: fyndSync.fyndOrderId }),
                 ...(fyndSync.fyndShipmentId && { fyndShipmentId: fyndSync.fyndShipmentId }),
+                ...(fyndSync.fyndReturnId && { fyndCurrentStatus: "return_initiated" }),
                 ...(fyndSync.fyndPayload != null && {
                   fyndPayloadJson: JSON.stringify(fyndSync.fyndPayload),
                 }),

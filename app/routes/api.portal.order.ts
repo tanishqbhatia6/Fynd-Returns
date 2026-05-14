@@ -16,6 +16,7 @@ import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { parseJsonArray } from "../lib/parse-json";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createPortalCsrfToken } from "../lib/portal-auth.server";
+import { normalizeSourceChannel } from "../lib/source-channel.server";
 
 /**
  * Fynd statuses that always allow return initiation (regardless of merchant gate settings).
@@ -71,6 +72,19 @@ export function shouldBlockOrderForExistingReturn(
     const ordered = li.quantity ?? 1;
     return returned >= ordered;
   });
+}
+
+function latestDeliveredAt(order: Pick<OrderForPortal, "fulfillments">): string | null {
+  const delivered = (order.fulfillments ?? [])
+    .map((f) => f.deliveredAt)
+    .filter((d): d is string => Boolean(d))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+  return delivered[delivered.length - 1] ?? null;
+}
+
+function returnPolicyAnchor(order: OrderForPortal): Date | undefined {
+  const raw = latestDeliveredAt(order) ?? order.processedAt ?? order.createdAt;
+  return raw ? new Date(raw) : undefined;
 }
 
 /** Type for per-shipment data returned to the portal */
@@ -1322,10 +1336,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       /* v8 ignore start */
       const allProductTags = (order.lineItems ?? []).flatMap((li) => li.productTags ?? []);
       const ruleCheck = checkReturnEligibility(settings, {
-        orderDate: order.createdAt ? new Date(order.createdAt) : undefined,
+        orderDate: returnPolicyAnchor(order),
         productTags: allProductTags,
         customerCountry: order.shippingCountry ?? undefined,
         customerProvince: order.shippingProvince ?? undefined,
+        sourceChannel: normalizeSourceChannel(order.sourceName ?? null),
       });
       /* v8 ignore stop */
       if (!ruleCheck.eligible) {
@@ -1340,18 +1355,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       // defensive: nullish-coalesce defaults rarely null in fixtures
       /* v8 ignore start */
       const itemCheck = checkReturnEligibility(settings, {
-        orderDate: order.createdAt ? new Date(order.createdAt) : undefined,
+        orderDate: returnPolicyAnchor(order),
         productTags: li.productTags ?? [],
+        productType: li.productType ?? null,
         productPrice: li.price ? parseFloat(li.price) : undefined,
         customerCountry: order.shippingCountry ?? undefined,
         customerProvince: order.shippingProvince ?? undefined,
+        sourceChannel: normalizeSourceChannel(order.sourceName ?? null),
       });
       return { lineItemId: li.id, eligible: itemCheck.eligible, reason: itemCheck.reason };
       /* v8 ignore stop */
     });
 
     const returnWindowDays = settings?.returnWindowDays ?? 30;
-    const orderDateStr = order.processedAt ?? order.createdAt;
+    const orderDateStr = latestDeliveredAt(order) ?? order.processedAt ?? order.createdAt;
     let returnDeadline: string | null = null;
     let daysRemaining: number | null = null;
     if (orderDateStr) {

@@ -4227,10 +4227,17 @@
     var _otpLookupType = null;
     var _otpLookupValue = null;
     var _otpResendTimer = null;
+    var _otpPurpose = 'lookup';
+    var _manualOtpVerifiedEmail = null;
+    var _manualOtpPortalToken = null;
 
     function showOtpStep() {
       document.getElementById('step1').classList.remove('active');
       document.getElementById('step2').classList.remove('active');
+      document.getElementById('create-step1').classList.remove('active');
+      document.getElementById('create-step2').classList.remove('active');
+      document.getElementById('create-step2-manual').classList.remove('active');
+      document.getElementById('create-step3').classList.remove('active');
       document.getElementById('step-otp').classList.add('active');
       document.getElementById('otpCodeInput').value = '';
       document.getElementById('otpErr').textContent = '';
@@ -4284,7 +4291,12 @@
       _otpSessionId = null; _otpShop = null; _otpLookupType = null; _otpLookupValue = null;
       clearInterval(_otpResendTimer);
       document.getElementById('step-otp').classList.remove('active');
-      document.getElementById('step1').classList.add('active');
+      if (_otpPurpose === 'manual_return') {
+        document.getElementById('create-step2-manual').classList.add('active');
+      } else {
+        document.getElementById('step1').classList.add('active');
+      }
+      _otpPurpose = 'lookup';
       document.getElementById('otpCodeInput').disabled = false;
       document.getElementById('btnVerifyOtp').disabled = false;
       document.getElementById('otpErr').style.display = '';
@@ -4349,6 +4361,29 @@
 
         // Store portal token for authenticated portal actions (e.g. cancel return)
         window.__RPM_AUTH_TOKEN__ = portalToken;
+
+        if (_otpPurpose === 'manual_return') {
+          _manualOtpVerifiedEmail = (_otpLookupValue || '').toLowerCase().trim();
+          _manualOtpPortalToken = portalToken;
+          try {
+            var manualLookupData = await fetchJson(API + '/lookup', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ shop: _otpShop, lookupType: 'email', lookupValue: _otpLookupValue, sessionId: _otpSessionId, portalToken: portalToken })
+            }, 10000);
+            if (manualLookupData.portalCsrfToken) window.__RPM_PORTAL_CSRF__ = manualLookupData.portalCsrfToken;
+          } catch (_) {
+            errEl.textContent = 'Verification succeeded, but we could not refresh your session. Please try submitting again.';
+            return;
+          }
+          document.getElementById('step-otp').classList.remove('active');
+          document.getElementById('create-step2-manual').classList.add('active');
+          _otpPurpose = 'lookup';
+          setTimeout(function() {
+            document.getElementById('btnSubmitManualReturn').click();
+          }, 0);
+          return;
+        }
 
         // Verification succeeded — call lookup with portalToken to get results
         var activeTabBtnPre2 = document.querySelector('.portal-tab.active');
@@ -5328,6 +5363,13 @@
     function clearDraftForm() {
       try { sessionStorage.removeItem(FORM_AUTOSAVE_KEY); } catch (_) { /* ignore */ }
     }
+    function latestDeliveredAt(fulfillments) {
+      var delivered = (fulfillments || [])
+        .map(function(f) { return f && f.deliveredAt; })
+        .filter(Boolean)
+        .sort(function(a, b) { return new Date(a).getTime() - new Date(b).getTime(); });
+      return delivered.length ? delivered[delivered.length - 1] : null;
+    }
     // Save on input changes (debounced per field — input/change events are cheap).
     AUTOSAVE_FIELD_IDS.forEach(function (id) {
       var el = document.getElementById(id);
@@ -5429,6 +5471,33 @@
       if (!email) { err.textContent = t('portal.error.enterEmail'); return; }
       if (!EMAIL_REGEX.test(email)) { err.textContent = t('portal.error.validEmail'); return; }
       if (!itemDesc || itemDesc.length < 3) { err.textContent = t('portal.error.describeItems'); return; }
+      if (_manualOtpVerifiedEmail !== email.toLowerCase() || !_manualOtpPortalToken) {
+        btn.disabled = true;
+        btn.textContent = 'Sending code...';
+        try {
+          var otpData = await fetchJson(API + '/lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ shop: shop, lookupType: 'email', lookupValue: email })
+          }, 10000);
+          if (otpData && otpData.portalCsrfToken) window.__RPM_PORTAL_CSRF__ = otpData.portalCsrfToken;
+          if (otpData && otpData.requiresOtp) {
+            _otpPurpose = 'manual_return';
+            _otpSessionId = otpData.sessionId;
+            _otpShop = shop;
+            _otpLookupType = 'email';
+            _otpLookupValue = email;
+            showOtpStep();
+            return;
+          }
+        } catch (otpErr) {
+          err.textContent = otpErr.message || 'Could not send verification code. Please try again.';
+          return;
+        } finally {
+          btn.disabled = false;
+          btn.textContent = t('portal.create.submit');
+        }
+      }
       btn.disabled = true;
       btn.textContent = t('portal.create.submitting');
       try {
@@ -5444,10 +5513,12 @@
             shopifyOrderName: '#' + orderNumber,
             customerEmail: email,
             manual: true,
+            sourceChannel: 'manual',
             reasonCode: reason,
             manualItemDescription: itemDesc,
             customerNotes: customNotesRaw || undefined,
             customerMedia: customerMedia.length > 0 ? customerMedia : undefined,
+            portalToken: _manualOtpPortalToken || undefined,
             portalCsrfToken: window.__RPM_PORTAL_CSRF__ || undefined
           })
         }, 30000);
@@ -5509,7 +5580,7 @@
           });
         });
         var lineItemsWithPrice = createOrderData.lineItems.map(function(li) {
-          return { id: li.id, title: li.title, variantTitle: li.variantTitle || null, sku: li.sku || null, price: li.price || li.discountedPrice || null, imageUrl: li.imageUrl || null, productTags: li.productTags || [] };
+          return { id: li.id, title: li.title, variantTitle: li.variantTitle || null, sku: li.sku || null, price: li.price || li.discountedPrice || null, imageUrl: li.imageUrl || null, productTags: li.productTags || [], productType: li.productType || null };
         });
         var data = await fetchJson(API + '/create-return', {
           method: 'POST',
@@ -5524,8 +5595,11 @@
             customerCity: (createOrderData.shippingAddress && createOrderData.shippingAddress.city) || undefined,
             customerCountry: (createOrderData.shippingAddress && (createOrderData.shippingAddress.country || createOrderData.shippingAddress.countryCode)) || undefined,
             orderCreatedAt: createOrderData.createdAt,
+            orderProcessedAt: createOrderData.processedAt || undefined,
+            orderDeliveredAt: latestDeliveredAt(createOrderData.fulfillments) || undefined,
             items: items,
             lineItemsWithPrice: lineItemsWithPrice,
+            lineItemEstimates: createOrderData._lineItemEstimates || undefined,
             acceptOffer: true
           })
         }, 30000);
@@ -5720,7 +5794,8 @@
         sku: li.sku || null,
         price: li.price || li.discountedPrice || null,
         imageUrl: li.imageUrl || null,
-        productTags: li.productTags || []
+        productTags: li.productTags || [],
+        productType: li.productType || null
       }));
 
       var customNotesRaw = document.getElementById('createCustomerNotes').value.trim();
@@ -5781,11 +5856,14 @@
             customerLandmark: document.getElementById('pickupLandmark')?.value?.trim() || undefined,
             customerNotes: customNotesRaw || undefined,
             orderCreatedAt: createOrderData.createdAt,
+            orderProcessedAt: createOrderData.processedAt || undefined,
+            orderDeliveredAt: latestDeliveredAt(createOrderData.fulfillments) || undefined,
             shippingCountry: createOrderData.shippingCountry,
             shippingProvince: createOrderData.shippingProvince,
             currency: createOrderData.currencyCode || window.__RPM_CURRENCY__ || undefined,
             items,
             lineItemsWithPrice,
+            lineItemEstimates: createOrderData._lineItemEstimates || undefined,
             // Forward the Fynd shipment / bag snapshot the customer
             // received during lookup. The backend uses this to
             // distribute the customer's line-level qty across the

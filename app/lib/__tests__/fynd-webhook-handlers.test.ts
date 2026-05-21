@@ -756,7 +756,7 @@ describe("processFyndWebhook — journey status updates", () => {
     expect(downgraded).toBe(false);
   });
 
-  it("propagates fyndCurrentStatus to sibling return cases sharing fyndShipmentId", async () => {
+  it("does not propagate fyndCurrentStatus to sibling return cases sharing fyndShipmentId", async () => {
     const rc = mkReturnCase({ fyndShipmentId: "SHIP-MULTI", fyndCurrentStatus: "bag_confirmed" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([
@@ -764,12 +764,23 @@ describe("processFyndWebhook — journey status updates", () => {
       { id: "rc-3", fyndCurrentStatus: "return_completed" }, // already further along — should NOT advance
     ]);
     await processFyndWebhook(mkPayload({ shipment_id: "SHIP-MULTI", refund_status: "bag_picked" }));
-    expect(prismaMock.returnCase.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: { in: ["rc-2"] } },
-        data: { fyndCurrentStatus: "bag_picked" },
+    expect(prismaMock.returnCase.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("ignores return/refund webhooks when the matched return is still pending", async () => {
+    const rc = mkReturnCase({ status: "pending", fyndShipmentId: "SHIP-MULTI" });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc).mockResolvedValueOnce(null);
+
+    const r = await processFyndWebhook(
+      mkPayload({
+        shipment_id: "SHIP-MULTI",
+        status: "return_bag_delivered",
+        refund_status: undefined,
       }),
     );
+
+    expect(r).toMatchObject({ ok: true, action: "ignored", returnCaseId: rc.id });
+    expect(prismaMock.returnCase.update).not.toHaveBeenCalled();
   });
 
   it("transitions fyndSyncStatus from 'processing' to 'synced' on any webhook receipt", async () => {
@@ -970,7 +981,7 @@ describe("processFyndWebhook — error tolerance", () => {
     expect(r.ok).toBe(true);
   });
 
-  it("survives sibling propagation errors", async () => {
+  it("does not query siblings after updating the matched return journey", async () => {
     const rc = mkReturnCase({ fyndShipmentId: "SHIP-MULTI", fyndCurrentStatus: "bag_confirmed" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     prismaMock.returnCase.findMany.mockRejectedValueOnce(new Error("DB hiccup"));
@@ -978,6 +989,7 @@ describe("processFyndWebhook — error tolerance", () => {
       mkPayload({ shipment_id: "SHIP-MULTI", refund_status: "bag_picked" }),
     );
     expect(r.ok).toBe(true);
+    expect(prismaMock.returnCase.findMany).not.toHaveBeenCalled();
   });
 
   it("survives bag_status_history backfill errors", async () => {

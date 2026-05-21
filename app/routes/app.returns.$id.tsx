@@ -191,6 +191,8 @@ export function computeAdminReturnState(
       6,
       isExchange ? "Exchange has been completed" : "Refund has been processed successfully",
     );
+  if (s === "pending" || s === "initiated")
+    return pending("Awaiting Review", 1, "Return request submitted, pending review");
   // Step 5 (not 6) for "Processing" so the final "Refunded"/"Exchanged" tick stays unfilled
   // until the refund/exchange actually completes. The progress bar marks every step ≤ active
   // as done, so step 6 here would falsely light up the final tick.
@@ -301,8 +303,6 @@ export function computeAdminReturnState(
   if (s === "completed")
     return ok("Return Received", 5, "Return received, awaiting refund processing");
   if (s === "approved") return ok("Approved", 2, "Return approved, awaiting logistics pickup");
-  if (s === "pending" || s === "initiated")
-    return pending("Awaiting Review", 1, "Return request submitted, pending review");
   return {
     label: appStatus || "Unknown",
     cls: "info",
@@ -703,6 +703,17 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     // Fetch full shipment details from Fynd API if data is incomplete.
     // Triggers when: return label URLs are missing OR forward shipment has no courier/status.
     const returnShipmentIdVal = (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId;
+    const returnStatusNorm = (returnCase.status ?? "").toLowerCase().trim();
+    const fyndSyncStatusNorm = (
+      (returnCase as { fyndSyncStatus?: string | null }).fyndSyncStatus ?? ""
+    )
+      .toLowerCase()
+      .trim();
+    const hasFyndLifecycleStarted =
+      ["approved", "processing", "in progress", "completed"].includes(returnStatusNorm) ||
+      ["synced", "processing", "retry_scheduled"].includes(fyndSyncStatusNorm) ||
+      !!(returnCase as { fyndReturnId?: string | null }).fyndReturnId ||
+      !!(returnCase as { fyndReturnNo?: string | null }).fyndReturnNo;
     const hasCompleteReturnLabel =
       returnCase.returnLabelJson &&
       (() => {
@@ -718,7 +729,8 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     );
     const hasCompleteForwardData =
       fwdShipmentPreCheck && fwdShipmentPreCheck.cpName && fwdShipmentPreCheck.shipmentStatus;
-    const needsFyndFetch = !hasCompleteReturnLabel || !hasCompleteForwardData;
+    const needsFyndFetch =
+      hasFyndLifecycleStarted && (!hasCompleteReturnLabel || !hasCompleteForwardData);
     if (returnShipmentIdVal && needsFyndFetch) {
       // The Fynd platform-API shipment refresh path requires `createFyndClientOrError`
       // to resolve `{ ok: true }` with `searchShipmentsByExternalOrderId`. Tests mock

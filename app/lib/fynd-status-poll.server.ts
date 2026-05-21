@@ -242,6 +242,7 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
       include: { shop: { include: { settings: true } } },
     });
     if (!rc?.fyndShipmentId || !rc.shop.settings?.fyndCredentials) return false;
+    if (!["approved", "processing", "in progress", "completed"].includes(rc.status)) return false;
 
     const clientResult = await createFyndClientOrError(rc.shop.settings);
     if (!clientResult.ok || !("getShipments" in clientResult.client)) return false;

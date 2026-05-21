@@ -1223,6 +1223,50 @@ export async function processFyndWebhook(
     return { ok: true, action: "ignored", returnCaseId: undefined };
   }
 
+  if (
+    (eventCategory === "return" || eventCategory === "refund") &&
+    ["pending", "initiated"].includes(returnCase.status.toLowerCase())
+  ) {
+    const alternatives: Array<Record<string, unknown>> = [];
+    if (shipmentId) alternatives.push({ fyndShipmentId: shipmentId });
+    for (const oid of orderIds) alternatives.push({ fyndOrderId: oid });
+    if (affiliateOrderId) alternatives.push({ fyndOrderId: affiliateOrderId });
+    if (returnCase.shopifyOrderName) {
+      alternatives.push({
+        shopifyOrderName: { equals: returnCase.shopifyOrderName, mode: "insensitive" },
+      });
+    }
+
+    const activeReturnCase =
+      alternatives.length > 0
+        ? await prisma.returnCase.findFirst({
+            where: {
+              shopId: returnCase.shopId,
+              status: { notIn: ["pending", "initiated", "rejected", "cancelled"] },
+              OR: alternatives,
+            },
+            include: { items: true, shop: true },
+            orderBy: { updatedAt: "desc" },
+          })
+        : null;
+
+    if (activeReturnCase) {
+      returnCase = activeReturnCase;
+    } else {
+      await logWebhook({
+        shipmentId,
+        orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+        refundStatus,
+        action: "ignored",
+        rawPayload: rawPayload ?? JSON.stringify(payload),
+        ...logEnrichment,
+        returnCaseId: returnCase.id,
+        error: `Ignored ${eventCategory} webhook for return still awaiting merchant approval`,
+      });
+      return { ok: true, action: "ignored", returnCaseId: returnCase.id };
+    }
+  }
+
   const backfillData: Record<string, string> = {};
   if (shipmentId && !returnCase.fyndShipmentId) {
     backfillData.fyndShipmentId = shipmentId;
@@ -2297,35 +2341,9 @@ export async function processFyndWebhook(
       /* non-fatal */
     }
 
-    // Multi-shipment: propagate fyndCurrentStatus to sibling ReturnCases with the same
-    // fyndShipmentId. Use the same precedence rule so siblings already further along
-    // (e.g. they observed `return_completed` earlier) are NOT downgraded.
-    if (returnCase.fyndShipmentId && journeyUpdate.fyndCurrentStatus) {
-      try {
-        const siblings = await prisma.returnCase.findMany({
-          where: {
-            shopId: returnCase.shopId,
-            fyndShipmentId: returnCase.fyndShipmentId,
-            id: { not: returnCase.id },
-            status: { notIn: ["rejected", "cancelled"] },
-          },
-          select: { id: true, fyndCurrentStatus: true },
-        });
-        const advanceIds = siblings
-          .filter((s) =>
-            shouldAdvanceFyndStatus(s.fyndCurrentStatus, journeyUpdate.fyndCurrentStatus),
-          )
-          .map((s) => s.id);
-        if (advanceIds.length > 0) {
-          await prisma.returnCase.updateMany({
-            where: { id: { in: advanceIds } },
-            data: { fyndCurrentStatus: journeyUpdate.fyndCurrentStatus },
-          });
-        }
-      } catch {
-        /* non-fatal */
-      }
-    }
+    // Do not propagate by shipment ID. A single Fynd forward shipment can have
+    // multiple app return cases over time, and shipment-level propagation makes
+    // a new pending return inherit an older return's pickup/refund progress.
   }
   /* v8 ignore stop */
 

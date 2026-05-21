@@ -48,6 +48,21 @@ const journey = (
   }));
 
 describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale refundStatus", () => {
+  it("keeps a newly submitted pending return at Awaiting Review even if stale Fynd progress is present", () => {
+    const state = computeAdminReturnState(
+      "pending",
+      null,
+      journey(
+        { status: "return_bag_picked", time: "2026-05-07T05:50:00Z" },
+        { status: "credit_note_generated", time: "2026-05-07T06:00:00Z" },
+      ),
+      "credit_note_generated",
+    );
+
+    expect(state.label).toBe("Awaiting Review");
+    expect(state.step).toBe(1);
+  });
+
   it('shows "Picked Up" stage 3 when Fynd is at return_bag_picked, even if DB says refundStatus="in_progress"', () => {
     // Production reproduction. Order is genuinely at return_bag_picked.
     // DB has stale refundStatus="in_progress" (e.g. from an earlier

@@ -447,6 +447,7 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({
         shopifyOrderId: "manual:x",
         shopifyOrderName: "#1234",
+        status: "approved",
         fyndShipmentId: "SHIP-A",
         fyndPayloadJson: '{"shipments":[]}',
         returnLabelJson: null,
@@ -496,6 +497,7 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({
         shopifyOrderId: "manual:x",
         shopifyOrderName: "#1234",
+        status: "approved",
         fyndShipmentId: "SHIP-A",
         fyndPayloadJson: '{"shipments":[]}',
       }),
@@ -524,6 +526,7 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({
         shopifyOrderId: "manual:x",
         shopifyOrderName: "#9999",
+        status: "approved",
         fyndShipmentId: "SHIP-B",
         fyndPayloadJson: '{"shipments":[]}',
       }),
@@ -555,6 +558,7 @@ describe("app.returns.$id loader — deep coverage", () => {
       makeReturnCase({
         shopifyOrderId: "manual:x",
         shopifyOrderName: "#5555",
+        status: "approved",
         fyndShipmentId: "SHIP-C",
         fyndPayloadJson: '{"shipments":[]}',
       }),
@@ -583,6 +587,22 @@ describe("app.returns.$id loader — deep coverage", () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "set-1" } });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(
       makeReturnCase({ shopifyOrderId: "manual:x", fyndShipmentId: null }),
+    );
+
+    await runLoader();
+    expect(createFyndClientOrErrorMock).not.toHaveBeenCalled();
+  });
+
+  it("skips Fynd fetch for pending returns so old shipment progress is not imported", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "set-1" } });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(
+      makeReturnCase({
+        shopifyOrderId: "manual:x",
+        shopifyOrderName: "#1234",
+        status: "pending",
+        fyndShipmentId: "SHIP-A",
+        fyndPayloadJson: '{"shipments":[]}',
+      }),
     );
 
     await runLoader();

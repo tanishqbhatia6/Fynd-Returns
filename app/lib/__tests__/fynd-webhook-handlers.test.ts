@@ -34,6 +34,9 @@ const {
       update: vi.fn().mockResolvedValue({}),
       updateMany: vi.fn().mockResolvedValue({}),
     },
+    returnItem: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     returnEvent: {
       create: vi.fn().mockResolvedValue({}),
       findMany: vi.fn().mockResolvedValue([]),
@@ -111,6 +114,7 @@ type ReturnCaseFixture = {
     qty: number;
     sku?: string | null;
     title?: string | null;
+    fyndBagId?: string | null;
   }>;
   shop: { id: string; shopDomain: string };
 };
@@ -162,6 +166,7 @@ beforeEach(() => {
   prismaMock.returnCase.findMany.mockResolvedValue([]);
   prismaMock.returnCase.update.mockResolvedValue({});
   prismaMock.returnCase.updateMany.mockResolvedValue({});
+  prismaMock.returnItem.findFirst.mockResolvedValue(null);
   prismaMock.returnEvent.create.mockResolvedValue({});
   prismaMock.returnEvent.findMany.mockResolvedValue([]);
   prismaMock.fyndOrderMapping.findFirst.mockResolvedValue(null);
@@ -255,6 +260,49 @@ describe("processFyndWebhook — identifier handling", () => {
     );
     expect(prismaMock.fyndOrderMapping.findFirst).toHaveBeenCalled();
     expect(r.ok).toBe(true);
+  });
+
+  it("matches by Fynd bag id before falling back to affiliate order name", async () => {
+    const rc = mkReturnCase({
+      id: "rc-bag",
+      shopifyOrderName: "#FYNDSHOPIFYX14392",
+      fyndShipmentId: "17794341314121464691",
+      items: [
+        {
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          sku: "RETURN3",
+          fyndBagId: "3874130",
+        },
+      ],
+    });
+    prismaMock.returnCase.findFirst.mockResolvedValue(null);
+    prismaMock.fyndOrderMapping.findFirst.mockResolvedValueOnce(null);
+    prismaMock.returnItem.findFirst.mockResolvedValueOnce({
+      id: "ri-bag",
+      fyndBagId: "3874130",
+      returnCase: rc,
+    });
+
+    const r = await processFyndWebhook(
+      mkPayload({
+        shipment_id: "17794342773411572612",
+        order_id: "FYMP6A100292011ECEC8",
+        affiliate_order_id: "FYNDSHOPIFYX14394",
+        status: "return_initiated",
+        refund_status: undefined,
+        bags: [{ bag_id: 3874130, affiliate_bag_details: { affiliate_bag_id: "3874130" } }],
+      }),
+    );
+
+    expect(r).toMatchObject({ ok: true, returnCaseId: "rc-bag" });
+    expect(prismaMock.returnItem.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          fyndBagId: { in: ["3874130"] },
+        }),
+      }),
+    );
   });
 
   it("uses shopifyOrderName variant matching as strategy 4", async () => {

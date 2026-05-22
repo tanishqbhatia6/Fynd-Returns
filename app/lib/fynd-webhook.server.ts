@@ -466,6 +466,41 @@ function extractOrderIdentifiers(payload: FyndWebhookPayload): string[] {
   return [...ids];
 }
 
+function extractBagIds(payload: FyndWebhookPayload): string[] {
+  const ids = new Set<string>();
+  const add = (value: unknown) => {
+    const id = coerceStr(value);
+    if (id) ids.add(id);
+  };
+
+  const record = payload as Record<string, unknown>;
+  const shipmentStatus =
+    record.shipment_status && typeof record.shipment_status === "object"
+      ? (record.shipment_status as Record<string, unknown>)
+      : null;
+  const bagList = shipmentStatus?.bag_list;
+  if (Array.isArray(bagList)) {
+    for (const bagId of bagList) add(bagId);
+  }
+
+  const originalBagList = record.original_bag_list;
+  if (Array.isArray(originalBagList)) {
+    for (const bagId of originalBagList) add(bagId);
+  }
+
+  for (const bag of payload.bags ?? []) {
+    if (!bag || typeof bag !== "object") continue;
+    const bagRecord = bag as Record<string, unknown>;
+    add(bagRecord.bag_id ?? bagRecord.bagId);
+    const affiliateBagDetails = bagRecord.affiliate_bag_details as
+      | Record<string, unknown>
+      | undefined;
+    add(affiliateBagDetails?.affiliate_bag_id);
+  }
+
+  return [...ids];
+}
+
 /** Extract shop domain from webhook payload (bags[0].affiliate_bag_details.affiliate_meta.shop_domain) */
 function extractShopDomain(payload: FyndWebhookPayload): string | null {
   if (typeof payload._shop_domain === "string" && payload._shop_domain.includes("."))
@@ -961,6 +996,7 @@ export async function processFyndWebhook(
   const orderIds = extractOrderIdentifiers(payload);
   const affiliateOrderId = extractAffiliateOrderId(payload);
   const orderId = extractOrderId(payload);
+  const bagIds = extractBagIds(payload);
 
   // Pre-compute enrichment fields for webhook logging
   const customer = extractCustomerFromWebhookPayload(payload);
@@ -1058,7 +1094,34 @@ export async function processFyndWebhook(
     }
   }
 
-  // Strategy 4: Match by shopifyOrderName via Fynd prefix stripping
+  // Strategy 4: Match by Fynd bag id. Some Fynd return webhooks send the
+  // reverse shipment id plus an affiliate_order_id that differs from the
+  // Shopify order name we stored at return creation time. The bag id is the
+  // most specific identifier for a partial return and prevents linking a
+  // same-order webhook to the wrong ReturnCase.
+  if (!returnCase && bagIds.length > 0) {
+    try {
+      const matchedItem = await prisma.returnItem.findFirst({
+        where: {
+          fyndBagId: { in: bagIds },
+          returnCase: {
+            ...(webhookShop ? { shopId: webhookShop.id } : {}),
+            status: { notIn: ["rejected", "cancelled"] },
+          },
+        },
+        include: { returnCase: { include: { items: true, shop: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      if (matchedItem?.returnCase) {
+        returnCase = matchedItem.returnCase;
+        console.log(`[Fynd webhook] Matched via fyndBagId="${matchedItem.fyndBagId}"`);
+      }
+    } catch {
+      /* non-fatal */
+    }
+  }
+
+  // Strategy 5: Match by shopifyOrderName via Fynd prefix stripping
   if (!returnCase && affiliateOrderId) {
     try {
       const variants = extractShopifyOrderNumberVariants(affiliateOrderId);
@@ -1084,7 +1147,7 @@ export async function processFyndWebhook(
     }
   }
 
-  // Strategy 5: Case-insensitive fyndOrderId match (legacy data)
+  // Strategy 6: Case-insensitive fyndOrderId match (legacy data)
   if (!returnCase && affiliateOrderId) {
     try {
       returnCase = await prisma.returnCase.findFirst({
@@ -1105,7 +1168,7 @@ export async function processFyndWebhook(
     }
   }
 
-  // Strategy 6: Direct shopifyOrderName match using all order identifiers
+  // Strategy 7: Direct shopifyOrderName match using all order identifiers
   // Fynd often sends the Shopify order name as affiliate_order_id or external_order_id
   if (!returnCase && orderIds.length > 0) {
     try {
@@ -1136,7 +1199,7 @@ export async function processFyndWebhook(
     }
   }
 
-  // Strategy 7: Match by shopifyOrderId when Fynd sends a Shopify GID or numeric ID
+  // Strategy 8: Match by shopifyOrderId when Fynd sends a Shopify GID or numeric ID
   /* v8 ignore start */
   // defensive: shopifyOrderId match fallback chain — multiple short-circuits not exhausted
   if (!returnCase && orderIds.length > 0) {
@@ -1162,7 +1225,7 @@ export async function processFyndWebhook(
   }
   /* v8 ignore stop */
 
-  // Strategy 8: Shop-scoped match using shop_domain from payload + order identifiers
+  // Strategy 9: Shop-scoped match using shop_domain from payload + order identifiers
   if (!returnCase) {
     if (webhookShopDomain) {
       try {

@@ -35,7 +35,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 vi.mock("../../db.server", () => ({ default: {} }));
 
 import { vi } from "vitest";
-import { computeAdminReturnState } from "../app.returns.$id";
+import { computeAdminReturnState, getAdminEffectiveFyndStatus } from "../app.returns.$id";
 
 const journey = (
   ...statuses: Array<{ status: string; time?: string; displayName?: string; journeyType?: string }>
@@ -48,6 +48,30 @@ const journey = (
   }));
 
 describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale refundStatus", () => {
+  it("does not fall back to order-level Fynd status when a bag-scoped partial return has no scoped journey", () => {
+    const status = getAdminEffectiveFyndStatus({
+      returnItems: [{ fyndBagId: "BAG-NEW" }],
+      latestScopedReturnJourneyStatus: null,
+      fyndTrackingStatus: "return_dp_assigned",
+      fyndCurrentStatus: "return_dp_assigned",
+    });
+
+    expect(status).toBeNull();
+    expect(computeAdminReturnState("approved", null, [], status).label).toBe("Approved");
+  });
+
+  it("still uses scoped journey status for a bag-scoped partial return when present", () => {
+    const status = getAdminEffectiveFyndStatus({
+      returnItems: [{ fyndBagId: "BAG-NEW" }],
+      latestScopedReturnJourneyStatus: "return_initiated",
+      fyndTrackingStatus: "return_dp_assigned",
+      fyndCurrentStatus: "return_dp_assigned",
+    });
+
+    expect(status).toBe("return_initiated");
+    expect(computeAdminReturnState("approved", null, [], status).label).toBe("Return Confirmed");
+  });
+
   it("keeps a newly submitted pending return at Awaiting Review even if stale Fynd progress is present", () => {
     const state = computeAdminReturnState(
       "pending",

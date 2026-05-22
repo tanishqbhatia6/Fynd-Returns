@@ -316,6 +316,23 @@ export function computeAdminReturnState(
   /* v8 ignore stop */
 }
 
+export function getAdminEffectiveFyndStatus(args: {
+  returnItems?: Array<{ fyndBagId?: string | null }> | null;
+  latestScopedReturnJourneyStatus?: string | null;
+  fyndTrackingStatus?: string | null;
+  fyndCurrentStatus?: string | null;
+}): string | null {
+  const hasBagScope = (args.returnItems ?? []).some((item) => String(item.fyndBagId ?? "").trim());
+  if (args.latestScopedReturnJourneyStatus) return args.latestScopedReturnJourneyStatus;
+
+  // If this return has bag IDs, order-level shipment status is not safe.
+  // Partial returns on the same order can share/stale shipment IDs, so falling back
+  // to the first shipment status can show another article's progress.
+  if (hasBagScope) return null;
+
+  return args.fyndTrackingStatus || args.fyndCurrentStatus || null;
+}
+
 function humanizeFyndSku(raw: string | null | undefined): string {
   // Defensive guard. Only callsite (L1447) always passes a string due to the
   // `|| "Item"` fallback chain, so the non-string fall-through is unreachable
@@ -1734,8 +1751,12 @@ export default function ReturnDetail() {
   const fyndTrackingStatus = fyndPayloadInfo?.shipments?.[0]
     ? safeStr((fyndPayloadInfo.shipments[0] as { shipmentStatus?: string }).shipmentStatus)
     : null;
-  // Use fyndCurrentStatus (directly updated by webhook) as fallback when parsed payload has no shipment status
-  const effectiveFyndStatus = latestScopedReturnJourneyStatus || fyndTrackingStatus || fyndCurrentStatus;
+  const effectiveFyndStatus = getAdminEffectiveFyndStatus({
+    returnItems: (returnCase.items ?? []) as Array<{ fyndBagId?: string | null }>,
+    latestScopedReturnJourneyStatus,
+    fyndTrackingStatus,
+    fyndCurrentStatus,
+  });
   const unifiedState = computeAdminReturnState(
     returnCase.status,
     returnCase.refundStatus,

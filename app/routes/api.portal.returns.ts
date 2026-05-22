@@ -4,6 +4,7 @@ import { verifyPortalToken } from "../lib/portal-auth.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { getPortalLabels } from "../lib/portal-i18n";
 import { extractFyndJourney } from "../lib/fynd-payload.server";
+import { buildFyndJourneyFilterForReturn } from "../lib/fynd-return-scope.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -84,10 +85,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     const isApprovedOrCompleted = ["approved", "completed"].includes(r.status.toLowerCase());
+    const journeyFilter = buildFyndJourneyFilterForReturn(r);
 
     // Extract Fynd journey for portal tracking display
     const returnJourney = isApprovedOrCompleted
-      ? extractFyndJourney((r as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
+      ? journeyFilter
+        ? extractFyndJourney(
+            (r as { fyndPayloadJson?: string | null }).fyndPayloadJson,
+            "return",
+            journeyFilter,
+          )
+        : extractFyndJourney((r as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
       : null;
 
     return {

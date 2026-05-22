@@ -8,6 +8,10 @@ import {
   getPickupAddressFromFyndPayload,
 } from "../lib/fynd-payload.server";
 import {
+  buildFyndJourneyFilterForReturn,
+  fyndObjectMatchesReturnScope,
+} from "../lib/fynd-return-scope.server";
+import {
   createFyndClientOrError,
   type FyndClientResult,
   type ShipmentsListingSearchType,
@@ -185,7 +189,13 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       const ids = returnIds.slice(0, 10).map(String);
       const returnsRaw = await prisma.returnCase.findMany({
         where: { id: { in: ids }, shopId: shopRecord.id },
-        select: { id: true, shopifyOrderName: true, fyndShipmentId: true, fyndPayloadJson: true },
+        select: {
+          id: true,
+          shopifyOrderName: true,
+          fyndShipmentId: true,
+          fyndPayloadJson: true,
+          items: { select: { fyndBagId: true, fyndShipmentId: true } },
+        },
       });
 
       await Promise.all(
@@ -205,18 +215,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               return jt === "return" || jt.includes("return");
             });
             const candidateItems = returnItems.length > 0 ? returnItems : items;
-            // Try exact match by stored fyndShipmentId first.
-            // Fall back to the first return-type shipment when the stored ID is stale/wrong (e.g. bag ID).
+            const journeyFilter = buildFyndJourneyFilterForReturn(r);
+            // Match by bag IDs first. Shipment IDs can be shared/stale for multiple
+            // partial returns from the same order, so they are only a fallback.
             const exactMatch = (candidateItems as Record<string, unknown>[]).find(
               (s) => String(s.shipment_id || s.id) === String(r.fyndShipmentId),
             );
+            const scopedMatch = (candidateItems as Record<string, unknown>[]).find((s) =>
+              fyndObjectMatchesReturnScope(s, journeyFilter),
+            );
+            const hasBagFilter = (journeyFilter?.bagIds ?? []).some((id) =>
+              String(id ?? "").trim(),
+            );
             const matched =
-              exactMatch ??
-              (candidateItems.length > 0 ? (candidateItems[0] as Record<string, unknown>) : null);
+              scopedMatch ??
+              (!hasBagFilter ? exactMatch : null) ??
+              (!hasBagFilter && candidateItems.length > 0
+                ? (candidateItems[0] as Record<string, unknown>)
+                : null);
             if (matched) {
               const payload = JSON.stringify([matched]);
-              const trackingInfo = getTrackingInfoFromFyndPayload(payload);
-              const returnJourney = extractFyndJourney(payload, "return");
+              const trackingInfo = getTrackingInfoFromFyndPayload(payload, journeyFilter);
+              const returnJourney = extractFyndJourney(payload, "return", journeyFilter);
               const pickupAddress = getPickupAddressFromFyndPayload(payload);
               // Always use the live shipment_id from Fynd — overrides any stale bag ID in DB.
               const liveShipmentId =

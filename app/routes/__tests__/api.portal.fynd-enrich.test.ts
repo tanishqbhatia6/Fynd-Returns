@@ -324,4 +324,34 @@ describe("returns enrichment (type=returns)", () => {
     const body = await res.json();
     expect(body.returnEnrichments["r-1"].fyndShipmentId).toBe("SH-LIVE");
   });
+
+  it("uses bag scope instead of a stale exact shipment when enriching partial returns", async () => {
+    const searchMock = vi.fn().mockResolvedValue({
+      items: [
+        { shipment_id: "RET-OLD", journey_type: "return", bags: [{ bag_id: "BAG-OLD" }] },
+        { shipment_id: "RET-NEW", journey_type: "return", bags: [{ bag_id: "BAG-NEW" }] },
+      ],
+    });
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { searchShipmentsByExternalOrderId: searchMock },
+    });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([
+      {
+        id: "r-1",
+        shopifyOrderName: "#1001",
+        fyndShipmentId: "RET-OLD",
+        fyndPayloadJson: null,
+        items: [{ fyndBagId: "BAG-NEW", fyndShipmentId: "RET-OLD" }],
+      },
+    ]);
+
+    const res = await action({
+      request: jsonReq({ shop: "store", type: "returns", returnIds: ["r-1"] }),
+      params: {},
+      context: {},
+    } as never);
+    const body = await res.json();
+    expect(body.returnEnrichments["r-1"].fyndShipmentId).toBe("RET-NEW");
+  });
 });

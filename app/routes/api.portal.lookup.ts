@@ -10,6 +10,7 @@ import {
   parseFyndOrderDetailsForTab,
   type FyndOrderDetailsTab,
 } from "../lib/fynd-payload.server";
+import { buildFyndJourneyFilterForReturn } from "../lib/fynd-return-scope.server";
 import { createFyndClientOrError, type ShipmentsListingSearchType } from "../lib/fynd.server";
 import {
   fetchOrdersByFilter,
@@ -334,9 +335,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // Live Fynd enrichment happens via separate /api/portal/fynd-enrich endpoint.
     const returns = returnsRaw.map((r) => {
       const payload = (r as { fyndPayloadJson?: string | null }).fyndPayloadJson;
-      const trackingInfo = getTrackingInfoFromFyndPayload(payload);
+      const fyndJourneyFilter = buildFyndJourneyFilterForReturn(r);
+      const trackingInfo = fyndJourneyFilter
+        ? getTrackingInfoFromFyndPayload(payload, fyndJourneyFilter)
+        : getTrackingInfoFromFyndPayload(payload);
       /* v8 ignore start - defensive payload-truthy ternary */
-      const returnJourney = payload ? extractFyndJourney(payload, "return") : [];
+      const returnJourney = payload
+        ? fyndJourneyFilter
+          ? extractFyndJourney(payload, "return", fyndJourneyFilter)
+          : extractFyndJourney(payload, "return")
+        : [];
       /* v8 ignore stop */
       const pickupAddress = getPickupAddressFromFyndPayload(payload);
 

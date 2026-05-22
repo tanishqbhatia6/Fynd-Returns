@@ -180,6 +180,41 @@ describe("GET /api/portal/track", () => {
     expect(extractJourneyMock).toHaveBeenCalled();
   });
 
+  it("scopes approved return journey by the current return item bag", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce({
+      returnRequestNo: "R2",
+      customerEmailNorm: "user@example.com",
+      customerPhoneNorm: null,
+      status: "approved",
+      refundStatus: null,
+      resolutionType: "refund",
+      fyndReturnNo: null,
+      returnAwb: null,
+      notesForCustomer: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      fyndShipmentId: "SHIP-1",
+      fyndPayloadJson: '{"payload":{}}',
+      items: [{ fyndBagId: "BAG-NEW", fyndShipmentId: "SHIP-1" }],
+    });
+
+    await loader({
+      request: mkRequest("shop=x&returnRequestNo=R2&email=user@example.com"),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(extractJourneyMock).toHaveBeenCalledWith(
+      '{"payload":{}}',
+      "return",
+      expect.objectContaining({
+        bagIds: ["BAG-NEW"],
+        shipmentIds: ["SHIP-1", "SHIP-1"],
+      }),
+    );
+  });
+
   it("normalises non-dotted shop to .myshopify.com", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(null);
     await loader({

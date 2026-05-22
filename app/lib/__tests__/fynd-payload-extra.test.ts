@@ -560,6 +560,31 @@ describe("extractFyndJourney — additional cases", () => {
     const scoped = extractFyndJourney(p, "return", { bagIds: ["BAG-NEW"] });
     expect(scoped.map((s) => s.status)).toEqual(["return_initiated"]);
   });
+
+  it("filters tracking info by bag id when a return payload contains multiple return shipments", () => {
+    const p = JSON.stringify({
+      items: [
+        {
+          shipment_id: "RET-OLD",
+          journey_type: "return",
+          shipment_status: "return_accepted",
+          dp_details: { awb_no: "OLD-AWB" },
+          bags: [{ bag_id: "BAG-OLD" }],
+        },
+        {
+          shipment_id: "RET-NEW",
+          journey_type: "return",
+          shipment_status: "return_initiated",
+          dp_details: { awb_no: "NEW-AWB" },
+          bags: [{ bag_id: "BAG-NEW" }],
+        },
+      ],
+    });
+
+    const scoped = getTrackingInfoFromFyndPayload(p, { bagIds: ["BAG-NEW"] });
+    expect(scoped?.awbNo).toBe("NEW-AWB");
+    expect(scoped?.fyndStatus).toBe("return_initiated");
+  });
 });
 
 describe("getTrackingInfoFromFyndPayload — non-string payload", () => {

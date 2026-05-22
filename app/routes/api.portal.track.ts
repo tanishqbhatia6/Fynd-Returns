@@ -13,6 +13,7 @@ import prisma from "../db.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { checkRateLimit, rateLimitResponse } from "../lib/rate-limit.server";
 import { extractFyndJourney } from "../lib/fynd-payload.server";
+import { buildFyndJourneyFilterForReturn } from "../lib/fynd-return-scope.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   if (request.method === "OPTIONS") {
@@ -55,6 +56,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shopId: shopRecord.id,
       returnRequestNo: { equals: returnRequestNo, mode: "insensitive" },
     },
+    include: { items: true },
   });
 
   if (!rc) {
@@ -74,8 +76,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shouldShowReturnJourney = ["approved", "processing", "in progress", "completed"].includes(
     rc.status.toLowerCase(),
   );
+  const journeyFilter = buildFyndJourneyFilterForReturn(rc);
   const returnJourney = shouldShowReturnJourney
-    ? extractFyndJourney((rc as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
+    ? journeyFilter
+      ? extractFyndJourney(
+          (rc as { fyndPayloadJson?: string | null }).fyndPayloadJson,
+          "return",
+          journeyFilter,
+        )
+      : extractFyndJourney((rc as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
     : null;
 
   return withCors(

@@ -525,6 +525,41 @@ describe("extractFyndJourney — additional cases", () => {
     const ordered = extractFyndJourney(p, "forward").map((s) => s.status);
     expect(ordered).toEqual(["first", "second", "third"]);
   });
+
+  it("filters return journey by bag id so one order's old return does not leak into a new return", () => {
+    const p = JSON.stringify({
+      shipments: [
+        {
+          shipment_id: "SHIP-1",
+          bags: [
+            {
+              bag_id: "BAG-OLD",
+              bag_status: [
+                {
+                  status: "return_accepted",
+                  bag_state_mapper: { display_name: "Return Accepted", journey_type: "return" },
+                  updated_at: "2026-05-01T10:00:00Z",
+                },
+              ],
+            },
+            {
+              bag_id: "BAG-NEW",
+              bag_status: [
+                {
+                  status: "return_initiated",
+                  bag_state_mapper: { display_name: "Return Initiated", journey_type: "return" },
+                  updated_at: "2026-05-02T10:00:00Z",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const scoped = extractFyndJourney(p, "return", { bagIds: ["BAG-NEW"] });
+    expect(scoped.map((s) => s.status)).toEqual(["return_initiated"]);
+  });
 });
 
 describe("getTrackingInfoFromFyndPayload — non-string payload", () => {

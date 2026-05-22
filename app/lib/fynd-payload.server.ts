@@ -1316,6 +1316,11 @@ export type FyndJourneyStep = {
   journeyType: "forward" | "return";
 };
 
+export type FyndJourneyFilter = {
+  bagIds?: Array<string | null | undefined>;
+  shipmentIds?: Array<string | null | undefined>;
+};
+
 /**
  * Extract shipment journey (forward or return) from Fynd payload.
  * Reads bag_status from bags, filters by journey_type, sorts by updated_at.
@@ -1323,6 +1328,7 @@ export type FyndJourneyStep = {
 export function extractFyndJourney(
   fyndPayloadJson: string | null | undefined,
   journeyType: "forward" | "return",
+  filter?: FyndJourneyFilter,
 ): FyndJourneyStep[] {
   if (!fyndPayloadJson || typeof fyndPayloadJson !== "string") return [];
   try {
@@ -1333,6 +1339,12 @@ export function extractFyndJourney(
     const list = normalizeFyndPayload(payload);
     const steps: FyndJourneyStep[] = [];
     const seen = new Set<string>();
+    const wantedBagIds = new Set(
+      (filter?.bagIds ?? []).map((id) => String(id ?? "").trim()).filter(Boolean),
+    );
+    const wantedShipmentIds = new Set(
+      (filter?.shipmentIds ?? []).map((id) => String(id ?? "").trim()).filter(Boolean),
+    );
 
     // Heuristic when bag_state_mapper.journey_type is missing: classify
     // by the status token itself. This prevents forward-shipping events
@@ -1348,7 +1360,45 @@ export function extractFyndJourney(
         s,
       );
 
-    const processBag = (bag: Record<string, unknown>) => {
+    const bagMatchesFilter = (
+      bag: Record<string, unknown>,
+      parentShipment?: Record<string, unknown>,
+    ) => {
+      if (wantedBagIds.size === 0 && wantedShipmentIds.size === 0) return true;
+      const affiliateBagDetails =
+        bag.affiliate_bag_details != null && typeof bag.affiliate_bag_details === "object"
+          ? (bag.affiliate_bag_details as Record<string, unknown>)
+          : null;
+      const bagCandidates = [
+        bag.bag_id,
+        bag.bagId,
+        bag.id,
+        bag.identifier,
+        bag.affiliate_bag_id,
+        affiliateBagDetails?.affiliate_bag_id,
+        affiliateBagDetails?.bag_id,
+      ]
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean);
+      if (bagCandidates.some((id) => wantedBagIds.has(id))) return true;
+
+      const shipmentCandidates = [
+        bag.shipment_id,
+        bag.shipmentId,
+        bag.channel_shipment_id,
+        parentShipment?.shipment_id,
+        parentShipment?.shipmentId,
+        parentShipment?.channel_shipment_id,
+        parentShipment?.id,
+        parentShipment?.identifier,
+      ]
+        .map((id) => String(id ?? "").trim())
+        .filter(Boolean);
+      return shipmentCandidates.some((id) => wantedShipmentIds.has(id));
+    };
+
+    const processBag = (bag: Record<string, unknown>, parentShipment?: Record<string, unknown>) => {
+      if (!bagMatchesFilter(bag, parentShipment)) return;
       const bagStatusList = (bag.bag_status ?? bag.status_updates ?? []) as Record<
         string,
         unknown
@@ -1400,7 +1450,7 @@ export function extractFyndJourney(
       const bags = (raw.bags ?? raw.shipments ?? []) as Record<string, unknown>[];
       /* v8 ignore stop */
       for (const bag of bags) {
-        if (bag && typeof bag === "object") processBag(bag);
+        if (bag && typeof bag === "object") processBag(bag, raw);
       }
     }
     /* v8 ignore stop */

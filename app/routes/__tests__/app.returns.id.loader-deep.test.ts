@@ -1158,7 +1158,21 @@ describe("app.returns.$id loader — deep coverage", () => {
   it("propagates pickupAddress + returnJourney from Fynd helpers", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "set-1" } });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(
-      makeReturnCase({ shopifyOrderId: "manual:x", fyndPayloadJson: '{"shipments":[]}' }),
+      makeReturnCase({
+        shopifyOrderId: "manual:x",
+        fyndShipmentId: "SHIP-1",
+        fyndPayloadJson: '{"shipments":[]}',
+        items: [
+          {
+            id: "ri-1",
+            returnCaseId: "rc-1",
+            shopifyLineItemId: "li-1",
+            qty: 1,
+            fyndShipmentId: "SHIP-1",
+            fyndBagId: "BAG-NEW",
+          },
+        ],
+      }),
     );
     getPickupAddressFromFyndPayloadMock.mockReturnValueOnce({ city: "Pune", country: "IN" });
     extractFyndJourneyMock.mockReturnValueOnce([
@@ -1168,6 +1182,14 @@ describe("app.returns.$id loader — deep coverage", () => {
     const data = await runLoader();
     expect(data.pickupAddress).toEqual({ city: "Pune", country: "IN" });
     expect(data.returnJourney).toHaveLength(1);
+    expect(extractFyndJourneyMock).toHaveBeenCalledWith(
+      '{"shipments":[]}',
+      "return",
+      expect.objectContaining({
+        bagIds: ["BAG-NEW"],
+        shipmentIds: ["SHIP-1", "SHIP-1"],
+      }),
+    );
   });
 
   it("uses fyndPayloadInfo from parseFyndPayloadForDisplay", async () => {

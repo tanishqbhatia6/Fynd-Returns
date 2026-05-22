@@ -108,7 +108,7 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
             fyndShipmentId: { not: null },
             OR: [{ lastFyndStatusCheck: null }, { lastFyndStatusCheck: { lt: staleCutoff } }],
           },
-          include: { shop: { include: { settings: true } } },
+          include: { items: true, shop: { include: { settings: true } } },
           take: BATCH_SIZE,
           orderBy: { lastFyndStatusCheck: { sort: "asc", nulls: "first" } },
         });
@@ -137,7 +137,21 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
             if (fetchResult?.payload) {
               const payloadJson = JSON.stringify(fetchResult.payload);
               const parsed = parseFyndOrderDetailsForTab(payloadJson);
-              const returnJourney = extractFyndJourney(payloadJson, "return");
+              const journeyFilter = {
+                bagIds: (rc.items ?? []).map((item) => item.fyndBagId),
+                shipmentIds: [
+                  rc.fyndShipmentId,
+                  ...(rc.items ?? []).map((item) => item.fyndShipmentId),
+                ],
+              };
+              const hasBagFilter = journeyFilter.bagIds.some(Boolean);
+              const hasArticleFilter =
+                hasBagFilter || journeyFilter.shipmentIds.some(Boolean);
+              const returnJourney = extractFyndJourney(
+                payloadJson,
+                "return",
+                hasArticleFilter ? journeyFilter : undefined,
+              );
               const returnShipment =
                 parsed?.shipments?.find((ship) => {
                   const status = normalizeFyndStatus(ship.shipmentStatus);
@@ -152,8 +166,8 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
               const latestReturnStep =
                 returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
               const returnStatus =
-                normalizeFyndStatus(returnShipment?.shipmentStatus) ??
-                normalizeFyndStatus(latestReturnStep?.status);
+                normalizeFyndStatus(latestReturnStep?.status) ??
+                (hasBagFilter ? null : normalizeFyndStatus(returnShipment?.shipmentStatus));
 
               const updateData: Record<string, unknown> = {
                 lastFyndStatusCheck: new Date(),
@@ -239,7 +253,7 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
   try {
     const rc = await prisma.returnCase.findUnique({
       where: { id: returnCaseId },
-      include: { shop: { include: { settings: true } } },
+      include: { items: true, shop: { include: { settings: true } } },
     });
     if (!rc?.fyndShipmentId || !rc.shop.settings?.fyndCredentials) return false;
     if (!["approved", "processing", "in progress", "completed"].includes(rc.status)) return false;
@@ -253,7 +267,18 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
 
     const payloadJson = JSON.stringify(fetchResult.payload);
     const parsed = parseFyndOrderDetailsForTab(payloadJson);
-    const returnJourney = extractFyndJourney(payloadJson, "return");
+    const journeyFilter = {
+      bagIds: (rc.items ?? []).map((item) => item.fyndBagId),
+      shipmentIds: [rc.fyndShipmentId, ...(rc.items ?? []).map((item) => item.fyndShipmentId)],
+    };
+    const hasBagFilter = journeyFilter.bagIds.some(Boolean);
+    const hasArticleFilter =
+      hasBagFilter || journeyFilter.shipmentIds.some(Boolean);
+    const returnJourney = extractFyndJourney(
+      payloadJson,
+      "return",
+      hasArticleFilter ? journeyFilter : undefined,
+    );
     const returnShipment =
       parsed?.shipments?.find((ship) => {
         const status = normalizeFyndStatus(ship.shipmentStatus);
@@ -268,8 +293,8 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
     const latestReturnStep =
       returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
     const returnStatus =
-      normalizeFyndStatus(returnShipment?.shipmentStatus) ??
-      normalizeFyndStatus(latestReturnStep?.status);
+      normalizeFyndStatus(latestReturnStep?.status) ??
+      (hasBagFilter ? null : normalizeFyndStatus(returnShipment?.shipmentStatus));
 
     const updateData: Record<string, unknown> = {
       lastFyndStatusCheck: new Date(),

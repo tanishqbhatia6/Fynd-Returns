@@ -129,7 +129,7 @@ describe("pollStaleReturns — findMany query shape", () => {
         fyndShipmentId: { not: null };
         OR: Array<Record<string, unknown>>;
       };
-      include: { shop: { include: { settings: true } } };
+      include: { items: true; shop: { include: { settings: true } } };
       take: number;
       orderBy: { lastFyndStatusCheck: { sort: string; nulls: string } };
     };
@@ -142,7 +142,7 @@ describe("pollStaleReturns — findMany query shape", () => {
     const lt = (arg.where.OR[1] as { lastFyndStatusCheck: { lt: Date } }).lastFyndStatusCheck.lt;
     expect(lt).toBeInstanceOf(Date);
     expect(testNow - lt.getTime()).toBe(30 * 60_000);
-    expect(arg.include).toEqual({ shop: { include: { settings: true } } });
+    expect(arg.include).toEqual({ items: true, shop: { include: { settings: true } } });
     expect(arg.take).toBe(5);
     expect(arg.orderBy).toEqual({ lastFyndStatusCheck: { sort: "asc", nulls: "first" } });
   });

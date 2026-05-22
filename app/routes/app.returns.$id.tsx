@@ -940,7 +940,24 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
     }
 
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
-    const returnJourney = extractFyndJourney(fyndPayloadJson, "return");
+    const returnJourneyFilter = {
+      bagIds: (returnCase.items ?? []).map(
+        (item: { fyndBagId?: string | null }) => item.fyndBagId ?? null,
+      ),
+      shipmentIds: [
+        (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId ?? null,
+        ...(returnCase.items ?? []).map(
+          (item: { fyndShipmentId?: string | null }) => item.fyndShipmentId ?? null,
+        ),
+      ],
+    };
+    const hasArticleScopedJourneyFilter =
+      returnJourneyFilter.bagIds.some(Boolean) || returnJourneyFilter.shipmentIds.some(Boolean);
+    const returnJourney = extractFyndJourney(
+      fyndPayloadJson,
+      "return",
+      hasArticleScopedJourneyFilter ? returnJourneyFilter : undefined,
+    );
 
     // Detect if Fynd has actually assigned logistics (real AWB exists in shipment data)
     const hasRealShipmentData = (fyndOrderDetailsTab?.shipments ?? []).some(
@@ -1710,11 +1727,15 @@ export default function ReturnDetail() {
   // Replacement uses the same Fynd-status gate as exchange (bag must be received).
   const replacementBlockedByFynd = exchangeBlockedByFynd;
 
+  const latestScopedReturnJourneyStatus =
+    (returnJourney ?? []).length > 0
+      ? ((returnJourney ?? [])[(returnJourney ?? []).length - 1] as FyndJourneyStep).status
+      : null;
   const fyndTrackingStatus = fyndPayloadInfo?.shipments?.[0]
     ? safeStr((fyndPayloadInfo.shipments[0] as { shipmentStatus?: string }).shipmentStatus)
     : null;
   // Use fyndCurrentStatus (directly updated by webhook) as fallback when parsed payload has no shipment status
-  const effectiveFyndStatus = fyndTrackingStatus || fyndCurrentStatus;
+  const effectiveFyndStatus = latestScopedReturnJourneyStatus || fyndTrackingStatus || fyndCurrentStatus;
   const unifiedState = computeAdminReturnState(
     returnCase.status,
     returnCase.refundStatus,

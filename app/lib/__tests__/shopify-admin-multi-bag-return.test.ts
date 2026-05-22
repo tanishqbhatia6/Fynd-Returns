@@ -21,7 +21,7 @@ vi.mock("../observability/logger.server", () => ({
   refundLogger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 1,
@@ -30,7 +30,7 @@ vi.mock("../observability/metrics.server", () => ({
   shopifyApiDuration: { record: vi.fn() },
 }));
 vi.mock("../observability/resilience.server", () => ({
-  shopifyCircuitBreaker: { execute: async <T,>(fn: () => Promise<T>) => fn() },
+  shopifyCircuitBreaker: { execute: async <T>(fn: () => Promise<T>) => fn() },
 }));
 
 import { createShopifyReturn, type AdminGraphQL } from "../shopify-admin.server";
@@ -106,14 +106,19 @@ describe("Bug #12 — multi-bag → single Shopify return", () => {
       RETURN_OK,
     ]);
     const result = await createShopifyReturn(admin, "gid://shopify/Order/1", [
-      { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1, sku: "SKU-A", reasonCode: "DEFECTIVE" },
+      {
+        shopifyLineItemId: "gid://shopify/LineItem/100",
+        qty: 1,
+        sku: "SKU-A",
+        reasonCode: "DEFECTIVE",
+      },
     ]);
     expect(result.success).toBe(true);
     const createCall = calls.find((c) => c.query.includes("returnCreate"));
     expect(createCall).toBeTruthy();
-    const lineItems =
-      (createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } })
-        .returnInput.returnLineItems;
+    const lineItems = (
+      createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput.returnLineItems;
     expect(lineItems).toHaveLength(1);
     expect(lineItems[0].quantity).toBe(1);
   });
@@ -136,9 +141,13 @@ describe("Bug #12 — multi-bag → single Shopify return", () => {
       { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1, sku: "SKU-A" },
     ]);
     const createCall = calls.find((c) => c.query.includes("returnCreate"));
-    const lineItems =
-      (createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number; fulfillmentLineItemId: string }> } })
-        .returnInput.returnLineItems;
+    const lineItems = (
+      createCall!.variables as {
+        returnInput: {
+          returnLineItems: Array<{ quantity: number; fulfillmentLineItemId: string }>;
+        };
+      }
+    ).returnInput.returnLineItems;
     expect(lineItems).toHaveLength(3);
     expect(lineItems.map((l) => l.quantity)).toEqual([1, 1, 1]);
     // Each bag goes to its own fulfillment line item (no over-collapsing).
@@ -168,9 +177,9 @@ describe("Bug #12 — multi-bag → single Shopify return", () => {
       { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1, sku: "SKU-A" },
     ]);
     const createCall = calls.find((c) => c.query.includes("returnCreate"));
-    const lineItems =
-      (createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } })
-        .returnInput.returnLineItems;
+    const lineItems = (
+      createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput.returnLineItems;
     expect(lineItems).toHaveLength(1);
     expect(lineItems[0].quantity).toBe(1);
   });
@@ -192,9 +201,149 @@ describe("Bug #12 — multi-bag → single Shopify return", () => {
       { shopifyLineItemId: "gid://shopify/LineItem/100", qty: 5, sku: "SKU-A" },
     ]);
     const createCall = calls.find((c) => c.query.includes("returnCreate"));
-    const lineItems =
-      (createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } })
-        .returnInput.returnLineItems;
+    const lineItems = (
+      createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput.returnLineItems;
     expect(lineItems[0].quantity).toBe(2);
+  });
+
+  it("does not reuse an existing same-line Shopify return when the claim wrapper owns idempotency", async () => {
+    const { admin, calls } = makeAdmin([
+      {
+        data: {
+          returnableFulfillments: {
+            edges: [
+              {
+                node: {
+                  returnableFulfillmentLineItems: {
+                    edges: [
+                      {
+                        node: {
+                          quantity: 1,
+                          fulfillmentLineItem: {
+                            id: "gid://shopify/FulfillmentLineItem/B",
+                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/OLD",
+                    status: "OPEN",
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+      RETURN_OK,
+    ]);
+
+    const result = await createShopifyReturn(
+      admin,
+      "gid://shopify/Order/1",
+      [{ shopifyLineItemId: "gid://shopify/LineItem/100", qty: 1, sku: "SKU-A" }],
+      { requestedAt: "2026-05-22T07:00:00.000Z", skipExistingReturnReuse: true },
+    );
+
+    expect(result.success).toBe(true);
+    expect(calls.some((c) => c.query.includes("returnCreate"))).toBe(true);
+  });
+
+  it("does not double-subtract an existing return when Shopify already reports net returnable quantity", async () => {
+    const { admin, calls } = makeAdmin([
+      {
+        data: {
+          returnableFulfillments: {
+            edges: [
+              {
+                node: {
+                  returnableFulfillmentLineItems: {
+                    edges: [
+                      {
+                        node: {
+                          quantity: 2,
+                          fulfillmentLineItem: {
+                            id: "gid://shopify/FulfillmentLineItem/A",
+                            lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                          },
+                        },
+                      },
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+          order: {
+            returns: {
+              edges: [
+                {
+                  node: {
+                    id: "gid://shopify/Return/OLD",
+                    status: "OPEN",
+                    returnLineItems: {
+                      edges: [
+                        {
+                          node: {
+                            quantity: 1,
+                            fulfillmentLineItem: {
+                              id: "gid://shopify/FulfillmentLineItem/A",
+                              lineItem: { id: "gid://shopify/LineItem/100", sku: "SKU-A" },
+                            },
+                          },
+                        },
+                      ],
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+      RETURN_OK,
+    ]);
+
+    await createShopifyReturn(
+      admin,
+      "gid://shopify/Order/1",
+      [{ shopifyLineItemId: "gid://shopify/LineItem/100", qty: 2, sku: "SKU-A" }],
+      { requestedAt: "2026-05-22T07:00:00.000Z", skipExistingReturnReuse: true },
+    );
+
+    const createCall = calls.find((c) => c.query.includes("returnCreate"));
+    const lineItems = (
+      createCall!.variables as { returnInput: { returnLineItems: Array<{ quantity: number }> } }
+    ).returnInput.returnLineItems;
+    expect(lineItems).toEqual([
+      expect.objectContaining({
+        fulfillmentLineItemId: "gid://shopify/FulfillmentLineItem/A",
+        quantity: 2,
+      }),
+    ]);
   });
 });

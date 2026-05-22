@@ -356,6 +356,60 @@ describe("createReturnOnFynd — bag/products mapping", () => {
     expect(products[0].identifier).toBe("MATCH");
   });
 
+  it("syncs each selected shipment when one return contains items from multiple Fynd shipments", async () => {
+    const client = makeClient();
+    const rc = makeCase({
+      fyndShipmentId: "SHIP-A",
+      items: [
+        {
+          id: "i1",
+          returnCaseId: "rc-1",
+          sku: "SKU-A",
+          shopifyLineItemId: "gid://shopify/LineItem/100",
+          qty: 1,
+          reasonCode: "Size too Big",
+          fyndShipmentId: "SHIP-A",
+          fyndBagId: "BAG-A",
+          fyndLineNumber: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as unknown as ReturnItem,
+        {
+          id: "i2",
+          returnCaseId: "rc-1",
+          sku: "SKU-A",
+          shopifyLineItemId: "gid://shopify/LineItem/100",
+          qty: 1,
+          reasonCode: "Size too Big",
+          fyndShipmentId: "SHIP-B",
+          fyndBagId: "BAG-B",
+          fyndLineNumber: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as unknown as ReturnItem,
+      ],
+    });
+
+    const result = await createReturnOnFynd(client, rc, { targetShipmentId: "SHIP-A" });
+
+    expect(result.success).toBe(true);
+    expect(result.fyndShipmentId).toBe("SHIP-A,SHIP-B");
+    expect(client.searchShipmentsByExternalOrderId).not.toHaveBeenCalled();
+    expect(client.getShipments).not.toHaveBeenCalled();
+    expect(client.updateShipmentStatus).toHaveBeenCalledTimes(2);
+
+    const firstPayload = client.updateShipmentStatus.mock.calls[0][1];
+    const secondPayload = client.updateShipmentStatus.mock.calls[1][1];
+    expect(firstPayload.statuses[0].shipments[0]).toMatchObject({
+      identifier: "SHIP-A",
+      products: [{ line_number: 1, quantity: 1, identifier: "BAG-A" }],
+    });
+    expect(secondPayload.statuses[0].shipments[0]).toMatchObject({
+      identifier: "SHIP-B",
+      products: [{ line_number: 1, quantity: 1, identifier: "BAG-B" }],
+    });
+  });
+
   it("emits the default fallback product when no items have a valid sku", async () => {
     const client = makeClient();
     // All items skipped (manual or no sku/lineItem)

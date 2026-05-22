@@ -2048,7 +2048,7 @@ export async function createShopifyReturn(
     notes?: string | null;
     sku?: string | null;
   }>,
-  options?: { notifyCustomer?: boolean; requestedAt?: string },
+  options?: { notifyCustomer?: boolean; requestedAt?: string; skipExistingReturnReuse?: boolean },
 ): Promise<ShopifyReturnResult> {
   const orderGid = orderId.startsWith("gid://") ? orderId : `gid://shopify/Order/${orderId}`;
   return withSpan("shopify.return.create", { "order.id": orderGid }, async () => {
@@ -2136,7 +2136,7 @@ export async function createShopifyReturn(
         if (q <= 0) continue;
         requestPerLi.set(ri.shopifyLineItemId, (requestPerLi.get(ri.shopifyLineItemId) ?? 0) + q);
       }
-      if (requestPerLi.size > 0) {
+      if (!options?.skipExistingReturnReuse && requestPerLi.size > 0) {
         for (const retEdge of fulfillmentsJson.data?.order?.returns?.edges ?? []) {
           const ret = retEdge.node;
           if (!ret?.id) continue;
@@ -2211,6 +2211,8 @@ export async function createShopifyReturn(
       // ordered qty (Shopify only decrements *after* a return is closed), and both
       // will create returns — the order ends up with two open returns covering the
       // same units. We treat OPEN-status returns as already consuming returnable qty.
+      const sumRemaining = (entries?: FliEntry[]) =>
+        (entries ?? []).reduce((sum, entry) => sum + Math.max(0, entry.maxQty), 0);
       const NON_TERMINAL_RETURN_STATUSES = new Set(["OPEN", "REQUESTED", "IN_PROGRESS"]);
       /* v8 ignore start */ // defensive: each `?? 0|[]|""` is a per-edge fallback for optional GraphQL fields — only one path hit per fixture
       for (const retEdge of fulfillmentsJson.data?.order?.returns?.edges ?? []) {
@@ -2232,11 +2234,27 @@ export async function createShopifyReturn(
           // needed when no lineItem.id is set on the existing return's
           // line item (rare). This matches the pre-existing intent and
           // closes the duplicate-counting source.
-          const decrement = (entries?: FliEntry[]) => {
+          const decrement = (entries?: FliEntry[], requestedQty = 0) => {
             // unreachable: callers always pass result of map.get() under a truthy lineItem.id/sku check, never undefined here
             /* v8 ignore start */
             if (!entries) return;
             /* v8 ignore stop */
+            if (
+              options?.skipExistingReturnReuse &&
+              requestedQty > 0 &&
+              sumRemaining(entries) - consumedQty < requestedQty
+            ) {
+              refundLogger.info(
+                {
+                  consumedFliId,
+                  consumedQty,
+                  requestedQty,
+                  remainingFromShopify: sumRemaining(entries),
+                },
+                "createShopifyReturn: not subtracting existing return because Shopify returnable quantity already appears net of it",
+              );
+              return;
+            }
             for (const e of entries) {
               if (e.fulfillmentLineItemId === consumedFliId) {
                 e.maxQty = Math.max(0, e.maxQty - consumedQty);
@@ -2244,11 +2262,13 @@ export async function createShopifyReturn(
             }
           };
           if (node.fulfillmentLineItem.lineItem?.id) {
-            decrement(fulfillmentLineItemMap.get(node.fulfillmentLineItem.lineItem.id));
+            const lineItemId = node.fulfillmentLineItem.lineItem.id;
+            decrement(fulfillmentLineItemMap.get(lineItemId), requestPerLi.get(lineItemId) ?? 0);
           } else if (node.fulfillmentLineItem.lineItem?.sku) {
             // Only fall back to SKU-keyed decrement when no lineItem.id was
             // present (so we haven't already touched the entry above).
-            decrement(skuMap.get(node.fulfillmentLineItem.lineItem.sku.toLowerCase().trim()));
+            const skuKey = node.fulfillmentLineItem.lineItem.sku.toLowerCase().trim();
+            decrement(skuMap.get(skuKey));
           }
         }
       }

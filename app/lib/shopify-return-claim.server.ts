@@ -93,7 +93,10 @@ export async function claimAndCreateShopifyReturn(
   }
   // We own the lock.
   try {
-    const result = await createShopifyReturn(admin, orderId, returnItems, options);
+    const result = await createShopifyReturn(admin, orderId, returnItems, {
+      ...options,
+      skipExistingReturnReuse: true,
+    });
     if (result.success && result.shopifyReturnId) {
       await prisma.returnCase.update({
         where: { id: returnCaseId },

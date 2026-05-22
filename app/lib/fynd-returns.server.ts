@@ -35,6 +35,36 @@ function looksLikeShipmentId(id: string): boolean {
   return /^\d{15,}$/.test(trimmed);
 }
 
+function getItemShipmentIds(items: ReturnItem[] | undefined | null): string[] {
+  const ids = new Set<string>();
+  for (const item of items ?? []) {
+    const id = item.fyndShipmentId?.trim();
+    if (id) ids.add(id);
+  }
+  return [...ids];
+}
+
+function hasSyncableReturnItem(items: ReturnItem[] | undefined | null): boolean {
+  return (items ?? []).some(
+    (it) => (it.sku || it.shopifyLineItemId) && it.shopifyLineItemId !== "manual",
+  );
+}
+
+function scopedReturnCaseForShipment(
+  returnCase: ReturnCase & { items: ReturnItem[] },
+  shipmentId: string,
+): ReturnCase & { items: ReturnItem[] } {
+  return {
+    ...returnCase,
+    items: (returnCase.items ?? []).filter((item) => item.fyndShipmentId === shipmentId),
+  };
+}
+
+function joinUnique(values: Array<string | undefined | null>): string | undefined {
+  const unique = [...new Set(values.map((v) => v?.trim()).filter(Boolean) as string[])];
+  return unique.length > 0 ? unique.join(",") : undefined;
+}
+
 /** Build products + reasons arrays from return items for Fynd payload.
  *
  * Bag-aware emission (Bug #1 fix). When the return item has a `fyndBagId`,
@@ -205,6 +235,67 @@ export async function createReturnOnFynd(
           : null) ||
         null;
 
+      const itemShipmentIds = getItemShipmentIds(returnCase.items);
+      if (itemShipmentIds.length > 1 && hasSyncableReturnItem(returnCase.items)) {
+        fyndLogger.info(
+          { shipmentIds: itemShipmentIds, orderId: externalOrderId },
+          "createReturnOnFynd: multi-shipment return; syncing each shipment separately",
+        );
+
+        const results: Array<CreateFyndReturnResult & { shipmentId: string }> = [];
+        for (const shipmentId of itemShipmentIds) {
+          const scopedCase = scopedReturnCaseForShipment(returnCase, shipmentId);
+          if (!hasSyncableReturnItem(scopedCase.items)) continue;
+          try {
+            const result = await executeReturnUpdate(
+              client,
+              shipmentId,
+              externalOrderId || shipmentId,
+              scopedCase,
+              { ...options, targetShipmentId: shipmentId },
+              defaultReasonId,
+              defaultReasonText,
+            );
+            results.push({ ...result, shipmentId });
+          } catch (multiErr) {
+            const error = multiErr instanceof Error ? multiErr.message : String(multiErr);
+            results.push({ success: false, error, shipmentId });
+          }
+        }
+
+        const failed = results.filter((result) => !result.success);
+        if (failed.length > 0) {
+          fyndSyncCounter.add(1, { operation: "return_create", outcome: "failure" });
+          return {
+            success: false,
+            error: failed
+              .map((result) => `${result.shipmentId}: ${result.error ?? "Fynd sync failed"}`)
+              .join("; "),
+            fyndShipmentId: joinUnique(results.map((result) => result.shipmentId)),
+          };
+        }
+
+        fyndSyncCounter.add(1, { operation: "return_create", outcome: "success" });
+        addBusinessEvent("fynd.return.created", {
+          fyndReturnId: joinUnique(results.map((result) => result.fyndReturnId)) ?? "",
+          fyndOrderId: joinUnique(results.map((result) => result.fyndOrderId)) ?? "",
+          shipmentId: joinUnique(results.map((result) => result.shipmentId)) ?? "",
+        });
+        return {
+          success: results.length > 0,
+          alreadyExists: results.length > 0 && results.every((result) => result.alreadyExists),
+          fyndReturnId: joinUnique(results.map((result) => result.fyndReturnId)),
+          fyndReturnNo: joinUnique(results.map((result) => result.fyndReturnNo)),
+          fyndOrderId: joinUnique(results.map((result) => result.fyndOrderId)),
+          fyndShipmentId: joinUnique(results.map((result) => result.shipmentId)),
+          fyndPayload: results.map((result) => ({
+            shipmentId: result.shipmentId,
+            payload: result.fyndPayload ?? null,
+            alreadyExists: result.alreadyExists ?? false,
+          })),
+        };
+      }
+
       // ─── FAST PATH ───
       // If we have a known shipment ID from a previous attempt AND items to return,
       // skip the expensive shipment lookup and go directly to updateShipmentStatus.
@@ -212,12 +303,7 @@ export async function createReturnOnFynd(
       // the _orderId parameter is unused (PUT /shipment/status-internal).
       /* v8 ignore start */
       // defensive: items ?? [] fallback for legacy rows; combinations of sku/shopifyLineItemId vary
-      if (
-        targetShipId &&
-        (returnCase.items ?? []).some(
-          (it) => (it.sku || it.shopifyLineItemId) && it.shopifyLineItemId !== "manual",
-        )
-      ) {
+      if (targetShipId && hasSyncableReturnItem(returnCase.items)) {
         /* v8 ignore stop */
         fyndLogger.info(
           { shipmentId: targetShipId, orderId: externalOrderId },

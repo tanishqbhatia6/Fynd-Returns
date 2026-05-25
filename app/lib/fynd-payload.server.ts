@@ -1330,8 +1330,8 @@ export type FyndJourneyFilter = {
 export function hasFyndJourneyFilter(filter: FyndJourneyFilter | null | undefined): boolean {
   return Boolean(
     filter &&
-      ((filter.bagIds ?? []).some((id) => String(id ?? "").trim()) ||
-        (filter.shipmentIds ?? []).some((id) => String(id ?? "").trim())),
+    ((filter.bagIds ?? []).some((id) => String(id ?? "").trim()) ||
+      (filter.shipmentIds ?? []).some((id) => String(id ?? "").trim())),
   );
 }
 
@@ -1368,7 +1368,9 @@ export function fyndObjectMatchesJourneyFilter(
 
   const nestedBags = Array.isArray(obj.bags) ? (obj.bags as Record<string, unknown>[]) : [];
   if (
-    nestedBags.some((bag) => bag && typeof bag === "object" && fyndObjectMatchesJourneyFilter(bag, obj, filter))
+    nestedBags.some(
+      (bag) => bag && typeof bag === "object" && fyndObjectMatchesJourneyFilter(bag, obj, filter),
+    )
   ) {
     return true;
   }
@@ -1426,10 +1428,19 @@ export function extractFyndJourney(
 
     const processBag = (bag: Record<string, unknown>, parentShipment?: Record<string, unknown>) => {
       if (!fyndObjectMatchesJourneyFilter(bag, parentShipment, filter)) return;
-      const bagStatusList = (bag.bag_status ?? bag.status_updates ?? []) as Record<
-        string,
-        unknown
-      >[];
+      const bagStatusList = [
+        ...(Array.isArray(bag.bag_status) ? (bag.bag_status as Record<string, unknown>[]) : []),
+        ...(Array.isArray(bag.status_updates)
+          ? (bag.status_updates as Record<string, unknown>[])
+          : []),
+        ...(Array.isArray(bag.bag_status_history)
+          ? (bag.bag_status_history as Record<string, unknown>[])
+          : []),
+        ...(bag.current_operational_status != null &&
+        typeof bag.current_operational_status === "object"
+          ? [bag.current_operational_status as Record<string, unknown>]
+          : []),
+      ];
       for (const bs of bagStatusList) {
         const mapper = (bs.bag_state_mapper ?? bs.state_mapper ?? {}) as Record<string, unknown>;
         const jt = String(mapper.journey_type ?? mapper.journeyType ?? "").toLowerCase();

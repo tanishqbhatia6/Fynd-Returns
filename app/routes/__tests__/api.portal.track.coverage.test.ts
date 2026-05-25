@@ -99,6 +99,9 @@ describe("api.portal.track — coverage extras", () => {
       expect(extractJourneyMock).toHaveBeenCalledWith(
         '{"payload":{"shipment":{"id":"S1"}}}',
         "return",
+        expect.objectContaining({
+          shipmentIds: expect.arrayContaining(["FYND-9876"]),
+        }),
       );
       expect(body.returnJourney.length).toBeGreaterThan(0);
     });
@@ -197,9 +200,8 @@ describe("api.portal.track — coverage extras", () => {
         context: {},
       } as never);
       const body = await res.json();
-      expect(extractJourneyMock).toHaveBeenCalledTimes(1);
-      expect(body.returnJourney).toHaveLength(2);
-      expect(body.returnJourney[0].status).toBe("delivered");
+      expect(extractJourneyMock).not.toHaveBeenCalled();
+      expect(body.returnJourney).toEqual([]);
     });
 
     it("falls back to [] when extractor returns null/undefined for approved status", async () => {

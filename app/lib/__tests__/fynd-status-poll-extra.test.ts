@@ -291,7 +291,7 @@ describe("pollStaleReturns — payload-driven update fields", () => {
     const call = prismaMock.returnCase.update.mock.calls[0][0] as {
       data: { fyndPayloadJson?: string };
     };
-    expect(call.data.fyndPayloadJson).toBe(JSON.stringify(payload));
+    expect(call.data.fyndPayloadJson).toBe(JSON.stringify(payload.items));
   });
 });
 

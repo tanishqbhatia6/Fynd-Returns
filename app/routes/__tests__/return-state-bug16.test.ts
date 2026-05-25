@@ -60,6 +60,19 @@ describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale
     expect(computeAdminReturnState("approved", null, [], status).label).toBe("Approved");
   });
 
+  it("can force ReturnCase status to win over unscoped Fynd status on admin detail", () => {
+    const status = getAdminEffectiveFyndStatus({
+      returnItems: [],
+      latestScopedReturnJourneyStatus: null,
+      fyndTrackingStatus: "return_accepted",
+      fyndCurrentStatus: "return_accepted",
+      disableUnscopedFallback: true,
+    });
+
+    expect(status).toBeNull();
+    expect(computeAdminReturnState("approved", null, [], status).label).toBe("Approved");
+  });
+
   it("still uses scoped journey status for a bag-scoped partial return when present", () => {
     const status = getAdminEffectiveFyndStatus({
       returnItems: [{ fyndBagId: "BAG-NEW" }],

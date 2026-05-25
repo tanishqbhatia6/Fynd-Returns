@@ -10,7 +10,12 @@ import {
   parseFyndOrderDetailsForTab,
   extractFyndJourney,
   isLikelyFyndId,
+  normalizeFyndPayload,
 } from "./fynd-payload.server";
+import {
+  buildFyndJourneyFilterForReturn,
+  fyndObjectMatchesReturnScope,
+} from "./fynd-return-scope.server";
 import { shouldAdvanceFyndStatus } from "./fynd-webhook.server";
 import { fyndLogger } from "./observability/logger.server";
 import { withSpan } from "./observability/tracing.server";
@@ -135,18 +140,23 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
 
             const fetchResult = await fetchFyndReturnPayload(client, rc);
             if (fetchResult?.payload) {
-              const payloadJson = JSON.stringify(fetchResult.payload);
+              const journeyFilter = buildFyndJourneyFilterForReturn(rc);
+              const hasArticleFilter = Boolean(
+                journeyFilter &&
+                ((journeyFilter.bagIds ?? []).some((id) => String(id ?? "").trim()) ||
+                  (journeyFilter.shipmentIds ?? []).some((id) => String(id ?? "").trim())),
+              );
+              const payloadList = normalizeFyndPayload(fetchResult.payload).filter(
+                (item): item is Record<string, unknown> => item != null && typeof item === "object",
+              );
+              const scopedPayload = hasArticleFilter
+                ? payloadList.filter((item) => fyndObjectMatchesReturnScope(item, journeyFilter))
+                : [];
+              const payloadForReturn = hasArticleFilter ? scopedPayload : payloadList;
+              const payloadJson = JSON.stringify(
+                hasArticleFilter ? payloadForReturn : fetchResult.payload,
+              );
               const parsed = parseFyndOrderDetailsForTab(payloadJson);
-              const journeyFilter = {
-                bagIds: (rc.items ?? []).map((item) => item.fyndBagId),
-                shipmentIds: [
-                  rc.fyndShipmentId,
-                  ...(rc.items ?? []).map((item) => item.fyndShipmentId),
-                ],
-              };
-              const hasBagFilter = journeyFilter.bagIds.some(Boolean);
-              const hasArticleFilter =
-                hasBagFilter || journeyFilter.shipmentIds.some(Boolean);
               const returnJourney = extractFyndJourney(
                 payloadJson,
                 "return",
@@ -167,11 +177,11 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
                 returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
               const returnStatus =
                 normalizeFyndStatus(latestReturnStep?.status) ??
-                (hasBagFilter ? null : normalizeFyndStatus(returnShipment?.shipmentStatus));
+                normalizeFyndStatus(returnShipment?.shipmentStatus);
 
               const updateData: Record<string, unknown> = {
                 lastFyndStatusCheck: new Date(),
-                fyndPayloadJson: payloadJson,
+                ...(payloadForReturn.length > 0 ? { fyndPayloadJson: payloadJson } : {}),
                 ...(fetchResult.orderId && !rc.fyndOrderId
                   ? { fyndOrderId: fetchResult.orderId }
                   : {}),
@@ -265,15 +275,21 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
     const fetchResult = await fetchFyndReturnPayload(client, rc);
     if (!fetchResult?.payload) return false;
 
-    const payloadJson = JSON.stringify(fetchResult.payload);
+    const journeyFilter = buildFyndJourneyFilterForReturn(rc);
+    const hasArticleFilter = Boolean(
+      journeyFilter &&
+      ((journeyFilter.bagIds ?? []).some((id) => String(id ?? "").trim()) ||
+        (journeyFilter.shipmentIds ?? []).some((id) => String(id ?? "").trim())),
+    );
+    const payloadList = normalizeFyndPayload(fetchResult.payload).filter(
+      (item): item is Record<string, unknown> => item != null && typeof item === "object",
+    );
+    const scopedPayload = hasArticleFilter
+      ? payloadList.filter((item) => fyndObjectMatchesReturnScope(item, journeyFilter))
+      : [];
+    const payloadForReturn = hasArticleFilter ? scopedPayload : payloadList;
+    const payloadJson = JSON.stringify(hasArticleFilter ? payloadForReturn : fetchResult.payload);
     const parsed = parseFyndOrderDetailsForTab(payloadJson);
-    const journeyFilter = {
-      bagIds: (rc.items ?? []).map((item) => item.fyndBagId),
-      shipmentIds: [rc.fyndShipmentId, ...(rc.items ?? []).map((item) => item.fyndShipmentId)],
-    };
-    const hasBagFilter = journeyFilter.bagIds.some(Boolean);
-    const hasArticleFilter =
-      hasBagFilter || journeyFilter.shipmentIds.some(Boolean);
     const returnJourney = extractFyndJourney(
       payloadJson,
       "return",
@@ -294,11 +310,11 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
       returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
     const returnStatus =
       normalizeFyndStatus(latestReturnStep?.status) ??
-      (hasBagFilter ? null : normalizeFyndStatus(returnShipment?.shipmentStatus));
+      normalizeFyndStatus(returnShipment?.shipmentStatus);
 
     const updateData: Record<string, unknown> = {
       lastFyndStatusCheck: new Date(),
-      fyndPayloadJson: payloadJson,
+      ...(payloadForReturn.length > 0 ? { fyndPayloadJson: payloadJson } : {}),
       ...(fetchResult.orderId && !rc.fyndOrderId ? { fyndOrderId: fetchResult.orderId } : {}),
     };
 

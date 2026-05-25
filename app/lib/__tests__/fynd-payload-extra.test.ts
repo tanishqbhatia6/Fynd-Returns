@@ -561,6 +561,47 @@ describe("extractFyndJourney — additional cases", () => {
     expect(scoped.map((s) => s.status)).toEqual(["return_initiated"]);
   });
 
+  it("extracts scoped return journey from Fynd webhook bag_status_history", () => {
+    const p = JSON.stringify({
+      shipment_id: "RET-NEW",
+      status: "return_initiated",
+      bags: [
+        {
+          bag_id: 3874130,
+          current_operational_status: {
+            status: "return_initiated",
+            bag_state_mapper: {
+              display_name: "Return Initiated",
+              journey_type: "return",
+            },
+            created_at: "2026-05-22T12:47:57+00:00",
+          },
+          bag_status_history: [
+            {
+              status: "delivery_done",
+              bag_state_mapper: {
+                display_name: "Delivered",
+                journey_type: "forward",
+              },
+              created_at: "2026-05-22T12:46:33+00:00",
+            },
+            {
+              status: "return_initiated",
+              bag_state_mapper: {
+                display_name: "Return Initiated",
+                journey_type: "return",
+              },
+              created_at: "2026-05-22T12:47:57+00:00",
+            },
+          ],
+        },
+      ],
+    });
+
+    const scoped = extractFyndJourney(p, "return", { bagIds: ["3874130"] });
+    expect(scoped.map((s) => s.status)).toEqual(["return_initiated"]);
+  });
+
   it("filters tracking info by bag id when a return payload contains multiple return shipments", () => {
     const p = JSON.stringify({
       items: [

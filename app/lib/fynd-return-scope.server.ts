@@ -6,6 +6,8 @@ type ReturnItemWithFyndIds = {
 };
 
 type ReturnWithFyndScope = {
+  fyndReturnId?: string | null;
+  fyndReturnNo?: string | null;
   fyndShipmentId?: string | null;
   items?: ReturnItemWithFyndIds[] | null;
 };
@@ -16,6 +18,8 @@ export function buildFyndJourneyFilterForReturn(
   const filter: FyndJourneyFilter = {
     bagIds: (returnCase?.items ?? []).map((item) => item.fyndBagId ?? null),
     shipmentIds: [
+      returnCase?.fyndReturnId ?? null,
+      returnCase?.fyndReturnNo ?? null,
       returnCase?.fyndShipmentId ?? null,
       ...(returnCase?.items ?? []).map((item) => item.fyndShipmentId ?? null),
     ],
@@ -27,8 +31,8 @@ export function buildFyndJourneyFilterForReturn(
 function hasFyndJourneyFilter(filter: FyndJourneyFilter | null | undefined): boolean {
   return Boolean(
     filter &&
-      ((filter.bagIds ?? []).some((id) => String(id ?? "").trim()) ||
-        (filter.shipmentIds ?? []).some((id) => String(id ?? "").trim())),
+    ((filter.bagIds ?? []).some((id) => String(id ?? "").trim()) ||
+      (filter.shipmentIds ?? []).some((id) => String(id ?? "").trim())),
   );
 }
 

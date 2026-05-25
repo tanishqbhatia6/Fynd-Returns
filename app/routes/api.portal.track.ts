@@ -84,7 +84,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
           "return",
           journeyFilter,
         )
-      : extractFyndJourney((rc as { fyndPayloadJson?: string | null }).fyndPayloadJson, "return")
+      : []
     : null;
 
   return withCors(

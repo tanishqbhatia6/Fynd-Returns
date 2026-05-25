@@ -463,6 +463,7 @@ describe("app.returns.$id loader — deep coverage", () => {
     const searchShipmentsByExternalOrderIdMock = vi.fn().mockResolvedValue({
       items: [
         {
+          shipment_id: "SHIP-A",
           journey_type: "return",
           delivery_partner_details: { display_name: "Delhivery", awb_no: "AWB-RET-XYZ" },
           status: "return_initiated",
@@ -1187,7 +1188,7 @@ describe("app.returns.$id loader — deep coverage", () => {
       "return",
       expect.objectContaining({
         bagIds: ["BAG-NEW"],
-        shipmentIds: ["SHIP-1", "SHIP-1"],
+        shipmentIds: expect.arrayContaining(["SHIP-1"]),
       }),
     );
   });

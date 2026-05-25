@@ -50,6 +50,10 @@ import {
   buildTrackingUrlFromCourierAndAwb,
 } from "../lib/fynd-payload.server";
 import type { FyndJourneyStep } from "../lib/fynd-payload.server";
+import {
+  buildFyndJourneyFilterForReturn,
+  fyndObjectMatchesReturnScope,
+} from "../lib/fynd-return-scope.server";
 import { isFyndPrivateUrl, signFyndUrl, createFyndClientOrError } from "../lib/fynd.server";
 import { PRESET_LABELS } from "../lib/refund-gate-presets";
 import type { RefundGatePreset } from "../lib/refund-gate-presets";
@@ -321,6 +325,7 @@ export function getAdminEffectiveFyndStatus(args: {
   latestScopedReturnJourneyStatus?: string | null;
   fyndTrackingStatus?: string | null;
   fyndCurrentStatus?: string | null;
+  disableUnscopedFallback?: boolean;
 }): string | null {
   const hasBagScope = (args.returnItems ?? []).some((item) => String(item.fyndBagId ?? "").trim());
   if (args.latestScopedReturnJourneyStatus) return args.latestScopedReturnJourneyStatus;
@@ -329,6 +334,7 @@ export function getAdminEffectiveFyndStatus(args: {
   // Partial returns on the same order can share/stale shipment IDs, so falling back
   // to the first shipment status can show another article's progress.
   if (hasBagScope) return null;
+  if (args.disableUnscopedFallback) return null;
 
   return args.fyndTrackingStatus || args.fyndCurrentStatus || null;
 }
@@ -704,18 +710,44 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       }
     }
 
+    const returnJourneyFilter = buildFyndJourneyFilterForReturn(returnCase);
+    const hasArticleScopedJourneyFilter = Boolean(
+      returnJourneyFilter &&
+      ((returnJourneyFilter.bagIds ?? []).some((id) => String(id ?? "").trim()) ||
+        (returnJourneyFilter.shipmentIds ?? []).some((id) => String(id ?? "").trim())),
+    );
+    const scopedShipmentIds = new Set(
+      (returnJourneyFilter?.shipmentIds ?? []).map((id) => String(id ?? "").trim()).filter(Boolean),
+    );
+    const scopeRawFyndShipments = (shipments: Record<string, unknown>[]) =>
+      hasArticleScopedJourneyFilter
+        ? shipments.filter((shipment) =>
+            fyndObjectMatchesReturnScope(shipment, returnJourneyFilter),
+          )
+        : [];
+    const filterParsedFyndShipments = (
+      tab: ReturnType<typeof parseFyndOrderDetailsForTab> | null,
+    ) => {
+      if (!tab) return;
+      if (scopedShipmentIds.size > 0) {
+        tab.shipments = tab.shipments.filter((shipment) => {
+          const candidates = [shipment.shipmentId, shipment.forwardShipmentId]
+            .map((id) => String(id ?? "").trim())
+            .filter(Boolean);
+          return candidates.some((id) => scopedShipmentIds.has(id));
+        });
+      } else if (hasArticleScopedJourneyFilter) {
+        tab.shipments = [];
+      }
+    };
+
     const fyndPayloadInfo = parseFyndPayloadForDisplay(fyndPayloadJson);
     const fyndOrderDetailsTab = parseFyndOrderDetailsForTab(fyndPayloadJson);
 
     // Filter to only the shipment this return was created for.
     // Without this, ALL order shipments (Shipment 1, 2, 3) are shown under
     // every return, even though only one shipment's return was created.
-    const returnShipmentId = (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId;
-    if (fyndOrderDetailsTab && returnShipmentId) {
-      fyndOrderDetailsTab.shipments = fyndOrderDetailsTab.shipments.filter(
-        (s) => s.shipmentId === returnShipmentId,
-      );
-    }
+    filterParsedFyndShipments(fyndOrderDetailsTab);
 
     // Fetch full shipment details from Fynd API if data is incomplete.
     // Triggers when: return label URLs are missing OR forward shipment has no courier/status.
@@ -779,23 +811,35 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
                 (returnSearchRes as { data?: { items?: unknown[] } })?.data?.items ??
                 []) as Record<string, unknown>[];
 
-              // Always store the full API response — enriches BOTH forward and return data
+              const scopedShipments = scopeRawFyndShipments(allShipments);
+              const shipmentsForThisReturn =
+                scopedShipments.length > 0
+                  ? scopedShipments
+                  : hasArticleScopedJourneyFilter
+                    ? []
+                    : allShipments;
+
+              // Store only this ReturnCase's scoped Fynd payload when scope exists.
+              // Storing the whole order payload lets later returns on the same order
+              // inherit older return shipments and renders stale progress.
               const updateData: Record<string, unknown> = {};
-              if (allShipments.length > 0) {
-                const fullPayload = JSON.stringify(allShipments);
+              if (shipmentsForThisReturn.length > 0) {
+                const fullPayload = JSON.stringify(shipmentsForThisReturn);
                 updateData.fyndPayloadJson = fullPayload;
                 fyndPayloadJson = fullPayload;
               }
 
-              // Find the return journey shipment and extract return logistics
+              // Find the return journey shipment for this ReturnCase only. Never pick
+              // the first order-level return shipment; that is how a new partial return
+              // inherits a previous return's pickup/refund state.
               const returnShipment =
-                allShipments.find((s) => {
+                shipmentsForThisReturn.find((s) => {
                   const jt = (
                     typeof s.journey_type === "string" ? s.journey_type : ""
                   ).toLowerCase();
                   return jt === "return";
                 }) ??
-                allShipments.find((s) => {
+                shipmentsForThisReturn.find((s) => {
                   const st = String(s.status ?? s.shipment_status ?? "").toLowerCase();
                   return st.startsWith("return_");
                 });
@@ -945,31 +989,14 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
       // Replace the original with updated data
       if (fyndOrderDetailsTab) {
         fyndOrderDetailsTab.shipments = fyndOrderDetailsTabFinal.shipments;
-        // Re-apply shipment filter
-        if (returnShipmentId) {
-          // Keep matching shipment AND any return journey shipments
-          fyndOrderDetailsTab.shipments = fyndOrderDetailsTabFinal.shipments.filter(
-            (s) => s.shipmentId === returnShipmentId || s.journeyType === "return",
-          );
-        }
+        // Re-apply strict ReturnCase scope. Do not keep every return journey
+        // shipment on the order, because older partial returns share the order.
+        filterParsedFyndShipments(fyndOrderDetailsTab);
       }
       /* v8 ignore stop */
     }
 
     const pickupAddress = getPickupAddressFromFyndPayload(fyndPayloadJson);
-    const returnJourneyFilter = {
-      bagIds: (returnCase.items ?? []).map(
-        (item: { fyndBagId?: string | null }) => item.fyndBagId ?? null,
-      ),
-      shipmentIds: [
-        (returnCase as { fyndShipmentId?: string | null }).fyndShipmentId ?? null,
-        ...(returnCase.items ?? []).map(
-          (item: { fyndShipmentId?: string | null }) => item.fyndShipmentId ?? null,
-        ),
-      ],
-    };
-    const hasArticleScopedJourneyFilter =
-      returnJourneyFilter.bagIds.some(Boolean) || returnJourneyFilter.shipmentIds.some(Boolean);
     const returnJourney = extractFyndJourney(
       fyndPayloadJson,
       "return",
@@ -1756,6 +1783,7 @@ export default function ReturnDetail() {
     latestScopedReturnJourneyStatus,
     fyndTrackingStatus,
     fyndCurrentStatus,
+    disableUnscopedFallback: true,
   });
   const unifiedState = computeAdminReturnState(
     returnCase.status,

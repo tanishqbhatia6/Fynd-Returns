@@ -154,7 +154,7 @@ describe("GET /api/portal/track", () => {
     expect(body.returnJourney).toEqual([]);
   });
 
-  it("includes journey when status=approved or completed", async () => {
+  it("does not expose unscoped Fynd journey when status=approved", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce({
       returnRequestNo: "R1",
@@ -176,8 +176,8 @@ describe("GET /api/portal/track", () => {
       context: {},
     } as never);
     const body = await res.json();
-    expect(body.returnJourney.length).toBeGreaterThan(0);
-    expect(extractJourneyMock).toHaveBeenCalled();
+    expect(body.returnJourney).toEqual([]);
+    expect(extractJourneyMock).not.toHaveBeenCalled();
   });
 
   it("scopes approved return journey by the current return item bag", async () => {
@@ -210,7 +210,7 @@ describe("GET /api/portal/track", () => {
       "return",
       expect.objectContaining({
         bagIds: ["BAG-NEW"],
-        shipmentIds: ["SHIP-1", "SHIP-1"],
+        shipmentIds: expect.arrayContaining(["SHIP-1"]),
       }),
     );
   });

@@ -242,6 +242,7 @@ describe("createReturnOnFynd — bag/products mapping", () => {
   it("maps items with sku + qty + line_number into products + reasons", async () => {
     const client = makeClient();
     const rc = makeCase({
+      returnRequestNo: "RPM-ABC123",
       items: [
         {
           id: "i1",
@@ -275,6 +276,11 @@ describe("createReturnOnFynd — bag/products mapping", () => {
     ]);
     expect(ship.reasons.products[0].data.reason_text).toBe("Damaged");
     expect(ship.reasons.products[1].data.reason_text).toBe("Other"); // default
+    expect(ship.data_updates.entities[0].data.meta).toMatchObject({
+      activity_comment: "RPM-ABC123",
+      rpm_return_id: "rc-1",
+      rpm_return_request_no: "RPM-ABC123",
+    });
   });
 
   it("prefers fyndSellerIdentifier over sku when present", async () => {

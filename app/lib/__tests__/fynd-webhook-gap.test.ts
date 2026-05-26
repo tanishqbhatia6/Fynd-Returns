@@ -46,6 +46,9 @@ const {
       create: vi.fn().mockResolvedValue({}),
       findMany: vi.fn().mockResolvedValue([]),
     },
+    returnItem: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
     fyndOrderMapping: {
       findFirst: vi.fn().mockResolvedValue(null),
       upsert: vi.fn().mockResolvedValue({}),
@@ -172,6 +175,7 @@ beforeEach(() => {
   prismaMock.returnCase.updateMany.mockResolvedValue({});
   prismaMock.returnEvent.create.mockResolvedValue({});
   prismaMock.returnEvent.findMany.mockResolvedValue([]);
+  prismaMock.returnItem.findFirst.mockResolvedValue(null);
   prismaMock.fyndOrderMapping.findFirst.mockResolvedValue(null);
   prismaMock.fyndOrderMapping.upsert.mockResolvedValue({});
   prismaMock.shop.findUnique.mockResolvedValue(null);
@@ -600,6 +604,98 @@ describe("detectJourneyType branches", () => {
 // ───────────────────────────────────────────────────────────────────────────
 
 describe("processFyndWebhook — gap branches", () => {
+  it("matches return webhooks by app return marker before order-level fallbacks", async () => {
+    const rc = mkReturnCase({ id: "rc-marker", shopifyOrderName: "#1001" });
+    prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
+
+    const r = await processFyndWebhook({
+      shipment_id: "RETURN-SHIP-1",
+      affiliate_order_id: "FYNDSHOPIFYX14403",
+      status: "return_bag_picked",
+      meta: { activity_comment: "rc-marker" },
+    } as FyndWebhookPayload);
+
+    expect(r).toMatchObject({ ok: true, returnCaseId: "rc-marker" });
+    expect(prismaMock.returnCase.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([expect.objectContaining({ id: "rc-marker" })]),
+        }),
+      }),
+    );
+  });
+
+  it("matches return webhooks by Fynd bag id so same-order partial returns do not steal status", async () => {
+    const rc = mkReturnCase({ id: "rc-second", shopifyOrderName: "#1001" });
+    prismaMock.returnItem.findFirst.mockResolvedValueOnce({
+      id: "ri-second",
+      fyndBagId: "BAG-2",
+      returnCase: rc,
+    });
+
+    const r = await processFyndWebhook({
+      shipment_id: "RETURN-SHIP-2",
+      affiliate_order_id: "FYNDSHOPIFYX14403",
+      status: "return_accepted",
+      bags: [{ bag_id: "BAG-2" }],
+    } as FyndWebhookPayload);
+
+    expect(r).toMatchObject({ ok: true, returnCaseId: "rc-second" });
+    expect(prismaMock.returnItem.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ fyndBagId: { in: ["BAG-2"] } }),
+      }),
+    );
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "rc-second" },
+        data: expect.objectContaining({ fyndPayloadJson: expect.any(String) }),
+      }),
+    );
+  });
+
+  it("ignores bag-scoped return webhooks when bags do not belong to an app return", async () => {
+    const r = await processFyndWebhook({
+      shipment_id: "RETURN-SHIP-OLD",
+      affiliate_order_id: "FYNDSHOPIFYX14403",
+      status: "return_bag_picked",
+      bags: [{ bag_id: "BAG-OLD" }],
+    } as FyndWebhookPayload);
+
+    expect(r).toEqual({ ok: true, action: "ignored", returnCaseId: undefined });
+    expect(prismaMock.returnItem.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ fyndBagId: { in: ["BAG-OLD"] } }),
+      }),
+    );
+    const returnCaseLookups = prismaMock.returnCase.findFirst.mock.calls.map((c) => c[0]);
+    expect(returnCaseLookups).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          where: expect.objectContaining({ shopifyOrderName: expect.anything() }),
+        }),
+      ]),
+    );
+  });
+
+  it("ignores unscoped return webhooks instead of matching by Shopify order", async () => {
+    const r = await processFyndWebhook({
+      shipment_id: "RETURN-SHIP-UNKNOWN",
+      affiliate_order_id: "FYNDSHOPIFYX14403",
+      status: "return_bag_picked",
+    } as FyndWebhookPayload);
+
+    expect(r).toEqual({ ok: true, action: "ignored", returnCaseId: undefined });
+    const returnCaseLookups = prismaMock.returnCase.findFirst.mock.calls.map((c) => c[0]);
+    expect(returnCaseLookups).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          where: expect.objectContaining({ fyndOrderId: expect.anything() }),
+        }),
+      ]),
+    );
+  });
+
   it("backfills fyndOrderId from affiliateOrderId when no orderId", async () => {
     const rc = mkReturnCase({ fyndOrderId: null });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);

@@ -600,6 +600,23 @@ async function executeReturnUpdate(
     defaultReasonId,
     defaultReasonText,
   );
+  const appReturnMarker = (returnCase.returnRequestNo ?? "").trim() || returnCase.id;
+  const appReturnMeta: Record<string, string | boolean> = {
+    qc_required: false,
+    activity_comment: appReturnMarker,
+    rpm_return_id: returnCase.id,
+    ...(returnCase.returnRequestNo ? { rpm_return_request_no: returnCase.returnRequestNo } : {}),
+  };
+  const dataUpdateEntities = products.map((product) => ({
+    filters: [
+      {
+        identifier: product.identifier,
+        line_number: product.line_number,
+        quantity: product.quantity,
+      },
+    ],
+    data: { meta: appReturnMeta },
+  }));
 
   // Build delivery_address from pickupAddress option if provided
   const pa = options?.pickupAddress;
@@ -628,6 +645,7 @@ async function executeReturnUpdate(
             identifier: String(shipmentId),
             products,
             reasons: { products: reasonProducts },
+            data_updates: { entities: dataUpdateEntities },
             ...(deliveryAddress ? { delivery_address: deliveryAddress } : {}),
           },
         ],

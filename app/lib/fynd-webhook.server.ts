@@ -10,6 +10,7 @@
  */
 
 import prisma from "../db.server";
+import type { Prisma } from "@prisma/client";
 import {
   createAdminClient,
   createRefund,
@@ -22,6 +23,10 @@ import {
 } from "./shopify-admin.server";
 import { sendRefundNotification } from "./notification.server";
 import { isLikelyFyndId } from "./fynd-payload.server";
+
+type ReturnCaseWithWebhookRelations = Prisma.ReturnCaseGetPayload<{
+  include: { items: true; shop: true };
+}>;
 
 /** Fynd refund statuses that indicate refund is in progress.
  * Bug #16 fix: removed the generic "in_progress" and "processing" entries.
@@ -499,6 +504,45 @@ function extractBagIds(payload: FyndWebhookPayload): string[] {
   }
 
   return [...ids];
+}
+
+const APP_RETURN_MARKER_KEYS = new Set([
+  "activity_comment",
+  "rpm_return_id",
+  "rpm_return_case_id",
+  "rpm_return_request_no",
+  "return_request_no",
+  "return_request_id",
+  "returnCaseId",
+  "return_case_id",
+]);
+
+function extractAppReturnMarkers(payload: FyndWebhookPayload): string[] {
+  const markers = new Set<string>();
+  const add = (value: unknown) => {
+    const text = coerceStr(value);
+    if (!text) return;
+    markers.add(text);
+    for (const match of text.matchAll(/\b(RPM-[A-Z0-9-]+|c[a-z0-9]{12,})\b/gi)) {
+      markers.add(match[1]);
+    }
+  };
+
+  const walk = (value: unknown, depth = 0) => {
+    if (depth > 7 || value == null) return;
+    if (Array.isArray(value)) {
+      for (const item of value) walk(item, depth + 1);
+      return;
+    }
+    if (typeof value !== "object") return;
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (APP_RETURN_MARKER_KEYS.has(key)) add(child);
+      if (child && typeof child === "object") walk(child, depth + 1);
+    }
+  };
+
+  walk(payload);
+  return [...markers];
 }
 
 /** Extract shop domain from webhook payload (bags[0].affiliate_bag_details.affiliate_meta.shop_domain) */
@@ -1046,20 +1090,110 @@ export async function processFyndWebhook(
   const webhookShop = webhookShopDomain
     ? await prisma.shop.findUnique({ where: { shopDomain: webhookShopDomain } }).catch(() => null)
     : null;
+  const appReturnMarkers = extractAppReturnMarkers(payload);
+  const isReturnOrRefundEvent = eventCategory === "return" || eventCategory === "refund";
 
-  // Multi-strategy lookup: fyndShipmentId first, then fyndOrderId (try all order identifiers).
+  // Multi-strategy lookup. For return/refund webhooks, prefer app return markers
+  // and bag IDs before any order-level fallback. Order-level matching is unsafe
+  // for partial returns because multiple ReturnCases share one Shopify order.
+  let returnCase: ReturnCaseWithWebhookRelations | null = null;
+
+  if (appReturnMarkers.length > 0) {
+    for (const marker of appReturnMarkers) {
+      returnCase = await prisma.returnCase.findFirst({
+        where: {
+          ...(webhookShop ? { shopId: webhookShop.id } : {}),
+          OR: [{ id: marker }, { returnRequestNo: { equals: marker, mode: "insensitive" } }],
+        },
+        include: { items: true, shop: true },
+      });
+      if (returnCase) {
+        console.log(`[Fynd webhook] Matched via app return marker="${marker}"`);
+        break;
+      }
+    }
+  }
+
+  if (!returnCase && isReturnOrRefundEvent && shipmentId) {
+    returnCase = await prisma.returnCase.findFirst({
+      where: webhookShop
+        ? {
+            shopId: webhookShop.id,
+            OR: [{ fyndReturnId: shipmentId }, { fyndReturnNo: shipmentId }],
+          }
+        : {
+            OR: [{ fyndReturnId: shipmentId }, { fyndReturnNo: shipmentId }],
+          },
+      include: { items: true, shop: true },
+    });
+    if (returnCase) {
+      console.log(`[Fynd webhook] Matched return/refund via return shipment id="${shipmentId}"`);
+    }
+  }
+
+  if (!returnCase && isReturnOrRefundEvent && bagIds.length) {
+    try {
+      const matchedItem = await prisma.returnItem.findFirst({
+        where: {
+          fyndBagId: { in: bagIds },
+          returnCase: {
+            ...(webhookShop ? { shopId: webhookShop.id } : {}),
+            status: { notIn: ["rejected", "cancelled"] },
+          },
+        },
+        include: { returnCase: { include: { items: true, shop: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      if (matchedItem?.returnCase) {
+        returnCase = matchedItem.returnCase;
+        console.log(`[Fynd webhook] Matched via fyndBagId="${matchedItem.fyndBagId}"`);
+      }
+    } catch {
+      /* non-fatal */
+    }
+
+    if (!returnCase) {
+      await logWebhook({
+        shipmentId,
+        orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+        refundStatus,
+        action: "ignored",
+        rawPayload: rawPayload ?? JSON.stringify(payload),
+        ...logEnrichment,
+        error: `Ignored ${eventCategory} webhook with unmatched bag scope: ${bagIds.join(",")}`,
+      });
+      return { ok: true, action: "ignored", returnCaseId: undefined };
+    }
+  }
+
+  if (!returnCase && isReturnOrRefundEvent) {
+    await logWebhook({
+      shipmentId,
+      orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+      refundStatus,
+      action: "ignored",
+      rawPayload: rawPayload ?? JSON.stringify(payload),
+      ...logEnrichment,
+      error: `Ignored ${eventCategory} webhook without app return scope`,
+    });
+    return { ok: true, action: "ignored", returnCaseId: undefined };
+  }
+
+  // Fallback lookup: fyndShipmentId first, then fyndOrderId (try all order identifiers).
   // When the per-shop webhook route injects _shop_domain, keep every lookup scoped to
   // that shop. Fynd IDs are not a strong enough global tenant boundary.
-  let returnCase = shipmentId
-    ? await prisma.returnCase.findFirst({
-        where: webhookShop
-          ? { shopId: webhookShop.id, fyndShipmentId: shipmentId }
-          : { fyndShipmentId: shipmentId },
-        include: { items: true, shop: true },
-      })
-    : null;
+  returnCase =
+    returnCase ??
+    (!isReturnOrRefundEvent && shipmentId
+      ? await prisma.returnCase.findFirst({
+          where: webhookShop
+            ? { shopId: webhookShop.id, fyndShipmentId: shipmentId }
+            : { fyndShipmentId: shipmentId },
+          include: { items: true, shop: true },
+        })
+      : null);
 
-  if (!returnCase && orderIds.length > 0) {
+  if (!returnCase && !isReturnOrRefundEvent && orderIds.length > 0) {
     for (const oid of orderIds) {
       returnCase = await prisma.returnCase.findFirst({
         where: webhookShop ? { shopId: webhookShop.id, fyndOrderId: oid } : { fyndOrderId: oid },
@@ -1070,7 +1204,7 @@ export async function processFyndWebhook(
   }
 
   // Strategy 3: FyndOrderMapping reverse lookup
-  if (!returnCase && (affiliateOrderId || shipmentId)) {
+  if (!returnCase && !isReturnOrRefundEvent && (affiliateOrderId || shipmentId)) {
     try {
       const mappingWhere: Array<Record<string, string>> = [];
       if (affiliateOrderId) mappingWhere.push({ fyndOrderId: affiliateOrderId });
@@ -1099,7 +1233,7 @@ export async function processFyndWebhook(
   // Shopify order name we stored at return creation time. The bag id is the
   // most specific identifier for a partial return and prevents linking a
   // same-order webhook to the wrong ReturnCase.
-  if (!returnCase && bagIds.length > 0) {
+  if (!returnCase && !isReturnOrRefundEvent && bagIds.length > 0) {
     try {
       const matchedItem = await prisma.returnItem.findFirst({
         where: {
@@ -1122,7 +1256,7 @@ export async function processFyndWebhook(
   }
 
   // Strategy 5: Match by shopifyOrderName via Fynd prefix stripping
-  if (!returnCase && affiliateOrderId) {
+  if (!returnCase && !isReturnOrRefundEvent && affiliateOrderId) {
     try {
       const variants = extractShopifyOrderNumberVariants(affiliateOrderId);
       for (const variant of variants) {
@@ -1148,7 +1282,7 @@ export async function processFyndWebhook(
   }
 
   // Strategy 6: Case-insensitive fyndOrderId match (legacy data)
-  if (!returnCase && affiliateOrderId) {
+  if (!returnCase && !isReturnOrRefundEvent && affiliateOrderId) {
     try {
       returnCase = await prisma.returnCase.findFirst({
         where: webhookShop
@@ -1170,7 +1304,7 @@ export async function processFyndWebhook(
 
   // Strategy 7: Direct shopifyOrderName match using all order identifiers
   // Fynd often sends the Shopify order name as affiliate_order_id or external_order_id
-  if (!returnCase && orderIds.length > 0) {
+  if (!returnCase && !isReturnOrRefundEvent && orderIds.length > 0) {
     try {
       for (const oid of orderIds) {
         const clean = oid.replace(/^#/, "").trim();
@@ -1202,7 +1336,7 @@ export async function processFyndWebhook(
   // Strategy 8: Match by shopifyOrderId when Fynd sends a Shopify GID or numeric ID
   /* v8 ignore start */
   // defensive: shopifyOrderId match fallback chain — multiple short-circuits not exhausted
-  if (!returnCase && orderIds.length > 0) {
+  if (!returnCase && !isReturnOrRefundEvent && orderIds.length > 0) {
     try {
       for (const oid of orderIds) {
         if (oid.startsWith("gid://") || /^\d+$/.test(oid)) {

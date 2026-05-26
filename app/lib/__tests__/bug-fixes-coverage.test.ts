@@ -5,8 +5,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
  * and earlier. These tests pin down the precise *behavior* that was missing
  * pre-fix, so a future regression that re-introduces the bug fails here.
  *
- *   Bug #1 — Fynd bag-aware payload: createReturnOnFynd uses fyndBagId as
- *            identifier when present (instead of SKU/aggregate qty).
+ *   Bug #1 — Fynd line-aware payload: createReturnOnFynd uses seller
+ *            identifier/SKU + line_number while retaining bag ids for app
+ *            scoping.
  *   Bug #4 — Post-refund sweep: closeShopifyReturnBestEffort runs the
  *            order-level openReturns sweep so refund-auto-created Returns
  *            get closed (clearing the order's "Return in progress" badge).
@@ -115,12 +116,12 @@ function makeCase(
   } as unknown as ReturnCase & { items: ReturnItem[] };
 }
 
-/* ── Bug #1: Fynd bag-aware payload ─────────────────────────────────── */
+/* ── Bug #1: Fynd line-aware payload ────────────────────────────────── */
 
-describe("Bug #1 — bag-aware Fynd payload", () => {
+describe("Bug #1 — line-aware Fynd payload", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("uses fyndBagId as identifier when present (multi-qty bag, qty preserved up to bag capacity)", async () => {
+  it("uses seller/SKU identifier with Fynd line_number when bag metadata is present", async () => {
     const client = makeFyndClient();
     const rc = makeCase({
       items: [
@@ -129,6 +130,7 @@ describe("Bug #1 — bag-aware Fynd payload", () => {
           returnCaseId: "rc-1",
           sku: "SKU-1",
           fyndBagId: "BAG-AAA",
+          fyndSellerIdentifier: "RETURN3",
           fyndLineNumber: 3,
           shopifyLineItemId: "gid://shopify/LineItem/1",
           qty: 2,
@@ -145,9 +147,8 @@ describe("Bug #1 — bag-aware Fynd payload", () => {
     await createReturnOnFynd(client, rc, { targetShipmentId: "FYSHIP1" });
     const [, payload] = client.updateShipmentStatus.mock.calls[0];
     const ship = payload.statuses[0].shipments[0];
-    // Bag-aware: identifier is the bag id, not the SKU; quantity reflects qty.
-    expect(ship.products).toEqual([{ line_number: 3, quantity: 2, identifier: "BAG-AAA" }]);
-    expect(ship.reasons.products[0].filters[0].identifier).toBe("BAG-AAA");
+    expect(ship.products).toEqual([{ line_number: 3, quantity: 2, identifier: "RETURN3" }]);
+    expect(ship.reasons.products[0].filters[0].identifier).toBe("RETURN3");
     expect(ship.reasons.products[0].filters[0].quantity).toBe(2);
   });
 
@@ -172,7 +173,7 @@ describe("Bug #1 — bag-aware Fynd payload", () => {
     expect(payload.statuses[0].shipments[0].products[0].identifier).toBe("SKU-NO-BAG");
   });
 
-  it("mixes bag-aware and SKU-aware items in the same payload", async () => {
+  it("mixes line-aware and SKU-aware items in the same payload", async () => {
     const client = makeFyndClient();
     const rc = makeCase({
       items: [
@@ -181,6 +182,7 @@ describe("Bug #1 — bag-aware Fynd payload", () => {
           returnCaseId: "rc-1",
           sku: "SKU-A",
           fyndBagId: "BAG-1",
+          fyndSellerIdentifier: "RETURN3",
           shopifyLineItemId: "gid://shopify/LineItem/1",
           qty: 1,
           reasonCode: null,
@@ -203,8 +205,55 @@ describe("Bug #1 — bag-aware Fynd payload", () => {
     const [, payload] = client.updateShipmentStatus.mock.calls[0];
     const products = payload.statuses[0].shipments[0].products;
     expect(products).toHaveLength(2);
-    expect(products[0]).toMatchObject({ identifier: "BAG-1", quantity: 1 });
+    expect(products[0]).toMatchObject({ identifier: "RETURN3", quantity: 1 });
     expect(products[1]).toMatchObject({ identifier: "SKU-B", quantity: 4 });
+  });
+
+  it("targets later returns on the same SKU by line_number, matching Fynd status-internal payloads", async () => {
+    const client = makeFyndClient();
+    const rc = makeCase({
+      items: [
+        {
+          id: "ri-2",
+          returnCaseId: "rc-1",
+          sku: "RETURN3",
+          fyndBagId: "3874131",
+          fyndSellerIdentifier: "RETURN3",
+          fyndLineNumber: 2,
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          reasonCode: "Size too Big",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as unknown as ReturnItem,
+        {
+          id: "ri-3",
+          returnCaseId: "rc-1",
+          sku: "RETURN3",
+          fyndBagId: "3874132",
+          fyndSellerIdentifier: "RETURN3",
+          fyndLineNumber: 3,
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          reasonCode: "Size too Big",
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as unknown as ReturnItem,
+      ],
+    });
+    await createReturnOnFynd(client, rc, { targetShipmentId: "17797899848991337824" });
+    const [, payload] = client.updateShipmentStatus.mock.calls[0];
+    const ship = payload.statuses[0].shipments[0];
+    expect(ship.identifier).toBe("17797899848991337824");
+    expect(ship.products).toEqual([
+      { line_number: 2, quantity: 1, identifier: "RETURN3" },
+      { line_number: 3, quantity: 1, identifier: "RETURN3" },
+    ]);
+    expect(
+      ship.reasons.products.map(
+        (p: { filters: Array<{ line_number: number }> }) => p.filters[0].line_number,
+      ),
+    ).toEqual([2, 3]);
   });
 });
 

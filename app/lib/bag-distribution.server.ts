@@ -31,9 +31,10 @@
  *    `min(remaining, bag.fyndQuantityAvailable)` per bag until the
  *    requested qty is satisfied.
  * 4. Each output entry carries the bag's full Fynd metadata
- *    (shipmentId, bagId, lineNumber, articleId, etc.) so the
- *    downstream Fynd sync (createReturnOnFynd) can address the
- *    correct bag.
+ *    (shipmentId, bagId, seller identifier, lineNumber, articleId,
+ *    etc.) so downstream sync can send the Fynd transition API the
+ *    seller identifier + line_number pair while still scoping our app
+ *    state by bag.
  *
  * Pure module — no Prisma, no I/O. Caller owns the data fetch and
  * passes a ShipmentSnapshot[] alongside the request. Easy to unit-test.
@@ -212,12 +213,8 @@ export function buildBagIndex(
   for (const ship of shipments) {
     const eligible = ship.eligible !== false; // default-true unless explicitly false
     for (const it of ship.items ?? []) {
-      const reservedQty =
-        reserved[`${ship.shipmentId}::${it.bagId}`] ?? reserved[it.bagId] ?? 0;
-      const remainingQty = Math.max(
-        0,
-        (it.quantity ?? 0) - Math.max(0, reservedQty),
-      );
+      const reservedQty = reserved[`${ship.shipmentId}::${it.bagId}`] ?? reserved[it.bagId] ?? 0;
+      const remainingQty = Math.max(0, (it.quantity ?? 0) - Math.max(0, reservedQty));
       const bag: BagSnapshot = {
         shipmentId: ship.shipmentId,
         shipmentEligible: eligible,

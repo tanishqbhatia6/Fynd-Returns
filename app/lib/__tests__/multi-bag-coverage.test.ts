@@ -12,7 +12,8 @@
  *
  * Fix layers:
  *   1. createReturnOnFynd's buildProductsPayload caps qty against
- *      `fyndQuantityAvailable` (defaults to 1 if missing).
+ *      `fyndQuantityAvailable` (defaults to 1 if missing) and sends
+ *      seller identifier + line_number to Fynd.
  *   2. api.portal.create-return.ts caps qty at submit time when
  *      fyndBagId is set.
  *   3. Portal HTML caps the qty input's max to `li.quantity` on
@@ -28,7 +29,7 @@ vi.mock("../observability/logger.server", () => ({
   fyndLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 vi.mock("../observability/tracing.server", () => ({
-  withSpan: async <T,>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
+  withSpan: async <T>(_n: string, _a: unknown, fn: (s?: unknown) => Promise<T>) =>
     fn({ setAttribute: () => {}, end: () => {} }),
   addBusinessEvent: vi.fn(),
   startTimer: () => () => 0,
@@ -95,7 +96,7 @@ describe("Bug #11 — multi-bag Fynd return payload", () => {
   it("caps quantity to bag's fyndQuantityAvailable when qty exceeds it (regression)", async () => {
     // Pre-fix scenario: ONE return item with qty=3 + bagId targeting a
     // single bag whose true capacity is 1. Without the cap, we'd send
-    // {quantity: 3, identifier: <bagId>} → Fynd rejects.
+    // {quantity: 3, identifier: <sku>} → Fynd rejects.
     const client = makeClient();
     const rc = makeCase([
       {
@@ -111,7 +112,7 @@ describe("Bug #11 — multi-bag Fynd return payload", () => {
     const [, payload] = client.updateShipmentStatus.mock.calls[0];
     const ship = payload.statuses[0].shipments[0];
     // Cap kicked in: qty=1, not 3
-    expect(ship.products).toEqual([{ line_number: 1, quantity: 1, identifier: "BAG-1" }]);
+    expect(ship.products).toEqual([{ line_number: 1, quantity: 1, identifier: "SKU-A" }]);
     expect(ship.reasons.products[0].filters[0].quantity).toBe(1);
   });
 
@@ -136,9 +137,9 @@ describe("Bug #11 — multi-bag Fynd return payload", () => {
   });
 
   it("fans out one entry per bag when multiple ReturnItems target different bags", async () => {
-    // Post-fix happy path: 3 ReturnItems, each with its own bagId
-    // and qty=1. This is what the portal will produce when the user
-    // ticks all 3 bag rows for a multi-qty Shopify line item.
+    // Post-fix happy path: 3 ReturnItems, each with its own Fynd
+    // line_number and qty=1. This is what the portal will produce when
+    // the user returns multiple units from a multi-qty Shopify line item.
     const client = makeClient();
     const rc = makeCase([
       {
@@ -177,9 +178,9 @@ describe("Bug #11 — multi-bag Fynd return payload", () => {
     const products = payload.statuses[0].shipments[0].products;
     expect(products).toHaveLength(3);
     expect(products).toEqual([
-      { line_number: 1, quantity: 1, identifier: "BAG-1" },
-      { line_number: 2, quantity: 1, identifier: "BAG-2" },
-      { line_number: 3, quantity: 1, identifier: "BAG-3" },
+      { line_number: 1, quantity: 1, identifier: "SKU-A" },
+      { line_number: 2, quantity: 1, identifier: "SKU-A" },
+      { line_number: 3, quantity: 1, identifier: "SKU-A" },
     ]);
   });
 

@@ -67,14 +67,13 @@ function joinUnique(values: Array<string | undefined | null>): string | undefine
 
 /** Build products + reasons arrays from return items for Fynd payload.
  *
- * Bag-aware emission (Bug #1 fix). When the return item has a `fyndBagId`,
- * we emit ONE entry per bag with `quantity: 1` and the bag id as identifier.
- * Fynd's status-internal endpoint uses the identifier to target a specific
- * bag — this avoids the "Requested quantity > available bags quantity"
- * error that fires when an aggregate `{sku, qty: N}` payload doesn't
- * match Fynd's per-bag bookkeeping (e.g. after a prior partial return).
+ * The status-internal endpoint targets units by seller identifier/SKU plus
+ * Fynd line_number. Bag ids are still captured on ReturnItem, but they are
+ * for our app-side scoping/webhook matching, not the products[].identifier
+ * sent to this endpoint. This matters when one Shopify SKU appears as
+ * multiple Fynd lines: first return line 1, second return lines 2 + 3.
  *
- * Falls back to sku/aggregate-quantity emission only when bag id is unknown.
+ * Falls back to bag id only for legacy rows missing seller/SKU metadata.
  */
 function buildProductsPayload(
   items: ReturnItem[],
@@ -105,12 +104,14 @@ function buildProductsPayload(
     /* v8 ignore start */ // defensive: || / ?? short-circuits across reason/sku/lineNum fallbacks
     const reasonText = item.reasonCode || defaultReasonText;
     const fyndBagId = (item as { fyndBagId?: string | null }).fyndBagId;
-    const sku = item.fyndSellerIdentifier || item.sku || item.shopifyLineItemId;
+    const identifier = item.fyndSellerIdentifier || item.sku || item.shopifyLineItemId || fyndBagId;
     const explicitLineNum = (item as { fyndLineNumber?: number | null }).fyndLineNumber;
     const lineNum = explicitLineNum ?? nextSeqLineNumber++;
     /* v8 ignore stop */
 
-    // Bag-aware path: when Fynd's bag id is known, target the specific bag.
+    // Bag-aware path: keep one payload entry per allocated bag/line, but
+    // identify it the way Fynd's transition API expects: seller identifier
+    // plus line_number. The bag id stays on the DB row for app scoping.
     //
     // CRITICAL: each Fynd bag has its own discrete quantity (often 1, since
     // multi-qty Shopify lines get split into one bag per unit on Fynd's side).
@@ -128,9 +129,10 @@ function buildProductsPayload(
           ? Math.floor(bagCap)
           : 1;
       const qty = Math.min(Math.max(1, Math.floor(item.qty)), cap);
-      products.push({ line_number: lineNum, quantity: qty, identifier: fyndBagId });
+      if (!identifier) return;
+      products.push({ line_number: lineNum, quantity: qty, identifier });
       reasonProducts.push({
-        filters: [{ identifier: fyndBagId, line_number: lineNum, quantity: qty }],
+        filters: [{ identifier, line_number: lineNum, quantity: qty }],
         data: { reason_id: defaultReasonId, reason_text: reasonText },
       });
       return;
@@ -141,11 +143,11 @@ function buildProductsPayload(
     // its bookkeeping. This path stays for backward compatibility with
     // older returns that pre-date bag-id capture.
     /* v8 ignore start */
-    // defensive: sku presence varies by item; falsy branch covered elsewhere
-    if (sku) {
-      products.push({ line_number: lineNum, quantity: item.qty, identifier: sku });
+    // defensive: identifier presence varies by item; falsy branch covered elsewhere
+    if (identifier) {
+      products.push({ line_number: lineNum, quantity: item.qty, identifier });
       reasonProducts.push({
-        filters: [{ identifier: sku, line_number: lineNum, quantity: item.qty }],
+        filters: [{ identifier, line_number: lineNum, quantity: item.qty }],
         data: { reason_id: defaultReasonId, reason_text: reasonText },
       });
       /* v8 ignore stop */

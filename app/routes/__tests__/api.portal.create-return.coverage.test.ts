@@ -35,6 +35,7 @@ const {
   parseAutoApproveRulesMock,
   createReturnOnFyndMock,
   createFyndClientOrErrorMock,
+  claimAndCreateShopifyReturnMock,
   sendNewReturnNotificationMock,
   checkReturnEligibilityMock,
   buildReturnRequestIdMock,
@@ -62,6 +63,7 @@ const {
   parseAutoApproveRulesMock: vi.fn<(...args: unknown[]) => unknown[]>(() => [] as unknown[]),
   createReturnOnFyndMock: vi.fn(),
   createFyndClientOrErrorMock: vi.fn(),
+  claimAndCreateShopifyReturnMock: vi.fn(),
   sendNewReturnNotificationMock: vi.fn().mockResolvedValue(undefined),
   checkReturnEligibilityMock: vi.fn<(...args: unknown[]) => { eligible: boolean; reason?: string }>(
     () => ({ eligible: true }),
@@ -103,6 +105,9 @@ vi.mock("../../lib/fynd.server", () => ({
 }));
 vi.mock("../../lib/fynd-returns.server", () => ({
   createReturnOnFynd: createReturnOnFyndMock,
+}));
+vi.mock("../../lib/shopify-return-claim.server", () => ({
+  claimAndCreateShopifyReturn: claimAndCreateShopifyReturnMock,
 }));
 vi.mock("../../lib/notification.server", () => ({
   sendNewReturnNotification: sendNewReturnNotificationMock,
@@ -225,6 +230,9 @@ beforeEach(() => {
   createFyndClientOrErrorMock
     .mockReset()
     .mockResolvedValue({ ok: false, error: "Fynd not configured" });
+  claimAndCreateShopifyReturnMock
+    .mockReset()
+    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/1", claimed: true });
   sendNewReturnNotificationMock.mockReset().mockResolvedValue(undefined);
   checkReturnEligibilityMock.mockReset().mockReturnValue({ eligible: true });
   buildReturnRequestIdMock.mockReset().mockReturnValue("R-1001");
@@ -647,6 +655,21 @@ describe("Fynd sync trigger", () => {
     } as never);
     expect(res.status).toBe(200);
     expect(createFyndClientOrErrorMock).toHaveBeenCalled();
+    expect(claimAndCreateShopifyReturnMock).toHaveBeenCalledWith(
+      "rc-fynd-1",
+      expect.anything(),
+      "gid://shopify/Order/1",
+      [
+        {
+          shopifyLineItemId: "gid://shopify/LineItem/100",
+          qty: 1,
+          reasonCode: null,
+          notes: null,
+          sku: null,
+        },
+      ],
+      expect.objectContaining({ requestedAt: createdRc.createdAt.toISOString() }),
+    );
     expect(createReturnOnFyndMock).toHaveBeenCalledWith(
       expect.anything(),
       createdRc,

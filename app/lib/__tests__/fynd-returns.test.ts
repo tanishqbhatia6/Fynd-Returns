@@ -402,11 +402,11 @@ describe("createReturnOnFynd — bag/products mapping", () => {
     const secondPayload = client.updateShipmentStatus.mock.calls[1][1];
     expect(firstPayload.statuses[0].shipments[0]).toMatchObject({
       identifier: "SHIP-A",
-      products: [{ line_number: 1, quantity: 1, identifier: "BAG-A" }],
+      products: [{ line_number: 1, quantity: 1, identifier: "SKU-A" }],
     });
     expect(secondPayload.statuses[0].shipments[0]).toMatchObject({
       identifier: "SHIP-B",
-      products: [{ line_number: 1, quantity: 1, identifier: "BAG-B" }],
+      products: [{ line_number: 1, quantity: 1, identifier: "SKU-A" }],
     });
   });
 

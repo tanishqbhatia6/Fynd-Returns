@@ -5,6 +5,7 @@ import { checkReturnEligibility } from "../lib/return-rules.server";
 import { getPortalCorsHeaders, withCors } from "../lib/portal-cors.server";
 import { createFyndClientOrError } from "../lib/fynd.server";
 import { createReturnOnFynd } from "../lib/fynd-returns.server";
+import { claimAndCreateShopifyReturn } from "../lib/shopify-return-claim.server";
 import {
   fetchOrder,
   fetchOrderByOrderNumber,
@@ -1999,14 +2000,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       console.warn("[Portal create-return] New return notification failed:", notifyErr);
     });
 
-    // When auto-approved, sync to Fynd so webhook can match returns (skip for green returns)
-    if (status === "approved" && !manualMode && orderId && !qualifiesForGreenReturn) {
+    // When auto-approved, create the Shopify Return and sync to Fynd so both
+    // downstream systems move for this exact ReturnCase.
+    if (status === "approved" && !manualMode && effectiveOrderId && !qualifiesForGreenReturn) {
       // defensive: extensive nullish-coalesce/spread-conditional defaults across Fynd sync path
       /* v8 ignore start */
       try {
         const { admin: rawAdmin } = await shopify.unauthenticated.admin(shopDomain);
         const admin = withRestCredentials(rawAdmin, shopDomain, shopAccessToken);
-        const order = await fetchOrder(admin, orderId);
+        const order = await fetchOrder(admin, effectiveOrderId);
         const affiliateOrderId = order?.affiliateOrderId ?? null;
         const fyndSettings = shopRecord.settings as
           | Parameters<typeof createFyndClientOrError>[0]
@@ -2021,6 +2023,66 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             include: { items: true },
           });
           if (!rcWithItems) throw new Error("Return case not found after creation");
+
+          const canCreateShopifyReturn =
+            !rcWithItems.shopifyReturnId &&
+            !effectiveOrderId.startsWith("manual:") &&
+            (effectiveOrderId.startsWith("gid://") || /^\d+$/.test(effectiveOrderId));
+          if (canCreateShopifyReturn) {
+            try {
+              const shopifyReturnResult = await claimAndCreateShopifyReturn(
+                returnCase.id,
+                admin as never,
+                effectiveOrderId,
+                (rcWithItems.items ?? []).map((item) => ({
+                  shopifyLineItemId: item.shopifyLineItemId,
+                  qty: item.qty,
+                  reasonCode: item.reasonCode ?? null,
+                  notes: item.notes ?? null,
+                  sku: item.sku ?? null,
+                })),
+                { requestedAt: rcWithItems.createdAt.toISOString() },
+              );
+              await prisma.returnEvent.create({
+                data: {
+                  returnCaseId: returnCase.id,
+                  source: "portal",
+                  eventType:
+                    shopifyReturnResult.success && shopifyReturnResult.shopifyReturnId
+                      ? shopifyReturnResult.claimed
+                        ? "shopify_return_created"
+                        : "shopify_return_reused"
+                      : "shopify_return_failed",
+                  payloadJson: JSON.stringify({
+                    shopifyReturnId: shopifyReturnResult.shopifyReturnId ?? null,
+                    error: shopifyReturnResult.error ?? null,
+                    claimed: shopifyReturnResult.claimed,
+                    itemCount: (rcWithItems.items ?? []).length,
+                    autoApproved: true,
+                  }),
+                },
+              });
+            } catch (shopifyReturnErr) {
+              await prisma.returnEvent
+                .create({
+                  data: {
+                    returnCaseId: returnCase.id,
+                    source: "portal",
+                    eventType: "shopify_return_failed",
+                    payloadJson: JSON.stringify({
+                      error:
+                        shopifyReturnErr instanceof Error
+                          ? shopifyReturnErr.message
+                          : String(shopifyReturnErr),
+                      itemCount: (rcWithItems.items ?? []).length,
+                      autoApproved: true,
+                    }),
+                  },
+                })
+                .catch(() => {});
+            }
+          }
+
           const fyndSync = await createReturnOnFynd(fyndResult.client, rcWithItems, {
             affiliateOrderId,
             targetShipmentId: rcWithItems.fyndShipmentId || null,

@@ -205,6 +205,150 @@ export interface ShipmentSnapshot {
  */
 export type BagReservedMap = Record<string, number>;
 
+const RETURN_ALLOWED_FYND_STATUSES = new Set([
+  "delivery_done",
+  "delivered",
+  "bag_delivered",
+  "handed_over_to_customer",
+  "return_initiated",
+  "return_dp_assigned",
+  "return_bag_picked",
+  "return_bag_in_transit",
+  "return_bag_out_for_delivery",
+  "return_bag_delivered",
+  "return_bag_not_received",
+  "return_pre_qc",
+  "return_accepted",
+  "return_completed",
+  "credit_note_generated",
+  "refund_initiated",
+  "refund_done",
+  "refund_completed",
+]);
+
+function normalizeFyndStatus(status: string | null | undefined): string {
+  return String(status ?? "")
+    .toLowerCase()
+    .replace(/[\s_]+/g, "_")
+    .trim();
+}
+
+function isFyndShipmentEligible(
+  status: string | null | undefined,
+  allowedStatuses: string[],
+): boolean {
+  const normalized = normalizeFyndStatus(status);
+  if (RETURN_ALLOWED_FYND_STATUSES.has(normalized)) return true;
+  return allowedStatuses.some((allowed) => {
+    const normalizedAllowed = normalizeFyndStatus(allowed);
+    return normalized === normalizedAllowed || normalized.includes(normalizedAllowed);
+  });
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+}
+
+function asArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function str(value: unknown): string | null {
+  if (value == null) return null;
+  const out = String(value).trim();
+  return out || null;
+}
+
+function num(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value))) {
+    return Number(value);
+  }
+  return null;
+}
+
+function unwrapFyndShipmentPayload(raw: unknown): Record<string, unknown> | null {
+  const root = typeof raw === "string" ? JSON.parse(raw) : raw;
+  const obj = asRecord(root);
+  const payload = asRecord(obj.payload);
+  const shipment = asRecord(payload.shipment ?? obj.shipment ?? obj);
+  return Object.keys(shipment).length > 0 ? shipment : null;
+}
+
+export function shipmentSnapshotsFromFyndPayload(
+  rawPayload: unknown,
+  options: { allowedStatuses?: string[] } = {},
+): ShipmentSnapshot[] {
+  let shipment: Record<string, unknown> | null = null;
+  try {
+    shipment = unwrapFyndShipmentPayload(rawPayload);
+  } catch {
+    return [];
+  }
+  if (!shipment) return [];
+
+  const statusObj = asRecord(shipment.shipment_status);
+  const shipmentId =
+    str(shipment.shipment_id) ||
+    str(statusObj.shipment_id) ||
+    str(asRecord(shipment.affiliate_details).affiliate_shipment_id);
+  if (!shipmentId) return [];
+
+  const status =
+    str(shipment.current_shipment_status) ||
+    str(shipment.status) ||
+    str(statusObj.current_shipment_status) ||
+    str(statusObj.status);
+  const eligible = isFyndShipmentEligible(status, options.allowedStatuses ?? []);
+  const items: ShipmentSnapshot["items"] = [];
+
+  for (const rawBag of asArray(shipment.bags)) {
+    const bag = asRecord(rawBag);
+    const article = asRecord(bag.article);
+    const item = asRecord(bag.item);
+    const affiliateBagDetails = asRecord(bag.affiliate_bag_details);
+    const affiliateMeta = asRecord(affiliateBagDetails.affiliate_meta);
+    const bagMeta = asRecord(bag.meta);
+    const bagAffiliateMeta = asRecord(bagMeta.affiliate_meta);
+    const firstBreakup = asRecord(asArray(bag.financial_breakup)[0]);
+    const identifiers = asRecord(firstBreakup.identifiers);
+    const prices = asRecord(bag.prices);
+
+    const bagId = str(bag.bag_id) || str(affiliateBagDetails.affiliate_bag_id) || str(bag.id);
+    if (!bagId) continue;
+
+    const affiliateLineId =
+      str(affiliateMeta.affiliate_line_id) ||
+      str(bagAffiliateMeta.affiliate_line_id) ||
+      str(affiliateBagDetails.affiliate_line_id) ||
+      str(bag.affiliate_line_id);
+    const sellerIdentifier =
+      str(article.seller_identifier) ||
+      str(identifiers.sku_code) ||
+      str(affiliateMeta.affiliate_sku) ||
+      str(item.code);
+    const quantity = num(bag.quantity) ?? num(firstBreakup.total_units) ?? 1;
+
+    items.push({
+      id: affiliateLineId ? `gid://shopify/LineItem/${affiliateLineId}` : bagId,
+      bagId,
+      sku: sellerIdentifier,
+      quantity,
+      fyndArticleId:
+        str(article._id) || str(article.uid) || str(article.article_id) || str(article.id),
+      fyndAffiliateLineId: affiliateLineId,
+      fyndSellerIdentifier: sellerIdentifier,
+      fyndItemId: str(item.id) || str(item.item_id) || str(item._id),
+      fyndPriceEffective: str(prices.price_effective) || str(firstBreakup.price_effective),
+      fyndSize: str(article.size) || str(bag.size) || str(item.size),
+      fyndLineNumber: num(bag.line_number) ?? num(article.line_number),
+      fyndQuantityAvailable: quantity,
+    });
+  }
+
+  return [{ shipmentId, eligible, items }];
+}
+
 export function buildBagIndex(
   shipments: ShipmentSnapshot[],
   reserved: BagReservedMap = {},

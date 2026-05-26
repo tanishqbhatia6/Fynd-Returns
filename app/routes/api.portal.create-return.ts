@@ -32,6 +32,7 @@ import { calculateFraudScore } from "../lib/fraud-detection.server";
 import {
   buildBagIndex,
   distributeBagAllocations,
+  shipmentSnapshotsFromFyndPayload,
   type ShipmentSnapshot,
 } from "../lib/bag-distribution.server";
 
@@ -162,6 +163,72 @@ function fraudLevel(score: number): "low" | "medium" | "high" | "critical" {
   if (score >= 61) return "high";
   if (score >= 31) return "medium";
   return "low";
+}
+
+function parseAllowedFyndStatusesForCreate(
+  settings: { allowedFyndStatusesForReturn?: string | null } | null | undefined,
+): string[] {
+  try {
+    const raw = settings?.allowedFyndStatusesForReturn;
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((s) => String(s).toLowerCase().trim()) : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadServerFyndShipmentSnapshot(args: {
+  shopDomain: string;
+  shopifyOrderName?: string;
+  orderId?: string;
+  allowedStatuses: string[];
+}): Promise<ShipmentSnapshot[] | null> {
+  const candidates = [
+    args.shopifyOrderName,
+    args.shopifyOrderName?.replace(/^#/, ""),
+    args.orderId,
+    args.orderId?.replace(/^#/, ""),
+  ]
+    .map((v) => v?.trim())
+    .filter((v): v is string => Boolean(v));
+  const uniqueCandidates = [...new Set(candidates)];
+  if (uniqueCandidates.length === 0) return null;
+
+  try {
+    const logs = await prisma.fyndWebhookLog.findMany({
+      where: {
+        shopDomain: args.shopDomain,
+        rawPayload: { not: null },
+        OR: [
+          { affiliateOrderId: { in: uniqueCandidates } },
+          { orderId: { in: uniqueCandidates } },
+          ...uniqueCandidates.map((candidate) => ({
+            rawPayload: { contains: candidate },
+          })),
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      select: { rawPayload: true },
+    });
+
+    for (const log of logs) {
+      const snapshot = shipmentSnapshotsFromFyndPayload(log.rawPayload, {
+        allowedStatuses: args.allowedStatuses,
+      });
+      if (snapshot.some((shipment) => shipment.items.length > 0)) {
+        // In this path the webhook payload is used as a bag topology source,
+        // not as the return-eligibility authority. Eligibility is enforced by
+        // the live Shopify fulfillment check and the Fynd status gate below.
+        return snapshot.map((shipment) => ({ ...shipment, eligible: true }));
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -730,11 +797,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // (older clients, admin-mode), we keep the legacy per-bag path
       // and skip the distributor.
       const hasBagAware = items.some((it) => !!it.fyndBagId);
-      const shipmentsSnapshot = Array.isArray(body.shipmentsSnapshot)
+      const clientShipmentsSnapshot = Array.isArray(body.shipmentsSnapshot)
         ? (body.shipmentsSnapshot as ShipmentSnapshot[])
         : null;
+      const serverShipmentsSnapshot = !hasBagAware
+        ? await loadServerFyndShipmentSnapshot({
+            shopDomain,
+            shopifyOrderName,
+            orderId: effectiveOrderId || orderId,
+            allowedStatuses: parseAllowedFyndStatusesForCreate(settings),
+          })
+        : null;
+      const shipmentsSnapshot =
+        serverShipmentsSnapshot && serverShipmentsSnapshot.length > 0
+          ? serverShipmentsSnapshot
+          : clientShipmentsSnapshot;
       if (!hasBagAware && shipmentsSnapshot && shipmentsSnapshot.length > 0) {
         // Customer-portal path: distribute line-level qty across bags.
+        // Prefer the server-side Fynd webhook snapshot when present. Fynd's
+        // placed/return payload shape is stable and contains the authoritative
+        // bag_id + line_number + seller_identifier mapping; the browser-posted
+        // snapshot is only a fallback for shops without cached webhook data.
         const snapshotShipmentIds = [
           ...new Set(shipmentsSnapshot.map((s) => s.shipmentId).filter(Boolean) as string[]),
         ];

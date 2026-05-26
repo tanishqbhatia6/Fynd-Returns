@@ -11,6 +11,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildBagIndex,
   distributeBagAllocations,
+  shipmentSnapshotsFromFyndPayload,
   type ShipmentSnapshot,
 } from "../bag-distribution.server";
 
@@ -119,6 +120,106 @@ const SHOP_FIXTURE: ShipmentSnapshot[] = [
 ];
 
 describe("distributeBagAllocations — production multi-shipment-multi-line scenario", () => {
+  it("builds a shipment snapshot from Fynd's existing placed webhook payload shape", () => {
+    const snapshots = shipmentSnapshotsFromFyndPayload({
+      event: { name: "shipment", type: "create" },
+      payload: {
+        shipment: {
+          status: "delivery_done",
+          shipment_id: "17797917699901820308",
+          bags: [
+            {
+              bag_id: 3881011,
+              line_number: 1,
+              quantity: 1,
+              article: {
+                _id: "69e0be738dd8d8e41fdb57cf",
+                seller_identifier: "RETURN3",
+                size: "M",
+              },
+              affiliate_bag_details: {
+                affiliate_bag_id: "3881011",
+                affiliate_meta: {
+                  affiliate_line_id: 17555511443606,
+                  affiliate_sku: "RETURN3",
+                },
+              },
+              prices: { price_effective: 100 },
+            },
+            {
+              bag_id: 3881012,
+              line_number: 2,
+              quantity: 1,
+              article: {
+                _id: "69e0be738dd8d8e41fdb57cf",
+                seller_identifier: "RETURN3",
+                size: "M",
+              },
+              affiliate_bag_details: {
+                affiliate_bag_id: "3881012",
+                affiliate_meta: {
+                  affiliate_line_id: 17555511443606,
+                  affiliate_sku: "RETURN3",
+                },
+              },
+              prices: { price_effective: 100 },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(snapshots).toHaveLength(1);
+    expect(snapshots[0]).toMatchObject({
+      shipmentId: "17797917699901820308",
+      eligible: true,
+    });
+    expect(snapshots[0].items).toEqual([
+      expect.objectContaining({
+        id: "gid://shopify/LineItem/17555511443606",
+        bagId: "3881011",
+        sku: "RETURN3",
+        quantity: 1,
+        fyndSellerIdentifier: "RETURN3",
+        fyndLineNumber: 1,
+      }),
+      expect.objectContaining({
+        id: "gid://shopify/LineItem/17555511443606",
+        bagId: "3881012",
+        sku: "RETURN3",
+        quantity: 1,
+        fyndSellerIdentifier: "RETURN3",
+        fyndLineNumber: 2,
+      }),
+    ]);
+  });
+
+  it("marks placed webhook snapshots ineligible unless the merchant explicitly allows placed", () => {
+    const raw = {
+      payload: {
+        shipment: {
+          status: "placed",
+          shipment_id: "SHIP-PLACED",
+          bags: [
+            {
+              bag_id: "BAG-1",
+              line_number: 1,
+              article: { seller_identifier: "RETURN3" },
+              affiliate_bag_details: {
+                affiliate_meta: { affiliate_line_id: "17555511443606" },
+              },
+            },
+          ],
+        },
+      },
+    };
+
+    expect(shipmentSnapshotsFromFyndPayload(raw)[0].eligible).toBe(false);
+    expect(shipmentSnapshotsFromFyndPayload(raw, { allowedStatuses: ["placed"] })[0].eligible).toBe(
+      true,
+    );
+  });
+
   it("splits a 3-unit return for line A across shipment 1 (2 bags) + shipment 2 (1 bag)", () => {
     const bagIndex = buildBagIndex(SHOP_FIXTURE);
     const { items, unsatisfied } = distributeBagAllocations(
@@ -243,7 +344,14 @@ describe("distributeBagAllocations — production multi-shipment-multi-line scen
   it("populates Fynd metadata on each output item", () => {
     const bagIndex = buildBagIndex(SHOP_FIXTURE);
     const { items } = distributeBagAllocations(
-      [{ lineItemId: "gid://shopify/LineItem/A", qty: 1, reasonCode: "DEFECTIVE", notes: "size too big" }],
+      [
+        {
+          lineItemId: "gid://shopify/LineItem/A",
+          qty: 1,
+          reasonCode: "DEFECTIVE",
+          notes: "size too big",
+        },
+      ],
       bagIndex,
     );
     expect(items[0].fyndArticleId).toBe("ART-A");

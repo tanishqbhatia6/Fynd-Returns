@@ -201,6 +201,7 @@ beforeEach(() => {
   ).fyndOrderMapping;
   fynd.upsert.mockReset().mockResolvedValue({});
   fynd.findFirst.mockReset().mockResolvedValue(null);
+  prismaMock.fyndWebhookLog.findMany.mockReset().mockResolvedValue([]);
   shopifyModuleMock.unauthenticated.admin.mockReset();
   // Default: Shopify admin returns a graphql function (not used in most tests)
   shopifyModuleMock.unauthenticated.admin.mockResolvedValue({ admin: { graphql: vi.fn() } });
@@ -612,6 +613,114 @@ describe("autoApprove rule evaluation", () => {
 // ────────────────────────── Fynd sync ──────────────────────────
 
 describe("Fynd sync trigger", () => {
+  it("allocates return items from cached Fynd shipment webhook payload when browser snapshot is absent", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
+    prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
+    prismaMock.fyndWebhookLog.findMany.mockResolvedValueOnce([
+      {
+        rawPayload: JSON.stringify({
+          event: { name: "shipment", type: "create" },
+          payload: {
+            shipment: {
+              status: "placed",
+              shipment_id: "17797917699901820308",
+              bags: [
+                {
+                  bag_id: 3881011,
+                  line_number: 1,
+                  quantity: 1,
+                  article: {
+                    _id: "69e0be738dd8d8e41fdb57cf",
+                    seller_identifier: "RETURN3",
+                    size: "M",
+                  },
+                  affiliate_bag_details: {
+                    affiliate_order_id: "FYNDSHOPIFYX14403",
+                    affiliate_meta: {
+                      affiliate_line_id: 17555511443606,
+                      affiliate_sku: "RETURN3",
+                    },
+                  },
+                  prices: { price_effective: 100 },
+                },
+                {
+                  bag_id: 3881012,
+                  line_number: 2,
+                  quantity: 1,
+                  article: {
+                    _id: "69e0be738dd8d8e41fdb57cf",
+                    seller_identifier: "RETURN3",
+                    size: "M",
+                  },
+                  affiliate_bag_details: {
+                    affiliate_order_id: "FYNDSHOPIFYX14403",
+                    affiliate_meta: {
+                      affiliate_line_id: 17555511443606,
+                      affiliate_sku: "RETURN3",
+                    },
+                  },
+                  prices: { price_effective: 100 },
+                },
+              ],
+            },
+          },
+        }),
+      },
+    ]);
+    const createdRc = {
+      id: "rc-webhook-snapshot",
+      status: "initiated",
+      createdAt: new Date(),
+      items: [],
+    };
+    (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
+
+    const res = await action({
+      request: jsonReq(
+        happyBody({
+          shopifyOrderName: "FYNDSHOPIFYX14403",
+          items: [
+            {
+              lineItemId: "gid://shopify/LineItem/17555511443606",
+              qty: 2,
+              reasonCode: "Size too Big",
+            },
+          ],
+          lineItemsWithPrice: [
+            {
+              id: "gid://shopify/LineItem/17555511443606",
+              title: "RETURN APP TESTING 1",
+              price: "100.00",
+              quantity: 4,
+              productTags: [],
+              sku: "RETURN3",
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(200);
+    const createArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(createArg.data.fyndShipmentId).toBe("17797917699901820308");
+    expect(createArg.data.items.create).toEqual([
+      expect.objectContaining({
+        fyndBagId: "3881011",
+        fyndSellerIdentifier: "RETURN3",
+        fyndLineNumber: 1,
+        qty: 1,
+      }),
+      expect.objectContaining({
+        fyndBagId: "3881012",
+        fyndSellerIdentifier: "RETURN3",
+        fyndLineNumber: 2,
+        qty: 1,
+      }),
+    ]);
+  });
+
   it("calls createReturnOnFynd when status=approved AND fynd client ok", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(
       happyShop({

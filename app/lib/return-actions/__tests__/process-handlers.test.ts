@@ -699,6 +699,7 @@ describe("handleProcessExchange", () => {
     const [line] = input.lineItems as Array<Record<string, unknown>>;
     expect(line.originalUnitPrice).toBe("10.00");
     expect(line.appliedDiscount).toBeUndefined();
+    expect(line.requiresShipping).toBe(true);
   });
 
   it("403 on draft-order scope error", async () => {
@@ -806,6 +807,7 @@ describe("handleProcessExchange", () => {
     const [line] = input.lineItems as Array<Record<string, unknown>>;
     expect(line.variantId).toBe("gid://shopify/ProductVariant/V2");
     expect(line.appliedDiscount).toBeUndefined();
+    expect(line.requiresShipping).toBe(true);
     // Capture the exchange_created event to assert flow=invoice_pending was logged
     const evs = prismaMock.returnEvent.create.mock.calls
       .map((c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data)
@@ -1275,6 +1277,7 @@ describe("handleProcessReplacement", () => {
     const [line] = input.lineItems as Array<Record<string, unknown>>;
     expect(line.originalUnitPrice).toBe("10.00");
     expect(line.appliedDiscount).toBeUndefined();
+    expect(line.requiresShipping).toBe(true);
   });
 
   it("403 on draft-order scope error", async () => {

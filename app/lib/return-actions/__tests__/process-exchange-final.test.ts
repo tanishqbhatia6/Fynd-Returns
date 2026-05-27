@@ -805,6 +805,7 @@ describe("handleProcessExchange — final branch coverage", () => {
     expect(line.title).toBe("Phantom Product");
     expect(line.sku).toBe("PHANTOM-SKU");
     expect(line.originalUnitPrice).toBe("12.00");
+    expect(line.requiresShipping).toBe(true);
   });
 
   // Line 322: invoiceUrl undefined on success → null in event payload

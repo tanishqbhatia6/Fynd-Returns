@@ -266,6 +266,7 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
           lineItems: replacementLineItems.map((li) => {
             const base: Record<string, unknown> = {
               quantity: li.quantity,
+              requiresShipping: true,
             };
             // Shopify ignores explicit `sku` when `variantId` is provided — the
             // resulting order line uses the variant's actual SKU. If the chosen

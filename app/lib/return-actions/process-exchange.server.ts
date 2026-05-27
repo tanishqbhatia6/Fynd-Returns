@@ -309,7 +309,10 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
         const customerGetsRefund = priceDiff < 0;
 
         const draftLineItems = exchangeLines.map((line) => {
-          const base: Record<string, unknown> = { quantity: line.returnedQty };
+          const base: Record<string, unknown> = {
+            quantity: line.returnedQty,
+            requiresShipping: true,
+          };
           // Resolve a marketplace identifier so downstream Fynd order-create has
           // a non-null SKU (without it Fynd rejects the order with
           // `mkp_identifiers: [None]`).

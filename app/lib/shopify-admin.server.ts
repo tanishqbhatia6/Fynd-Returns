@@ -69,6 +69,7 @@ const ORDERS_QUERY = `#graphql
         discountCodes
         paymentGatewayNames
         note
+        customer { id firstName lastName defaultAddress { firstName lastName name address1 address2 city province provinceCode country countryCode zip phone } }
         shippingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         billingAddress { address1 address2 city province provinceCode country countryCode zip firstName lastName name company phone }
         customAttributes { key value }
@@ -342,6 +343,10 @@ export type OrderForPortal = {
   displayFulfillmentStatus?: string;
   paymentGatewayNames?: string[];
   sourceName?: string | null;
+  customerId?: string | null;
+  customerFirstName?: string | null;
+  customerLastName?: string | null;
+  customerDefaultAddress?: MailingAddressDisplay | null;
   fulfillments?: ShopifyFulfillment[];
 };
 
@@ -1129,6 +1134,12 @@ export async function fetchOrder(
     discountCodes?: string[];
     paymentGatewayNames?: string[];
     customAttributes?: Array<{ key: string; value: string }>;
+    customer?: {
+      id?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+      defaultAddress?: MailingAddressDisplay | null;
+    } | null;
     shippingAddress?: MailingAddressDisplay;
     billingAddress?: MailingAddressDisplay;
     fulfillments?: Array<{
@@ -1196,6 +1207,10 @@ export async function fetchOrder(
     displayFinancialStatus: order.displayFinancialStatus ?? undefined,
     displayFulfillmentStatus: order.displayFulfillmentStatus ?? undefined,
     paymentGatewayNames: order.paymentGatewayNames ?? [],
+    customerId: order.customer?.id ?? null,
+    customerFirstName: order.customer?.firstName ?? null,
+    customerLastName: order.customer?.lastName ?? null,
+    customerDefaultAddress: order.customer?.defaultAddress ?? null,
     processedAt: order.processedAt ?? null,
     closedAt: order.closedAt ?? null,
     cancelledAt: order.cancelledAt ?? null,

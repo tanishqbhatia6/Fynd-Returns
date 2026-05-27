@@ -629,6 +629,7 @@ describe("handleProcessExchange", () => {
   it("happy path (no price diff): writes exchange data + redirect", async () => {
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+      customerId: "gid://shopify/Customer/9",
       email: "u@example.com",
       lineItems: [
         {
@@ -689,6 +690,7 @@ describe("handleProcessExchange", () => {
     );
     const input = (createCall?.[1] as { variables: { input: Record<string, unknown> } }).variables
       .input;
+    expect(input.customerId).toBe("gid://shopify/Customer/9");
     expect(input.appliedDiscount).toMatchObject({
       valueType: "FIXED_AMOUNT",
       value: 10,
@@ -702,6 +704,7 @@ describe("handleProcessExchange", () => {
   it("403 on draft-order scope error", async () => {
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+      customerId: "gid://shopify/Customer/9",
       email: "u@example.com",
       lineItems: [
         {
@@ -728,6 +731,7 @@ describe("handleProcessExchange", () => {
   it("invoice_pending flow when replacement variant is more expensive", async () => {
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+      customerId: "gid://shopify/Customer/9",
       email: "u@example.com",
       lineItems: [
         { id: "gid://shopify/LineItem/1", title: "I", sku: "SKU-1", price: "10.00", quantity: 1 },
@@ -793,6 +797,7 @@ describe("handleProcessExchange", () => {
     );
     const input = (createCall?.[1] as { variables: { input: Record<string, unknown> } }).variables
       .input;
+    expect(input.customerId).toBe("gid://shopify/Customer/9");
     expect(input.appliedDiscount).toMatchObject({
       valueType: "FIXED_AMOUNT",
       value: 10,
@@ -1202,6 +1207,7 @@ describe("handleProcessReplacement", () => {
   it("happy path: persists replacement order + redirects", async () => {
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+      customerId: "gid://shopify/Customer/9",
       email: "u@example.com",
       lineItems: [
         {
@@ -1260,6 +1266,7 @@ describe("handleProcessReplacement", () => {
     );
     const input = (createCall?.[1] as { variables: { input: Record<string, unknown> } }).variables
       .input;
+    expect(input.customerId).toBe("gid://shopify/Customer/9");
     expect(input.appliedDiscount).toMatchObject({
       valueType: "FIXED_AMOUNT",
       value: 10,

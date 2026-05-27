@@ -219,6 +219,7 @@ describe("handleProcessExchange — final branch coverage", () => {
   it("falls back to returnedTitle when variantInfo.productTitle is null and skips empty variantTitle suffix", async () => {
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+      customerId: "gid://shopify/Customer/1",
       email: "u@example.com",
       currencyCode: "USD",
       lineItems: [
@@ -272,6 +273,7 @@ describe("handleProcessExchange — final branch coverage", () => {
   it("appends non-default variantTitle as suffix when productTitle is present", async () => {
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+      customerId: "gid://shopify/Customer/1",
       email: "u@example.com",
       currencyCode: "USD",
       lineItems: [
@@ -588,6 +590,7 @@ describe("handleProcessExchange — final branch coverage", () => {
   it("maps shippingAddress fields into the draftOrder input when present on the order", async () => {
     fetchOrderMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/1",
+      customerId: "gid://shopify/Customer/1",
       email: "u@example.com",
       currencyCode: "USD",
       lineItems: [
@@ -644,6 +647,7 @@ describe("handleProcessExchange — final branch coverage", () => {
     expect(createCall).toBeTruthy();
     const variables = (createCall![1] as { variables: { input: Record<string, unknown> } })
       .variables;
+    expect(variables.input.customerId).toBe("gid://shopify/Customer/1");
     const ship = variables.input.shippingAddress as Record<string, string>;
     expect(ship.address1).toBe("1 Main St");
     expect(ship.address2).toBe("Apt 2");

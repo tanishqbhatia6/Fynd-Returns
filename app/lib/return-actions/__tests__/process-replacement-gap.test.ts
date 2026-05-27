@@ -569,7 +569,7 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
     const input = (captured[0] as { variables: { input: Record<string, unknown> } }).variables
       .input;
     expect(input.shippingAddress).toBeUndefined();
-    expect(input.billingAddress).toEqual({ firstName: "Customer" });
+    expect(input.billingAddress).toEqual({ firstName: "Customer", lastName: "" });
   });
 
   it("falls back to provinceCode/countryCode when province/country are empty in shippingAddress", async () => {

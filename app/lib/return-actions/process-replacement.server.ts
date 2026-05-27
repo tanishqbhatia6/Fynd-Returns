@@ -243,6 +243,7 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
 
         const draftInput = {
           email: customerEmail,
+          ...(order.customerId ? { customerId: order.customerId } : {}),
           tags: [
             "replacement",
             `rpm-replacement-${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id}`,

@@ -333,6 +333,7 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
 
         const draftInput: Record<string, unknown> = {
           email: customerEmail,
+          ...(order.customerId ? { customerId: order.customerId } : {}),
           tags: [
             "exchange",
             `rpm-exchange-${(returnCase as { returnRequestNo?: string | null }).returnRequestNo || returnCase.id}`,

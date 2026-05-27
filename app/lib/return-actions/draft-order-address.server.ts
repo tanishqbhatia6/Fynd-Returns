@@ -34,6 +34,10 @@ function splitName(name: string | null | undefined): { firstName?: string; lastN
   };
 }
 
+function emptyToString(value: string | undefined): string {
+  return value ?? "";
+}
+
 function normalizeAddress(
   source: MailingAddressDisplay | null | undefined,
   fallback: { customerName?: string | null; phone?: string | null; forceName?: boolean },
@@ -45,7 +49,11 @@ function normalizeAddress(
     sourceName.firstName ??
     fallbackName.firstName ??
     (fallback.forceName ? "Customer" : undefined);
-  const lastName = clean(source?.lastName) ?? sourceName.lastName ?? fallbackName.lastName;
+  const lastName =
+    clean(source?.lastName) ??
+    sourceName.lastName ??
+    fallbackName.lastName ??
+    (fallback.forceName ? "" : undefined);
 
   const address: DraftOrderAddress = {
     address1: clean(source?.address1),
@@ -66,18 +74,42 @@ function normalizeAddress(
 }
 
 export function buildDraftOrderAddresses(
-  order: Pick<OrderForPortal, "shippingAddress" | "billingAddress" | "phone">,
+  order: Pick<
+    OrderForPortal,
+    | "shippingAddress"
+    | "billingAddress"
+    | "phone"
+    | "customerDefaultAddress"
+    | "customerFirstName"
+    | "customerLastName"
+  >,
   returnCase: Pick<ReturnCaseWithItems, "customerName" | "customerPhoneNorm">,
 ): DraftOrderAddressInput {
   const phone = returnCase.customerPhoneNorm ?? order.phone ?? null;
-  const shippingSource = order.shippingAddress ?? order.billingAddress ?? null;
-  const billingSource = order.billingAddress ?? order.shippingAddress ?? null;
-  const fallback = { customerName: returnCase.customerName, phone };
+  const customerName =
+    returnCase.customerName ??
+    ([order.customerFirstName, order.customerLastName].filter(Boolean).join(" ") || null);
+  const shippingSource =
+    order.shippingAddress ?? order.customerDefaultAddress ?? order.billingAddress ?? null;
+  const billingSource =
+    order.billingAddress ?? order.shippingAddress ?? order.customerDefaultAddress ?? null;
+  const fallback = { customerName, phone };
+  const shippingAddress = shippingSource
+    ? normalizeAddress(shippingSource, { ...fallback, forceName: true })
+    : undefined;
+  const billingAddress = normalizeAddress(billingSource, { ...fallback, forceName: true });
+
+  // Hogwarts validates first_name and last_name as strings, not nulls. Shopify
+  // may otherwise emit null for a missing surname on draft-order webhooks.
+  if (shippingAddress) {
+    shippingAddress.firstName = emptyToString(shippingAddress.firstName);
+    shippingAddress.lastName = emptyToString(shippingAddress.lastName);
+  }
+  billingAddress.firstName = emptyToString(billingAddress.firstName);
+  billingAddress.lastName = emptyToString(billingAddress.lastName);
 
   return {
-    ...(shippingSource
-      ? { shippingAddress: normalizeAddress(shippingSource, { ...fallback, forceName: false }) }
-      : {}),
-    billingAddress: normalizeAddress(billingSource, { ...fallback, forceName: true }),
+    ...(shippingAddress ? { shippingAddress } : {}),
+    billingAddress,
   };
 }

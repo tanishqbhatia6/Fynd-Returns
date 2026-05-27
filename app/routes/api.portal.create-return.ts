@@ -277,6 +277,36 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return null;
 };
 
+const MAX_CREATE_RETURN_BODY_BYTES = 80 * 1024 * 1024;
+const MAX_MEDIA_FILES = 5;
+const MAX_IMAGE_MEDIA_BYTES = 5 * 1024 * 1024;
+const MAX_VIDEO_MEDIA_BYTES = 50 * 1024 * 1024;
+const ALLOWED_IMAGE_MEDIA_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+]);
+const ALLOWED_VIDEO_MEDIA_TYPES = new Set([
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+]);
+
+function parseSafeMediaDataUrl(dataUrl: string):
+  | {
+      mimeType: string;
+      sizeEstimate: number;
+    }
+  | null {
+  const match = /^data:([^;,]+);base64,([a-z0-9+/=\s]+)$/i.exec(dataUrl);
+  if (!match) return null;
+  const mimeType = match[1].toLowerCase();
+  const encoded = match[2].replace(/\s/g, "");
+  const sizeEstimate = Math.ceil((encoded.length * 3) / 4);
+  return { mimeType, sizeEstimate };
+}
+
 export const action = async ({ request }: ActionFunctionArgs) => {
   if (request.method !== "POST") {
     return withCors(Response.json({ error: "Method not allowed" }, { status: 405 }), request);
@@ -286,7 +316,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   if (!rl.allowed) return withCors(rateLimitResponse(rl.retryAfterMs), request);
 
   try {
-    const body = await request.json();
+    const contentLengthHeader = request.headers.get("content-length");
+    if (contentLengthHeader) {
+      const declared = Number(contentLengthHeader);
+      if (Number.isFinite(declared) && declared > MAX_CREATE_RETURN_BODY_BYTES) {
+        return withCors(
+          Response.json({ error: "Return request payload too large" }, { status: 413 }),
+          request,
+        );
+      }
+    }
+
+    const rawBody = await request.text();
+    if (Buffer.byteLength(rawBody, "utf8") > MAX_CREATE_RETURN_BODY_BYTES) {
+      return withCors(
+        Response.json({ error: "Return request payload too large" }, { status: 413 }),
+        request,
+      );
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = JSON.parse(rawBody) as Record<string, unknown>;
+    } catch {
+      return withCors(Response.json({ error: "Invalid JSON" }, { status: 400 }), request);
+    }
     const shop = body.shop as string | undefined;
 
     // CSRF gate — token is issued by /api/portal/order and bound to the requesting
@@ -741,7 +795,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         {
           lineItemId: "manual",
           qty: 1,
-          reasonCode: body.reasonCode || "Other",
+          reasonCode: typeof body.reasonCode === "string" ? body.reasonCode : "Other",
           notes: manualItemDescription,
         },
       ];
@@ -1524,8 +1578,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           productPrice: price,
           productTags: tags.length ? tags : undefined,
           productType,
-          customerCountry: body.shippingCountry,
-          customerProvince: body.shippingProvince,
+          customerCountry:
+            typeof body.shippingCountry === "string" ? body.shippingCountry : undefined,
+          customerProvince:
+            typeof body.shippingProvince === "string" ? body.shippingProvince : undefined,
           sourceChannel,
         });
         if (!eligibility.eligible) {
@@ -1540,34 +1596,31 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Validate and sanitize uploaded media (max 5 files, images + videos, max 5MB each)
-    const MAX_MEDIA_FILES = 5;
-    const MAX_MEDIA_SIZE = 5 * 1024 * 1024;
-    const ALLOWED_MEDIA_PREFIXES = [
-      "data:image/jpeg",
-      "data:image/png",
-      "data:image/gif",
-      "data:image/webp",
-      "data:video/mp4",
-      "data:video/webm",
-      "data:video/quicktime",
-    ];
+    // Validate and sanitize uploaded media. Never trust client-provided
+    // mimeType/size; derive both from the data URL that will actually be stored.
     let customerMediaJson: string | null = null;
     if (Array.isArray(customerMediaRaw) && customerMediaRaw.length > 0) {
       const validMedia = customerMediaRaw
         .slice(0, MAX_MEDIA_FILES)
-        .filter((m) => {
-          if (!m?.dataUrl || typeof m.dataUrl !== "string") return false;
-          if (!ALLOWED_MEDIA_PREFIXES.some((p) => m.dataUrl!.startsWith(p))) return false;
-          const sizeEstimate = Math.ceil((m.dataUrl.length * 3) / 4);
-          if (sizeEstimate > MAX_MEDIA_SIZE) return false;
-          return true;
-        })
-        .map((m) => ({
-          name: String(m.name ?? "upload").slice(0, 255),
-          mimeType: String(m.mimeType ?? "image/jpeg").slice(0, 64),
-          dataUrl: m.dataUrl,
-        }));
+        .flatMap((m) => {
+          if (!m?.dataUrl || typeof m.dataUrl !== "string") return [];
+          const parsed = parseSafeMediaDataUrl(m.dataUrl);
+          if (!parsed) return [];
+          const isImage = ALLOWED_IMAGE_MEDIA_TYPES.has(parsed.mimeType);
+          const isVideo = ALLOWED_VIDEO_MEDIA_TYPES.has(parsed.mimeType);
+          if (!isImage && !isVideo) return [];
+          const maxBytes = isVideo ? MAX_VIDEO_MEDIA_BYTES : MAX_IMAGE_MEDIA_BYTES;
+          if (parsed.sizeEstimate > maxBytes) return [];
+          return [
+            {
+              name: String(m.name ?? "upload")
+                .replace(/[\r\n]/g, " ")
+                .slice(0, 255),
+              mimeType: parsed.mimeType,
+              dataUrl: m.dataUrl,
+            },
+          ];
+        });
       if (validMedia.length > 0) {
         customerMediaJson = JSON.stringify(validMedia);
       }

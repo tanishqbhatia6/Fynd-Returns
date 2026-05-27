@@ -166,6 +166,22 @@ describe("action: top-level guards", () => {
     expect(res.status).toBe(429);
   });
 
+  it("413 when declared payload size is too large", async () => {
+    const req = new Request("https://app.example/api/portal/create-return", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Content-Length": String(80 * 1024 * 1024 + 1),
+      },
+      body: JSON.stringify({ shop: "x" }),
+    });
+    const res = await action({ request: req, params: {}, context: {} } as never);
+    expect(res.status).toBe(413);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "Return request payload too large",
+    });
+  });
+
   it("400 on invalid JSON", async () => {
     const badReq = new Request("https://app.example/api/portal/create-return", {
       method: "POST",
@@ -173,8 +189,7 @@ describe("action: top-level guards", () => {
       body: "{not json",
     });
     const res = await action({ request: badReq, params: {}, context: {} } as never);
-    // The try/catch returns 500 for generic errors
-    expect([400, 500]).toContain(res.status);
+    expect(res.status).toBe(400);
   });
 });
 

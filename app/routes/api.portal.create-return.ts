@@ -213,16 +213,55 @@ async function loadServerFyndShipmentSnapshot(args: {
       select: { rawPayload: true },
     });
 
+    const bestByBag = new Map<
+      string,
+      { shipmentId: string; item: ShipmentSnapshot["items"][number]; sourceItemCount: number }
+    >();
     for (const log of logs) {
       const snapshot = shipmentSnapshotsFromFyndPayload(log.rawPayload, {
         allowedStatuses: args.allowedStatuses,
       });
       if (snapshot.some((shipment) => shipment.items.length > 0)) {
-        // In this path the webhook payload is used as a bag topology source,
-        // not as the return-eligibility authority. Eligibility is enforced by
-        // the live Shopify fulfillment check and the Fynd status gate below.
-        return snapshot.map((shipment) => ({ ...shipment, eligible: true }));
+        for (const shipment of snapshot) {
+          const sourceItemCount = shipment.items.length;
+          for (const item of shipment.items) {
+            const current = bestByBag.get(item.bagId);
+            // Prefer the broadest topology payload for a bag. Recent return
+            // webhooks often contain only already-returned bags; older placed /
+            // delivered webhooks usually contain the complete order bag set.
+            if (!current || sourceItemCount > current.sourceItemCount) {
+              bestByBag.set(item.bagId, {
+                shipmentId: shipment.shipmentId,
+                item,
+                sourceItemCount,
+              });
+            }
+          }
+        }
       }
+    }
+    if (bestByBag.size > 0) {
+      const shipmentsById = new Map<string, ShipmentSnapshot>();
+      for (const { shipmentId, item } of bestByBag.values()) {
+        const shipment = shipmentsById.get(shipmentId) ?? {
+          shipmentId,
+          eligible: true,
+          items: [],
+        };
+        shipment.items.push(item);
+        shipmentsById.set(shipmentId, shipment);
+      }
+      for (const shipment of shipmentsById.values()) {
+        shipment.items.sort(
+          (a, b) =>
+            (a.fyndLineNumber ?? Number.MAX_SAFE_INTEGER) -
+              (b.fyndLineNumber ?? Number.MAX_SAFE_INTEGER) || a.bagId.localeCompare(b.bagId),
+        );
+      }
+      // In this path the webhook payload is used as a bag topology source,
+      // not as the return-eligibility authority. Eligibility is enforced by
+      // the live Shopify fulfillment check and the Fynd status gate below.
+      return [...shipmentsById.values()];
     }
   } catch {
     return null;
@@ -1067,6 +1106,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       /* v8 ignore stop */
 
       if (preCheckLineItemIds.length > 0 || preCheckBagIds.length > 0) {
+        const orderScopeFilters: Array<Record<string, unknown>> = [
+          { shopifyOrderName: { equals: shopifyOrderName, mode: "insensitive" } },
+          { shopifyOrderId: effectiveOrderId },
+        ];
+        if (!effectiveOrderId.startsWith("gid://")) {
+          orderScopeFilters.push({
+            fyndOrderId: { equals: effectiveOrderId, mode: "insensitive" },
+          });
+        }
+        if (shopifyOrderName) {
+          orderScopeFilters.push({
+            fyndOrderId: { equals: shopifyOrderName.replace(/^#/, ""), mode: "insensitive" },
+          });
+        }
         const orFilters: Array<Record<string, unknown>> = [];
         if (preCheckLineItemIds.length > 0) {
           orFilters.push({ shopifyLineItemId: { in: preCheckLineItemIds } });
@@ -1082,8 +1135,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             ...(orFilters.length > 0 ? { OR: orFilters } : {}),
             returnCase: {
               shopId: shopRecord.id,
-              shopifyOrderId: effectiveOrderId,
               status: { notIn: ["rejected", "cancelled"] },
+              OR: orderScopeFilters,
             },
           },
           select: {
@@ -1096,8 +1149,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
 
         const preAlreadyReturnedMap: Record<string, number> = {};
-        // Bag-level: key = `${shipmentId}::${bagId}` — exact one-bag-per-return guarantee.
+        // Bag-level: bagId is the durable unit identity. Fynd changes shipment
+        // IDs when a return shipment is created, so `${shipmentId}::${bagId}`
+        // alone is not enough to prevent a later request from reusing the same
+        // physical bag on the same Shopify order.
         const bagAlreadyReturnedMap: Record<string, number> = {};
+        const scopedBagAlreadyReturnedMap: Record<string, number> = {};
         // SKU-level per shipment fallback: key = `${shipmentId}::sku:${sku}` — used when
         // the DB has resolved bagId away into a Shopify GID and exact bag matching fails.
         const shipmentSkuAlreadyReturnedMap: Record<string, number> = {};
@@ -1108,7 +1165,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
           if (ri.fyndShipmentId && ri.fyndBagId) {
             const k = `${ri.fyndShipmentId}::${ri.fyndBagId}`;
-            bagAlreadyReturnedMap[k] = (bagAlreadyReturnedMap[k] ?? 0) + ri.qty;
+            scopedBagAlreadyReturnedMap[k] = (scopedBagAlreadyReturnedMap[k] ?? 0) + ri.qty;
+          }
+          if (ri.fyndBagId) {
+            bagAlreadyReturnedMap[ri.fyndBagId] =
+              (bagAlreadyReturnedMap[ri.fyndBagId] ?? 0) + ri.qty;
           }
           if (ri.fyndShipmentId && ri.sku) {
             const k = `${ri.fyndShipmentId}::sku:${ri.sku.toLowerCase().trim()}`;
@@ -1135,13 +1196,17 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           // (a) Bag-level cap (Fynd multi-shipment).
           if (sel.fyndShipmentId && sel.fyndBagId) {
             const bagKey = `${sel.fyndShipmentId}::${sel.fyndBagId}`;
+            const bagOnlyKey = sel.fyndBagId;
             const bagCapacity =
               typeof sel.fyndQuantityAvailable === "number" && sel.fyndQuantityAvailable > 0
                 ? sel.fyndQuantityAvailable
                 : (liInfo?.quantity ?? 1);
-            const bagReturned = bagAlreadyReturnedMap[bagKey] ?? 0;
-            requestedBagMap[bagKey] = (requestedBagMap[bagKey] ?? 0) + sel.qty;
-            if (bagReturned + requestedBagMap[bagKey] > bagCapacity) {
+            const bagReturned = Math.max(
+              scopedBagAlreadyReturnedMap[bagKey] ?? 0,
+              bagAlreadyReturnedMap[bagOnlyKey] ?? 0,
+            );
+            requestedBagMap[bagOnlyKey] = (requestedBagMap[bagOnlyKey] ?? 0) + sel.qty;
+            if (bagReturned + requestedBagMap[bagOnlyKey] > bagCapacity) {
               return withCors(
                 Response.json(
                   {

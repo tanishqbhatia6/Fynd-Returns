@@ -641,6 +641,62 @@ describe("item cap edge — preCheck rejections", () => {
     expect((await res.json()).error).toMatch(/already in an active return for shipment/i);
   });
 
+  it("400 when the same Fynd bag is reused under a different return shipment id", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
+    prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
+    // This mirrors Fynd after return creation: the original bag id is stable,
+    // but Fynd emits a new return shipment id. The app must block by bag id.
+    (prismaMock.returnItem.findMany as ReturnType<typeof vi.fn>).mockResolvedValueOnce([
+      {
+        shopifyLineItemId: "gid://shopify/LineItem/100",
+        fyndShipmentId: "FORWARD-SHIP-1",
+        fyndBagId: "BAG-1",
+        sku: "TEE-1",
+        qty: 1,
+      },
+    ]);
+    const res = await action({
+      request: jsonReq(
+        happyBody({
+          orderId: "FYNDSHOPIFYX14405",
+          shopifyOrderName: "#FYNDSHOPIFYX14405",
+          items: [
+            {
+              lineItemId: "gid://shopify/LineItem/100",
+              qty: 1,
+              reasonCode: "size",
+              fyndShipmentId: "RETURN-SHIP-2",
+              fyndBagId: "BAG-1",
+              fyndQuantityAvailable: 1,
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
+    } as never);
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toMatch(/already in an active return for shipment/i);
+    expect(prismaMock.returnItem.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          returnCase: expect.objectContaining({
+            OR: expect.arrayContaining([
+              expect.objectContaining({
+                shopifyOrderName: expect.objectContaining({
+                  equals: "#FYNDSHOPIFYX14405",
+                }),
+              }),
+              expect.objectContaining({
+                fyndOrderId: expect.objectContaining({ equals: "FYNDSHOPIFYX14405" }),
+              }),
+            ]),
+          }),
+        }),
+      }),
+    );
+  });
+
   it("400 when sku-shipment fallback cap exceeded (no bagId)", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
     prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });

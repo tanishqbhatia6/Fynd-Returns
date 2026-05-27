@@ -236,6 +236,10 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
           }
         }
 
+        const replacementDiscountValue = +replacementLineItems
+          .reduce((sum, li) => sum + (parseFloat(li.originalUnitPrice) || 0) * li.quantity, 0)
+          .toFixed(2);
+
         const draftInput = {
           email: customerEmail,
           tags: [
@@ -247,24 +251,19 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
             { key: "rpm_replacement_for", value: returnCase.shopifyOrderName || "" },
             { key: "rpm_return_id", value: returnCase.id },
           ],
+          ...(replacementDiscountValue > 0
+            ? {
+                appliedDiscount: {
+                  valueType: "FIXED_AMOUNT",
+                  value: replacementDiscountValue,
+                  title: "Replacement credit",
+                  description: "Credit for returned item replacement",
+                },
+              }
+            : {}),
           lineItems: replacementLineItems.map((li) => {
-            // FIXED_AMOUNT discount preserves the original line price visibly
-            // and produces a clearly-attributed replacement-discount line in
-            // the Shopify order (instead of a flat ₹0 item that loses context).
-            const unitPrice = parseFloat(li.originalUnitPrice) || 0;
-            const lineSubtotal = +(unitPrice * li.quantity).toFixed(2);
             const base: Record<string, unknown> = {
               quantity: li.quantity,
-              ...(lineSubtotal > 0
-                ? {
-                    appliedDiscount: {
-                      valueType: "FIXED_AMOUNT",
-                      value: lineSubtotal,
-                      title: "Replacement (no charge)",
-                      description: "Free replacement for returned defective/wrong item",
-                    },
-                  }
-                : {}),
             };
             // Shopify ignores explicit `sku` when `variantId` is provided — the
             // resulting order line uses the variant's actual SKU. If the chosen

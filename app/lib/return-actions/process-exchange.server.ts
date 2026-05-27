@@ -41,7 +41,7 @@ const FYND_EXCHANGE_ALLOWED_STATUSES = new Set([
 const DRAFT_ORDER_CREATE_MUTATION = `#graphql
   mutation draftOrderCreate($input: DraftOrderInput!) {
     draftOrderCreate(input: $input) {
-      draftOrder { id name invoiceUrl totalPrice }
+      draftOrder { id name invoiceUrl }
       userErrors { field message }
     }
   }
@@ -325,23 +325,10 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
             base.originalUnitPrice = line.replacementUnitPrice;
             if (fallbackSku) base.sku = fallbackSku;
           }
-          if (!customerOwesDifference) {
-            // Use FIXED_AMOUNT equal to the line subtotal so the order preserves
-            // the original price + a clearly-attributed exchange discount line
-            // (rather than a flat ₹0 line item that obscures the actual value).
-            const unitPrice = parseFloat(line.replacementUnitPrice) || 0;
-            const lineSubtotal = +(unitPrice * line.returnedQty).toFixed(2);
-            if (lineSubtotal > 0) {
-              base.appliedDiscount = {
-                valueType: "FIXED_AMOUNT",
-                value: lineSubtotal,
-                title: "Exchange (no charge)",
-                description: "Exchange settlement — replacement at no additional charge",
-              };
-            }
-          }
           return base;
         });
+
+        const exchangeCreditDiscount = +Math.min(originalSubtotal, replacementSubtotal).toFixed(2);
 
         const draftInput: Record<string, unknown> = {
           email: customerEmail,
@@ -356,6 +343,16 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
             { key: "rpm_price_diff", value: priceDiff.toFixed(2) },
             { key: "rpm_price_diff_currency", value: orderCurrency },
           ],
+          ...(exchangeCreditDiscount > 0
+            ? {
+                appliedDiscount: {
+                  valueType: "FIXED_AMOUNT",
+                  value: exchangeCreditDiscount,
+                  title: "Exchange credit",
+                  description: `Credit for returned items from ${returnCase.shopifyOrderName || "original order"}`,
+                },
+              }
+            : {}),
           lineItems: draftLineItems,
           ...(order.shippingAddress && {
             shippingAddress: {
@@ -384,7 +381,6 @@ export const handleProcessExchange: ReturnActionHandler = async (ctx) => {
                 id: string;
                 name: string;
                 invoiceUrl?: string | null;
-                totalPrice?: string | null;
               } | null;
               userErrors?: Array<{ field?: string[]; message: string }>;
             };

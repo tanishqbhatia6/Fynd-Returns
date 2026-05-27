@@ -683,6 +683,20 @@ describe("handleProcessExchange", () => {
     const update = prismaMock.returnCase.update.mock.calls[0][0];
     expect(update.data.resolutionType).toBe("exchange");
     expect(update.data.exchangeOrderId).toBeTruthy();
+    const graphql = ctx.admin.graphql as ReturnType<typeof vi.fn>;
+    const createCall = graphql.mock.calls.find((call) =>
+      String(call[0]).includes("draftOrderCreate"),
+    );
+    const input = (createCall?.[1] as { variables: { input: Record<string, unknown> } }).variables
+      .input;
+    expect(input.appliedDiscount).toMatchObject({
+      valueType: "FIXED_AMOUNT",
+      value: 10,
+      title: "Exchange credit",
+    });
+    const [line] = input.lineItems as Array<Record<string, unknown>>;
+    expect(line.originalUnitPrice).toBe("10.00");
+    expect(line.appliedDiscount).toBeUndefined();
   });
 
   it("403 on draft-order scope error", async () => {
@@ -773,6 +787,20 @@ describe("handleProcessExchange", () => {
       "/app/returns/rc-1",
     );
     expect(sendDraftOrderInvoiceMock).toHaveBeenCalled();
+    const graphql = ctx.admin.graphql as ReturnType<typeof vi.fn>;
+    const createCall = graphql.mock.calls.find((call) =>
+      String(call[0]).includes("draftOrderCreate"),
+    );
+    const input = (createCall?.[1] as { variables: { input: Record<string, unknown> } }).variables
+      .input;
+    expect(input.appliedDiscount).toMatchObject({
+      valueType: "FIXED_AMOUNT",
+      value: 10,
+      title: "Exchange credit",
+    });
+    const [line] = input.lineItems as Array<Record<string, unknown>>;
+    expect(line.variantId).toBe("gid://shopify/ProductVariant/V2");
+    expect(line.appliedDiscount).toBeUndefined();
     // Capture the exchange_created event to assert flow=invoice_pending was logged
     const evs = prismaMock.returnEvent.create.mock.calls
       .map((c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data)
@@ -1226,6 +1254,20 @@ describe("handleProcessReplacement", () => {
     const update = prismaMock.returnCase.update.mock.calls[0][0];
     expect(update.data.resolutionType).toBe("replacement");
     expect(update.data.exchangeOrderId).toBe("gid://shopify/Order/9");
+    const graphql = ctx.admin.graphql as ReturnType<typeof vi.fn>;
+    const createCall = graphql.mock.calls.find((call) =>
+      String(call[0]).includes("draftOrderCreate"),
+    );
+    const input = (createCall?.[1] as { variables: { input: Record<string, unknown> } }).variables
+      .input;
+    expect(input.appliedDiscount).toMatchObject({
+      valueType: "FIXED_AMOUNT",
+      value: 10,
+      title: "Replacement credit",
+    });
+    const [line] = input.lineItems as Array<Record<string, unknown>>;
+    expect(line.originalUnitPrice).toBe("10.00");
+    expect(line.appliedDiscount).toBeUndefined();
   });
 
   it("403 on draft-order scope error", async () => {

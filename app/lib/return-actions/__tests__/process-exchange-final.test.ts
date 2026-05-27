@@ -654,6 +654,11 @@ describe("handleProcessExchange — final branch coverage", () => {
     expect(ship.firstName).toBe("Jane");
     expect(ship.lastName).toBe("Doe");
     expect(ship.phone).toBe("+15555555555");
+    const bill = variables.input.billingAddress as Record<string, string>;
+    expect(bill.address1).toBe("1 Main St");
+    expect(bill.firstName).toBe("Jane");
+    expect(bill.lastName).toBe("Doe");
+    expect(bill.phone).toBe("+15555555555");
   });
 
   // Line 153: shopifyItem matched by SKU only (id mismatch) — provoked by lineItem id != item.shopifyLineItemId

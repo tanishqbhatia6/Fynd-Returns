@@ -569,6 +569,7 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
     const input = (captured[0] as { variables: { input: Record<string, unknown> } }).variables
       .input;
     expect(input.shippingAddress).toBeUndefined();
+    expect(input.billingAddress).toEqual({ firstName: "Customer" });
   });
 
   it("falls back to provinceCode/countryCode when province/country are empty in shippingAddress", async () => {
@@ -609,11 +610,18 @@ describe("handleProcessReplacement — draft input fallbacks", () => {
     );
     const input = (
       captured[0] as {
-        variables: { input: { shippingAddress: { province?: string; country?: string } } };
+        variables: {
+          input: {
+            shippingAddress: { province?: string; country?: string };
+            billingAddress: { province?: string; country?: string };
+          };
+        };
       }
     ).variables.input;
     expect(input.shippingAddress.province).toBe("CA");
     expect(input.shippingAddress.country).toBe("US");
+    expect(input.billingAddress.province).toBe("CA");
+    expect(input.billingAddress.country).toBe("US");
   });
 });
 

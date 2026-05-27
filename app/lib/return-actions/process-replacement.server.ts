@@ -18,6 +18,7 @@ import { sendApprovalNotification } from "../notification.server";
 import { auditReturnAction } from "../observability/audit.server";
 import { refundLogger } from "../observability/logger.server";
 import { isRedirectResponse, extractErrorMessage } from "../return-action-errors.server";
+import { buildDraftOrderAddresses } from "./draft-order-address.server";
 import type { ReturnActionHandler } from "./types";
 
 const FYND_REPLACEMENT_ALLOWED_STATUSES = new Set([
@@ -279,24 +280,7 @@ export const handleProcessReplacement: ReturnActionHandler = async (ctx) => {
             }
             return base;
           }),
-          /* v8 ignore start */
-          // defensive: shippingAddress field || undefined fallbacks; happy-path always has all fields
-          ...(order.shippingAddress && {
-            shippingAddress: {
-              address1: order.shippingAddress.address1 || undefined,
-              address2: order.shippingAddress.address2 || undefined,
-              city: order.shippingAddress.city || undefined,
-              province:
-                order.shippingAddress.province || order.shippingAddress.provinceCode || undefined,
-              country:
-                order.shippingAddress.country || order.shippingAddress.countryCode || undefined,
-              zip: order.shippingAddress.zip || undefined,
-              firstName: order.shippingAddress.firstName || undefined,
-              lastName: order.shippingAddress.lastName || undefined,
-              phone: order.shippingAddress.phone || undefined,
-            },
-          }),
-          /* v8 ignore stop */
+          ...buildDraftOrderAddresses(order, returnCase),
         };
 
         const draftRes = await admin.graphql(DRAFT_ORDER_CREATE_MUTATION, {

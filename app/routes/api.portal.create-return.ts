@@ -1294,22 +1294,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           }
 
           // (b) Order-level line-item cap (existing behaviour, kept for non-Fynd shops
-          // and as a backstop).
-          const alreadyReturned = preAlreadyReturnedMap[sel.lineItemId] ?? 0;
-          const originalQty =
-            lineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity ??
-            liInfo?.quantity ??
-            999;
-          if (alreadyReturned + sel.qty > originalQty) {
-            return withCors(
-              Response.json(
-                {
-                  error: `Return quantity exceeds available for "${itemTitle}". ${alreadyReturned} already in return, ${sel.qty} requested, but only ${originalQty} ordered.`,
-                },
-                { status: 400 },
-              ),
-              request,
-            );
+          // and as a backstop). Skip it for exact Fynd bags: identical-SKU orders
+          // may share one Shopify line/SKU, while the real availability unit is bagId.
+          if (!sel.fyndBagId) {
+            const alreadyReturned = preAlreadyReturnedMap[sel.lineItemId] ?? 0;
+            const originalQty =
+              lineItemEstimates.find((e) => e.lineItemId === sel.lineItemId)?.quantity ??
+              liInfo?.quantity ??
+              999;
+            if (alreadyReturned + sel.qty > originalQty) {
+              return withCors(
+                Response.json(
+                  {
+                    error: `Return quantity exceeds available for "${itemTitle}". ${alreadyReturned} already in return, ${sel.qty} requested, but only ${originalQty} ordered.`,
+                  },
+                  { status: 400 },
+                ),
+                request,
+              );
+            }
           }
         }
       }
@@ -1909,7 +1912,58 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           effectiveOrderId &&
           !effectiveOrderId.startsWith("manual:")
         ) {
-          const requestedLineItemIds = itemsToCreate
+          const bagScopedItems = itemsToCreate.filter((it) => it.fyndBagId);
+          const lineScopedItems = itemsToCreate.filter((it) => !it.fyndBagId);
+          if (bagScopedItems.length > 0) {
+            const requestedBagIds = bagScopedItems
+              .map((it) => it.fyndBagId)
+              .filter(Boolean) as string[];
+            const existingBagReturnItems = await tx.returnItem.findMany({
+              where: {
+                fyndBagId: { in: requestedBagIds },
+                returnCase: {
+                  shopId: shopRecord.id,
+                  status: { notIn: ["rejected", "cancelled"] },
+                  OR: [
+                    { shopifyOrderId: effectiveOrderId },
+                    { shopifyOrderName: { equals: shopifyOrderName, mode: "insensitive" } },
+                    {
+                      fyndOrderId: {
+                        equals: shopifyOrderName.replace(/^#/, ""),
+                        mode: "insensitive",
+                      },
+                    },
+                  ],
+                },
+              },
+              select: { fyndBagId: true, qty: true },
+            });
+            const bagAlreadyReturnedMap: Record<string, number> = {};
+            for (const ri of existingBagReturnItems) {
+              if (!ri.fyndBagId) continue;
+              bagAlreadyReturnedMap[ri.fyndBagId] =
+                (bagAlreadyReturnedMap[ri.fyndBagId] ?? 0) + ri.qty;
+            }
+            const requestedBagQtyMap: Record<string, number> = {};
+            for (const sel of bagScopedItems) {
+              if (!sel.fyndBagId) continue;
+              const liInfo = lineItemsWithPrice.find((l) => l.id === sel.lineItemId);
+              const bagCapacity =
+                typeof sel.fyndQuantityAvailable === "number" && sel.fyndQuantityAvailable > 0
+                  ? sel.fyndQuantityAvailable
+                  : 1;
+              requestedBagQtyMap[sel.fyndBagId] =
+                (requestedBagQtyMap[sel.fyndBagId] ?? 0) + sel.qty;
+              if (
+                (bagAlreadyReturnedMap[sel.fyndBagId] ?? 0) + requestedBagQtyMap[sel.fyndBagId] >
+                bagCapacity
+              ) {
+                throw new Error(`QUANTITY_EXCEEDED:${liInfo?.title ?? sel.lineItemId}`);
+              }
+            }
+          }
+
+          const requestedLineItemIds = lineScopedItems
             .map((it) => it.lineItemId)
             .filter((id) => id !== "manual");
           const existingReturnItems = await tx.returnItem.findMany({
@@ -1931,7 +1985,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
           }
           // SKU fallback: for Fynd orders, stored shopifyLineItemId may differ from current IDs
-          const txRequestedSkus = itemsToCreate
+          const txRequestedSkus = lineScopedItems
             .map(
               (it) =>
                 resolvedLineItemSkus.get(it.lineItemId) ||
@@ -1960,7 +2014,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 /* v8 ignore start */
                 if (!ri.sku) continue;
                 /* v8 ignore stop */
-                const matchingItem = itemsToCreate.find((it) => {
+                const matchingItem = lineScopedItems.find((it) => {
                   const itSku =
                     resolvedLineItemSkus.get(it.lineItemId) ||
                     (
@@ -1979,7 +2033,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               /* non-fatal SKU fallback */
             }
           }
-          for (const sel of itemsToCreate) {
+          for (const sel of lineScopedItems) {
             if (sel.lineItemId === "manual") continue;
             // defensive: nullish-coalesce fallback chain for originalQty
             /* v8 ignore start */

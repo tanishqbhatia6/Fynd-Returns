@@ -1,7 +1,7 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 import type { HeadersFunction } from "react-router";
 import crypto from "node:crypto";
-import "./styles.css";
+import stylesheetHref from "./styles.css?url";
 
 /**
  * Security headers applied to ALL routes.
@@ -33,6 +33,14 @@ import "./styles.css";
 const INLINE_SCRIPT_BODY = `(function(){var o=HTMLElement.prototype.attachShadow;HTMLElement.prototype.attachShadow=function(i){if(this.tagName&&/^S-/i.test(this.tagName)){i=Object.assign({},i,{mode:"open"})}return o.call(this,i)};})();`;
 
 const INLINE_SCRIPT_HASH = `sha256-${crypto.createHash("sha256").update(INLINE_SCRIPT_BODY).digest("base64")}`;
+const UI_STYLES_VERSION = "2026-05-29-ui-layout-v2";
+
+export const links = () => [
+  {
+    rel: "stylesheet",
+    href: `${stylesheetHref}?v=${UI_STYLES_VERSION}`,
+  },
+];
 
 export const headers: HeadersFunction = () => {
   const csp = [

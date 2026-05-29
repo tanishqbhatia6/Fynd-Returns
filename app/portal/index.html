@@ -85,6 +85,7 @@
       min-height: 100vh;
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
 
     /* Responsive: mobile-first, scales to tablet and desktop */
@@ -93,6 +94,13 @@
       max-width: 100%;
       margin: 0 auto;
       padding: 20px 16px 48px;
+      overflow-x: clip;
+    }
+
+    .portal *,
+    .portal *::before,
+    .portal *::after {
+      min-width: 0;
     }
 
     @media (min-width: 640px) {
@@ -327,17 +335,21 @@
 
     @media (max-width: 760px) {
       .portal-hero-visual {
-        min-height: 230px;
+        min-height: 188px;
       }
 
       .hero-mini-row {
-        left: 20px;
-        right: 20px;
-        grid-template-columns: 1fr;
+        display: none;
       }
 
-      .hero-mini-card:nth-child(n+2) {
-        display: none;
+      .hero-package-card {
+        left: 16px;
+        right: 16px;
+        top: 22px;
+      }
+
+      .hero-route {
+        padding-bottom: 0;
       }
     }
 
@@ -428,6 +440,234 @@
       padding: 24px 20px;
       box-shadow: var(--portal-card-shadow);
       border: 1px solid color-mix(in srgb, var(--portal-primary) 9%, var(--portal-border));
+    }
+
+    .portal-landing-grid {
+      width: 100%;
+      display: grid;
+      gap: 22px;
+      align-items: start;
+    }
+
+    @media (min-width: 980px) {
+      .portal-landing-grid {
+        grid-template-columns: minmax(0, 0.95fr) minmax(420px, 1.05fr);
+        gap: 42px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .portal {
+        padding: 24px 16px 44px;
+      }
+
+      .portal-landing-grid {
+        gap: 20px;
+      }
+
+      .portal-landing-grid .portal-header h1 {
+        font-size: clamp(2.55rem, 13vw, 3.45rem);
+        line-height: 0.98;
+      }
+
+      .portal-workbench {
+        border-radius: 28px;
+      }
+
+      .portal-workbench-inner {
+        padding: 16px;
+      }
+
+      .portal-workbench .portal-tabs {
+        grid-template-columns: 1fr;
+      }
+
+      .portal-action-head {
+        padding-bottom: 14px;
+      }
+
+      .portal-action-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 15px;
+      }
+
+      .portal-workbench .portal-step.active {
+        padding: 20px;
+      }
+    }
+
+    .portal-landing-grid .portal-header {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 24px;
+      margin: 0;
+      padding: 4px 0 0;
+      overflow: visible;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    @media (min-width: 900px) {
+      .portal-landing-grid .portal-header {
+        grid-template-columns: 1fr;
+        padding: 8px 0 0;
+      }
+    }
+
+    @media (min-width: 980px) {
+      .portal-landing-grid .portal-header {
+        position: sticky;
+        top: 28px;
+      }
+    }
+
+    .portal-landing-grid .portal-header h1 {
+      max-width: 720px;
+      font-size: clamp(2.75rem, 6vw, 5.1rem);
+      line-height: 0.94;
+      letter-spacing: -0.055em;
+    }
+
+    .portal-landing-grid .portal-header p {
+      max-width: 560px;
+      font-size: clamp(1rem, 1.6vw, 1.25rem);
+    }
+
+    .portal-workbench {
+      position: relative;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 14%, var(--portal-border));
+      border-radius: 32px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.72)),
+        color-mix(in srgb, var(--portal-primary) 5%, var(--portal-surface));
+      box-shadow: 0 28px 80px rgba(15, 23, 42, 0.14);
+      overflow: hidden;
+      backdrop-filter: blur(18px);
+    }
+
+    .portal-workbench::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 12%, transparent), transparent 36%),
+        linear-gradient(180deg, rgba(255,255,255,0.58), transparent 42%);
+      opacity: 0.78;
+    }
+
+    .portal-workbench-inner {
+      position: relative;
+      z-index: 1;
+      padding: 18px;
+    }
+
+    @media (min-width: 640px) {
+      .portal-workbench-inner {
+        padding: 24px;
+      }
+    }
+
+    .portal-action-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 6px 4px 18px;
+    }
+
+    .portal-action-title {
+      font-family: var(--portal-heading-font);
+      font-size: clamp(1.375rem, 2.4vw, 2rem);
+      line-height: 1.1;
+      letter-spacing: -0.035em;
+      font-weight: 800;
+      color: var(--portal-text);
+    }
+
+    .portal-action-subtitle {
+      margin-top: 6px;
+      max-width: 410px;
+      color: var(--portal-text-muted);
+      font-size: 0.9375rem;
+      line-height: 1.45;
+    }
+
+    .portal-action-icon {
+      width: 48px;
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      border-radius: 18px;
+      color: var(--portal-surface);
+      background: linear-gradient(135deg, var(--portal-primary), var(--portal-primary-hover));
+      box-shadow: 0 14px 30px color-mix(in srgb, var(--portal-primary) 24%, transparent);
+    }
+
+    .portal-workbench .portal-tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      max-width: none;
+      margin-bottom: 16px;
+      background: color-mix(in srgb, var(--portal-surface) 82%, transparent);
+    }
+
+    .portal-workbench .portal-tab {
+      min-width: 0;
+    }
+
+    @media (max-width: 520px) {
+      .portal-workbench .portal-tabs {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .portal-workbench .portal-card {
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      box-shadow: none;
+    }
+
+    .portal-workbench .portal-step.active {
+      padding: 22px;
+      border: 1px solid color-mix(in srgb, var(--portal-text) 8%, var(--portal-border));
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.82);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.72), 0 12px 34px rgba(15, 23, 42, 0.06);
+    }
+
+    @media (min-width: 640px) {
+      .portal-workbench .portal-step.active {
+        padding: 28px;
+      }
+    }
+
+    #step1.active,
+    #create-step1.active {
+      display: grid;
+      gap: 16px;
+    }
+
+    #step1 .form-group,
+    #create-step1 .form-group {
+      margin-bottom: 0;
+    }
+
+    #step1 .btn-primary,
+    #create-step1 .btn-primary {
+      margin-top: 2px;
+    }
+
+    .portal-workbench #result-orders-wrap,
+    .portal-workbench #result-returns-wrap {
+      margin-bottom: 20px;
     }
 
     @media (min-width: 640px) {
@@ -2112,6 +2352,7 @@
 
 <body>
   <div class="portal">
+    <div class="portal-landing-grid">
     <header class="portal-header">
       <div class="portal-hero-copy">
         <h1 id="portal-title">Track your orders &amp; returns</h1>
@@ -2162,14 +2403,26 @@
       </div>
     </header>
 
-    <div id="portal-tabs-wrap" class="portal-tabs" role="tablist" aria-label="Portal navigation" style="display:none;"></div>
+    <main class="portal-workbench" aria-label="Order and return actions">
+      <div class="portal-workbench-inner">
+        <div class="portal-action-head">
+          <div>
+            <h2 class="portal-action-title">What can we help with?</h2>
+            <p class="portal-action-subtitle">Find an order, track a return, or start a new request from one place.</p>
+          </div>
+          <span class="portal-action-icon" aria-hidden="true">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>
+          </span>
+        </div>
 
-    <div id="track-return-sub-tabs" class="portal-sub-tabs" style="display:none;">
-      <button type="button" class="portal-sub-tab active" data-sub="track" id="subTabTrack">Track existing return</button>
-      <button type="button" class="portal-sub-tab" data-sub="create" id="subTabCreate">Create new return</button>
-    </div>
+        <div id="portal-tabs-wrap" class="portal-tabs" role="tablist" aria-label="Portal navigation" style="display:none;"></div>
 
-    <div id="track-panel" class="portal-card">
+        <div id="track-return-sub-tabs" class="portal-sub-tabs" style="display:none;">
+          <button type="button" class="portal-sub-tab active" data-sub="track" id="subTabTrack">Track existing return</button>
+          <button type="button" class="portal-sub-tab" data-sub="create" id="subTabCreate">Create new return</button>
+        </div>
+
+        <div id="track-panel" class="portal-card">
       <div id="step1" class="portal-step active" role="search">
         <input type="hidden" id="shop" value="%SHOP%">
         <div class="form-group">
@@ -2235,7 +2488,7 @@
       </div>
     </div>
 
-    <div id="create-panel" class="portal-card" style="display:none;">
+        <div id="create-panel" class="portal-card" style="display:none;">
       <div id="create-step1" class="portal-step active">
         <div style="text-align:center;margin-bottom:24px;">
           <div
@@ -2555,6 +2808,9 @@
           </div>
         </div>
       </div>
+        </div>
+      </div>
+    </main>
     </div>
   </div>
 
@@ -2870,7 +3126,8 @@
       const banner = document.getElementById('policy-banner');
       const detail = document.getElementById('policy-detail');
       banner.style.display = 'block';
-      if (RETURN_POLICY) detail.innerHTML = RETURN_POLICY.replace(/\n/g, '<br>');
+      if (RETURN_POLICY && RETURN_POLICY.indexOf('%RETURN_POLICY%') === -1) detail.innerHTML = RETURN_POLICY.replace(/\n/g, '<br>');
+      else if (detail) detail.style.display = 'none';
     })();
     const API = APP_URL + '/api/portal';
     function escapeHtml(s) { if (!s) return ''; const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }

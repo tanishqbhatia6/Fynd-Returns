@@ -55,7 +55,7 @@ describe("<SetupChecklist />", () => {
       />,
     );
     const title = screen.getByText("Done step") as HTMLElement;
-    expect(title.style.textDecoration).toBe("line-through");
+    expect(title.className).toContain("app-setup-checklist__step-title--done");
   });
 
   it("hides CTA on completed steps and shows it on pending", () => {

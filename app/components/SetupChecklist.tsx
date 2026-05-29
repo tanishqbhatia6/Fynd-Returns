@@ -50,28 +50,11 @@ export function SetupChecklist({
   if (total === 0 || done === total) return null;
 
   return (
-    <div
-      className="app-setup-checklist"
-      style={{
-        background: "#fff",
-        border: "1px solid var(--rpm-border-color, #e2e8f0)",
-        borderRadius: 12,
-        padding: 24,
-        marginBottom: 24,
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: 14,
-        }}
-      >
+    <section className="app-setup-checklist" aria-label="Setup checklist">
+      <div className="app-setup-checklist__header">
         <div>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{heading}</div>
-          <div style={{ fontSize: 13, color: "#64748b", marginTop: 2 }}>
+          <h2 className="app-setup-checklist__title">{heading}</h2>
+          <div className="app-setup-checklist__meta">
             {done} of {total} complete · {pct}%
           </div>
         </div>
@@ -80,16 +63,17 @@ export function SetupChecklist({
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss setup checklist"
-            style={{
-              border: 0,
-              background: "transparent",
-              color: "#94a3b8",
-              cursor: "pointer",
-              padding: 4,
-              lineHeight: 0,
-            }}
+            className="app-setup-checklist__dismiss"
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              aria-hidden="true"
+            >
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
@@ -97,94 +81,48 @@ export function SetupChecklist({
         )}
       </div>
 
-      <div
-        aria-hidden="true"
-        style={{
-          height: 6,
-          background: "#e2e8f0",
-          borderRadius: 999,
-          overflow: "hidden",
-          marginBottom: 18,
-        }}
-      >
-        <div
-          style={{
-            height: "100%",
-            width: `${pct}%`,
-            background: "#10b981",
-            transition: "width 0.3s ease",
-          }}
-        />
+      <div className="app-setup-checklist__progress" aria-hidden="true">
+        <div className="app-setup-checklist__progress-fill" style={{ width: `${pct}%` }} />
       </div>
 
-      <ol style={{ listStyle: "none", padding: 0, margin: 0 }}>
+      <ol className="app-setup-checklist__list">
         {steps.map((s) => (
-          <li
-            key={s.key}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "10px 0",
-              borderTop: "1px solid #f1f5f9",
-            }}
-          >
+          <li key={s.key} className="app-setup-checklist__item">
             <span
               aria-hidden="true"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 24,
-                height: 24,
-                borderRadius: "50%",
-                background: s.done ? "#10b981" : "#fff",
-                border: s.done ? "1px solid #10b981" : "1.5px solid #cbd5e1",
-                color: s.done ? "#fff" : "#94a3b8",
-                fontSize: 12,
-                fontWeight: 700,
-                flexShrink: 0,
-              }}
+              className={`app-setup-checklist__step${s.done ? " app-setup-checklist__step--done" : ""}`}
             >
               {s.done ? (
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               ) : null}
             </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="app-setup-checklist__copy">
               <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: s.done ? "#64748b" : "#0f172a",
-                  textDecoration: s.done ? "line-through" : "none",
-                }}
+                className={`app-setup-checklist__step-title${
+                  s.done ? " app-setup-checklist__step-title--done" : ""
+                }`}
               >
                 {s.title}
               </div>
-              <div style={{ fontSize: 12, color: "#64748b" }}>{s.description}</div>
+              <div className="app-setup-checklist__description">{s.description}</div>
             </div>
             {!s.done && (
-              <Link
-                to={s.href}
-                style={{
-                  padding: "6px 14px",
-                  background: "#0f172a",
-                  color: "#fff",
-                  borderRadius: 8,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  textDecoration: "none",
-                  whiteSpace: "nowrap",
-                }}
-              >
+              <Link to={s.href} className="app-setup-checklist__cta">
                 {s.ctaLabel ?? "Configure"}
               </Link>
             )}
           </li>
         ))}
       </ol>
-    </div>
+    </section>
   );
 }

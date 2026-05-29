@@ -23,9 +23,8 @@ export interface AppPageProps {
   subtitle?: React.ReactNode;
   /**
    * Back link target. When set, renders a chevron-left button to the left
-   * of the title. The breadcrumb in `app.tsx` also provides back nav, so
-   * this is mainly for routes where the breadcrumb isn't enough on its own
-   * (e.g. nested settings).
+   * of the title. Use this on routes that need explicit local back
+   * navigation, such as nested settings or return detail screens.
    */
   backHref?: string;
   /** Right-side action area in the header (Save buttons, filters, etc.). */

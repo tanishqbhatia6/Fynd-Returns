@@ -102,7 +102,7 @@ describe("App layout (default export)", () => {
     );
   });
 
-  it("does not render a breadcrumb on the dashboard route", async () => {
+  it("does not render app-shell breadcrumbs on the dashboard route", async () => {
     const { container } = renderWithRouter(App, {
       initialEntries: ["/app"],
       loaderData: baseLoaderData,
@@ -110,26 +110,18 @@ describe("App layout (default export)", () => {
     await waitFor(() => {
       expect(container.querySelector("s-app-nav")).toBeTruthy();
     });
-    const breadcrumbDashboard = Array.from(container.querySelectorAll("a")).find(
-      (a) => a.textContent === "Dashboard",
-    );
-    expect(breadcrumbDashboard).toBeFalsy();
+    expect(container.querySelector(".rpm-breadcrumb")).toBeFalsy();
   });
 
-  it("renders a breadcrumb when on a sub-route", async () => {
+  it("does not render app-shell breadcrumbs on sub-routes", async () => {
     const { container } = renderWithRouter(App, {
       initialEntries: ["/app/returns"],
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      const anchors = Array.from(container.querySelectorAll("a"));
-      expect(
-        anchors.find(
-          (a) => a.getAttribute("href") === "/app" && a.textContent?.trim() === "Dashboard",
-        ),
-      ).toBeTruthy();
+      expect(container.querySelector("s-app-nav")).toBeTruthy();
     });
-    expect(container.textContent).toContain("Returns");
+    expect(container.querySelector(".rpm-breadcrumb")).toBeFalsy();
   });
 
   it("appends the pending-count badge to the Returns link when > 0", async () => {
@@ -145,14 +137,16 @@ describe("App layout (default export)", () => {
     });
   });
 
-  it("shows the dev-mode banner with a 'Switch to Prod' link when appMode is dev", async () => {
-    const { container, findByText } = renderWithRouter(App, {
+  it("does not show the dev-mode banner even when appMode is dev", async () => {
+    const { container } = renderWithRouter(App, {
       initialEntries: ["/app"],
       loaderData: { ...baseLoaderData, appMode: "dev" as const },
     });
-    expect(await findByText(/Dev mode/i)).toBeTruthy();
-    const switchLink = container.querySelector("a[href='/app/settings/integrations']");
-    expect(switchLink?.textContent).toMatch(/Switch to Prod/i);
+    await waitFor(() => {
+      expect(container.querySelector("s-app-nav")).toBeTruthy();
+    });
+    expect(container.textContent).not.toMatch(/Dev mode/i);
+    expect(container.querySelector(".rpm-dev-banner")).toBeFalsy();
   });
 
   it("does not show the dev-mode banner when appMode is prod", async () => {

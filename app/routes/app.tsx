@@ -1,10 +1,8 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import {
-  Link,
   Outlet,
   redirect,
   useLoaderData,
-  useLocation,
   useNavigation,
   useRouteError,
 } from "react-router";
@@ -84,71 +82,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-const BREADCRUMB_MAP: Record<string, { parent: string; parentLabel: string; label: string }> = {
-  "/app/returns": { parent: "/app", parentLabel: "Dashboard", label: "Returns" },
-  "/app/customers": { parent: "/app", parentLabel: "Dashboard", label: "Customers" },
-  "/app/reports": { parent: "/app", parentLabel: "Dashboard", label: "Analytics" },
-  "/app/settings": { parent: "/app", parentLabel: "Dashboard", label: "Settings" },
-  "/app/portal": { parent: "/app", parentLabel: "Dashboard", label: "Customer Portal" },
-  "/app/settings/integrations": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Integrations",
-  },
-  "/app/settings/notifications": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Notifications",
-  },
-  "/app/settings/setup": { parent: "/app/settings", parentLabel: "Settings", label: "Setup Guide" },
-  "/app/settings/return-settings": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Return Settings",
-  },
-  "/app/settings/rules": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Policy Rules",
-  },
-  "/app/settings/widget": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Portal Widget",
-  },
-  "/app/settings/permissions": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Permissions",
-  },
-  "/app/settings/blocklist": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Customer Blocklist",
-  },
-  "/app/settings/auto-rules": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Auto-Approve Rules",
-  },
-  "/app/settings/webhook-logs": {
-    parent: "/app/settings",
-    parentLabel: "Settings",
-    label: "Fynd Webhook Logs",
-  },
-  "/app/docs": { parent: "/app", parentLabel: "Dashboard", label: "Documentation" },
-};
-
-function getBreadcrumb(pathname: string) {
-  // Exact match first
-  if (BREADCRUMB_MAP[pathname]) return BREADCRUMB_MAP[pathname];
-  // Dynamic routes: /app/returns/:id
-  if (pathname.startsWith("/app/returns/")) {
-    return { parent: "/app/returns", parentLabel: "Returns", label: "Return Detail" };
-  }
-  return null;
-}
-
 function useNotificationSound(enabled: boolean, currentCount: number) {
   const prevCount = useRef(currentCount);
 
@@ -186,12 +119,9 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
 // space on the sides" / "mobile-y layout" reports from merchants.
 
 export default function App() {
-  const { apiKey, appMode, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
-  const location = useLocation();
+  const { apiKey, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
-  const isDashboard = location.pathname === "/app" || location.pathname === "/app/";
-  const breadcrumb = getBreadcrumb(location.pathname);
   useNotificationSound(adminSoundEnabled, pendingCount);
 
   return (
@@ -212,28 +142,6 @@ export default function App() {
           }}
         />
       )}
-      {appMode === "dev" && (
-        <div className="rpm-dev-banner" role="status">
-          <svg
-            className="rpm-dev-banner__icon"
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            aria-hidden="true"
-          >
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <span>Dev mode — Test data only.</span>
-          <Link to="/app/settings/integrations" className="rpm-dev-banner__link">
-            Switch to Prod
-          </Link>
-        </div>
-      )}
       <s-app-nav>
         <s-link href="/app">Dashboard</s-link>
         <s-link href="/app/returns">Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}</s-link>
@@ -243,31 +151,6 @@ export default function App() {
         <s-link href="/app/portal">Customer Portal</s-link>
         <s-link href="/app/docs">Documentation</s-link>
       </s-app-nav>
-      {!isDashboard && breadcrumb && (
-        <nav className="rpm-breadcrumb" aria-label="Breadcrumb">
-          <ol className="rpm-breadcrumb__list">
-            <li>
-              <Link to={breadcrumb.parent} className="rpm-breadcrumb__link">
-                {breadcrumb.parentLabel}
-              </Link>
-            </li>
-            <li className="rpm-breadcrumb__separator" aria-hidden="true">
-              <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
-                <path
-                  d="M4.5 2.5L8 6L4.5 9.5"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </li>
-            <li className="rpm-breadcrumb__current" aria-current="page">
-              {breadcrumb.label}
-            </li>
-          </ol>
-        </nav>
-      )}
       <Outlet />
     </AppProvider>
   );

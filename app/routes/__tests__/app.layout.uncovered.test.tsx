@@ -5,7 +5,7 @@
  * embedded admin layout root from ~73% → ≥95% statements.
  *
  * Targets the previously-uncovered lines surfaced by the v8 report:
- *   - L100   : dynamic /app/returns/:id breadcrumb fallthrough
+ *   - app shell branches and notification sound behavior
  *   - L109-122 : the useNotificationSound AudioContext sound emitter body
  *   - L128   : the useEffect call into playSound() when pendingCount grows
  *
@@ -202,7 +202,7 @@ describe("app.tsx loader — uncovered branches", () => {
 
 // ────────────────────────────────────────────────────────────────────────
 // Component (jsdom) tests — exercise the previously-uncovered render-side
-// branches (AudioContext sound emitter + dynamic breadcrumb).
+// branches (AudioContext sound emitter + app shell rendering).
 // ────────────────────────────────────────────────────────────────────────
 
 const baseLoaderData = {
@@ -239,10 +239,7 @@ describe("App default export — uncovered render branches", () => {
     );
   });
 
-  it("renders the dev-mode badge ('Sandbox'-equivalent) when appMode === 'dev'", async () => {
-    // The layout uses "Dev mode — Test data only." as the visible Sandbox
-    // badge, plus a "Switch to Prod" link to flip back. In prod (Live) mode
-    // neither element is rendered.
+  it("does not render the dev-mode banner when appMode === 'dev'", async () => {
     const { container } = renderWithRouter(App, {
       initialEntries: ["/app"],
       loaderData: { ...baseLoaderData, appMode: "dev" as const },
@@ -250,11 +247,8 @@ describe("App default export — uncovered render branches", () => {
     await waitFor(() => {
       expect(container.querySelector("s-app-nav")).toBeTruthy();
     });
-    await waitFor(() => {
-      expect(container.textContent).toMatch(/Dev mode/i);
-    });
-    const switchLink = container.querySelector("a[href='/app/settings/integrations']");
-    expect(switchLink?.textContent).toMatch(/Switch to Prod/i);
+    expect(container.textContent).not.toMatch(/Dev mode/i);
+    expect(container.querySelector(".rpm-dev-banner")).toBeFalsy();
   });
 
   it("renders no dev banner ('Live'-equivalent) when appMode === 'prod'", async () => {
@@ -268,23 +262,15 @@ describe("App default export — uncovered render branches", () => {
     expect(container.textContent).not.toMatch(/Dev mode/i);
   });
 
-  it("renders the dynamic /app/returns/:id breadcrumb (Returns → Return Detail)", async () => {
-    // Exercises the dynamic-route breakcrumb fallthrough (line 100):
-    //   pathname.startsWith("/app/returns/") → { parent: "/app/returns",
-    //   parentLabel: "Returns", label: "Return Detail" }
+  it("does not render app-shell breadcrumbs on dynamic return detail routes", async () => {
     const { container } = renderWithRouter(App, {
       initialEntries: ["/app/returns/abc123"],
       loaderData: baseLoaderData,
     });
     await waitFor(() => {
-      const anchors = Array.from(container.querySelectorAll("a"));
-      expect(
-        anchors.find(
-          (a) => a.getAttribute("href") === "/app/returns" && a.textContent?.trim() === "Returns",
-        ),
-      ).toBeTruthy();
+      expect(container.querySelector("s-app-nav")).toBeTruthy();
     });
-    expect(container.textContent).toContain("Return Detail");
+    expect(container.querySelector(".rpm-breadcrumb")).toBeFalsy();
   });
 
   it("plays a notification sound when pendingCount grows + sound enabled", async () => {

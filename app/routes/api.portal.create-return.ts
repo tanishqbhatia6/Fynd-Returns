@@ -762,6 +762,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       productType?: string | null;
     }> = [];
 
+    let usedScopedFyndBagAllocation = false;
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (manualMode) {
       if (!customerEmail) {
@@ -989,6 +990,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           );
         }
         itemsToCreate = distributed;
+        usedScopedFyndBagAllocation = distributed.some(
+          (it) => Boolean(it.fyndShipmentId) && Boolean(it.fyndBagId),
+        );
       } else {
         // Legacy / admin-mode path: caller already provides bagIds per
         // item, just normalise + cap. CRITICAL: cap qty to bag capacity
@@ -1388,7 +1392,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       "refund_completed",
     ]);
 
-    if (!manualMode && orderId && !(body.adminOverride === true)) {
+    if (!usedScopedFyndBagAllocation && !manualMode && orderId && !(body.adminOverride === true)) {
       try {
         const fyndMapping = await prisma.fyndOrderMapping.findFirst({
           where: {

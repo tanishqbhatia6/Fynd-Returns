@@ -464,7 +464,7 @@ describe("multi-shipment bucketing", () => {
     expect(body.shipments[1].items[0].id).toBe("li-shop-B");
   });
 
-  it("populates shipmentReturnedQtyMap with bagId, shopifyLineItemId, and sku: keys", async () => {
+  it("populates shipmentReturnedQtyMap by exact bag id when bag identity is present", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValueOnce({
       id: "gid://shopify/Order/4002",
       name: "#4002",
@@ -526,9 +526,9 @@ describe("multi-shipment bucketing", () => {
     expect(body.shipmentReturnedQtyMap).toBeDefined();
     expect(body.shipmentReturnedQtyMap["SHIP-1"]).toMatchObject({
       "bag-1": 1,
-      "li-shop-A": 1,
-      "sku:sku-a": 1,
     });
+    expect(body.shipmentReturnedQtyMap["SHIP-1"]["li-shop-A"]).toBeUndefined();
+    expect(body.shipmentReturnedQtyMap["SHIP-1"]["sku:sku-a"]).toBeUndefined();
   });
 
   it("multi-shipment override flips status-blocked order back to eligible when ANY shipment is eligible", async () => {

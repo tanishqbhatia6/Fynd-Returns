@@ -366,8 +366,29 @@ function extractRefundStatus(payload: FyndWebhookPayload): string | null {
  * be returned by extractRefundStatus, which is what produced bug #16.
  */
 function extractLifecycleStatus(payload: FyndWebhookPayload): string | null {
+  const shipmentStatusObj =
+    typeof payload.shipment_status === "object" && payload.shipment_status !== null
+      ? (payload.shipment_status as Record<string, unknown>)
+      : null;
+  const topLevelStatus = coerceStr(payload.status);
+  const nestedShipmentStatus = coerceStr(shipmentStatusObj?.status);
+  const normalizedTopLevelStatus = (topLevelStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+
+  // Fynd can send `shipment.status = refund_initiated` while the nested
+  // `shipment_status.status` is still the real logistics state
+  // (`return_bag_in_transit`, etc.). Keep lifecycle status scoped to
+  // shipment/bag movement; refund state is handled by extractRefundStatus().
+  if (
+    normalizedTopLevelStatus &&
+    REFUND_LIFECYCLE_STATUSES.has(normalizedTopLevelStatus) &&
+    nestedShipmentStatus
+  ) {
+    return nestedShipmentStatus;
+  }
+
   const s =
-    payload.status ??
+    nestedShipmentStatus ??
+    topLevelStatus ??
     payload.shipments?.[0]?.status ??
     payload.order?.shipments?.[0]?.status ??
     payload.current_shipment_status;
@@ -1464,6 +1485,15 @@ export async function processFyndWebhook(
     }
   }
 
+  const isReturnShipmentForCase = Boolean(
+    shipmentId &&
+      (shipmentId === returnCase.fyndReturnId ||
+        shipmentId === returnCase.fyndReturnNo ||
+        (eventCategory !== "forward" &&
+          returnCase.items.some((item) => item.fyndBagId && bagIds.includes(item.fyndBagId)))),
+  );
+  const isForwardStatusOnReturnShipment = eventCategory === "forward" && isReturnShipmentForCase;
+
   const backfillData: Record<string, string> = {};
   if (shipmentId && !returnCase.fyndShipmentId) {
     backfillData.fyndShipmentId = shipmentId;
@@ -1539,8 +1569,13 @@ export async function processFyndWebhook(
     }
   }
   /* v8 ignore stop */
-  // Always update fyndPayloadJson with latest webhook data
-  backfillData.fyndPayloadJson = rawPayload ?? JSON.stringify(payload);
+  // Keep the display payload on the return journey. Fynd may later emit
+  // forward-named statuses (`bag_packed`, `bag_picked`) on the return
+  // shipment ID; those are not the original order shipment and should not
+  // replace the scoped return payload used by the detail page.
+  if (!isForwardStatusOnReturnShipment) {
+    backfillData.fyndPayloadJson = rawPayload ?? JSON.stringify(payload);
+  }
   if (Object.keys(backfillData).length > 0) {
     try {
       await prisma.returnCase.update({
@@ -1557,6 +1592,8 @@ export async function processFyndWebhook(
   // even before any return is created for a given Fynd order.
   /* v8 ignore start */ // defensive: each `?? undefined` and conditional spread guards optional FyndOrderMapping fields — only one path hit per test
   const fyndOid = affiliateOrderId ?? orderId;
+  const shouldCacheMappingShipmentId =
+    Boolean(shipmentId) && eventCategory === "forward" && !isReturnShipmentForCase;
   if (fyndOid && returnCase.shopifyOrderName) {
     try {
       await prisma.fyndOrderMapping.upsert({
@@ -1571,12 +1608,12 @@ export async function processFyndWebhook(
           shopifyOrderName: returnCase.shopifyOrderName,
           shopifyOrderId: returnCase.shopifyOrderId ?? undefined,
           fyndOrderId: fyndOid,
-          fyndShipmentId: shipmentId ?? undefined,
+          fyndShipmentId: shouldCacheMappingShipmentId ? shipmentId! : undefined,
           searchStrategy: "webhook",
         },
         update: {
           fyndOrderId: fyndOid,
-          ...(shipmentId ? { fyndShipmentId: shipmentId } : {}),
+          ...(shouldCacheMappingShipmentId ? { fyndShipmentId: shipmentId! } : {}),
           ...(returnCase.shopifyOrderId ? { shopifyOrderId: returnCase.shopifyOrderId } : {}),
         },
       });

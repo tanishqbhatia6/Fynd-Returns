@@ -52,7 +52,7 @@ export default function Auth() {
           justifyContent: "center",
           padding: "40px 20px",
           background: "linear-gradient(135deg, #f8fafc 0%, #eef2ff 50%, #f0f9ff 100%)",
-          fontFamily: "'Inter', system-ui, -apple-system, sans-serif",
+          fontFamily: "var(--rpm-font)",
         }}
       >
         <div

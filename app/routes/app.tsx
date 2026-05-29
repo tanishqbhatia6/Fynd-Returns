@@ -3,6 +3,7 @@ import {
   Outlet,
   redirect,
   useLoaderData,
+  useNavigate,
   useNavigation,
   useRouteError,
 } from "react-router";
@@ -120,9 +121,18 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
 
 export default function App() {
   const { apiKey, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
+  const navigate = useNavigate();
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
   useNotificationSound(adminSoundEnabled, pendingCount);
+
+  const handleNavClick = useCallback(
+    (to: string) => (event: Event) => {
+      event.preventDefault();
+      navigate(to);
+    },
+    [navigate],
+  );
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -143,13 +153,27 @@ export default function App() {
         />
       )}
       <s-app-nav>
-        <s-link href="/app">Dashboard</s-link>
-        <s-link href="/app/returns">Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}</s-link>
-        <s-link href="/app/customers">Customers</s-link>
-        <s-link href="/app/reports">Analytics</s-link>
-        <s-link href="/app/settings">Settings</s-link>
-        <s-link href="/app/portal">Customer Portal</s-link>
-        <s-link href="/app/docs">Documentation</s-link>
+        <s-link href="/app" onClick={handleNavClick("/app")}>
+          Dashboard
+        </s-link>
+        <s-link href="/app/returns" onClick={handleNavClick("/app/returns")}>
+          Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}
+        </s-link>
+        <s-link href="/app/customers" onClick={handleNavClick("/app/customers")}>
+          Customers
+        </s-link>
+        <s-link href="/app/reports" onClick={handleNavClick("/app/reports")}>
+          Analytics
+        </s-link>
+        <s-link href="/app/settings" onClick={handleNavClick("/app/settings")}>
+          Settings
+        </s-link>
+        <s-link href="/app/portal" onClick={handleNavClick("/app/portal")}>
+          Customer Portal
+        </s-link>
+        <s-link href="/app/docs" onClick={handleNavClick("/app/docs")}>
+          Documentation
+        </s-link>
       </s-app-nav>
       <Outlet />
     </AppProvider>

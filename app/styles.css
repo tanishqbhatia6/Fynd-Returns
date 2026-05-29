@@ -4,7 +4,8 @@
 /* ────── Design Tokens ────── */
 :root {
   /* Typography */
-  --rpm-font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --rpm-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    system-ui, sans-serif;
   --rpm-font-mono: "SF Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
 
   /* Spacing */
@@ -113,10 +114,38 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+#root {
+  font-family: var(--rpm-font);
+}
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
+}
+
+div,
+span,
+p,
+a,
+button,
+input,
+select,
+textarea,
+label,
+table,
+th,
+td,
+small,
+strong,
+em,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: inherit;
 }
 
 button,
@@ -4606,7 +4635,15 @@ body {
 /* Shopify web component nav sits outside our React page classes. Keep its
    typeface aligned with the rest of the app. */
 s-app-nav,
-s-app-nav * {
+s-app-nav *,
+s-page,
+s-page *,
+s-section,
+s-section *,
+s-button,
+s-button *,
+s-link,
+s-link * {
   font-family: var(--rpm-font);
   letter-spacing: 0;
 }

@@ -64,7 +64,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import App from "../app";
 
 const baseLoaderData = {
@@ -135,6 +135,22 @@ describe("App layout (default export)", () => {
       );
       expect(returnsLink?.textContent).toContain("Returns (4)");
     });
+  });
+
+  it("prevents document navigation for app-shell nav links", async () => {
+    const { container } = renderWithRouter(App, {
+      initialEntries: ["/app"],
+      loaderData: baseLoaderData,
+    });
+    await waitFor(() => {
+      expect(container.querySelector("s-app-nav")).toBeTruthy();
+    });
+
+    const customersLink = container.querySelector(
+      's-app-nav s-link[href="/app/customers"]',
+    ) as HTMLElement | null;
+    expect(customersLink).toBeTruthy();
+    expect(fireEvent.click(customersLink!)).toBe(false);
   });
 
   it("does not show the dev-mode banner even when appMode is dev", async () => {

@@ -5110,3 +5110,87 @@ s-app-nav * {
     overflow-x: auto;
   }
 }
+
+/* ────── Widget Settings: compact, non-jumpy form sections ────── */
+.widget-settings-page {
+  max-width: min(100%, 1080px);
+}
+
+.widget-settings-form {
+  display: grid;
+  gap: 14px;
+}
+
+.widget-settings-form > p {
+  margin: 0 0 2px !important;
+  max-width: 760px;
+  color: var(--rpm-text-muted) !important;
+  font-size: 13px !important;
+  line-height: 1.55;
+}
+
+.widget-settings-form > s-section {
+  display: block;
+  margin: 0 !important;
+  padding: 18px 20px !important;
+  overflow: visible !important;
+  border: 1px solid rgba(217, 225, 236, 0.92) !important;
+  border-radius: 10px !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow: var(--rpm-shadow-xs) !important;
+}
+
+.widget-settings-form > s-section + s-section {
+  margin-top: 0 !important;
+}
+
+.widget-settings-form s-section[heading]::before {
+  display: block;
+  margin-bottom: 12px;
+  color: var(--rpm-text);
+  font-size: 14px;
+  font-weight: 760;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.widget-settings-form .app-field {
+  max-width: 480px;
+}
+
+.widget-settings-form .app-field label {
+  margin-bottom: 6px;
+  color: var(--rpm-text);
+  font-size: 12px;
+  font-weight: 720;
+}
+
+.widget-settings-form .app-input {
+  min-height: 40px;
+  max-width: 420px;
+}
+
+.widget-settings-form code {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .widget-settings-page {
+    max-width: 100%;
+  }
+
+  .widget-settings-form {
+    gap: 12px;
+  }
+
+  .widget-settings-form > s-section {
+    padding: 16px !important;
+    border-radius: 10px !important;
+  }
+
+  .widget-settings-form .app-field,
+  .widget-settings-form .app-input {
+    max-width: 100%;
+  }
+}

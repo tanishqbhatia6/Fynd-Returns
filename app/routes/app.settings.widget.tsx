@@ -312,7 +312,7 @@ export default function Widget() {
 
   return (
     <AppPage heading="Assure Return Widget">
-      <div className="app-content layout-form">
+      <div className="app-content layout-form widget-settings-page">
         {fetcher.data?.success === true && (
           <div className="app-alert app-alert-success">Settings saved successfully.</div>
         )}
@@ -322,7 +322,7 @@ export default function Widget() {
           </div>
         )}
 
-        <fetcher.Form method="post">
+        <fetcher.Form method="post" className="widget-settings-form">
           <input type="hidden" name="portalLabelsJson" value={JSON.stringify(labelOverrides)} />
           <input type="hidden" name="brandLogoUrl" value={brandLogoUrl ?? ""} />
           <input type="hidden" name="brandFaviconUrl" value={brandFaviconUrl ?? ""} />

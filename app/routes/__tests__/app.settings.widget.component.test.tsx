@@ -83,6 +83,8 @@ describe("app.settings.widget component (default export)", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("Assure Return Widget");
     });
+    expect(container.querySelector(".widget-settings-page")).toBeTruthy();
+    expect(container.querySelector("form.widget-settings-form")).toBeTruthy();
   });
 
   it("renders the primary color picker with the default theme value", async () => {

@@ -632,7 +632,7 @@ export default function Dashboard() {
       title: "Connect Fynd",
       description: "Link your Fynd OMS so returns sync to your warehouse.",
       done: setupChecklistData?.hasFyndConfig ?? false,
-      href: "/app/settings",
+      href: "/app/settings/integrations",
       ctaLabel: "Connect",
     },
     {

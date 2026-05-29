@@ -1,4 +1,5 @@
 import * as React from "react";
+import { Link } from "react-router";
 
 /**
  * Setup-progress checklist for the dashboard.
@@ -165,8 +166,8 @@ export function SetupChecklist({
               <div style={{ fontSize: 12, color: "#64748b" }}>{s.description}</div>
             </div>
             {!s.done && (
-              <a
-                href={s.href}
+              <Link
+                to={s.href}
                 style={{
                   padding: "6px 14px",
                   background: "#0f172a",
@@ -179,7 +180,7 @@ export function SetupChecklist({
                 }}
               >
                 {s.ctaLabel ?? "Configure"}
-              </a>
+              </Link>
             )}
           </li>
         ))}

@@ -1,6 +1,8 @@
 /** @vitest-environment jsdom */
+import * as React from "react";
 import { describe, it, expect, vi } from "vitest";
 import { render, fireEvent, screen } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
 import { SetupChecklist, type SetupStep } from "../SetupChecklist";
 
 const STEP = (over: Partial<SetupStep> = {}): SetupStep => ({
@@ -12,6 +14,10 @@ const STEP = (over: Partial<SetupStep> = {}): SetupStep => ({
   ...over,
 });
 
+function renderChecklist(ui: React.ReactElement) {
+  return render(<MemoryRouter>{ui}</MemoryRouter>);
+}
+
 describe("<SetupChecklist />", () => {
   it("renders the heading and progress meter for an in-flight checklist", () => {
     const steps: SetupStep[] = [
@@ -19,20 +25,20 @@ describe("<SetupChecklist />", () => {
       STEP({ key: "b", done: false }),
       STEP({ key: "c", done: false }),
     ];
-    render(<SetupChecklist steps={steps} />);
+    renderChecklist(<SetupChecklist steps={steps} />);
     expect(screen.getByText("Finish setting up")).toBeTruthy();
     expect(screen.getByText("1 of 3 complete · 33%")).toBeTruthy();
   });
 
   it("returns null (renders nothing) when every step is done", () => {
-    const { container } = render(
+    const { container } = renderChecklist(
       <SetupChecklist steps={[STEP({ done: true }), STEP({ key: "b", done: true })]} />,
     );
     expect(container.querySelector(".app-setup-checklist")).toBeNull();
   });
 
   it("renders nothing when steps list is empty", () => {
-    const { container } = render(<SetupChecklist steps={[]} />);
+    const { container } = renderChecklist(<SetupChecklist steps={[]} />);
     // empty checklist still has zero progress; we explicitly return null when total===0 and done===total
     // (0 of 0 = 100%); component returns null
     expect(container.querySelector(".app-setup-checklist")).toBeNull();
@@ -40,7 +46,7 @@ describe("<SetupChecklist />", () => {
 
   it("strikes through completed steps", () => {
     // Need at least one pending step so the checklist renders at all.
-    render(
+    renderChecklist(
       <SetupChecklist
         steps={[
           STEP({ key: "a", done: true, title: "Done step" }),
@@ -53,7 +59,7 @@ describe("<SetupChecklist />", () => {
   });
 
   it("hides CTA on completed steps and shows it on pending", () => {
-    const { container } = render(
+    const { container } = renderChecklist(
       <SetupChecklist
         steps={[
           STEP({ key: "a", done: true, title: "Done" }),
@@ -67,7 +73,7 @@ describe("<SetupChecklist />", () => {
   });
 
   it("respects ctaLabel override per step", () => {
-    render(
+    renderChecklist(
       <SetupChecklist
         steps={[STEP({ ctaLabel: "Send test email" })]}
       />,
@@ -76,7 +82,7 @@ describe("<SetupChecklist />", () => {
   });
 
   it("links each pending step's CTA to its href", () => {
-    const { container } = render(
+    const { container } = renderChecklist(
       <SetupChecklist steps={[STEP({ href: "/app/settings/portal" })]} />,
     );
     const a = container.querySelector("a")!;
@@ -84,21 +90,27 @@ describe("<SetupChecklist />", () => {
   });
 
   it("shows the dismiss button only when onDismiss is provided", () => {
-    const { rerender, container } = render(<SetupChecklist steps={[STEP()]} />);
+    const { rerender, container } = renderChecklist(<SetupChecklist steps={[STEP()]} />);
     expect(container.querySelector('[aria-label="Dismiss setup checklist"]')).toBeNull();
-    rerender(<SetupChecklist steps={[STEP()]} onDismiss={() => {}} />);
+    rerender(
+      <MemoryRouter>
+        <SetupChecklist steps={[STEP()]} onDismiss={() => {}} />
+      </MemoryRouter>,
+    );
     expect(container.querySelector('[aria-label="Dismiss setup checklist"]')).toBeTruthy();
   });
 
   it("calls onDismiss when the X is clicked", () => {
     const onDismiss = vi.fn();
-    const { container } = render(<SetupChecklist steps={[STEP()]} onDismiss={onDismiss} />);
+    const { container } = renderChecklist(
+      <SetupChecklist steps={[STEP()]} onDismiss={onDismiss} />,
+    );
     fireEvent.click(container.querySelector('[aria-label="Dismiss setup checklist"]')!);
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
 
   it("respects a heading override", () => {
-    render(<SetupChecklist steps={[STEP()]} heading="Welcome — get started" />);
+    renderChecklist(<SetupChecklist steps={[STEP()]} heading="Welcome — get started" />);
     expect(screen.getByText("Welcome — get started")).toBeTruthy();
   });
 });

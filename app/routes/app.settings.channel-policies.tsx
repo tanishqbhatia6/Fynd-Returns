@@ -179,7 +179,7 @@ export default function ChannelPoliciesSettings() {
   };
 
   return (
-    <div className="app-page">
+    <div className="app-page channel-policies-page">
       <div className="app-page-header">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
@@ -285,11 +285,11 @@ export default function ChannelPoliciesSettings() {
         </div>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="channel-policy-list">
         {CHANNELS.map((ch) => {
           const p = state[ch.key];
           return (
-            <div key={ch.key} className="app-card" style={{ padding: 20 }}>
+            <div key={ch.key} className="app-card channel-policy-card" style={{ padding: 20 }}>
               <div
                 style={{
                   display: "flex",

@@ -544,14 +544,14 @@ describe("app.reports component — date range filter", () => {
 });
 
 describe("app.reports component — export & navigation", () => {
-  it("renders the Export CSV link with the active range query string", async () => {
+  it("renders the Export CSV button with the active range query string", async () => {
     const { container } = await mountReports({ ...richLoaderData, range: "last_7_days" }, [
       "/app/reports?range=last_7_days",
     ]);
-    const link = Array.from(container.querySelectorAll("a")).find((a) =>
-      a.getAttribute("href")?.includes("/api/returns/export"),
-    );
-    expect(link?.getAttribute("href")).toContain("range=last_7_days");
+    const button = container.querySelector(
+      'button[data-export-url*="/api/returns/export"]',
+    ) as HTMLButtonElement | null;
+    expect(button?.getAttribute("data-export-url")).toContain("range=last_7_days");
   });
 
   it("includes from/to in the export URL when range=custom", async () => {
@@ -564,11 +564,12 @@ describe("app.reports component — export & navigation", () => {
       },
       ["/app/reports?range=custom&from=2025-01-01&to=2025-01-31"],
     );
-    const link = Array.from(container.querySelectorAll("a")).find((a) =>
-      a.getAttribute("href")?.includes("/api/returns/export"),
-    );
-    expect(link?.getAttribute("href")).toContain("from=2025-01-01");
-    expect(link?.getAttribute("href")).toContain("to=2025-01-31");
+    const button = container.querySelector(
+      'button[data-export-url*="/api/returns/export"]',
+    ) as HTMLButtonElement | null;
+    const exportUrl = button?.getAttribute("data-export-url") || "";
+    expect(exportUrl).toContain("from=2025-01-01");
+    expect(exportUrl).toContain("to=2025-01-31");
   });
 
   it("renders a Dashboard link back to /app", async () => {

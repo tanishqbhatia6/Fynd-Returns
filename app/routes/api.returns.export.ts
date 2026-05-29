@@ -10,9 +10,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const url = new URL(request.url);
     const status = url.searchParams.get("status") || "";
     const query = url.searchParams.get("query") || "";
-    const range = url.searchParams.get("range") || "last_30_days";
+    const range = url.searchParams.get("range") || "";
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
+    const resolutionType = url.searchParams.get("resolutionType") || "";
+    const sourceChannel = url.searchParams.get("sourceChannel") || "";
     // Optional `?anonymize=true` — replaces customer name/email/phone/address with
     // a stable hash. Useful when the merchant wants to share the export with an
     // external accountant or analyst without leaking PII (P2 finding from QA audit).
@@ -23,21 +25,38 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       shop = await prisma.shop.create({ data: { shopDomain: session.shop } });
     }
 
-    const { start: rangeStart, end: rangeEnd } = parseDateRange(range, from, to);
-
     const where: Record<string, unknown> = {
       shopId: shop.id,
-      createdAt: { gte: rangeStart, lte: rangeEnd },
     };
-    if (status) where.status = status;
+    if (range) {
+      const { start: rangeStart, end: rangeEnd } = parseDateRange(range, from, to);
+      where.createdAt = { gte: rangeStart, lte: rangeEnd };
+    } else if (from || to) {
+      const createdAt: Record<string, Date> = {};
+      if (from) createdAt.gte = new Date(`${from}T00:00:00`);
+      if (to) createdAt.lte = new Date(`${to}T23:59:59.999`);
+      where.createdAt = createdAt;
+    }
+    if (status) {
+      const list = status
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      where.status = list.length > 1 ? { in: list } : list[0];
+    }
+    if (resolutionType) where.resolutionType = resolutionType;
+    if (sourceChannel) where.sourceChannel = sourceChannel === "web" ? null : sourceChannel;
     if (query.trim()) {
+      const q = query.trim();
       where.OR = [
-        { shopifyOrderName: { contains: query.trim(), mode: "insensitive" } },
-        { forwardAwb: { contains: query.trim(), mode: "insensitive" } },
-        { returnAwb: { contains: query.trim(), mode: "insensitive" } },
-        { fyndReturnNo: { contains: query.trim(), mode: "insensitive" } },
-        { customerEmailNorm: { contains: query.trim(), mode: "insensitive" } },
-        { customerPhoneNorm: { contains: query.trim(), mode: "insensitive" } },
+        { shopifyOrderName: { contains: q, mode: "insensitive" } },
+        { returnRequestNo: { contains: q, mode: "insensitive" } },
+        { fyndOrderId: { contains: q, mode: "insensitive" } },
+        { forwardAwb: { contains: q, mode: "insensitive" } },
+        { returnAwb: { contains: q, mode: "insensitive" } },
+        { fyndReturnNo: { contains: q, mode: "insensitive" } },
+        { customerEmailNorm: { contains: q, mode: "insensitive" } },
+        { customerPhoneNorm: { contains: q, mode: "insensitive" } },
       ];
     }
 
@@ -201,9 +220,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
 
     // CRLF line terminator is RFC 4180 compliant and Excel-friendly. UTF-8 BOM
-    // (﻿) prefix lets Excel auto-detect encoding for non-ASCII customer data
+    // prefix lets Excel auto-detect encoding for non-ASCII customer data
     // (Japanese, Indian addresses, etc.) — without it Excel mangles them.
-    const csv = "﻿" + [headers.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
+    const csv = "\uFEFF" + [headers.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
     const filename = `returns-export-${new Date().toISOString().slice(0, 10)}.csv`;
 
     return new Response(csv, {

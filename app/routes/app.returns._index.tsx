@@ -186,6 +186,8 @@ export default function ReturnsList() {
   const [bulkLoading, setBulkLoading] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkSuccess, setBulkSuccess] = useState<string | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
   const rejectInputRef = useRef<HTMLTextAreaElement>(null);
@@ -332,6 +334,59 @@ export default function ReturnsList() {
     next.set("page", String(p));
     setSearchParams(next);
   };
+
+  const getExportUrl = useCallback(() => {
+    const p = new URLSearchParams();
+    const keys = [
+      "query",
+      "status",
+      "resolutionType",
+      "sourceChannel",
+      "range",
+      "from",
+      "to",
+    ];
+    for (const key of keys) {
+      const value =
+        key === "query" ? query : key === "status" ? status : searchParams.get(key) || "";
+      if (value) p.set(key, value);
+    }
+    const qs = p.toString();
+    return `/api/returns/export${qs ? `?${qs}` : ""}`;
+  }, [query, searchParams, status]);
+
+  const handleExportCurrentView = useCallback(async () => {
+    setExportError(null);
+    setExportLoading(true);
+    try {
+      const res = await fetch(getExportUrl(), {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { Accept: "text/csv" },
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Export failed. Please narrow your filters and try again.");
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const filename =
+        disposition.match(/filename="([^"]+)"/)?.[1] ||
+        `returns-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed. Please try again.");
+    } finally {
+      setExportLoading(false);
+    }
+  }, [getExportUrl]);
 
   const removeFilter = (key: string) => {
     const next = new URLSearchParams(searchParams);
@@ -696,37 +751,16 @@ export default function ReturnsList() {
             </button>
           </Link>
           {totalCount > 0 && (
-            <a
-              href={(() => {
-                const p = new URLSearchParams();
-                if (query) p.set("query", query);
-                if (status) p.set("status", status);
-                const range = searchParams.get("range");
-                const fromDate = searchParams.get("from");
-                const toDate = searchParams.get("to");
-                if (range) p.set("range", range);
-                if (fromDate) p.set("from", fromDate);
-                if (toDate) p.set("to", toDate);
-                return `/api/returns/export?${p.toString()}`;
-              })()}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ textDecoration: "none", marginLeft: "auto" }}
-            >
+            <div className="returns-toolbar-export">
               <button
                 type="button"
+                onClick={handleExportCurrentView}
+                disabled={exportLoading}
+                className="app-btn returns-export-btn"
+                data-export-url={getExportUrl()}
                 style={{
-                  padding: "9px 16px",
-                  borderRadius: 8,
-                  border: "1px solid #d1d5db",
-                  background: "#fff",
-                  color: "#374151",
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
+                  cursor: exportLoading ? "wait" : "pointer",
+                  opacity: exportLoading ? 0.7 : 1,
                 }}
               >
                 <svg
@@ -741,11 +775,15 @@ export default function ReturnsList() {
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                Export current view
+                {exportLoading ? "Exporting..." : "Export CSV"}
               </button>
-            </a>
+            </div>
           )}
         </Form>
+
+        {exportError && (
+          <div className="app-alert app-alert-error returns-export-error">{exportError}</div>
+        )}
 
         {/* ── Active filter chips (removable) ── */}
         <FilterChips

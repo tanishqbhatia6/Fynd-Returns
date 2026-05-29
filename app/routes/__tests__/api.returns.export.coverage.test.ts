@@ -94,7 +94,7 @@ describe("api.returns.export — extra coverage", () => {
 
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     const csv = await res.text();
-    const headerLine = csv.replace(/^﻿/, "").split("\r\n")[0];
+    const headerLine = csv.replace(/^\uFEFF/, "").split("\r\n")[0];
     const cols = headerLine.split(",");
 
     expect(cols.length).toBe(33);
@@ -258,6 +258,45 @@ describe("api.returns.export — extra coverage", () => {
     expect(where.createdAt).toEqual({ gte: start, lte: end });
   });
 
+  it("does not add a default createdAt filter when no date params are supplied", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    prismaMock.returnCase.count.mockResolvedValueOnce(0);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
+
+    await loader({ request: mkReq(), params: {}, context: {} } as never);
+
+    const where = prismaMock.returnCase.count.mock.calls[0][0].where;
+    expect(parseDateRangeMock).not.toHaveBeenCalled();
+    expect(where.createdAt).toBeUndefined();
+  });
+
+  it("applies resolution and source-channel filters used by the Returns table", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    prismaMock.returnCase.count.mockResolvedValueOnce(0);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
+
+    await loader({
+      request: mkReq("resolutionType=exchange&sourceChannel=pos"),
+      params: {},
+      context: {},
+    } as never);
+
+    const where = prismaMock.returnCase.count.mock.calls[0][0].where;
+    expect(where.resolutionType).toBe("exchange");
+    expect(where.sourceChannel).toBe("pos");
+  });
+
+  it("maps the Online Store source filter to null sourceChannel", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    prismaMock.returnCase.count.mockResolvedValueOnce(0);
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
+
+    await loader({ request: mkReq("sourceChannel=web"), params: {}, context: {} } as never);
+
+    const where = prismaMock.returnCase.count.mock.calls[0][0].where;
+    expect(where.sourceChannel).toBeNull();
+  });
+
   it("trims whitespace from query before applying the OR filter", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.returnCase.count.mockResolvedValueOnce(0);
@@ -281,7 +320,7 @@ describe("api.returns.export — extra coverage", () => {
     expect(where.OR).toBeUndefined();
   });
 
-  it("OR filter spans all six searchable columns", async () => {
+  it("OR filter spans all searchable columns", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
     prismaMock.returnCase.count.mockResolvedValueOnce(0);
     prismaMock.returnCase.findMany.mockResolvedValueOnce([]);
@@ -294,8 +333,10 @@ describe("api.returns.export — extra coverage", () => {
       "customerEmailNorm",
       "customerPhoneNorm",
       "forwardAwb",
+      "fyndOrderId",
       "fyndReturnNo",
       "returnAwb",
+      "returnRequestNo",
       "shopifyOrderName",
     ]);
   });

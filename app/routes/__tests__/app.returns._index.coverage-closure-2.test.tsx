@@ -8,7 +8,7 @@
  *   - line 144  executeBulkAction early return when ids.length === 0
  *   - line 158  bulkAction !res.ok branch
  *   - line 195  handleBulkRejectConfirm early-return on empty reason
- *   - lines 367-369  export href branches when range/from/to query params present
+ *   - export download URL branches when range/from/to query params present
  *   - line 477  empty checkbox onChange handler (anonymous_33)
  *   - line 537  sync indicator early null when status not in cfg
  *   - line 699  textarea onKeyDown Escape branch
@@ -177,19 +177,20 @@ describe("loader branches", () => {
 });
 
 describe("UI branches", () => {
-  it("renders export href with range/from/to query params (lines 367-369)", async () => {
+  it("renders export download URL with range/from/to query params", async () => {
     const { container } = renderWithRouter(ReturnsList, {
       initialEntries: ["/app/returns?range=last_30&from=2026-01-01&to=2026-04-01"],
       loaderData: baseLoaderData,
     });
     await waitFor(() => expect(container.querySelector("table.returns-table")).toBeTruthy());
-    const exportLink = container.querySelector(
-      'a[href*="/api/returns/export"]',
-    ) as HTMLAnchorElement;
-    expect(exportLink).toBeTruthy();
-    expect(exportLink.href).toContain("range=last_30");
-    expect(exportLink.href).toContain("from=2026-01-01");
-    expect(exportLink.href).toContain("to=2026-04-01");
+    const exportButton = container.querySelector(
+      'button[data-export-url*="/api/returns/export"]',
+    ) as HTMLButtonElement;
+    expect(exportButton).toBeTruthy();
+    const exportUrl = exportButton.getAttribute("data-export-url") || "";
+    expect(exportUrl).toContain("range=last_30");
+    expect(exportUrl).toContain("from=2026-01-01");
+    expect(exportUrl).toContain("to=2026-04-01");
   });
 
   it("invokes the no-op checkbox onChange handler (line 477)", async () => {

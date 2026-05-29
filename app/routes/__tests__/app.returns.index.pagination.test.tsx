@@ -360,21 +360,95 @@ describe("app.returns._index pagination + filters + bulk", () => {
     expect(clearLink).toBeTruthy();
   });
 
-  it("renders the 'Export current view' link with current query+status params", async () => {
+  it("renders the Export CSV button with the current table filters", async () => {
+    const { container } = renderWithRouter(ReturnsList, {
+      initialEntries: [
+        "/app/returns?query=abc&status=pending&resolutionType=exchange&sourceChannel=pos&from=2026-01-01&to=2026-01-31&page=2",
+      ],
+      loaderData: {
+        ...baseLoaderData,
+        query: "abc",
+        status: "pending",
+        resolutionType: "exchange",
+        sourceChannel: "pos",
+      },
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("Export CSV");
+    });
+    const exportButton = container.querySelector(
+      'button[data-export-url^="/api/returns/export"]',
+    ) as HTMLButtonElement | null;
+    expect(exportButton).toBeTruthy();
+    const href = exportButton!.getAttribute("data-export-url")!;
+    expect(href).toContain("query=abc");
+    expect(href).toContain("status=pending");
+    expect(href).toContain("resolutionType=exchange");
+    expect(href).toContain("sourceChannel=pos");
+    expect(href).toContain("from=2026-01-01");
+    expect(href).toContain("to=2026-01-31");
+    expect(href).not.toContain("page=2");
+  });
+
+  it("downloads the current export inside the embedded app iframe", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      headers: new Headers({
+        "Content-Disposition": 'attachment; filename="returns.csv"',
+      }),
+      blob: async () => new Blob(["a,b\r\n1,2"], { type: "text/csv" }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const createObjectURL = vi.fn(() => "blob:returns-export");
+    const revokeObjectURL = vi.fn();
+    const originalCreateObjectURL = window.URL.createObjectURL;
+    const originalRevokeObjectURL = window.URL.revokeObjectURL;
+    Object.defineProperty(window.URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(window.URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
     const { container } = renderWithRouter(ReturnsList, {
       initialEntries: ["/app/returns?query=abc&status=pending"],
       loaderData: { ...baseLoaderData, query: "abc", status: "pending" },
     });
     await waitFor(() => {
-      expect(container.textContent).toContain("Export current view");
+      expect(container.querySelector('button[data-export-url^="/api/returns/export"]')).toBeTruthy();
     });
-    const exportLink = Array.from(container.querySelectorAll("a")).find((a) =>
-      a.getAttribute("href")?.startsWith("/api/returns/export"),
-    );
-    expect(exportLink).toBeTruthy();
-    const href = exportLink!.getAttribute("href")!;
-    expect(href).toContain("query=abc");
-    expect(href).toContain("status=pending");
+    const exportButton = container.querySelector(
+      'button[data-export-url^="/api/returns/export"]',
+    ) as HTMLButtonElement;
+
+    await act(async () => {
+      fireEvent.click(exportButton);
+    });
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/returns/export?query=abc&status=pending",
+        expect.objectContaining({
+          credentials: "same-origin",
+          headers: { Accept: "text/csv" },
+        }),
+      );
+    });
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(clickSpy).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:returns-export");
+    clickSpy.mockRestore();
+    Object.defineProperty(window.URL, "createObjectURL", {
+      configurable: true,
+      value: originalCreateObjectURL,
+    });
+    Object.defineProperty(window.URL, "revokeObjectURL", {
+      configurable: true,
+      value: originalRevokeObjectURL,
+    });
   });
 
   it("does NOT render the export link when no returns are present", async () => {
@@ -389,10 +463,8 @@ describe("app.returns._index pagination + filters + bulk", () => {
     await waitFor(() => {
       expect(container.textContent).toContain("No returns found");
     });
-    const exportLink = Array.from(container.querySelectorAll("a")).find((a) =>
-      a.getAttribute("href")?.startsWith("/api/returns/export"),
-    );
-    expect(exportLink).toBeFalsy();
+    const exportButton = container.querySelector('button[data-export-url^="/api/returns/export"]');
+    expect(exportButton).toBeFalsy();
   });
 
   it("renders a row checkbox for each return row, disabled for terminal-state rows", async () => {

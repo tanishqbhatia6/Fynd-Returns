@@ -633,6 +633,8 @@ function ProgressRing({
 
 export default function Reports() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [exportLoading, setExportLoading] = React.useState(false);
+  const [exportError, setExportError] = React.useState<string | null>(null);
   const {
     totalReturns,
     statusMap,
@@ -728,6 +730,38 @@ export default function Reports() {
   if (to) exportParams.set("to", to);
   /* v8 ignore stop */
   const exportUrl = `/api/returns/export?${exportParams.toString()}`;
+  const handleExportCsv = React.useCallback(async () => {
+    setExportError(null);
+    setExportLoading(true);
+    try {
+      const res = await fetch(exportUrl, {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { Accept: "text/csv" },
+      });
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message || "Export failed. Please try a narrower date range.");
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const filename =
+        disposition.match(/filename="([^"]+)"/)?.[1] ||
+        `returns-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : "Export failed. Please try again.");
+    } finally {
+      setExportLoading(false);
+    }
+  }, [exportUrl]);
 
   // defensive zero-fallback when no top reasons are present
   /* v8 ignore next */
@@ -793,15 +827,31 @@ export default function Reports() {
           <span className="text-muted" style={{ fontSize: 12 }}>
             {rangeLabel}
           </span>
-          <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
-            <a href={exportUrl} download style={{ textDecoration: "none" }}>
-              <s-button variant="secondary">Export CSV</s-button>
-            </a>
+          <div className="reports-toolbar-actions">
+            <button
+              type="button"
+              className="app-btn reports-export-btn"
+              onClick={handleExportCsv}
+              disabled={exportLoading}
+              data-export-url={exportUrl}
+              style={{
+                cursor: exportLoading ? "wait" : "pointer",
+                opacity: exportLoading ? 0.7 : 1,
+              }}
+            >
+              Export CSV
+            </button>
             <Link to="/app" style={{ textDecoration: "none" }}>
-              <s-button variant="secondary">Dashboard</s-button>
+              <button type="button" className="app-btn reports-dashboard-btn">
+                Dashboard
+              </button>
             </Link>
           </div>
         </div>
+
+        {exportError && (
+          <div className="app-alert app-alert-error reports-export-error">{exportError}</div>
+        )}
 
         {/* ── Hero KPI row (4 primary metrics, modern). */}
         <div className="dashboard-hero-grid mb-md">

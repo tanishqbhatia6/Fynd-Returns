@@ -100,9 +100,9 @@ describe("api.returns.export — gap coverage", () => {
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
     const csv = await res.text();
-    const headerLine = csv.replace(/^﻿/, "").split("\r\n")[0];
+    const headerLine = csv.replace(/^\uFEFF/, "").split("\r\n")[0];
     const cols = headerLine.split(",");
-    const dataLine = csv.replace(/^﻿/, "").split("\r\n")[1];
+    const dataLine = csv.replace(/^\uFEFF/, "").split("\r\n")[1];
     const dataCols = dataLine.split(",");
 
     // Refund Method/Amount/Currency/Date sit at column indices 20-23.
@@ -129,7 +129,7 @@ describe("api.returns.export — gap coverage", () => {
 
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     const csv = await res.text();
-    const dataLine = csv.replace(/^﻿/, "").split("\r\n")[1];
+    const dataLine = csv.replace(/^\uFEFF/, "").split("\r\n")[1];
     const dataCols = dataLine.split(",");
     expect(dataCols[21]).toBe("0");
     // method/currency/date still null → empty
@@ -178,9 +178,9 @@ describe("api.returns.export — gap coverage", () => {
     const res = await loader({ request: mkReq(), params: {}, context: {} } as never);
     expect(res.status).toBe(200);
     const csv = await res.text();
-    const headerLine = csv.replace(/^﻿/, "").split("\r\n")[0];
+    const headerLine = csv.replace(/^\uFEFF/, "").split("\r\n")[0];
     const cols = headerLine.split(",");
-    const dataLine = csv.replace(/^﻿/, "").split("\r\n")[1];
+    const dataLine = csv.replace(/^\uFEFF/, "").split("\r\n")[1];
     const dataCols = dataLine.split(",");
 
     // Created At = column 25, Updated At = column 26.

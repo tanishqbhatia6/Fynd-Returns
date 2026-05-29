@@ -1,8 +1,6 @@
 /* Fynd Returns — Enterprise Design System v4.0 */
 /* Premium admin UI — exceeds native Shopify visual quality */
 
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
-
 /* ────── Design Tokens ────── */
 :root {
   /* Typography */
@@ -96,6 +94,12 @@
 }
 
 /* ────── Base Reset ────── */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 *,
 *::before,
 *::after {
@@ -1663,7 +1667,7 @@ s-section[heading]::before {
 
 /* ────── Table row stagger animation ────── */
 .app-table tbody tr {
-  animation: app-rowSlideIn 0.25s ease backwards;
+  animation: none;
 }
 
 .app-table tbody tr:nth-child(1) {
@@ -1710,7 +1714,7 @@ s-section[heading]::before {
 
 /* ────── Smooth page transitions ────── */
 .app-content {
-  animation: app-fadeIn 0.2s ease;
+  animation: none;
 }
 
 /* ────── Better action section divider ────── */
@@ -1786,7 +1790,7 @@ s-section[heading]::before {
   .dashboard-metric-card,
   .app-stat-pill,
   .app-pagination-btn {
-    will-change: transform;
+    will-change: auto;
   }
 }
 
@@ -2934,6 +2938,7 @@ s-section {
   margin: 0 auto;
   font-family: var(--rpm-font);
   color: var(--rpm-text);
+  min-width: 0;
 }
 
 .app-page-header {
@@ -2945,6 +2950,7 @@ s-section {
   margin-bottom: 20px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--rpm-border-color);
+  min-width: 0;
 }
 
 .app-page-title {
@@ -2953,6 +2959,8 @@ s-section {
   line-height: 1.2;
   color: var(--rpm-text);
   letter-spacing: -0.01em;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .app-page-subtitle {
@@ -2960,6 +2968,7 @@ s-section {
   color: var(--rpm-text-muted, #6b7280);
   margin-top: 2px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 /* Primary action button — used across settings save buttons. Maps to the
@@ -3172,6 +3181,61 @@ s-section {
 .app-content .app-select:focus-visible {
   outline: 2px solid var(--rpm-accent);
   outline-offset: 2px;
+}
+
+/* Layout stability and paint-cost guardrails.
+   The admin UI has several dense data pages. Keep overflow inside the
+   intended scroll containers and avoid making the whole iframe wider than
+   the Shopify admin viewport. */
+.app-page,
+.app-page *,
+.app-content,
+.app-content * {
+  min-width: 0;
+}
+
+.app-table-wrapper,
+.returns-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.app-table,
+.returns-table,
+.dashboard-recent-table {
+  min-width: 760px;
+}
+
+@media (max-width: 640px) {
+  .app-page {
+    padding: 18px 14px 28px;
+  }
+
+  .app-page-header {
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .app-page-header__left {
+    align-items: flex-start;
+  }
+
+  .app-page-header__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .app-page-header__actions > * {
+    max-width: 100%;
+  }
+
+  .app-page-title {
+    font-size: 21px;
+    line-height: 1.25;
+  }
 }
 
 /* ────── Typography utility scale ──────
@@ -3393,6 +3457,9 @@ s-section {
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+  min-width: 0;
 }
 .app-page-header h1.app-page-title {
   margin: 0;
@@ -3426,6 +3493,46 @@ s-section {
 .app-page-back:focus-visible {
   outline: 2px solid var(--rpm-accent);
   outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+  .app-page {
+    overflow-x: hidden;
+  }
+
+  .app-page-header__actions {
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .app-page-header__actions .app-btn,
+  .app-page-header__actions .app-btn-primary {
+    flex: 1 1 140px;
+    min-height: 44px;
+  }
+
+  .dashboard-hero-grid,
+  .dashboard-stat-grid,
+  .dashboard-kpi-grid,
+  .dashboard-chart-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .returns-stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .returns-toolbar {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .returns-toolbar .app-input,
+  .returns-toolbar .app-select,
+  .returns-toolbar input,
+  .returns-toolbar select {
+    max-width: 100%;
+  }
 }
 
 /* Empty state — minor: warmer fallback when surrounding card has no

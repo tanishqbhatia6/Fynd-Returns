@@ -1,0 +1,378 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>ReturnProMax GCP Deployment Plan</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm;
+    }
+
+    :root {
+      --ink: #172033;
+      --muted: #596579;
+      --line: #d8dee8;
+      --soft: #f5f7fb;
+      --accent: #1f6feb;
+      --accent-dark: #174ea6;
+      --warn: #8a4b00;
+      --warn-bg: #fff6dd;
+      --ok: #136c4b;
+      --ok-bg: #eaf8f1;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.45;
+      background: white;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 25pt;
+      letter-spacing: 0;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+
+    h2 {
+      font-size: 15pt;
+      margin: 24px 0 9px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid var(--line);
+      color: var(--accent-dark);
+    }
+
+    h3 {
+      font-size: 11.5pt;
+      margin: 14px 0 6px;
+    }
+
+    p {
+      margin-bottom: 8px;
+    }
+
+    ul, ol {
+      margin: 6px 0 10px 18px;
+      padding: 0;
+    }
+
+    li {
+      margin: 3px 0;
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 9.3pt;
+      background: #eef2f8;
+      padding: 1px 4px;
+      border-radius: 4px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 9px 0 13px;
+      table-layout: fixed;
+    }
+
+    th, td {
+      border: 1px solid var(--line);
+      padding: 7px 8px;
+      vertical-align: top;
+    }
+
+    th {
+      background: #edf3ff;
+      text-align: left;
+      font-weight: 700;
+      color: #102544;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 9.5pt;
+      margin-bottom: 16px;
+    }
+
+    .lead {
+      font-size: 11.5pt;
+      color: #25324a;
+      margin: 8px 0 14px;
+      max-width: 170mm;
+    }
+
+    .callout {
+      border: 1px solid #bdd4ff;
+      background: #f3f7ff;
+      border-left: 5px solid var(--accent);
+      padding: 10px 12px;
+      margin: 12px 0 16px;
+      border-radius: 6px;
+    }
+
+    .warning {
+      border-color: #f0c36d;
+      background: var(--warn-bg);
+      border-left-color: #c77900;
+      color: var(--warn);
+    }
+
+    .ok {
+      border-color: #b9e4ce;
+      background: var(--ok-bg);
+      border-left-color: #1b8f63;
+      color: var(--ok);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin: 10px 0 12px;
+    }
+
+    .box {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: var(--soft);
+      min-height: 68px;
+    }
+
+    .box strong {
+      display: block;
+      margin-bottom: 4px;
+      color: #152238;
+    }
+
+    .arch {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      background: #fbfcff;
+      margin: 10px 0 14px;
+      font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 9.2pt;
+      white-space: pre;
+      overflow: hidden;
+    }
+
+    .small {
+      font-size: 9.3pt;
+      color: var(--muted);
+    }
+
+    .page-break {
+      break-before: page;
+    }
+  </style>
+</head>
+<body>
+  <h1>ReturnProMax GCP Deployment Plan</h1>
+  <p class="meta">Prepared for ReturnProMax - Shopify and Fynd returns app | Date: May 27, 2026</p>
+  <p class="lead">
+    The recommended GCP architecture is a Cloud Run service backed by Cloud SQL for PostgreSQL,
+    with Secret Manager, Cloud Scheduler, Cloud Build, Artifact Registry, and optional Memorystore
+    Redis. GKE is not recommended for the current app shape because it adds operational overhead
+    without solving a real scaling or runtime problem.
+  </p>
+
+  <div class="callout">
+    <strong>Recommendation:</strong> Start with Cloud Run plus Cloud SQL. Split database migrations
+    and startup backfills out of the web container before production traffic. The current app can run
+    on Cloud Run, but repeated startup backfills on autoscaled instances are not a clean production
+    pattern.
+  </div>
+
+  <h2>Application Runtime</h2>
+  <table>
+    <tr>
+      <th style="width: 32%;">Area</th>
+      <th>Current Repo Behavior</th>
+    </tr>
+    <tr>
+      <td>Application type</td>
+      <td>Single Node.js React Router service serving Shopify admin UI, customer portal APIs, Fynd webhooks, and cron endpoints.</td>
+    </tr>
+    <tr>
+      <td>Node version</td>
+      <td><code>node &gt;=22.12</code></td>
+    </tr>
+    <tr>
+      <td>Build command</td>
+      <td><code>npm install &amp;&amp; npx prisma generate &amp;&amp; npm run build</code></td>
+    </tr>
+    <tr>
+      <td>Current start command</td>
+      <td><code>npm run start</code>, which runs Prisma migrations, startup backfills, and then <code>react-router-serve</code>.</td>
+    </tr>
+    <tr>
+      <td>Database</td>
+      <td>PostgreSQL via Prisma, configured through <code>DATABASE_URL</code>.</td>
+    </tr>
+    <tr>
+      <td>Optional cache/rate limit store</td>
+      <td>Redis via <code>REDIS_URL</code>. Without Redis, rate limiting is per Cloud Run instance.</td>
+    </tr>
+  </table>
+
+  <h2>Target GCP Services</h2>
+  <div class="grid">
+    <div class="box">
+      <strong>Cloud Run</strong>
+      Runs the public web service for Shopify, Fynd webhooks, and portal routes. Use min instances 1 for lower cold-start risk.
+    </div>
+    <div class="box">
+      <strong>Cloud SQL for PostgreSQL</strong>
+      Primary relational database for shops, sessions, return cases, webhook logs, settings, and encrypted credentials.
+    </div>
+    <div class="box">
+      <strong>Secret Manager</strong>
+      Stores production secrets: Shopify keys, JWT secret, encryption key, database URL, cron secret, and webhook secrets.
+    </div>
+    <div class="box">
+      <strong>Artifact Registry</strong>
+      Stores versioned container images built from the repository.
+    </div>
+    <div class="box">
+      <strong>Cloud Build</strong>
+      Runs CI/CD: install, test, typecheck, build image, push image, deploy service.
+    </div>
+    <div class="box">
+      <strong>Cloud Scheduler</strong>
+      Calls internal cron endpoints with <code>CRON_SECRET</code> on a fixed schedule.
+    </div>
+    <div class="box">
+      <strong>Memorystore Redis</strong>
+      Optional but recommended for strict cross-instance rate limiting.
+    </div>
+    <div class="box">
+      <strong>Cloud Logging and Monitoring</strong>
+      Captures app logs, deploy failures, 5xx alerts, webhook failures, refund failures, and database saturation signals.
+    </div>
+  </div>
+
+  <h2>High-Level Architecture</h2>
+  <div class="arch">Shopify Admin / Customer Portal / Fynd Webhooks
+                |
+                v
+          Cloud Run Service
+                |
+      -----------------------
+      |                     |
+ Cloud SQL Postgres   Memorystore Redis
+      |
+ Secret Manager, Cloud Logging, Monitoring
+
+Cloud Scheduler -> Cloud Run cron endpoints
+Cloud Build -> Artifact Registry -> Cloud Run deploy</div>
+
+  <h2>Required Environment Variables</h2>
+  <table>
+    <tr>
+      <th style="width: 34%;">Variable</th>
+      <th>Purpose</th>
+    </tr>
+    <tr><td><code>NODE_ENV=production</code></td><td>Ensures production runtime behavior.</td></tr>
+    <tr><td><code>DATABASE_URL</code></td><td>Cloud SQL PostgreSQL connection string. Use SSL/private connectivity where possible.</td></tr>
+    <tr><td><code>SHOPIFY_API_KEY</code></td><td>Shopify app client ID/API key from Partner Dashboard.</td></tr>
+    <tr><td><code>SHOPIFY_API_SECRET</code></td><td>Shopify app secret for OAuth and webhook verification.</td></tr>
+    <tr><td><code>SCOPES</code></td><td>Comma-separated Shopify scopes required by the app.</td></tr>
+    <tr><td><code>SHOPIFY_APP_URL</code></td><td>Canonical public app URL, for example <code>https://returns.example.com</code>.</td></tr>
+    <tr><td><code>PORTAL_JWT_SECRET</code></td><td>Random 32-byte hex value for portal JWT signing.</td></tr>
+    <tr><td><code>ENCRYPTION_KEY</code></td><td>Random 32-byte hex value for encrypting stored Fynd and notification credentials.</td></tr>
+    <tr><td><code>CRON_SECRET</code></td><td>Bearer/header secret used by Cloud Scheduler when invoking cron endpoints.</td></tr>
+    <tr><td><code>PORTAL_CSRF_REQUIRED=true</code></td><td>Keep portal mutations protected in production.</td></tr>
+  </table>
+
+  <p class="small">Generate cryptographic secrets with <code>openssl rand -hex 32</code>. Do not rotate <code>ENCRYPTION_KEY</code> without a credential rotation plan, because existing encrypted merchant credentials depend on it.</p>
+
+  <h2>Optional Environment Variables</h2>
+  <table>
+    <tr>
+      <th style="width: 34%;">Variable</th>
+      <th>When to Use</th>
+    </tr>
+    <tr><td><code>REDIS_URL</code></td><td>Use with Memorystore Redis for cluster-wide rate limiting.</td></tr>
+    <tr><td><code>FYND_WEBHOOK_SECRET</code></td><td>Legacy global Fynd webhook secret. Per-shop DB secrets should remain preferred.</td></tr>
+    <tr><td><code>LOG_LEVEL=info</code></td><td>Controls Pino logging verbosity.</td></tr>
+    <tr><td><code>BUILD_VERSION</code>, <code>BUILD_COMMIT</code></td><td>Useful for release traceability in logs.</td></tr>
+    <tr><td><code>OTEL_SERVICE_NAME</code>, <code>OTEL_ENVIRONMENT</code></td><td>Use when exporting traces and metrics to an observability backend.</td></tr>
+  </table>
+
+  <h2>Cloud Scheduler Jobs</h2>
+  <table>
+    <tr>
+      <th style="width: 30%;">Endpoint</th>
+      <th style="width: 20%;">Suggested Schedule</th>
+      <th>Authentication</th>
+    </tr>
+    <tr>
+      <td><code>POST /api/fynd-webhook-retry-cron</code></td>
+      <td>Every 15 minutes</td>
+      <td><code>Authorization: Bearer &lt;CRON_SECRET&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code>POST /api/fynd-consolidation-cron</code></td>
+      <td>Hourly</td>
+      <td><code>Authorization: Bearer &lt;CRON_SECRET&gt;</code></td>
+    </tr>
+    <tr>
+      <td><code>GET /api/scheduled-report</code></td>
+      <td>Daily or hourly</td>
+      <td><code>x-cron-secret: &lt;CRON_SECRET&gt;</code></td>
+    </tr>
+  </table>
+
+  <h2>Deployment Pipeline</h2>
+  <ol>
+    <li>Create Artifact Registry repository for the app image.</li>
+    <li>Create Cloud SQL PostgreSQL instance and database.</li>
+    <li>Create Secret Manager entries for all required secrets.</li>
+    <li>Create Cloud Run service with Node 22 container image and Cloud SQL connectivity.</li>
+    <li>Configure Shopify Partner Dashboard URLs using the Cloud Run or custom domain URL.</li>
+    <li>Create Cloud Scheduler jobs for retry, consolidation, and scheduled reports.</li>
+    <li>Add log-based alerts for webhook errors, refund errors, 5xx spikes, and DB connection saturation.</li>
+  </ol>
+
+  <h2>Production Correction Before Launch</h2>
+  <div class="callout warning">
+    The current <code>npm run start</code> runs <code>prisma migrate deploy</code> and startup backfills before starting the server.
+    On Cloud Run, new instances can start during scaling or redeploys, which can repeat startup backfill attempts. The production
+    setup should split this into a Cloud Run Job or Cloud Build deploy step:
+    <br><br>
+    <strong>Migration/backfill job:</strong> <code>prisma migrate deploy</code> and controlled backfills.<br>
+    <strong>Web service:</strong> start only <code>react-router-serve ./build/server/index.js</code>.
+  </div>
+
+  <h2>Minimum Viable GCP Setup</h2>
+  <div class="callout ok">
+    Start with Cloud Run, Cloud SQL PostgreSQL, Secret Manager, Artifact Registry, Cloud Build, and Cloud Scheduler.
+    Add Memorystore Redis once traffic grows or strict rate limiting matters across multiple Cloud Run instances.
+  </div>
+
+  <h2>Launch Checklist</h2>
+  <ul>
+    <li>Cloud Run service responds at <code>/</code>.</li>
+    <li>Shopify OAuth install and callback succeed.</li>
+    <li>Customer portal return creation works against production URL.</li>
+    <li>Fynd per-shop webhook URL is reachable and signature verification is configured.</li>
+    <li>Cloud Scheduler jobs return successful JSON responses.</li>
+    <li>Prisma migrations are applied before web traffic is shifted.</li>
+    <li><code>npm audit --omit=dev</code>, lint, typecheck, and build pass in CI.</li>
+    <li>Alerts exist for app 5xx, webhook retry exhaustion, refund failures, and Cloud SQL CPU/connection pressure.</li>
+  </ul>
+</body>
+</html>

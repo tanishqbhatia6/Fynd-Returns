@@ -4,8 +4,9 @@
 /* ────── Design Tokens ────── */
 :root {
   /* Typography */
-  --rpm-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    system-ui, sans-serif;
+  --rpm-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, system-ui,
+    sans-serif;
   --rpm-font-mono: "SF Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
 
   /* Spacing */
@@ -4688,8 +4689,7 @@ s-link * {
   padding: 22px clamp(18px, 2.4vw, 36px) 40px;
   background:
     radial-gradient(circle at 8% -80px, rgba(37, 99, 235, 0.08), transparent 280px),
-    radial-gradient(circle at 96% 0, rgba(20, 184, 166, 0.07), transparent 250px),
-    var(--rpm-app-bg);
+    radial-gradient(circle at 96% 0, rgba(20, 184, 166, 0.07), transparent 250px), var(--rpm-app-bg);
 }
 
 .app-page-header {
@@ -4845,9 +4845,7 @@ s-link * {
 .dashboard-stat-card {
   border-radius: 10px;
   border-color: rgba(217, 225, 236, 0.95);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 252, 255, 0.98)),
-    #fff;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 252, 255, 0.98)), #fff;
   box-shadow: var(--rpm-shadow-sm);
 }
 
@@ -5372,10 +5370,9 @@ s-link * {
 .returns-toolbar {
   display: grid !important;
   grid-template-columns:
-    minmax(240px, 1fr)
-    repeat(3, minmax(132px, 150px))
-    repeat(2, minmax(124px, 136px))
-    auto auto auto;
+    minmax(240px, 1.4fr)
+    repeat(3, minmax(132px, 0.75fr))
+    repeat(2, minmax(126px, 0.7fr));
   gap: 12px !important;
   align-items: end !important;
   padding: 14px !important;
@@ -5404,19 +5401,44 @@ s-link * {
   font-size: 13px !important;
 }
 
-.returns-toolbar-export {
+.returns-toolbar-actions {
+  grid-column: 1 / -1;
   display: flex;
-  align-items: end;
+  flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+  padding-top: 2px;
 }
 
+.returns-toolbar-actions a {
+  display: inline-flex;
+  text-decoration: none;
+}
+
+.returns-toolbar-action,
 .returns-export-btn {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
   gap: 7px;
   min-width: 112px;
+  height: 40px;
   padding: 0 14px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+
+.returns-toolbar-action--success {
+  color: #fff !important;
+  background: #059669 !important;
+  border-color: #059669 !important;
+}
+
+.returns-toolbar-action--success:hover {
+  background: #047857 !important;
+  border-color: #047857 !important;
 }
 
 .returns-export-error {
@@ -5448,10 +5470,10 @@ s-link * {
 
 @media (max-width: 1180px) {
   .returns-toolbar {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .returns-toolbar-export {
+  .returns-toolbar-actions {
     justify-content: flex-start;
   }
 }
@@ -5487,7 +5509,8 @@ s-link * {
   .dashboard-date-bar .panel-link,
   .reports-toolbar-actions,
   .reports-toolbar-actions .app-btn,
-  .returns-export-btn,
+  .returns-toolbar-actions a,
+  .returns-toolbar-action,
   .returns-toolbar button {
     width: 100%;
   }
@@ -5496,5 +5519,71 @@ s-link * {
     flex-direction: column;
     align-items: stretch;
     margin-left: 0;
+  }
+
+  .returns-toolbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ────── Create Return wizard polish ────── */
+.returns-create-page {
+  gap: 18px !important;
+}
+
+.returns-create-stepper {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px !important;
+  width: 100%;
+}
+
+.returns-create-step-connector {
+  display: none !important;
+}
+
+.returns-create-step {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #d9e1ec;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.returns-create-step span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.returns-create-lookup-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px !important;
+}
+
+.returns-create-lookup-row button {
+  min-width: 120px;
+  height: 40px;
+  justify-content: center;
+}
+
+@media (max-width: 760px) {
+  .returns-create-page {
+    padding-inline: 12px !important;
+  }
+
+  .returns-create-stepper {
+    grid-template-columns: 1fr;
+  }
+
+  .returns-create-lookup-row {
+    grid-template-columns: 1fr;
+  }
+
+  .returns-create-lookup-row button {
+    width: 100%;
   }
 }

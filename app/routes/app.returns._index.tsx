@@ -337,15 +337,7 @@ export default function ReturnsList() {
 
   const getExportUrl = useCallback(() => {
     const p = new URLSearchParams();
-    const keys = [
-      "query",
-      "status",
-      "resolutionType",
-      "sourceChannel",
-      "range",
-      "from",
-      "to",
-    ];
+    const keys = ["query", "status", "resolutionType", "sourceChannel", "range", "from", "to"];
     for (const key of keys) {
       const value =
         key === "query" ? query : key === "status" ? status : searchParams.get(key) || "";
@@ -677,18 +669,11 @@ export default function ReturnsList() {
               style={{ width: "100%", padding: "7px 10px", fontSize: 13 }}
             />
           </div>
-          <div style={{ display: "flex", gap: 8, alignItems: "center", paddingBottom: 1 }}>
+          <div className="returns-toolbar-actions">
             <button
               type="submit"
-              className="app-btn-primary"
+              className="app-btn-primary returns-toolbar-action"
               style={{
-                padding: "9px 20px",
-                borderRadius: 8,
-                border: "none",
-                background: "#4f46e5",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 600,
                 cursor: "pointer",
               }}
             >
@@ -703,14 +688,8 @@ export default function ReturnsList() {
               <Link to="/app/returns" style={{ textDecoration: "none" }}>
                 <button
                   type="button"
+                  className="app-btn returns-toolbar-action"
                   style={{
-                    padding: "9px 16px",
-                    borderRadius: 8,
-                    border: "1px solid #d1d5db",
-                    background: "#fff",
-                    color: "#374151",
-                    fontSize: 13,
-                    fontWeight: 600,
                     cursor: "pointer",
                   }}
                 >
@@ -718,45 +697,34 @@ export default function ReturnsList() {
                 </button>
               </Link>
             )}
-          </div>
-          <Link to="/app/returns/create" style={{ textDecoration: "none" }}>
-            <button
-              type="button"
-              style={{
-                padding: "9px 16px",
-                borderRadius: 8,
-                border: "none",
-                background: "#059669",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 600,
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+            <Link to="/app/returns/create" style={{ textDecoration: "none" }}>
+              <button
+                type="button"
+                className="app-btn returns-toolbar-action returns-toolbar-action--success"
+                style={{
+                  cursor: "pointer",
+                }}
               >
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Create Return
-            </button>
-          </Link>
-          {totalCount > 0 && (
-            <div className="returns-toolbar-export">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+                Create Return
+              </button>
+            </Link>
+            {totalCount > 0 && (
               <button
                 type="button"
                 onClick={handleExportCurrentView}
                 disabled={exportLoading}
-                className="app-btn returns-export-btn"
+                className="app-btn returns-export-btn returns-toolbar-action"
                 data-export-url={getExportUrl()}
                 style={{
                   cursor: exportLoading ? "wait" : "pointer",
@@ -777,8 +745,8 @@ export default function ReturnsList() {
                 </svg>
                 {exportLoading ? "Exporting..." : "Export CSV"}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </Form>
 
         {exportError && (

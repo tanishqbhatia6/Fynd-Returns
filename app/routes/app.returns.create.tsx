@@ -153,7 +153,10 @@ const STEP_LABELS = [
 const S = {
   page: {
     margin: "0 auto",
-    padding: "0 0 40px",
+    width: "100%",
+    maxWidth: 1180,
+    padding: "0 24px 40px",
+    boxSizing: "border-box" as const,
     fontFamily:
       '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
     lineHeight: 1.5,
@@ -269,7 +272,7 @@ const S = {
     display: "flex",
     alignItems: "center",
     gap: 0,
-    marginBottom: 28,
+    marginBottom: 20,
   } as React.CSSProperties,
 
   fieldRow: {
@@ -754,7 +757,7 @@ export default function CreateReturn() {
   }, 0);
 
   return (
-    <div className="layout-form" style={S.page}>
+    <div className="layout-form returns-create-page" style={S.page}>
       {/* Spinner animation keyframes */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
@@ -814,7 +817,7 @@ export default function CreateReturn() {
       </div>
 
       {/* ── Step Indicator ── */}
-      <div style={S.stepper}>
+      <div className="returns-create-stepper" style={S.stepper}>
         {STEP_LABELS.map((s, idx) => {
           const isActive = step === s.num;
           const isDone = step > s.num;
@@ -822,6 +825,7 @@ export default function CreateReturn() {
             <React.Fragment key={s.num}>
               {idx > 0 && (
                 <div
+                  className="returns-create-step-connector"
                   style={{
                     flex: 1,
                     height: 2,
@@ -830,7 +834,10 @@ export default function CreateReturn() {
                   }}
                 />
               )}
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div
+                className="returns-create-step"
+                style={{ display: "flex", alignItems: "center", gap: 8 }}
+              >
                 <div
                   style={{
                     width: 28,
@@ -895,7 +902,10 @@ export default function CreateReturn() {
             Enter the Shopify order number to load items for the return.
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <div
+            className="returns-create-lookup-row"
+            style={{ display: "flex", gap: 10, alignItems: "flex-end" }}
+          >
             <div style={{ flex: 1 }}>
               <label style={S.label}>Order Number</label>
               <input

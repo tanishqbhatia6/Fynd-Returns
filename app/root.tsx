@@ -33,7 +33,7 @@ import stylesheetHref from "./styles.css?url";
 const INLINE_SCRIPT_BODY = `(function(){var o=HTMLElement.prototype.attachShadow;HTMLElement.prototype.attachShadow=function(i){if(this.tagName&&/^S-/i.test(this.tagName)){i=Object.assign({},i,{mode:"open"})}return o.call(this,i)};})();`;
 
 const INLINE_SCRIPT_HASH = `sha256-${crypto.createHash("sha256").update(INLINE_SCRIPT_BODY).digest("base64")}`;
-const UI_STYLES_VERSION = "2026-05-29-dashboard-visible-v3";
+const UI_STYLES_VERSION = "2026-05-29-app-shell-v4";
 
 export const links = () => [
   {

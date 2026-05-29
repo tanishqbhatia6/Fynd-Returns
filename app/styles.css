@@ -100,16 +100,118 @@ body {
   overflow-x: hidden;
 }
 
+body {
+  margin: 0;
+  background: #f6f6f7;
+  color: var(--rpm-text);
+  font-family: var(--rpm-font);
+  font-size: 14px;
+  line-height: 1.5;
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 *,
 *::before,
 *::after {
   box-sizing: border-box;
 }
 
-/* Apply Inter font to all admin content */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Apply Inter font to all admin content and shared app chrome. */
+.rpm-dev-banner,
+.rpm-dev-banner *,
+.rpm-breadcrumb,
+.rpm-breadcrumb *,
 .app-content,
 .app-content * {
   font-family: var(--rpm-font);
+  letter-spacing: 0;
+}
+
+/* ────── Embedded App Shell Chrome ────── */
+.rpm-dev-banner {
+  min-height: 36px;
+  padding: 7px clamp(16px, 2vw, 28px);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #fffbeb;
+  border-bottom: 1px solid #f3d072;
+  color: #8a4b0f;
+  font-size: 13px;
+  font-weight: 550;
+  line-height: 1.35;
+}
+
+.rpm-dev-banner__icon {
+  flex: 0 0 auto;
+  color: #9a4f12;
+}
+
+.rpm-dev-banner__link {
+  color: #6f3a0b;
+  font-weight: 650;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color var(--rpm-transition-fast);
+}
+
+.rpm-dev-banner__link:hover {
+  color: #422006;
+}
+
+.rpm-breadcrumb {
+  width: 100%;
+  padding: 10px clamp(16px, 2.5vw, 32px) 0;
+  background: #f6f6f7;
+}
+
+.rpm-breadcrumb__list {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--rpm-text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.rpm-breadcrumb__link {
+  color: #2563eb;
+  font-weight: 650;
+  text-decoration: none;
+  transition:
+    color var(--rpm-transition-fast),
+    text-decoration-color var(--rpm-transition-fast);
+}
+
+.rpm-breadcrumb__link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.rpm-breadcrumb__separator {
+  display: inline-flex;
+  color: var(--rpm-text-subtle);
+}
+
+.rpm-breadcrumb__current {
+  color: var(--rpm-text-muted);
+  font-weight: 600;
 }
 
 /* ────── Page & Content ──────

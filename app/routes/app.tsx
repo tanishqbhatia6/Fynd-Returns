@@ -213,36 +213,23 @@ export default function App() {
         />
       )}
       {appMode === "dev" && (
-        <div
-          style={{
-            background: "linear-gradient(90deg, #fef3c7, #fef9c3)",
-            color: "#92400e",
-            padding: "8px 24px",
-            fontSize: 13,
-            fontWeight: 500,
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            borderBottom: "1px solid #fcd34d",
-          }}
-        >
+        <div className="rpm-dev-banner" role="status">
           <svg
-            width="14"
-            height="14"
+            className="rpm-dev-banner__icon"
+            width="16"
+            height="16"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
             strokeWidth="2"
+            aria-hidden="true"
           >
             <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
             <line x1="12" y1="9" x2="12" y2="13" />
             <line x1="12" y1="17" x2="12.01" y2="17" />
           </svg>
           <span>Dev mode — Test data only.</span>
-          <Link
-            to="/app/settings/integrations"
-            style={{ color: "#92400e", fontWeight: 600, textDecoration: "underline" }}
-          >
+          <Link to="/app/settings/integrations" className="rpm-dev-banner__link">
             Switch to Prod
           </Link>
         </div>
@@ -257,48 +244,29 @@ export default function App() {
         <s-link href="/app/docs">Documentation</s-link>
       </s-app-nav>
       {!isDashboard && breadcrumb && (
-        <div
-          style={{
-            padding: "12px 20px 6px",
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 13,
-          }}
-        >
-          <Link
-            to={breadcrumb.parent}
-            style={{
-              color: "var(--rpm-accent, #005bd3)",
-              textDecoration: "none",
-              fontWeight: 600,
-              transition: "color 0.15s",
-              fontSize: 13,
-            }}
-          >
-            {breadcrumb.parentLabel}
-          </Link>
-          <span style={{ color: "var(--rpm-text-subtle, #94a3b8)", fontSize: 11 }}>
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              style={{ display: "block" }}
-            >
-              <path
-                d="M4.5 2.5L8 6L4.5 9.5"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </span>
-          <span style={{ color: "var(--rpm-text-muted, #64748b)", fontWeight: 600 }}>
-            {breadcrumb.label}
-          </span>
-        </div>
+        <nav className="rpm-breadcrumb" aria-label="Breadcrumb">
+          <ol className="rpm-breadcrumb__list">
+            <li>
+              <Link to={breadcrumb.parent} className="rpm-breadcrumb__link">
+                {breadcrumb.parentLabel}
+              </Link>
+            </li>
+            <li className="rpm-breadcrumb__separator" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 12 12" fill="none">
+                <path
+                  d="M4.5 2.5L8 6L4.5 9.5"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </li>
+            <li className="rpm-breadcrumb__current" aria-current="page">
+              {breadcrumb.label}
+            </li>
+          </ol>
+        </nav>
       )}
       <Outlet />
     </AppProvider>

@@ -1,6 +1,8 @@
 /* Fynd Returns — Enterprise Design System v4.0 */
 /* Premium admin UI — exceeds native Shopify visual quality */
 
+@tailwind utilities;
+
 /* ────── Design Tokens ────── */
 :root {
   /* Typography */

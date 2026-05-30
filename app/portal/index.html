@@ -479,7 +479,7 @@
       }
 
       .portal-workbench .portal-tabs {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
       }
 
       .portal-action-head {
@@ -623,7 +623,14 @@
 
     @media (max-width: 520px) {
       .portal-workbench .portal-tabs {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .portal-workbench .portal-tab {
+        min-height: 50px;
+        padding: 10px 8px;
+        font-size: 0.875rem;
+        line-height: 1.15;
       }
     }
 
@@ -668,6 +675,81 @@
     .portal-workbench #result-orders-wrap,
     .portal-workbench #result-returns-wrap {
       margin-bottom: 20px;
+    }
+
+    .portal.portal-flow-active {
+      max-width: 1040px;
+      padding-top: 28px;
+    }
+
+    .portal.portal-flow-active .portal-landing-grid {
+      display: block;
+      max-width: 920px;
+      margin: 0 auto;
+    }
+
+    .portal.portal-flow-active .portal-header,
+    .portal.portal-flow-active .portal-action-head {
+      display: none;
+    }
+
+    .portal.portal-flow-active .portal-workbench {
+      width: 100%;
+      border-radius: 28px;
+      box-shadow: 0 22px 64px rgba(15, 23, 42, 0.12);
+    }
+
+    .portal.portal-flow-active .portal-workbench-inner {
+      padding: 20px;
+    }
+
+    .portal.portal-flow-active .portal-workbench .portal-tabs {
+      margin-bottom: 18px;
+    }
+
+    .portal.portal-flow-active .portal-workbench .portal-tab {
+      min-width: 0;
+    }
+
+    .portal.portal-flow-active .portal-workbench .portal-step.active {
+      padding: 24px;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    #createItemsList > div {
+      flex-wrap: wrap;
+    }
+
+    #createItemsList > div > div {
+      min-width: 180px;
+    }
+
+    @media (min-width: 760px) {
+      .portal.portal-flow-active .portal-workbench-inner {
+        padding: 28px;
+      }
+
+      .portal.portal-flow-active .portal-workbench .portal-step.active {
+        padding: 32px;
+      }
+    }
+
+    @media (max-width: 520px) {
+      .portal.portal-flow-active {
+        padding-top: 16px;
+      }
+
+      .portal.portal-flow-active .portal-workbench {
+        border-radius: 24px;
+      }
+
+      .portal.portal-flow-active .portal-workbench-inner {
+        padding: 14px;
+      }
+
+      .portal.portal-flow-active .portal-workbench .portal-step.active {
+        padding: 18px;
+      }
     }
 
     @media (min-width: 640px) {
@@ -5192,7 +5274,35 @@
         document.getElementById('step1').classList.add('active');
         document.getElementById('step2').classList.remove('active');
       }
+      syncPortalLayoutMode();
     }
+
+    function syncPortalLayoutMode() {
+      var portal = document.querySelector('.portal');
+      if (!portal) return;
+      var flowStepIds = [
+        'step-otp',
+        'step2',
+        'create-step2',
+        'create-step2-manual',
+        'create-step3',
+        'create-step-existing',
+        'create-step-ineligible',
+      ];
+      var isFlowActive = flowStepIds.some(function (id) {
+        var el = document.getElementById(id);
+        return !!(el && el.classList.contains('active'));
+      });
+      portal.classList.toggle('portal-flow-active', isFlowActive);
+    }
+
+    (function observePortalStepChanges() {
+      syncPortalLayoutMode();
+      var steps = document.querySelectorAll('.portal-step');
+      steps.forEach(function (step) {
+        new MutationObserver(syncPortalLayoutMode).observe(step, { attributes: true, attributeFilter: ['class'] });
+      });
+    })();
 
     // Esc key — returns the user to step 1 from any subsequent step. The portal's
     // multi-step flow doesn't use true <dialog> modals (each step is just a div

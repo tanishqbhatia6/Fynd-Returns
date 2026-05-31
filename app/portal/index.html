@@ -118,8 +118,8 @@
 
     @media (min-width: 1024px) {
       .portal {
-        max-width: 1120px;
-        padding: 48px 40px 72px;
+        max-width: 920px;
+        padding: 42px 40px 72px;
       }
     }
 
@@ -459,15 +459,10 @@
     .portal-landing-grid {
       width: 100%;
       display: grid;
-      gap: 22px;
+      gap: 20px;
       align-items: start;
-    }
-
-    @media (min-width: 980px) {
-      .portal-landing-grid {
-        grid-template-columns: minmax(0, 0.95fr) minmax(420px, 1.05fr);
-        gap: 42px;
-      }
+      max-width: 860px;
+      margin: 0 auto;
     }
 
     @media (max-width: 520px) {
@@ -514,7 +509,7 @@
     .portal-landing-grid .portal-header {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 24px;
+      gap: 14px;
       margin: 0;
       padding: 4px 0 0;
       overflow: visible;
@@ -522,6 +517,7 @@
       border-radius: 0;
       background: transparent;
       box-shadow: none;
+      text-align: center;
     }
 
     @media (min-width: 900px) {
@@ -531,23 +527,31 @@
       }
     }
 
-    @media (min-width: 980px) {
-      .portal-landing-grid .portal-header {
-        position: sticky;
-        top: 28px;
-      }
-    }
-
     .portal-landing-grid .portal-header h1 {
       max-width: 680px;
-      font-size: clamp(2.5rem, 5.2vw, 4.35rem);
+      margin-left: auto;
+      margin-right: auto;
+      margin-bottom: 10px;
+      font-size: clamp(2.25rem, 5vw, 3.85rem);
       line-height: 0.98;
       letter-spacing: -0.05em;
     }
 
     .portal-landing-grid .portal-header p {
-      max-width: 560px;
+      max-width: 620px;
+      margin-left: auto;
+      margin-right: auto;
       font-size: clamp(1rem, 1.6vw, 1.25rem);
+    }
+
+    .portal-landing-grid #policy-banner {
+      max-width: 620px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .portal-landing-grid .portal-hero-visual {
+      display: none;
     }
 
     .portal-workbench {
@@ -797,6 +801,60 @@
       50% { opacity: 1; }
     }
 
+    .create-inline-loading {
+      display: none;
+      margin: 14px 0 0;
+      padding: 14px 16px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 22%, var(--portal-border));
+      border-radius: 16px;
+      background:
+        radial-gradient(circle at 10% 18%, color-mix(in srgb, var(--portal-primary) 10%, transparent), transparent 36%),
+        rgba(255, 255, 255, 0.82);
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.07);
+    }
+
+    .create-inline-loading.active {
+      display: block;
+    }
+
+    .create-inline-loading-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--portal-text);
+      font-weight: 800;
+      font-size: 0.92rem;
+    }
+
+    .create-inline-loading-spinner {
+      width: 24px;
+      height: 24px;
+      flex: 0 0 auto;
+      border: 3px solid color-mix(in srgb, var(--portal-primary) 14%, var(--portal-border));
+      border-top-color: var(--portal-primary);
+      border-radius: 50%;
+      animation: ocSpin 0.75s linear infinite;
+    }
+
+    .create-inline-loading-bar {
+      position: relative;
+      height: 5px;
+      margin-top: 12px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--portal-primary) 10%, var(--portal-border));
+    }
+
+    .create-inline-loading-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 46%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--portal-primary), color-mix(in srgb, var(--portal-primary) 54%, #ffffff));
+      animation: ocLoadingSweep 1.05s ease-in-out infinite;
+    }
+
     #createItemsList > div {
       flex-wrap: wrap;
     }
@@ -850,7 +908,9 @@
 
     @media (prefers-reduced-motion: reduce) {
       .portal-step.active,
-      .create-flow-progress.is-submitting .create-flow-step.active::before {
+      .create-flow-progress.is-submitting .create-flow-step.active::before,
+      .create-inline-loading-spinner,
+      .create-inline-loading-bar::before {
         animation: none !important;
       }
 
@@ -3107,6 +3167,13 @@
           <input type="text" id="createOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001">
         </div>
         <button type="button" id="btnFetchOrder" class="btn-primary">Find my order</button>
+        <div id="createLookupLoading" class="create-inline-loading" role="status" aria-live="polite">
+          <div class="create-inline-loading-head">
+            <span class="create-inline-loading-spinner" aria-hidden="true"></span>
+            <span>Finding your order and checking return eligibility...</span>
+          </div>
+          <div class="create-inline-loading-bar" aria-hidden="true"></div>
+        </div>
         <p id="createErr1" class="form-error" aria-live="polite"></p>
         <div style="text-align:center;margin:24px 0 16px;position:relative;">
           <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:var(--portal-border);"></div>
@@ -3326,6 +3393,13 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <input type="text" id="createManualOrderNumber" class="form-input" placeholder="e.g. #1001 or 1001" style="flex:1;min-width:180px;">
             <button type="button" id="btnManualFindOrder" class="btn-primary" style="flex-shrink:0;">Find my order to select items</button>
+          </div>
+          <div id="manualLookupLoading" class="create-inline-loading" role="status" aria-live="polite">
+            <div class="create-inline-loading-head">
+              <span class="create-inline-loading-spinner" aria-hidden="true"></span>
+              <span>Loading order items...</span>
+            </div>
+            <div class="create-inline-loading-bar" aria-hidden="true"></div>
           </div>
           <p style="font-size:0.8125rem;color:var(--portal-text-muted);margin-top:8px;">We'll look up your order so you can pick items from the list — no typing required.</p>
         </div>
@@ -5623,6 +5697,7 @@
       document.getElementById('step2').classList.remove('active');
       var activeTabBtnPre = document.querySelector('.portal-tab.active');
       var activeTabIdPre = activeTabBtnPre ? activeTabBtnPre.dataset.tab : 'track_order';
+      document.getElementById('step2').classList.add('active');
       if (activeTabIdPre === 'track_order') {
         document.getElementById('result-orders-wrap').style.display = 'block';
         document.getElementById('result-returns-wrap').style.display = 'none';
@@ -6631,10 +6706,12 @@
       const lookVal = document.getElementById('createOrderNumber').value.trim();
       const err = document.getElementById('createErr1');
       const btn = document.getElementById('btnFetchOrder');
+      const loading = document.getElementById('createLookupLoading');
       err.textContent = '';
       if (!lookVal) { err.textContent = t('portal.error.enterOrderNumber'); return; }
       btn.disabled = true;
       btn.textContent = t('portal.create.lookingUp');
+      if (loading) loading.classList.add('active');
       function resetBtn() { btn.disabled = false; btn.textContent = t('portal.create.findOrder'); }
       try {
         const orderNumber = lookVal.replace(/^#/, '');
@@ -6650,6 +6727,7 @@
       } catch (e) {
         err.textContent = e.message || t('portal.common.error');
       } finally {
+        if (loading) loading.classList.remove('active');
         btn.disabled = false;
         btn.textContent = t('portal.create.findOrder');
       }
@@ -6660,10 +6738,12 @@
       const orderNumber = document.getElementById('createManualOrderNumber').value.replace(/^#/, '').trim();
       const err = document.getElementById('createErrManual');
       const btn = document.getElementById('btnManualFindOrder');
+      const loading = document.getElementById('manualLookupLoading');
       err.textContent = '';
       if (!orderNumber) { err.textContent = t('portal.error.enterOrderNumber'); return; }
       btn.disabled = true;
       btn.textContent = t('portal.create.lookingUp');
+      if (loading) loading.classList.add('active');
       try {
         const data = await fetchJson(API + '/order?shop=' + encodeURIComponent(shop) + '&orderNumber=' + encodeURIComponent(orderNumber), null, 20000);
         if (data.fallback || !data.order) {
@@ -6674,6 +6754,7 @@
       } catch (e) {
         err.textContent = e.message || t('portal.common.error');
       } finally {
+        if (loading) loading.classList.remove('active');
         btn.disabled = false;
         btn.textContent = 'Find my order to select items';
       }

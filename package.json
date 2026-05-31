@@ -2,7 +2,8 @@
   "name": "returnpromax",
   "private": true,
   "scripts": {
-    "build": "react-router build",
+    "build": "npm run build:portal && react-router build",
+    "build:portal": "vite build --config vite.portal.config.ts",
     "dev": "npx shopify app dev",
     "dev:local": "npx prisma generate && npx prisma db push && NODE_OPTIONS='--import ./instrumentation.server.mjs' npm exec react-router dev",
     "config:link": "shopify app config link",
@@ -65,6 +66,7 @@
     "ioredis": "^5.10.1",
     "isbot": "^5.1.32",
     "jsonwebtoken": "^9.0.2",
+    "lucide-react": "^1.17.0",
     "nodemailer": "^8.0.1",
     "pino": "^10.3.1",
     "prisma": "^6.19.2",

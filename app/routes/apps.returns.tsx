@@ -162,17 +162,17 @@ window.__RPM_PORTAL_CSRF__=${JSON.stringify(createPortalCsrfToken(shopDomain))};
     : `  <link rel="icon" type="image/png" href="${escapeHtmlAttr(appUrl)}/favicon-96x96.png" sizes="96x96" />\n  <link rel="icon" type="image/svg+xml" href="${escapeHtmlAttr(appUrl)}/favicon.svg" />\n  <link rel="shortcut icon" href="${escapeHtmlAttr(appUrl)}/favicon.ico" />\n  <link rel="apple-touch-icon" sizes="180x180" href="${escapeHtmlAttr(appUrl)}/apple-touch-icon.png" />\n  <link rel="manifest" href="${escapeHtmlAttr(appUrl)}/site.webmanifest" />`;
 
   portalHtml = portalHtml
-    .replace("%SHOP%", escapeHtmlAttr(shopDomain))
+    .replaceAll("%SHOP%", escapeHtmlAttr(shopDomain))
     .replaceAll("%APP_URL%", escapeHtmlAttr(appUrl))
-    .replace("%RETURN_WINDOW%", String(returnWindowDays))
-    .replace("%RETURN_POLICY%", escapeHtmlContent(returnPolicyText))
-    .replace("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))
-    .replace(
+    .replaceAll("%RETURN_WINDOW%", String(returnWindowDays))
+    .replaceAll("%RETURN_POLICY%", escapeHtmlContent(returnPolicyText))
+    .replaceAll("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))
+    .replaceAll(
       "%RETURN_REASONS_BY_CATEGORY_JSON%",
       escapeJsonInHtml(returnReasonsByCategoryJson || "{}"),
     )
-    .replace("%PORTAL_CONFIG%", escapeJsonInHtml(JSON.stringify(portalConfig)))
-    .replace("%BRAND_LOGO_URL%", escapeHtmlAttr(brandLogoUrl ?? ""))
+    .replaceAll("%PORTAL_CONFIG%", escapeJsonInHtml(JSON.stringify(portalConfig)))
+    .replaceAll("%BRAND_LOGO_URL%", escapeHtmlAttr(brandLogoUrl ?? ""))
     .replace("<!-- %FAVICON% -->", faviconHtml)
     .replace("</head>", `${i18nScript}\n</head>`)
     .replace(

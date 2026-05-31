@@ -21,11 +21,13 @@ const TEMPLATE_HTML = [
   "  <style>body{color:%TEXT_COLOR%;background:%BG_COLOR%;}</style>",
   "</head>",
   "<body>",
+  '  <div id="return-portal-root" data-shop="%SHOP%" data-app-url="%APP_URL%" data-return-window="%RETURN_WINDOW%" data-brand-logo-url="%BRAND_LOGO_URL%"></div>',
   '  <input type="hidden" id="shop" value="%SHOP%">',
   '  <span class="window">%RETURN_WINDOW% days</span>',
   '  <div class="policy">%RETURN_POLICY%</div>',
   '  <img class="brand" src="%BRAND_LOGO_URL%" />',
   '  <a href="%APP_URL%/x">link</a>',
+  '  <script src="%APP_URL%/portal/return-portal.js" defer></script>',
   "  <script>",
   '    var REASONS = "%RETURN_REASONS_JSON%";',
   '    var REASONS_BY_CAT = "%RETURN_REASONS_BY_CATEGORY_JSON%";',
@@ -81,10 +83,19 @@ describe("apps.returns loader", () => {
     const res = (await loader(makeArgs(makeRequest("?shop=acme")))) as Response;
     const body = await res.text();
     expect(body).toContain('id="shop" value="acme.myshopify.com"');
+    expect(body).toContain('id="return-portal-root" data-shop="acme.myshopify.com"');
     // findUnique should have been called with the expanded domain.
     expect(prismaMock.shop.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { shopDomain: "acme.myshopify.com" } }),
     );
+  });
+
+  it("injects the React portal bundle URL from APP_URL", async () => {
+    process.env.SHOPIFY_APP_URL = "https://app.example.com";
+    const res = (await loader(makeArgs(makeRequest("?shop=acme")))) as Response;
+    const body = await res.text();
+    expect(body).toContain('data-app-url="https://app.example.com"');
+    expect(body).toContain('src="https://app.example.com/portal/return-portal.js" defer');
   });
 
   it("uses the raw shop param when it already contains a dot", async () => {

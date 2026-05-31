@@ -65,6 +65,8 @@
       --portal-hero-text: #182226;
       --portal-hero-muted: #667085;
       --portal-hero-border: #d9e3de;
+      --portal-aurora: color-mix(in srgb, var(--portal-primary) 14%, transparent);
+      --portal-warm-glow: rgba(245, 158, 11, 0.12);
     }
 
     *,
@@ -83,6 +85,8 @@
     body {
       font-family: var(--portal-font);
       background:
+        radial-gradient(circle at 16% 8%, var(--portal-aurora), transparent 32rem),
+        radial-gradient(circle at 86% 2%, var(--portal-warm-glow), transparent 30rem),
         linear-gradient(180deg,
           color-mix(in srgb, var(--portal-primary) 7%, var(--portal-bg)) 0%,
           var(--portal-bg) 46%,
@@ -92,6 +96,20 @@
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
       overflow-x: hidden;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 8%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, rgba(15, 23, 42, 0.035) 1px, transparent 1px);
+      background-size: 72px 72px;
+      mask-image: linear-gradient(180deg, black 0%, transparent 70%);
+      opacity: 0.55;
     }
 
     /* Responsive: mobile-first, scales to tablet and desktop */
@@ -118,7 +136,7 @@
 
     @media (min-width: 1024px) {
       .portal {
-        max-width: 920px;
+        max-width: 1040px;
         padding: 42px 40px 72px;
       }
     }
@@ -367,6 +385,32 @@
       }
     }
 
+    @media (max-width: 640px) {
+      .portal-eyebrow {
+        font-size: 0.68rem;
+      }
+
+      .portal-quick-stats {
+        gap: 8px;
+      }
+
+      .portal-quick-stat {
+        width: 100%;
+        justify-content: center;
+      }
+
+      .portal-landing-grid .portal-hero-visual {
+        min-height: 190px;
+        border-radius: 26px;
+      }
+
+      .portal-landing-grid .hero-package-card {
+        left: 18px;
+        right: 18px;
+        top: 20px;
+      }
+    }
+
     #policy-banner {
       display: block;
       margin-top: 22px;
@@ -459,9 +503,9 @@
     .portal-landing-grid {
       width: 100%;
       display: grid;
-      gap: 20px;
+      gap: 24px;
       align-items: start;
-      max-width: 860px;
+      max-width: 960px;
       margin: 0 auto;
     }
 
@@ -509,7 +553,7 @@
     .portal-landing-grid .portal-header {
       display: grid;
       grid-template-columns: 1fr;
-      gap: 14px;
+      gap: 18px;
       margin: 0;
       padding: 4px 0 0;
       overflow: visible;
@@ -520,6 +564,34 @@
       text-align: center;
     }
 
+    .portal-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: max-content;
+      max-width: 100%;
+      margin: 0 auto 14px;
+      padding: 8px 12px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 18%, var(--portal-border));
+      border-radius: 999px;
+      color: color-mix(in srgb, var(--portal-primary) 82%, var(--portal-text));
+      background: rgba(255, 255, 255, 0.74);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      font-size: 0.76rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .portal-eyebrow-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: var(--portal-primary);
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--portal-primary) 12%, transparent);
+    }
+
     @media (min-width: 900px) {
       .portal-landing-grid .portal-header {
         grid-template-columns: 1fr;
@@ -528,13 +600,13 @@
     }
 
     .portal-landing-grid .portal-header h1 {
-      max-width: 680px;
+      max-width: 760px;
       margin-left: auto;
       margin-right: auto;
       margin-bottom: 10px;
-      font-size: clamp(2.25rem, 5vw, 3.85rem);
-      line-height: 0.98;
-      letter-spacing: -0.05em;
+      font-size: clamp(2.55rem, 7vw, 5rem);
+      line-height: 0.9;
+      letter-spacing: -0.065em;
     }
 
     .portal-landing-grid .portal-header p {
@@ -544,24 +616,93 @@
       font-size: clamp(1rem, 1.6vw, 1.25rem);
     }
 
+    .portal-quick-stats {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+      margin: 20px auto 0;
+      max-width: 760px;
+    }
+
+    .portal-quick-stat {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 12%, var(--portal-border));
+      border-radius: 999px;
+      color: var(--portal-text);
+      background: rgba(255, 255, 255, 0.68);
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+      font-size: 0.84rem;
+      font-weight: 800;
+    }
+
+    .portal-quick-stat svg {
+      width: 16px;
+      height: 16px;
+      color: var(--portal-primary);
+      flex: 0 0 auto;
+    }
+
     .portal-landing-grid #policy-banner {
-      max-width: 620px;
+      max-width: 720px;
       margin-left: auto;
       margin-right: auto;
     }
 
     .portal-landing-grid .portal-hero-visual {
+      display: block;
+      width: 100%;
+      max-width: 820px;
+      min-height: 248px;
+      margin: 4px auto 0;
+      border-radius: 34px;
+      transform: translateZ(0);
+    }
+
+    .portal.portal-flow-active .portal-hero-visual {
       display: none;
+    }
+
+    .portal-landing-grid .hero-package-card {
+      left: 28px;
+      right: 28px;
+      top: 26px;
+      min-height: 116px;
+      padding: 18px 20px;
+      border-radius: 24px;
+    }
+
+    .portal-landing-grid .hero-mini-row {
+      left: 30px;
+      right: 30px;
+      bottom: 26px;
+      gap: 14px;
+    }
+
+    .portal-landing-grid .hero-mini-card {
+      min-height: 76px;
+      border-radius: 20px;
+      transition: transform 0.22s ease, box-shadow 0.22s ease;
+    }
+
+    .portal-landing-grid .hero-mini-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 18px 34px rgba(15, 23, 42, 0.12);
     }
 
     .portal-workbench {
       position: relative;
       border: 1px solid color-mix(in srgb, var(--portal-primary) 14%, var(--portal-border));
-      border-radius: 32px;
+      border-radius: 34px;
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.88), rgba(255,255,255,0.72)),
+        radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--portal-primary) 12%, transparent), transparent 24rem),
+        linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.74)),
         color-mix(in srgb, var(--portal-primary) 5%, var(--portal-surface));
-      box-shadow: 0 28px 80px rgba(15, 23, 42, 0.14);
+      box-shadow: 0 30px 90px rgba(15, 23, 42, 0.16);
       overflow: hidden;
       backdrop-filter: blur(18px);
     }
@@ -915,7 +1056,8 @@
       }
 
       .create-flow-step::before,
-      .create-flow-index {
+      .create-flow-index,
+      .portal-landing-grid .hero-mini-card {
         transition: none !important;
       }
     }
@@ -3000,8 +3142,23 @@
     <div class="portal-landing-grid">
     <header class="portal-header">
       <div class="portal-hero-copy">
+        <div class="portal-eyebrow"><span class="portal-eyebrow-dot"></span><span>Returns command center</span></div>
         <h1 id="portal-title">Track your orders &amp; returns</h1>
         <p id="portal-subtitle">Check the status of your order or start a return — it only takes a minute.</p>
+        <div class="portal-quick-stats" aria-label="Portal highlights">
+          <span class="portal-quick-stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/></svg>
+            Live order tracking
+          </span>
+          <span class="portal-quick-stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v6h6"/><path d="M12 7v5l3 2"/></svg>
+            Quick return requests
+          </span>
+          <span class="portal-quick-stat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-5"/></svg>
+            Secure status lookup
+          </span>
+        </div>
         <div id="policy-banner" class="policy-banner" style="display:none;">
           <strong><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px;"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Return policy:</strong> Returns accepted within %RETURN_WINDOW% days of delivery.
           <div id="policy-detail" style="margin-top:8px;"></div>

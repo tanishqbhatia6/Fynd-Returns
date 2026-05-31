@@ -691,30 +691,9 @@
       margin-bottom: 20px;
     }
 
-    .portal.portal-flow-active {
-      max-width: 1040px;
-      padding-top: 28px;
-    }
-
-    .portal.portal-flow-active .portal-landing-grid {
-      display: block;
-      max-width: min(920px, 100%);
-      margin: 0 auto;
-    }
-
-    .portal.portal-flow-active .portal-header,
-    .portal.portal-flow-active .portal-action-head {
-      display: none;
-    }
-
     .portal.portal-flow-active .portal-workbench {
-      width: 100%;
-      border-radius: 28px;
-      box-shadow: 0 22px 64px rgba(15, 23, 42, 0.12);
-    }
-
-    .portal.portal-flow-active .portal-workbench-inner {
-      padding: 20px;
+      border-color: color-mix(in srgb, var(--portal-primary) 26%, var(--portal-border));
+      box-shadow: 0 30px 88px rgba(15, 23, 42, 0.16);
     }
 
     .portal.portal-flow-active .portal-workbench .portal-tabs {
@@ -726,8 +705,96 @@
     }
 
     .portal.portal-flow-active .portal-workbench .portal-step.active {
-      padding: 24px;
       background: rgba(255, 255, 255, 0.9);
+    }
+
+    .create-flow-progress {
+      display: none;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin: 0 0 16px;
+      padding: 8px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 12%, var(--portal-border));
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.72);
+    }
+
+    #create-panel.is-create-flow .create-flow-progress {
+      display: grid;
+    }
+
+    .create-flow-step {
+      position: relative;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 44px;
+      padding: 8px 10px;
+      border-radius: 13px;
+      color: var(--portal-text-muted);
+      font-size: 0.78rem;
+      font-weight: 800;
+      overflow: hidden;
+    }
+
+    .create-flow-step::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 12%, transparent), transparent);
+      opacity: 0;
+      transform: translateX(-18px);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+    }
+
+    .create-flow-index {
+      position: relative;
+      z-index: 1;
+      width: 24px;
+      height: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      border: 1px solid color-mix(in srgb, var(--portal-text-muted) 24%, var(--portal-border));
+      background: var(--portal-surface);
+      font-size: 0.72rem;
+      transition: color 0.22s ease, background 0.22s ease, border-color 0.22s ease;
+    }
+
+    .create-flow-label {
+      position: relative;
+      z-index: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .create-flow-step.done,
+    .create-flow-step.active {
+      color: var(--portal-text);
+    }
+
+    .create-flow-step.done .create-flow-index,
+    .create-flow-step.active .create-flow-index {
+      color: var(--portal-surface);
+      background: var(--portal-primary);
+      border-color: var(--portal-primary);
+    }
+
+    .create-flow-step.active::before {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .create-flow-progress.is-submitting .create-flow-step.active::before {
+      animation: createFlowPulse 1.15s ease-in-out infinite;
+    }
+
+    @keyframes createFlowPulse {
+      0%, 100% { opacity: 0.6; }
+      50% { opacity: 1; }
     }
 
     #createItemsList > div {
@@ -738,31 +805,13 @@
       min-width: 180px;
     }
 
-    @media (min-width: 760px) {
-      .portal.portal-flow-active .portal-workbench-inner {
-        padding: 28px;
-      }
-
-      .portal.portal-flow-active .portal-workbench .portal-step.active {
-        padding: 32px;
-      }
-    }
-
     @media (max-width: 520px) {
-      .portal.portal-flow-active {
-        padding-top: 16px;
-      }
-
-      .portal.portal-flow-active .portal-workbench {
-        border-radius: 24px;
-      }
-
-      .portal.portal-flow-active .portal-workbench-inner {
-        padding: 14px;
-      }
-
       .portal.portal-flow-active .portal-workbench .portal-step.active {
         padding: 18px;
+      }
+
+      .create-flow-progress {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -784,7 +833,7 @@
 
     .portal-step.active {
       display: block;
-      animation: fadeIn 0.35s ease;
+      animation: fadeIn 0.24s ease;
     }
 
     @keyframes fadeIn {
@@ -796,6 +845,18 @@
       to {
         opacity: 1;
         transform: translateY(0);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .portal-step.active,
+      .create-flow-progress.is-submitting .create-flow-step.active::before {
+        animation: none !important;
+      }
+
+      .create-flow-step::before,
+      .create-flow-index {
+        transition: none !important;
       }
     }
 
@@ -2164,6 +2225,65 @@
       animation: shimmer 1.6s ease-in-out infinite;
       border-radius: 8px;
     }
+    .oc-loading-panel {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 16px;
+      padding: 18px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 24%, var(--portal-border));
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 12% 12%, color-mix(in srgb, var(--portal-primary) 10%, transparent), transparent 34%),
+        linear-gradient(135deg, color-mix(in srgb, var(--portal-primary) 7%, var(--portal-surface)), var(--portal-surface));
+      box-shadow: 0 14px 36px rgba(15, 23, 42, 0.08);
+    }
+    .oc-loading-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .oc-loading-ring {
+      width: 42px;
+      height: 42px;
+      border: 3px solid color-mix(in srgb, var(--portal-primary) 16%, var(--portal-border));
+      border-top-color: var(--portal-primary);
+      border-radius: 50%;
+      flex: 0 0 auto;
+      animation: ocSpin 0.75s linear infinite;
+    }
+    .oc-loading-title {
+      font-size: 0.98rem;
+      font-weight: 800;
+      color: var(--portal-text);
+      letter-spacing: -0.01em;
+    }
+    .oc-loading-subtitle {
+      margin-top: 3px;
+      color: var(--portal-text-muted);
+      font-size: 0.88rem;
+      line-height: 1.45;
+    }
+    .oc-loading-bar {
+      position: relative;
+      height: 6px;
+      margin-top: 16px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--portal-primary) 10%, var(--portal-border));
+    }
+    .oc-loading-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto 0 0;
+      width: 42%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--portal-primary), color-mix(in srgb, var(--portal-primary) 64%, #ffffff));
+      animation: ocLoadingSweep 1.15s ease-in-out infinite;
+    }
+    @keyframes ocLoadingSweep {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(260%); }
+    }
     .oc-skeleton-card {
       background: var(--portal-surface);
       border-radius: 16px;
@@ -2205,6 +2325,20 @@
       border-top-color: var(--portal-primary);
       border-radius: 50%;
       animation: ocSpin 0.6s linear infinite;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .oc-skeleton,
+      .oc-loading-ring,
+      .oc-loading-bar::before,
+      .btn-primary.searching,
+      .oc-spinner {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+      }
+      .oc-loading-bar::before {
+        transform: none;
+        width: 72%;
+      }
     }
 
     /* Order summary section */
@@ -2937,9 +3071,27 @@
         <button type="button" id="btnBack" class="btn-secondary" style="margin-top: 24px; width:100%;">← Search
           again</button>
       </div>
-    </div>
+        </div>
 
         <div id="create-panel" class="portal-card" style="display:none;">
+      <div id="create-flow-progress" class="create-flow-progress" aria-label="Return creation progress">
+        <div class="create-flow-step active" data-create-progress-step="1">
+          <span class="create-flow-index">1</span>
+          <span class="create-flow-label">Find order</span>
+        </div>
+        <div class="create-flow-step" data-create-progress-step="2">
+          <span class="create-flow-index">2</span>
+          <span class="create-flow-label">Select items</span>
+        </div>
+        <div class="create-flow-step" data-create-progress-step="3">
+          <span class="create-flow-index">3</span>
+          <span class="create-flow-label">Submit</span>
+        </div>
+        <div class="create-flow-step" data-create-progress-step="4">
+          <span class="create-flow-index">4</span>
+          <span class="create-flow-label">Done</span>
+        </div>
+      </div>
       <div id="create-step1" class="portal-step active">
         <div style="text-align:center;margin-bottom:24px;">
           <div
@@ -3301,6 +3453,9 @@
       'portal.lookup.placeholderReturnNo': 'e.g. R-1001',
       'portal.lookup.placeholderAwb': 'e.g. 1234567890',
       'portal.lookup.searching': 'Searching...',
+      'portal.loading.title': 'Finding your result',
+      'portal.loading.desc': 'Checking Shopify and Fynd for the latest status.',
+      'portal.loading.progress': 'Loading results',
       'portal.results.orders': 'Your orders',
       'portal.results.returns': 'Your returns',
       'portal.results.yourOrders': 'Your orders',
@@ -5061,7 +5216,14 @@
     }
 
     function renderLoadingSkeleton(count) {
-      var html = '';
+      var html = '<div class="oc-loading-panel" role="status" aria-live="polite" aria-label="' + escapeHtml(t('portal.loading.progress')) + '">';
+      html += '<div class="oc-loading-head">';
+      html += '<div class="oc-loading-ring" aria-hidden="true"></div>';
+      html += '<div><div class="oc-loading-title">' + escapeHtml(t('portal.loading.title')) + '</div>';
+      html += '<div class="oc-loading-subtitle">' + escapeHtml(t('portal.loading.desc')) + '</div></div>';
+      html += '</div>';
+      html += '<div class="oc-loading-bar" aria-hidden="true"></div>';
+      html += '</div>';
       for (var i = 0; i < (count || 1); i++) {
         html += '<div class="oc-skeleton-card">';
         html += '<div class="oc-skeleton-header"><div><div class="oc-skeleton oc-skeleton-title"></div><div class="oc-skeleton oc-skeleton-sub"></div></div><div class="oc-skeleton oc-skeleton-pill"></div></div>';
@@ -5252,6 +5414,10 @@
     var _manualOtpPortalToken = null;
 
     function showOtpStep() {
+      if (_otpPurpose === 'manual_return') {
+        document.getElementById('track-panel').style.display = 'block';
+        document.getElementById('create-panel').style.display = 'none';
+      }
       document.getElementById('step1').classList.remove('active');
       document.getElementById('step2').classList.remove('active');
       document.getElementById('create-step1').classList.remove('active');
@@ -5312,7 +5478,9 @@
       clearInterval(_otpResendTimer);
       document.getElementById('step-otp').classList.remove('active');
       if (_otpPurpose === 'manual_return') {
-        document.getElementById('create-step2-manual').classList.add('active');
+        document.getElementById('track-panel').style.display = 'none';
+        document.getElementById('create-panel').style.display = 'block';
+        showCreateStep('create-step2-manual');
       } else {
         document.getElementById('step1').classList.add('active');
       }
@@ -5397,7 +5565,9 @@
             return;
           }
           document.getElementById('step-otp').classList.remove('active');
-          document.getElementById('create-step2-manual').classList.add('active');
+          document.getElementById('track-panel').style.display = 'none';
+          document.getElementById('create-panel').style.display = 'block';
+          showCreateStep('create-step2-manual');
           _otpPurpose = 'lookup';
           setTimeout(function() {
             document.getElementById('btnSubmitManualReturn').click();
@@ -5672,12 +5842,54 @@
       selectEl.innerHTML = reasons.map(function (r) { return '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + '</option>'; }).join('');
     }
 
+    var CREATE_STEP_IDS = [
+      'create-step1',
+      'create-step2',
+      'create-step2-manual',
+      'create-step3',
+      'create-step-existing',
+      'create-step-ineligible',
+    ];
+
+    function getCreateProgressStep(stepId) {
+      if (stepId === 'create-step3') return 4;
+      if (stepId === 'create-step2' || stepId === 'create-step2-manual' || stepId === 'create-step-existing' || stepId === 'create-step-ineligible') return 2;
+      return 1;
+    }
+
+    function setCreateFlowProgress(stepNumber, isSubmitting) {
+      var progress = document.getElementById('create-flow-progress');
+      var panel = document.getElementById('create-panel');
+      if (!progress) return;
+      progress.classList.toggle('is-submitting', !!isSubmitting);
+      if (panel) panel.classList.add('is-create-flow');
+      progress.querySelectorAll('.create-flow-step').forEach(function (step) {
+        var n = parseInt(step.dataset.createProgressStep || '0', 10);
+        step.classList.toggle('done', n < stepNumber);
+        step.classList.toggle('active', n === stepNumber);
+      });
+    }
+
+    function showCreateStep(stepId, options) {
+      CREATE_STEP_IDS.forEach(function (id) {
+        var el = document.getElementById(id);
+        if (el) el.classList.remove('active');
+      });
+      var target = document.getElementById(stepId);
+      if (target) target.classList.add('active');
+      var opts = options || {};
+      setCreateFlowProgress(opts.progressStep || getCreateProgressStep(stepId), !!opts.submitting);
+      syncPortalLayoutMode();
+    }
+
     function applyTabState(tabId) {
       var subTabsWrap = document.getElementById('track-return-sub-tabs');
       subTabsWrap.style.display = (tabId === 'track_return' && PORTAL_CONFIG.showCreateReturnTab) ? 'flex' : 'none';
 
       document.getElementById('track-panel').style.display = (tabId === 'track_order' || tabId === 'track_return') ? 'block' : 'none';
       document.getElementById('create-panel').style.display = tabId === 'create' ? 'block' : 'none';
+      document.getElementById('create-panel').classList.toggle('is-create-flow', tabId === 'create');
+      if (tabId === 'create') setCreateFlowProgress(getCreateProgressStep(document.querySelector('#create-panel .portal-step.active')?.id || 'create-step1'));
 
       var select = document.getElementById('lookupType');
       var lookupLabel = document.getElementById('lookupValueLabel');
@@ -5751,11 +5963,10 @@
       });
       if (any) {
         // Restore the appropriate step 1 depending on which tab is visible.
-        var createS1 = document.getElementById('create-step1');
         var trackS1 = document.getElementById('step1');
         var createTab = document.querySelector('.portal-tab[data-tab="create"]');
         var isCreateActive = createTab && createTab.classList.contains('active');
-        if (isCreateActive && createS1) createS1.classList.add('active');
+        if (isCreateActive) showCreateStep('create-step1');
         else if (trackS1) trackS1.classList.add('active');
       }
     });
@@ -5943,10 +6154,7 @@
         orderInput.value = '';
       }
       fillReasonSelect(document.getElementById('createManualReason'), null);
-      document.getElementById('create-step1').classList.remove('active');
-      document.getElementById('create-step2').classList.remove('active');
-      document.getElementById('create-step3').classList.remove('active');
-      document.getElementById('create-step2-manual').classList.add('active');
+      showCreateStep('create-step2-manual');
     }
 
     document.getElementById('btnUseManualForm').onclick = () => showManualForm(false);
@@ -6001,8 +6209,7 @@
     }
 
     document.getElementById('btnExistingBack').onclick = function () {
-      document.getElementById('create-step-existing').classList.remove('active');
-      document.getElementById('create-step1').classList.add('active');
+      showCreateStep('create-step1');
     };
 
     /** Shared: given API response from /order, show existing returns / ineligible / or step2 with item selector. Returns true if step2 was shown. */
@@ -6013,10 +6220,7 @@
       if (data.activeReturns && data.activeReturns.length > 0) {
         var container = document.getElementById('existingReturnsContainer');
         renderExistingReturns(data.activeReturns, container);
-        document.getElementById('create-step1').classList.remove('active');
-        document.getElementById('create-step2').classList.remove('active');
-        document.getElementById('create-step2-manual').classList.remove('active');
-        document.getElementById('create-step-existing').classList.add('active');
+        showCreateStep('create-step-existing');
         return false;
       }
       var prevBanner = document.getElementById('previousReturnsBanner');
@@ -6057,7 +6261,7 @@
         ineligibleHtml += '<div style="font-size:1.125rem;font-weight:700;color:var(--portal-text);margin-bottom:4px;">' + t('portal.create.notAvailable') + '</div>';
         ineligibleHtml += '<div style="font-size:0.8125rem;font-weight:600;color:var(--portal-text-muted);margin-bottom:12px;">' + t('portal.common.order') + ' ' + escapeHtml(data.order.name) + ' · ' + escapeHtml(statusLabel) + '</div>';
         ineligibleHtml += '<div style="font-size:0.9375rem;color:var(--portal-text-muted);line-height:1.6;max-width:400px;margin:0 auto 20px;">' + escapeHtml(reason) + '</div>';
-        ineligibleHtml += '<button type="button" class="btn-secondary" onclick="document.getElementById(\'create-step-ineligible\').classList.remove(\'active\');document.getElementById(\'create-step1\').classList.add(\'active\');" style="width:100%;">' + t('portal.create.backToSearch') + '</button>';
+        ineligibleHtml += '<button type="button" class="btn-secondary" onclick="showCreateStep(\'create-step1\')" style="width:100%;">' + t('portal.create.backToSearch') + '</button>';
         ineligibleHtml += '</div>';
         var ineligibleStep = document.getElementById('create-step-ineligible');
         if (!ineligibleStep) {
@@ -6067,11 +6271,7 @@
           document.getElementById('create-step1').parentElement.appendChild(ineligibleStep);
         }
         ineligibleStep.innerHTML = ineligibleHtml;
-        document.getElementById('create-step1').classList.remove('active');
-        document.getElementById('create-step2').classList.remove('active');
-        document.getElementById('create-step2-manual').classList.remove('active');
-        document.getElementById('create-step-existing').classList.remove('active');
-        ineligibleStep.classList.add('active');
+        showCreateStep('create-step-ineligible');
         return false;
       }
 
@@ -6353,10 +6553,7 @@
 
         var productType = (createOrderData.lineItems && createOrderData.lineItems[0]) ? (createOrderData.lineItems[0].productType || null) : null;
         fillReasonSelect(document.getElementById('createReason'), productType);
-        document.getElementById('create-step1').classList.remove('active');
-        document.getElementById('create-step2-manual').classList.remove('active');
-        document.getElementById('create-step-existing').classList.remove('active');
-        document.getElementById('create-step2').classList.add('active');
+        showCreateStep('create-step2');
         return true;
     }
 
@@ -6483,10 +6680,7 @@
     };
 
     document.getElementById('btnCreateBack').onclick = () => {
-      document.getElementById('create-step2').classList.remove('active');
-      document.getElementById('create-step2-manual').classList.remove('active');
-      document.getElementById('create-step3').classList.remove('active');
-      document.getElementById('create-step1').classList.add('active');
+      showCreateStep('create-step1');
       currentMatchedOffer = null;
       var offerBox = document.getElementById('returnOfferBox');
       if (offerBox) offerBox.style.display = 'none';
@@ -6498,8 +6692,7 @@
     };
 
     document.getElementById('btnManualBack').onclick = () => {
-      document.getElementById('create-step2-manual').classList.remove('active');
-      document.getElementById('create-step1').classList.add('active');
+      showCreateStep('create-step1');
     };
 
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -6548,6 +6741,7 @@
       }
       btn.disabled = true;
       btn.textContent = t('portal.create.submitting');
+      setCreateFlowProgress(3, true);
       try {
         var customerMedia = [];
         if (filesManual.length > 0) {
@@ -6570,8 +6764,7 @@
             portalCsrfToken: window.__RPM_PORTAL_CSRF__ || undefined
           })
         }, 30000);
-        document.getElementById('create-step2-manual').classList.remove('active');
-        document.getElementById('create-step3').classList.add('active');
+        showCreateStep('create-step3');
         showReturnSuccessCard(data);
       } catch (e) {
         var msg = e.message || t('portal.error.submitFailed');
@@ -6581,6 +6774,9 @@
           err.textContent = msg;
         }
       } finally {
+        if (document.getElementById('create-step2-manual').classList.contains('active')) {
+          setCreateFlowProgress(2, false);
+        }
         btn.disabled = false;
         btn.textContent = t('portal.create.submit');
       }
@@ -6850,6 +7046,7 @@
 
       btn.disabled = true;
       btn.textContent = t('portal.create.submitting');
+      setCreateFlowProgress(3, true);
       // Multi-phase progress indicator
       var progressEl = document.createElement('div');
       progressEl.id = 'submitProgressEl';
@@ -6930,8 +7127,7 @@
             portalCsrfToken: createOrderData._portalCsrfToken || undefined,
           })
         }, 30000);
-        document.getElementById('create-step2').classList.remove('active');
-        document.getElementById('create-step3').classList.add('active');
+        showCreateStep('create-step3');
         showReturnSuccessCard(data);
       } catch (e) {
         var msg = e.message || t('portal.error.submitFailed');
@@ -6944,6 +7140,9 @@
         clearTimeout(phaseTimer);
         var prog = document.getElementById('submitProgressEl');
         if (prog) prog.remove();
+        if (document.getElementById('create-step2').classList.contains('active')) {
+          setCreateFlowProgress(2, false);
+        }
         btn.disabled = false;
         btn.textContent = t('portal.create.submit');
       }
@@ -7067,11 +7266,7 @@
       document.getElementById('createErr1').textContent = '';
       document.getElementById('createErr2').textContent = '';
       document.getElementById('createErrManual').textContent = '';
-      document.getElementById('create-step2').classList.remove('active');
-      document.getElementById('create-step2-manual').classList.remove('active');
-      document.getElementById('create-step3').classList.remove('active');
-      document.getElementById('create-step-existing').classList.remove('active');
-      document.getElementById('create-step1').classList.add('active');
+      showCreateStep('create-step1');
       document.getElementById('createSuccessCard').style.display = 'none';
     };
 

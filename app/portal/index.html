@@ -440,43 +440,47 @@
       display: flex;
       flex-wrap: wrap;
       justify-content: center;
-      gap: 8px;
+      gap: 6px;
       margin: 0 auto 20px;
-      padding: 8px;
+      padding: 6px;
       max-width: 760px;
-      border: 1px solid color-mix(in srgb, var(--portal-primary) 12%, var(--portal-border));
-      border-radius: 20px;
-      background: rgba(255, 255, 255, 0.76);
-      box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+      border: 1px solid color-mix(in srgb, var(--portal-text) 10%, var(--portal-border));
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--portal-surface) 88%, transparent);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 12px 30px rgba(15, 23, 42, 0.07);
       backdrop-filter: blur(12px);
     }
 
     .portal-tab {
       flex: 1;
       min-width: 140px;
-      min-height: 52px;
-      padding: 13px 20px;
-      font-size: 0.9375rem;
+      min-height: 44px;
+      padding: 10px 16px;
+      font-size: 0.9rem;
       font-weight: 800;
       background: transparent;
       border: 1px solid transparent;
       color: var(--portal-text-muted);
       cursor: pointer;
-      border-radius: 14px;
-      transition: color 0.2s, background 0.2s, border-color 0.2s;
+      border-radius: 12px;
+      transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.08s ease;
       text-align: center;
     }
 
     .portal-tab.active {
-      color: var(--portal-surface);
-      background: var(--portal-primary);
-      border-color: var(--portal-primary);
-      box-shadow: 0 12px 24px color-mix(in srgb, var(--portal-primary) 28%, transparent);
+      color: var(--portal-text);
+      background: var(--portal-surface);
+      border-color: color-mix(in srgb, var(--portal-text) 8%, var(--portal-border));
+      box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
     }
 
     .portal-tab:hover:not(.active) {
       color: var(--portal-text);
-      background: color-mix(in srgb, var(--portal-primary) 7%, transparent);
+      background: color-mix(in srgb, var(--portal-primary) 6%, var(--portal-surface));
+    }
+
+    .portal-tab:active {
+      transform: scale(0.985);
     }
 
     @media (min-width: 640px) {
@@ -762,10 +766,11 @@
       align-items: center;
       justify-content: center;
       flex-shrink: 0;
-      border-radius: 18px;
-      color: var(--portal-surface);
-      background: linear-gradient(135deg, var(--portal-primary), var(--portal-primary-hover));
-      box-shadow: 0 14px 30px color-mix(in srgb, var(--portal-primary) 24%, transparent);
+      border-radius: 999px;
+      color: var(--portal-text);
+      background: color-mix(in srgb, var(--portal-primary) 8%, var(--portal-surface));
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 16%, var(--portal-border));
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
     }
 
     .portal-workbench .portal-tabs {
@@ -1133,49 +1138,64 @@
 
     .btn-primary {
       width: 100%;
-      padding: 18px 24px;
-      font-size: 1rem;
+      min-height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 0 20px;
+      font-size: 0.95rem;
       font-weight: 800;
       font-family: inherit;
       color: white;
-      background: linear-gradient(135deg, var(--portal-primary) 0%, var(--portal-primary-hover) 100%);
-      border: none;
-      border-radius: 14px;
+      background: var(--portal-primary);
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 92%, #000000);
+      border-radius: 12px;
       cursor: pointer;
-      transition: background 0.2s, transform 0.05s, box-shadow 0.2s;
-      box-shadow: 0 12px 26px color-mix(in srgb, var(--portal-primary) 22%, transparent);
+      text-decoration: none;
+      transition: background 0.18s ease, border-color 0.18s ease, transform 0.08s ease, box-shadow 0.18s ease;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08), 0 12px 24px color-mix(in srgb, var(--portal-primary) 18%, transparent);
     }
 
     .btn-primary:hover {
       background: var(--portal-primary-hover);
-      box-shadow: 0 16px 34px color-mix(in srgb, var(--portal-primary) 32%, transparent);
+      border-color: color-mix(in srgb, var(--portal-primary-hover) 92%, #000000);
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.1), 0 14px 28px color-mix(in srgb, var(--portal-primary) 24%, transparent);
     }
 
     .btn-primary:active {
-      transform: scale(0.99);
+      transform: scale(0.985);
     }
 
     .btn-secondary {
+      min-height: 44px;
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
-      padding: 12px 20px;
-      font-size: 0.9375rem;
+      padding: 0 18px;
+      font-size: 0.92rem;
       font-weight: 800;
       font-family: inherit;
-      color: var(--portal-primary);
-      background: color-mix(in srgb, var(--portal-primary) 8%, var(--portal-surface));
-      border: 1px solid color-mix(in srgb, var(--portal-primary) 26%, transparent);
+      color: var(--portal-text);
+      background: color-mix(in srgb, var(--portal-surface) 88%, transparent);
+      border: 1px solid color-mix(in srgb, var(--portal-text) 12%, var(--portal-border));
       border-radius: 12px;
       cursor: pointer;
       text-decoration: none;
-      transition: background 0.2s, border-color 0.2s;
+      transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.08s ease, box-shadow 0.18s ease;
+      box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
     }
 
     .btn-secondary:hover {
-      background: color-mix(in srgb, var(--portal-primary) 0.18, transparent);
-      border-color: var(--portal-primary);
+      color: var(--portal-text);
+      background: color-mix(in srgb, var(--portal-primary) 5%, var(--portal-surface));
+      border-color: color-mix(in srgb, var(--portal-text) 20%, var(--portal-border));
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.06);
+    }
+
+    .btn-secondary:active {
+      transform: scale(0.985);
     }
 
     .form-error {
@@ -1528,36 +1548,43 @@
 
     .portal-sub-tabs {
       display: flex;
-      gap: 8px;
+      gap: 6px;
       margin-bottom: 20px;
       padding: 6px;
-      background: rgba(255, 255, 255, 0.72);
-      border: 1px solid color-mix(in srgb, var(--portal-primary) 12%, var(--portal-border));
+      background: color-mix(in srgb, var(--portal-surface) 84%, transparent);
+      border: 1px solid color-mix(in srgb, var(--portal-text) 10%, var(--portal-border));
       border-radius: 16px;
-      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 10px 24px rgba(15, 23, 42, 0.06);
     }
 
     .portal-sub-tab {
       flex: 1;
-      padding: 10px 16px;
-      font-size: 0.875rem;
+      min-height: 40px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
       font-weight: 800;
       background: transparent;
-      border: none;
+      border: 1px solid transparent;
       border-radius: 12px;
       color: var(--portal-text-muted);
       cursor: pointer;
-      transition: all 0.2s;
+      transition: color 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.08s ease;
     }
 
     .portal-sub-tab.active {
-      background: var(--portal-primary);
-      color: var(--portal-surface);
-      box-shadow: 0 10px 20px color-mix(in srgb, var(--portal-primary) 24%, transparent);
+      background: var(--portal-surface);
+      color: var(--portal-text);
+      border-color: color-mix(in srgb, var(--portal-text) 8%, var(--portal-border));
+      box-shadow: 0 8px 18px rgba(15, 23, 42, 0.07);
     }
 
     .portal-sub-tab:hover:not(.active) {
       color: var(--portal-text);
+      background: color-mix(in srgb, var(--portal-primary) 5%, var(--portal-surface));
+    }
+
+    .portal-sub-tab:active {
+      transform: scale(0.985);
     }
 
     .upload-error-inline {

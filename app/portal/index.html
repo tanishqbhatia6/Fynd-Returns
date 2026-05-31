@@ -1001,12 +1001,337 @@
       animation: ocLoadingSweep 1.05s ease-in-out infinite;
     }
 
-    #createItemsList > div {
-      flex-wrap: wrap;
+    .rpm-flow-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 22px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid color-mix(in srgb, var(--portal-primary) 10%, var(--portal-border));
     }
 
-    #createItemsList > div > div {
-      min-width: 180px;
+    .rpm-flow-index {
+      width: 38px;
+      height: 38px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      color: var(--portal-surface);
+      background: linear-gradient(135deg, var(--portal-primary), var(--portal-primary-hover));
+      font-size: 0.9rem;
+      font-weight: 900;
+      box-shadow: 0 12px 24px color-mix(in srgb, var(--portal-primary) 24%, transparent);
+    }
+
+    .rpm-flow-head h2 {
+      margin: 0;
+      color: var(--portal-text);
+      font-family: var(--portal-heading-font);
+      font-size: clamp(1.25rem, 2.6vw, 1.7rem);
+      line-height: 1.15;
+      font-weight: 900;
+      letter-spacing: -0.035em;
+    }
+
+    .rpm-flow-head p {
+      margin: 5px 0 0;
+      color: var(--portal-text-muted);
+      font-size: 0.93rem;
+      line-height: 1.45;
+    }
+
+    .rpm-inline-notice {
+      display: none;
+      margin-bottom: 18px;
+      padding: 14px 16px;
+      border: 1px solid var(--status-transit-border);
+      border-radius: 16px;
+      color: var(--status-transit-text);
+      background: linear-gradient(135deg, var(--status-transit-bg), rgba(255,255,255,0.88));
+      font-size: 0.9rem;
+      line-height: 1.55;
+    }
+
+    #createItemsList {
+      display: grid;
+      gap: 12px;
+    }
+
+    .rpm-item-card {
+      position: relative;
+      display: grid;
+      grid-template-columns: auto 72px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 14px;
+      padding: 15px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 10%, var(--portal-border));
+      border-radius: 18px;
+      background: rgba(255,255,255,0.84);
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
+      transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.12s ease, background 0.18s ease;
+    }
+
+    .rpm-item-card:hover {
+      transform: translateY(-1px);
+      border-color: color-mix(in srgb, var(--portal-primary) 24%, var(--portal-border));
+      box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+    }
+
+    .rpm-item-card.is-selected {
+      border-color: color-mix(in srgb, var(--portal-primary) 60%, var(--portal-border));
+      background:
+        radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--portal-primary) 10%, transparent), transparent 38%),
+        rgba(255,255,255,0.92);
+      box-shadow: 0 18px 44px color-mix(in srgb, var(--portal-primary) 14%, transparent);
+    }
+
+    .rpm-item-card.is-disabled {
+      opacity: 0.62;
+      background: color-mix(in srgb, var(--portal-text-muted) 4%, var(--portal-surface));
+      box-shadow: none;
+    }
+
+    .rpm-item-check {
+      width: 22px;
+      height: 22px;
+      accent-color: var(--portal-primary);
+      cursor: pointer;
+    }
+
+    .rpm-item-check:disabled {
+      cursor: not-allowed;
+    }
+
+    .rpm-item-media {
+      width: 72px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 8%, var(--portal-border));
+      border-radius: 16px;
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--portal-primary) 4%, var(--portal-surface)), var(--portal-surface));
+      color: var(--portal-text-muted);
+    }
+
+    .rpm-item-media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .rpm-item-title {
+      display: block;
+      color: var(--portal-text);
+      font-size: 0.98rem;
+      font-weight: 850;
+      line-height: 1.28;
+      cursor: pointer;
+      overflow-wrap: anywhere;
+    }
+
+    .rpm-item-meta {
+      margin-top: 4px;
+      color: var(--portal-text-muted);
+      font-size: 0.84rem;
+      line-height: 1.4;
+    }
+
+    .rpm-item-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 9px;
+    }
+
+    .rpm-item-badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--portal-primary) 9%, transparent);
+      color: var(--portal-primary);
+      font-size: 0.7rem;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+    }
+
+    .rpm-item-badge.warn {
+      background: var(--status-pending-bg);
+      color: var(--status-pending-text);
+    }
+
+    .rpm-item-badge.error {
+      background: var(--status-error-bg);
+      color: var(--status-error-text);
+    }
+
+    .rpm-item-qty-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      white-space: nowrap;
+    }
+
+    .rpm-item-qty-label {
+      color: var(--portal-text-muted);
+      font-size: 0.75rem;
+      font-weight: 800;
+    }
+
+    .rpm-item-qty-wrap .item-qty {
+      min-width: 72px;
+      min-height: 44px;
+      padding: 8px 30px 8px 12px;
+      border-radius: 12px;
+      background-color: var(--portal-surface);
+    }
+
+    .rpm-form-panel,
+    #pickupAddressSection,
+    #resolutionTypeSection {
+      padding: 18px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 10%, var(--portal-border)) !important;
+      border-radius: 18px !important;
+      background: rgba(255,255,255,0.78) !important;
+      box-shadow: 0 10px 26px rgba(15, 23, 42, 0.045);
+    }
+
+    .rpm-form-panel .form-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .rpm-action-row {
+      display: grid;
+      gap: 10px;
+      margin-top: 18px;
+    }
+
+    @media (min-width: 560px) {
+      .rpm-action-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+      }
+
+      .rpm-action-row .btn-primary {
+        grid-column: 1;
+        grid-row: 1;
+      }
+
+      .rpm-action-row .btn-secondary {
+        grid-column: 2;
+        grid-row: 1;
+        min-width: 132px;
+      }
+    }
+
+    .return-success-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .return-success-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--status-ok) 14%, transparent), transparent 34%),
+        radial-gradient(circle at 90% 10%, color-mix(in srgb, var(--portal-primary) 10%, transparent), transparent 28%);
+    }
+
+    .rpm-success-head,
+    .return-request-id-block,
+    .return-summary-block,
+    #createNextSteps,
+    .rpm-success-actions {
+      position: relative;
+      z-index: 1;
+    }
+
+    .rpm-success-head {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .rpm-success-icon {
+      width: 54px;
+      height: 54px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      color: var(--status-ok);
+      background: var(--status-ok-bg);
+      box-shadow: 0 12px 26px color-mix(in srgb, var(--status-ok) 18%, transparent);
+    }
+
+    .rpm-success-title {
+      margin: 0 0 5px;
+      color: var(--portal-text);
+      font-family: var(--portal-heading-font);
+      font-size: clamp(1.35rem, 2.8vw, 1.8rem);
+      line-height: 1.12;
+      font-weight: 900;
+      letter-spacing: -0.035em;
+    }
+
+    .rpm-success-message {
+      margin: 0;
+      color: var(--portal-text-muted);
+      font-size: 0.94rem;
+      line-height: 1.5;
+    }
+
+    .rpm-success-actions {
+      display: grid;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    @media (min-width: 560px) {
+      .rpm-success-actions {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .rpm-flow-head {
+        gap: 12px;
+      }
+
+      .rpm-item-card {
+        grid-template-columns: auto minmax(0, 1fr);
+        align-items: flex-start;
+      }
+
+      .rpm-item-media {
+        grid-column: 1;
+        grid-row: 2;
+        width: 64px;
+        height: 64px;
+      }
+
+      .rpm-item-content {
+        grid-column: 2;
+        grid-row: 1 / span 2;
+      }
+
+      .rpm-item-qty-wrap {
+        grid-column: 1 / -1;
+        justify-content: space-between;
+        padding-top: 8px;
+        border-top: 1px solid color-mix(in srgb, var(--portal-primary) 8%, var(--portal-border));
+      }
     }
 
     @media (max-width: 520px) {
@@ -3136,6 +3461,150 @@
     [dir="rtl"] { direction: rtl; text-align: right; }
     [dir="rtl"] .portal-flex-row { flex-direction: row-reverse; }
     [dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] select { text-align: right; }
+
+    /* Final portal journey polish: keep the provided product concepts inside the live single-screen flow. */
+    #create-step2.active,
+    #create-step3.active {
+      background:
+        radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--portal-primary) 8%, transparent), transparent 34%),
+        rgba(255, 255, 255, 0.92);
+    }
+
+    #create-step2 .form-label {
+      margin-bottom: 10px;
+      color: var(--portal-text);
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    #createItemsList > .rpm-item-card {
+      flex-wrap: initial;
+    }
+
+    #createItemsList > .rpm-item-card > div {
+      min-width: 0;
+    }
+
+    .rpm-item-qty-wrap .item-qty {
+      width: auto;
+      text-align: left;
+    }
+
+    .upload-area {
+      min-height: 154px;
+      border-radius: 20px;
+      border-color: color-mix(in srgb, var(--portal-primary) 20%, var(--portal-border));
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 5%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, color-mix(in srgb, var(--portal-primary) 4%, transparent) 1px, transparent 1px),
+        color-mix(in srgb, var(--portal-primary) 4%, var(--portal-surface));
+      background-size: 34px 34px, 34px 34px, auto;
+    }
+
+    .upload-icon {
+      width: 48px;
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: var(--portal-surface);
+      color: var(--portal-primary);
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+    }
+
+    .return-success-card {
+      padding: clamp(22px, 4vw, 34px);
+      border-radius: 24px;
+      border-color: color-mix(in srgb, var(--status-ok) 22%, var(--portal-border));
+      box-shadow: 0 22px 58px rgba(15, 23, 42, 0.1);
+    }
+
+    .return-request-id-block,
+    .return-summary-block,
+    #createNextSteps {
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 10%, var(--portal-border));
+      background: rgba(255, 255, 255, 0.72);
+      border-radius: 16px;
+    }
+
+    .oc-progress {
+      position: relative;
+      gap: 0;
+      padding: 4px 0 12px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .oc-progress::-webkit-scrollbar {
+      display: none;
+    }
+
+    .oc-progress-step {
+      min-width: 84px;
+    }
+
+    .oc-progress-circle {
+      width: 32px;
+      height: 32px;
+      border-width: 2px;
+      box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.72);
+    }
+
+    .oc-progress-circle.active {
+      width: 36px;
+      height: 36px;
+      box-shadow: 0 0 0 6px color-mix(in srgb, var(--portal-primary) 15%, transparent);
+    }
+
+    .oc-progress-line {
+      min-width: 58px;
+      height: 2px;
+      margin-bottom: 24px;
+    }
+
+    .oc-timeline {
+      padding: 14px 14px 14px 36px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 9%, var(--portal-border));
+      border-radius: 16px;
+      background: color-mix(in srgb, var(--portal-primary) 3%, var(--portal-surface));
+    }
+
+    .oc-timeline::before {
+      left: 24px;
+      top: 22px;
+      bottom: 22px;
+      background: color-mix(in srgb, var(--portal-primary) 22%, var(--portal-border));
+    }
+
+    .oc-timeline-dot {
+      left: -18px;
+      border-width: 3px;
+    }
+
+    .oc-status-callout {
+      border-radius: 16px;
+      border-left-width: 4px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+    }
+
+    @media (max-width: 520px) {
+      .rpm-flow-head h2 {
+        font-size: 1.28rem;
+      }
+
+      .rpm-form-panel,
+      #pickupAddressSection,
+      #resolutionTypeSection {
+        padding: 15px;
+      }
+
+      .return-success-card {
+        padding: 20px;
+      }
+    }
   </style>
   <script>
     (function () {
@@ -3386,52 +3855,52 @@
         </div>
       </div>
       <div id="create-step2" class="portal-step">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
-          <div
-            style="width:32px;height:32px;border-radius:50%;background:var(--portal-primary);color:white;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;">
-            2</div>
+        <div class="rpm-flow-head">
+          <div class="rpm-flow-index">2</div>
           <div>
-            <h2 id="createStep2Title" style="font-size: 1.125rem; font-weight:700; margin:0;">Select items to return</h2>
-            <p id="createOrderName" style="font-size:0.8125rem;color:var(--portal-text-muted);margin:0;"></p>
+            <h2 id="createStep2Title">Select items to return</h2>
+            <p id="createOrderName"></p>
           </div>
         </div>
         <!-- Non-blocking notice listing previously-submitted returns for this order, when
              remaining items are still returnable. Hidden when there are no prior returns. -->
-        <div id="previousReturnsBanner" style="display:none;margin-bottom:14px;padding:12px 14px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;font-size:0.8125rem;color:#1E40AF;line-height:1.5;"></div>
-        <div class="form-group">
+        <div id="previousReturnsBanner" class="rpm-inline-notice"></div>
+        <div class="form-group rpm-form-panel">
           <label class="form-label">Select the items you'd like to return</label>
           <div id="createItemsList"></div>
         </div>
-        <div class="form-group">
-          <label class="form-label" for="createReason">Why are you returning?</label>
-          <select id="createReason" class="form-select"></select>
-        </div>
-        <div class="form-group" id="createItemConditionGroup" style="display:none;">
-          <label class="form-label" for="createItemCondition">Item condition <span style="color:#d72c0d">*</span></label>
-          <select id="createItemCondition" class="form-select">
-            <option value="">Select item condition</option>
-            <option value="unused">New &ndash; Unused with original packaging</option>
-            <option value="used_good">Used &ndash; Good condition, fully functional</option>
-            <option value="used_fair">Used &ndash; Fair condition, minor signs of wear</option>
-            <option value="used_damaged">Used &ndash; Damaged or has visible defects</option>
-            <option value="defective">Defective &ndash; Not functioning as expected</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="createEmail">Email for updates <span
-              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
-          <input type="email" id="createEmail" class="form-input" placeholder="you@example.com">
-          <p style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:6px;">We'll send you updates about your
-            return status.</p>
-        </div>
-        <div class="form-group">
-          <label class="form-label" for="createCustomerNotes">Anything else we should know? <span
-              style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
-          <textarea id="createCustomerNotes" class="form-input" rows="2"
-            placeholder="Any additional details about your return"></textarea>
+        <div class="rpm-form-panel">
+          <div class="form-group">
+            <label class="form-label" for="createReason">Why are you returning?</label>
+            <select id="createReason" class="form-select"></select>
+          </div>
+          <div class="form-group" id="createItemConditionGroup" style="display:none;">
+            <label class="form-label" for="createItemCondition">Item condition <span style="color:#d72c0d">*</span></label>
+            <select id="createItemCondition" class="form-select">
+              <option value="">Select item condition</option>
+              <option value="unused">New &ndash; Unused with original packaging</option>
+              <option value="used_good">Used &ndash; Good condition, fully functional</option>
+              <option value="used_fair">Used &ndash; Fair condition, minor signs of wear</option>
+              <option value="used_damaged">Used &ndash; Damaged or has visible defects</option>
+              <option value="defective">Defective &ndash; Not functioning as expected</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="createEmail">Email for updates <span
+                style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
+            <input type="email" id="createEmail" class="form-input" placeholder="you@example.com">
+            <p style="font-size:0.75rem;color:var(--portal-text-muted);margin-top:6px;">We'll send you updates about your
+              return status.</p>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="createCustomerNotes">Anything else we should know? <span
+                style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
+            <textarea id="createCustomerNotes" class="form-input" rows="2"
+              placeholder="Any additional details about your return"></textarea>
+          </div>
         </div>
 
-        <div class="form-group" id="uploadContainerStandard">
+        <div class="form-group rpm-form-panel" id="uploadContainerStandard">
           <label class="form-label" id="uploadLabelStandard">Upload product condition images or video <span id="uploadRequiredBadge" style="font-weight:400;color:var(--portal-text-muted);">(optional)</span></label>
           <div class="upload-area" id="uploadAreaStandard">
             <span class="upload-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></span>
@@ -3553,8 +4022,10 @@
             </div>
           </div>
         </div>
-        <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
-        <button type="button" id="btnCreateBack" class="btn-secondary" style="margin-top: 12px; width:100%;">← Back</button>
+        <div class="rpm-action-row">
+          <button type="button" id="btnSubmitReturn" class="btn-primary">Submit return request</button>
+          <button type="button" id="btnCreateBack" class="btn-secondary" style="width:100%;">← Back</button>
+        </div>
         <p id="createErr2" class="form-error" aria-live="polite"></p>
       </div>
       <div id="create-step2-manual" class="portal-step">
@@ -3634,18 +4105,17 @@
       </div>
       <div id="create-step3" class="portal-step">
         <div id="createSuccessCard" class="return-success-card" style="display: none;">
-          <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
-            <div
-              style="width: 48px; height: 48px; border-radius: 50%; background: color-mix(in srgb, var(--status-ok) 0.2, transparent); display: flex; align-items: center; justify-content: center;">
+          <div class="rpm-success-head">
+            <div class="rpm-success-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--status-ok)" stroke-width="2.5"
                 stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="20 6 9 17 4 12"></polyline>
               </svg>
             </div>
             <div>
-              <h2 id="createSuccessTitle" style="font-size: 1.25rem; font-weight: 700; margin: 0 0 4px 0; color: var(--portal-text);">Return
+              <h2 id="createSuccessTitle" class="rpm-success-title">Return
                 Submitted</h2>
-              <p id="createSuccessMsg" style="margin: 0; font-size: 0.9375rem; color: var(--portal-text-muted);"></p>
+              <p id="createSuccessMsg" class="rpm-success-message"></p>
             </div>
           </div>
           <div class="return-request-id-block">
@@ -3663,7 +4133,7 @@
           <div id="createNextSteps"
             style="margin-top: 16px; padding: 14px 16px; background: color-mix(in srgb, var(--portal-primary) 0.08, transparent); border-radius: 10px; font-size: 0.9375rem; color: var(--portal-text); border-left: 4px solid var(--portal-primary);">
           </div>
-          <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 24px;">
+          <div class="rpm-success-actions">
             <button type="button" id="btnTrackThisReturn" class="btn-primary">Track this return</button>
             <button type="button" id="btnCreateAnother" class="btn-secondary">Create another return</button>
           </div>
@@ -6686,31 +7156,36 @@
           for (var q = 1; q <= availableQty; q++) {
             qtyOptions += '<option value="' + q + '"' + (q === 1 ? ' selected' : '') + '>' + q + '</option>';
           }
-          return '<div data-row-key="' + escapeHtml(rowKey) + '" style="display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--portal-border);border-radius:12px;margin-bottom:8px;background:' + (fullyReturned ? '#F9FAFB' : 'var(--portal-surface)') + ';opacity:' + (fullyReturned ? '0.6' : '1') + ';">' +
-            '<input type="checkbox" id="item-' + li.id + '-flat" data-row-key="' + escapeHtml(rowKey) + '" data-id="' + li.id + '"' +
+          var variantMeta = [];
+          if (li.variantTitle) variantMeta.push(escapeHtml(li.variantTitle));
+          if (li.sku) variantMeta.push(escapeHtml(li.sku));
+          var availabilityBadge = fullyReturned
+            ? '<span class="rpm-item-badge error">Already returned</span>'
+            : (returnedQty > 0
+              ? '<span class="rpm-item-badge warn">' + availableQty + ' of ' + orderedQty + ' available</span>'
+              : '<span class="rpm-item-badge">Returnable</span>');
+          if (!fullyReturned && orderedQty > 1 && returnedQty <= 0) {
+            availabilityBadge += '<span class="rpm-item-badge">Qty ' + orderedQty + '</span>';
+          }
+          return '<div class="rpm-item-card' + (fullyReturned ? ' is-disabled' : '') + '" data-row-key="' + escapeHtml(rowKey) + '">' +
+            '<input class="rpm-item-check" type="checkbox" id="item-' + li.id + '-flat" data-row-key="' + escapeHtml(rowKey) + '" data-id="' + li.id + '"' +
               (li.fyndLineNumber != null ? ' data-line-number="' + li.fyndLineNumber + '"' : '') +
-              (fullyReturned ? ' disabled' : '') + ' style="width:18px;height:18px;flex-shrink:0;cursor:' + (fullyReturned ? 'not-allowed' : 'pointer') + ';">' +
-            (li.imageUrl ? '<img src="' + escapeHtml(li.imageUrl) + '&width=80" alt="' + escapeHtml(li.title || 'Item') + '" style="width:48px;height:48px;border-radius:8px;object-fit:cover;border:1px solid var(--portal-border);flex-shrink:0;" loading="lazy">' : '') +
-            '<div style="flex:1;min-width:0;">' +
-              '<label for="item-' + li.id + '-flat" style="cursor:' + (fullyReturned ? 'default' : 'pointer') + ';font-size:0.875rem;font-weight:500;line-height:1.4;display:block;">' +
-                escapeHtml(li.title) +
-                (li.variantTitle ? '<span style="color:var(--portal-text-muted);font-weight:400;"> · ' + escapeHtml(li.variantTitle) + '</span>' : '') +
-                (li.sku ? '<span style="color:var(--portal-text-muted);font-weight:400;"> (' + escapeHtml(li.sku) + ')</span>' : '') +
-              '</label>' +
-              (fullyReturned
-                ? '<span style="font-size:0.7rem;color:#DC2626;font-weight:600;background:#FEE2E2;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">Already returned</span>'
-                : (returnedQty > 0
-                  ? '<span style="font-size:0.7rem;color:#D97706;background:#FEF3C7;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">' + availableQty + ' of ' + orderedQty + ' available</span>'
-                  : (orderedQty > 1
-                    ? '<span style="font-size:0.7rem;color:#6B7280;background:#F3F4F6;padding:1px 6px;border-radius:4px;margin-top:2px;display:inline-block;">Qty: ' + orderedQty + '</span>'
-                    : ''))) +
+              (fullyReturned ? ' disabled' : '') + '>' +
+            '<div class="rpm-item-media">' +
+              (li.imageUrl
+                ? '<img src="' + escapeHtml(li.imageUrl) + '&width=160" alt="' + escapeHtml(li.title || 'Item') + '" loading="lazy">'
+                : '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>') +
             '</div>' +
-            (!fullyReturned ? '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">' +
-              '<span style="font-size:0.75rem;color:var(--portal-text-muted);">' + (t('portal.order.qty') || 'Qty') + '</span>' +
-              '<select class="item-qty form-input" data-id="' + li.id + '" data-row-key="' + escapeHtml(rowKey) + '" data-max="' + availableQty + '" style="min-width:64px;padding:8px 10px;text-align:center;font-size:0.875rem;background:#fff;cursor:pointer;">' +
+            '<div class="rpm-item-content">' +
+              '<label class="rpm-item-title" for="item-' + li.id + '-flat">' + escapeHtml(li.title || t('portal.common.item')) + '</label>' +
+              (variantMeta.length ? '<div class="rpm-item-meta">' + variantMeta.join(' · ') + '</div>' : '') +
+              '<div class="rpm-item-badges">' + availabilityBadge + '</div>' +
+            '</div>' +
+            (!fullyReturned ? '<div class="rpm-item-qty-wrap">' +
+              '<span class="rpm-item-qty-label">' + (t('portal.order.qty') || 'Qty') + '</span>' +
+              '<select class="item-qty form-input" data-id="' + li.id + '" data-row-key="' + escapeHtml(rowKey) + '" data-max="' + availableQty + '">' +
               qtyOptions +
               '</select>' +
-              (orderedQty > 1 ? '<span style="font-size:0.7rem;color:var(--portal-text-muted);">/ ' + availableQty + '</span>' : '') +
             '</div>' : '') +
             '</div>';
         }
@@ -6760,6 +7235,10 @@
         }
         list.addEventListener('change', function(e) {
           if (e.target && (e.target.type === 'checkbox' || e.target.classList.contains('item-qty'))) {
+            if (e.target.type === 'checkbox') {
+              var card = e.target.closest('.rpm-item-card');
+              if (card) card.classList.toggle('is-selected', e.target.checked);
+            }
             updateEstimatedRefund();
             checkAndShowOffer();
             // Refresh variant picker when item selection changes during exchange flow

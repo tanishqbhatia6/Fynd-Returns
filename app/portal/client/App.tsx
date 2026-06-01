@@ -20,13 +20,11 @@ import {
   Clipboard,
   Copy,
   FileImage,
-  Globe2,
   ImagePlus,
   Loader2,
   Mail,
   PackageCheck,
   PackageSearch,
-  QrCode,
   RefreshCw,
   RotateCcw,
   Search,
@@ -103,7 +101,17 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
 
   return (
     <div className="rpm-shell">
-      <TopBar bootstrap={bootstrap} />
+      <div className="rpm-floating-layer" aria-hidden="true">
+        <span className="rpm-float-mark rpm-float-one">
+          <Truck size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-two">
+          <Box size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-three">
+          <BadgeCheck size={18} />
+        </span>
+      </div>
       <Hero bootstrap={bootstrap} />
 
       <main className="rpm-workbench" aria-label="Return portal">
@@ -167,30 +175,6 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
   );
 }
 
-function TopBar({ bootstrap }: { bootstrap: PortalBootstrap }) {
-  return (
-    <header className="rpm-topbar">
-      <div className="rpm-brand">
-        {bootstrap.brandLogoUrl ? (
-          <img className="rpm-brand-logo" src={bootstrap.brandLogoUrl} alt="Store logo" />
-        ) : (
-          <span className="rpm-brand-mark" aria-hidden="true">
-            <RotateCcw size={19} />
-          </span>
-        )}
-        <div className="rpm-brand-text">
-          <p className="rpm-brand-title">ReturnPro Max</p>
-          <p className="rpm-brand-subtitle">{bootstrap.shop}</p>
-        </div>
-      </div>
-      <div className="rpm-locale">
-        <Globe2 size={15} />
-        {bootstrap.locale.toUpperCase()} / {bootstrap.currency}
-      </div>
-    </header>
-  );
-}
-
 function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
   return (
     <section className="rpm-hero">
@@ -203,34 +187,6 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
             <div>
               <strong>{t(bootstrap, "portal.policyBanner", { days: bootstrap.returnWindowDays })}</strong>
               {bootstrap.returnPolicy && <div>{bootstrap.returnPolicy}</div>}
-            </div>
-          </div>
-        </div>
-
-        <div className="rpm-hero-visual" aria-label="Portal status preview">
-          <div className="rpm-visual-image">
-            <img
-              src="https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=520&q=80"
-              alt="Packed orders ready for dispatch"
-            />
-          </div>
-          <div className="rpm-visual-card">
-            <div>
-              <span className="rpm-badge ok">
-                <PackageCheck size={14} />
-                Ready
-              </span>
-              <h2>Track returns clearly</h2>
-              <p>Order status, return progress, required photos, and next steps stay in one focused flow.</p>
-            </div>
-            <div className="rpm-visual-footer">
-              <div>
-                <span>Portal ID</span>
-                <strong>{bootstrap.shop || "store.myshopify.com"}</strong>
-              </div>
-              <span className="rpm-qr">
-                <QrCode size={24} />
-              </span>
             </div>
           </div>
         </div>

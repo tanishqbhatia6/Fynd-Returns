@@ -171,6 +171,22 @@ describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale
     expect(state.step).toBe(3);
   });
 
+  it('shows "Picked Up" when a stale delivered status exists but the latest journey event is return_bag_picked', () => {
+    const state = computeAdminReturnState(
+      "approved",
+      "in_progress",
+      journey(
+        { status: "return_bag_delivered", time: "2026-05-07T05:30:00Z" },
+        { status: "credit_note_generated", time: "2026-05-07T05:40:00Z" },
+        { status: "return_bag_picked", time: "2026-05-07T05:50:00Z" },
+      ),
+      "return_delivered",
+    );
+
+    expect(state.label).toBe("Picked Up");
+    expect(state.step).toBe(3);
+  });
+
   it('shows "In Transit" when latest journey is return_bag_in_transit even though fyndCurrentStatus="refund_initiated"', () => {
     const state = computeAdminReturnState(
       "approved",

@@ -130,6 +130,45 @@ describe("ReturnPortalApp", () => {
     expect(window.__RPM_PORTAL_CSRF__).toBe("csrf_2");
   });
 
+  it("shows the latest return journey status over stale Fynd current status", async () => {
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/portal/lookup")) {
+        return jsonResponse({
+          returns: [
+            {
+              id: "ret_mfk",
+              returnRequestNo: "MFK-OBPJGJ11",
+              shopifyOrderName: "#1001",
+              status: "approved",
+              fyndCurrentStatus: "return_delivered",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              returnJourney: [
+                { status: "return_bag_delivered", time: "2026-01-01T01:00:00.000Z" },
+                { status: "return_bag_picked", time: "2026-01-01T02:00:00.000Z" },
+              ],
+              items: [{ id: "item_1", title: "Shirt", qty: 1, reasonCode: "Wrong size" }],
+            },
+          ],
+          orders: [],
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReturnPortalApp bootstrap={bootstrap()} />);
+
+    fireEvent.change(screen.getByLabelText(/return request id/i), {
+      target: { value: "MFK-OBPJGJ11" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /look up/i }));
+
+    expect(await screen.findByText("MFK-OBPJGJ11")).toBeTruthy();
+    expect(screen.getAllByText("Return Bag Picked").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Return Delivered")).toBeNull();
+  });
+
   it("submits selected items through the create-return API", async () => {
     const createPayloads: Record<string, unknown>[] = [];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {

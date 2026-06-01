@@ -200,11 +200,6 @@ export function computeAdminReturnState(
   // Step 5 (not 6) for "Processing" so the final "Refunded"/"Exchanged" tick stays unfilled
   // until the refund/exchange actually completes. The progress bar marks every step ≤ active
   // as done, so step 6 here would falsely light up the final tick.
-  if (journeyHas("credit_note") || f.includes("credit_note")) {
-    if (r === "in_progress")
-      return processing(finalLabelInProgress, 5, "Credit note generated, refund in progress");
-    return processing(finalLabelInProgress, 5, "Credit note generated, awaiting refund");
-  }
   // Bug #16 fix v2: the LATEST journey event is the source of truth.
   // Fynd often fires `refund_initiated` ahead of the physical pickup
   // (they pre-create the refund record), which (a) sets fyndCurrentStatus
@@ -228,6 +223,14 @@ export function computeAdminReturnState(
     /(^|_)(return_bag_picked|return_bag_in_transit|out_for_delivery_to_store|return_bag_out_for_delivery|return_initiated|return_dp_assigned|out_for_pickup|dp_out_for_pickup|bag_confirmed|return_accepted|return_bag_delivered|return_delivered)(_|$)/;
   const latestJsIsLogistics = PRE_REFUND_LOGISTICS_RE.test(latestJs);
   const isRefundFyndStatus = /(^|_)refund(_|$)/.test(f);
+  const fallbackHas = (keyword: string) =>
+    !latestJsIsLogistics && (journeyHas(keyword) || f.includes(keyword));
+  const stageHas = (keyword: string) => latestJs.includes(keyword) || fallbackHas(keyword);
+  if (latestJs.includes("credit_note") || fallbackHas("credit_note")) {
+    if (r === "in_progress")
+      return processing(finalLabelInProgress, 5, "Credit note generated, refund in progress");
+    return processing(finalLabelInProgress, 5, "Credit note generated, awaiting refund");
+  }
   // Only short-circuit to "Refund Processing" when the LATEST journey
   // event is NOT itself a logistics state. The latest event always wins.
   if (!latestJsIsLogistics && (isRefundFyndStatus || r === "in_progress"))
@@ -245,64 +248,21 @@ export function computeAdminReturnState(
   // moment a return was created on a previously-delivered order, even
   // though Fynd was still showing only "RETURN PICKED" (return_bag_picked).
   // Each check below is now restricted to return-prefixed status tokens.
-  if (
-    latestJs.includes("return_accepted") ||
-    journeyHas("return_accepted") ||
-    f.includes("return_accepted")
-  )
+  if (stageHas("return_accepted"))
     return ok("Return Accepted", 5, "Return received and accepted at warehouse");
-  if (
-    latestJs.includes("return_delivered") ||
-    latestJs.includes("return_bag_delivered") ||
-    journeyHas("return_delivered") ||
-    journeyHas("return_bag_delivered") ||
-    f.includes("return_delivered") ||
-    f.includes("return_bag_delivered")
-  )
+  if (stageHas("return_delivered") || stageHas("return_bag_delivered"))
     return ok("Return Received", 5, "Return package delivered to warehouse");
-  if (
-    latestJs.includes("return_bag_out_for_delivery") ||
-    latestJs.includes("out_for_delivery_to_store") ||
-    journeyHas("return_bag_out_for_delivery") ||
-    journeyHas("out_for_delivery_to_store") ||
-    f.includes("return_bag_out_for_delivery") ||
-    f.includes("out_for_delivery_to_store")
-  )
+  if (stageHas("return_bag_out_for_delivery") || stageHas("out_for_delivery_to_store"))
     return transit("Out for Delivery", 4, "Package out for delivery to warehouse");
-  if (
-    latestJs.includes("return_bag_in_transit") ||
-    journeyHas("return_bag_in_transit") ||
-    f.includes("return_bag_in_transit")
-  )
+  if (stageHas("return_bag_in_transit"))
     return transit("In Transit", 4, "Return package in transit to warehouse");
-  if (
-    latestJs.includes("return_bag_picked") ||
-    journeyHas("return_bag_picked") ||
-    f.includes("return_bag_picked")
-  )
+  if (stageHas("return_bag_picked"))
     return transit("Picked Up", 3, "Return package picked up by courier");
-  if (
-    latestJs.includes("out_for_pickup") ||
-    latestJs.includes("dp_out_for_pickup") ||
-    journeyHas("out_for_pickup") ||
-    f.includes("out_for_pickup")
-  )
+  if (stageHas("out_for_pickup") || stageHas("dp_out_for_pickup"))
     return pending("Courier En Route", 2, "Courier on the way for pickup");
-  if (
-    latestJs.includes("dp_assigned") ||
-    latestJs.includes("return_dp_assigned") ||
-    journeyHas("dp_assigned") ||
-    f.includes("dp_assigned")
-  )
+  if (stageHas("dp_assigned") || stageHas("return_dp_assigned"))
     return pending("Pickup Scheduled", 2, "Courier assigned for pickup");
-  if (
-    latestJs.includes("return_initiated") ||
-    latestJs.includes("bag_confirmed") ||
-    journeyHas("return_initiated") ||
-    journeyHas("bag_confirmed") ||
-    f.includes("return_initiated") ||
-    f.includes("bag_confirmed")
-  )
+  if (stageHas("return_initiated") || stageHas("bag_confirmed"))
     return ok("Return Confirmed", 2, "Confirmed on Fynd logistics");
   if (s === "completed")
     return ok("Return Received", 5, "Return received, awaiting refund processing");

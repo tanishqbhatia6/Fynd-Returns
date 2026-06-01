@@ -545,6 +545,24 @@ function OrderCard({
   );
 }
 
+function latestReturnJourneyStatus(returnCase: PortalReturn) {
+  const journey = returnCase.returnJourney || [];
+  for (let index = journey.length - 1; index >= 0; index -= 1) {
+    const status = String(journey[index]?.status ?? "").trim();
+    if (status) return status;
+  }
+  return "";
+}
+
+function returnDisplayStatus(returnCase: PortalReturn) {
+  return (
+    latestReturnJourneyStatus(returnCase) ||
+    returnCase.fyndCurrentStatus ||
+    returnCase.status ||
+    "pending"
+  );
+}
+
 function ReturnCard({
   api,
   bootstrap,
@@ -558,7 +576,7 @@ function ReturnCard({
   notify: (toast: Toast) => void;
   onCancelled: () => void;
 }) {
-  const status = returnCase.fyndCurrentStatus || returnCase.status || "pending";
+  const status = returnDisplayStatus(returnCase);
   const isTerminal = /cancelled|completed|rejected|declined|refunded/i.test(String(status));
   const canCancel =
     bootstrap.config.allowReturnCancellation &&

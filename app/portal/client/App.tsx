@@ -132,6 +132,18 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
         <span className="rpm-float-mark rpm-float-ten">
           <Mail size={18} />
         </span>
+        <span className="rpm-float-mark rpm-float-eleven">
+          <PackageCheck size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-twelve">
+          <ImagePlus size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-thirteen">
+          <Copy size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-fourteen">
+          <Check size={18} />
+        </span>
       </div>
       <Hero bootstrap={bootstrap} />
 

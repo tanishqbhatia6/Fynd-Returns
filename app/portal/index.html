@@ -39,16 +39,18 @@
     }
 
     html {
+      height: 100%;
       min-height: 100%;
       background-color: color-mix(in srgb, var(--portal-bg) 90%, #e8f3ef);
       color: var(--portal-text);
       font-family: var(--portal-font, Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
+      overflow-x: hidden;
     }
 
     body {
       position: relative;
       margin: 0;
-      min-height: 100vh;
+      min-height: 100svh;
       background: transparent;
       color: var(--portal-text);
       -webkit-font-smoothing: antialiased;
@@ -76,7 +78,7 @@
     #return-portal-root {
       position: relative;
       z-index: 1;
-      min-height: 100vh;
+      min-height: 100svh;
     }
 
     button,
@@ -101,9 +103,12 @@
 
     .rpm-shell {
       position: relative;
-      width: min(1120px, calc(100% - 32px));
+      width: min(1440px, calc(100% - 48px));
+      min-height: 100svh;
       margin: 0 auto;
-      padding: 30px 0 56px;
+      padding: clamp(10px, 2vh, 20px) 0;
+      display: flex;
+      flex-direction: column;
     }
 
     .rpm-icon-box {
@@ -127,11 +132,11 @@
     }
 
     .rpm-floating-layer {
-      position: absolute;
-      inset: 0 -72px;
+      position: fixed;
+      inset: 0;
       pointer-events: none;
       z-index: 0;
-      min-height: 100%;
+      overflow: hidden;
     }
 
     .rpm-float-mark {
@@ -153,14 +158,14 @@
     }
 
     .rpm-float-one {
-      top: 72px;
-      left: -18px;
+      top: 18%;
+      left: max(18px, 5vw);
       transform: rotate(-8deg);
     }
 
     .rpm-float-two {
-      top: 118px;
-      right: -24px;
+      top: 10%;
+      right: max(18px, 6vw);
       width: 58px;
       height: 58px;
       transform: rotate(10deg);
@@ -168,8 +173,8 @@
     }
 
     .rpm-float-three {
-      top: 500px;
-      left: -30px;
+      top: 38%;
+      left: max(16px, 3vw);
       width: 42px;
       height: 42px;
       transform: rotate(7deg);
@@ -177,8 +182,8 @@
     }
 
     .rpm-float-four {
-      top: 760px;
-      right: 4px;
+      top: 68%;
+      right: max(22px, 7vw);
       width: 44px;
       height: 44px;
       transform: rotate(-12deg);
@@ -186,8 +191,8 @@
     }
 
     .rpm-float-five {
-      top: 1010px;
-      left: 18px;
+      top: 78%;
+      left: max(28px, 10vw);
       width: 56px;
       height: 56px;
       transform: rotate(13deg);
@@ -195,8 +200,8 @@
     }
 
     .rpm-float-six {
-      top: 1230px;
-      right: 88px;
+      top: 42%;
+      right: max(20px, 3vw);
       width: 42px;
       height: 42px;
       transform: rotate(-6deg);
@@ -204,15 +209,15 @@
     }
 
     .rpm-float-seven {
-      top: 1450px;
-      left: -10px;
+      top: 58%;
+      left: max(18px, 16vw);
       transform: rotate(9deg);
       animation-delay: -2.7s;
     }
 
     .rpm-float-eight {
-      top: 1700px;
-      right: -10px;
+      top: 84%;
+      right: max(18px, 14vw);
       width: 52px;
       height: 52px;
       transform: rotate(-10deg);
@@ -220,8 +225,8 @@
     }
 
     .rpm-float-nine {
-      top: 1960px;
-      left: 96px;
+      top: 8%;
+      left: max(24px, 18vw);
       width: 40px;
       height: 40px;
       transform: rotate(14deg);
@@ -229,12 +234,48 @@
     }
 
     .rpm-float-ten {
-      top: 2220px;
-      right: 60px;
+      top: 26%;
+      right: max(24px, 18vw);
       width: 46px;
       height: 46px;
       transform: rotate(7deg);
       animation-delay: -1.8s;
+    }
+
+    .rpm-float-eleven {
+      top: 54%;
+      right: max(18px, 23vw);
+      width: 40px;
+      height: 40px;
+      transform: rotate(-14deg);
+      animation-delay: -3.8s;
+    }
+
+    .rpm-float-twelve {
+      top: 88%;
+      left: max(18px, 32vw);
+      width: 44px;
+      height: 44px;
+      transform: rotate(11deg);
+      animation-delay: -5.8s;
+    }
+
+    .rpm-float-thirteen {
+      top: 30%;
+      left: max(18px, 24vw);
+      width: 36px;
+      height: 36px;
+      transform: rotate(6deg);
+      animation-delay: -2.4s;
+    }
+
+    .rpm-float-fourteen {
+      top: 76%;
+      right: max(18px, 30vw);
+      width: 38px;
+      height: 38px;
+      transform: rotate(-7deg);
+      animation-delay: -4.4s;
     }
 
     @keyframes rpm-float {
@@ -956,29 +997,42 @@
       .rpm-float-four,
       .rpm-float-six,
       .rpm-float-eight,
-      .rpm-float-ten {
-        right: -12px;
+      .rpm-float-ten,
+      .rpm-float-eleven,
+      .rpm-float-twelve,
+      .rpm-float-thirteen,
+      .rpm-float-fourteen {
         opacity: 0.36;
       }
 
       .rpm-float-two {
-        top: 86px;
+        top: 10%;
       }
 
       .rpm-float-four {
-        top: 700px;
+        top: 64%;
       }
 
       .rpm-float-six {
-        top: 1180px;
+        top: 38%;
       }
 
       .rpm-float-eight {
-        top: 1640px;
+        top: 78%;
       }
 
       .rpm-float-ten {
-        top: 2080px;
+        top: 24%;
+      }
+
+      .rpm-float-eleven {
+        top: 52%;
+      }
+
+      .rpm-float-twelve,
+      .rpm-float-thirteen,
+      .rpm-float-fourteen {
+        display: none;
       }
 
       .rpm-hero-main,

@@ -193,6 +193,19 @@ export function normalizeItems(data: OrderResponse): ItemSelection[] {
   const displayRows = hasShipmentRows ? clubShipmentRows(rows, availability) : rows;
 
   return displayRows.map((row) => {
+    if (row.memberLineItems?.length) {
+      const eligible = itemEligibility[row.lineItemId];
+      const disabled = row.disabled || row.availableQty <= 0 || eligible?.eligible === false;
+      return {
+        ...row,
+        disabled,
+        disabledReason:
+          row.disabledReason ||
+          eligible?.reason ||
+          (row.availableQty <= 0 ? "Already returned or unavailable" : undefined),
+      };
+    }
+
     const available = availability[row.lineItemId]?.availableQty;
     const eligible = itemEligibility[row.lineItemId];
     const availableQty = typeof available === "number" ? Math.max(0, available) : row.availableQty;
@@ -223,7 +236,7 @@ function clubShipmentRows(
   const order: string[] = [];
 
   for (const row of rows) {
-    const key = row.lineItemId || row.rowKey;
+    const key = shipmentGroupKey(row);
     if (!grouped.has(key)) {
       grouped.set(key, []);
       order.push(key);
@@ -237,7 +250,8 @@ function clubShipmentRows(
       const row = group[0];
       return {
         ...row,
-        rowKey: `line:${row.lineItemId}`,
+        rowKey: `line:${shipmentGroupKey(row)}`,
+        memberLineItems: [{ lineItemId: row.lineItemId, availableQty: Math.max(0, row.availableQty || 0) }],
         fyndShipmentId: undefined,
         fyndBagId: undefined,
         fyndArticleId: undefined,
@@ -252,19 +266,24 @@ function clubShipmentRows(
     }
 
     const base = group[0];
-    const lineAvailability = availability?.[base.lineItemId];
+    const lineAvailabilities = group
+      .map((row) => availability?.[row.lineItemId]?.availableQty)
+      .filter((value): value is number => typeof value === "number");
     const eligibleRows = group.filter((row) => !row.disabled);
-    const eligibleQty = eligibleRows.reduce((sum, row) => sum + Math.max(0, row.availableQty || 0), 0);
-    const orderedQty = lineAvailability?.orderedQty ?? group.reduce((sum, row) => sum + Math.max(0, row.orderedQty || 0), 0);
-    const availableQty =
-      typeof lineAvailability?.availableQty === "number"
-        ? Math.min(Math.max(0, lineAvailability.availableQty), eligibleQty || lineAvailability.availableQty)
-        : eligibleQty;
+    const memberLineItems = eligibleRows.map((row) => ({
+      lineItemId: row.lineItemId,
+      availableQty: Math.max(0, Math.min(row.availableQty || 0, row.fyndQuantityAvailable || row.orderedQty || 1)),
+    }));
+    const bagCapacity = memberLineItems.reduce((sum, member) => sum + member.availableQty, 0);
+    const maxLineAvailability = lineAvailabilities.length > 0 ? Math.max(...lineAvailabilities) : 0;
+    const orderedQty = group.reduce((sum, row) => sum + Math.max(0, row.orderedQty || 0), 0);
+    const availableQty = maxLineAvailability > 1 ? Math.min(maxLineAvailability, bagCapacity || maxLineAvailability) : bagCapacity;
     const allDisabled = group.every((row) => row.disabled);
 
     return {
       ...base,
-      rowKey: `line:${base.lineItemId}`,
+      rowKey: `line:${key}`,
+      memberLineItems,
       orderedQty: Math.max(1, orderedQty || base.orderedQty || 1),
       availableQty: Math.max(0, availableQty),
       disabled: allDisabled,
@@ -281,6 +300,18 @@ function clubShipmentRows(
       fyndLineNumber: undefined,
     };
   });
+}
+
+function shipmentGroupKey(row: ItemSelection) {
+  const sku = row.sku?.trim().toLowerCase();
+  if (sku) return `sku:${sku}:${String(row.variantTitle || "").trim().toLowerCase()}`;
+  return [
+    "item",
+    row.productId || "",
+    row.title.trim().toLowerCase(),
+    String(row.variantTitle || "").trim().toLowerCase(),
+    String(row.price || "").trim(),
+  ].join(":");
 }
 
 function toSelection(

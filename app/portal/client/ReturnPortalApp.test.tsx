@@ -300,12 +300,113 @@ describe("ReturnPortalApp", () => {
 
     expect(await screen.findByText("RPM-14425")).toBeTruthy();
     expect(createPayloads[0]?.items).toEqual([
-      expect.objectContaining({
-        lineItemId: "gid://shopify/LineItem/14425",
-        qty: 3,
-        reasonCode: "Wrong size",
-      }),
+      expect.objectContaining({ lineItemId: "gid://shopify/LineItem/14425", qty: 1, reasonCode: "Wrong size" }),
+      expect.objectContaining({ lineItemId: "gid://shopify/LineItem/14425", qty: 1, reasonCode: "Wrong size" }),
+      expect.objectContaining({ lineItemId: "gid://shopify/LineItem/14425", qty: 1, reasonCode: "Wrong size" }),
     ]);
     expect(createPayloads[0]?.shipmentsSnapshot).toEqual(shipments);
+  });
+
+  it("clubs identical Fynd rows even when each row has a different line id", async () => {
+    const createPayloads: Record<string, unknown>[] = [];
+    const shipments = [
+      {
+        shipmentId: "SHIP-SPLIT",
+        shipmentStatus: "delivery_done",
+        eligible: true,
+        items: Array.from({ length: 4 }, (_, index) => ({
+          id: `fynd-bag-line-${index + 1}`,
+          bagId: `BAG-SPLIT-${index + 1}`,
+          title: "RETURN3",
+          variantTitle: "M",
+          sku: "RETURN3",
+          quantity: 1,
+          price: "100",
+          imageUrl: null,
+          productTags: [],
+          productType: "Tops",
+          fyndQuantityAvailable: 1,
+          fyndLineNumber: index + 1,
+        })),
+      },
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/portal/order?")) {
+        return jsonResponse({
+          order: {
+            id: "FYNDSHOPIFYX14425",
+            name: "#FYNDSHOPIFYX14425",
+            email: "customer@example.com",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            processedAt: "2026-01-01T00:00:00.000Z",
+            currencyCode: "INR",
+            lineItems: shipments[0].items.map((item) => ({
+              id: item.id,
+              title: item.title,
+              variantTitle: item.variantTitle,
+              sku: item.sku,
+              quantity: 1,
+              price: item.price,
+              productTags: [],
+              productType: "Tops",
+            })),
+          },
+          shipments,
+          lineItemAvailability: Object.fromEntries(
+            shipments[0].items.map((item) => [
+              item.id,
+              { orderedQty: 1, returnedQty: 0, availableQty: 1, alreadyInReturn: false },
+            ]),
+          ),
+          returnOffers: { enabled: false, offers: [] },
+          portalCsrfToken: "csrf_order",
+        });
+      }
+      if (url.endsWith("/api/portal/create-return")) {
+        createPayloads.push(JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
+        return jsonResponse({
+          success: true,
+          returnId: "ret_split",
+          returnRequestId: "RPM-SPLIT",
+          status: "pending",
+          summary: { orderName: "#FYNDSHOPIFYX14425", itemsCount: 3 },
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReturnPortalApp bootstrap={bootstrap()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /create return/i }));
+    fireEvent.change(screen.getByPlaceholderText(/#1001/i), {
+      target: { value: "FYNDSHOPIFYX14425" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /find order/i }));
+
+    expect(await screen.findByText("Select items")).toBeTruthy();
+    expect(screen.getAllByRole("checkbox", { name: /select return3/i })).toHaveLength(1);
+    expect(screen.getByText(/Available 4/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /select return3/i }));
+    const itemRow = screen.getByText("RETURN3").closest(".rpm-item-row");
+    expect(itemRow).toBeTruthy();
+    fireEvent.change(within(itemRow as HTMLElement).getByRole("combobox"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByLabelText(/upload return photos/i), {
+      target: {
+        files: [new File(["image"], "return3.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^submit return$/i }));
+
+    expect(await screen.findByText("RPM-SPLIT")).toBeTruthy();
+    expect(createPayloads[0]?.items).toEqual([
+      expect.objectContaining({ lineItemId: "fynd-bag-line-1", qty: 1 }),
+      expect.objectContaining({ lineItemId: "fynd-bag-line-2", qty: 1 }),
+      expect.objectContaining({ lineItemId: "fynd-bag-line-3", qty: 1 }),
+    ]);
   });
 });

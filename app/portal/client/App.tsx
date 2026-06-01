@@ -834,22 +834,7 @@ function CreateReturnPanel({
       resolutionType,
       exchangePreference: buildExchangePreference(exchangePreference, exchangeChoices),
       exchangeVariants: Object.values(exchangeChoices),
-      items: selectedRows.map((row) => ({
-        lineItemId: row.lineItemId,
-        qty: Math.max(1, Math.min(qty[row.rowKey] || 1, row.availableQty || 1)),
-        reasonCode: reason || "Other",
-        condition: condition || undefined,
-        fyndShipmentId: row.fyndShipmentId,
-        fyndBagId: row.fyndBagId,
-        fyndArticleId: row.fyndArticleId,
-        fyndAffiliateLineId: row.fyndAffiliateLineId,
-        fyndSellerIdentifier: row.fyndSellerIdentifier,
-        fyndItemId: row.fyndItemId,
-        fyndQuantityAvailable: row.fyndQuantityAvailable,
-        fyndPriceEffective: row.fyndPriceEffective,
-        fyndSize: row.fyndSize,
-        fyndLineNumber: row.fyndLineNumber,
-      })),
+      items: buildReturnItems(selectedRows, qty, reason, condition),
       lineItemsWithPrice: (order.lineItems || []).map((item) => lineItemWithPrice(item)),
       lineItemEstimates: orderData.lineItemEstimates || undefined,
       shipmentsSnapshot: orderData.shipments || undefined,
@@ -1604,6 +1589,52 @@ function lineItemWithPrice(item: PortalLineItem) {
     productTags: item.productTags || [],
     productType: item.productType || null,
   };
+}
+
+function buildReturnItems(
+  selectedRows: ItemSelection[],
+  quantities: Record<string, number>,
+  reason: string,
+  condition: string,
+) {
+  return selectedRows.flatMap((row) => {
+    const requestedQty = Math.max(1, Math.min(quantities[row.rowKey] || 1, row.availableQty || 1));
+    const base = {
+      reasonCode: reason || "Other",
+      condition: condition || undefined,
+    };
+
+    if (row.memberLineItems?.length) {
+      let remaining = requestedQty;
+      const items: Array<{ lineItemId: string; qty: number; reasonCode: string; condition?: string }> = [];
+      for (const member of row.memberLineItems) {
+        if (remaining <= 0) break;
+        const take = Math.min(remaining, Math.max(0, member.availableQty || 0));
+        if (take <= 0) continue;
+        items.push({ lineItemId: member.lineItemId, qty: take, ...base });
+        remaining -= take;
+      }
+      return items;
+    }
+
+    return [
+      {
+        lineItemId: row.lineItemId,
+        qty: requestedQty,
+        ...base,
+        fyndShipmentId: row.fyndShipmentId,
+        fyndBagId: row.fyndBagId,
+        fyndArticleId: row.fyndArticleId,
+        fyndAffiliateLineId: row.fyndAffiliateLineId,
+        fyndSellerIdentifier: row.fyndSellerIdentifier,
+        fyndItemId: row.fyndItemId,
+        fyndQuantityAvailable: row.fyndQuantityAvailable,
+        fyndPriceEffective: row.fyndPriceEffective,
+        fyndSize: row.fyndSize,
+        fyndLineNumber: row.fyndLineNumber,
+      },
+    ];
+  });
 }
 
 function estimateRefund(

@@ -237,6 +237,7 @@ export type CreateReturnResponse = {
 export type ItemSelection = {
   rowKey: string;
   lineItemId: string;
+  memberLineItems?: Array<{ lineItemId: string; availableQty: number }>;
   title: string;
   variantTitle?: string | null;
   sku?: string | null;

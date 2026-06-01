@@ -246,8 +246,30 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
             Refund
           </span>
         </div>
+
+        <DeliveryMotion />
       </div>
     </section>
+  );
+}
+
+function DeliveryMotion() {
+  return (
+    <div className="rpm-delivery-motion" aria-hidden="true">
+      <div className="rpm-delivery-road" />
+      <span className="rpm-delivery-node rpm-delivery-node-start">
+        <Box size={15} />
+      </span>
+      <span className="rpm-delivery-node rpm-delivery-node-end">
+        <PackageCheck size={15} />
+      </span>
+      <span className="rpm-delivery-van">
+        <Truck size={21} />
+      </span>
+      <span className="rpm-delivery-parcel rpm-delivery-parcel-one" />
+      <span className="rpm-delivery-parcel rpm-delivery-parcel-two" />
+      <span className="rpm-delivery-parcel rpm-delivery-parcel-three" />
+    </div>
   );
 }
 

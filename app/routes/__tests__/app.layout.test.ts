@@ -34,8 +34,8 @@ vi.mock("../../lib/shop.server", () => ({
 
 import { loader } from "../app";
 
-function mkReq(path = "/app") {
-  return new Request(`https://app.example${path}`);
+function mkReq(path = "/app", init?: RequestInit) {
+  return new Request(`https://app.example${path}`, init);
 }
 
 beforeEach(() => {
@@ -50,6 +50,61 @@ beforeEach(() => {
 });
 
 describe("app.tsx loader", () => {
+  it("recovers Shopify Admin launches without query context before auth runs", async () => {
+    const request = mkReq("/app", {
+      headers: {
+        referer: "https://admin.shopify.com/store/fynd-store-1/apps/fynd-returns",
+      },
+    });
+
+    let thrown: unknown;
+    try {
+      await loader({ request, params: {}, context: {} } as never);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(authenticateMock).not.toHaveBeenCalled();
+    expect(thrown).toBeInstanceOf(Response);
+    const location = (thrown as Response).headers.get("Location") ?? "";
+    expect(location.startsWith("/app?")).toBe(true);
+    expect(location).toContain("shop=fynd-store-1.myshopify.com");
+    expect(location).toContain("host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvZnluZC1zdG9yZS0x");
+    expect(location).toContain("embedded=1");
+  });
+
+  it("fills missing host context on direct /app launches with a shop param", async () => {
+    let thrown: unknown;
+    try {
+      await loader({
+        request: mkReq("/app?shop=mystore.myshopify.com"),
+        params: {},
+        context: {},
+      } as never);
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(authenticateMock).not.toHaveBeenCalled();
+    expect(thrown).toBeInstanceOf(Response);
+    const location = (thrown as Response).headers.get("Location") ?? "";
+    expect(location.startsWith("/app?")).toBe(true);
+    expect(location).toContain("shop=mystore.myshopify.com");
+    expect(location).toContain("host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvbXlzdG9yZQ");
+    expect(location).toContain("embedded=1");
+  });
+
+  it("does not mutate signed Shopify launch params before auth", async () => {
+    const data = await loader({
+      request: mkReq("/app?shop=mystore.myshopify.com&timestamp=1700000000&hmac=signed"),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(authenticateMock).toHaveBeenCalledTimes(1);
+    expect(data.shopDomain).toBe("store.myshopify.com");
+  });
+
   it("redirects to /app/billing when billing access is denied", async () => {
     getBillingStatusMock.mockResolvedValueOnce({ hasAccess: false });
     await expect(

@@ -3,18 +3,27 @@ import {
   Outlet,
   redirect,
   useLoaderData,
+  useLocation,
   useNavigate,
   useNavigation,
   useRouteError,
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
-import React, { useEffect, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { getAppMode } from "../lib/fynd-config.server";
 import { syncShopLocaleAndCurrency } from "../lib/shop.server";
 import { getBillingStatus } from "../lib/billing.server";
+import { getEmbeddedAdminLaunchParams } from "../lib/shopify-admin-launch.server";
+import {
+  addShopifyFrameContext,
+  getShopifyFrameContextSearch,
+  isAdminAppPath,
+  readShopifyFrameContext,
+  writeShopifyFrameContext,
+} from "../lib/shopify-frame-context";
 
 declare module "react" {
   namespace JSX {
@@ -28,6 +37,19 @@ declare module "react" {
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const url = new URL(request.url);
+  const hasEmbeddedContext =
+    Boolean(url.searchParams.get("shop") && url.searchParams.get("host")) ||
+    Boolean(url.searchParams.get("id_token")) ||
+    Boolean(request.headers.get("authorization"));
+
+  if (!hasEmbeddedContext) {
+    const params = getEmbeddedAdminLaunchParams(request, url.searchParams);
+    if (params && params.toString() !== url.searchParams.toString()) {
+      throw redirect(`${url.pathname}?${params.toString()}`);
+    }
+  }
+
   const { session, admin } = await authenticate.admin(request);
   const shopDomain = session.shop;
   const portalUrl = `https://${shopDomain}/apps/returns`;
@@ -41,7 +63,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // billing page itself and the superadmin override UI to avoid a
   // redirect loop — if a superadmin with no subscription tries to open
   // /app/settings/billing-override, they still need to get there.
-  const url = new URL(request.url);
   const onBillingRoute =
     url.pathname === "/app/billing" || url.pathname.startsWith("/app/settings/billing-override");
   if (!onBillingRoute) {
@@ -122,16 +143,48 @@ function useNotificationSound(enabled: boolean, currentCount: number) {
 export default function App() {
   const { apiKey, pendingCount, adminSoundEnabled } = useLoaderData<typeof loader>();
   const navigate = useNavigate();
+  const location = useLocation();
   const navigation = useNavigation();
   const isNavigating = navigation.state === "loading";
+  const currentFrameContext = useMemo(
+    () => getShopifyFrameContextSearch(location.search),
+    [location.search],
+  );
+  const [storedFrameContext, setStoredFrameContext] = useState<string | null>(null);
+  const frameContext = currentFrameContext ?? storedFrameContext;
   useNotificationSound(adminSoundEnabled, pendingCount);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    if (currentFrameContext) {
+      writeShopifyFrameContext(window.sessionStorage, currentFrameContext);
+      setStoredFrameContext(currentFrameContext);
+      return;
+    }
+
+    const cachedContext = readShopifyFrameContext(window.sessionStorage);
+    setStoredFrameContext(cachedContext);
+    if (cachedContext && isAdminAppPath(location.pathname)) {
+      const currentPath = `${location.pathname}${location.search}${location.hash}`;
+      const pathWithContext = addShopifyFrameContext(currentPath, cachedContext);
+      if (pathWithContext !== currentPath) {
+        navigate(pathWithContext, { replace: true });
+      }
+    }
+  }, [currentFrameContext, location.hash, location.pathname, location.search, navigate]);
+
+  const getAdminPath = useCallback(
+    (to: string) => addShopifyFrameContext(to, frameContext),
+    [frameContext],
+  );
 
   const handleNavClick = useCallback(
     (to: string) => (event: Event) => {
       event.preventDefault();
-      navigate(to);
+      navigate(getAdminPath(to));
     },
-    [navigate],
+    [getAdminPath, navigate],
   );
 
   return (
@@ -153,25 +206,25 @@ export default function App() {
         />
       )}
       <s-app-nav>
-        <s-link href="/app" onClick={handleNavClick("/app")}>
+        <s-link href={getAdminPath("/app")} onClick={handleNavClick("/app")}>
           Dashboard
         </s-link>
-        <s-link href="/app/returns" onClick={handleNavClick("/app/returns")}>
+        <s-link href={getAdminPath("/app/returns")} onClick={handleNavClick("/app/returns")}>
           Returns{pendingCount > 0 ? ` (${pendingCount})` : ""}
         </s-link>
-        <s-link href="/app/customers" onClick={handleNavClick("/app/customers")}>
+        <s-link href={getAdminPath("/app/customers")} onClick={handleNavClick("/app/customers")}>
           Customers
         </s-link>
-        <s-link href="/app/reports" onClick={handleNavClick("/app/reports")}>
+        <s-link href={getAdminPath("/app/reports")} onClick={handleNavClick("/app/reports")}>
           Analytics
         </s-link>
-        <s-link href="/app/settings" onClick={handleNavClick("/app/settings")}>
+        <s-link href={getAdminPath("/app/settings")} onClick={handleNavClick("/app/settings")}>
           Settings
         </s-link>
-        <s-link href="/app/portal" onClick={handleNavClick("/app/portal")}>
+        <s-link href={getAdminPath("/app/portal")} onClick={handleNavClick("/app/portal")}>
           Customer Portal
         </s-link>
-        <s-link href="/app/docs" onClick={handleNavClick("/app/docs")}>
+        <s-link href={getAdminPath("/app/docs")} onClick={handleNavClick("/app/docs")}>
           Documentation
         </s-link>
       </s-app-nav>

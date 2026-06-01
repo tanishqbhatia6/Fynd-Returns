@@ -1,6 +1,12 @@
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import type { LoaderFunctionArgs } from "react-router";
 import { redirect } from "react-router";
+import { useEffect } from "react";
+import {
+  addShopifyFrameContext,
+  getSafeAppPathFromReferrer,
+  readShopifyFrameContext,
+} from "../../lib/shopify-frame-context";
 
 /**
  * /auth/login — information page, not an install form.
@@ -41,9 +47,23 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {};
 };
 
+function SameTabShopifyRecovery() {
+  useEffect(() => {
+    const contextSearch = readShopifyFrameContext(window.sessionStorage);
+    if (!contextSearch) return;
+
+    const referrerPath = getSafeAppPathFromReferrer(document.referrer, window.location.origin);
+    const destination = addShopifyFrameContext(referrerPath ?? "/app", contextSearch);
+    window.location.replace(destination);
+  }, []);
+
+  return null;
+}
+
 export default function Auth() {
   return (
     <AppProvider embedded={false}>
+      <SameTabShopifyRecovery />
       <div
         style={{
           minHeight: "100vh",

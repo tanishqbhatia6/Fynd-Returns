@@ -2,7 +2,7 @@
  * @vitest-environment jsdom
  */
 import React from "react";
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 
 // ── Mocks for module-top-level imports in app/routes/app.tsx ──
 // The component pulls in shopify.server / db.server / lib/* purely for the
@@ -76,6 +76,10 @@ const baseLoaderData = {
   adminSoundEnabled: false,
 };
 
+beforeEach(() => {
+  window.sessionStorage.clear();
+});
+
 describe("App layout (default export)", () => {
   it("renders the navigation links inside AppProvider", async () => {
     const { container, findByTestId } = renderWithRouter(App, {
@@ -135,6 +139,20 @@ describe("App layout (default export)", () => {
       );
       expect(returnsLink?.textContent).toContain("Returns (4)");
     });
+  });
+
+  it("preserves Shopify embedded context on app-shell nav hrefs", async () => {
+    const { container } = renderWithRouter(App, {
+      initialEntries: ["/app?shop=test-shop.myshopify.com&host=YWJjMTIz&embedded=1"],
+      loaderData: baseLoaderData,
+    });
+    await waitFor(() => {
+      expect(container.querySelector("s-app-nav")).toBeTruthy();
+    });
+    const customersLink = container.querySelector("s-app-nav s-link:nth-child(3)");
+    expect(customersLink?.getAttribute("href")).toBe(
+      "/app/customers?shop=test-shop.myshopify.com&host=YWJjMTIz&embedded=1",
+    );
   });
 
   it("prevents document navigation for app-shell nav links", async () => {

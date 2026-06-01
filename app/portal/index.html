@@ -22,6 +22,11 @@
       --portal-heading-font: %HEADING_FONT%;
       --portal-radius: min(%BORDER_RADIUS%, 8px);
       --portal-shadow: %SHADOW%;
+      --portal-primary-contrast: %PRIMARY_CONTRAST%;
+      --portal-primary-soft: color-mix(in srgb, var(--portal-primary) 9%, var(--portal-surface));
+      --portal-primary-tint: color-mix(in srgb, var(--portal-primary) 15%, transparent);
+      --portal-primary-accent: color-mix(in srgb, var(--portal-primary) 62%, #f4b84f);
+      --portal-primary-shadow: color-mix(in srgb, var(--portal-primary) 55%, transparent);
       --rpm-green: #047857;
       --rpm-green-bg: #ecfdf5;
       --rpm-blue: #1d4ed8;
@@ -2555,26 +2560,37 @@
 
     /* Light checkered Returnly-style skin. Keep this last so it wins over older theme experiments. */
     :root {
-      --rpm-ref-bg: #f8faf7;
-      --rpm-ref-surface: #ffffff;
-      --rpm-ref-card: #ffffff;
-      --rpm-ref-muted: #667085;
-      --rpm-ref-primary: #d9822b;
-      --rpm-ref-warning: #f4b84f;
+      --portal-primary: %PRIMARY_COLOR%;
+      --portal-primary-hover: %PRIMARY_HOVER%;
+      --portal-bg: %BG_COLOR%;
+      --portal-surface: %SURFACE_COLOR%;
+      --portal-text: %TEXT_COLOR%;
+      --portal-text-muted: %TEXT_MUTED%;
+      --portal-border: %BORDER_COLOR%;
+      --portal-font: %FONT_FAMILY%;
+      --portal-heading-font: %HEADING_FONT%;
+      --portal-shadow: %SHADOW%;
+      --portal-primary-contrast: %PRIMARY_CONTRAST%;
+      --portal-primary-soft: color-mix(in srgb, var(--portal-primary) 9%, var(--portal-surface));
+      --portal-primary-tint: color-mix(in srgb, var(--portal-primary) 15%, transparent);
+      --portal-primary-accent: color-mix(in srgb, var(--portal-primary) 62%, #f4b84f);
+      --portal-primary-shadow: color-mix(in srgb, var(--portal-primary) 55%, transparent);
+      --rpm-ref-bg: color-mix(in srgb, var(--portal-bg) 76%, #ffffff);
+      --rpm-ref-surface: color-mix(in srgb, var(--portal-surface) 92%, #ffffff);
+      --rpm-ref-card: color-mix(in srgb, var(--portal-surface) 94%, #ffffff);
+      --rpm-ref-muted: var(--portal-text-muted);
+      --rpm-ref-primary: var(--portal-primary);
+      --rpm-ref-warning: var(--portal-primary-accent);
       --rpm-ref-success: #138a5b;
       --rpm-ref-danger: #c24135;
       --rpm-ref-border: rgba(27, 36, 48, 0.1);
       --rpm-ref-input: rgba(27, 36, 48, 0.14);
-      --rpm-ref-foreground: #17202e;
+      --rpm-ref-foreground: var(--portal-text);
+      --rpm-ref-on-primary: var(--portal-primary-contrast);
+      --rpm-ref-primary-soft: var(--portal-primary-soft);
+      --rpm-ref-primary-tint: var(--portal-primary-tint);
       --rpm-ref-shadow-card: 0 1px 0 rgba(255, 255, 255, 0.9) inset, 0 22px 44px -32px rgba(27, 36, 48, 0.34);
-      --rpm-ref-shadow-glow: 0 18px 38px -24px rgba(217, 130, 43, 0.65);
-      --portal-primary: var(--rpm-ref-primary);
-      --portal-primary-hover: #bf6f22;
-      --portal-bg: var(--rpm-ref-bg);
-      --portal-surface: var(--rpm-ref-card);
-      --portal-text: var(--rpm-ref-foreground);
-      --portal-text-muted: var(--rpm-ref-muted);
-      --portal-border: var(--rpm-ref-border);
+      --rpm-ref-shadow-glow: 0 18px 38px -24px var(--portal-primary-shadow);
       --portal-radius: min(12px, 8px);
       --rpm-line: var(--rpm-ref-border);
     }
@@ -2610,9 +2626,9 @@
     }
 
     .rpm-shell {
-      width: min(1120px, calc(100% - 48px));
-      padding: 24px 0 48px;
-      gap: 16px;
+      width: min(1080px, calc(100% - 48px));
+      padding: 14px 0 42px;
+      gap: 12px;
       min-width: 0;
     }
 
@@ -2637,10 +2653,10 @@
       justify-content: center;
       width: 44px;
       height: 44px;
-      border: 1px solid rgba(217, 130, 43, 0.2);
+      border: 1px solid color-mix(in srgb, var(--rpm-ref-primary) 20%, transparent);
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.58);
-      color: rgba(217, 130, 43, 0.72);
+      color: color-mix(in srgb, var(--rpm-ref-primary) 72%, transparent);
       box-shadow: 0 18px 34px -28px rgba(27, 36, 48, 0.5);
       opacity: 0.62;
       backdrop-filter: blur(10px);
@@ -2729,8 +2745,8 @@
     }
 
     .rpm-brand-row {
-      min-height: 64px;
-      padding: 0 2px 14px;
+      min-height: 48px;
+      padding: 0 2px 8px;
       border: 0;
       border-bottom: 1px solid rgba(27, 36, 48, 0.1);
       border-radius: 0;
@@ -2747,8 +2763,8 @@
     }
 
     .rpm-brand-mark {
-      width: 38px;
-      height: 38px;
+      width: 32px;
+      height: 32px;
       border-radius: var(--portal-radius);
       border-color: rgba(27, 36, 48, 0.1);
       background: linear-gradient(135deg, var(--rpm-ref-primary), var(--rpm-ref-warning));
@@ -2791,16 +2807,16 @@
     }
 
     .rpm-hero-main {
-      min-height: 214px;
-      padding: clamp(22px, 3.4vw, 36px) clamp(20px, 4vw, 44px);
+      min-height: 120px;
+      padding: clamp(14px, 2vw, 20px) clamp(18px, 3vw, 30px);
       grid-template-columns: 1fr;
       min-width: 0;
       border: 1px solid rgba(27, 36, 48, 0.1);
       border-radius: 8px;
       background:
         linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 253, 248, 0.9)),
-        linear-gradient(90deg, rgba(217, 130, 43, 0.08) 1px, transparent 1px),
-        linear-gradient(0deg, rgba(217, 130, 43, 0.08) 1px, transparent 1px);
+        linear-gradient(90deg, color-mix(in srgb, var(--rpm-ref-primary) 8%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, color-mix(in srgb, var(--rpm-ref-primary) 8%, transparent) 1px, transparent 1px);
       background-size: auto, 42px 42px, 42px 42px;
       box-shadow: var(--rpm-ref-shadow-card);
       overflow: hidden;
@@ -2817,10 +2833,10 @@
     }
 
     .rpm-hero h1 {
-      max-width: min(620px, 100%);
+      max-width: min(900px, 100%);
       margin: 0 auto;
-      font-size: clamp(2.15rem, 4.8vw, 3.7rem);
-      line-height: 1.02;
+      font-size: clamp(1.7rem, 2.6vw, 2.45rem);
+      line-height: 1.04;
       font-weight: 760;
       color: var(--rpm-ref-foreground);
       overflow-wrap: break-word;
@@ -2833,20 +2849,20 @@
 
     .rpm-hero-copy {
       max-width: 600px;
-      margin: 12px auto 0;
+      margin: 6px auto 0;
       color: var(--rpm-ref-muted);
-      font-size: 1rem;
+      font-size: 0.88rem;
     }
 
     .rpm-hero-status {
       justify-content: center;
       min-width: 0;
-      margin-top: 8px;
+      margin-top: 6px;
     }
 
     .rpm-status-chip {
-      min-height: 32px;
-      padding: 5px 10px;
+      min-height: 26px;
+      padding: 3px 8px;
       border-color: rgba(27, 36, 48, 0.1);
       background: rgba(255, 255, 255, 0.76);
       color: var(--rpm-ref-muted);
@@ -2860,17 +2876,18 @@
     }
 
     .rpm-journey-strip {
-      max-width: 620px;
+      max-width: 520px;
       width: 100%;
-      margin: 14px auto 0;
-      gap: 10px;
+      margin: 8px auto 0;
+      gap: 8px;
     }
 
     .rpm-journey-strip span,
     .rpm-journey-strip span:nth-child(2),
     .rpm-journey-strip span:nth-child(3),
     .rpm-journey-strip span:nth-child(4) {
-      min-height: 42px;
+      min-height: 34px;
+      padding: 7px 10px;
       border-color: rgba(27, 36, 48, 0.1);
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.78);
@@ -2881,9 +2898,9 @@
 
     .rpm-journey-strip span:first-child,
     .rpm-journey-strip span:hover {
-      border-color: rgba(217, 130, 43, 0.44);
+      border-color: color-mix(in srgb, var(--rpm-ref-primary) 44%, transparent);
       color: var(--rpm-ref-primary);
-      background: rgba(255, 247, 237, 0.92);
+      background: color-mix(in srgb, var(--rpm-ref-primary) 12%, #ffffff);
     }
 
     .rpm-layout {
@@ -2975,7 +2992,7 @@
     }
 
     .rpm-rail-metric:hover {
-      border-color: rgba(217, 130, 43, 0.38);
+      border-color: color-mix(in srgb, var(--rpm-ref-primary) 38%, transparent);
       box-shadow: var(--rpm-ref-shadow-glow);
     }
 
@@ -3014,7 +3031,7 @@
     }
 
     .rpm-tab.is-active {
-      border-color: rgba(217, 130, 43, 0.36);
+      border-color: color-mix(in srgb, var(--rpm-ref-primary) 36%, transparent);
       background: #ffffff;
       color: var(--rpm-ref-foreground);
       box-shadow: 0 12px 24px -20px rgba(27, 36, 48, 0.42);
@@ -3071,14 +3088,14 @@
     .rpm-select:focus,
     .rpm-textarea:focus {
       border-color: transparent;
-      box-shadow: 0 0 0 2px rgba(217, 130, 43, 0.46);
+      box-shadow: 0 0 0 2px color-mix(in srgb, var(--rpm-ref-primary) 46%, transparent);
     }
 
     .rpm-button {
       min-height: 48px;
       border-radius: 8px;
       background: linear-gradient(135deg, var(--rpm-ref-primary), var(--rpm-ref-warning));
-      color: #17202e;
+      color: var(--rpm-ref-on-primary);
       font-weight: 760;
       box-shadow: var(--rpm-ref-shadow-glow);
       transition: opacity 0.18s ease, transform 0.18s ease;
@@ -3087,7 +3104,7 @@
     .rpm-button:hover:not(:disabled) {
       opacity: 0.94;
       transform: translateY(-1px);
-      background: linear-gradient(135deg, var(--rpm-ref-primary), var(--rpm-ref-warning));
+      background: linear-gradient(135deg, var(--portal-primary-hover), var(--rpm-ref-primary));
     }
 
     .rpm-button.secondary,
@@ -3100,7 +3117,7 @@
 
     .rpm-button.secondary:hover:not(:disabled),
     .rpm-button.ghost:hover:not(:disabled) {
-      background: #fff7ed;
+      background: color-mix(in srgb, var(--rpm-ref-primary) 8%, #ffffff);
     }
 
     .rpm-button.danger {
@@ -3143,8 +3160,8 @@
     .rpm-select-control[data-checked],
     .rpm-choice-card[data-checked],
     .rpm-step.is-active {
-      border-color: rgba(217, 130, 43, 0.48);
-      background: rgba(255, 247, 237, 0.95);
+      border-color: color-mix(in srgb, var(--rpm-ref-primary) 48%, transparent);
+      background: color-mix(in srgb, var(--rpm-ref-primary) 10%, #ffffff);
       color: var(--rpm-ref-primary);
       box-shadow: none;
     }
@@ -3175,7 +3192,7 @@
     }
 
     .rpm-badge.warn {
-      border-color: rgba(217, 130, 43, 0.32);
+      border-color: color-mix(in srgb, var(--rpm-ref-warning) 34%, transparent);
       background: rgba(255, 251, 235, 0.92);
       color: #a16207;
     }
@@ -3188,7 +3205,7 @@
     }
 
     .rpm-upload {
-      background: rgba(255, 247, 237, 0.72);
+      background: color-mix(in srgb, var(--rpm-ref-primary) 7%, #ffffff);
     }
 
     .rpm-upload em {
@@ -3207,6 +3224,176 @@
       color: var(--rpm-ref-foreground);
       box-shadow: var(--rpm-ref-shadow-card);
       backdrop-filter: blur(14px);
+    }
+
+    .rpm-submit-animation {
+      display: grid;
+      justify-items: center;
+      gap: 14px;
+      margin: 0 auto 18px;
+      padding: 18px 16px 16px;
+      border: 1px solid rgba(19, 138, 91, 0.2);
+      border-radius: 8px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(19, 138, 91, 0.14), transparent 46%),
+        rgba(255, 255, 255, 0.88);
+      text-align: center;
+      box-shadow: var(--rpm-ref-shadow-card);
+      animation: rpm-submit-card 0.34s ease-out both;
+    }
+
+    .rpm-submit-orbit {
+      position: relative;
+      width: 118px;
+      height: 118px;
+      display: grid;
+      place-items: center;
+    }
+
+    .rpm-submit-orbit::before {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border: 1px dashed rgba(19, 138, 91, 0.28);
+      border-radius: 999px;
+      animation: rpm-submit-orbit 9s linear infinite;
+    }
+
+    .rpm-submit-core {
+      position: relative;
+      z-index: 2;
+      width: 66px;
+      height: 66px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(19, 138, 91, 0.34);
+      border-radius: 999px;
+      background: linear-gradient(135deg, #138a5b, #58c792);
+      color: #fff;
+      box-shadow: 0 18px 34px -22px rgba(19, 138, 91, 0.8);
+      animation: rpm-submit-pop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    }
+
+    .rpm-submit-node {
+      position: absolute;
+      z-index: 1;
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid color-mix(in srgb, var(--rpm-ref-primary) 24%, transparent);
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--rpm-ref-primary) 8%, #ffffff);
+      color: var(--rpm-ref-primary);
+      box-shadow: 0 14px 28px -22px rgba(27, 36, 48, 0.5);
+      animation: rpm-submit-node 0.38s ease-out both;
+    }
+
+    .rpm-submit-node.node-one {
+      top: 4px;
+      left: 16px;
+      animation-delay: 0.1s;
+    }
+
+    .rpm-submit-node.node-two {
+      right: 4px;
+      top: 42px;
+      animation-delay: 0.16s;
+    }
+
+    .rpm-submit-node.node-three {
+      bottom: 4px;
+      left: 26px;
+      animation-delay: 0.22s;
+    }
+
+    .rpm-submit-copy {
+      display: grid;
+      gap: 5px;
+    }
+
+    .rpm-submit-kicker {
+      margin: 0;
+      color: var(--rpm-ref-success);
+      font-size: 0.72rem;
+      font-weight: 780;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .rpm-submit-copy h2 {
+      margin: 0;
+      color: var(--rpm-ref-foreground);
+      font-family: var(--portal-heading-font);
+      font-size: clamp(1.45rem, 3vw, 2rem);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .rpm-submit-copy p:last-child {
+      margin: 0;
+      color: var(--rpm-ref-muted);
+      font-size: 0.92rem;
+    }
+
+    .rpm-success-section .rpm-section-head {
+      margin-bottom: 14px;
+    }
+
+    .rpm-success-card {
+      padding: 18px;
+    }
+
+    @keyframes rpm-submit-card {
+      from {
+        opacity: 0;
+        transform: translateY(10px) scale(0.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes rpm-submit-pop {
+      0% {
+        opacity: 0;
+        transform: scale(0.72);
+      }
+      72% {
+        opacity: 1;
+        transform: scale(1.08);
+      }
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    @keyframes rpm-submit-node {
+      from {
+        opacity: 0;
+        transform: translateY(8px) scale(0.84);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    @keyframes rpm-submit-orbit {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .rpm-submit-animation,
+      .rpm-submit-core,
+      .rpm-submit-node,
+      .rpm-submit-orbit::before {
+        animation: none;
+      }
     }
 
     @media (max-width: 900px) {
@@ -3262,7 +3449,7 @@
 
       .rpm-hero-main {
         min-height: auto;
-        padding: 26px 20px 22px;
+        padding: 20px 16px 18px;
       }
 
       .rpm-hero-copy-block {
@@ -3272,14 +3459,14 @@
       }
 
       .rpm-hero h1 {
-        max-width: 310px;
-        font-size: clamp(1.9rem, 8vw, 2.25rem);
+        max-width: 300px;
+        font-size: clamp(1.65rem, 7.2vw, 2rem);
         line-height: 1.08;
       }
 
       .rpm-hero-copy {
-        max-width: 310px;
-        font-size: 0.95rem;
+        max-width: 300px;
+        font-size: 0.9rem;
       }
 
       .rpm-hero-status {

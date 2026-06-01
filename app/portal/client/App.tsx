@@ -992,12 +992,17 @@ function CreateReturnPanel({
 
   if (step === "success" && success) {
     return (
-      <section className="rpm-success-section">
-        <SectionHead icon={<BadgeCheck size={20} />} title={t(bootstrap, "portal.create.successTitle")} copy={success.summary?.nextSteps || t(bootstrap, "portal.create.successNextSteps")} />
+      <section className="rpm-success-section" aria-live="polite">
+        <ReturnSubmittedAnimation
+          requestId={success.returnRequestId || success.returnId || "Created"}
+          status={humanize(success.status || success.summary?.status || "pending")}
+        />
+        <SectionHead
+          icon={<BadgeCheck size={20} />}
+          title="Return request submitted"
+          copy={success.summary?.nextSteps || t(bootstrap, "portal.create.successNextSteps")}
+        />
         <div className="rpm-result-card rpm-success-card">
-          <div className="rpm-success-badge" aria-hidden="true">
-            <BadgeCheck size={28} />
-          </div>
           <div className="rpm-kv-grid">
             <InfoBlock label="Return request ID" value={success.returnRequestId || success.returnId || "Created"} />
             <InfoBlock label="Status" value={humanize(success.status || success.summary?.status || "pending")} />
@@ -1263,6 +1268,34 @@ function CreateReturnPanel({
       {error && <ErrorBox message={error} />}
       {loading && <Skeleton message={slowLoading ? "Still checking the order. Shopify can be slow here, but the request is still running." : undefined} />}
     </section>
+  );
+}
+
+function ReturnSubmittedAnimation({ requestId, status }: { requestId: string; status: string }) {
+  return (
+    <div className="rpm-submit-animation" role="status" aria-label="Return request submitted">
+      <div className="rpm-submit-orbit" aria-hidden="true">
+        <span className="rpm-submit-node node-one">
+          <PackageCheck size={16} />
+        </span>
+        <span className="rpm-submit-node node-two">
+          <Truck size={16} />
+        </span>
+        <span className="rpm-submit-node node-three">
+          <RotateCcw size={16} />
+        </span>
+        <div className="rpm-submit-core">
+          <Check size={32} />
+        </div>
+      </div>
+      <div className="rpm-submit-copy">
+        <p className="rpm-submit-kicker">Request sent</p>
+        <h2>Return request submitted</h2>
+        <p>
+          {requestId} is now {status.toLowerCase()}.
+        </p>
+      </div>
+    </div>
   );
 }
 

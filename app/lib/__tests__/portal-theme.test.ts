@@ -101,6 +101,20 @@ describe("applyPortalThemeToHtml", () => {
     const out = applyPortalThemeToHtml(html, theme);
     expect(out).toBe(`${theme.primaryColor},${theme.primaryColor},${theme.primaryColor}`);
   });
+
+  it("replaces the derived primary contrast token", () => {
+    const darkOut = applyPortalThemeToHtml("%PRIMARY_CONTRAST%", {
+      ...theme,
+      primaryColor: "#0f172a",
+    });
+    const lightOut = applyPortalThemeToHtml("%PRIMARY_CONTRAST%", {
+      ...theme,
+      primaryColor: "#f4b84f",
+    });
+
+    expect(darkOut).toBe("#ffffff");
+    expect(lightOut).toBe("#17202e");
+  });
 });
 
 describe("FONT_OPTIONS", () => {

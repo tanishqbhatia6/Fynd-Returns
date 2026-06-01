@@ -3,8 +3,8 @@
  *
  * The page is mostly static JSX (heroes, feature cards, footer, theme
  * toggle). The only server-side behavior is the `loader`, which:
- *   1. Redirects to `/app?...` when a `shop` query param is present
- *      (so authenticated/Shopify-iframe entries skip the marketing page).
+ *   1. Redirects Shopify/Admin launches to `/app?...` when a `shop`
+ *      query param or trusted Admin referrer is present.
  *   2. Otherwise returns `{ showForm: Boolean(login) }`.
  *
  * Tests focus on the loader (redirect behavior + return shape) plus a
@@ -41,6 +41,8 @@ describe("_index route loader", () => {
     const location = res.headers.get("Location") ?? "";
     expect(location.startsWith("/app?")).toBe(true);
     expect(location).toContain("shop=mystore.myshopify.com");
+    expect(location).toContain("host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvbXlzdG9yZQ");
+    expect(location).toContain("embedded=1");
   });
 
   it("preserves additional query params on redirect", async () => {
@@ -62,6 +64,48 @@ describe("_index route loader", () => {
     expect(location).toContain("embedded=1");
   });
 
+  it("redirects Shopify Admin launches without shop query into the embedded app", async () => {
+    const request = new Request("https://example.com/", {
+      headers: {
+        referer: "https://admin.shopify.com/store/fynd-store-1/apps/fynd-returns",
+      },
+    });
+
+    let thrown: unknown;
+    try {
+      await loader({ request, params: {}, context: {} } as never);
+    } catch (e) {
+      thrown = e;
+    }
+
+    expect(thrown).toBeInstanceOf(Response);
+    const location = (thrown as Response).headers.get("Location") ?? "";
+    expect(location.startsWith("/app?")).toBe(true);
+    expect(location).toContain("shop=fynd-store-1.myshopify.com");
+    expect(location).toContain("host=YWRtaW4uc2hvcGlmeS5jb20vc3RvcmUvZnluZC1zdG9yZS0x");
+    expect(location).toContain("embedded=1");
+  });
+
+  it("redirects legacy myshopify admin referrers into the embedded app", async () => {
+    const request = new Request("https://example.com/", {
+      headers: {
+        referer: "https://fynd-store-1.myshopify.com/admin/apps/fynd-returns",
+      },
+    });
+
+    let thrown: unknown;
+    try {
+      await loader({ request, params: {}, context: {} } as never);
+    } catch (e) {
+      thrown = e;
+    }
+
+    expect(thrown).toBeInstanceOf(Response);
+    const location = (thrown as Response).headers.get("Location") ?? "";
+    expect(location).toContain("shop=fynd-store-1.myshopify.com");
+    expect(location).toContain("embedded=1");
+  });
+
   it("returns showForm:true when no shop param is present (login is mocked truthy)", async () => {
     const request = new Request("https://example.com/");
 
@@ -78,6 +122,18 @@ describe("_index route loader", () => {
     expect(result).toHaveProperty("showForm");
     // Result must be a plain object, not a thrown Response
     expect(result).not.toBeInstanceOf(Response);
+  });
+
+  it("does not trust non-Shopify referrers for admin launch inference", async () => {
+    const request = new Request("https://example.com/", {
+      headers: {
+        referer: "https://evil.example/store/fynd-store-1/apps/fynd-returns",
+      },
+    });
+
+    const result = await loader({ request, params: {}, context: {} } as never);
+
+    expect(result).toEqual({ showForm: true });
   });
 
   it("treats an empty shop param as missing (does not redirect)", async () => {

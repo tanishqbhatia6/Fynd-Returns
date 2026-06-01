@@ -10,16 +10,18 @@ import {
   TabPanel,
   TabPanels,
 } from "@headlessui/react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowLeft,
   BadgeCheck,
   Box,
+  CalendarDays,
   Check,
   Clipboard,
   Copy,
   FileImage,
+  Headphones,
   ImagePlus,
   Loader2,
   Mail,
@@ -38,7 +40,6 @@ import type {
   ItemSelection,
   LookupResponse,
   LookupType,
-  MediaPayload,
   OrderResponse,
   PortalBootstrap,
   PortalLineItem,
@@ -101,102 +102,62 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
 
   return (
     <div className="rpm-shell">
-      <div className="rpm-floating-layer" aria-hidden="true">
-        <span className="rpm-float-mark rpm-float-one">
-          <Truck size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-two">
-          <Box size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-three">
-          <BadgeCheck size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-four">
-          <Clipboard size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-five">
-          <PackageSearch size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-six">
-          <FileImage size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-seven">
-          <ShieldCheck size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-eight">
-          <RotateCcw size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-nine">
-          <Tag size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-ten">
-          <Mail size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-eleven">
-          <PackageCheck size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-twelve">
-          <ImagePlus size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-thirteen">
-          <Copy size={18} />
-        </span>
-        <span className="rpm-float-mark rpm-float-fourteen">
-          <Check size={18} />
-        </span>
-      </div>
       <Hero bootstrap={bootstrap} />
 
-      <main className="rpm-workbench" aria-label="Return portal">
-        <TabGroup
-          selectedIndex={activeIndex}
-          onChange={(index) => {
-            const next = tabs[index]?.id;
-            if (next) setActiveTab(next);
-          }}
-        >
-          <TabList className="rpm-tabs" aria-label="Portal navigation">
-            {tabs.map((tab) => (
-              <Tab key={tab.id} className={({ selected }) => `rpm-tab${selected ? " is-active" : ""}`}>
-                {tab.icon}
-                {tab.label}
-              </Tab>
-            ))}
-          </TabList>
-          <TabPanels className="rpm-workbench-body">
-            {tabs.map((tab) => (
-              <TabPanel key={tab.id}>
-                {tab.id === "track_order" && (
-                  <LookupPanel
-                    api={api}
-                    bootstrap={bootstrap}
-                    mode="order"
-                    notify={notify}
-                    switchToReturn={() => setActiveTab("track_return")}
-                  />
-                )}
-                {tab.id === "track_return" && (
-                  <LookupPanel
-                    api={api}
-                    bootstrap={bootstrap}
-                    mode="return"
-                    notify={notify}
-                    switchToReturn={() => setActiveTab("track_return")}
-                  />
-                )}
-                {tab.id === "create" && (
-                  <CreateReturnPanel
-                    api={api}
-                    bootstrap={bootstrap}
-                    notify={notify}
-                    switchToTrackReturn={() => setActiveTab("track_return")}
-                  />
-                )}
-              </TabPanel>
-            ))}
-          </TabPanels>
-        </TabGroup>
-      </main>
+      <div className="rpm-layout">
+        <PortalRail bootstrap={bootstrap} />
+
+        <main className="rpm-workbench" aria-label="Return portal">
+          <TabGroup
+            selectedIndex={activeIndex}
+            onChange={(index) => {
+              const next = tabs[index]?.id;
+              if (next) setActiveTab(next);
+            }}
+          >
+            <TabList className="rpm-tabs" aria-label="Portal navigation">
+              {tabs.map((tab) => (
+                <Tab key={tab.id} className={({ selected }) => `rpm-tab${selected ? " is-active" : ""}`}>
+                  {tab.icon}
+                  {tab.label}
+                </Tab>
+              ))}
+            </TabList>
+            <TabPanels className="rpm-workbench-body">
+              {tabs.map((tab) => (
+                <TabPanel key={tab.id}>
+                  {tab.id === "track_order" && (
+                    <LookupPanel
+                      api={api}
+                      bootstrap={bootstrap}
+                      mode="order"
+                      notify={notify}
+                      switchToReturn={() => setActiveTab("track_return")}
+                    />
+                  )}
+                  {tab.id === "track_return" && (
+                    <LookupPanel
+                      api={api}
+                      bootstrap={bootstrap}
+                      mode="return"
+                      notify={notify}
+                      switchToReturn={() => setActiveTab("track_return")}
+                    />
+                  )}
+                  {tab.id === "create" && (
+                    <CreateReturnPanel
+                      api={api}
+                      bootstrap={bootstrap}
+                      notify={notify}
+                      switchToTrackReturn={() => setActiveTab("track_return")}
+                    />
+                  )}
+                </TabPanel>
+              ))}
+            </TabPanels>
+          </TabGroup>
+        </main>
+      </div>
 
       {toast && (
         <div className="rpm-toast" role="status">
@@ -213,64 +174,95 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
 
   return (
     <section className="rpm-hero">
+      <div className="rpm-brand-row">
+        <div className="rpm-brand-mark">
+          {bootstrap.brandLogoUrl ? <img src={bootstrap.brandLogoUrl} alt="" /> : <PackageCheck size={22} />}
+        </div>
+        <div>
+          <div className="rpm-brand-name">ReturnPro Max</div>
+          <div className="rpm-brand-shop">{shopLabel}</div>
+        </div>
+      </div>
+
       <div className="rpm-hero-main">
         <div className="rpm-hero-copy-block">
-          <div className="rpm-brand-row">
-            <div className="rpm-brand-mark">
-              {bootstrap.brandLogoUrl ? (
-                <img src={bootstrap.brandLogoUrl} alt="" />
-              ) : (
-                <PackageCheck size={22} />
-              )}
-            </div>
-            <div>
-              <div className="rpm-brand-name">ReturnPro Max</div>
-              <div className="rpm-brand-shop">{shopLabel}</div>
-            </div>
-          </div>
-          <div className="rpm-eyebrow">
-            <ShieldCheck size={15} />
-            Secure self-service portal
-          </div>
           <h1>{t(bootstrap, "portal.heading")}</h1>
           <p className="rpm-hero-copy">{t(bootstrap, "portal.subheading")}</p>
-          <div className="rpm-policy">
-            <ShieldCheck size={18} />
-            <div>
-              <strong>{t(bootstrap, "portal.policyBanner", { days: bootstrap.returnWindowDays })}</strong>
-              {bootstrap.returnPolicy && <div>{bootstrap.returnPolicy}</div>}
-            </div>
+        </div>
+
+        <div className="rpm-hero-status" aria-label="Portal policy summary">
+          <div className="rpm-status-chip">
+            <ShieldCheck size={16} />
+            <span>Verified access</span>
+          </div>
+          <div className="rpm-status-chip">
+            <CalendarDays size={16} />
+            <span>{bootstrap.returnWindowDays} day window</span>
+          </div>
+          <div className="rpm-status-chip">
+            <Headphones size={16} />
+            <span>{bootstrap.locale.toUpperCase()}</span>
           </div>
         </div>
-        <div className="rpm-hero-visual" aria-hidden="true">
-          <div className="rpm-visual-card rpm-visual-card-main">
-            <div className="rpm-visual-icon">
-              <Truck size={20} />
-            </div>
-            <div>
-              <span>Order status</span>
-              <strong>Track shipments</strong>
-            </div>
-            <em>Live</em>
-          </div>
-          <div className="rpm-visual-lines">
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="rpm-visual-card">
-            <div className="rpm-visual-icon">
-              <RotateCcw size={20} />
-            </div>
-            <div>
-              <span>Return flow</span>
-              <strong>Items, reason, review</strong>
-            </div>
-            <em>Ready</em>
-          </div>
+
+        <div className="rpm-journey-strip" aria-label="Return journey">
+          <span>
+            <Search size={15} />
+            Lookup
+          </span>
+          <span>
+            <BadgeCheck size={15} />
+            Review
+          </span>
+          <span>
+            <Truck size={15} />
+            Pickup
+          </span>
+          <span>
+            <PackageCheck size={15} />
+            Refund
+          </span>
         </div>
       </div>
     </section>
+  );
+}
+
+function PortalRail({ bootstrap }: { bootstrap: PortalBootstrap }) {
+  return (
+    <aside className="rpm-rail" aria-label="Portal context">
+      <div className="rpm-rail-card">
+        <div className="rpm-rail-heading">
+          <ShieldCheck size={18} />
+          <span>Policy</span>
+        </div>
+        <p>{t(bootstrap, "portal.policyBanner", { days: bootstrap.returnWindowDays })}</p>
+        {bootstrap.returnPolicy && <p className="rpm-muted">{bootstrap.returnPolicy}</p>}
+      </div>
+
+      <div className="rpm-rail-grid">
+        <div className="rpm-rail-metric">
+          <CalendarDays size={17} />
+          <span>Window</span>
+          <strong>{bootstrap.returnWindowDays} days</strong>
+        </div>
+        <div className="rpm-rail-metric">
+          <ImagePlus size={17} />
+          <span>Media</span>
+          <strong>{bootstrap.config.allowMediaUploads === false ? "Optional" : "Required"}</strong>
+        </div>
+        <div className="rpm-rail-metric">
+          <RotateCcw size={17} />
+          <span>Exchanges</span>
+          <strong>{bootstrap.features.portalExchangeEnabled ? "Enabled" : "Store review"}</strong>
+        </div>
+        <div className="rpm-rail-metric">
+          <Mail size={17} />
+          <span>Updates</span>
+          <strong>Email</strong>
+        </div>
+      </div>
+    </aside>
   );
 }
 
@@ -788,7 +780,10 @@ function CreateReturnPanel({
   const [slowLoading, setSlowLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const selectedRows = rows.filter((row) => selected[row.rowKey] && !row.disabled);
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selected[row.rowKey] && !row.disabled),
+    [rows, selected],
+  );
   const firstReasonList = selectedRows[0]
     ? getReasonsForItem(bootstrap, selectedRows[0].productType)
     : bootstrap.returnReasons;
@@ -804,11 +799,6 @@ function CreateReturnPanel({
   }, [firstReasonList, reason]);
 
   useEffect(() => {
-    if (resolutionType !== "exchange" || selectedRows.length === 0) return;
-    void loadExchangeProducts();
-  }, [resolutionType, selectedRows.map((row) => row.rowKey).join("|")]);
-
-  useEffect(() => {
     if (!loading) {
       setSlowLoading(false);
       return;
@@ -816,6 +806,28 @@ function CreateReturnPanel({
     const timeout = window.setTimeout(() => setSlowLoading(true), 7000);
     return () => window.clearTimeout(timeout);
   }, [loading]);
+
+  const loadExchangeProducts = useCallback(async () => {
+    const toLoad = selectedRows.filter((row) => row.productId && !exchangeProducts[row.rowKey]);
+    if (toLoad.length === 0) return;
+    const updates: Record<string, ProductResponse["products"]> = {};
+    await Promise.all(
+      toLoad.map(async (row) => {
+        try {
+          const data = await api.products(bootstrap.shop, row.productId || "");
+          updates[row.rowKey] = data.products || [];
+        } catch {
+          updates[row.rowKey] = [];
+        }
+      }),
+    );
+    setExchangeProducts((current) => ({ ...current, ...updates }));
+  }, [api, bootstrap.shop, exchangeProducts, selectedRows]);
+
+  useEffect(() => {
+    if (resolutionType !== "exchange" || selectedRows.length === 0) return;
+    void loadExchangeProducts();
+  }, [loadExchangeProducts, resolutionType, selectedRows.length]);
 
   async function findOrder() {
     const value = orderNumber.trim().replace(/^#/, "");
@@ -942,23 +954,6 @@ function CreateReturnPanel({
     } finally {
       setLoading(false);
     }
-  }
-
-  async function loadExchangeProducts() {
-    const toLoad = selectedRows.filter((row) => row.productId && !exchangeProducts[row.rowKey]);
-    if (toLoad.length === 0) return;
-    const updates: Record<string, ProductResponse["products"]> = {};
-    await Promise.all(
-      toLoad.map(async (row) => {
-        try {
-          const data = await api.products(bootstrap.shop, row.productId || "");
-          updates[row.rowKey] = data.products || [];
-        } catch {
-          updates[row.rowKey] = [];
-        }
-      }),
-    );
-    setExchangeProducts((current) => ({ ...current, ...updates }));
   }
 
   function updateFiles(files: FileList | null) {
@@ -1162,9 +1157,9 @@ function CreateReturnPanel({
             <MediaUpload bootstrap={bootstrap} files={mediaFiles} error={mediaError} required onFiles={updateFiles} />
           </div>
 
-          <aside className="rpm-panel" style={{ padding: 16 }}>
+          <aside className="rpm-panel rpm-summary-panel">
             <h3 className="rpm-section-title">Summary</h3>
-            <div className="rpm-kv-grid" style={{ gridTemplateColumns: "1fr" }}>
+            <div className="rpm-kv-grid rpm-single-kv">
               <InfoBlock label="Selected items" value={String(selectedRows.length)} />
               <InfoBlock label="Estimated refund" value={estimatedRefund} />
               <InfoBlock label="Return deadline" value={formatDate(orderData.returnDeadline, bootstrap)} />
@@ -1273,7 +1268,7 @@ function ResolutionPicker({
   ];
 
   return (
-    <div className="rpm-panel" style={{ padding: 14 }}>
+    <div className="rpm-panel rpm-resolution-panel">
       <RadioGroup value={resolutionType} onChange={setResolutionType} aria-label="Resolution">
         <Label className="rpm-label">Resolution</Label>
         <div className="rpm-choice-grid">
@@ -1293,7 +1288,7 @@ function ResolutionPicker({
         </div>
       </RadioGroup>
       {resolutionType === "exchange" && (
-        <div className="rpm-stack" style={{ marginTop: 12 }}>
+        <div className="rpm-stack rpm-resolution-body">
           {selectedRows.map((row) => {
             const product = (products[row.rowKey] || [])[0];
             const variants = product?.variants || [];
@@ -1441,7 +1436,7 @@ function MediaUpload({
         </span>
       </label>
       {files.length > 0 && (
-        <div className="rpm-card-meta" style={{ marginTop: 8 }}>
+        <div className="rpm-card-meta rpm-file-list">
           {files.map((file) => file.name).join(", ")}
         </div>
       )}
@@ -1535,7 +1530,7 @@ function ProductThumb({ src, title }: { src?: string | null; title: string }) {
 
 function Skeleton({ message }: { message?: string }) {
   return (
-    <div className="rpm-result-card" style={{ marginTop: 18 }}>
+    <div className="rpm-result-card rpm-skeleton-card">
       <div className="rpm-skeleton">
         <span className="rpm-skeleton-line" style={{ width: "58%" }} />
         <span className="rpm-skeleton-line" style={{ width: "100%" }} />

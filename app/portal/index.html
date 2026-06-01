@@ -103,10 +103,10 @@
 
     .rpm-shell {
       position: relative;
-      width: min(1440px, calc(100% - 48px));
+      width: min(1420px, calc(100% - 56px));
       min-height: 100svh;
       margin: 0 auto;
-      padding: clamp(10px, 2vh, 20px) 0;
+      padding: clamp(12px, 2.2vh, 24px) 0;
       display: flex;
       flex-direction: column;
     }
@@ -153,7 +153,7 @@
         var(--portal-surface);
       color: color-mix(in srgb, var(--portal-primary) 86%, var(--portal-text));
       box-shadow: 0 14px 30px rgba(15, 23, 42, 0.08);
-      opacity: 0.7;
+      opacity: 0.58;
       animation: rpm-float 7s ease-in-out infinite;
     }
 
@@ -295,21 +295,25 @@
     .rpm-toast {
       border: 1px solid var(--rpm-line);
       border-radius: 8px;
-      background: color-mix(in srgb, var(--portal-surface) 94%, transparent);
+      background: color-mix(in srgb, var(--portal-surface) 96%, transparent);
       box-shadow: 0 14px 32px rgba(15, 23, 42, 0.07);
     }
 
     .rpm-hero-main {
-      padding: clamp(18px, 3vw, 28px);
-      min-height: 280px;
-      display: flex;
+      padding: clamp(20px, 3.2vw, 34px);
+      min-height: 250px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
+      gap: clamp(18px, 4vw, 52px);
       align-items: center;
       background:
-        linear-gradient(135deg, color-mix(in srgb, var(--portal-primary) 5%, var(--portal-surface)) 0%, color-mix(in srgb, var(--portal-surface) 96%, transparent) 70%),
-        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 4%, transparent) 1px, transparent 1px),
-        linear-gradient(0deg, color-mix(in srgb, var(--portal-primary) 4%, transparent) 1px, transparent 1px),
+        radial-gradient(circle at 90% 10%, color-mix(in srgb, var(--portal-primary) 13%, transparent), transparent 26%),
+        linear-gradient(135deg, color-mix(in srgb, var(--portal-primary) 7%, var(--portal-surface)) 0%, color-mix(in srgb, var(--portal-surface) 96%, transparent) 62%),
+        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 3%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, color-mix(in srgb, var(--portal-primary) 3%, transparent) 1px, transparent 1px),
         var(--portal-surface);
-      background-size: auto, 28px 28px, 28px 28px;
+      background-size: auto, auto, 28px 28px, 28px 28px;
+      overflow: hidden;
     }
 
     .rpm-hero-copy-block {
@@ -320,11 +324,61 @@
       max-width: 820px;
     }
 
+    .rpm-brand-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 18px;
+      min-width: 0;
+    }
+
+    .rpm-brand-mark {
+      width: 46px;
+      height: 46px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 24%, var(--rpm-line));
+      border-radius: 8px;
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--portal-primary) 10%, var(--portal-surface)), var(--portal-surface));
+      color: var(--portal-primary);
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+      overflow: hidden;
+    }
+
+    .rpm-brand-mark img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 7px;
+    }
+
+    .rpm-brand-name {
+      font-size: 1rem;
+      line-height: 1.15;
+      font-weight: 850;
+      color: var(--portal-text);
+    }
+
+    .rpm-brand-shop {
+      margin-top: 3px;
+      max-width: min(420px, 58vw);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.86rem;
+      font-weight: 650;
+      color: var(--portal-text-muted);
+    }
+
     .rpm-eyebrow {
       display: inline-flex;
       align-items: center;
       gap: 8px;
       width: fit-content;
+      margin-bottom: 14px;
       padding: 6px 9px;
       border: 1px solid color-mix(in srgb, var(--portal-primary) 26%, var(--rpm-line));
       border-radius: 8px;
@@ -338,9 +392,9 @@
       margin: 0;
       max-width: 660px;
       font-family: var(--portal-heading-font, Inter, system-ui, sans-serif);
-      font-size: clamp(1.6rem, 3vw, 2.4rem);
+      font-size: clamp(2rem, 4.2vw, 4.25rem);
       line-height: 1.08;
-      font-weight: 800;
+      font-weight: 850;
       letter-spacing: 0;
       color: var(--portal-text);
     }
@@ -349,7 +403,7 @@
       margin: 14px 0 0;
       max-width: 620px;
       color: var(--portal-text-muted);
-      font-size: 0.98rem;
+      font-size: clamp(1rem, 1.7vw, 1.22rem);
     }
 
     .rpm-policy {
@@ -365,12 +419,112 @@
       font-size: 0.9rem;
     }
 
+    .rpm-hero-visual {
+      position: relative;
+      display: grid;
+      gap: 14px;
+      justify-self: stretch;
+      max-width: 520px;
+      margin-left: auto;
+    }
+
+    .rpm-hero-visual::before {
+      content: "";
+      position: absolute;
+      inset: -28px -18px;
+      border-radius: 8px;
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 7%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, color-mix(in srgb, var(--portal-primary) 7%, transparent) 1px, transparent 1px);
+      background-size: 26px 26px;
+      mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent);
+      opacity: 0.72;
+    }
+
+    .rpm-visual-card {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 14px;
+      padding: 16px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 20%, var(--rpm-line));
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--portal-surface) 94%, transparent);
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.09);
+    }
+
+    .rpm-visual-card-main {
+      transform: translateX(-22px);
+    }
+
+    .rpm-visual-icon {
+      width: 44px;
+      height: 44px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 28%, var(--rpm-line));
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--portal-primary) 7%, var(--portal-surface));
+      color: var(--portal-primary);
+    }
+
+    .rpm-visual-card span {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 850;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--portal-text-muted);
+    }
+
+    .rpm-visual-card strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 1.08rem;
+      line-height: 1.2;
+      color: var(--portal-text);
+    }
+
+    .rpm-visual-card em {
+      justify-self: end;
+      padding: 5px 9px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 30%, var(--rpm-line));
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--portal-primary) 9%, var(--portal-surface));
+      color: var(--portal-primary);
+      font-size: 0.8rem;
+      font-style: normal;
+      font-weight: 850;
+    }
+
+    .rpm-visual-lines {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 0.8fr 1fr 0.65fr;
+      gap: 10px;
+      padding: 0 34px;
+    }
+
+    .rpm-visual-lines span {
+      height: 8px;
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--portal-primary) 28%, var(--portal-border));
+    }
+
+    .rpm-visual-lines span:first-child {
+      background: var(--portal-primary);
+    }
+
     .rpm-workbench {
       position: relative;
       z-index: 1;
       border: 1px solid var(--rpm-line);
       border-radius: 8px;
-      background: color-mix(in srgb, var(--portal-surface) 92%, transparent);
+      background: color-mix(in srgb, var(--portal-surface) 95%, transparent);
       box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
       overflow: hidden;
     }
@@ -411,7 +565,7 @@
     }
 
     .rpm-tab.is-active {
-      background: var(--portal-surface);
+      background: color-mix(in srgb, var(--portal-primary) 4%, var(--portal-surface));
       color: var(--portal-primary);
       box-shadow: inset 0 -2px 0 var(--portal-primary);
     }
@@ -571,6 +725,72 @@
     .rpm-result-card {
       padding: 16px;
       box-shadow: none;
+    }
+
+    .rpm-success-section .rpm-section-head {
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .rpm-success-card {
+      position: relative;
+      overflow: hidden;
+      padding: 26px 26px 22px;
+      border-color: color-mix(in srgb, var(--portal-primary) 24%, var(--rpm-line));
+      background:
+        radial-gradient(circle at 96% 0%, color-mix(in srgb, var(--portal-primary) 12%, transparent), transparent 34%),
+        linear-gradient(135deg, color-mix(in srgb, var(--portal-primary) 5%, var(--portal-surface)), color-mix(in srgb, var(--portal-surface) 96%, transparent)),
+        var(--portal-surface);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
+    }
+
+    .rpm-success-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 4%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, color-mix(in srgb, var(--portal-primary) 4%, transparent) 1px, transparent 1px);
+      background-size: 28px 28px;
+      opacity: 0.8;
+    }
+
+    .rpm-success-badge {
+      position: relative;
+      z-index: 1;
+      width: 58px;
+      height: 58px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+      border: 1px solid color-mix(in srgb, var(--portal-primary) 32%, var(--rpm-line));
+      border-radius: 8px;
+      background: color-mix(in srgb, var(--portal-primary) 9%, var(--portal-surface));
+      color: var(--portal-primary);
+      box-shadow: 0 16px 34px rgba(15, 23, 42, 0.1);
+    }
+
+    .rpm-success-card > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .rpm-success-card .rpm-kv-grid {
+      margin-top: 0;
+      gap: 10px;
+    }
+
+    .rpm-success-card .rpm-kv {
+      min-height: 76px;
+      background: color-mix(in srgb, var(--portal-surface) 92%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--portal-surface) 56%, transparent);
+    }
+
+    .rpm-success-card .rpm-kv strong {
+      margin-top: 5px;
+      font-size: 1.04rem;
     }
 
     .rpm-card-head {
@@ -967,6 +1187,20 @@
     }
 
     @media (max-width: 900px) {
+      .rpm-hero-main {
+        grid-template-columns: 1fr;
+      }
+
+      .rpm-hero-visual {
+        width: 100%;
+        max-width: none;
+        margin-left: 0;
+      }
+
+      .rpm-visual-card-main {
+        transform: none;
+      }
+
       .rpm-two-col,
       .rpm-form-grid {
         grid-template-columns: 1fr;
@@ -1038,6 +1272,22 @@
       .rpm-hero-main,
       .rpm-workbench-body {
         padding: 16px;
+      }
+
+      .rpm-hero-main {
+        min-height: auto;
+      }
+
+      .rpm-hero h1 {
+        font-size: clamp(1.9rem, 12vw, 2.7rem);
+      }
+
+      .rpm-brand-shop {
+        max-width: calc(100vw - 120px);
+      }
+
+      .rpm-hero-visual {
+        display: none;
       }
 
       .rpm-kv-grid,

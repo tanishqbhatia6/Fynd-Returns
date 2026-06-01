@@ -209,10 +209,29 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
 }
 
 function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
+  const shopLabel = bootstrap.shop || "Customer portal";
+
   return (
     <section className="rpm-hero">
       <div className="rpm-hero-main">
         <div className="rpm-hero-copy-block">
+          <div className="rpm-brand-row">
+            <div className="rpm-brand-mark">
+              {bootstrap.brandLogoUrl ? (
+                <img src={bootstrap.brandLogoUrl} alt="" />
+              ) : (
+                <PackageCheck size={22} />
+              )}
+            </div>
+            <div>
+              <div className="rpm-brand-name">ReturnPro Max</div>
+              <div className="rpm-brand-shop">{shopLabel}</div>
+            </div>
+          </div>
+          <div className="rpm-eyebrow">
+            <ShieldCheck size={15} />
+            Secure self-service portal
+          </div>
           <h1>{t(bootstrap, "portal.heading")}</h1>
           <p className="rpm-hero-copy">{t(bootstrap, "portal.subheading")}</p>
           <div className="rpm-policy">
@@ -221,6 +240,33 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
               <strong>{t(bootstrap, "portal.policyBanner", { days: bootstrap.returnWindowDays })}</strong>
               {bootstrap.returnPolicy && <div>{bootstrap.returnPolicy}</div>}
             </div>
+          </div>
+        </div>
+        <div className="rpm-hero-visual" aria-hidden="true">
+          <div className="rpm-visual-card rpm-visual-card-main">
+            <div className="rpm-visual-icon">
+              <Truck size={20} />
+            </div>
+            <div>
+              <span>Order status</span>
+              <strong>Track shipments</strong>
+            </div>
+            <em>Live</em>
+          </div>
+          <div className="rpm-visual-lines">
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="rpm-visual-card">
+            <div className="rpm-visual-icon">
+              <RotateCcw size={20} />
+            </div>
+            <div>
+              <span>Return flow</span>
+              <strong>Items, reason, review</strong>
+            </div>
+            <em>Ready</em>
           </div>
         </div>
       </div>
@@ -928,9 +974,12 @@ function CreateReturnPanel({
 
   if (step === "success" && success) {
     return (
-      <section>
+      <section className="rpm-success-section">
         <SectionHead icon={<BadgeCheck size={20} />} title={t(bootstrap, "portal.create.successTitle")} copy={success.summary?.nextSteps || t(bootstrap, "portal.create.successNextSteps")} />
-        <div className="rpm-result-card">
+        <div className="rpm-result-card rpm-success-card">
+          <div className="rpm-success-badge" aria-hidden="true">
+            <BadgeCheck size={28} />
+          </div>
           <div className="rpm-kv-grid">
             <InfoBlock label="Return request ID" value={success.returnRequestId || success.returnId || "Created"} />
             <InfoBlock label="Status" value={humanize(success.status || success.summary?.status || "pending")} />

@@ -11,7 +11,6 @@ export type RefundGatePreset = "none" | "after_pickup" | "after_delivery" | "aft
 
 /** Fynd statuses in the refund-processing phase — always included in non-"none" presets */
 const REFUND_FLOW_STATUSES = [
-  "refund_initiated",
   "refund_on_hold",
   "refund_acknowledged",
   "refund_pending",

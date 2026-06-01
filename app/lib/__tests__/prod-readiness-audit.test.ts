@@ -54,9 +54,9 @@ describe("Audit #6 — classifyFyndWebhookEvent dispatches by category", () => {
     ["return_bag_in_transit", null, "return"],
     ["rto_initiated", null, "rto"],
     ["rto_bag_delivered", null, "rto"],
-    [null, "refund_initiated", "refund"],
+    [null, "refund_initiated", "unknown"],
     [null, "refund_done", "refund"],
-    ["return_bag_picked", "refund_initiated", "refund"], // refund wins over return
+    ["return_bag_picked", "refund_initiated", "return"], // ignored refund_initiated must not override logistics
     ["delivery_done", null, "forward"],
     ["unknown_status", null, "unknown"],
     [null, null, "unknown"],
@@ -65,17 +65,18 @@ describe("Audit #6 — classifyFyndWebhookEvent dispatches by category", () => {
     expect(classifyFyndWebhookEvent(lifecycle, refund)).toBe(expected);
   });
 
-  it("uses lifecycle as refund-source when the lifecycle string is itself a refund-token", () => {
+  it("uses lifecycle as refund-source except ignored refund_initiated", () => {
     // Some Fynd payloads put `refund_initiated` in the `status` field
-    // (the lifecycle slot) rather than in `refund_status`. We still
-    // classify those as refund events.
-    expect(classifyFyndWebhookEvent("refund_initiated", null)).toBe("refund");
+    // (the lifecycle slot) rather than in `refund_status`. That one is
+    // ignored because Shopify owns refund initiation.
+    expect(classifyFyndWebhookEvent("refund_initiated", null)).toBe("unknown");
     expect(classifyFyndWebhookEvent("credit_note_generated", null)).toBe("refund");
   });
 
   it("normalises whitespace + case before matching", () => {
     expect(classifyFyndWebhookEvent("Return Bag Picked", null)).toBe("return");
-    expect(classifyFyndWebhookEvent(null, "Refund Initiated")).toBe("refund");
+    expect(classifyFyndWebhookEvent(null, "Refund Pending")).toBe("refund");
+    expect(classifyFyndWebhookEvent(null, "Refund Initiated")).toBe("unknown");
   });
 });
 
@@ -188,12 +189,15 @@ describe("Audit #6 (cont.) — classifyFyndRefundStatus is namespaced-only after
   );
 
   it.each([
-    "refund_initiated",
     "refund_pending",
     "refund_processing",
     "refund_in_progress",
     "refund_under_process",
   ])('namespaced refund token "%s" IS classified as refund-in-progress', (s) => {
     expect(classifyFyndRefundStatus(s).isInProgress).toBe(true);
+  });
+
+  it("does not classify Fynd refund_initiated as app refund progress", () => {
+    expect(classifyFyndRefundStatus("refund_initiated").isInProgress).toBe(false);
   });
 });

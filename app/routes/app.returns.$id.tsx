@@ -91,6 +91,14 @@ type UnifiedReturnState = {
   icon: string;
 };
 
+function normalizeFyndToken(value: string | null | undefined): string {
+  return (value || "").toLowerCase().replace(/\s+/g, "_").trim();
+}
+
+function isIgnoredFyndRefundToken(value: string | null | undefined): boolean {
+  return normalizeFyndToken(value) === "refund_initiated";
+}
+
 export function computeAdminReturnState(
   appStatus: string,
   refundStatus: string | null | undefined,
@@ -102,8 +110,12 @@ export function computeAdminReturnState(
   // the falsy fall-through arms are unreachable in tests / production fixtures.
   /* v8 ignore start */
   const s = (appStatus || "").toLowerCase();
-  const r = (refundStatus || "").toLowerCase();
-  const f = (fyndStatus || "").toLowerCase();
+  const rawRefundStatus = (refundStatus || "").toLowerCase();
+  const rawFyndStatus = normalizeFyndToken(fyndStatus);
+  const f = isIgnoredFyndRefundToken(rawFyndStatus) ? "" : rawFyndStatus;
+  const r = isIgnoredFyndRefundToken(rawFyndStatus) && rawRefundStatus === "in_progress"
+    ? ""
+    : rawRefundStatus;
   const journey = returnJourney || [];
   const isExchange = (resolutionType || "").toLowerCase() === "exchange";
   /* v8 ignore stop */
@@ -116,12 +128,16 @@ export function computeAdminReturnState(
   // populates it; the `|| ""` fall-through branches are defensive only.
   /* v8 ignore start */
   const journeyHas = (keyword: string) =>
-    journey.some((j) => (j.status || "").toLowerCase().replace(/\s+/g, "_").includes(keyword));
+    journey.some((j) => {
+      const token = normalizeFyndToken(j.status);
+      return token && !isIgnoredFyndRefundToken(token) && token.includes(keyword);
+    });
 
   const latestJs =
-    journey.length > 0
-      ? (journey[journey.length - 1].status || "").toLowerCase().replace(/\s+/g, "_")
-      : "";
+    [...journey]
+      .reverse()
+      .map((j) => normalizeFyndToken(j.status))
+      .find((token) => token && !isIgnoredFyndRefundToken(token)) || "";
   /* v8 ignore stop */
 
   const ok = (label: string, step: number, desc: string): UnifiedReturnState => ({
@@ -201,22 +217,16 @@ export function computeAdminReturnState(
   // until the refund/exchange actually completes. The progress bar marks every step ≤ active
   // as done, so step 6 here would falsely light up the final tick.
   // Bug #16 fix v2: the LATEST journey event is the source of truth.
-  // Fynd often fires `refund_initiated` ahead of the physical pickup
-  // (they pre-create the refund record), which (a) sets fyndCurrentStatus
-  // to a refund-token and (b) sets refundStatus="in_progress". Later, a
-  // return_bag_picked webhook arrives and gets appended to the journey,
-  // but the precedence guard refuses to overwrite the higher-ranked
-  // `refund_initiated` sticky note. Result: this function used to see
-  // f="refund_initiated", short-circuit to step 5, and never inspect the
-  // journey at all — even though the customer's package was demonstrably
-  // at "Picked Up" (step 3).
+  // Fynd fires `refund_initiated` when its refund workflow starts, but this app owns
+  // the actual Shopify refund. Treat that Fynd token as non-actionable so it cannot
+  // make a picked-up return look received/refund-processing.
   //
   // The fix:
   //   - If the LATEST journey event is a return-logistics token (anything
   //     that maps to step ≤ 4), trust it. Fall through to the journey
   //     checks below regardless of the sticky `fyndCurrentStatus` or the
   //     sticky `refundStatus`.
-  //   - Only when the latest journey entry is itself refund-staged (or
+  //   - Only when the latest actionable journey entry is itself refund-staged (or
   //     when there is no journey at all and we have to fall back on the
   //     sticky flags) do we render "Refund Processing".
   const PRE_REFUND_LOGISTICS_RE =
@@ -1716,7 +1726,6 @@ export default function ReturnDetail() {
     "rto_bag_accepted",
     "deadstock",
     "refund_approved",
-    "refund_initiated",
     "refund_completed",
     "return_completed",
     "deadstock_defective",
@@ -2008,7 +2017,6 @@ export default function ReturnDetail() {
             "return_accepted",
             "return_completed",
             "credit_note_generated",
-            "refund_initiated",
             "refund_done",
             "refund_completed",
           ].includes(fLocal);
@@ -2729,7 +2737,6 @@ export default function ReturnDetail() {
                 return_accepted: 4,
                 credit_note_generated: 5,
                 credit_note: 5,
-                refund_initiated: 5,
                 refund_done: 5,
                 refunded: 5,
               };
@@ -2768,8 +2775,8 @@ export default function ReturnDetail() {
               // journey event sets at most one step's time.
               const rj = (returnJourney ?? []) as FyndJourneyStep[];
               for (const step of rj) {
-                const st = (step.status || "").toLowerCase().replace(/\s+/g, "_");
-                if (!st || !step.time) continue;
+                const st = normalizeFyndToken(step.status);
+                if (!st || !step.time || isIgnoredFyndRefundToken(st)) continue;
                 const idx = RETURN_JOURNEY_MAP[st];
                 if (typeof idx !== "number") continue;
                 if (!progressSteps[idx]?.time) {

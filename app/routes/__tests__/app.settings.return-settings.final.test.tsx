@@ -218,13 +218,13 @@ describe("ReturnSettings — final-mile branch coverage", () => {
   it("unchecks a Refund Flow status checkbox in custom mode (line ~1368)", async () => {
     const { container } = renderForm({
       refundGatePreset: "custom",
-      allowedFyndStatusesForRefund: ["refund_initiated", "refund_pending"],
+      allowedFyndStatusesForRefund: ["refund_pending", "refund_on_hold"],
     });
     await waitFor(() => expect(container.querySelector("h1")).toBeTruthy(), {
       timeout: 5000,
     });
     const labels = Array.from(container.querySelectorAll("label")).filter((l) =>
-      l.textContent?.match(/^refund_initiated$/),
+      l.textContent?.match(/^refund_pending$/),
     );
     expect(labels.length).toBeGreaterThan(0);
     const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;

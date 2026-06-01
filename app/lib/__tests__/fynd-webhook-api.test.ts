@@ -50,9 +50,9 @@ afterEach(() => {
 /* ── FYND_WEBHOOK_EVENTS constant ─────────────────────────────────── */
 
 describe("FYND_WEBHOOK_EVENTS", () => {
-  it("covers the refund lifecycle + shipment updates", () => {
+  it("covers actionable refund lifecycle events + shipment updates", () => {
     const types = FYND_WEBHOOK_EVENTS.map((e) => e.event_type);
-    expect(types).toContain("refund_initiated");
+    expect(types).not.toContain("refund_initiated");
     expect(types).toContain("refund_pending");
     expect(types).toContain("refund_done");
     expect(types).toContain("refund_failed");

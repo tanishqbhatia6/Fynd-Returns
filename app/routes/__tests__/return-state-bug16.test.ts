@@ -137,14 +137,14 @@ describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale
     expect(state.step).toBe(4);
   });
 
-  it("STILL shows Refund Processing when Fynd state is genuinely a refund token", () => {
-    // refund_initiated is a genuine refund-stage Fynd token; we MUST show
+  it("STILL shows Refund Processing when Fynd state is genuinely an actionable refund token", () => {
+    // refund_pending is an actionable refund-stage Fynd token; we MUST show
     // "Refund Processing" here regardless of journey contents.
     const state = computeAdminReturnState(
       "approved",
       "in_progress",
-      journey({ status: "refund_initiated" }),
-      "refund_initiated",
+      journey({ status: "refund_pending" }),
+      "refund_pending",
     );
     expect(state.label).toMatch(/Refund Processing|Refund is being processed/i);
     expect(state.step).toBe(5);
@@ -202,9 +202,9 @@ describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale
     expect(state.step).toBe(4);
   });
 
-  it("STILL shows Refund Processing when latest journey IS a refund token (genuine refund stage)", () => {
-    // Inverse: pickup happened first, then refund_initiated arrived as the
-    // latest journey entry — that IS the live state and must show step 5.
+  it("ignores refund_initiated when it is the latest journey token", () => {
+    // Fynd's refund_initiated is not the app's refund-processing signal. If it
+    // arrives after delivery, the previous actionable return-logistics event wins.
     const state = computeAdminReturnState(
       "approved",
       "in_progress",
@@ -215,6 +215,7 @@ describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale
       ),
       "refund_initiated",
     );
+    expect(state.label).toBe("Return Received");
     expect(state.step).toBe(5);
   });
 

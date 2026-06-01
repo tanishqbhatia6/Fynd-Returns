@@ -626,13 +626,13 @@ describe("fynd-payload — coverage gaps", () => {
 describe("fynd-webhook — pure functions", () => {
   it("classifyFyndRefundStatus — all in-progress + complete branches", () => {
     expect(classifyFyndRefundStatus(null)).toEqual({ isInProgress: false, isComplete: false });
-    expect(classifyFyndRefundStatus("refund_initiated").isInProgress).toBe(true);
+    expect(classifyFyndRefundStatus("refund_initiated").isInProgress).toBe(false);
     expect(classifyFyndRefundStatus("refund_pending").isInProgress).toBe(true);
     expect(classifyFyndRefundStatus("UNDER PROCESS").isInProgress).toBe(true);
     // Bug #16 follow-up: bare "processing" no longer matches; only refund_*-prefixed tokens.
     expect(classifyFyndRefundStatus("processing").isInProgress).toBe(false);
     expect(classifyFyndRefundStatus("refund_processing").isInProgress).toBe(true);
-    expect(classifyFyndRefundStatus("Refund Initiated").isInProgress).toBe(true);
+    expect(classifyFyndRefundStatus("Refund Initiated").isInProgress).toBe(false);
     expect(classifyFyndRefundStatus("refund_done").isComplete).toBe(true);
     expect(classifyFyndRefundStatus("refunded").isComplete).toBe(true);
     expect(classifyFyndRefundStatus("Refund Done").isComplete).toBe(true);

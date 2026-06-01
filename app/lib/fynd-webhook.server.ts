@@ -2,7 +2,7 @@
  * Fynd Shipment Update Webhook Handler
  *
  * Listens for Fynd shipment/refund status updates and:
- * - refund_initiated / refund_pending / UNDER PROCESS → refundStatus = "in_progress"
+ * - refund_pending / UNDER PROCESS → refundStatus = "in_progress"
  * - refund_done / refunded → calls Shopify Refund API, refundStatus = "refunded"
  *
  * Webhook URL: POST /api/webhooks/fynd
@@ -28,16 +28,30 @@ type ReturnCaseWithWebhookRelations = Prisma.ReturnCaseGetPayload<{
   include: { items: true; shop: true };
 }>;
 
+function normalizeWebhookStatusToken(status: string | null | undefined): string {
+  return (status ?? "").toLowerCase().replace(/\s+/g, "_").trim();
+}
+
+const IGNORED_FYND_REFUND_WEBHOOK_STATUSES = new Set(["refund_initiated"]);
+
+export function isIgnoredFyndRefundWebhookStatus(status: string | null | undefined): boolean {
+  const normalized = normalizeWebhookStatusToken(status);
+  return Boolean(normalized && IGNORED_FYND_REFUND_WEBHOOK_STATUSES.has(normalized));
+}
+
 /** Fynd refund statuses that indicate refund is in progress.
  * Bug #16 fix: removed the generic "in_progress" and "processing" entries.
  * Those collided with shipment-status payloads (e.g. an admin update sets
  * status = "in_progress" generically), which combined with the
  * extractRefundStatus → payload.status fallback turned every generic
  * shipment-state webhook into a "refund-is-processing" classification,
- * locking refundStatus to "in_progress" prematurely. Only true Fynd
- * refund-lifecycle tokens belong here. */
+ * locking refundStatus to "in_progress" prematurely.
+ *
+ * `refund_initiated` is intentionally ignored. Fynd emits it after pickup,
+ * but refunds are owned by this Shopify app, so that webhook must not move
+ * app refund/logistics state.
+ */
 const REFUND_IN_PROGRESS = [
-  "refund_initiated",
   "refund_pending",
   "refund_processing",
   "refund_in_progress",
@@ -62,10 +76,13 @@ export function classifyFyndRefundStatus(refundStatus: string | null | undefined
   isInProgress: boolean;
   isComplete: boolean;
 } {
+  if (isIgnoredFyndRefundWebhookStatus(refundStatus)) {
+    return { isInProgress: false, isComplete: false };
+  }
   const raw = refundStatus ?? "";
-  const statusLower = raw.toLowerCase().replace(/\s+/g, "_");
+  const statusLower = normalizeWebhookStatusToken(raw);
   const REFUND_IN_PROGRESS_RE =
-    /^refund[_ ]?(initiated|pending|processing|in[_ ]?progress|under[_ ]?process)$/i;
+    /^refund[_ ]?(pending|processing|in[_ ]?progress|under[_ ]?process)$/i;
   const isInProgress =
     REFUND_IN_PROGRESS.some((s) => statusLower === s.toLowerCase()) ||
     REFUND_IN_PROGRESS_RE.test(raw) ||
@@ -115,7 +132,6 @@ const FYND_STATUS_PRECEDENCE: Record<string, number> = {
   credit_note_generated: 30,
   credit_note: 30,
   refund_pending: 31,
-  refund_initiated: 32,
   refund_processing: 32,
   refund_in_progress: 32,
   refund_under_process: 32,
@@ -142,9 +158,10 @@ export function shouldAdvanceFyndStatus(
   incoming: string | null | undefined,
 ): boolean {
   if (!incoming) return false;
+  if (isIgnoredFyndRefundWebhookStatus(incoming)) return false;
   if (!current) return true;
-  const cur = current.toLowerCase().replace(/\s+/g, "_");
-  const inc = incoming.toLowerCase().replace(/\s+/g, "_");
+  const cur = normalizeWebhookStatusToken(current);
+  const inc = normalizeWebhookStatusToken(incoming);
   if (cur === inc) return true; // idempotent re-write is fine
   const curRank = FYND_STATUS_PRECEDENCE[cur];
   const incRank = FYND_STATUS_PRECEDENCE[inc];
@@ -203,7 +220,6 @@ const RETURN_LIFECYCLE_STATUSES = new Set([
 const REFUND_LIFECYCLE_STATUSES = new Set([
   "credit_note_generated",
   "credit_note",
-  "refund_initiated",
   "refund_pending",
   "refund_processing",
   "refund_in_progress",
@@ -229,9 +245,9 @@ const RTO_STATUSES = new Set([
  *
  *   refund > rto > return > forward > unknown
  *
- * is the precedence: a refund event takes priority over a return-stage one
- * because once Fynd has emitted refund_initiated the merchant cares about
- * the refund clock, not the in-progress return logistics. Return takes
+ * is the precedence: actionable refund events take priority over return-stage
+ * ones. Fynd `refund_initiated` is intentionally excluded because Shopify
+ * owns the refund workflow in this app. Return takes
  * priority over forward because once we've started a return, an
  * out-of-order forward webhook (delivery_done re-arriving) shouldn't
  * downgrade the case.
@@ -240,8 +256,15 @@ export function classifyFyndWebhookEvent(
   lifecycleStatus: string | null | undefined,
   refundStatus: string | null | undefined,
 ): FyndWebhookCategory {
-  const refund = (refundStatus ?? "").toLowerCase().replace(/\s+/g, "_");
-  const lifecycle = (lifecycleStatus ?? "").toLowerCase().replace(/\s+/g, "_");
+  const refund = normalizeWebhookStatusToken(refundStatus);
+  const lifecycle = normalizeWebhookStatusToken(lifecycleStatus);
+  if (isIgnoredFyndRefundWebhookStatus(refund)) {
+    if (lifecycle && RTO_STATUSES.has(lifecycle)) return "rto";
+    if (lifecycle && RETURN_LIFECYCLE_STATUSES.has(lifecycle)) return "return";
+    if (lifecycle && FORWARD_STATUSES.has(lifecycle)) return "forward";
+    return "unknown";
+  }
+  if (isIgnoredFyndRefundWebhookStatus(lifecycle)) return "unknown";
   if (refund && REFUND_LIFECYCLE_STATUSES.has(refund)) return "refund";
   if (lifecycle && REFUND_LIFECYCLE_STATUSES.has(lifecycle)) return "refund";
   if (lifecycle && RTO_STATUSES.has(lifecycle)) return "rto";
@@ -342,7 +365,7 @@ function extractShipmentId(payload: FyndWebhookPayload): string | null {
   /* v8 ignore stop */
 }
 
-function extractRefundStatus(payload: FyndWebhookPayload): string | null {
+function extractRawRefundStatus(payload: FyndWebhookPayload): string | null {
   // Bug #16 fix: ONLY refund-specific fields. Earlier the function fell
   // back to payload.status (shipment/bag status) and payload.shipments[0]
   // .status, which classified return_bag_picked / return_initiated /
@@ -357,6 +380,11 @@ function extractRefundStatus(payload: FyndWebhookPayload): string | null {
     payload.shipments?.[0]?.refund_status ??
     payload.order?.shipments?.[0]?.refund_status;
   return coerceStr(s);
+}
+
+function extractRefundStatus(payload: FyndWebhookPayload): string | null {
+  const status = extractRawRefundStatus(payload);
+  return isIgnoredFyndRefundWebhookStatus(status) ? null : status;
 }
 
 /**
@@ -385,6 +413,9 @@ function extractLifecycleStatus(payload: FyndWebhookPayload): string | null {
   ) {
     return nestedShipmentStatus;
   }
+  if (isIgnoredFyndRefundWebhookStatus(normalizedTopLevelStatus) && !nestedShipmentStatus) {
+    return null;
+  }
 
   const s =
     nestedShipmentStatus ??
@@ -392,7 +423,8 @@ function extractLifecycleStatus(payload: FyndWebhookPayload): string | null {
     payload.shipments?.[0]?.status ??
     payload.order?.shipments?.[0]?.status ??
     payload.current_shipment_status;
-  return coerceStr(s);
+  const status = coerceStr(s);
+  return isIgnoredFyndRefundWebhookStatus(status) ? null : status;
 }
 
 /**
@@ -1048,6 +1080,7 @@ export async function processFyndWebhook(
   eventType?: string,
 ): Promise<ProcessFyndWebhookResult> {
   const shipmentId = extractShipmentId(payload);
+  const rawRefundStatus = extractRawRefundStatus(payload);
   const refundStatus = extractRefundStatus(payload);
   // Bug #16: lifecycle (shipment/bag) status is now read separately so
   // journey-tracking code paths still see return_bag_picked etc., even
@@ -1085,6 +1118,20 @@ export async function processFyndWebhook(
     shopDomain: webhookShopDomain ?? undefined,
   };
   /* v8 ignore stop */
+
+  if (isIgnoredFyndRefundWebhookStatus(rawRefundStatus) && !lifecycleStatus) {
+    await logWebhook({
+      shipmentId,
+      orderId: orderId ?? affiliateOrderId ?? orderIds[0] ?? null,
+      refundStatus: rawRefundStatus,
+      action: "ignored",
+      rawPayload: rawPayload ?? JSON.stringify(payload),
+      ...logEnrichment,
+      error:
+        "Ignored Fynd refund_initiated because Shopify app owns refund processing and this status is not a logistics signal.",
+    });
+    return { ok: true, action: "ignored", returnCaseId: undefined };
+  }
 
   if (!shipmentId && orderIds.length === 0) {
     // Log payload keys for debugging unrecognized webhook formats

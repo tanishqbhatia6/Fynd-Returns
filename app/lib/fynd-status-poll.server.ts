@@ -16,7 +16,7 @@ import {
   buildFyndJourneyFilterForReturn,
   fyndObjectMatchesReturnScope,
 } from "./fynd-return-scope.server";
-import { shouldAdvanceFyndStatus } from "./fynd-webhook.server";
+import { isIgnoredFyndRefundWebhookStatus, shouldAdvanceFyndStatus } from "./fynd-webhook.server";
 import { fyndLogger } from "./observability/logger.server";
 import { withSpan } from "./observability/tracing.server";
 
@@ -27,7 +27,17 @@ const POLL_THROTTLE_MS = 10 * 60_000; // 10 minutes
 
 function normalizeFyndStatus(status: string | null | undefined): string | null {
   const normalized = (status ?? "").toLowerCase().replace(/\s+/g, "_").trim();
+  if (isIgnoredFyndRefundWebhookStatus(normalized)) return null;
   return normalized || null;
+}
+
+function latestActionableReturnStep<T extends { status?: string | null }>(
+  returnJourney: T[],
+): T | null {
+  for (let index = returnJourney.length - 1; index >= 0; index -= 1) {
+    if (normalizeFyndStatus(returnJourney[index]?.status)) return returnJourney[index] ?? null;
+  }
+  return null;
 }
 
 const APP_STATUS_ORDER: Record<string, number> = {
@@ -173,8 +183,7 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
                     status === "out_for_delivery_to_store"
                   );
                 }) ?? null;
-              const latestReturnStep =
-                returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
+              const latestReturnStep = latestActionableReturnStep(returnJourney);
               const returnStatus =
                 normalizeFyndStatus(latestReturnStep?.status) ??
                 normalizeFyndStatus(returnShipment?.shipmentStatus);
@@ -210,8 +219,8 @@ export async function pollStaleReturns(): Promise<{ checked: number; updated: nu
                 data: updateData,
               });
 
-              if (returnJourney.length > 0) {
-                const latestStep = returnJourney[returnJourney.length - 1];
+              const latestStep = latestActionableReturnStep(returnJourney);
+              if (latestStep) {
                 await prisma.returnEvent.create({
                   data: {
                     returnCaseId: rc.id,
@@ -306,8 +315,7 @@ export async function refreshSingleReturn(returnCaseId: string): Promise<boolean
           status === "out_for_delivery_to_store"
         );
       }) ?? null;
-    const latestReturnStep =
-      returnJourney.length > 0 ? returnJourney[returnJourney.length - 1] : null;
+    const latestReturnStep = latestActionableReturnStep(returnJourney);
     const returnStatus =
       normalizeFyndStatus(latestReturnStep?.status) ??
       normalizeFyndStatus(returnShipment?.shipmentStatus);

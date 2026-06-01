@@ -30,7 +30,6 @@ describe("Bug #16 — classifyFyndRefundStatus must NOT match generic shipment s
   });
 
   it.each([
-    "refund_initiated",
     "refund_pending",
     "refund_processing",
     "refund_in_progress",
@@ -38,11 +37,19 @@ describe("Bug #16 — classifyFyndRefundStatus must NOT match generic shipment s
     "under_process",
     "under process",
     "UNDER PROCESS",
-    "Refund Initiated",
   ])('still classifies "%s" as refund-in-progress (genuine refund tokens)', (status) => {
     const r = classifyFyndRefundStatus(status);
     expect(r.isInProgress).toBe(true);
   });
+
+  it.each(["refund_initiated", "Refund Initiated"])(
+    'ignores Fynd "%s" because Shopify app owns refund initiation',
+    (status) => {
+      const r = classifyFyndRefundStatus(status);
+      expect(r.isInProgress).toBe(false);
+      expect(r.isComplete).toBe(false);
+    },
+  );
 
   it.each([
     "refund_done",

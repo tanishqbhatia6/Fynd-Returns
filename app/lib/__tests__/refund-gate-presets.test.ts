@@ -20,7 +20,7 @@ describe("getStatusesForPreset", () => {
     expect(statuses).toContain("return_bag_picked");
     expect(statuses).toContain("return_delivered");
     expect(statuses).toContain("return_completed");
-    expect(statuses).toContain("refund_initiated"); // refund-flow tail is included
+    expect(statuses).not.toContain("refund_initiated"); // ignored Fynd-owned refund signal
     expect(statuses).toContain("credit_note_generated");
   });
 
@@ -40,13 +40,12 @@ describe("getStatusesForPreset", () => {
     const qc = getStatusesForPreset("after_qc")!;
     expect(qc).toContain("return_accepted");
     expect(qc).toContain("return_completed");
-    expect(qc).toContain("refund_initiated");
+    expect(qc).not.toContain("refund_initiated");
     expect(qc).not.toContain("return_bag_picked"); // tighter than pickup
   });
 
   it("all non-trivial presets include the full refund-flow set", () => {
     const refundFlow = [
-      "refund_initiated",
       "refund_on_hold",
       "refund_acknowledged",
       "refund_pending",

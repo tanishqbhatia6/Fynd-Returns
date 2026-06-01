@@ -403,7 +403,7 @@ describe("processFyndWebhook — refund_in_progress branch", () => {
     const rc = mkReturnCase();
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     prismaMock.session.findFirst.mockResolvedValueOnce(null);
-    const r = await processFyndWebhook(mkPayload({ refund_status: "refund_initiated" }));
+    const r = await processFyndWebhook(mkPayload({ refund_status: "refund_pending" }));
     expect(r).toEqual({
       ok: false,
       error: expect.stringContaining("No offline session"),
@@ -415,24 +415,22 @@ describe("processFyndWebhook — refund_in_progress branch", () => {
     );
   });
 
-  it("flips refundStatus to in_progress on refund_initiated", async () => {
-    const rc = mkReturnCase({ refundStatus: null });
-    prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
+  it("ignores refund_initiated without touching refundStatus", async () => {
     const r = await processFyndWebhook(mkPayload({ refund_status: "refund_initiated" }));
-    expect(r).toMatchObject({ ok: true, action: "refund_in_progress" });
+    expect(r).toMatchObject({ ok: true, action: "ignored" });
     const updateCalls = prismaMock.returnCase.update.mock.calls.map((c) => c[0]);
     const flipped = updateCalls.some(
       (u) => (u as { data?: { refundStatus?: string } }).data?.refundStatus === "in_progress",
     );
-    expect(flipped).toBe(true);
-    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith(
+    expect(flipped).toBe(false);
+    expect(prismaMock.returnEvent.create).not.toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ eventType: "refund_in_progress" }),
       }),
     );
   });
 
-  it("idempotent on duplicate refund_initiated when already in_progress", async () => {
+  it("idempotent on duplicate refund_pending when already in_progress", async () => {
     const rc = mkReturnCase({ refundStatus: "in_progress" });
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(rc);
     const r = await processFyndWebhook(mkPayload({ refund_status: "refund_pending" }));

@@ -196,11 +196,11 @@ describe("ReturnSettings — gap coverage", () => {
   it("unchecks a Refund Flow status (line 1368 else-branch — filter path)", async () => {
     const { container } = renderForm({
       refundGatePreset: "custom",
-      allowedFyndStatusesForRefund: ["refund_initiated"],
+      allowedFyndStatusesForRefund: ["refund_pending"],
     });
     await ready(container);
     const labels = Array.from(container.querySelectorAll("label")).filter(
-      (l) => l.textContent?.trim() === "refund_initiated",
+      (l) => l.textContent?.trim() === "refund_pending",
     );
     expect(labels.length).toBeGreaterThan(0);
     const cb = labels[0].querySelector("input[type='checkbox']") as HTMLInputElement;

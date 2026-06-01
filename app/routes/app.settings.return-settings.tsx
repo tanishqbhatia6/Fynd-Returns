@@ -2979,7 +2979,6 @@ export default function ReturnSettings() {
                       </div>
                       {(
                         [
-                          "refund_initiated",
                           "refund_on_hold",
                           "refund_acknowledged",
                           "refund_pending",

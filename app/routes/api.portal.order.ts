@@ -45,7 +45,6 @@ const FYND_DELIVERED_STATUSES = new Set([
   "return_completed",
   // Refund statuses (return/refund already happened — allow)
   "credit_note_generated",
-  "refund_initiated",
   "refund_done",
   "refund_completed",
 ]);

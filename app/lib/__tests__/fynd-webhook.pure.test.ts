@@ -10,13 +10,11 @@ import {
 
 describe("classifyFyndRefundStatus", () => {
   const inProgress = [
-    "refund_initiated",
     "refund_pending",
     "refund processing",
     "refund_in_progress",
     "under_process",
     "UNDER PROCESS",
-    "REFUND_INITIATED",
     "refund under process",
   ];
   it.each(inProgress)("flags %s as in-progress", (s) => {
@@ -32,6 +30,8 @@ describe("classifyFyndRefundStatus", () => {
 
   const neither = [
     "return_initiated", // logistics event, not refund
+    "refund_initiated", // ignored: Shopify app owns refund initiation
+    "REFUND_INITIATED",
     "return_dp_assigned",
     "bag_picked",
     "delivery_done",

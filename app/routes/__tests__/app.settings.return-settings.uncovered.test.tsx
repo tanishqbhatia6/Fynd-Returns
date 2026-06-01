@@ -481,9 +481,9 @@ describe("ReturnSettings — uncovered branch coverage", () => {
       const cb = rb[0].querySelector("input[type='checkbox']") as HTMLInputElement;
       fireEvent.click(cb);
     }
-    // Click refund_initiated
+    // Click refund_pending
     const ri = Array.from(container.querySelectorAll("label")).filter((l) =>
-      l.textContent?.match(/^refund_initiated$/),
+      l.textContent?.match(/^refund_pending$/),
     );
     if (ri.length) {
       const cb = ri[0].querySelector("input[type='checkbox']") as HTMLInputElement;

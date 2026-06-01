@@ -10,12 +10,6 @@ import type { FyndLogFn } from "./fynd.server";
 
 /** Events we subscribe to for return/refund automation */
 export const FYND_WEBHOOK_EVENTS = [
-  {
-    event_category: "application",
-    event_name: "refund",
-    event_type: "refund_initiated",
-    version: 1,
-  },
   { event_category: "application", event_name: "refund", event_type: "refund_pending", version: 1 },
   { event_category: "application", event_name: "refund", event_type: "refund_done", version: 1 },
   { event_category: "application", event_name: "refund", event_type: "refund_failed", version: 1 },

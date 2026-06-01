@@ -16,6 +16,9 @@ describe("classifyFyndRefundStatus", () => {
       "return_initiated",
       "return_dp_assigned",
       "return_bag_picked",
+      "refund_initiated",
+      "REFUND_INITIATED",
+      "Refund Initiated",
       "return_bag_in_transit",
       "return_bag_delivered",
       "return_accepted",
@@ -40,13 +43,10 @@ describe("classifyFyndRefundStatus", () => {
 
   describe("true refund-in-progress tokens are detected", () => {
     const inProgressStatuses = [
-      "refund_initiated",
       "refund_pending",
       "refund_processing",
       "refund_in_progress",
       "refund_under_process",
-      "REFUND_INITIATED",
-      "Refund Initiated",
       "Refund Pending",
       "UNDER PROCESS",
       "under_process",

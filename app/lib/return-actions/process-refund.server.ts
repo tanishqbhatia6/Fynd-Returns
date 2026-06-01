@@ -770,7 +770,6 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
               // warnings on Fynd's side.
               const PAST_CREDIT_NOTE = new Set([
                 "credit_note_generated",
-                "refund_initiated",
                 "refund_done",
                 "refund_completed",
                 "return_completed",
@@ -779,7 +778,6 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                 ![
                   "return_accepted",
                   "credit_note_generated",
-                  "refund_initiated",
                   "refund_done",
                   "refund_completed",
                   "return_completed",

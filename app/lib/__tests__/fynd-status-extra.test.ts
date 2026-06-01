@@ -41,7 +41,6 @@ const STATUS_RANK: Record<string, number> = {
   credit_note_generated: 30,
   credit_note: 30,
   refund_pending: 31,
-  refund_initiated: 32,
   refund_processing: 32,
   refund_in_progress: 32,
   refund_under_process: 32,
@@ -87,7 +86,6 @@ const ORDERED_CHAIN: Array<[string, number]> = [
   ["return_accepted", 27],
   ["credit_note_generated", 30],
   ["refund_pending", 31],
-  ["refund_initiated", 32],
   ["rto_initiated", 35],
   ["rto_dp_assigned", 36],
   ["rto_bag_in_transit", 37],
@@ -135,11 +133,9 @@ const EQUAL_RANK_PAIRS: Array<[string, string]> = [
   ["return_delivered", "return_bag_delivered"],
   ["credit_note_generated", "credit_note"],
   ["credit_note", "credit_note_generated"],
-  ["refund_initiated", "refund_processing"],
   ["refund_processing", "refund_in_progress"],
   ["refund_in_progress", "refund_under_process"],
   ["in_progress", "processing"],
-  ["processing", "refund_initiated"],
   ["refund_done", "refund_completed"],
   ["refund_completed", "refunded"],
   ["refunded", "completed"],
@@ -283,7 +279,7 @@ describe("classifyFyndRefundStatus — extra parameterised coverage", () => {
     {
       label: "refund_initiated lowercase",
       input: "refund_initiated",
-      isInProgress: true,
+      isInProgress: false,
       isComplete: false,
     },
     {
@@ -314,7 +310,7 @@ describe("classifyFyndRefundStatus — extra parameterised coverage", () => {
     {
       label: "Refund Initiated mixed case w/ space",
       input: "Refund Initiated",
-      isInProgress: true,
+      isInProgress: false,
       isComplete: false,
     },
     {

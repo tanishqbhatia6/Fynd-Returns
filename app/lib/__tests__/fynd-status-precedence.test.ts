@@ -17,8 +17,12 @@ describe("shouldAdvanceFyndStatus", () => {
       expect(shouldAdvanceFyndStatus("return_initiated", "return_dp_assigned")).toBe(true);
       expect(shouldAdvanceFyndStatus("return_dp_assigned", "return_bag_picked")).toBe(true);
       expect(shouldAdvanceFyndStatus("return_bag_in_transit", "return_bag_delivered")).toBe(true);
-      expect(shouldAdvanceFyndStatus("return_accepted", "refund_initiated")).toBe(true);
       expect(shouldAdvanceFyndStatus("refund_initiated", "refund_done")).toBe(true);
+    });
+
+    it("ignores Fynd refund_initiated as an incoming status", () => {
+      expect(shouldAdvanceFyndStatus("return_bag_picked", "refund_initiated")).toBe(false);
+      expect(shouldAdvanceFyndStatus(null, "Refund Initiated")).toBe(false);
     });
 
     it("allows transition from null/empty (first webhook)", () => {

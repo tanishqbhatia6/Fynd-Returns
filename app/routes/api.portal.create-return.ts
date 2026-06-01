@@ -1390,7 +1390,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       "return_accepted",
       "return_completed",
       "credit_note_generated",
-      "refund_initiated",
       "refund_done",
       "refund_completed",
     ]);

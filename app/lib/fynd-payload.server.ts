@@ -1327,6 +1327,10 @@ export type FyndJourneyFilter = {
   shipmentIds?: Array<string | null | undefined>;
 };
 
+function isIgnoredFyndJourneyStatus(status: string | null | undefined): boolean {
+  return (status ?? "").toLowerCase().replace(/\s+/g, "_").trim() === "refund_initiated";
+}
+
 export function hasFyndJourneyFilter(filter: FyndJourneyFilter | null | undefined): boolean {
   return Boolean(
     filter &&
@@ -1445,6 +1449,7 @@ export function extractFyndJourney(
         const mapper = (bs.bag_state_mapper ?? bs.state_mapper ?? {}) as Record<string, unknown>;
         const jt = String(mapper.journey_type ?? mapper.journeyType ?? "").toLowerCase();
         const status = String(bs.status ?? bs.shipment_status ?? "").trim();
+        if (isIgnoredFyndJourneyStatus(status)) continue;
         // Skip when journey_type is explicitly set to a different type.
         if (jt && jt !== journeyType) continue;
         // When journey_type is missing, fall back to the status token to

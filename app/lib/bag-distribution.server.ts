@@ -221,7 +221,6 @@ const RETURN_ALLOWED_FYND_STATUSES = new Set([
   "return_accepted",
   "return_completed",
   "credit_note_generated",
-  "refund_initiated",
   "refund_done",
   "refund_completed",
 ]);

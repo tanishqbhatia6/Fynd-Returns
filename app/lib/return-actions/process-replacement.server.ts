@@ -27,7 +27,6 @@ const FYND_REPLACEMENT_ALLOWED_STATUSES = new Set([
   "rto_bag_accepted",
   "deadstock",
   "refund_approved",
-  "refund_initiated",
   "refund_completed",
   "return_completed",
   "deadstock_defective",

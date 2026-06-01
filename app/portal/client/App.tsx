@@ -102,62 +102,60 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
 
   return (
     <div className="rpm-shell">
+      <FloatingLayer />
       <Hero bootstrap={bootstrap} />
+      <PortalRail bootstrap={bootstrap} />
 
-      <div className="rpm-layout">
-        <PortalRail bootstrap={bootstrap} />
-
-        <main className="rpm-workbench" aria-label="Return portal">
-          <TabGroup
-            selectedIndex={activeIndex}
-            onChange={(index) => {
-              const next = tabs[index]?.id;
-              if (next) setActiveTab(next);
-            }}
-          >
-            <TabList className="rpm-tabs" aria-label="Portal navigation">
-              {tabs.map((tab) => (
-                <Tab key={tab.id} className={({ selected }) => `rpm-tab${selected ? " is-active" : ""}`}>
-                  {tab.icon}
-                  {tab.label}
-                </Tab>
-              ))}
-            </TabList>
-            <TabPanels className="rpm-workbench-body">
-              {tabs.map((tab) => (
-                <TabPanel key={tab.id}>
-                  {tab.id === "track_order" && (
-                    <LookupPanel
-                      api={api}
-                      bootstrap={bootstrap}
-                      mode="order"
-                      notify={notify}
-                      switchToReturn={() => setActiveTab("track_return")}
-                    />
-                  )}
-                  {tab.id === "track_return" && (
-                    <LookupPanel
-                      api={api}
-                      bootstrap={bootstrap}
-                      mode="return"
-                      notify={notify}
-                      switchToReturn={() => setActiveTab("track_return")}
-                    />
-                  )}
-                  {tab.id === "create" && (
-                    <CreateReturnPanel
-                      api={api}
-                      bootstrap={bootstrap}
-                      notify={notify}
-                      switchToTrackReturn={() => setActiveTab("track_return")}
-                    />
-                  )}
-                </TabPanel>
-              ))}
-            </TabPanels>
-          </TabGroup>
-        </main>
-      </div>
+      <main className="rpm-workbench" aria-label="Return portal">
+        <TabGroup
+          selectedIndex={activeIndex}
+          onChange={(index) => {
+            const next = tabs[index]?.id;
+            if (next) setActiveTab(next);
+          }}
+        >
+          <TabList className="rpm-tabs" aria-label="Portal navigation">
+            {tabs.map((tab) => (
+              <Tab key={tab.id} className={({ selected }) => `rpm-tab${selected ? " is-active" : ""}`}>
+                {tab.icon}
+                {tab.label}
+              </Tab>
+            ))}
+          </TabList>
+          <TabPanels className="rpm-workbench-body">
+            {tabs.map((tab) => (
+              <TabPanel key={tab.id}>
+                {tab.id === "track_order" && (
+                  <LookupPanel
+                    api={api}
+                    bootstrap={bootstrap}
+                    mode="order"
+                    notify={notify}
+                    switchToReturn={() => setActiveTab("track_return")}
+                  />
+                )}
+                {tab.id === "track_return" && (
+                  <LookupPanel
+                    api={api}
+                    bootstrap={bootstrap}
+                    mode="return"
+                    notify={notify}
+                    switchToReturn={() => setActiveTab("track_return")}
+                  />
+                )}
+                {tab.id === "create" && (
+                  <CreateReturnPanel
+                    api={api}
+                    bootstrap={bootstrap}
+                    notify={notify}
+                    switchToTrackReturn={() => setActiveTab("track_return")}
+                  />
+                )}
+              </TabPanel>
+            ))}
+          </TabPanels>
+        </TabGroup>
+      </main>
 
       {toast && (
         <div className="rpm-toast" role="status">
@@ -165,6 +163,31 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
           <span>{toast.message}</span>
         </div>
       )}
+    </div>
+  );
+}
+
+function FloatingLayer() {
+  return (
+    <div className="rpm-floating-layer" aria-hidden="true">
+      <span className="rpm-float-mark rpm-float-one">
+        <Truck size={18} />
+      </span>
+      <span className="rpm-float-mark rpm-float-two">
+        <Box size={18} />
+      </span>
+      <span className="rpm-float-mark rpm-float-three">
+        <BadgeCheck size={18} />
+      </span>
+      <span className="rpm-float-mark rpm-float-four">
+        <Clipboard size={18} />
+      </span>
+      <span className="rpm-float-mark rpm-float-five">
+        <RotateCcw size={18} />
+      </span>
+      <span className="rpm-float-mark rpm-float-six">
+        <Tag size={18} />
+      </span>
     </div>
   );
 }

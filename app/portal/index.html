@@ -2610,10 +2610,76 @@
     }
 
     .rpm-shell {
-      width: min(1152px, calc(100% - 48px));
-      padding: 28px 0 54px;
-      gap: 22px;
+      width: min(1120px, calc(100% - 48px));
+      padding: 24px 0 48px;
+      gap: 16px;
       min-width: 0;
+    }
+
+    .rpm-shell > :not(.rpm-floating-layer) {
+      position: relative;
+      z-index: 1;
+    }
+
+    .rpm-floating-layer {
+      display: block;
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .rpm-float-mark {
+      position: absolute;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: 1px solid rgba(217, 130, 43, 0.2);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.58);
+      color: rgba(217, 130, 43, 0.72);
+      box-shadow: 0 18px 34px -28px rgba(27, 36, 48, 0.5);
+      opacity: 0.62;
+      backdrop-filter: blur(10px);
+      animation: rpm-float 8s ease-in-out infinite;
+    }
+
+    .rpm-float-one {
+      top: 17%;
+      left: max(18px, 5vw);
+    }
+
+    .rpm-float-two {
+      top: 12%;
+      right: max(18px, 7vw);
+      animation-delay: -2s;
+    }
+
+    .rpm-float-three {
+      top: 44%;
+      left: max(14px, 3vw);
+      animation-delay: -4s;
+    }
+
+    .rpm-float-four {
+      top: 48%;
+      right: max(14px, 4vw);
+      animation-delay: -1s;
+    }
+
+    .rpm-float-five {
+      top: 72%;
+      left: max(18px, 11vw);
+      animation-delay: -3s;
+    }
+
+    .rpm-float-six {
+      top: 76%;
+      right: max(18px, 12vw);
+      animation-delay: -5s;
     }
 
     .rpm-boot-fallback,
@@ -2659,6 +2725,7 @@
       grid-template-columns: 1fr;
       gap: 16px;
       min-width: 0;
+      order: 0;
     }
 
     .rpm-brand-row {
@@ -2724,8 +2791,8 @@
     }
 
     .rpm-hero-main {
-      min-height: 318px;
-      padding: clamp(34px, 6vw, 72px) clamp(22px, 5vw, 60px);
+      min-height: 214px;
+      padding: clamp(22px, 3.4vw, 36px) clamp(20px, 4vw, 44px);
       grid-template-columns: 1fr;
       min-width: 0;
       border: 1px solid rgba(27, 36, 48, 0.1);
@@ -2750,9 +2817,9 @@
     }
 
     .rpm-hero h1 {
-      max-width: min(760px, 100%);
+      max-width: min(620px, 100%);
       margin: 0 auto;
-      font-size: clamp(3rem, 7vw, 5.75rem);
+      font-size: clamp(2.15rem, 4.8vw, 3.7rem);
       line-height: 1.02;
       font-weight: 760;
       color: var(--rpm-ref-foreground);
@@ -2766,7 +2833,7 @@
 
     .rpm-hero-copy {
       max-width: 600px;
-      margin: 18px auto 0;
+      margin: 12px auto 0;
       color: var(--rpm-ref-muted);
       font-size: 1rem;
     }
@@ -2793,17 +2860,17 @@
     }
 
     .rpm-journey-strip {
-      max-width: 700px;
+      max-width: 620px;
       width: 100%;
-      margin: 18px auto 0;
-      gap: 12px;
+      margin: 14px auto 0;
+      gap: 10px;
     }
 
     .rpm-journey-strip span,
     .rpm-journey-strip span:nth-child(2),
     .rpm-journey-strip span:nth-child(3),
     .rpm-journey-strip span:nth-child(4) {
-      min-height: 46px;
+      min-height: 42px;
       border-color: rgba(27, 36, 48, 0.1);
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.78);
@@ -2820,13 +2887,18 @@
     }
 
     .rpm-layout {
-      grid-template-columns: minmax(260px, 0.34fr) minmax(0, 1fr);
-      gap: 18px;
+      display: block;
       min-width: 0;
     }
 
     .rpm-rail {
-      gap: 14px;
+      display: grid;
+      grid-template-columns: minmax(260px, 0.82fr) minmax(0, 1.18fr);
+      align-items: stretch;
+      gap: 12px;
+      position: relative;
+      top: auto;
+      order: 1;
     }
 
     .rpm-rail-card,
@@ -2851,7 +2923,10 @@
     }
 
     .rpm-rail-card {
-      padding: 20px;
+      min-height: 92px;
+      padding: 16px;
+      display: grid;
+      align-content: center;
     }
 
     .rpm-rail-heading {
@@ -2865,7 +2940,9 @@
     }
 
     .rpm-rail-card p {
+      margin: 8px 0 0;
       color: var(--rpm-ref-foreground);
+      font-size: 0.9rem;
     }
 
     .rpm-rail-card .rpm-muted,
@@ -2878,8 +2955,15 @@
       color: var(--rpm-ref-muted);
     }
 
+    .rpm-rail-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+    }
+
     .rpm-rail-metric {
-      min-height: 116px;
+      min-height: 92px;
+      padding: 14px;
       border-radius: 8px;
       background: rgba(255, 255, 255, 0.78);
     }
@@ -2899,6 +2983,15 @@
       border-radius: 8px;
       min-width: 0;
       overflow: hidden;
+      order: 2;
+    }
+
+    .rpm-two-col {
+      grid-template-columns: 1fr;
+    }
+
+    .rpm-summary-panel {
+      position: static;
     }
 
     .rpm-tabs {
@@ -3117,8 +3210,13 @@
     }
 
     @media (max-width: 900px) {
-      .rpm-layout {
+      .rpm-rail {
         grid-template-columns: 1fr;
+        order: 1;
+      }
+
+      .rpm-rail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
       }
     }
 
@@ -3164,7 +3262,7 @@
 
       .rpm-hero-main {
         min-height: auto;
-        padding: 30px 20px 22px;
+        padding: 26px 20px 22px;
       }
 
       .rpm-hero-copy-block {
@@ -3175,7 +3273,7 @@
 
       .rpm-hero h1 {
         max-width: 310px;
-        font-size: clamp(2rem, 9vw, 2.35rem);
+        font-size: clamp(1.9rem, 8vw, 2.25rem);
         line-height: 1.08;
       }
 
@@ -3204,12 +3302,25 @@
         gap: 8px;
       }
 
+      .rpm-rail-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .rpm-rail-metric {
+        min-height: 88px;
+      }
+
       .rpm-workbench,
       .rpm-rail-card,
       .rpm-rail-metric,
       .rpm-result-card,
       .rpm-panel {
         border-radius: 8px;
+      }
+
+      .rpm-workbench {
+        order: 2;
       }
 
       .rpm-tabs {

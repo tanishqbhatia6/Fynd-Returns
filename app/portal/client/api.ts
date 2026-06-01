@@ -26,7 +26,6 @@ export class PortalApi {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      timeoutMs: 20000,
     });
   }
 
@@ -50,7 +49,7 @@ export class PortalApi {
 
   async order(shop: string, orderNumber: string) {
     const qs = new URLSearchParams({ shop, orderNumber });
-    return this.fetchJson<OrderResponse>(`/order?${qs.toString()}`, { timeoutMs: 22000 });
+    return this.fetchJson<OrderResponse>(`/order?${qs.toString()}`);
   }
 
   async createReturn(body: Record<string, unknown>) {
@@ -58,7 +57,6 @@ export class PortalApi {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-      timeoutMs: 30000,
     });
   }
 
@@ -95,13 +93,15 @@ export class PortalApi {
   }
 
   private async fetchJson<T>(path: string, options: FetchOptions = {}): Promise<T> {
-    const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs || 10000);
+    const controller = options.timeoutMs ? new AbortController() : null;
+    const timeout = options.timeoutMs
+      ? window.setTimeout(() => controller?.abort(), options.timeoutMs)
+      : undefined;
     const { timeoutMs: _timeoutMs, ...fetchOptions } = options;
     try {
       const response = await fetch(`${this.baseUrl}${path}`, {
         ...fetchOptions,
-        signal: controller.signal,
+        signal: controller?.signal,
       });
       const data = (await response.json().catch(() => ({}))) as T & { error?: string };
       this.captureSecurityTokens(data as { portalCsrfToken?: string; portalToken?: string });
@@ -115,7 +115,7 @@ export class PortalApi {
       }
       throw error;
     } finally {
-      window.clearTimeout(timeout);
+      if (timeout) window.clearTimeout(timeout);
     }
   }
 

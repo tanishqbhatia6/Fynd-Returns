@@ -1,3 +1,15 @@
+import {
+  Checkbox,
+  Field,
+  Label,
+  Radio,
+  RadioGroup,
+  Tab,
+  TabGroup,
+  TabList,
+  TabPanel,
+  TabPanels,
+} from "@headlessui/react";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -7,6 +19,7 @@ import {
   Check,
   Clipboard,
   Copy,
+  FileImage,
   Globe2,
   ImagePlus,
   Loader2,
@@ -73,6 +86,10 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
   const tabs = useMemo(() => availableTabs(bootstrap), [bootstrap]);
   const [activeTab, setActiveTab] = useState<TabId>(initialTab(bootstrap, tabs));
   const [toast, setToast] = useState<Toast | null>(null);
+  const activeIndex = Math.max(
+    0,
+    tabs.findIndex((tab) => tab.id === activeTab),
+  );
 
   useEffect(() => {
     document.documentElement.lang = bootstrap.locale;
@@ -89,49 +106,54 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
       <Hero bootstrap={bootstrap} />
 
       <main className="rpm-workbench" aria-label="Return portal">
-        <nav className="rpm-tabs" role="tablist" aria-label="Portal navigation">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              aria-selected={activeTab === tab.id}
-              className={`rpm-tab${activeTab === tab.id ? " is-active" : ""}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </nav>
-        <div className="rpm-workbench-body">
-          {activeTab === "track_order" && (
-            <LookupPanel
-              api={api}
-              bootstrap={bootstrap}
-              mode="order"
-              notify={notify}
-              switchToReturn={() => setActiveTab("track_return")}
-            />
-          )}
-          {activeTab === "track_return" && (
-            <LookupPanel
-              api={api}
-              bootstrap={bootstrap}
-              mode="return"
-              notify={notify}
-              switchToReturn={() => setActiveTab("track_return")}
-            />
-          )}
-          {activeTab === "create" && (
-            <CreateReturnPanel
-              api={api}
-              bootstrap={bootstrap}
-              notify={notify}
-              switchToTrackReturn={() => setActiveTab("track_return")}
-            />
-          )}
-        </div>
+        <TabGroup
+          selectedIndex={activeIndex}
+          onChange={(index) => {
+            const next = tabs[index]?.id;
+            if (next) setActiveTab(next);
+          }}
+        >
+          <TabList className="rpm-tabs" aria-label="Portal navigation">
+            {tabs.map((tab) => (
+              <Tab key={tab.id} className={({ selected }) => `rpm-tab${selected ? " is-active" : ""}`}>
+                {tab.icon}
+                {tab.label}
+              </Tab>
+            ))}
+          </TabList>
+          <TabPanels className="rpm-workbench-body">
+            {tabs.map((tab) => (
+              <TabPanel key={tab.id}>
+                {tab.id === "track_order" && (
+                  <LookupPanel
+                    api={api}
+                    bootstrap={bootstrap}
+                    mode="order"
+                    notify={notify}
+                    switchToReturn={() => setActiveTab("track_return")}
+                  />
+                )}
+                {tab.id === "track_return" && (
+                  <LookupPanel
+                    api={api}
+                    bootstrap={bootstrap}
+                    mode="return"
+                    notify={notify}
+                    switchToReturn={() => setActiveTab("track_return")}
+                  />
+                )}
+                {tab.id === "create" && (
+                  <CreateReturnPanel
+                    api={api}
+                    bootstrap={bootstrap}
+                    notify={notify}
+                    switchToTrackReturn={() => setActiveTab("track_return")}
+                  />
+                )}
+              </TabPanel>
+            ))}
+          </TabPanels>
+        </TabGroup>
       </main>
 
       {toast && (
@@ -173,10 +195,6 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
     <section className="rpm-hero">
       <div className="rpm-hero-main">
         <div>
-          <span className="rpm-eyebrow">
-            <ShieldCheck size={15} />
-            Secure self-service portal
-          </span>
           <h1>{t(bootstrap, "portal.heading")}</h1>
           <p className="rpm-hero-copy">{t(bootstrap, "portal.subheading")}</p>
         </div>
@@ -188,45 +206,6 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
           </div>
         </div>
       </div>
-
-      <aside className="rpm-hero-side" aria-label="Portal summary">
-        <div className="rpm-side-card">
-          <span className="rpm-icon-box">
-            <Truck size={18} />
-          </span>
-          <div className="rpm-side-row">
-            <div>
-              <div className="rpm-mini-label">Order status</div>
-              <div className="rpm-mini-value">Track shipments</div>
-            </div>
-            <span className="rpm-badge info">Live</span>
-          </div>
-          <div className="rpm-progress-line" aria-hidden="true">
-            <span className="rpm-progress-step is-active" />
-            <span className="rpm-progress-step is-active" />
-            <span className="rpm-progress-step" />
-            <span className="rpm-progress-step" />
-          </div>
-        </div>
-        <div className="rpm-side-card">
-          <span className="rpm-icon-box">
-            <PackageCheck size={18} />
-          </span>
-          <div className="rpm-side-row">
-            <div>
-              <div className="rpm-mini-label">Return flow</div>
-              <div className="rpm-mini-value">Items, reason, review</div>
-            </div>
-            <span className="rpm-badge ok">Ready</span>
-          </div>
-          <div className="rpm-progress-line" aria-hidden="true">
-            <span className="rpm-progress-step is-active" />
-            <span className="rpm-progress-step" />
-            <span className="rpm-progress-step" />
-            <span className="rpm-progress-step" />
-          </div>
-        </div>
-      </aside>
     </section>
   );
 }
@@ -248,6 +227,7 @@ function LookupPanel({
   const [lookupType, setLookupType] = useState<LookupType>(defaultType);
   const [lookupValue, setLookupValue] = useState("");
   const [loading, setLoading] = useState(false);
+  const [slowLoading, setSlowLoading] = useState(false);
   const [error, setError] = useState("");
   const [otp, setOtp] = useState<OtpState | null>(null);
   const [otpCode, setOtpCode] = useState("");
@@ -262,6 +242,15 @@ function LookupPanel({
   }, [defaultType]);
 
   const options = mode === "order" ? orderLookupOptions(bootstrap) : returnLookupOptions(bootstrap);
+
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoading(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setSlowLoading(true), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
 
   async function runLookup(portalToken?: string, sessionId?: string) {
     const value = lookupValue.trim();
@@ -355,7 +344,7 @@ function LookupPanel({
             />
           </label>
           <button className="rpm-button" type="button" disabled={loading} onClick={verifyOtp}>
-            {loading ? <Loader2 size={16} /> : <BadgeCheck size={16} />}
+            {loading ? <Loader2 className="rpm-spin" size={16} /> : <BadgeCheck size={16} />}
             Verify
           </button>
           <button className="rpm-button secondary" type="button" onClick={resendOtp}>
@@ -414,13 +403,13 @@ function LookupPanel({
           />
         </label>
         <button className="rpm-button" type="button" disabled={loading} onClick={() => void runLookup()}>
-          {loading ? <Loader2 size={16} /> : <Search size={16} />}
+          {loading ? <Loader2 className="rpm-spin" size={16} /> : <Search size={16} />}
           {loading ? t(bootstrap, "portal.lookup.searching") : t(bootstrap, "portal.lookup.submit")}
         </button>
       </div>
 
       {error && <ErrorBox message={error} />}
-      {loading && <Skeleton />}
+      {loading && <Skeleton message={slowLoading ? "Still checking Shopify and return records. Keep this page open." : undefined} />}
       {result && !loading && (
         <LookupResults
           api={api}
@@ -636,7 +625,7 @@ function ReturnCard({
       {canCancel && (
         <div className="rpm-footer-actions">
           <button type="button" className="rpm-button danger" disabled={busy} onClick={() => void cancel()}>
-            {busy ? <Loader2 size={16} /> : <AlertCircle size={16} />}
+            {busy ? <Loader2 className="rpm-spin" size={16} /> : <AlertCircle size={16} />}
             Cancel return
           </button>
         </div>
@@ -714,6 +703,7 @@ function CreateReturnPanel({
   const [offerAccepted, setOfferAccepted] = useState<CreateReturnResponse | null>(null);
   const [success, setSuccess] = useState<CreateReturnResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [slowLoading, setSlowLoading] = useState(false);
   const [error, setError] = useState("");
 
   const selectedRows = rows.filter((row) => selected[row.rowKey] && !row.disabled);
@@ -735,6 +725,15 @@ function CreateReturnPanel({
     if (resolutionType !== "exchange" || selectedRows.length === 0) return;
     void loadExchangeProducts();
   }, [resolutionType, selectedRows.map((row) => row.rowKey).join("|")]);
+
+  useEffect(() => {
+    if (!loading) {
+      setSlowLoading(false);
+      return;
+    }
+    const timeout = window.setTimeout(() => setSlowLoading(true), 7000);
+    return () => window.clearTimeout(timeout);
+  }, [loading]);
 
   async function findOrder() {
     const value = orderNumber.trim().replace(/^#/, "");
@@ -776,6 +775,10 @@ function CreateReturnPanel({
       setError("Describe the items you want to return.");
       return;
     }
+    if (bootstrap.config.allowMediaUploads !== false && mediaFiles.length === 0) {
+      setError("Upload at least one photo before submitting the return.");
+      return;
+    }
     await submitPayload({
       manual: true,
       shop: bootstrap.shop,
@@ -796,6 +799,10 @@ function CreateReturnPanel({
     }
     if (resolutionType === "exchange" && !exchangePreference.trim() && Object.keys(exchangeChoices).length === 0) {
       setError("Choose an exchange variant or describe what you want.");
+      return;
+    }
+    if (bootstrap.config.allowMediaUploads !== false && mediaFiles.length === 0) {
+      setError("Upload at least one photo before submitting the return.");
       return;
     }
     const order = orderData.order;
@@ -958,14 +965,14 @@ function CreateReturnPanel({
         <Stepper active={2} />
         <SectionHead icon={<Clipboard size={20} />} title="Manual return request" copy="Use this when the order lookup is unavailable." />
         <div className="rpm-stack">
-          <label className="rpm-field">
-            <span className="rpm-label">Order number</span>
+          <Field className="rpm-field">
+            <Label className="rpm-label">Order number</Label>
             <input className="rpm-input" value={orderNumber} onChange={(event) => setOrderNumber(event.target.value)} />
-          </label>
-          <label className="rpm-field">
-            <span className="rpm-label">Email for updates</span>
+          </Field>
+          <Field className="rpm-field">
+            <Label className="rpm-label">Email for updates</Label>
             <input className="rpm-input" type="email" value={manualEmail} onChange={(event) => setManualEmail(event.target.value)} />
-          </label>
+          </Field>
           <label className="rpm-field">
             <span className="rpm-label">Reason</span>
             <select className="rpm-select" value={reason} onChange={(event) => setReason(event.target.value)}>
@@ -984,12 +991,12 @@ function CreateReturnPanel({
             <span className="rpm-label">Notes</span>
             <textarea className="rpm-textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
           </label>
-          <MediaUpload bootstrap={bootstrap} files={mediaFiles} error={mediaError} onFiles={updateFiles} />
+          <MediaUpload bootstrap={bootstrap} files={mediaFiles} error={mediaError} required onFiles={updateFiles} />
         </div>
         {error && <ErrorBox message={error} />}
         <div className="rpm-footer-actions">
           <button className="rpm-button" type="button" disabled={loading} onClick={() => void submitManual()}>
-            {loading ? <Loader2 size={16} /> : <RotateCcw size={16} />}
+            {loading ? <Loader2 className="rpm-spin" size={16} /> : <RotateCcw size={16} />}
             Submit request
           </button>
           <button className="rpm-button secondary" type="button" onClick={() => setStep("start")}>
@@ -1081,7 +1088,7 @@ function CreateReturnPanel({
               />
             )}
 
-            <MediaUpload bootstrap={bootstrap} files={mediaFiles} error={mediaError} onFiles={updateFiles} />
+            <MediaUpload bootstrap={bootstrap} files={mediaFiles} error={mediaError} required onFiles={updateFiles} />
           </div>
 
           <aside className="rpm-panel" style={{ padding: 16 }}>
@@ -1125,7 +1132,7 @@ function CreateReturnPanel({
           )}
           {!offerAccepted && (
             <button className="rpm-button" type="button" disabled={loading} onClick={() => void submitReturn(false)}>
-              {loading ? <Loader2 size={16} /> : <RotateCcw size={16} />}
+              {loading ? <Loader2 className="rpm-spin" size={16} /> : <RotateCcw size={16} />}
               {t(bootstrap, "portal.create.submit")}
             </button>
           )}
@@ -1143,8 +1150,8 @@ function CreateReturnPanel({
       <Stepper active={1} />
       <SectionHead icon={<RotateCcw size={20} />} title={t(bootstrap, "portal.create.startTitle")} copy={t(bootstrap, "portal.create.startDesc")} />
       <div className="rpm-form-grid">
-        <label className="rpm-field">
-          <span className="rpm-label">Order number</span>
+        <Field className="rpm-field">
+          <Label className="rpm-label">Order number</Label>
           <input
             className="rpm-input"
             value={orderNumber}
@@ -1154,9 +1161,9 @@ function CreateReturnPanel({
             }}
             placeholder="e.g. #1001"
           />
-        </label>
+        </Field>
         <button className="rpm-button" type="button" disabled={loading} onClick={() => void findOrder()}>
-          {loading ? <Loader2 size={16} /> : <Search size={16} />}
+          {loading ? <Loader2 className="rpm-spin" size={16} /> : <Search size={16} />}
           {t(bootstrap, "portal.create.findOrder")}
         </button>
         <button className="rpm-button secondary" type="button" onClick={() => setStep("manual")}>
@@ -1165,7 +1172,7 @@ function CreateReturnPanel({
         </button>
       </div>
       {error && <ErrorBox message={error} />}
-      {loading && <Skeleton />}
+      {loading && <Skeleton message={slowLoading ? "Still checking the order. Shopify can be slow here, but the request is still running." : undefined} />}
     </section>
   );
 }
@@ -1189,25 +1196,31 @@ function ResolutionPicker({
   setPreference: (next: string) => void;
   setChoices: (next: Record<string, ExchangeChoice>) => void;
 }) {
+  const options = [
+    { value: "refund" as const, label: "Refund", copy: "Send the item back and receive a refund." },
+    { value: "exchange" as const, label: "Exchange", copy: "Pick another variant or leave exchange notes." },
+  ];
+
   return (
     <div className="rpm-panel" style={{ padding: 14 }}>
-      <div className="rpm-label">Resolution</div>
-      <div className="rpm-footer-actions" style={{ marginTop: 8 }}>
-        <button
-          type="button"
-          className={`rpm-button ${resolutionType === "refund" ? "" : "secondary"}`}
-          onClick={() => setResolutionType("refund")}
-        >
-          Refund
-        </button>
-        <button
-          type="button"
-          className={`rpm-button ${resolutionType === "exchange" ? "" : "secondary"}`}
-          onClick={() => setResolutionType("exchange")}
-        >
-          Exchange
-        </button>
-      </div>
+      <RadioGroup value={resolutionType} onChange={setResolutionType} aria-label="Resolution">
+        <Label className="rpm-label">Resolution</Label>
+        <div className="rpm-choice-grid">
+          {options.map((option) => (
+            <Radio key={option.value} value={option.value} className="rpm-choice-card">
+              {({ checked }) => (
+                <>
+                  <span className="rpm-choice-dot">{checked && <Check size={13} />}</span>
+                  <span>
+                    <strong>{option.label}</strong>
+                    <small>{option.copy}</small>
+                  </span>
+                </>
+              )}
+            </Radio>
+          ))}
+        </div>
+      </RadioGroup>
       {resolutionType === "exchange" && (
         <div className="rpm-stack" style={{ marginTop: 12 }}>
           {selectedRows.map((row) => {
@@ -1279,27 +1292,32 @@ function SelectableItem({
   onQty: (qty: number) => void;
 }) {
   const max = Math.max(1, row.availableQty || 1);
+  const disabledLabel = row.disabledReason || "Return already in progress for this item.";
   return (
-    <div className={`rpm-item-row${row.disabled ? " is-disabled" : ""}`}>
-      <input
-        type="checkbox"
+    <div className={`rpm-item-row rpm-selectable-row${row.disabled ? " is-disabled" : ""}`}>
+      <Checkbox
         checked={checked}
         disabled={row.disabled}
-        onChange={(event) => onChecked(event.target.checked)}
+        onChange={onChecked}
+        className="rpm-select-control"
         aria-label={`Select ${row.title}`}
-      />
-      {row.imageUrl ? (
-        <img className="rpm-thumb" src={row.imageUrl} alt="" />
-      ) : (
-        <span className="rpm-thumb" />
-      )}
+      >
+        <span className="rpm-select-box">{checked && <Check size={13} />}</span>
+        <span>{checked ? "Selected" : "Select"}</span>
+      </Checkbox>
+      <ProductThumb src={row.imageUrl} title={row.title} />
       <div>
         <p className="rpm-item-title">{row.title}</p>
         <p className="rpm-item-meta">
           {row.variantTitle || row.sku || "Standard"} / Available {row.availableQty}
           {row.price ? ` / ${formatMoney(row.price, currency, bootstrap.locale)}` : ""}
         </p>
-        {row.disabledReason && <p className="rpm-item-meta">{row.disabledReason}</p>}
+        {row.disabled && (
+          <p className="rpm-item-status">
+            <AlertCircle size={14} />
+            {disabledLabel}
+          </p>
+        )}
       </div>
       <select
         className="rpm-select"
@@ -1322,11 +1340,13 @@ function MediaUpload({
   bootstrap,
   files,
   error,
+  required,
   onFiles,
 }: {
   bootstrap: PortalBootstrap;
   files: File[];
   error: string;
+  required?: boolean;
   onFiles: (files: FileList | null) => void;
 }) {
   if (bootstrap.config.allowMediaUploads === false) return null;
@@ -1341,9 +1361,12 @@ function MediaUpload({
         />
         <span>
           <ImagePlus size={24} />
-          <strong>Upload photos or video</strong>
+          <strong>
+            Upload return photos
+            {required && <em>Required</em>}
+          </strong>
           <br />
-          Images up to 5MB, video up to 50MB
+          Add at least one clear product photo. Images up to 5MB, video up to 50MB.
         </span>
       </label>
       {files.length > 0 && (
@@ -1403,7 +1426,7 @@ function ItemList({
     <div className="rpm-items">
       {items.slice(0, 5).map((item) => (
         <div className="rpm-item-row" key={item.id}>
-          {item.imageUrl ? <img className="rpm-thumb" src={item.imageUrl} alt="" /> : <span className="rpm-thumb" />}
+          <ProductThumb src={item.imageUrl} title={item.title || "Item"} />
           <div>
             <p className="rpm-item-title">{item.title || "Item"}</p>
             <p className="rpm-item-meta">
@@ -1427,7 +1450,19 @@ function ErrorBox({ message }: { message: string }) {
   );
 }
 
-function Skeleton() {
+function ProductThumb({ src, title }: { src?: string | null; title: string }) {
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) {
+    return <img className="rpm-thumb" src={src} alt={title} onError={() => setFailed(true)} loading="lazy" />;
+  }
+  return (
+    <span className="rpm-thumb rpm-thumb-placeholder" aria-label={`${title} image unavailable`} role="img">
+      <FileImage size={18} />
+    </span>
+  );
+}
+
+function Skeleton({ message }: { message?: string }) {
   return (
     <div className="rpm-result-card" style={{ marginTop: 18 }}>
       <div className="rpm-skeleton">
@@ -1435,6 +1470,12 @@ function Skeleton() {
         <span className="rpm-skeleton-line" style={{ width: "100%" }} />
         <span className="rpm-skeleton-line" style={{ width: "82%" }} />
       </div>
+      {message && (
+        <div className="rpm-loading-note">
+          <Loader2 className="rpm-spin" size={15} />
+          {message}
+        </div>
+      )}
     </div>
   );
 }

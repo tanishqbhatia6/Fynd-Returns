@@ -183,6 +183,11 @@ describe("ReturnPortalApp", () => {
 
     expect(await screen.findByText("Select items")).toBeTruthy();
     fireEvent.click(screen.getByRole("checkbox", { name: /select shirt/i }));
+    fireEvent.change(screen.getByLabelText(/upload return photos/i), {
+      target: {
+        files: [new File(["image"], "shirt.png", { type: "image/png" })],
+      },
+    });
     fireEvent.click(screen.getByRole("button", { name: /^submit return$/i }));
 
     expect(await screen.findByText("RPM-NEW")).toBeTruthy();

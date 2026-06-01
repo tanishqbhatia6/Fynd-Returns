@@ -196,12 +196,14 @@ export function normalizeItems(data: OrderResponse): ItemSelection[] {
       availableQty <= 0 ||
       eligible?.eligible === false ||
       availability[row.lineItemId]?.alreadyInReturn === true;
+    const alreadyInReturn = availability[row.lineItemId]?.alreadyInReturn === true;
     return {
       ...row,
       availableQty,
       disabled,
       disabledReason:
         row.disabledReason ||
+        (alreadyInReturn ? "Return already in progress for this item." : undefined) ||
         eligible?.reason ||
         (availableQty <= 0 ? "Already returned or unavailable" : undefined),
     };

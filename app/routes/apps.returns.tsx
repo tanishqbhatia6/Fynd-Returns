@@ -160,10 +160,16 @@ window.__RPM_PORTAL_CSRF__=${JSON.stringify(createPortalCsrfToken(shopDomain))};
   const faviconHtml = brandFaviconUrl
     ? `  <link rel="icon" type="image/png" href="${escapeHtmlAttr(brandFaviconUrl)}" sizes="96x96" />\n  <link rel="icon" href="${escapeHtmlAttr(brandFaviconUrl)}" />`
     : `  <link rel="icon" type="image/png" href="${escapeHtmlAttr(appUrl)}/favicon-96x96.png" sizes="96x96" />\n  <link rel="icon" type="image/svg+xml" href="${escapeHtmlAttr(appUrl)}/favicon.svg" />\n  <link rel="shortcut icon" href="${escapeHtmlAttr(appUrl)}/favicon.ico" />\n  <link rel="apple-touch-icon" sizes="180x180" href="${escapeHtmlAttr(appUrl)}/apple-touch-icon.png" />\n  <link rel="manifest" href="${escapeHtmlAttr(appUrl)}/site.webmanifest" />`;
+  const portalAssetVersion =
+    process.env.RAILWAY_GIT_COMMIT_SHA ||
+    process.env.RENDER_GIT_COMMIT ||
+    process.env.VERCEL_GIT_COMMIT_SHA ||
+    Date.now().toString(36);
 
   portalHtml = portalHtml
     .replaceAll("%SHOP%", escapeHtmlAttr(shopDomain))
     .replaceAll("%APP_URL%", escapeHtmlAttr(appUrl))
+    .replaceAll("%PORTAL_ASSET_VERSION%", escapeHtmlAttr(encodeURIComponent(portalAssetVersion)))
     .replaceAll("%RETURN_WINDOW%", String(returnWindowDays))
     .replaceAll("%RETURN_POLICY%", escapeHtmlContent(returnPolicyText))
     .replaceAll("%RETURN_REASONS_JSON%", escapeJsonInHtml(returnReasonsJson))

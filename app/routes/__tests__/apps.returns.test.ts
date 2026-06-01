@@ -27,7 +27,7 @@ const TEMPLATE_HTML = [
   '  <div class="policy">%RETURN_POLICY%</div>',
   '  <img class="brand" src="%BRAND_LOGO_URL%" />',
   '  <a href="%APP_URL%/x">link</a>',
-  '  <script src="%APP_URL%/portal/return-portal.js" defer></script>',
+  '  <script src="%APP_URL%/portal/return-portal.js?v=%PORTAL_ASSET_VERSION%" defer></script>',
   "  <script>",
   '    var REASONS = "%RETURN_REASONS_JSON%";',
   '    var REASONS_BY_CAT = "%RETURN_REASONS_BY_CATEGORY_JSON%";',
@@ -95,7 +95,8 @@ describe("apps.returns loader", () => {
     const res = (await loader(makeArgs(makeRequest("?shop=acme")))) as Response;
     const body = await res.text();
     expect(body).toContain('data-app-url="https://app.example.com"');
-    expect(body).toContain('src="https://app.example.com/portal/return-portal.js" defer');
+    expect(body).toContain('src="https://app.example.com/portal/return-portal.js?v=');
+    expect(body).toContain('" defer');
   });
 
   it("uses the raw shop param when it already contains a dot", async () => {

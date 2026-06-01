@@ -11,6 +11,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildBagIndex,
   distributeBagAllocations,
+  snapshotCoversRequestedLines,
   shipmentSnapshotsFromFyndPayload,
   type ShipmentSnapshot,
 } from "../bag-distribution.server";
@@ -421,5 +422,47 @@ describe("distributeBagAllocations — production multi-shipment-multi-line scen
     expect(r2.items).toHaveLength(1);
     expect(r2.items[0].fyndBagId).toBe("BAG-A3");
     expect(r2.unsatisfied.get("gid://shopify/LineItem/A")).toBe(1);
+  });
+
+  it("detects whether a snapshot covers all requested Shopify line ids", () => {
+    expect(
+      snapshotCoversRequestedLines(SHOP_FIXTURE, [
+        "gid://shopify/LineItem/A",
+        "gid://shopify/LineItem/B",
+      ]),
+    ).toBe(true);
+    expect(snapshotCoversRequestedLines(SHOP_FIXTURE, ["gid://shopify/LineItem/UNKNOWN"])).toBe(
+      false,
+    );
+  });
+
+  it("ignores ineligible shipments when checking requested line coverage", () => {
+    expect(
+      snapshotCoversRequestedLines(
+        [
+          {
+            shipmentId: "pending",
+            eligible: false,
+            items: [
+              {
+                id: "gid://shopify/LineItem/A",
+                bagId: "BAG-A",
+                sku: "SKU-A",
+                quantity: 1,
+                fyndArticleId: null,
+                fyndAffiliateLineId: null,
+                fyndSellerIdentifier: null,
+                fyndItemId: null,
+                fyndPriceEffective: null,
+                fyndSize: null,
+                fyndLineNumber: null,
+                fyndQuantityAvailable: 1,
+              },
+            ],
+          },
+        ],
+        ["gid://shopify/LineItem/A"],
+      ),
+    ).toBe(false);
   });
 });

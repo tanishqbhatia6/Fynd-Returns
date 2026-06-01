@@ -205,6 +205,24 @@ export interface ShipmentSnapshot {
  */
 export type BagReservedMap = Record<string, number>;
 
+export function snapshotCoversRequestedLines(
+  shipments: ShipmentSnapshot[] | null | undefined,
+  requestedLineItemIds: string[],
+): boolean {
+  const requested = new Set(requestedLineItemIds.filter(Boolean));
+  if (requested.size === 0) return false;
+
+  const available = new Set<string>();
+  for (const shipment of shipments ?? []) {
+    if (shipment.eligible === false) continue;
+    for (const item of shipment.items ?? []) {
+      if (item.id) available.add(item.id);
+    }
+  }
+
+  return [...requested].every((lineItemId) => available.has(lineItemId));
+}
+
 const RETURN_ALLOWED_FYND_STATUSES = new Set([
   "delivery_done",
   "delivered",

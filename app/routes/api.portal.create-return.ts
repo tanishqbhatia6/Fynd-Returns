@@ -33,6 +33,7 @@ import {
   buildBagIndex,
   distributeBagAllocations,
   shipmentSnapshotsFromFyndPayload,
+  snapshotCoversRequestedLines,
   type ShipmentSnapshot,
 } from "../lib/bag-distribution.server";
 
@@ -902,16 +903,29 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             allowedStatuses: parseAllowedFyndStatusesForCreate(settings),
           })
         : null;
-      const shipmentsSnapshot =
-        serverShipmentsSnapshot && serverShipmentsSnapshot.length > 0
-          ? serverShipmentsSnapshot
-          : clientShipmentsSnapshot;
+      const requestedLineItemIds = items.map((it) => String(it.lineItemId).slice(0, 256));
+      const serverSnapshotCoversRequest = snapshotCoversRequestedLines(
+        serverShipmentsSnapshot,
+        requestedLineItemIds,
+      );
+      const clientSnapshotCoversRequest = snapshotCoversRequestedLines(
+        clientShipmentsSnapshot,
+        requestedLineItemIds,
+      );
+      const shipmentsSnapshot = serverSnapshotCoversRequest
+        ? serverShipmentsSnapshot
+        : clientSnapshotCoversRequest
+          ? clientShipmentsSnapshot
+          : serverShipmentsSnapshot && serverShipmentsSnapshot.length > 0
+            ? serverShipmentsSnapshot
+            : clientShipmentsSnapshot;
       if (!hasBagAware && shipmentsSnapshot && shipmentsSnapshot.length > 0) {
         // Customer-portal path: distribute line-level qty across bags.
-        // Prefer the server-side Fynd webhook snapshot when present. Fynd's
-        // placed/return payload shape is stable and contains the authoritative
-        // bag_id + line_number + seller_identifier mapping; the browser-posted
-        // snapshot is only a fallback for shops without cached webhook data.
+        // Prefer the server-side Fynd webhook snapshot only when it covers the
+        // requested Shopify line IDs. Some raw Fynd payloads carry affiliate
+        // line IDs that do not match Shopify's current LineItem GIDs; in that
+        // case, use the order-lookup snapshot because it was already resolved
+        // against the live Shopify order.
         const snapshotShipmentIds = [
           ...new Set(shipmentsSnapshot.map((s) => s.shipmentId).filter(Boolean) as string[]),
         ];

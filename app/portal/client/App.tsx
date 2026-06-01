@@ -111,6 +111,27 @@ export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
         <span className="rpm-float-mark rpm-float-three">
           <BadgeCheck size={18} />
         </span>
+        <span className="rpm-float-mark rpm-float-four">
+          <Clipboard size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-five">
+          <PackageSearch size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-six">
+          <FileImage size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-seven">
+          <ShieldCheck size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-eight">
+          <RotateCcw size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-nine">
+          <Tag size={18} />
+        </span>
+        <span className="rpm-float-mark rpm-float-ten">
+          <Mail size={18} />
+        </span>
       </div>
       <Hero bootstrap={bootstrap} />
 
@@ -831,6 +852,7 @@ function CreateReturnPanel({
       })),
       lineItemsWithPrice: (order.lineItems || []).map((item) => lineItemWithPrice(item)),
       lineItemEstimates: orderData.lineItemEstimates || undefined,
+      shipmentsSnapshot: orderData.shipments || undefined,
       acceptOffer,
       portalCsrfToken: window.__RPM_PORTAL_CSRF__,
     });

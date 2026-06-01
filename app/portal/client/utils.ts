@@ -169,8 +169,11 @@ export function normalizeItems(data: OrderResponse): ItemSelection[] {
   const availability = data.lineItemAvailability || {};
   const itemEligibility = data.itemEligibility || {};
 
-  if (Array.isArray(data.shipments) && data.shipments.length > 0) {
-    for (const shipment of data.shipments) {
+  const shipments = Array.isArray(data.shipments) ? data.shipments : [];
+  const hasShipmentRows = shipments.length > 0;
+
+  if (hasShipmentRows) {
+    for (const shipment of shipments) {
       for (const item of shipment.items || []) {
         rows.push(toSelection(item, data, `${shipment.shipmentId || "shipment"}:${item.bagId || item.id}`, {
           shipmentId: shipment.shipmentId,
@@ -187,7 +190,9 @@ export function normalizeItems(data: OrderResponse): ItemSelection[] {
     }
   }
 
-  return rows.map((row) => {
+  const displayRows = hasShipmentRows ? clubShipmentRows(rows, availability) : rows;
+
+  return displayRows.map((row) => {
     const available = availability[row.lineItemId]?.availableQty;
     const eligible = itemEligibility[row.lineItemId];
     const availableQty = typeof available === "number" ? Math.max(0, available) : row.availableQty;
@@ -206,6 +211,74 @@ export function normalizeItems(data: OrderResponse): ItemSelection[] {
         (alreadyInReturn ? "Return already in progress for this item." : undefined) ||
         eligible?.reason ||
         (availableQty <= 0 ? "Already returned or unavailable" : undefined),
+    };
+  });
+}
+
+function clubShipmentRows(
+  rows: ItemSelection[],
+  availability: OrderResponse["lineItemAvailability"],
+): ItemSelection[] {
+  const grouped = new Map<string, ItemSelection[]>();
+  const order: string[] = [];
+
+  for (const row of rows) {
+    const key = row.lineItemId || row.rowKey;
+    if (!grouped.has(key)) {
+      grouped.set(key, []);
+      order.push(key);
+    }
+    grouped.get(key)!.push(row);
+  }
+
+  return order.map((key) => {
+    const group = grouped.get(key)!;
+    if (group.length === 1) {
+      const row = group[0];
+      return {
+        ...row,
+        rowKey: `line:${row.lineItemId}`,
+        fyndShipmentId: undefined,
+        fyndBagId: undefined,
+        fyndArticleId: undefined,
+        fyndAffiliateLineId: undefined,
+        fyndSellerIdentifier: undefined,
+        fyndItemId: undefined,
+        fyndQuantityAvailable: undefined,
+        fyndPriceEffective: undefined,
+        fyndSize: undefined,
+        fyndLineNumber: undefined,
+      };
+    }
+
+    const base = group[0];
+    const lineAvailability = availability?.[base.lineItemId];
+    const eligibleRows = group.filter((row) => !row.disabled);
+    const eligibleQty = eligibleRows.reduce((sum, row) => sum + Math.max(0, row.availableQty || 0), 0);
+    const orderedQty = lineAvailability?.orderedQty ?? group.reduce((sum, row) => sum + Math.max(0, row.orderedQty || 0), 0);
+    const availableQty =
+      typeof lineAvailability?.availableQty === "number"
+        ? Math.min(Math.max(0, lineAvailability.availableQty), eligibleQty || lineAvailability.availableQty)
+        : eligibleQty;
+    const allDisabled = group.every((row) => row.disabled);
+
+    return {
+      ...base,
+      rowKey: `line:${base.lineItemId}`,
+      orderedQty: Math.max(1, orderedQty || base.orderedQty || 1),
+      availableQty: Math.max(0, availableQty),
+      disabled: allDisabled,
+      disabledReason: allDisabled ? group.find((row) => row.disabledReason)?.disabledReason : undefined,
+      fyndShipmentId: undefined,
+      fyndBagId: undefined,
+      fyndArticleId: undefined,
+      fyndAffiliateLineId: undefined,
+      fyndSellerIdentifier: undefined,
+      fyndItemId: undefined,
+      fyndQuantityAvailable: undefined,
+      fyndPriceEffective: undefined,
+      fyndSize: undefined,
+      fyndLineNumber: undefined,
     };
   });
 }

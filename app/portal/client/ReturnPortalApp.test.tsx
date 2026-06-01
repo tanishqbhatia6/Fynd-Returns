@@ -3,7 +3,7 @@
  */
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { ReturnPortalApp } from "./App";
 import type { PortalBootstrap } from "./types";
 
@@ -197,5 +197,115 @@ describe("ReturnPortalApp", () => {
     expect(createPayload?.items).toEqual([
       expect.objectContaining({ lineItemId: "li_1", qty: 1, reasonCode: "Wrong size" }),
     ]);
+  });
+
+  it("clubs duplicate Fynd shipment bags into one selectable line item", async () => {
+    const createPayloads: Record<string, unknown>[] = [];
+    const shipments = [
+      {
+        shipmentId: "SHIP-14425",
+        shipmentStatus: "delivery_done",
+        eligible: true,
+        items: Array.from({ length: 4 }, (_, index) => ({
+          id: "gid://shopify/LineItem/14425",
+          bagId: `BAG-${index + 1}`,
+          title: "RETURN3",
+          variantTitle: "M",
+          sku: "RETURN3",
+          quantity: 1,
+          price: "100",
+          imageUrl: null,
+          productTags: [],
+          productType: "Tops",
+          fyndQuantityAvailable: 1,
+          fyndLineNumber: index + 1,
+        })),
+      },
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes("/api/portal/order?")) {
+        return jsonResponse({
+          order: {
+            id: "gid://shopify/Order/14425",
+            name: "#FYNDSHOPIFYX14425",
+            email: "customer@example.com",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            processedAt: "2026-01-01T00:00:00.000Z",
+            currencyCode: "INR",
+            lineItems: [
+              {
+                id: "gid://shopify/LineItem/14425",
+                title: "RETURN3",
+                variantTitle: "M",
+                sku: "RETURN3",
+                quantity: 4,
+                price: "100",
+                productTags: [],
+                productType: "Tops",
+              },
+            ],
+          },
+          shipments,
+          lineItemAvailability: {
+            "gid://shopify/LineItem/14425": {
+              orderedQty: 4,
+              returnedQty: 0,
+              availableQty: 4,
+              alreadyInReturn: false,
+            },
+          },
+          returnOffers: { enabled: false, offers: [] },
+          portalCsrfToken: "csrf_order",
+        });
+      }
+      if (url.endsWith("/api/portal/create-return")) {
+        createPayloads.push(JSON.parse(String(init?.body || "{}")) as Record<string, unknown>);
+        return jsonResponse({
+          success: true,
+          returnId: "ret_14425",
+          returnRequestId: "RPM-14425",
+          status: "pending",
+          summary: { orderName: "#FYNDSHOPIFYX14425", itemsCount: 3 },
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, { status: 500 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<ReturnPortalApp bootstrap={bootstrap()} />);
+
+    fireEvent.click(screen.getByRole("tab", { name: /create return/i }));
+    fireEvent.change(screen.getByPlaceholderText(/#1001/i), {
+      target: { value: "FYNDSHOPIFYX14425" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /find order/i }));
+
+    expect(await screen.findByText("Select items")).toBeTruthy();
+    expect(screen.getAllByRole("checkbox", { name: /select return3/i })).toHaveLength(1);
+    expect(screen.getByText(/Available 4/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /select return3/i }));
+    const itemRow = screen.getByText("RETURN3").closest(".rpm-item-row");
+    expect(itemRow).toBeTruthy();
+    fireEvent.change(within(itemRow as HTMLElement).getByRole("combobox"), {
+      target: { value: "3" },
+    });
+    fireEvent.change(screen.getByLabelText(/upload return photos/i), {
+      target: {
+        files: [new File(["image"], "return3.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /^submit return$/i }));
+
+    expect(await screen.findByText("RPM-14425")).toBeTruthy();
+    expect(createPayloads[0]?.items).toEqual([
+      expect.objectContaining({
+        lineItemId: "gid://shopify/LineItem/14425",
+        qty: 3,
+        reasonCode: "Wrong size",
+      }),
+    ]);
+    expect(createPayloads[0]?.shipmentsSnapshot).toEqual(shipments);
   });
 });

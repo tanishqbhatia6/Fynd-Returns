@@ -26,6 +26,7 @@ import {
   Mail,
   PackageCheck,
   PackageSearch,
+  QrCode,
   RefreshCw,
   RotateCcw,
   Search,
@@ -194,15 +195,43 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
   return (
     <section className="rpm-hero">
       <div className="rpm-hero-main">
-        <div>
+        <div className="rpm-hero-copy-block">
           <h1>{t(bootstrap, "portal.heading")}</h1>
           <p className="rpm-hero-copy">{t(bootstrap, "portal.subheading")}</p>
+          <div className="rpm-policy">
+            <ShieldCheck size={18} />
+            <div>
+              <strong>{t(bootstrap, "portal.policyBanner", { days: bootstrap.returnWindowDays })}</strong>
+              {bootstrap.returnPolicy && <div>{bootstrap.returnPolicy}</div>}
+            </div>
+          </div>
         </div>
-        <div className="rpm-policy">
-          <ShieldCheck size={18} />
-          <div>
-            <strong>{t(bootstrap, "portal.policyBanner", { days: bootstrap.returnWindowDays })}</strong>
-            {bootstrap.returnPolicy && <div>{bootstrap.returnPolicy}</div>}
+
+        <div className="rpm-hero-visual" aria-label="Portal status preview">
+          <div className="rpm-visual-image">
+            <img
+              src="https://images.unsplash.com/photo-1566576912321-d58ddd7a6088?auto=format&fit=crop&w=520&q=80"
+              alt="Packed orders ready for dispatch"
+            />
+          </div>
+          <div className="rpm-visual-card">
+            <div>
+              <span className="rpm-badge ok">
+                <PackageCheck size={14} />
+                Ready
+              </span>
+              <h2>Track returns clearly</h2>
+              <p>Order status, return progress, required photos, and next steps stay in one focused flow.</p>
+            </div>
+            <div className="rpm-visual-footer">
+              <div>
+                <span>Portal ID</span>
+                <strong>{bootstrap.shop || "store.myshopify.com"}</strong>
+              </div>
+              <span className="rpm-qr">
+                <QrCode size={24} />
+              </span>
+            </div>
           </div>
         </div>
       </div>

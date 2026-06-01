@@ -171,12 +171,19 @@
       padding: clamp(18px, 3vw, 28px);
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(260px, 0.54fr);
+      grid-template-columns: minmax(0, 0.92fr) minmax(320px, 0.68fr);
       gap: 18px;
-      align-items: end;
+      align-items: stretch;
       background:
         linear-gradient(135deg, color-mix(in srgb, var(--portal-primary) 4%, var(--portal-surface)) 0%, var(--portal-surface) 70%),
         var(--portal-surface);
+    }
+
+    .rpm-hero-copy-block {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      min-width: 0;
     }
 
     .rpm-eyebrow {
@@ -215,12 +222,105 @@
       display: flex;
       align-items: flex-start;
       gap: 10px;
+      margin-top: 18px;
       padding: 12px;
       border: 1px solid color-mix(in srgb, var(--portal-primary) 20%, var(--rpm-line));
       border-radius: 8px;
       background: color-mix(in srgb, var(--portal-primary) 5%, var(--portal-surface));
       color: var(--portal-text-muted);
       font-size: 0.9rem;
+    }
+
+    .rpm-hero-visual {
+      display: grid;
+      grid-template-columns: minmax(120px, 0.42fr) minmax(0, 1fr);
+      gap: 12px;
+      align-items: stretch;
+      min-height: 230px;
+    }
+
+    .rpm-visual-image,
+    .rpm-visual-card {
+      border: 1px solid var(--rpm-line);
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--portal-surface);
+    }
+
+    .rpm-visual-image {
+      min-height: 100%;
+    }
+
+    .rpm-visual-image img {
+      width: 100%;
+      height: 100%;
+      min-height: 230px;
+      display: block;
+      object-fit: cover;
+    }
+
+    .rpm-visual-card {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+    }
+
+    .rpm-visual-card h2 {
+      margin: 14px 0 0;
+      color: var(--portal-text);
+      font-size: 1.35rem;
+      line-height: 1.12;
+    }
+
+    .rpm-visual-card p {
+      margin: 8px 0 0;
+      color: var(--portal-text-muted);
+      font-size: 0.9rem;
+    }
+
+    .rpm-visual-footer {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--rpm-line);
+    }
+
+    .rpm-visual-footer span {
+      display: block;
+      color: var(--portal-text-muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .rpm-visual-footer strong {
+      display: block;
+      margin-top: 3px;
+      color: var(--portal-text);
+      font-size: 0.84rem;
+      overflow-wrap: anywhere;
+    }
+
+    .rpm-qr {
+      width: 48px;
+      height: 48px;
+      border: 1px solid var(--rpm-line);
+      border-radius: 8px;
+      display: inline-flex !important;
+      align-items: center;
+      justify-content: center;
+      color: var(--portal-primary) !important;
+      background:
+        linear-gradient(90deg, color-mix(in srgb, var(--portal-primary) 10%, transparent) 1px, transparent 1px),
+        linear-gradient(0deg, color-mix(in srgb, var(--portal-primary) 10%, transparent) 1px, transparent 1px),
+        var(--portal-surface);
+      background-size: 8px 8px;
     }
 
     .rpm-workbench {
@@ -824,6 +924,7 @@
 
     @media (max-width: 900px) {
       .rpm-hero-main,
+      .rpm-hero-visual,
       .rpm-two-col,
       .rpm-form-grid {
         grid-template-columns: 1fr;

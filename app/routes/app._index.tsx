@@ -226,7 +226,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: {
           ...where,
           status: { in: ["approved", "completed"] },
-          OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }],
+          OR: [{ refundStatus: null }, { refundStatus: { notIn: ["refunded", "exchanged"] } }],
         },
       }),
       // Green returns: only count APPROVED or COMPLETED — a rejected return that

@@ -205,7 +205,8 @@ export function computeAdminReturnState(
   // defensive: long ||-chain status mapping cascades — many fynd status keywords not exhausted in fixtures
   if (s === "rejected") return error("Rejected", "Return request has been declined");
   if (s === "cancelled") return error("Cancelled", "Return has been cancelled");
-  if (r === "refunded" || (s === "completed" && r === "refunded"))
+  const finalResolutionDone = isExchange ? r === "exchanged" || r === "refunded" : r === "refunded";
+  if (finalResolutionDone)
     return done(
       finalLabelDone,
       6,
@@ -2792,8 +2793,8 @@ export default function ReturnDetail() {
                 if ((evType === "approved" || evType === "auto_approved") && !progressSteps[1].time)
                   progressSteps[1].time = evTime;
                 if (
-                  evType.includes("refund") &&
-                  evType.includes("process") &&
+                  ((evType.includes("refund") && evType.includes("process")) ||
+                    evType === "exchange_completed") &&
                   !progressSteps[5].time
                 )
                   progressSteps[5].time = evTime;

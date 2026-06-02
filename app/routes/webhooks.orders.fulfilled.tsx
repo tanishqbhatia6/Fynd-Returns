@@ -1,6 +1,7 @@
 import type { ActionFunctionArgs } from "react-router";
 import shopifyApp, { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import { markExchangeDeliveredForOrder } from "../lib/exchange-completion.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
 
 /**
@@ -54,6 +55,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* v8 ignore start - defensive nullish coalescing on payload fields */
     const fulfillmentStatus = String(p.fulfillment_status ?? "fulfilled").toLowerCase();
     /* v8 ignore stop */
+    const gid = p.admin_graphql_api_id
+      ? String(p.admin_graphql_api_id)
+      : p.id
+        ? `gid://shopify/Order/${p.id}`
+        : null;
 
     const attrs = Array.isArray(p.note_attributes)
       ? (p.note_attributes as Array<{ name?: string; value?: string }>).map((a) => ({
@@ -70,12 +76,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Metafield + mapping backfill for Fynd orders.
     if (fyndOrderId) {
-      const gid = p.admin_graphql_api_id
-        ? String(p.admin_graphql_api_id)
-        : p.id
-          ? `gid://shopify/Order/${p.id}`
-          : null;
-
       if (gid) {
         try {
           const { admin } = await shopifyApp.unauthenticated.admin(shop);
@@ -166,6 +166,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         },
       });
     }
+
+    await markExchangeDeliveredForOrder({
+      shopId: shopRecord.id,
+      orderGid: gid,
+      orderName: orderNameRaw || `#${orderNameClean}`,
+      fulfillmentStatus,
+      source: "orders_fulfilled_webhook",
+    });
   } catch (err) {
     /* v8 ignore start - defensive Error narrowing in outer catch */
     console.error("[webhook:orders/fulfilled]", {

@@ -239,6 +239,19 @@ describe("Bug #16 — computeAdminReturnState honours live Fynd state over stale
     expect(state.step).toBe(6);
   });
 
+  it('shows "Exchange Completed" stage 6 when an exchange is marked exchanged', () => {
+    const state = computeAdminReturnState(
+      "completed",
+      "exchanged",
+      journey({ status: "return_bag_delivered" }),
+      "return_bag_delivered",
+      "exchange",
+    );
+    expect(state.label).toBe("Exchange Completed");
+    expect(state.step).toBe(6);
+    expect(state.description).toBe("Exchange has been completed");
+  });
+
   it('handles return_initiated / return_dp_assigned correctly (early stages, not "Refund Processing")', () => {
     const initiated = computeAdminReturnState(
       "approved",

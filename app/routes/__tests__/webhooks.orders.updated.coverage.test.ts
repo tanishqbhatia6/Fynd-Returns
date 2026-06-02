@@ -286,6 +286,36 @@ describe("webhooks.orders.updated coverage", () => {
     expect(arg.data).toEqual({ sourceChannel: "shopify" });
   });
 
+  it("fulfilled exchange order update completes the matching exchange return", async () => {
+    authenticateWebhookMock.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      payload: {
+        admin_graphql_api_id: "gid://shopify/Order/7777",
+        name: "#EX-7777",
+        fulfillment_status: "fulfilled",
+        note_attributes: [],
+      },
+    });
+    extractAffiliateOrderIdMock.mockReturnValueOnce(null);
+    normalizeSourceChannelMock.mockReturnValueOnce(null);
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1" });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([{ id: "rc-exchange" }]);
+
+    const res = await action({ request: mkReq(), params: {}, context: {} } as never);
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith({
+      where: { id: "rc-exchange" },
+      data: { status: "completed", refundStatus: "exchanged" },
+    });
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        returnCaseId: "rc-exchange",
+        eventType: "exchange_completed",
+      }),
+    });
+  });
+
   it("non-cancellation sourceChannel backfill: updateMany failure is swallowed", async () => {
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "store.myshopify.com",

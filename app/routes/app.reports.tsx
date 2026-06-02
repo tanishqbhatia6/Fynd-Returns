@@ -126,7 +126,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         where: {
           ...where,
           status: "approved",
-          OR: [{ refundStatus: null }, { refundStatus: { not: "refunded" } }],
+          OR: [{ refundStatus: null }, { refundStatus: { notIn: ["refunded", "exchanged"] } }],
         },
       }),
       prisma.returnCase.groupBy({ by: ["resolutionType"], where, _count: true }),

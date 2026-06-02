@@ -33,7 +33,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       // Draft order was converted to a real order.
       // Shopify includes order_id and order_gid on the completed draft order payload.
       const realOrderId = p.order_id ? String(p.order_id) : null;
-      const realOrderGid = realOrderId ? `gid://shopify/Order/${realOrderId}` : null;
+      const realOrderGraphqlId = p.order_admin_graphql_api_id ?? p.order_gid;
+      const realOrderGid = realOrderGraphqlId
+        ? String(realOrderGraphqlId)
+        : realOrderId?.startsWith("gid://shopify/Order/")
+          ? realOrderId
+          : realOrderId
+            ? `gid://shopify/Order/${realOrderId}`
+            : null;
+      const draftOrderGid = p.admin_graphql_api_id
+        ? String(p.admin_graphql_api_id)
+        : p.id
+          ? `gid://shopify/DraftOrder/${p.id}`
+          : null;
+      const realOrderName = String(p.order_name ?? "").trim();
 
       if (realOrderGid) {
         // Update FyndOrderMapping to point to the real Order GID
@@ -45,6 +58,49 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             /* v8 ignore stop */
             data: { shopifyOrderId: realOrderGid, searchStrategy: "draft_order_completed" },
           });
+        } catch {
+          /* non-critical */
+        }
+
+        try {
+          const exchangeReturns = await prisma.returnCase.findMany({
+            where: {
+              shopId: shopRecord.id,
+              resolutionType: "exchange",
+              OR: [
+                ...(draftOrderGid ? [{ exchangeOrderId: draftOrderGid }] : []),
+                { exchangeOrderName: orderNameRaw },
+                { exchangeOrderName: `#${orderName}` },
+              ],
+            },
+            select: { id: true, exchangeOrderId: true },
+          });
+
+          const returns = Array.isArray(exchangeReturns) ? exchangeReturns : [];
+          for (const returnCase of returns) {
+            if (returnCase.exchangeOrderId === realOrderGid) continue;
+            await prisma.returnCase.update({
+              where: { id: returnCase.id },
+              data: {
+                exchangeOrderId: realOrderGid,
+                ...(realOrderName ? { exchangeOrderName: realOrderName } : {}),
+              },
+            });
+            await prisma.returnEvent.create({
+              data: {
+                returnCaseId: returnCase.id,
+                source: "shopify_webhook",
+                eventType: "exchange_order_completed",
+                payloadJson: JSON.stringify({
+                  draft_order_id: draftOrderGid,
+                  draft_order_name: orderNameRaw || `#${orderName}`,
+                  order_id: realOrderGid,
+                  order_name: realOrderName || null,
+                  timestamp: new Date().toISOString(),
+                }),
+              },
+            });
+          }
         } catch {
           /* non-critical */
         }

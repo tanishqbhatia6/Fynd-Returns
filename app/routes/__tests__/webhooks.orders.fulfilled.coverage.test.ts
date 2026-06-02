@@ -177,7 +177,7 @@ describe("webhooks.orders.fulfilled — Fynd metafield + mapping backfill", () =
       "[webhook:orders/fulfilled] mapping upsert failed",
       expect.objectContaining({ fyndOrderId: "F-5" }),
     );
-    expect(prismaMock.returnCase.findMany).toHaveBeenCalledTimes(1);
+    expect(prismaMock.returnCase.findMany).toHaveBeenCalledTimes(2);
     errSpy.mockRestore();
   });
 
@@ -229,6 +229,46 @@ describe("webhooks.orders.fulfilled — returnCase event loop", () => {
     expect(parsed.fulfillment_status).toBe("fulfilled");
     expect(parsed.order_name).toBe("2001");
     expect(typeof parsed.timestamp).toBe("string");
+  });
+
+  it("marks a matching exchange return completed when the exchange order is fulfilled", async () => {
+    authenticateWebhookMock.mockResolvedValueOnce({
+      shop: "shop.myshopify.com",
+      payload: {
+        admin_graphql_api_id: "gid://shopify/Order/9001",
+        name: "#EX-9001",
+        fulfillment_status: "fulfilled",
+        note_attributes: [],
+      },
+    });
+    extractAffiliateOrderIdMock.mockReturnValueOnce(null);
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop_1" });
+    prismaMock.returnCase.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: "rc_exchange" }]);
+
+    await callAction();
+
+    expect(prismaMock.returnCase.findMany.mock.calls[1]![0]).toEqual({
+      where: {
+        shopId: "shop_1",
+        resolutionType: "exchange",
+        exchangeOrderId: "gid://shopify/Order/9001",
+        OR: [{ refundStatus: null }, { refundStatus: { notIn: ["exchanged", "refunded"] } }],
+      },
+      select: { id: true },
+    });
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith({
+      where: { id: "rc_exchange" },
+      data: { status: "completed", refundStatus: "exchanged" },
+    });
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        returnCaseId: "rc_exchange",
+        eventType: "exchange_completed",
+        source: "shopify_webhook",
+      }),
+    });
   });
 
   it("idempotency: skips returnEvent.create when a recent event exists", async () => {

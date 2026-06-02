@@ -1,6 +1,10 @@
 import type { ActionFunctionArgs } from "react-router";
 import shopifyApp, { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import {
+  isExchangeDeliveredStatus,
+  markExchangeDeliveredForOrder,
+} from "../lib/exchange-completion.server";
 import { extractAffiliateOrderId } from "../lib/shopify-admin.server";
 import { normalizeSourceChannel } from "../lib/source-channel.server";
 
@@ -60,6 +64,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     /* v8 ignore start - defensive nullish coalescing on payload fields */
     const financialStatus = String(p.financial_status ?? "").toLowerCase();
     /* v8 ignore stop */
+    const fulfillmentStatus = String(p.fulfillment_status ?? "").toLowerCase();
+    const gid = p.admin_graphql_api_id
+      ? String(p.admin_graphql_api_id)
+      : p.id
+        ? `gid://shopify/Order/${p.id}`
+        : null;
     const cancelledAt = p.cancelled_at;
     const sourceChannel = normalizeSourceChannel(p.source_name ? String(p.source_name) : null);
 
@@ -78,7 +88,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // propagate to return cases, or (c) a sourceChannel we can backfill.
     const isCancellationEvent =
       !!cancelledAt || financialStatus === "refunded" || financialStatus === "voided";
-    if (!fyndOrderId && !isCancellationEvent && !sourceChannel) {
+    const isExchangeDeliveryEvent = isExchangeDeliveredStatus(fulfillmentStatus);
+    if (!fyndOrderId && !isCancellationEvent && !sourceChannel && !isExchangeDeliveryEvent) {
       return new Response();
     }
 
@@ -87,12 +98,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
     // Metafield + mapping backfill for Fynd orders.
     if (fyndOrderId) {
-      const gid = p.admin_graphql_api_id
-        ? String(p.admin_graphql_api_id)
-        : p.id
-          ? `gid://shopify/Order/${p.id}`
-          : null;
-
       if (gid) {
         try {
           const { admin } = await shopifyApp.unauthenticated.admin(shop);
@@ -211,6 +216,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         });
         /* v8 ignore stop */
       }
+    }
+
+    if (isExchangeDeliveryEvent) {
+      await markExchangeDeliveredForOrder({
+        shopId: shopRecord.id,
+        orderGid: gid,
+        orderName: orderNameRaw || `#${orderName}`,
+        fulfillmentStatus,
+        source: "orders_updated_webhook",
+      });
     }
   } catch (err) {
     /* v8 ignore start - defensive Error narrowing in outer catch */

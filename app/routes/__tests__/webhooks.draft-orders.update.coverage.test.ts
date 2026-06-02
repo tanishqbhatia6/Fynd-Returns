@@ -78,6 +78,44 @@ describe("webhooks.draft-orders.update — coverage", () => {
     });
   });
 
+  it("completed: links exchange return from draft order gid to real order gid", async () => {
+    authenticateWebhookMock.mockResolvedValueOnce({
+      shop: "store.myshopify.com",
+      payload: {
+        id: 1234,
+        admin_graphql_api_id: "gid://shopify/DraftOrder/1234",
+        name: "#D-EX",
+        status: "completed",
+        order_id: 9876,
+        order_name: "#EX-9876",
+      },
+    });
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop_exchange",
+      shopDomain: "store.myshopify.com",
+    });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([
+      { id: "rc_exchange", exchangeOrderId: "gid://shopify/DraftOrder/1234" },
+    ]);
+
+    const res = await action({ request: mkReq(), params: {}, context: {} } as never);
+
+    expect(res.status).toBe(200);
+    expect(prismaMock.returnCase.update).toHaveBeenCalledWith({
+      where: { id: "rc_exchange" },
+      data: {
+        exchangeOrderId: "gid://shopify/Order/9876",
+        exchangeOrderName: "#EX-9876",
+      },
+    });
+    expect(prismaMock.returnEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        returnCaseId: "rc_exchange",
+        eventType: "exchange_order_completed",
+      }),
+    });
+  });
+
   it("completed: no order_id → skips mapping update but still backfills sourceChannel", async () => {
     authenticateWebhookMock.mockResolvedValueOnce({
       shop: "store.myshopify.com",

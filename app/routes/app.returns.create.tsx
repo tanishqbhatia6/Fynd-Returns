@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from "react";
 import type { LoaderFunctionArgs } from "react-router";
-import { useLoaderData, useFetcher, useNavigate, Link } from "react-router";
+import { useLoaderData, useFetcher, useNavigate } from "react-router";
 import { authenticate } from "../shopify.server";
 
 /* ─── Safe Extraction Helpers ─── */
@@ -60,6 +60,8 @@ type OrderLineItem = {
   fyndQuantityAvailable?: number | null;
   fyndPriceEffective?: string | null;
   fyndSize?: string | null;
+  availableQty?: number | null;
+  alreadyInReturn?: boolean | null;
 };
 
 type ShipmentData = {
@@ -107,6 +109,13 @@ type SelectedItem = {
   fyndQuantityAvailable: number | null;
   fyndPriceEffective: string | null;
   fyndSize: string | null;
+};
+
+type LineItemAvailability = {
+  orderedQty: number;
+  returnedQty: number;
+  availableQty: number;
+  alreadyInReturn: boolean;
 };
 
 /* ─── Constants ─── */
@@ -474,6 +483,12 @@ export default function CreateReturn() {
   // Multi-shipment data (null for single-shipment or non-Fynd orders)
   const shipmentsData: ShipmentData[] | null = orderFetcher.data?.shipments ?? null;
   const hasMultiShipment = shipmentsData != null && shipmentsData.length > 1;
+  const lineItemAvailability =
+    (orderFetcher.data?.lineItemAvailability as Record<string, LineItemAvailability> | undefined) ??
+    {};
+  const shipmentReturnedQtyMap =
+    (orderFetcher.data?.shipmentReturnedQtyMap as Record<string, Record<string, number>> | null) ??
+    null;
 
   // Submit state
   const isSubmitting = submitFetcher.state === "submitting" || submitFetcher.state === "loading";
@@ -531,26 +546,71 @@ export default function CreateReturn() {
   }, [orderData]);
 
   /* ── Step 2: item selection helpers ── */
+  const rowKeyForItem = useCallback(
+    (li: OrderLineItem, shipmentId?: string | null, rowIndex?: number) => {
+      if (!shipmentId) return li.id;
+      const fingerprint = [
+        li.bagId,
+        li.fyndArticleId,
+        li.fyndAffiliateLineId,
+        li.fyndItemId,
+        li.fyndSellerIdentifier,
+        li.sku,
+        typeof rowIndex === "number" ? `row:${rowIndex}` : null,
+      ]
+        .filter(Boolean)
+        .join("::");
+      return `${shipmentId}::${li.id}::${fingerprint || "row"}`;
+    },
+    [],
+  );
+
+  const getShipmentReturnedQty = useCallback(
+    (li: OrderLineItem, shipmentId?: string | null): number => {
+      if (!shipmentId || !shipmentReturnedQtyMap) return 0;
+      const bucket = shipmentReturnedQtyMap[shipmentId];
+      if (!bucket) return 0;
+      if (li.bagId && bucket[li.bagId]) return bucket[li.bagId];
+      const byLine = bucket[li.id] ?? 0;
+      const bySku = li.sku ? (bucket[`sku:${li.sku.toLowerCase().trim()}`] ?? 0) : 0;
+      return Math.max(byLine, bySku);
+    },
+    [shipmentReturnedQtyMap],
+  );
+
+  const getAvailableQty = useCallback(
+    (li: OrderLineItem, shipmentId?: string | null): number => {
+      const orderedQty = li.quantity ?? lineItemAvailability[li.id]?.orderedQty ?? 1;
+      const rowReturnedQty = getShipmentReturnedQty(li, shipmentId);
+      if (rowReturnedQty > 0) return Math.max(0, orderedQty - rowReturnedQty);
+      const directAvailable = li.availableQty ?? lineItemAvailability[li.id]?.availableQty;
+      return Math.max(0, directAvailable ?? orderedQty);
+    },
+    [getShipmentReturnedQty, lineItemAvailability],
+  );
+
   const toggleItem = useCallback(
-    (id: string) => {
+    (rowKey: string, item?: OrderLineItem, shipmentId?: string | null) => {
       setSelectedItems((prev) => {
         const next = { ...prev };
-        if (next[id]) {
-          delete next[id];
+        if (next[rowKey]) {
+          delete next[rowKey];
         } else {
-          const li = orderData?.lineItems.find((l) => l.id === id);
+          const li = item ?? orderData?.lineItems.find((l) => l.id === rowKey);
 
           // Look up Fynd shipment context and metadata from shipmentsData
-          let foundShipmentId: string | null = null;
+          let foundShipmentId: string | null = shipmentId ?? null;
           let foundItem: OrderLineItem | undefined;
           // defensive guard for multi-shipment lookup (single-shipment path skips this loop)
           /* v8 ignore start */
-          if (shipmentsData && shipmentsData.length > 0) {
+          if (!item && shipmentsData && shipmentsData.length > 0) {
             for (const shipment of shipmentsData) {
-              const item = shipment.items.find((it) => it.id === id);
-              if (item) {
+              const shipmentItem = shipment.items.find(
+                (it) => rowKeyForItem(it, shipment.shipmentId) === rowKey,
+              );
+              if (shipmentItem) {
                 foundShipmentId = shipment.shipmentId;
-                foundItem = item;
+                foundItem = shipmentItem;
                 break;
               }
             }
@@ -558,16 +618,17 @@ export default function CreateReturn() {
           /* v8 ignore stop */
           // Use shipment item data if available, otherwise fall back to orderData line item
           const sourceItem = foundItem ?? li;
+          const availableQty = sourceItem ? getAvailableQty(sourceItem, foundShipmentId) : 1;
 
-          next[id] = {
-            lineItemId: id,
-            qty: sourceItem?.quantity ?? 1,
+          next[rowKey] = {
+            lineItemId: sourceItem?.id ?? rowKey,
+            qty: Math.max(1, Math.min(sourceItem?.quantity ?? 1, availableQty || 1)),
             reasonCode: "",
             condition: "",
             notes: "",
             sku: sourceItem?.sku ?? null,
             fyndShipmentId: foundShipmentId,
-            fyndBagId: foundItem?.bagId ?? null,
+            fyndBagId: sourceItem?.bagId ?? null,
             fyndArticleId: sourceItem?.fyndArticleId ?? null,
             fyndAffiliateLineId: sourceItem?.fyndAffiliateLineId ?? null,
             fyndSellerIdentifier: sourceItem?.fyndSellerIdentifier ?? null,
@@ -580,7 +641,7 @@ export default function CreateReturn() {
         return next;
       });
     },
-    [orderData, shipmentsData],
+    [getAvailableQty, orderData, rowKeyForItem, shipmentsData],
   );
 
   const updateItem = useCallback(
@@ -671,7 +732,9 @@ export default function CreateReturn() {
     /* v8 ignore stop */
 
     const lineItemsWithPrice = Object.values(selectedItems).map((si) => {
-      const li = orderData.lineItems.find((l) => l.id === si.lineItemId);
+      const li =
+        orderData.lineItems.find((l) => l.id === si.lineItemId) ??
+        shipmentsData?.flatMap((s) => s.items).find((l) => l.id === si.lineItemId);
       return {
         id: si.lineItemId,
         title: li?.title,
@@ -679,6 +742,7 @@ export default function CreateReturn() {
         price: safePrice(li?.price),
         imageUrl: li?.imageUrl ?? undefined,
         sku: si.sku || li?.sku || undefined,
+        quantity: li?.quantity,
       };
     });
 
@@ -718,6 +782,7 @@ export default function CreateReturn() {
     });
   }, [
     orderData,
+    shipmentsData,
     selectedItems,
     customerEmail,
     customerPhone,
@@ -750,9 +815,12 @@ export default function CreateReturn() {
   /* v8 ignore stop */
 
   /* ── Computed totals for summary ── */
-  const selectedItemsList = Object.values(selectedItems);
+  const selectedItemEntries = Object.entries(selectedItems);
+  const selectedItemsList = selectedItemEntries.map(([, item]) => item);
   const estimatedTotal = selectedItemsList.reduce((sum, si) => {
-    const li = orderData?.lineItems.find((l) => l.id === si.lineItemId);
+    const li =
+      orderData?.lineItems.find((l) => l.id === si.lineItemId) ??
+      shipmentsData?.flatMap((s) => s.items).find((l) => l.id === si.lineItemId);
     return sum + parseFloat(safePrice(li?.price)) * si.qty;
   }, 0);
 
@@ -760,46 +828,6 @@ export default function CreateReturn() {
     <div className="layout-form returns-create-page" style={S.page}>
       {/* Spinner animation keyframes */}
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-      {/* ── Back link ── */}
-      <div
-        style={{
-          marginBottom: 20,
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          fontSize: 13,
-          color: "#6b7280",
-        }}
-      >
-        <Link
-          to="/app/returns"
-          style={{
-            color: "#4f46e5",
-            textDecoration: "none",
-            fontWeight: 500,
-            display: "flex",
-            alignItems: "center",
-            gap: 4,
-          }}
-        >
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Returns
-        </Link>
-        <span>/</span>
-        <span style={{ color: "#111827", fontWeight: 600 }}>Create Return</span>
-      </div>
 
       {/* ── Page heading ── */}
       <div
@@ -1122,13 +1150,16 @@ export default function CreateReturn() {
                         </span>
                       </div>
                       {/* Shipment items */}
-                      {ship.items.map((li) => {
-                        const isChecked = !!selectedItems[li.id];
-                        const sel = selectedItems[li.id];
-                        const isDisabled = !ship.eligible;
+                      {ship.items.map((li, itemIdx) => {
+                        const itemKey = rowKeyForItem(li, ship.shipmentId, itemIdx);
+                        const availableQty = getAvailableQty(li, ship.shipmentId);
+                        const alreadyReturned = availableQty <= 0;
+                        const isChecked = !!selectedItems[itemKey];
+                        const sel = selectedItems[itemKey];
+                        const isDisabled = !ship.eligible || alreadyReturned;
                         return (
                           <div
-                            key={li.id}
+                            key={itemKey}
                             style={{
                               padding: "14px 16px",
                               borderRadius: 10,
@@ -1148,7 +1179,9 @@ export default function CreateReturn() {
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => !isDisabled && toggleItem(li.id)}
+                                onChange={() =>
+                                  !isDisabled && toggleItem(itemKey, li, ship.shipmentId)
+                                }
                                 disabled={isDisabled}
                                 style={{
                                   width: 18,
@@ -1201,6 +1234,15 @@ export default function CreateReturn() {
                                   {li.variantTitle && <span>{li.variantTitle}</span>}
                                   {li.sku && <span>SKU: {li.sku}</span>}
                                   <span>Qty ordered: {li.quantity}</span>
+                                  {alreadyReturned ? (
+                                    <span style={{ color: "#DC2626", fontWeight: 600 }}>
+                                      Already returned
+                                    </span>
+                                  ) : availableQty < li.quantity ? (
+                                    <span style={{ color: "#92400E", fontWeight: 600 }}>
+                                      {availableQty} available
+                                    </span>
+                                  ) : null}
                                 </div>
                               </div>
                               <div
@@ -1236,16 +1278,16 @@ export default function CreateReturn() {
                                     <input
                                       type="number"
                                       min={1}
-                                      max={li.quantity}
+                                      max={availableQty}
                                       value={sel.qty}
                                       onChange={(e) =>
                                         updateItem(
-                                          li.id,
+                                          itemKey,
                                           "qty",
                                           Math.max(
                                             1,
                                             Math.min(
-                                              li.quantity,
+                                              availableQty,
                                               parseInt(e.target.value, 10) || 1,
                                             ),
                                           ),
@@ -1259,7 +1301,7 @@ export default function CreateReturn() {
                                     <select
                                       value={sel.reasonCode}
                                       onChange={(e) =>
-                                        updateItem(li.id, "reasonCode", e.target.value)
+                                        updateItem(itemKey, "reasonCode", e.target.value)
                                       }
                                       style={{
                                         ...S.select,
@@ -1278,7 +1320,7 @@ export default function CreateReturn() {
                                     <select
                                       value={sel.condition}
                                       onChange={(e) =>
-                                        updateItem(li.id, "condition", e.target.value)
+                                        updateItem(itemKey, "condition", e.target.value)
                                       }
                                       style={S.select}
                                     >
@@ -1294,7 +1336,7 @@ export default function CreateReturn() {
                                   <label style={S.label}>Notes (optional)</label>
                                   <textarea
                                     value={sel.notes}
-                                    onChange={(e) => updateItem(li.id, "notes", e.target.value)}
+                                    onChange={(e) => updateItem(itemKey, "notes", e.target.value)}
                                     style={S.textarea}
                                     placeholder="Additional notes..."
                                   />
@@ -1311,6 +1353,8 @@ export default function CreateReturn() {
               {/* Single-shipment / non-Fynd fallback (original layout) */}
               {!hasMultiShipment &&
                 orderData.lineItems.map((li) => {
+                  const availableQty = getAvailableQty(li);
+                  const alreadyReturned = availableQty <= 0;
                   const isChecked = !!selectedItems[li.id];
                   const sel = selectedItems[li.id];
 
@@ -1320,8 +1364,13 @@ export default function CreateReturn() {
                       style={{
                         padding: "14px 16px",
                         borderRadius: 10,
-                        border: isChecked ? "2px solid #4f46e5" : "1px solid #e5e7eb",
-                        background: isChecked ? "#FAFBFF" : "#fff",
+                        border: alreadyReturned
+                          ? "1px solid #e5e7eb"
+                          : isChecked
+                            ? "2px solid #4f46e5"
+                            : "1px solid #e5e7eb",
+                        background: alreadyReturned ? "#F9FAFB" : isChecked ? "#FAFBFF" : "#fff",
+                        opacity: alreadyReturned ? 0.55 : 1,
                         transition: "all 0.15s",
                       }}
                     >
@@ -1330,12 +1379,13 @@ export default function CreateReturn() {
                         <input
                           type="checkbox"
                           checked={isChecked}
-                          onChange={() => toggleItem(li.id)}
+                          onChange={() => !alreadyReturned && toggleItem(li.id, li)}
+                          disabled={alreadyReturned}
                           style={{
                             width: 18,
                             height: 18,
                             accentColor: "#4f46e5",
-                            cursor: "pointer",
+                            cursor: alreadyReturned ? "not-allowed" : "pointer",
                             flexShrink: 0,
                           }}
                         />
@@ -1378,6 +1428,15 @@ export default function CreateReturn() {
                             {li.variantTitle && <span>{li.variantTitle}</span>}
                             {li.sku && <span>SKU: {li.sku}</span>}
                             <span>Qty ordered: {li.quantity}</span>
+                            {alreadyReturned ? (
+                              <span style={{ color: "#DC2626", fontWeight: 600 }}>
+                                Already returned
+                              </span>
+                            ) : availableQty < li.quantity ? (
+                              <span style={{ color: "#92400E", fontWeight: 600 }}>
+                                {availableQty} available
+                              </span>
+                            ) : null}
                           </div>
                         </div>
                         <div
@@ -1411,7 +1470,7 @@ export default function CreateReturn() {
                               <input
                                 type="number"
                                 min={1}
-                                max={li.quantity}
+                                max={availableQty}
                                 value={sel.qty}
                                 onChange={(e) =>
                                   updateItem(
@@ -1419,7 +1478,7 @@ export default function CreateReturn() {
                                     "qty",
                                     Math.max(
                                       1,
-                                      Math.min(li.quantity, parseInt(e.target.value, 10) || 1),
+                                      Math.min(availableQty, parseInt(e.target.value, 10) || 1),
                                     ),
                                   )
                                 }
@@ -1788,12 +1847,19 @@ export default function CreateReturn() {
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {selectedItemsList.map((si) => {
-                const li = orderData.lineItems.find((l) => l.id === si.lineItemId);
+              {selectedItemEntries.map(([rowKey, si]) => {
+                const li =
+                  orderData.lineItems.find((l) => l.id === si.lineItemId) ??
+                  shipmentsData
+                    ?.flatMap((shipment) => shipment.items)
+                    .find(
+                      (item) =>
+                        item.id === si.lineItemId && (!si.fyndBagId || item.bagId === si.fyndBagId),
+                    );
                 if (!li) return null;
                 return (
                   <div
-                    key={si.lineItemId}
+                    key={rowKey}
                     style={{
                       display: "flex",
                       alignItems: "center",

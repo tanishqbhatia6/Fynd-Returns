@@ -49,6 +49,25 @@ const FYND_DELIVERED_STATUSES = new Set([
   "refund_completed",
 ]);
 
+const FYND_RETURN_JOURNEY_STATUS_RE =
+  /(^|_)(return|refund|credit_note)(_|$)|return_bag|return_dp|return_initiated|return_completed/;
+
+function isForwardFyndShipment(shipment: Record<string, unknown>): boolean {
+  const journeyType = safeStr(
+    shipment.journey_type ?? shipment.journeyType ?? shipment.fulfillment_type,
+    "",
+  )
+    .toLowerCase()
+    .trim();
+  if (journeyType === "return" || journeyType === "reverse") return false;
+
+  const status = safeStr(shipment.status ?? shipment.shipment_status ?? shipment.shipmentStatus, "")
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_")
+    .trim();
+  return !FYND_RETURN_JOURNEY_STATUS_RE.test(status);
+}
+
 /**
  * Decide whether the portal should hard-block the customer with the "Return already
  * submitted" screen, vs. let them through to step 2 with already-returned items disabled.
@@ -427,15 +446,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               (searchRes as { data?: { items?: unknown[] } })?.data?.items ??
               []) as Record<string, unknown>[];
             /* v8 ignore stop */
-            // Filter to forward shipments only
-            const forwardShipments = rawShipments.filter((s) => {
-              // defensive: typeof guard for non-string journey_type
-              /* v8 ignore start */
-              const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
-              /* v8 ignore stop */
-              return jt !== "return";
-            });
-            const shipments = forwardShipments.length > 0 ? forwardShipments : rawShipments;
+            // Filter to forward shipments only. Some Fynd payloads omit `journey_type`
+            // on reverse shipments, so status tokens like `return_bag_delivered` must
+            // also be excluded or already-returned articles show up as returnable.
+            const forwardShipments = rawShipments.filter(isForwardFyndShipment);
+            const shipments = forwardShipments;
             if (shipments.length > 0) {
               const first = shipments[0];
               // Extract the Shopify order name Fynd has on record.
@@ -965,11 +980,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
               searchRes?.shipments ??
               (searchRes as { data?: { items?: unknown[] } })?.data?.items ??
               []) as Record<string, unknown>[];
-            const forwardOnly = rawShipments.filter((s) => {
-              const jt = (typeof s.journey_type === "string" ? s.journey_type : "").toLowerCase();
-              return jt !== "return";
-            });
-            const fyndShipments = forwardOnly.length > 0 ? forwardOnly : rawShipments;
+            const forwardOnly = rawShipments.filter(isForwardFyndShipment);
+            const fyndShipments = forwardOnly;
             /* v8 ignore stop */
             if (fyndShipments.length >= 1) {
               // Build per-shipment item grouping (single or multi-shipment)

@@ -184,7 +184,12 @@ async function mount() {
 }
 
 async function mountWithOrder(
-  data: { order?: unknown; shipments?: unknown; error?: string } = {
+  data: {
+    order?: unknown;
+    shipments?: unknown;
+    error?: string;
+    shipmentReturnedQtyMap?: Record<string, Record<string, number>>;
+  } = {
     order: sampleOrder,
   },
 ) {
@@ -331,6 +336,86 @@ describe("app.returns.create — gap coverage", () => {
     });
     await waitFor(() => {
       expect(qty.value).toBe("3");
+    });
+  });
+
+  it("multi-shipment: disables a row when its Fynd bag is already returned", async () => {
+    const result = await mountWithOrder({
+      order: { ...sampleOrder, lineItems: [] },
+      shipments: multiShipments,
+      shipmentReturnedQtyMap: {
+        "gship-1": {
+          "bag-1": 4,
+        },
+      },
+    });
+
+    await waitFor(() => {
+      expect(result.container.textContent).toContain("Already returned");
+    });
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
+    expect((checkboxes[0] as HTMLInputElement).disabled).toBe(true);
+    expect((checkboxes[1] as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it("multi-shipment: keeps duplicate visible article rows independently selectable", async () => {
+    const duplicateArticleShipments = [
+      {
+        shipmentId: "same-ship",
+        shipmentStatus: "delivered_to_customer",
+        eligible: true,
+        items: [
+          {
+            id: "same-line",
+            title: "RETURN4",
+            variantTitle: "L",
+            sku: "RETURN4-L",
+            quantity: 1,
+            price: "200.00",
+            imageUrl: null,
+          },
+          {
+            id: "same-line",
+            title: "RETURN4",
+            variantTitle: "L",
+            sku: "RETURN4-L",
+            quantity: 1,
+            price: "200.00",
+            imageUrl: null,
+          },
+        ],
+      },
+      {
+        shipmentId: "other-ship",
+        shipmentStatus: "delivered_to_customer",
+        eligible: true,
+        items: [
+          {
+            id: "other-line",
+            title: "Different Item",
+            variantTitle: "M",
+            sku: "OTHER-M",
+            quantity: 1,
+            price: "100.00",
+            imageUrl: null,
+          },
+        ],
+      },
+    ];
+
+    const result = await mountWithOrder({
+      order: { ...sampleOrder, lineItems: [] },
+      shipments: duplicateArticleShipments,
+    });
+
+    const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
+    fireEvent.click(checkboxes[0]);
+
+    await waitFor(() => {
+      expect((checkboxes[0] as HTMLInputElement).checked).toBe(true);
+      expect((checkboxes[1] as HTMLInputElement).checked).toBe(false);
+      expect((checkboxes[2] as HTMLInputElement).checked).toBe(false);
+      expect(result.container.textContent).toContain("1 item selected");
     });
   });
 
@@ -607,10 +692,7 @@ describe("app.returns.create — gap coverage", () => {
     });
   });
 
-  it("validateStep2 fails with 'Quantity must be at least 1' when item qty seeded to 0 (lines 581-582)", async () => {
-    // Seed a line item whose quantity is 0 — toggleItem uses
-    // `sourceItem?.quantity ?? 1`, and `0 ?? 1` is `0`, so the SelectedItem
-    // gets qty: 0. Reason+condition pass; the qty < 1 branch fires.
+  it("single-shipment: disables zero-available items instead of allowing a zero-qty return", async () => {
     const result = await mountWithOrder({
       order: {
         ...sampleOrder,
@@ -623,15 +705,13 @@ describe("app.returns.create — gap coverage", () => {
       },
     });
     const checkboxes = result.container.querySelectorAll('input[type="checkbox"]');
-    fireEvent.click(checkboxes[0]);
-    const selects = result.container.querySelectorAll("select");
-    fireEvent.change(selects[0], { target: { value: "size_issue" } });
-    fireEvent.change(selects[1], { target: { value: "new_with_tags" } });
+    expect((checkboxes[0] as HTMLInputElement).disabled).toBe(true);
+    expect(result.container.textContent).toContain("Already returned");
     const buttons = Array.from(result.container.querySelectorAll("button"));
     const nextBtn = buttons.find((b) => b.textContent?.trim() === "Next") as HTMLButtonElement;
     fireEvent.click(nextBtn);
     await waitFor(() => {
-      expect(result.container.textContent).toContain("Quantity must be at least 1");
+      expect(result.container.textContent).toContain("Please select at least one item");
     });
   });
 });

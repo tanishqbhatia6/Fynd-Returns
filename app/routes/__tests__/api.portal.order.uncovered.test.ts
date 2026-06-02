@@ -515,7 +515,7 @@ describe("Fynd synthetic order build path", () => {
     expect(li.variantTitle).toBe("L");
   });
 
-  it("filters out return shipments and falls back to all shipments if all are returns", async () => {
+  it("filters out return-only shipments instead of exposing returned articles", async () => {
     fetchOrderByOrderNumberMock.mockResolvedValue(null);
     getMappingMock().findFirst.mockResolvedValueOnce(null);
     prismaMock.returnCase.findFirst.mockResolvedValueOnce(null);
@@ -539,10 +539,9 @@ describe("Fynd synthetic order build path", () => {
       params: {},
       context: {},
     } as never);
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     const body = await res.json();
-    // Falls back to all shipments since no forward shipments existed
-    expect(body.order._isFyndSyntheticOrder).toBe(true);
+    expect(body.error).toMatch(/order not found/i);
   });
 
   it("uses 'shipments' shape and 'data.items' shape from search result", async () => {

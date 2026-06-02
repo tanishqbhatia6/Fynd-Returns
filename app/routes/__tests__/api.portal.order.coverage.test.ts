@@ -445,6 +445,24 @@ describe("multi-shipment bucketing", () => {
           },
         ],
       },
+      {
+        shipment_id: "RET-SHIP",
+        status: "return_bag_delivered",
+        journey_type: "return",
+        bags: [
+          {
+            bag_id: "ret-bag",
+            quantity: 1,
+            articles: [
+              {
+                seller_identifier: "SKU-A",
+                article_id: "ret-art",
+                item: { item_id: "ret-item", name: "Returned Shirt" },
+              },
+            ],
+          },
+        ],
+      },
     ]);
 
     const res = await loader({
@@ -457,6 +475,9 @@ describe("multi-shipment bucketing", () => {
     expect(body.shipments[0].shipmentId).toBe("SHIP-1");
     expect(body.shipments[0].eligible).toBe(true);
     expect(body.shipments[1].shipmentId).toBe("SHIP-2");
+    expect(body.shipments.find((s: { shipmentId: string }) => s.shipmentId === "RET-SHIP")).toBe(
+      undefined,
+    );
     expect(body.shipments[1].eligible).toBe(false);
     expect(body.shipments[1].eligibilityReason).toMatch(/delivered/i);
     // SKU matching reuses Shopify line item ID:

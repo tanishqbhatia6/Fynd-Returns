@@ -160,6 +160,52 @@ describe("validation", () => {
     expect(res.status).toBe(400);
   });
 
+  it("409 when a requested Fynd bag has already been returned", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1" } });
+    prismaMock.returnItem.findFirst.mockResolvedValueOnce({
+      fyndBagId: "bag-returned",
+      title: "Returned Tee",
+    });
+
+    const res = await action({
+      request: jsonReq(
+        happyBody({
+          items: [{ lineItemId: "li-1", qty: 1, fyndBagId: "bag-returned" }],
+        }),
+      ),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/already been returned/i);
+    expect(prismaMock.returnCase.create).not.toHaveBeenCalled();
+  });
+
+  it("409 when active returns already consume the available line quantity", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1" } });
+    prismaMock.returnItem.findMany.mockResolvedValueOnce([
+      { shopifyLineItemId: "li-1", qty: 1, title: "Tee" },
+    ]);
+
+    const res = await action({
+      request: jsonReq(
+        happyBody({
+          items: [{ lineItemId: "li-1", qty: 1 }],
+          lineItemsWithPrice: [{ id: "li-1", title: "Tee", price: "10", quantity: 1 }],
+        }),
+      ),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(409);
+    const body = await res.json();
+    expect(body.error).toMatch(/exceeds available/i);
+    expect(prismaMock.returnCase.create).not.toHaveBeenCalled();
+  });
+
   it("400 when return qty exceeds ordered qty", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce({ id: "shop-1", settings: { id: "s-1" } });
     const res = await action({

@@ -118,6 +118,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
           price?: string | number;
           imageUrl?: string;
           sku?: string;
+          quantity?: number;
         }>
       | undefined) ?? [];
 
@@ -131,6 +132,108 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const settings = shopRecord.settings;
+
+  // Quantity and duplicate-return validation is not an eligibility preference;
+  // it protects inventory/refund correctness and must run even with adminOverride.
+  const requestedQtyByLineItem = new Map<string, number>();
+  for (const item of items) {
+    if (!Number.isInteger(item.qty) || item.qty < 1) {
+      return Response.json(
+        {
+          error: `Invalid quantity for line item ${item.lineItemId}: must be a positive integer.`,
+        },
+        { status: 400 },
+      );
+    }
+    requestedQtyByLineItem.set(
+      item.lineItemId,
+      (requestedQtyByLineItem.get(item.lineItemId) ?? 0) + item.qty,
+    );
+  }
+
+  const requestedBagIds = items
+    .map((item) => item.fyndBagId)
+    .filter((id): id is string => Boolean(id));
+  if (requestedBagIds.length > 0) {
+    const existingBagReturn = await prisma.returnItem.findFirst({
+      where: {
+        fyndBagId: { in: requestedBagIds },
+        returnCase: {
+          shopId: shopRecord.id,
+          status: { notIn: ["rejected", "cancelled"] },
+        },
+      },
+      select: { fyndBagId: true, title: true },
+    });
+    if (existingBagReturn) {
+      return Response.json(
+        {
+          error: `This article has already been returned${
+            existingBagReturn.title ? `: ${existingBagReturn.title}` : ""
+          }.`,
+          fyndBagId: existingBagReturn.fyndBagId,
+        },
+        { status: 409 },
+      );
+    }
+  }
+
+  const orderedQtyByLineItem = new Map<string, number>();
+  for (const li of lineItemsWithPrice) {
+    if (typeof li.quantity === "number" && Number.isFinite(li.quantity)) {
+      orderedQtyByLineItem.set(li.id, li.quantity);
+    }
+  }
+  if (orderedQtyByLineItem.size > 0) {
+    for (const [lineItemId, requestedQty] of requestedQtyByLineItem) {
+      const orderedQty = orderedQtyByLineItem.get(lineItemId);
+      if (typeof orderedQty === "number" && requestedQty > orderedQty) {
+        return Response.json(
+          {
+            error: `Return quantity (${requestedQty}) exceeds the ordered quantity (${orderedQty}) for line item ${lineItemId}.`,
+            lineItemId,
+          },
+          { status: 400 },
+        );
+      }
+    }
+
+    const existingLineReturns = await prisma.returnItem.findMany({
+      where: {
+        shopifyLineItemId: { in: [...requestedQtyByLineItem.keys()] },
+        returnCase: {
+          shopId: shopRecord.id,
+          shopifyOrderName,
+          status: { notIn: ["rejected", "cancelled"] },
+        },
+      },
+      select: { shopifyLineItemId: true, qty: true, title: true },
+    });
+    const returnedQtyByLineItem = new Map<string, number>();
+    for (const existing of existingLineReturns) {
+      returnedQtyByLineItem.set(
+        existing.shopifyLineItemId,
+        (returnedQtyByLineItem.get(existing.shopifyLineItemId) ?? 0) + existing.qty,
+      );
+    }
+    for (const [lineItemId, requestedQty] of requestedQtyByLineItem) {
+      const orderedQty = orderedQtyByLineItem.get(lineItemId);
+      if (!orderedQty) continue;
+      const alreadyReturned = returnedQtyByLineItem.get(lineItemId) ?? 0;
+      if (alreadyReturned + requestedQty > orderedQty) {
+        const liInfo = lineItemsWithPrice.find((li) => li.id === lineItemId);
+        return Response.json(
+          {
+            error: `Return quantity exceeds available for "${
+              liInfo?.title ?? lineItemId
+            }". ${alreadyReturned} already in return, ${requestedQty} requested, but only ${orderedQty} ordered.`,
+            lineItemId,
+          },
+          { status: 409 },
+        );
+      }
+    }
+  }
 
   // --- Eligibility checks (skipped when adminOverride is true) ---
   if (!adminOverride) {
@@ -159,32 +262,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       }
     }
 
-    // Per-item validation: eligibility AND quantity sanity check.
-    // Without the qty check, an admin (or a buggy client) could submit qty=10 for a
-    // line item the customer originally bought 3 of — which then drives an
-    // exchange/refund draft order with the wrong quantity (P2 finding from QA audit).
+    // Per-item eligibility validation. Quantity and duplicate-return guards run above
+    // regardless of adminOverride because they protect inventory/refund correctness.
     for (const item of items) {
-      if (!Number.isInteger(item.qty) || item.qty < 1) {
-        return Response.json(
-          {
-            error: `Invalid quantity for line item ${item.lineItemId}: must be a positive integer.`,
-          },
-          { status: 400 },
-        );
-      }
       const liInfo = lineItemsWithPrice.find((l) => l.id === item.lineItemId);
       const price = liInfo?.price != null ? Number(liInfo.price) : undefined;
-      const orderedQty = (liInfo as { quantity?: number } | undefined)?.quantity;
-      if (typeof orderedQty === "number" && item.qty > orderedQty) {
-        return Response.json(
-          {
-            error: `Return quantity (${item.qty}) exceeds the ordered quantity (${orderedQty}) for line item ${item.lineItemId}.`,
-            lineItemId: item.lineItemId,
-          },
-          { status: 400 },
-        );
-      }
-
       const eligibility = checkReturnEligibility(settings, {
         orderDate: orderCreatedAt ?? undefined,
         productPrice: price,

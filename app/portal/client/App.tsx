@@ -20,6 +20,7 @@ import {
   Check,
   Clipboard,
   Copy,
+  CreditCard,
   FileImage,
   Headphones,
   ImagePlus,
@@ -27,10 +28,13 @@ import {
   Mail,
   PackageCheck,
   PackageSearch,
+  ReceiptText,
   RefreshCw,
   RotateCcw,
   Search,
   ShieldCheck,
+  ShoppingBag,
+  ShoppingCart,
   Tag,
   Truck,
 } from "lucide-react";
@@ -269,6 +273,18 @@ function DeliveryMotion() {
       <span className="rpm-delivery-parcel rpm-delivery-parcel-one" />
       <span className="rpm-delivery-parcel rpm-delivery-parcel-two" />
       <span className="rpm-delivery-parcel rpm-delivery-parcel-three" />
+      <span className="rpm-commerce-token rpm-commerce-cart">
+        <ShoppingCart size={14} />
+      </span>
+      <span className="rpm-commerce-token rpm-commerce-bag">
+        <ShoppingBag size={14} />
+      </span>
+      <span className="rpm-commerce-token rpm-commerce-card">
+        <CreditCard size={14} />
+      </span>
+      <span className="rpm-commerce-token rpm-commerce-receipt">
+        <ReceiptText size={14} />
+      </span>
     </div>
   );
 }

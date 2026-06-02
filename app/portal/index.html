@@ -3029,6 +3029,48 @@
       animation-delay: 1.3s;
     }
 
+    .rpm-commerce-token {
+      position: absolute;
+      z-index: 1;
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border: 1px solid color-mix(in srgb, var(--rpm-ref-primary) 18%, rgba(255, 255, 255, 0.8));
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--rpm-ref-primary);
+      opacity: 0.76;
+      box-shadow: 0 10px 20px -18px rgba(27, 36, 48, 0.5);
+      transform: translate3d(0, 0, 0) rotate(0deg);
+      animation: rpm-commerce-drift 3.8s ease-in-out infinite;
+    }
+
+    .rpm-commerce-cart {
+      left: 16%;
+      top: 7px;
+    }
+
+    .rpm-commerce-bag {
+      left: 38%;
+      bottom: 6px;
+      color: var(--rpm-ref-warning);
+      animation-delay: 0.55s;
+    }
+
+    .rpm-commerce-card {
+      right: 33%;
+      top: 7px;
+      animation-delay: 1.05s;
+    }
+
+    .rpm-commerce-receipt {
+      right: 14%;
+      bottom: 6px;
+      color: var(--rpm-ref-warning);
+      animation-delay: 1.55s;
+    }
+
     @keyframes rpm-delivery-drive {
       0% {
         opacity: 0;
@@ -3075,6 +3117,24 @@
 
       50% {
         transform: translate3d(0, -4px, 0) rotate(-5deg);
+      }
+    }
+
+    @keyframes rpm-commerce-drift {
+      0%,
+      100% {
+        opacity: 0.64;
+        transform: translate3d(0, 0, 0) rotate(-2deg) scale(0.96);
+      }
+
+      45% {
+        opacity: 0.9;
+        transform: translate3d(0, -5px, 0) rotate(3deg) scale(1);
+      }
+
+      70% {
+        opacity: 0.78;
+        transform: translate3d(0, -2px, 0) rotate(0deg) scale(0.98);
       }
     }
 
@@ -3567,6 +3627,7 @@
       .rpm-delivery-node,
       .rpm-delivery-van,
       .rpm-delivery-parcel,
+      .rpm-commerce-token,
       .rpm-submit-animation,
       .rpm-submit-core,
       .rpm-submit-node,
@@ -3706,6 +3767,27 @@
 
       .rpm-delivery-parcel-three {
         display: none;
+      }
+
+      .rpm-commerce-token {
+        width: 22px;
+        height: 22px;
+      }
+
+      .rpm-commerce-cart {
+        left: 17%;
+      }
+
+      .rpm-commerce-bag {
+        left: 40%;
+      }
+
+      .rpm-commerce-card {
+        right: 29%;
+      }
+
+      .rpm-commerce-receipt {
+        right: 12%;
       }
 
       .rpm-rail-grid {

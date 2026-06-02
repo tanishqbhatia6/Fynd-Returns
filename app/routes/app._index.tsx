@@ -404,10 +404,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const hasFyndConfig = !!(shop.settings?.fyndApplicationId && shop.settings?.fyndCredentials);
 
-    // Onboarding-checklist booleans — each is "done" when the relevant
-    // setting has been configured. The dashboard's <SetupChecklist />
-    // hides itself when every step is done so it disappears for
-    // experienced merchants.
+    // Onboarding-checklist booleans — each required step is "done" when
+    // the relevant setting has been configured. SMTP is intentionally not
+    // part of onboarding; email delivery is useful, but it should not block
+    // merchants from completing the account setup process.
     const setupChecklistData = {
       hasFyndConfig,
       hasSmtp: !!shop.settings?.smtpHost,
@@ -622,10 +622,9 @@ export default function Dashboard() {
     setupChecklistData,
   } = useLoaderData<typeof loader>();
 
-  // Onboarding checklist on the dashboard. Each step is "done" once
-  // the relevant settings field is populated; the checklist hides
-  // itself entirely once everything is configured (so experienced
-  // merchants don't keep seeing a "100% complete" card).
+  // Onboarding checklist on the dashboard. SMTP is optional and remains
+  // configurable under notification settings, but it is not required for
+  // account setup completion.
   const setupSteps = [
     {
       key: "fynd",
@@ -634,14 +633,6 @@ export default function Dashboard() {
       done: setupChecklistData?.hasFyndConfig ?? false,
       href: "/app/settings/integrations",
       ctaLabel: "Connect",
-    },
-    {
-      key: "smtp",
-      title: "Configure email",
-      description: "Add SMTP credentials so customers receive notifications.",
-      done: setupChecklistData?.hasSmtp ?? false,
-      href: "/app/settings/notifications",
-      ctaLabel: "Set up",
     },
     {
       key: "branding",

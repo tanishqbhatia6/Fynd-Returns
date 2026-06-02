@@ -88,10 +88,11 @@ describe("Dashboard <SetupChecklist /> integration", () => {
     await waitFor(() => {
       expect(container.querySelector(".app-setup-checklist")).toBeTruthy();
     });
-    // Heading + four step titles render
+    // Heading + required step titles render. SMTP is optional and should not
+    // block account setup completion.
     expect(container.textContent).toContain("Finish setting up");
     expect(container.textContent).toContain("Connect Fynd");
-    expect(container.textContent).toContain("Configure email");
+    expect(container.textContent).not.toContain("Configure email");
     expect(container.textContent).toContain("Customise the customer portal");
     expect(container.textContent).toContain("Process your first return");
   });
@@ -133,8 +134,8 @@ describe("Dashboard <SetupChecklist /> integration", () => {
     await waitFor(() => {
       expect(container.querySelector(".app-setup-checklist")).toBeTruthy();
     });
-    // 2 of 4 = 50%
-    expect(container.textContent).toContain("2 of 4 complete · 50%");
+    // SMTP no longer counts toward setup progress, so this is 2 of 3.
+    expect(container.textContent).toContain("2 of 3 complete · 67%");
   });
 
   it("falls back gracefully when setupChecklistData is missing entirely (legacy data shape)", async () => {
@@ -146,9 +147,10 @@ describe("Dashboard <SetupChecklist /> integration", () => {
       const h1 = container.querySelector("h1");
       expect(h1?.textContent).toBe("Dashboard");
     });
-    // Every step defaults to undone → checklist renders showing all 4 incomplete
+    // Every required step defaults to undone → checklist renders showing all
+    // 3 incomplete. SMTP is optional.
     expect(container.querySelector(".app-setup-checklist")).toBeTruthy();
-    expect(container.textContent).toContain("0 of 4 complete · 0%");
+    expect(container.textContent).toContain("0 of 3 complete · 0%");
   });
 
   it("each pending step links to its settings page", async () => {
@@ -171,8 +173,8 @@ describe("Dashboard <SetupChecklist /> integration", () => {
       container.querySelectorAll(".app-setup-checklist a"),
     ) as HTMLAnchorElement[];
     const hrefs = links.map((a) => a.getAttribute("href"));
-    expect(hrefs).toContain("/app/settings");
-    expect(hrefs).toContain("/app/settings/notifications");
+    expect(hrefs).toContain("/app/settings/integrations");
+    expect(hrefs).not.toContain("/app/settings/notifications");
     expect(hrefs).toContain("/app/portal");
     expect(hrefs).toContain("/app/returns");
   });

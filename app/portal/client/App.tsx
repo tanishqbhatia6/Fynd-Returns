@@ -206,7 +206,7 @@ function Hero({ bootstrap }: { bootstrap: PortalBootstrap }) {
           {bootstrap.brandLogoUrl ? <img src={bootstrap.brandLogoUrl} alt="" /> : <PackageCheck size={22} />}
         </div>
         <div>
-          <div className="rpm-brand-name">ReturnPro Max</div>
+          <div className="rpm-brand-name">Fynd Returns</div>
           <div className="rpm-brand-shop">{shopLabel}</div>
         </div>
       </div>

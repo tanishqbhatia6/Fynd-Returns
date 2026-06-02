@@ -20,10 +20,10 @@ class PortalErrorBoundary extends Component<{ children: ReactNode }, { hasError:
         <section className="rpm-boot-fallback rpm-boot-error" role="alert">
           <div className="rpm-brand-row">
             <div className="rpm-brand-mark">
-              <span>R</span>
+              <span>F</span>
             </div>
             <div>
-              <div className="rpm-brand-name">ReturnPro Max</div>
+              <div className="rpm-brand-name">Fynd Returns</div>
               <div className="rpm-brand-shop">Customer portal</div>
             </div>
           </div>

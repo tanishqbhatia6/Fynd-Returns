@@ -175,6 +175,39 @@ describe("createReturnOnFynd — fast path (known shipment ID)", () => {
     expect(payload.statuses[0].shipments[0].identifier).toBe("FYSHIP123");
   });
 
+  it("uses item shipment id and line number when caller does not force a target", async () => {
+    const client = makeClient();
+    const rc = makeCase({
+      fyndShipmentId: "STALE-CASE-SHIPMENT",
+      items: [
+        {
+          id: "ri-repeat",
+          returnCaseId: "rc-1",
+          sku: "RETURN4-L",
+          shopifyLineItemId: "gid://shopify/LineItem/1",
+          qty: 1,
+          reasonCode: "Size Issue",
+          fyndShipmentId: "17804010575961768367",
+          fyndSellerIdentifier: "RETURN4-L",
+          fyndLineNumber: 2,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        } as unknown as ReturnItem,
+      ],
+    });
+
+    const res = await createReturnOnFynd(client, rc);
+
+    expect(res.success).toBe(true);
+    expect(client.searchShipmentsByExternalOrderId).not.toHaveBeenCalled();
+    expect(client.getShipments).not.toHaveBeenCalled();
+    const [, payload] = client.updateShipmentStatus.mock.calls[0];
+    const shipment = payload.statuses[0].shipments[0];
+    expect(shipment.identifier).toBe("17804010575961768367");
+    expect(shipment.products[0].line_number).toBe(2);
+    expect(shipment.products[0].identifier).toBe("RETURN4-L");
+  });
+
   it("falls through fast path when no usable items (only manual lines)", async () => {
     const client = makeClient();
     const rc = makeCase({

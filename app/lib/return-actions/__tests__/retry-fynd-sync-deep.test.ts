@@ -126,7 +126,11 @@ beforeEach(() => {
     .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99" });
   claimAndCreateShopifyReturnMock
     .mockReset()
-    .mockResolvedValue({ success: true, shopifyReturnId: "gid://shopify/Return/99", claimed: true });
+    .mockResolvedValue({
+      success: true,
+      shopifyReturnId: "gid://shopify/Return/99",
+      claimed: true,
+    });
 });
 
 describe("handleRetryFyndSync — status guard", () => {
@@ -383,7 +387,7 @@ describe("handleRetryFyndSync — createReturnOnFynd happy path", () => {
     expect(opts.pickupAddress!.name).toBe("Alice");
   });
 
-  it("passes targetShipmentId from existing fyndShipmentId", async () => {
+  it("does not force targetShipmentId from case-level fyndShipmentId", async () => {
     createFyndClientOrErrorMock.mockResolvedValueOnce({ ok: true, client: mkClient() });
     createReturnOnFyndMock.mockResolvedValueOnce({ success: true, fyndReturnId: "FY-1" });
 
@@ -401,7 +405,7 @@ describe("handleRetryFyndSync — createReturnOnFynd happy path", () => {
       "fyndSuccess=1",
     );
     const opts = createReturnOnFyndMock.mock.calls[0]![2] as { targetShipmentId: string | null };
-    expect(opts.targetShipmentId).toBe("SH-EXISTING");
+    expect(opts.targetShipmentId).toBeUndefined();
   });
 });
 

@@ -113,9 +113,10 @@ export function computeAdminReturnState(
   const rawRefundStatus = (refundStatus || "").toLowerCase();
   const rawFyndStatus = normalizeFyndToken(fyndStatus);
   const f = isIgnoredFyndRefundToken(rawFyndStatus) ? "" : rawFyndStatus;
-  const r = isIgnoredFyndRefundToken(rawFyndStatus) && rawRefundStatus === "in_progress"
-    ? ""
-    : rawRefundStatus;
+  const r =
+    isIgnoredFyndRefundToken(rawFyndStatus) && rawRefundStatus === "in_progress"
+      ? ""
+      : rawRefundStatus;
   const journey = returnJourney || [];
   const isExchange = (resolutionType || "").toLowerCase() === "exchange";
   /* v8 ignore stop */
@@ -3668,8 +3669,7 @@ export default function ReturnDetail() {
                                 }
                                 /* v8 ignore stop */
                               })()}
-                              {" \u00B7 "}Backoff: 2min \u2192 5min \u2192 15min \u2192 1hr \u2192
-                              4hr
+                              {" - "}Backoff: 2min -&gt; 5min -&gt; 15min -&gt; 1hr -&gt; 4hr
                             </div>
                           )}
                         {/* Actionable guidance for failed state */}

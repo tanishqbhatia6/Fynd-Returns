@@ -344,6 +344,39 @@ describe("auto-approve flow", () => {
     const createCall = prismaMock.returnCase.create.mock.calls[0][0];
     expect(createCall.data.status).toBe("initiated");
   });
+
+  it("persists Fynd line number for manual return items", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce({
+      id: "shop-1",
+      settings: { id: "s-1", autoApproveEnabled: true, autoApproveRulesJson: null },
+    });
+
+    await action({
+      request: jsonReq(
+        happyBody({
+          items: [
+            {
+              lineItemId: "gid://shopify/LineItem/1",
+              qty: 1,
+              sku: "RETURN4-L",
+              fyndShipmentId: "17804010575961768367",
+              fyndBagId: "bag-2",
+              fyndSellerIdentifier: "RETURN4-L",
+              fyndLineNumber: 2,
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
+    } as never);
+
+    const createCall = prismaMock.returnCase.create.mock.calls[0][0];
+    const createdItem = createCall.data.items.create[0];
+    expect(createdItem.fyndShipmentId).toBe("17804010575961768367");
+    expect(createdItem.fyndBagId).toBe("bag-2");
+    expect(createdItem.fyndLineNumber).toBe(2);
+  });
 });
 
 describe("orderId resolution", () => {

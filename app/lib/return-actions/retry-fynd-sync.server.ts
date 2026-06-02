@@ -99,10 +99,6 @@ export const handleRetryFyndSync: ReturnActionHandler = async (ctx) => {
           fyndResult = await createReturnOnFynd(fyndClient, returnCase as never, {
             affiliateOrderId,
             /* v8 ignore start */
-            // defensive: fyndShipmentId set in fixtures; || null fallback unreachable
-            targetShipmentId: returnCase.fyndShipmentId || null,
-            /* v8 ignore stop */
-            /* v8 ignore start */
             // defensive: pickupAddress nullish-coalescing fallbacks per field
             pickupAddress:
               returnCase.customerAddress1 || returnCase.customerCity

@@ -282,24 +282,13 @@ const MAX_CREATE_RETURN_BODY_BYTES = 80 * 1024 * 1024;
 const MAX_MEDIA_FILES = 5;
 const MAX_IMAGE_MEDIA_BYTES = 5 * 1024 * 1024;
 const MAX_VIDEO_MEDIA_BYTES = 50 * 1024 * 1024;
-const ALLOWED_IMAGE_MEDIA_TYPES = new Set([
-  "image/jpeg",
-  "image/png",
-  "image/gif",
-  "image/webp",
-]);
-const ALLOWED_VIDEO_MEDIA_TYPES = new Set([
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-]);
+const ALLOWED_IMAGE_MEDIA_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"]);
+const ALLOWED_VIDEO_MEDIA_TYPES = new Set(["video/mp4", "video/webm", "video/quicktime"]);
 
-function parseSafeMediaDataUrl(dataUrl: string):
-  | {
-      mimeType: string;
-      sizeEstimate: number;
-    }
-  | null {
+function parseSafeMediaDataUrl(dataUrl: string): {
+  mimeType: string;
+  sizeEstimate: number;
+} | null {
   const match = /^data:([^;,]+);base64,([a-z0-9+/=\s]+)$/i.exec(dataUrl);
   if (!match) return null;
   const mimeType = match[1].toLowerCase();
@@ -1620,27 +1609,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     // mimeType/size; derive both from the data URL that will actually be stored.
     let customerMediaJson: string | null = null;
     if (Array.isArray(customerMediaRaw) && customerMediaRaw.length > 0) {
-      const validMedia = customerMediaRaw
-        .slice(0, MAX_MEDIA_FILES)
-        .flatMap((m) => {
-          if (!m?.dataUrl || typeof m.dataUrl !== "string") return [];
-          const parsed = parseSafeMediaDataUrl(m.dataUrl);
-          if (!parsed) return [];
-          const isImage = ALLOWED_IMAGE_MEDIA_TYPES.has(parsed.mimeType);
-          const isVideo = ALLOWED_VIDEO_MEDIA_TYPES.has(parsed.mimeType);
-          if (!isImage && !isVideo) return [];
-          const maxBytes = isVideo ? MAX_VIDEO_MEDIA_BYTES : MAX_IMAGE_MEDIA_BYTES;
-          if (parsed.sizeEstimate > maxBytes) return [];
-          return [
-            {
-              name: String(m.name ?? "upload")
-                .replace(/[\r\n]/g, " ")
-                .slice(0, 255),
-              mimeType: parsed.mimeType,
-              dataUrl: m.dataUrl,
-            },
-          ];
-        });
+      const validMedia = customerMediaRaw.slice(0, MAX_MEDIA_FILES).flatMap((m) => {
+        if (!m?.dataUrl || typeof m.dataUrl !== "string") return [];
+        const parsed = parseSafeMediaDataUrl(m.dataUrl);
+        if (!parsed) return [];
+        const isImage = ALLOWED_IMAGE_MEDIA_TYPES.has(parsed.mimeType);
+        const isVideo = ALLOWED_VIDEO_MEDIA_TYPES.has(parsed.mimeType);
+        if (!isImage && !isVideo) return [];
+        const maxBytes = isVideo ? MAX_VIDEO_MEDIA_BYTES : MAX_IMAGE_MEDIA_BYTES;
+        if (parsed.sizeEstimate > maxBytes) return [];
+        return [
+          {
+            name: String(m.name ?? "upload")
+              .replace(/[\r\n]/g, " ")
+              .slice(0, 255),
+            mimeType: parsed.mimeType,
+            dataUrl: m.dataUrl,
+          },
+        ];
+      });
       if (validMedia.length > 0) {
         customerMediaJson = JSON.stringify(validMedia);
       }
@@ -2357,7 +2344,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
           const fyndSync = await createReturnOnFynd(fyndResult.client, rcWithItems, {
             affiliateOrderId,
-            targetShipmentId: rcWithItems.fyndShipmentId || null,
           });
           if (
             fyndSync.success &&

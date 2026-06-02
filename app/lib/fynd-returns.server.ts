@@ -227,17 +227,19 @@ export async function createReturnOnFynd(
       const storedFyndReturnId = returnCase.fyndReturnId?.trim() || null;
       /* v8 ignore stop */
 
-      // Derive targetShipId: explicit option → fyndShipmentId on returnCase → fyndOrderId/fyndReturnId if they look like shipment IDs
-      // The shipment ID often gets stored in fyndOrderId or fyndReturnId by previous failed sync attempts
+      const itemShipmentIds = getItemShipmentIds(returnCase.items);
+
+      // Derive targetShipId from the selected return items first. Case-level shipment
+      // fields can become stale after previous partial returns on the same order.
       const targetShipId =
         options?.targetShipmentId?.trim() ||
+        (itemShipmentIds.length === 1 ? itemShipmentIds[0] : null) ||
         (storedFyndOrderId && looksLikeShipmentId(storedFyndOrderId) ? storedFyndOrderId : null) ||
         (storedFyndReturnId && looksLikeShipmentId(storedFyndReturnId)
           ? storedFyndReturnId
           : null) ||
         null;
 
-      const itemShipmentIds = getItemShipmentIds(returnCase.items);
       if (itemShipmentIds.length > 1 && hasSyncableReturnItem(returnCase.items)) {
         fyndLogger.info(
           { shipmentIds: itemShipmentIds, orderId: externalOrderId },

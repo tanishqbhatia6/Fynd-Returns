@@ -61,6 +61,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         fyndQuantityAvailable?: number;
         fyndPriceEffective?: string;
         fyndSize?: string;
+        fyndLineNumber?: number;
       }>
     | undefined;
   if (!items || !Array.isArray(items) || items.length === 0) {
@@ -396,6 +397,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 fyndQuantityAvailable: item.fyndQuantityAvailable ?? null,
                 fyndPriceEffective: item.fyndPriceEffective || null,
                 fyndSize: item.fyndSize || null,
+                fyndLineNumber: item.fyndLineNumber ?? null,
               };
             }),
           },

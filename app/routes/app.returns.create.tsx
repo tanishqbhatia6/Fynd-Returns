@@ -60,6 +60,7 @@ type OrderLineItem = {
   fyndQuantityAvailable?: number | null;
   fyndPriceEffective?: string | null;
   fyndSize?: string | null;
+  fyndLineNumber?: number | null;
   availableQty?: number | null;
   alreadyInReturn?: boolean | null;
 };
@@ -109,6 +110,7 @@ type SelectedItem = {
   fyndQuantityAvailable: number | null;
   fyndPriceEffective: string | null;
   fyndSize: string | null;
+  fyndLineNumber: number | null;
 };
 
 type LineItemAvailability = {
@@ -636,6 +638,7 @@ export default function CreateReturn() {
             fyndQuantityAvailable: sourceItem?.fyndQuantityAvailable ?? null,
             fyndPriceEffective: sourceItem?.fyndPriceEffective ?? null,
             fyndSize: sourceItem?.fyndSize ?? null,
+            fyndLineNumber: sourceItem?.fyndLineNumber ?? null,
           };
         }
         return next;
@@ -728,6 +731,7 @@ export default function CreateReturn() {
       fyndQuantityAvailable: si.fyndQuantityAvailable ?? undefined,
       fyndPriceEffective: si.fyndPriceEffective || undefined,
       fyndSize: si.fyndSize || undefined,
+      fyndLineNumber: si.fyndLineNumber ?? undefined,
     }));
     /* v8 ignore stop */
 

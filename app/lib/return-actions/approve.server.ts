@@ -220,7 +220,6 @@ export const handleApprove: ReturnActionHandler = async (ctx, body) => {
             try {
               const fyndResult = await createReturnOnFynd(fyndClient, returnCase as never, {
                 affiliateOrderId,
-                targetShipmentId: returnCase.fyndShipmentId || null,
                 pickupAddress:
                   returnCase.customerAddress1 || returnCase.customerCity
                     ? {

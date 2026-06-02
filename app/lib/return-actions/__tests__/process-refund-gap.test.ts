@@ -1093,7 +1093,7 @@ describe("handleProcessRefund — Fynd sync best-effort", () => {
     expect(events).not.toContain("fynd_refund_sync_failed");
   });
 
-  it("returnCase has fyndOrderId but no fyndShipmentId → Fynd block skipped (isFyndIntegrated still true via order id)", async () => {
+  it("returnCase has fyndOrderId but no fyndShipmentId → attempts Fynd refund sync resolution", async () => {
     const ctx = mkCtx({
       returnCase: {
         ...mkCtx().returnCase,
@@ -1106,8 +1106,10 @@ describe("handleProcessRefund — Fynd sync best-effort", () => {
       handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
       "/app/returns/rc-1",
     );
-    // Fynd block is gated by fyndShipmentId; should not call createFyndClientOrError
-    expect(createFyndClientOrErrorMock).not.toHaveBeenCalled();
+    expect(createFyndClientOrErrorMock).toHaveBeenCalledWith(
+      expect.objectContaining({ fyndApiType: "platform" }),
+      { requirePlatform: true },
+    );
   });
 });
 

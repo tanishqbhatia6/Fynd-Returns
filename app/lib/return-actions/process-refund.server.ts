@@ -21,6 +21,7 @@ import {
   type RefundMethodConfig,
 } from "../shopify-admin.server";
 import { createFyndClientOrError } from "../fynd.server";
+import { parseFyndOrderDetailsForTab } from "../fynd-payload.server";
 import { sendRefundNotification } from "../notification.server";
 import { auditReturnAction } from "../observability/audit.server";
 import { refundLogger } from "../observability/logger.server";
@@ -48,6 +49,111 @@ const mergeRefundLineItems = (items: Array<{ id: string; quantity: number }>) =>
   }
   return [...merged.entries()].map(([id, quantity]) => ({ id, quantity }));
 };
+
+const isLikelyFyndShipmentId = (id: string | null | undefined) =>
+  /^\d{15,}$/.test(String(id ?? "").trim());
+
+type RefundFyndScopeReturn = {
+  fyndOrderId?: string | null;
+  fyndShipmentId?: string | null;
+  fyndReturnId?: string | null;
+  fyndPayloadJson?: string | null;
+  items?: Array<{ fyndShipmentId?: string | null }>;
+};
+
+type RefundFyndClient = {
+  getShipments?: (orderId: string) => Promise<unknown>;
+};
+
+const isReturnSideShipment = (shipment: {
+  journeyType: string | null;
+  shipmentStatus: string | null;
+}) => {
+  const journeyType = String(shipment.journeyType ?? "")
+    .toLowerCase()
+    .trim();
+  const status = normalizeFyndGateStatus(shipment.shipmentStatus ?? "");
+  return (
+    journeyType === "return" ||
+    status.startsWith("return_") ||
+    status.startsWith("refund_") ||
+    status.startsWith("credit_note") ||
+    status === "out_for_pickup" ||
+    status === "dp_out_for_pickup" ||
+    status === "out_for_delivery_to_store"
+  );
+};
+
+function extractReturnShipmentIdFromPayload(
+  fyndPayloadJson: string | null | undefined,
+  forwardShipmentIds: Set<string>,
+  preferredShipmentIds = new Set<string>(),
+): string | null {
+  const parsed = parseFyndOrderDetailsForTab(fyndPayloadJson);
+  const shipments = parsed?.shipments ?? [];
+  const returnShipments = shipments.filter((shipment) => isReturnSideShipment(shipment));
+  const preferred = returnShipments.find((shipment) =>
+    preferredShipmentIds.has(shipment.shipmentId),
+  );
+  const matched =
+    preferred ??
+    returnShipments.find(
+      (shipment) =>
+        shipment.forwardShipmentId != null && forwardShipmentIds.has(shipment.forwardShipmentId),
+    ) ??
+    returnShipments[0];
+  const shipmentId = String(matched?.shipmentId ?? "").trim();
+  return shipmentId && shipmentId !== "—" ? shipmentId : null;
+}
+
+async function resolveFyndRefundShipmentId(
+  fyndClient: RefundFyndClient,
+  returnCase: RefundFyndScopeReturn,
+): Promise<{ shipmentId: string | null; fetchedPayloadJson: string | null }> {
+  const itemShipmentIds = (returnCase.items ?? [])
+    .map((item) => String(item.fyndShipmentId ?? "").trim())
+    .filter(Boolean);
+  const forwardShipmentIds = new Set(
+    [returnCase.fyndShipmentId ?? null, ...itemShipmentIds]
+      .map((id) => String(id ?? "").trim())
+      .filter(Boolean),
+  );
+  const returnId = String(returnCase.fyndReturnId ?? "").trim();
+  const preferredShipmentIds = new Set(
+    [returnId].filter((id) => id && !forwardShipmentIds.has(id)),
+  );
+
+  const fromStoredPayload = extractReturnShipmentIdFromPayload(
+    returnCase.fyndPayloadJson,
+    forwardShipmentIds,
+    preferredShipmentIds,
+  );
+  if (fromStoredPayload) return { shipmentId: fromStoredPayload, fetchedPayloadJson: null };
+
+  const orderId = String(returnCase.fyndOrderId ?? "").trim();
+  if (orderId && !isLikelyFyndShipmentId(orderId) && fyndClient.getShipments) {
+    try {
+      const payload = await fyndClient.getShipments(orderId);
+      const payloadJson = JSON.stringify(payload);
+      const fromLivePayload = extractReturnShipmentIdFromPayload(
+        payloadJson,
+        forwardShipmentIds,
+        preferredShipmentIds,
+      );
+      if (fromLivePayload) return { shipmentId: fromLivePayload, fetchedPayloadJson: payloadJson };
+    } catch (err) {
+      refundLogger.warn({ err }, "[process_refund] Unable to resolve live Fynd return shipment");
+    }
+  }
+
+  if (returnId && !forwardShipmentIds.has(returnId)) {
+    return { shipmentId: returnId, fetchedPayloadJson: null };
+  }
+  if (itemShipmentIds.length === 1)
+    return { shipmentId: itemShipmentIds[0], fetchedPayloadJson: null };
+  const fallback = String(returnCase.fyndShipmentId ?? "").trim();
+  return { shipmentId: fallback || null, fetchedPayloadJson: null };
+}
 
 export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
   const { id, returnCase, shop, admin, sessionEmail, shopDomain, elapsed, logShopifyReturnEvent } =
@@ -748,8 +854,14 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
           logEvent: logShopifyReturnEvent,
         });
 
+        const hasFyndRefundSyncTarget = Boolean(
+          returnCase.fyndShipmentId ||
+          returnCase.fyndReturnId ||
+          returnCase.fyndOrderId ||
+          (returnCase.items ?? []).some((item) => item.fyndShipmentId),
+        );
         if (
-          returnCase.fyndShipmentId &&
+          hasFyndRefundSyncTarget &&
           (shop.settings as { syncRefundToFynd?: boolean | null } | null)?.syncRefundToFynd !==
             false
         ) {
@@ -761,7 +873,15 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
             if (fyndClientResult.ok && "updateShipmentStatus" in fyndClientResult.client) {
               const fyndClient =
                 fyndClientResult.client as import("../fynd.server").FyndPlatformClient;
-              const callId = returnCase.fyndOrderId || returnCase.fyndShipmentId;
+              const { shipmentId: refundShipmentId, fetchedPayloadJson } =
+                await resolveFyndRefundShipmentId(fyndClient, returnCase);
+              if (!refundShipmentId) {
+                throw new Error("Could not resolve Fynd return shipment for refund sync");
+              }
+              const callId =
+                returnCase.fyndOrderId && !isLikelyFyndShipmentId(returnCase.fyndOrderId)
+                  ? returnCase.fyndOrderId
+                  : refundShipmentId;
               const currentFyndStatus = (returnCase.fyndCurrentStatus || "").toLowerCase();
               const transitions: Array<{ status: string; from: string }> = [];
               // Statuses considered "at or past credit_note_generated" — once the
@@ -798,7 +918,7 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                   await fyndClient.updateShipmentStatus(callId, {
                     statuses: [
                       {
-                        shipments: [{ identifier: returnCase.fyndShipmentId }],
+                        shipments: [{ identifier: refundShipmentId }],
                         status: t.status,
                       },
                     ],
@@ -809,7 +929,7 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                   });
                   successfulTransitions.push(t.status);
                   refundLogger.info(
-                    { shipmentId: returnCase.fyndShipmentId, status: t.status },
+                    { shipmentId: refundShipmentId, status: t.status },
                     "[process_refund] Fynd status pushed",
                   );
                 } catch (transitionErr) {
@@ -832,7 +952,10 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                 await prisma.returnCase
                   .update({
                     where: { id },
-                    data: { fyndCurrentStatus: latestStatus },
+                    data: {
+                      fyndCurrentStatus: latestStatus,
+                      ...(fetchedPayloadJson ? { fyndPayloadJson: fetchedPayloadJson } : {}),
+                    },
                   })
                   .catch(() => {});
                 await prisma.returnEvent
@@ -843,7 +966,8 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                       eventType: "fynd_refund_synced",
                       payloadJson: JSON.stringify({
                         transitions: successfulTransitions,
-                        shipmentId: returnCase.fyndShipmentId,
+                        shipmentId: refundShipmentId,
+                        originalShipmentId: returnCase.fyndShipmentId,
                         ...(failedTransitions.length > 0
                           ? { partialFailures: failedTransitions }
                           : {}),
@@ -860,7 +984,8 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                       source: "admin",
                       eventType: "fynd_refund_sync_failed",
                       payloadJson: JSON.stringify({
-                        shipmentId: returnCase.fyndShipmentId,
+                        shipmentId: refundShipmentId,
+                        originalShipmentId: returnCase.fyndShipmentId,
                         failures: failedTransitions,
                       }),
                     },
@@ -882,6 +1007,8 @@ export const handleProcessRefund: ReturnActionHandler = async (ctx, body) => {
                   payloadJson: JSON.stringify({
                     error: fyndErr instanceof Error ? fyndErr.message : String(fyndErr),
                     shipmentId: returnCase.fyndShipmentId,
+                    originalShipmentId: returnCase.fyndShipmentId,
+                    fyndReturnId: returnCase.fyndReturnId,
                   }),
                 },
               })

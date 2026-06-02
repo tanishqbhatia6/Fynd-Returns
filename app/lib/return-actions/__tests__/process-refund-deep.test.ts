@@ -1015,4 +1015,131 @@ describe("handleProcessRefund — Fynd transition partial failure", () => {
     // Falls back to shipmentId
     expect(updateShipmentStatus.mock.calls[0][0]).toBe("SH-1");
   });
+
+  it("uses the return-side Fynd shipment from stored payload for repeated partial refunds", async () => {
+    const forwardShipmentId = "17804013289791936503";
+    const returnShipmentId = "17804013289791936504";
+    const ctx = mkCtx({
+      returnCase: {
+        ...mkCtx().returnCase,
+        fyndShipmentId: forwardShipmentId,
+        fyndOrderId: "FYMPORDER123456789",
+        fyndCurrentStatus: "return_bag_delivered",
+        fyndPayloadJson: JSON.stringify({
+          shipments: [
+            {
+              shipment_id: forwardShipmentId,
+              journey_type: "forward",
+              shipment_status: "delivery_done",
+            },
+            {
+              shipment_id: returnShipmentId,
+              forward_shipment_id: forwardShipmentId,
+              journey_type: "return",
+              shipment_status: "return_bag_delivered",
+            },
+          ],
+        }),
+        items: [
+          {
+            ...(mkCtx().returnCase.items[0] as object),
+            fyndShipmentId: forwardShipmentId,
+          },
+        ],
+      } as never,
+      shop: {
+        ...mkCtx().shop,
+        settings: { fyndApiType: "platform", syncRefundToFynd: true },
+      } as never,
+    });
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { updateShipmentStatus, getShipments: vi.fn() },
+    });
+
+    await expectRedirect(
+      handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
+      "/app/returns/rc-1",
+    );
+
+    const payload = updateShipmentStatus.mock.calls[0][1] as {
+      statuses: Array<{ shipments: Array<{ identifier: string }> }>;
+    };
+    expect(updateShipmentStatus.mock.calls[0][0]).toBe("FYMPORDER123456789");
+    expect(payload.statuses[0].shipments[0].identifier).toBe(returnShipmentId);
+
+    const events = prismaMock.returnEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string; payloadJson: string } }).data,
+    );
+    const synced = events.find((e) => e.eventType === "fynd_refund_synced");
+    expect(JSON.parse(synced!.payloadJson)).toMatchObject({
+      shipmentId: returnShipmentId,
+      originalShipmentId: forwardShipmentId,
+    });
+  });
+
+  it("fetches live Fynd order details to resolve the return shipment when stored payload is stale", async () => {
+    const forwardShipmentId = "17804013289791936503";
+    const returnShipmentId = "17804013289791936505";
+    const ctx = mkCtx({
+      returnCase: {
+        ...mkCtx().returnCase,
+        fyndShipmentId: forwardShipmentId,
+        fyndOrderId: "FYMPORDER123456789",
+        fyndCurrentStatus: "return_bag_delivered",
+        fyndPayloadJson: null,
+        items: [
+          {
+            ...(mkCtx().returnCase.items[0] as object),
+            fyndShipmentId: forwardShipmentId,
+          },
+        ],
+      } as never,
+      shop: {
+        ...mkCtx().shop,
+        settings: { fyndApiType: "platform", syncRefundToFynd: true },
+      } as never,
+    });
+    const getShipments = vi.fn(async () => ({
+      shipments: [
+        {
+          shipment_id: forwardShipmentId,
+          journey_type: "forward",
+          shipment_status: "delivery_done",
+        },
+        {
+          shipment_id: returnShipmentId,
+          forward_shipment_id: forwardShipmentId,
+          journey_type: "return",
+          shipment_status: "return_bag_delivered",
+        },
+      ],
+    }));
+    const updateShipmentStatus = vi.fn<(...args: unknown[]) => Promise<undefined>>(
+      async () => undefined,
+    );
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { updateShipmentStatus, getShipments },
+    });
+
+    await expectRedirect(
+      handleProcessRefund(ctx, { action: "process_refund" } as ReturnActionBody),
+      "/app/returns/rc-1",
+    );
+
+    expect(getShipments).toHaveBeenCalledWith("FYMPORDER123456789");
+    const payload = updateShipmentStatus.mock.calls[0][1] as {
+      statuses: Array<{ shipments: Array<{ identifier: string }> }>;
+    };
+    expect(payload.statuses[0].shipments[0].identifier).toBe(returnShipmentId);
+    expect(
+      prismaMock.returnCase.update.mock.calls.some(
+        (c) => !!(c[0] as { data: { fyndPayloadJson?: string } }).data.fyndPayloadJson,
+      ),
+    ).toBe(true);
+  });
 });

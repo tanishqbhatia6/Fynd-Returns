@@ -731,6 +731,31 @@ describe("Fynd sync trigger", () => {
       items: [],
     };
     (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
+    fetchOrderMock.mockResolvedValue({
+      id: "gid://shopify/Order/7830278078614",
+      displayFulfillmentStatus: "FULFILLED",
+      displayFinancialStatus: "PAID",
+      sourceName: "web",
+      affiliateOrderId: null,
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/17593760874646",
+          title: "RETURN4",
+          sku: "RETURN4",
+          price: "200.00",
+          quantity: 4,
+          productTags: [],
+        },
+        {
+          id: "gid://shopify/LineItem/17593760907414",
+          title: "RETURN3",
+          sku: "RETURN3",
+          price: "100.00",
+          quantity: 4,
+          productTags: [],
+        },
+      ],
+    });
 
     const res = await action({
       request: jsonReq(
@@ -795,8 +820,9 @@ describe("Fynd sync trigger", () => {
     const createArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
     expect(createArg.data.items.create).toEqual([
       expect.objectContaining({
-        shopifyLineItemId: "3899443",
+        shopifyLineItemId: "gid://shopify/LineItem/17593760907414",
         title: "RETURN APP TESTING 1",
+        sku: "RETURN3",
         fyndShipmentId: "17805697162061965971",
         fyndBagId: "3899443",
         fyndArticleId: "12685608",

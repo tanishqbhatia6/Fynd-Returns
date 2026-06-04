@@ -12,9 +12,35 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { createFyndClientOrError, type FyndPlatformClient } from "../lib/fynd.server";
+import { fetchOrder, fetchOrderByOrderNumber } from "../lib/shopify-admin.server";
+
+function numericPrice(value: string | number | null | undefined): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
+function priceKey(value: string | number | null | undefined): string | null {
+  const parsed = numericPrice(value);
+  return parsed == null ? null : parsed.toFixed(2);
+}
+
+function isShopifyLineItemGid(value: string | null | undefined): boolean {
+  return Boolean(value?.startsWith("gid://shopify/LineItem/"));
+}
+
+type ShopifyLineForBackfill = {
+  id: string;
+  title?: string | null;
+  sku?: string | null;
+  price?: string | number | null;
+};
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { session, admin } = await authenticate.admin(request);
   if (request.method !== "POST") {
     return Response.json({ error: "Method not allowed" }, { status: 405 });
   }
@@ -22,6 +48,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const body = await request.json().catch(() => ({}));
   const returnCaseId = (body as Record<string, unknown>).returnCaseId as string | undefined;
   const dryRun = (body as Record<string, unknown>).dryRun === true;
+  const repairShopifyLineItems = (body as Record<string, unknown>).repairShopifyLineItems === true;
   const limit = Math.min(Number((body as Record<string, unknown>).limit) || 50, 200);
 
   const shop = await prisma.shop.findFirst({
@@ -277,6 +304,75 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       details.push(`Found ${allBags.length} Fynd bags across ${shipments.length} shipments`);
 
       let itemsUpdated = 0;
+      let shopifyLineItems: ShopifyLineForBackfill[] = [];
+      const shopifyBySku = new Map<string, ShopifyLineForBackfill>();
+      const shopifyByTitle = new Map<string, ShopifyLineForBackfill>();
+      const shopifyByLegacyId = new Map<string, ShopifyLineForBackfill>();
+      const shopifyByPrice = new Map<string, ShopifyLineForBackfill[]>();
+
+      if (repairShopifyLineItems) {
+        const gqlAdmin = admin as
+          | {
+              graphql: (
+                query: string,
+                options?: { variables?: Record<string, unknown> },
+              ) => Promise<Response>;
+            }
+          | undefined;
+
+        if (!gqlAdmin?.graphql) {
+          details.push("Shopify line repair skipped: authenticated admin client unavailable");
+        } else {
+          const shopifyOrder = rc.shopifyOrderId?.startsWith("gid://")
+            ? await fetchOrder(gqlAdmin, rc.shopifyOrderId)
+            : await fetchOrderByOrderNumber(gqlAdmin, orderName);
+          shopifyLineItems = shopifyOrder?.lineItems ?? [];
+          for (const line of shopifyLineItems) {
+            if (line.sku) shopifyBySku.set(line.sku.toLowerCase(), line);
+            if (line.title) shopifyByTitle.set(line.title.toLowerCase(), line);
+            const legacyId = line.id.replace(/^gid:\/\/shopify\/LineItem\//, "");
+            if (legacyId) shopifyByLegacyId.set(legacyId, line);
+            const key = priceKey(line.price);
+            if (key) shopifyByPrice.set(key, [...(shopifyByPrice.get(key) ?? []), line]);
+          }
+          details.push(`Loaded ${shopifyLineItems.length} Shopify line items for repair`);
+        }
+      }
+
+      const matchShopifyLine = (
+        matchedBag: FyndBagInfo,
+        returnItem: (typeof rc.items)[number],
+      ): ShopifyLineForBackfill | null => {
+        if (!repairShopifyLineItems || isShopifyLineItemGid(returnItem.shopifyLineItemId)) {
+          return null;
+        }
+
+        const sellerIdentifier =
+          matchedBag.sellerIdentifier?.toLowerCase() ?? returnItem.sku?.toLowerCase() ?? null;
+        if (sellerIdentifier) {
+          const bySku = shopifyBySku.get(sellerIdentifier);
+          if (bySku) return bySku;
+        }
+
+        if (matchedBag.affiliateLineId) {
+          const byAffiliateLine = shopifyByLegacyId.get(matchedBag.affiliateLineId);
+          if (byAffiliateLine) return byAffiliateLine;
+        }
+
+        const bagPrice = priceKey(matchedBag.price ?? matchedBag.priceEffective);
+        if (bagPrice) {
+          const priceMatches = shopifyByPrice.get(bagPrice) ?? [];
+          if (priceMatches.length === 1) return priceMatches[0];
+        }
+
+        const title = (matchedBag.title || returnItem.title || "").toLowerCase().trim();
+        if (title) {
+          const exactTitle = shopifyByTitle.get(title);
+          if (exactTitle) return exactTitle;
+        }
+
+        return null;
+      };
 
       for (const returnItem of rc.items) {
         // Match strategy: fyndBagId → sku/sellerIdentifier → affiliateLineId → title+price
@@ -286,6 +382,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         // 1. Exact match by existing fyndBagId
         if (returnItem.fyndBagId) {
           matched = allBags.find((b) => b.bagId === returnItem.fyndBagId) ?? null;
+        }
+
+        // Legacy bad rows may have stored the Fynd bag ID in shopifyLineItemId.
+        if (
+          !matched &&
+          returnItem.shopifyLineItemId &&
+          !isShopifyLineItemGid(returnItem.shopifyLineItemId)
+        ) {
+          matched = allBags.find((b) => b.bagId === returnItem.shopifyLineItemId) ?? null;
         }
 
         // 2. Match by sku / seller_identifier
@@ -349,6 +454,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         if (!returnItem.fyndPriceEffective && matched.priceEffective)
           updates.fyndPriceEffective = matched.priceEffective;
         if (!returnItem.fyndSize && matched.size) updates.fyndSize = matched.size;
+
+        const repairedShopifyLine = matchShopifyLine(matched, returnItem);
+        if (repairedShopifyLine) {
+          updates.shopifyLineItemId = repairedShopifyLine.id;
+          if (!returnItem.sku && repairedShopifyLine.sku) updates.sku = repairedShopifyLine.sku;
+        } else if (repairShopifyLineItems && !isShopifyLineItemGid(returnItem.shopifyLineItemId)) {
+          details.push(
+            `Item "${returnItem.title}" (${returnItem.id}): Shopify line repair could not find a safe match`,
+          );
+        }
 
         if (Object.keys(updates).length === 0) {
           details.push(

@@ -5,13 +5,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
+const {
+  prismaMock,
+  authenticateMock,
+  createFyndClientOrErrorMock,
+  fetchOrderMock,
+  fetchOrderByOrderNumberMock,
+} = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
   createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
     ok: false,
     error: "disabled",
   })),
+  fetchOrderMock: vi.fn(),
+  fetchOrderByOrderNumberMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -19,6 +27,10 @@ vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock } }));
 vi.mock("../../lib/fynd.server", () => ({
   createFyndClientOrError: createFyndClientOrErrorMock,
+}));
+vi.mock("../../lib/shopify-admin.server", () => ({
+  fetchOrder: fetchOrderMock,
+  fetchOrderByOrderNumber: fetchOrderByOrderNumberMock,
 }));
 
 import { action } from "../api.admin.backfill-fynd-items";
@@ -33,8 +45,13 @@ function mkReq(body: unknown = {}, method: string = "POST") {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
+  authenticateMock.mockReset().mockResolvedValue({
+    session: { shop: "store.myshopify.com" },
+    admin: { graphql: vi.fn() },
+  });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
+  fetchOrderMock.mockReset().mockResolvedValue(null);
+  fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
 });
 
 describe("POST /api/admin/backfill-fynd-items", () => {

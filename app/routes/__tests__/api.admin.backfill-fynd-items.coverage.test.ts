@@ -10,13 +10,21 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPrismaMock, resetPrismaMock } from "../../test/prisma-mock";
 
-const { prismaMock, authenticateMock, createFyndClientOrErrorMock } = vi.hoisted(() => ({
+const {
+  prismaMock,
+  authenticateMock,
+  createFyndClientOrErrorMock,
+  fetchOrderMock,
+  fetchOrderByOrderNumberMock,
+} = vi.hoisted(() => ({
   prismaMock: {} as ReturnType<typeof createPrismaMock>,
   authenticateMock: vi.fn(),
   createFyndClientOrErrorMock: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({
     ok: false,
     error: "disabled",
   })),
+  fetchOrderMock: vi.fn(),
+  fetchOrderByOrderNumberMock: vi.fn(),
 }));
 Object.assign(prismaMock, createPrismaMock());
 
@@ -24,6 +32,10 @@ vi.mock("../../db.server", () => ({ default: prismaMock }));
 vi.mock("../../shopify.server", () => ({ authenticate: { admin: authenticateMock } }));
 vi.mock("../../lib/fynd.server", () => ({
   createFyndClientOrError: createFyndClientOrErrorMock,
+}));
+vi.mock("../../lib/shopify-admin.server", () => ({
+  fetchOrder: fetchOrderMock,
+  fetchOrderByOrderNumber: fetchOrderByOrderNumberMock,
 }));
 
 import { action } from "../api.admin.backfill-fynd-items";
@@ -97,8 +109,13 @@ function mkReturnCase(overrides: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   resetPrismaMock(prismaMock);
-  authenticateMock.mockReset().mockResolvedValue({ session: { shop: "store.myshopify.com" } });
+  authenticateMock.mockReset().mockResolvedValue({
+    session: { shop: "store.myshopify.com" },
+    admin: { graphql: vi.fn() },
+  });
   createFyndClientOrErrorMock.mockReset().mockResolvedValue({ ok: false, error: "disabled" });
+  fetchOrderMock.mockReset().mockResolvedValue(null);
+  fetchOrderByOrderNumberMock.mockReset().mockResolvedValue(null);
 });
 
 describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
@@ -411,6 +428,100 @@ describe("POST /api/admin/backfill-fynd-items — extra coverage", () => {
     expect(body.updated).toBe(1);
     expect(prismaMock.returnItem.update).toHaveBeenCalledTimes(1);
     expect(prismaMock.returnItem.update.mock.calls[0][0].data.fyndAffiliateLineId).toBe("LINE-1");
+  });
+
+  it("repairs legacy numeric bag IDs to Shopify line GIDs using unique unit price", async () => {
+    prismaMock.shop.findFirst.mockResolvedValueOnce({
+      id: "shop-1",
+      shopDomain: "store.myshopify.com",
+      settings: { fyndApiType: "platform" },
+    });
+    const shipment = mkShipment({
+      shipment_id: "17805697162061965971",
+      bags: [
+        {
+          bag_id: "3899439",
+          affiliate_bag_details: {},
+          prices: { transfer_price: "200", price_effective: "200" },
+          articles: [
+            {
+              article_id: "12685608",
+              item: { item_id: "ITM-1", name: "RETURN APP TESTING 1" },
+            },
+          ],
+        },
+        {
+          bag_id: "3899443",
+          affiliate_bag_details: {},
+          prices: { transfer_price: "100", price_effective: "100" },
+          articles: [
+            {
+              article_id: "12685608",
+              item: { item_id: "ITM-2", name: "RETURN APP TESTING 1" },
+            },
+          ],
+        },
+      ],
+    });
+    const search = vi.fn(async () => ({ items: [shipment] }));
+    createFyndClientOrErrorMock.mockResolvedValueOnce({
+      ok: true,
+      client: { getShipments: vi.fn(), searchShipmentsByExternalOrderId: search },
+    });
+    fetchOrderMock.mockResolvedValueOnce({
+      id: "gid://shopify/Order/7830278078614",
+      lineItems: [
+        {
+          id: "gid://shopify/LineItem/17593760874646",
+          title: "RETURN4",
+          sku: "RETURN4",
+          price: "200.00",
+        },
+        {
+          id: "gid://shopify/LineItem/17593760907414",
+          title: "RETURN3",
+          sku: "RETURN3",
+          price: "100.00",
+        },
+      ],
+    });
+    prismaMock.returnCase.findMany.mockResolvedValueOnce([
+      mkReturnCase({
+        id: "cmpze4e980008nq9ejpoby1iw",
+        shopifyOrderId: "gid://shopify/Order/7830278078614",
+        shopifyOrderName: "FYNDSHOPIFYX14436",
+        items: [
+          mkReturnItem({ id: "ri-1", title: "3899439", shopifyLineItemId: "3899439" }),
+          mkReturnItem({ id: "ri-2", title: "3899443", shopifyLineItemId: "3899443" }),
+        ],
+      }),
+    ]);
+
+    const res = await action({
+      request: mkReq({
+        returnCaseId: "cmpze4e980008nq9ejpoby1iw",
+        repairShopifyLineItems: true,
+      }),
+      params: {},
+      context: {},
+    } as never);
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.updated).toBe(1);
+    expect(prismaMock.returnItem.update).toHaveBeenCalledTimes(2);
+    expect(prismaMock.returnItem.update.mock.calls[0][0].data).toMatchObject({
+      shopifyLineItemId: "gid://shopify/LineItem/17593760874646",
+      sku: "RETURN4",
+      fyndBagId: "3899439",
+      fyndPriceEffective: "200",
+    });
+    expect(prismaMock.returnItem.update.mock.calls[1][0].data).toMatchObject({
+      shopifyLineItemId: "gid://shopify/LineItem/17593760907414",
+      sku: "RETURN3",
+      fyndBagId: "3899443",
+      fyndPriceEffective: "100",
+    });
   });
 
   it("no match for an item: produces 'no Fynd bag match found' detail and no write", async () => {

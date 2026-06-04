@@ -156,9 +156,9 @@ function lineItemsWithPriceFromBody(body: Record<string, unknown>): LineItemWith
     });
   };
 
-  for (const raw of (Array.isArray(body.lineItemsWithPrice) ? body.lineItemsWithPrice : []) as Array<
-    LineItemWithPrice
-  >) {
+  for (const raw of (Array.isArray(body.lineItemsWithPrice)
+    ? body.lineItemsWithPrice
+    : []) as Array<LineItemWithPrice>) {
     add(raw);
   }
 
@@ -177,7 +177,8 @@ function lineItemsWithPriceFromBody(body: Record<string, unknown>): LineItemWith
         price:
           typeof raw.price === "string" || typeof raw.price === "number"
             ? raw.price
-            : typeof raw.fyndPriceEffective === "string" || typeof raw.fyndPriceEffective === "number"
+            : typeof raw.fyndPriceEffective === "string" ||
+                typeof raw.fyndPriceEffective === "number"
               ? raw.fyndPriceEffective
               : null,
         imageUrl: typeof raw.imageUrl === "string" ? raw.imageUrl : null,
@@ -201,6 +202,11 @@ function numericPrice(value: string | number | null | undefined): number | undef
     return Number.isFinite(parsed) ? parsed : undefined;
   }
   return undefined;
+}
+
+function priceKey(value: string | number | null | undefined): string | null {
+  const parsed = numericPrice(value);
+  return parsed == null ? null : parsed.toFixed(2);
 }
 
 function latestDeliveredAtFromOrder(
@@ -1149,13 +1155,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             // Build lookup maps for matching: by title (lowercased), by SKU
             const byTitle = new Map<string, (typeof shopifyLineItems)[0]>();
             const bySku = new Map<string, (typeof shopifyLineItems)[0]>();
+            const byPrice = new Map<string, Array<(typeof shopifyLineItems)[0]>>();
             for (const sli of shopifyLineItems) {
               if (sli.title) byTitle.set(sli.title.toLowerCase(), sli);
               if (sli.sku) bySku.set(sli.sku.toLowerCase(), sli);
+              const key = priceKey(sli.price);
+              if (key) byPrice.set(key, [...(byPrice.get(key) ?? []), sli]);
             }
 
             // Also build lineItemsWithPrice title lookup for cross-referencing
-            const portalItemById = new Map<string, { title?: string; sku?: string | null }>();
+            const portalItemById = new Map<
+              string,
+              { title?: string; sku?: string | null; price?: string | number | null }
+            >();
             const rawLineItemsWithPrice = lineItemsWithPriceFromBody(body);
             for (const li of rawLineItemsWithPrice) {
               portalItemById.set(li.id, li);
@@ -1172,12 +1184,19 @@ export const action = async ({ request }: ActionFunctionArgs) => {
               const portalItem = portalItemById.get(it.lineItemId);
               const titleToMatch = portalItem?.title?.toLowerCase();
               const skuToMatch = portalItem?.sku?.toLowerCase();
+              const priceToMatch = priceKey(portalItem?.price ?? it.fyndPriceEffective ?? null);
 
               let matched: (typeof shopifyLineItems)[0] | undefined;
               // Match by SKU first (more reliable)
               if (skuToMatch) matched = bySku.get(skuToMatch);
               // Fall back to title match
               if (!matched && titleToMatch) matched = byTitle.get(titleToMatch);
+              // Fynd bag snapshots can lack SKU/title parity with Shopify but still carry
+              // the exact unit price. Only use price when it identifies one Shopify line.
+              if (!matched && priceToMatch) {
+                const priceMatches = byPrice.get(priceToMatch) ?? [];
+                if (priceMatches.length === 1) matched = priceMatches[0];
+              }
               // If only one Shopify line item exists, use it (common for single-item orders)
               if (!matched && shopifyLineItems.length === 1) matched = shopifyLineItems[0];
 
@@ -1612,9 +1631,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             request,
           );
         }
-        const li = lineItemsWithPrice.find(
-          (l) => l.id === sel.lineItemId || l.id === originalPortalId,
-        );
+        const li =
+          (originalPortalId
+            ? lineItemsWithPrice.find((l) => l.id === originalPortalId)
+            : undefined) ?? lineItemsWithPrice.find((l) => l.id === sel.lineItemId);
         // defensive: optional-chain `?? []` fallbacks on price/tags
         /* v8 ignore start */
         const liveLineId = lineItemIdMapping.get(sel.lineItemId) ?? sel.lineItemId;
@@ -1649,6 +1669,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             ),
             request,
           );
+        }
+      }
+
+      if (liveOrderForValidation?.lineItems?.length) {
+        const shopifyLineItems = liveOrderForValidation.lineItems;
+        const byTitle = new Map<string, (typeof shopifyLineItems)[0]>();
+        const bySku = new Map<string, (typeof shopifyLineItems)[0]>();
+        const byPrice = new Map<string, Array<(typeof shopifyLineItems)[0]>>();
+        for (const line of shopifyLineItems) {
+          if (line.title) byTitle.set(line.title.toLowerCase(), line);
+          if (line.sku) bySku.set(line.sku.toLowerCase(), line);
+          const key = priceKey(line.price);
+          if (key) byPrice.set(key, [...(byPrice.get(key) ?? []), line]);
+        }
+
+        for (const it of itemsToCreate) {
+          if (it.lineItemId === "manual" || it.lineItemId.startsWith("gid://shopify/LineItem/")) {
+            continue;
+          }
+
+          const li = lineItemsWithPrice.find((l) => l.id === it.lineItemId);
+          const skuToMatch =
+            li?.sku?.toLowerCase() ?? it.fyndSellerIdentifier?.toLowerCase() ?? null;
+          const titleToMatch = li?.title?.toLowerCase() ?? null;
+          const priceToMatch = priceKey(li?.price ?? it.fyndPriceEffective ?? null);
+
+          let matched: (typeof shopifyLineItems)[0] | undefined;
+          if (skuToMatch) matched = bySku.get(skuToMatch);
+          if (!matched && titleToMatch) matched = byTitle.get(titleToMatch);
+          if (!matched && priceToMatch) {
+            const priceMatches = byPrice.get(priceToMatch) ?? [];
+            if (priceMatches.length === 1) matched = priceMatches[0];
+          }
+          if (!matched && shopifyLineItems.length === 1) matched = shopifyLineItems[0];
+
+          if (matched) {
+            const originalId = it.lineItemId;
+            it.lineItemId = matched.id;
+            lineItemIdMapping.set(matched.id, originalId);
+            if (matched.sku) resolvedLineItemSkus.set(matched.id, matched.sku);
+          }
         }
       }
     }
@@ -2169,9 +2230,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
                 // After line item ID resolution, the ID may have changed from a Fynd bag ID
                 // to a Shopify GID. Look up liInfo using the original portal ID if needed.
                 const originalPortalId = lineItemIdMapping.get(it.lineItemId) ?? it.lineItemId;
-                const liInfo = lineItemsWithPrice?.find(
-                  (l) => l.id === it.lineItemId || l.id === originalPortalId,
-                );
+                const liInfo =
+                  lineItemsWithPrice?.find((l) => l.id === originalPortalId) ??
+                  lineItemsWithPrice?.find((l) => l.id === it.lineItemId);
                 const resolvedSku = resolvedLineItemSkus.get(it.lineItemId);
                 return {
                   shopifyLineItemId: it.lineItemId,

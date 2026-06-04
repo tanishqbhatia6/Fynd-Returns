@@ -226,7 +226,17 @@ export type CreateReturnResponse = {
   summary?: {
     orderName?: string;
     itemsCount?: number;
-    items?: Array<{ title?: string; qty?: number }>;
+    items?: Array<{
+      title?: string;
+      variantTitle?: string | null;
+      sku?: string | null;
+      qty?: number;
+      reasonCode?: string | null;
+      price?: string | number | null;
+      imageUrl?: string | null;
+      fyndBagId?: string | null;
+      fyndLineNumber?: number | null;
+    }>;
     status?: string;
     createdAt?: string;
     nextSteps?: string;

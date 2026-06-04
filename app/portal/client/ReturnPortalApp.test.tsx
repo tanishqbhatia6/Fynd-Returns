@@ -103,7 +103,7 @@ describe("ReturnPortalApp", () => {
               shopifyOrderName: "#1001",
               status: "approved",
               createdAt: "2026-01-01T00:00:00.000Z",
-              items: [{ id: "item_1", title: "Shirt", qty: 1, reasonCode: "Wrong size" }],
+              items: [{ id: "item_1", title: "Shirt", sku: "SHIRT-1", qty: 1, reasonCode: "Wrong size" }],
             },
           ],
           orders: [],
@@ -126,6 +126,7 @@ describe("ReturnPortalApp", () => {
     fireEvent.click(screen.getByRole("button", { name: /^verify$/i }));
 
     expect(await screen.findByText("RPM-1001")).toBeTruthy();
+    expect(screen.getByText(/SKU SHIRT-1/i)).toBeTruthy();
     expect(window.__RPM_AUTH_TOKEN__).toBe("portal_token");
     expect(window.__RPM_PORTAL_CSRF__).toBe("csrf_2");
   });
@@ -186,6 +187,8 @@ describe("ReturnPortalApp", () => {
               {
                 id: "li_1",
                 title: "Shirt",
+                variantTitle: "Blue / M",
+                sku: "SHIRT-1",
                 quantity: 2,
                 price: "50",
                 productTags: ["apparel"],
@@ -230,6 +233,9 @@ describe("ReturnPortalApp", () => {
     fireEvent.click(screen.getByRole("button", { name: /^submit return$/i }));
 
     expect(await screen.findByText("RPM-NEW")).toBeTruthy();
+    expect(screen.getByText("Shirt")).toBeTruthy();
+    expect(screen.getByText(/SKU SHIRT-1/i)).toBeTruthy();
+    expect(screen.getByText(/\$50/i)).toBeTruthy();
     const createPayload = createPayloads[0];
     expect(createPayload?.portalCsrfToken).toBe("csrf_order");
     expect(createPayload?.shopifyOrderName).toBe("#1001");

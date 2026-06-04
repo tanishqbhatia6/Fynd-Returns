@@ -85,6 +85,21 @@ type ExchangeChoice = {
   variantTitle: string;
 };
 
+type SubmittedReturnItem = {
+  key: string;
+  title: string;
+  variantTitle?: string | null;
+  sku?: string | null;
+  qty: number;
+  reasonCode?: string | null;
+  condition?: string | null;
+  price?: string | number | null;
+  imageUrl?: string | null;
+  fyndBagId?: string | null;
+  fyndShipmentId?: string | null;
+  fyndLineNumber?: number | null;
+};
+
 export function ReturnPortalApp({ bootstrap }: { bootstrap: PortalBootstrap }) {
   const api = useMemo(() => new PortalApi(bootstrap.appUrl), [bootstrap.appUrl]);
   const tabs = useMemo(() => availableTabs(bootstrap), [bootstrap]);
@@ -750,6 +765,7 @@ function ReturnCard({
                 <p className="rpm-item-title">{item.title || t(bootstrap, "portal.common.item")}</p>
                 <p className="rpm-item-meta">
                   Qty {item.qty || item.quantity || 1}
+                  {item.sku ? ` / SKU ${item.sku}` : ""}
                   {item.reasonCode ? ` / ${humanize(item.reasonCode)}` : ""}
                 </p>
               </div>
@@ -837,6 +853,7 @@ function CreateReturnPanel({
   const [exchangeChoices, setExchangeChoices] = useState<Record<string, ExchangeChoice>>({});
   const [offerAccepted, setOfferAccepted] = useState<CreateReturnResponse | null>(null);
   const [success, setSuccess] = useState<CreateReturnResponse | null>(null);
+  const [submittedItems, setSubmittedItems] = useState<SubmittedReturnItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [slowLoading, setSlowLoading] = useState(false);
   const [error, setError] = useState("");
@@ -899,6 +916,7 @@ function CreateReturnPanel({
     setLoading(true);
     setError("");
     setOfferAccepted(null);
+    setSubmittedItems([]);
     try {
       const data = await api.order(bootstrap.shop, value);
       if (!data.order) throw new Error(data.error || "Order not found.");
@@ -934,16 +952,26 @@ function CreateReturnPanel({
       setError("Upload at least one photo before submitting the return.");
       return;
     }
-    await submitPayload({
-      manual: true,
-      shop: bootstrap.shop,
-      shopifyOrderName: orderNumber.trim().startsWith("#") ? orderNumber.trim() : `#${orderNumber.trim()}`,
-      customerEmail: manualEmail.trim(),
-      manualItemDescription: manualItems.trim(),
-      customerNotes: notes.trim() || undefined,
-      items: [{ lineItemId: "manual", qty: 1, reasonCode: reason || "Other" }],
-      portalCsrfToken: window.__RPM_PORTAL_CSRF__,
-    });
+    await submitPayload(
+      {
+        manual: true,
+        shop: bootstrap.shop,
+        shopifyOrderName: orderNumber.trim().startsWith("#") ? orderNumber.trim() : `#${orderNumber.trim()}`,
+        customerEmail: manualEmail.trim(),
+        manualItemDescription: manualItems.trim(),
+        customerNotes: notes.trim() || undefined,
+        items: [{ lineItemId: "manual", qty: 1, reasonCode: reason || "Other" }],
+        portalCsrfToken: window.__RPM_PORTAL_CSRF__,
+      },
+      [
+        {
+          key: "manual",
+          title: manualItems.trim(),
+          qty: 1,
+          reasonCode: reason || "Other",
+        },
+      ],
+    );
   }
 
   async function submitReturn(acceptOffer = false) {
@@ -962,37 +990,40 @@ function CreateReturnPanel({
     }
     const order = orderData.order;
     const shipping = order.shippingAddress;
-    await submitPayload({
-      shop: bootstrap.shop,
-      orderId: order.id,
-      shopifyOrderName: order.name,
-      customerEmail: (email || order.email || "").trim() || undefined,
-      customerPhone: order.phone || shipping?.phone || undefined,
-      customerName: shipping ? `${shipping.firstName || ""} ${shipping.lastName || ""}`.trim() || undefined : undefined,
-      customerCity: shipping?.city || undefined,
-      customerCountry: shipping?.country || shipping?.countryCode || undefined,
-      customerAddress1: shipping?.address1 || undefined,
-      customerAddress2: shipping?.address2 || undefined,
-      customerProvince: shipping?.province || undefined,
-      customerZip: shipping?.zip || undefined,
-      customerNotes: notes.trim() || undefined,
-      orderCreatedAt: order.createdAt,
-      orderProcessedAt: order.processedAt || undefined,
-      orderDeliveredAt: latestDeliveredAt(order),
-      currency: order.currencyCode || bootstrap.currency,
-      resolutionType,
-      exchangePreference: buildExchangePreference(exchangePreference, exchangeChoices),
-      exchangeVariants: Object.values(exchangeChoices),
-      items: buildReturnItems(selectedRows, qty, reason, condition),
-      lineItemsWithPrice: lineItemsWithPriceForOrder(orderData),
-      lineItemEstimates: orderData.lineItemEstimates || undefined,
-      shipmentsSnapshot: orderData.shipments || undefined,
-      acceptOffer,
-      portalCsrfToken: window.__RPM_PORTAL_CSRF__,
-    });
+    await submitPayload(
+      {
+        shop: bootstrap.shop,
+        orderId: order.id,
+        shopifyOrderName: order.name,
+        customerEmail: (email || order.email || "").trim() || undefined,
+        customerPhone: order.phone || shipping?.phone || undefined,
+        customerName: shipping ? `${shipping.firstName || ""} ${shipping.lastName || ""}`.trim() || undefined : undefined,
+        customerCity: shipping?.city || undefined,
+        customerCountry: shipping?.country || shipping?.countryCode || undefined,
+        customerAddress1: shipping?.address1 || undefined,
+        customerAddress2: shipping?.address2 || undefined,
+        customerProvince: shipping?.province || undefined,
+        customerZip: shipping?.zip || undefined,
+        customerNotes: notes.trim() || undefined,
+        orderCreatedAt: order.createdAt,
+        orderProcessedAt: order.processedAt || undefined,
+        orderDeliveredAt: latestDeliveredAt(order),
+        currency: order.currencyCode || bootstrap.currency,
+        resolutionType,
+        exchangePreference: buildExchangePreference(exchangePreference, exchangeChoices),
+        exchangeVariants: Object.values(exchangeChoices),
+        items: buildReturnItems(selectedRows, qty, reason, condition),
+        lineItemsWithPrice: lineItemsWithPriceForOrder(orderData),
+        lineItemEstimates: orderData.lineItemEstimates || undefined,
+        shipmentsSnapshot: orderData.shipments || undefined,
+        acceptOffer,
+        portalCsrfToken: window.__RPM_PORTAL_CSRF__,
+      },
+      buildSubmittedItems(selectedRows, qty, reason, condition),
+    );
   }
 
-  async function submitPayload(payload: Record<string, unknown>) {
+  async function submitPayload(payload: Record<string, unknown>, itemsForSuccess: SubmittedReturnItem[] = []) {
     setLoading(true);
     setError("");
     try {
@@ -1008,6 +1039,7 @@ function CreateReturnPanel({
       }
       if (!data.success) throw new Error(data.error || t(bootstrap, "portal.error.failedToSubmit"));
       setSuccess(data);
+      setSubmittedItems(itemsForSuccess.length ? itemsForSuccess : submittedItemsFromSummary(data));
       setStep("success");
       notify({ tone: "success", message: data.message || "Return submitted." });
     } catch (err) {
@@ -1029,6 +1061,7 @@ function CreateReturnPanel({
   }
 
   if (step === "success" && success) {
+    const successCurrency = orderData?.order?.currencyCode || bootstrap.currency;
     return (
       <section className="rpm-success-section" aria-live="polite">
         <ReturnSubmittedAnimation
@@ -1046,6 +1079,7 @@ function CreateReturnPanel({
             <InfoBlock label="Status" value={humanize(success.status || success.summary?.status || "pending")} />
             <InfoBlock label="Order" value={success.summary?.orderName || orderData?.order?.name || orderNumber} />
           </div>
+          <SubmittedItemsList items={submittedItems} currency={successCurrency} bootstrap={bootstrap} />
           <div className="rpm-footer-actions">
             <button className="rpm-button secondary" type="button" onClick={() => copyText(success.returnRequestId || success.returnId || "", notify)}>
               <Copy size={16} />
@@ -1601,6 +1635,45 @@ function ItemList({
   );
 }
 
+function SubmittedItemsList({
+  items,
+  currency,
+  bootstrap,
+}: {
+  items: SubmittedReturnItem[];
+  currency: string;
+  bootstrap: PortalBootstrap;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <div className="rpm-items" aria-label="Returned items">
+      {items.map((item) => {
+        const meta = [
+          `Qty ${item.qty || 1}`,
+          item.variantTitle ? `Variant ${item.variantTitle}` : null,
+          item.sku ? `SKU ${item.sku}` : null,
+          item.reasonCode ? humanize(item.reasonCode) : null,
+          item.condition ? humanize(item.condition) : null,
+          item.fyndBagId ? `Bag ${item.fyndBagId}` : null,
+          item.fyndLineNumber ? `Line ${item.fyndLineNumber}` : null,
+        ].filter(Boolean);
+
+        return (
+          <div className="rpm-item-row" key={item.key}>
+            <ProductThumb src={item.imageUrl} title={item.title || "Item"} />
+            <div>
+              <p className="rpm-item-title">{item.title || "Item"}</p>
+              <p className="rpm-item-meta">{meta.join(" / ")}</p>
+            </div>
+            <span className="rpm-card-meta">{formatMoney(item.price, currency, bootstrap.locale)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function ErrorBox({ message }: { message: string }) {
   return (
     <div className="rpm-error" role="alert">
@@ -1825,6 +1898,46 @@ function buildReturnItems(
       },
     ];
   });
+}
+
+function buildSubmittedItems(
+  selectedRows: ItemSelection[],
+  quantities: Record<string, number>,
+  reason: string,
+  condition: string,
+): SubmittedReturnItem[] {
+  return selectedRows.map((row) => {
+    const requestedQty = Math.max(1, Math.min(quantities[row.rowKey] || 1, row.availableQty || 1));
+    return {
+      key: row.rowKey,
+      title: row.title,
+      variantTitle: row.variantTitle || row.fyndSize || null,
+      sku: row.sku || row.fyndSellerIdentifier || null,
+      qty: requestedQty,
+      reasonCode: reason || "Other",
+      condition: condition || null,
+      price: row.price ?? row.fyndPriceEffective ?? null,
+      imageUrl: row.imageUrl || null,
+      fyndBagId: row.fyndBagId || null,
+      fyndShipmentId: row.fyndShipmentId || null,
+      fyndLineNumber: row.fyndLineNumber ?? null,
+    };
+  });
+}
+
+function submittedItemsFromSummary(data: CreateReturnResponse): SubmittedReturnItem[] {
+  return (data.summary?.items || []).map((item, index) => ({
+    key: `summary-${index}`,
+    title: item.title || "Item",
+    variantTitle: item.variantTitle || null,
+    sku: item.sku || null,
+    qty: item.qty || 1,
+    reasonCode: item.reasonCode || null,
+    price: item.price ?? null,
+    imageUrl: item.imageUrl || null,
+    fyndBagId: item.fyndBagId || null,
+    fyndLineNumber: item.fyndLineNumber ?? null,
+  }));
 }
 
 function estimateRefund(

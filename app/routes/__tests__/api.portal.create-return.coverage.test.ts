@@ -721,6 +721,92 @@ describe("Fynd sync trigger", () => {
     ]);
   });
 
+  it("accepts a selected Fynd bag id when lineItemsWithPrice only contains Shopify lines", async () => {
+    prismaMock.shop.findUnique.mockResolvedValueOnce(happyShop());
+    prismaMock.session.findFirst.mockResolvedValueOnce({ accessToken: "tok" });
+    const createdRc = {
+      id: "rc-fynd-bag-selection",
+      status: "initiated",
+      createdAt: new Date(),
+      items: [],
+    };
+    (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mockResolvedValueOnce(createdRc);
+
+    const res = await action({
+      request: jsonReq(
+        happyBody({
+          shopifyOrderName: "FYNDSHOPIFYX14436",
+          orderId: "gid://shopify/Order/7830278078614",
+          items: [{ lineItemId: "3899443", qty: 1, reasonCode: "Size too Big" }],
+          lineItemsWithPrice: [
+            {
+              id: "gid://shopify/LineItem/17593760874646",
+              title: "RETURN4",
+              price: "200.00",
+              quantity: 4,
+              productTags: [],
+              sku: "RETURN4",
+            },
+            {
+              id: "gid://shopify/LineItem/17593760907414",
+              title: "RETURN3",
+              price: "100.00",
+              quantity: 4,
+              productTags: [],
+              sku: "RETURN3",
+            },
+          ],
+          shipmentsSnapshot: [
+            {
+              shipmentId: "17805697162061965971",
+              shipmentStatus: "delivery_done",
+              eligible: true,
+              items: [
+                {
+                  id: "3899443",
+                  bagId: "3899443",
+                  title: "RETURN APP TESTING 1",
+                  variantTitle: "M",
+                  sku: null,
+                  quantity: 1,
+                  price: "100",
+                  imageUrl: null,
+                  productTags: [],
+                  productType: null,
+                  fyndArticleId: "12685608",
+                  fyndAffiliateLineId: null,
+                  fyndSellerIdentifier: null,
+                  fyndItemId: null,
+                  fyndQuantityAvailable: 1,
+                  fyndPriceEffective: "100",
+                  fyndSize: "M",
+                  fyndLineNumber: 5,
+                },
+              ],
+            },
+          ],
+        }),
+      ),
+      params: {},
+      context: {},
+    } as never);
+
+    expect(res.status).toBe(200);
+    const createArg = (prismaMock.returnCase.create as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(createArg.data.items.create).toEqual([
+      expect.objectContaining({
+        shopifyLineItemId: "3899443",
+        title: "RETURN APP TESTING 1",
+        fyndShipmentId: "17805697162061965971",
+        fyndBagId: "3899443",
+        fyndArticleId: "12685608",
+        fyndSize: "M",
+        fyndLineNumber: 5,
+        qty: 1,
+      }),
+    ]);
+  });
+
   it("calls createReturnOnFynd when status=approved AND fynd client ok", async () => {
     prismaMock.shop.findUnique.mockResolvedValueOnce(
       happyShop({

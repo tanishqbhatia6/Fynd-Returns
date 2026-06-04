@@ -984,7 +984,7 @@ function CreateReturnPanel({
       exchangePreference: buildExchangePreference(exchangePreference, exchangeChoices),
       exchangeVariants: Object.values(exchangeChoices),
       items: buildReturnItems(selectedRows, qty, reason, condition),
-      lineItemsWithPrice: (order.lineItems || []).map((item) => lineItemWithPrice(item)),
+      lineItemsWithPrice: lineItemsWithPriceForOrder(orderData),
       lineItemEstimates: orderData.lineItemEstimates || undefined,
       shipmentsSnapshot: orderData.shipments || undefined,
       acceptOffer,
@@ -1756,7 +1756,29 @@ function lineItemWithPrice(item: PortalLineItem) {
     imageUrl: item.imageUrl || null,
     productTags: item.productTags || [],
     productType: item.productType || null,
+    quantity: item.quantity ?? undefined,
+    productId: item.productId || null,
   };
+}
+
+function lineItemsWithPriceForOrder(data: OrderResponse) {
+  const byId = new Map<string, ReturnType<typeof lineItemWithPrice>>();
+  const add = (item: PortalLineItem) => {
+    if (!item.id || byId.has(item.id)) return;
+    byId.set(item.id, lineItemWithPrice(item));
+  };
+
+  for (const item of data.order?.lineItems || []) add(item);
+  for (const shipment of data.shipments || []) {
+    for (const item of shipment.items || []) {
+      add(item);
+      if (item.bagId && item.bagId !== item.id) {
+        add({ ...item, id: item.bagId });
+      }
+    }
+  }
+
+  return [...byId.values()];
 }
 
 function buildReturnItems(

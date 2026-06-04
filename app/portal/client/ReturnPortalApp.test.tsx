@@ -343,6 +343,12 @@ describe("ReturnPortalApp", () => {
       expect.objectContaining({ lineItemId: "gid://shopify/LineItem/14425", qty: 1, reasonCode: "Wrong size" }),
       expect.objectContaining({ lineItemId: "gid://shopify/LineItem/14425", qty: 1, reasonCode: "Wrong size" }),
     ]);
+    expect(createPayloads[0]?.lineItemsWithPrice).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "gid://shopify/LineItem/14425", title: "RETURN3" }),
+        expect.objectContaining({ id: "BAG-1", title: "RETURN3" }),
+      ]),
+    );
     expect(createPayloads[0]?.shipmentsSnapshot).toEqual(shipments);
   });
 

@@ -131,6 +131,78 @@ async function createDiscountCode(
 
 type LiveOrderForValidation = Awaited<ReturnType<typeof fetchOrder>>;
 
+type LineItemWithPrice = {
+  id: string;
+  title?: string;
+  variantTitle?: string | null;
+  sku?: string | null;
+  price?: string | number | null;
+  imageUrl?: string | null;
+  productTags?: string[];
+  productType?: string | null;
+  quantity?: number;
+  productId?: string | null;
+};
+
+function lineItemsWithPriceFromBody(body: Record<string, unknown>): LineItemWithPrice[] {
+  const byId = new Map<string, LineItemWithPrice>();
+  const add = (item: LineItemWithPrice | null | undefined) => {
+    const id = String(item?.id ?? "").trim();
+    if (!id || byId.has(id)) return;
+    byId.set(id, {
+      ...item,
+      id,
+      productTags: Array.isArray(item?.productTags) ? item.productTags.map(String) : [],
+    });
+  };
+
+  for (const raw of (Array.isArray(body.lineItemsWithPrice) ? body.lineItemsWithPrice : []) as Array<
+    LineItemWithPrice
+  >) {
+    add(raw);
+  }
+
+  const shipments = Array.isArray(body.shipmentsSnapshot)
+    ? (body.shipmentsSnapshot as Array<{ items?: Array<Record<string, unknown>> }>)
+    : [];
+  for (const shipment of shipments) {
+    for (const raw of shipment.items ?? []) {
+      const id = String(raw.id ?? "").trim();
+      const bagId = String(raw.bagId ?? "").trim();
+      const normalized: LineItemWithPrice = {
+        id,
+        title: typeof raw.title === "string" ? raw.title : undefined,
+        variantTitle: typeof raw.variantTitle === "string" ? raw.variantTitle : null,
+        sku: typeof raw.sku === "string" ? raw.sku : null,
+        price:
+          typeof raw.price === "string" || typeof raw.price === "number"
+            ? raw.price
+            : typeof raw.fyndPriceEffective === "string" || typeof raw.fyndPriceEffective === "number"
+              ? raw.fyndPriceEffective
+              : null,
+        imageUrl: typeof raw.imageUrl === "string" ? raw.imageUrl : null,
+        productTags: Array.isArray(raw.productTags) ? raw.productTags.map(String) : [],
+        productType: typeof raw.productType === "string" ? raw.productType : null,
+        quantity: typeof raw.quantity === "number" ? raw.quantity : undefined,
+        productId: typeof raw.productId === "string" ? raw.productId : null,
+      };
+      add(normalized);
+      if (bagId && bagId !== id) add({ ...normalized, id: bagId });
+    }
+  }
+
+  return [...byId.values()];
+}
+
+function numericPrice(value: string | number | null | undefined): number | undefined {
+  if (typeof value === "number") return Number.isFinite(value) ? value : undefined;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 function latestDeliveredAtFromOrder(
   order: { fulfillments?: Array<{ deliveredAt?: string | null }> } | null | undefined,
 ): string | null {
@@ -742,15 +814,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       fyndSize?: string;
       fyndLineNumber?: number;
     }>;
-    let lineItemsWithPrice: Array<{
-      id: string;
-      title?: string;
-      variantTitle?: string;
-      price?: string;
-      imageUrl?: string;
-      productTags?: string[];
-      productType?: string | null;
-    }> = [];
+    let lineItemsWithPrice: LineItemWithPrice[] = [];
 
     let usedScopedFyndBagAllocation = false;
     const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -1091,12 +1155,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
             }
 
             // Also build lineItemsWithPrice title lookup for cross-referencing
-            const portalItemById = new Map<string, { title?: string; sku?: string }>();
-            const rawLineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
-              id: string;
-              title?: string;
-              sku?: string;
-            }>;
+            const portalItemById = new Map<string, { title?: string; sku?: string | null }>();
+            const rawLineItemsWithPrice = lineItemsWithPriceFromBody(body);
             for (const li of rawLineItemsWithPrice) {
               portalItemById.set(li.id, li);
             }
@@ -1533,15 +1593,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         );
       }
 
-      lineItemsWithPrice = (body.lineItemsWithPrice ?? []) as Array<{
-        id: string;
-        title?: string;
-        variantTitle?: string;
-        price?: string;
-        imageUrl?: string;
-        productTags?: string[];
-        productType?: string | null;
-      }>;
+      lineItemsWithPrice = lineItemsWithPriceFromBody(body);
       const validLineIds = new Set(lineItemsWithPrice.map((l) => l.id));
       for (const sel of itemsToCreate) {
         if (sel.lineItemId === "manual") continue;
@@ -1567,11 +1619,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         /* v8 ignore start */
         const liveLineId = lineItemIdMapping.get(sel.lineItemId) ?? sel.lineItemId;
         const liveLine = liveOrderForValidation?.lineItems?.find((line) => line.id === liveLineId);
-        const price = liveLine?.price
-          ? parseFloat(liveLine.price)
-          : li?.price
-            ? parseFloat(li.price)
-            : undefined;
+        const price = numericPrice(liveLine?.price) ?? numericPrice(li?.price);
         const tags = liveLine?.productTags ?? li?.productTags ?? [];
         const productType = liveLine?.productType ?? li?.productType ?? null;
         const sourceChannel =
@@ -1725,7 +1773,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         let orderValue: number | undefined;
         if (!manualMode && lineItemsWithPrice.length > 0) {
           orderValue = lineItemsWithPrice.reduce((sum, li) => {
-            const p = li.price ? parseFloat(li.price) : 0;
+            const p = numericPrice(li.price) ?? 0;
             return sum + (Number.isFinite(p) ? p : 0);
           }, 0);
         }
@@ -1788,7 +1836,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         /* v8 ignore start */
         if (!selectedItem) return sum;
         /* v8 ignore stop */
-        const p = li.price ? parseFloat(li.price) : 0;
+        const p = numericPrice(li.price) ?? 0;
         return sum + (Number.isFinite(p) ? p * selectedItem.qty : 0);
       }, 0);
 

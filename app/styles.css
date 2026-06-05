@@ -1144,6 +1144,136 @@ s-section {
     0 0 0 3px rgba(59, 130, 246, 0.08);
 }
 
+.app-shell-settings-search {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  padding: 10px 16px;
+  background: rgba(248, 250, 252, 0.92);
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  backdrop-filter: blur(10px);
+}
+
+.app-shell-settings-search-box {
+  width: min(100%, 560px);
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 11px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  color: var(--rpm-text-muted, #64748b);
+}
+
+.app-shell-settings-search-box:focus-within {
+  border-color: rgba(37, 99, 235, 0.65);
+  box-shadow:
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.app-shell-settings-search-box input {
+  min-width: 0;
+  flex: 1;
+  height: 38px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--rpm-text, #0f172a);
+  font: inherit;
+  font-size: 13px;
+}
+
+.app-shell-settings-search-box input::placeholder {
+  color: var(--rpm-text-muted, #64748b);
+}
+
+.app-shell-settings-search-box input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.app-shell-settings-search-clear {
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rpm-text-muted, #64748b);
+  cursor: pointer;
+}
+
+.app-shell-settings-search-clear:hover {
+  background: #f1f5f9;
+  color: var(--rpm-text, #0f172a);
+}
+
+.app-shell-settings-search-clear:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.7);
+  outline-offset: 2px;
+}
+
+.app-shell-settings-search-results {
+  position: absolute;
+  top: calc(100% - 6px);
+  left: 50%;
+  width: min(calc(100% - 32px), 560px);
+  transform: translateX(-50%);
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  border-radius: 10px;
+  box-shadow:
+    0 12px 30px rgba(15, 23, 42, 0.12),
+    0 2px 8px rgba(15, 23, 42, 0.06);
+}
+
+.app-shell-settings-search-result {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.app-shell-settings-search-result:hover,
+.app-shell-settings-search-result:focus-visible {
+  background: #f8fafc;
+  outline: none;
+}
+
+.app-shell-settings-search-result span {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--rpm-text, #0f172a);
+}
+
+.app-shell-settings-search-result small {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--rpm-text-muted, #64748b);
+}
+
+.app-shell-settings-search-empty {
+  padding: 12px 10px;
+  font-size: 13px;
+  color: var(--rpm-text-muted, #64748b);
+}
+
 /* ────── Animations ────── */
 @keyframes app-slideDown {
   from {

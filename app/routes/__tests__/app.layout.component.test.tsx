@@ -171,6 +171,40 @@ describe("App layout (default export)", () => {
     expect(fireEvent.click(customersLink!)).toBe(false);
   });
 
+  it("searches settings from the ReturnProMax app shell", async () => {
+    const { container, getByLabelText } = renderWithRouter(App, {
+      initialEntries: ["/app"],
+      loaderData: baseLoaderData,
+    });
+    await waitFor(() => {
+      expect(container.querySelector("s-app-nav")).toBeTruthy();
+    });
+
+    fireEvent.change(getByLabelText("Search settings in ReturnProMax"), {
+      target: { value: "smtp" },
+    });
+
+    expect(container.textContent).toContain("Notifications");
+    expect(container.textContent).toContain("SMTP email");
+    expect(container.textContent).not.toContain("Policy Rules");
+  });
+
+  it("shows no-match feedback for app-shell settings search", async () => {
+    const { container, getByLabelText } = renderWithRouter(App, {
+      initialEntries: ["/app"],
+      loaderData: baseLoaderData,
+    });
+    await waitFor(() => {
+      expect(container.querySelector("s-app-nav")).toBeTruthy();
+    });
+
+    fireEvent.change(getByLabelText("Search settings in ReturnProMax"), {
+      target: { value: "missing-setting" },
+    });
+
+    expect(container.textContent).toContain("No matching settings");
+  });
+
   it("does not show the dev-mode banner even when appMode is dev", async () => {
     const { container } = renderWithRouter(App, {
       initialEntries: ["/app"],

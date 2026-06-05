@@ -10,6 +10,7 @@ import {
 } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
+import { Search, X } from "lucide-react";
 import React, { useEffect, useRef, useCallback, useMemo, useState } from "react";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
@@ -35,6 +36,87 @@ declare module "react" {
     }
   }
 }
+
+const APP_SETTINGS_SEARCH_ITEMS = [
+  {
+    title: "Policy Rules",
+    path: "/app/settings/rules",
+    description: "Return reasons, restricted regions, no-return periods, and per-category rules.",
+    keywords: "rules reasons regions no return minimum price offers category policy",
+  },
+  {
+    title: "Return Settings",
+    path: "/app/settings/return-settings",
+    description: "Return window, fees, photo requirements, auto-approve, auto-refund, and refunds.",
+    keywords: "window fees photo approval refund store credit exchange instructions labels",
+  },
+  {
+    title: "Product Policies",
+    path: "/app/settings/product-policies",
+    description: "Per-product return policies by tag, product type, or collection.",
+    keywords: "product tag collection type override window",
+  },
+  {
+    title: "Customer Blocklist",
+    path: "/app/settings/blocklist",
+    description: "Block customers from returns by email, phone, or order name.",
+    keywords: "blocklist blocked fraud email phone customer",
+  },
+  {
+    title: "Channel Policies",
+    path: "/app/settings/channel-policies",
+    description: "Return rules by Shopify sales channel, POS, Draft Orders, and B2B.",
+    keywords: "channel online store pos draft b2b sales channel",
+  },
+  {
+    title: "Auto-Approve Rules",
+    path: "/app/settings/auto-rules",
+    description: "Automation rules for approving or flagging return requests.",
+    keywords: "automation auto approve manual review order value tags",
+  },
+  {
+    title: "Fynd Integration",
+    path: "/app/settings/integrations",
+    description: "Credentials, environment, connection testing, shipment tracking, and sync.",
+    keywords: "fynd integration credentials connection shipment tracking sync uat production webhook",
+  },
+  {
+    title: "Notifications",
+    path: "/app/settings/notifications",
+    description: "SMTP email, sound alerts, WhatsApp/SMS, and notification templates.",
+    keywords: "smtp email whatsapp sms alerts templates notification",
+  },
+  {
+    title: "Fynd Webhook Logs",
+    path: "/app/settings/webhook-logs",
+    description: "Incoming Fynd webhook events, processing status, errors, and payloads.",
+    keywords: "webhook logs events errors payload analytics fynd",
+  },
+  {
+    title: "External API Keys",
+    path: "/app/settings/api-keys",
+    description: "API keys, external integrations, docs, and Postman collection.",
+    keywords: "api keys erp docs postman external integration",
+  },
+  {
+    title: "Portal Appearance",
+    path: "/app/settings/widget",
+    description: "Customer portal colors, fonts, layout, tabs, language, and labels.",
+    keywords: "portal widget theme appearance colors fonts tabs language translation labels locale i18n",
+  },
+  {
+    title: "Permissions",
+    path: "/app/settings/permissions",
+    description: "read_all_orders scope and order-history access.",
+    keywords: "permissions read all orders access scope",
+  },
+  {
+    title: "Billing",
+    path: "/app/billing",
+    description: "Shopify plan, subscription status, pricing, and charges.",
+    keywords: "billing plan subscription pricing charges",
+  },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
@@ -151,6 +233,7 @@ export default function App() {
     [location.search],
   );
   const [storedFrameContext, setStoredFrameContext] = useState<string | null>(null);
+  const [settingsSearchQuery, setSettingsSearchQuery] = useState("");
   const frameContext = currentFrameContext ?? storedFrameContext;
   useNotificationSound(adminSoundEnabled, pendingCount);
 
@@ -185,6 +268,40 @@ export default function App() {
       navigate(getAdminPath(to));
     },
     [getAdminPath, navigate],
+  );
+
+  const normalizedSettingsSearchQuery = settingsSearchQuery.trim().toLowerCase();
+  const settingsSearchResults = useMemo(
+    () =>
+      normalizedSettingsSearchQuery
+        ? APP_SETTINGS_SEARCH_ITEMS.filter((item) =>
+            [item.title, item.description, item.path, item.keywords]
+              .join(" ")
+              .toLowerCase()
+              .includes(normalizedSettingsSearchQuery),
+          ).slice(0, 6)
+        : [],
+    [normalizedSettingsSearchQuery],
+  );
+  const hasSettingsSearchQuery = normalizedSettingsSearchQuery.length > 0;
+
+  const navigateToSettingsSearchResult = useCallback(
+    (path: string) => {
+      setSettingsSearchQuery("");
+      navigate(getAdminPath(path));
+    },
+    [getAdminPath, navigate],
+  );
+
+  const handleSettingsSearchSubmit = useCallback(
+    (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      const firstResult = settingsSearchResults[0];
+      if (firstResult) {
+        navigateToSettingsSearchResult(firstResult.path);
+      }
+    },
+    [navigateToSettingsSearchResult, settingsSearchResults],
   );
 
   return (
@@ -228,6 +345,52 @@ export default function App() {
           Documentation
         </s-link>
       </s-app-nav>
+      <div className="app-shell-settings-search">
+        <form
+          className="app-shell-settings-search-box"
+          role="search"
+          onSubmit={handleSettingsSearchSubmit}
+        >
+          <Search size={17} strokeWidth={2} aria-hidden="true" />
+          <input
+            type="search"
+            value={settingsSearchQuery}
+            onChange={(event) => setSettingsSearchQuery(event.target.value)}
+            placeholder="Search settings"
+            aria-label="Search settings in ReturnProMax"
+          />
+          {settingsSearchQuery && (
+            <button
+              type="button"
+              className="app-shell-settings-search-clear"
+              onClick={() => setSettingsSearchQuery("")}
+              aria-label="Clear app settings search"
+            >
+              <X size={15} strokeWidth={2} aria-hidden="true" />
+            </button>
+          )}
+        </form>
+        {hasSettingsSearchQuery && (
+          <div className="app-shell-settings-search-results" role="listbox">
+            {settingsSearchResults.length > 0 ? (
+              settingsSearchResults.map((item) => (
+                <button
+                  type="button"
+                  key={item.path}
+                  className="app-shell-settings-search-result"
+                  onClick={() => navigateToSettingsSearchResult(item.path)}
+                  role="option"
+                >
+                  <span>{item.title}</span>
+                  <small>{item.description}</small>
+                </button>
+              ))
+            ) : (
+              <div className="app-shell-settings-search-empty">No matching settings</div>
+            )}
+          </div>
+        )}
+      </div>
       <Outlet />
     </AppProvider>
   );

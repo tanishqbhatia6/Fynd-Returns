@@ -4985,10 +4985,131 @@ s-link * {
   border-radius: 8px !important;
 }
 
+.settings-search-panel {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.settings-search-input-wrap {
+  width: min(100%, 520px);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(217, 225, 236, 0.95);
+  border-radius: 10px;
+  box-shadow: var(--rpm-shadow-xs);
+  color: var(--rpm-text-muted);
+  transition:
+    border-color var(--rpm-transition-fast),
+    box-shadow var(--rpm-transition-fast);
+}
+
+.settings-search-input-wrap:focus-within {
+  border-color: rgba(37, 99, 235, 0.65);
+  box-shadow:
+    var(--rpm-shadow-sm),
+    0 0 0 3px rgba(37, 99, 235, 0.08);
+}
+
+.settings-search-input {
+  min-width: 0;
+  flex: 1;
+  height: 42px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--rpm-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.settings-search-input::placeholder {
+  color: var(--rpm-text-muted);
+}
+
+.settings-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.settings-search-clear {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--rpm-text-muted);
+  cursor: pointer;
+}
+
+.settings-search-clear:hover {
+  background: #f1f5f9;
+  color: var(--rpm-text);
+}
+
+.settings-search-clear:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.7);
+  outline-offset: 2px;
+}
+
+.settings-search-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--rpm-text-muted);
+  white-space: nowrap;
+}
+
+.settings-search-empty {
+  padding: 28px;
+  margin-bottom: 24px;
+  border: 1px solid rgba(217, 225, 236, 0.95);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  text-align: center;
+  box-shadow: var(--rpm-shadow-xs);
+}
+
+.settings-search-empty-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--rpm-text);
+  margin-bottom: 6px;
+}
+
+.settings-search-empty-text {
+  font-size: 13px;
+  color: var(--rpm-text-muted);
+}
+
 .dashboard-fynd-banner {
   border-radius: 10px;
   background: #fff7ed;
   border-color: #fed7aa;
+}
+
+@media (max-width: 640px) {
+  .settings-search-panel {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .settings-search-input-wrap {
+    width: 100%;
+  }
+
+  .settings-search-count {
+    padding-left: 2px;
+  }
 }
 
 .app-setup-checklist {

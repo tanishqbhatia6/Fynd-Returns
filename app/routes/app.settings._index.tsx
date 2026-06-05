@@ -1,6 +1,7 @@
 import React from "react";
+import { Search, X } from "lucide-react";
 import type { LoaderFunctionArgs } from "react-router";
-import { Link, useLoaderData, useRouteError, isRouteErrorResponse } from "react-router";
+import { Link, useLoaderData } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { AppPage } from "../components/AppPage";
@@ -213,10 +214,12 @@ type CardDef = {
   title: string;
   desc: string;
   status: StatusChip[];
+  searchKeywords?: string[];
 };
 
 export default function SettingsDashboard() {
   const d = useLoaderData<typeof loader>();
+  const [settingsQuery, setSettingsQuery] = React.useState("");
 
   // Cards array contains many defensive ternaries (variant ok/off/warn,
   // pluralization, optional spread chips). Tests assert structure but not
@@ -245,6 +248,15 @@ export default function SettingsDashboard() {
           iconStroke: "#3B82F6",
           title: "Policy Rules",
           desc: "Return reasons, restricted regions, no-return periods, and per-category rules.",
+          searchKeywords: [
+            "rules",
+            "reasons",
+            "regions",
+            "no return",
+            "minimum price",
+            "offers",
+            "category",
+          ],
           status: [
             d.hasReasons
               ? { label: `${d.reasonCount} reason${d.reasonCount !== 1 ? "s" : ""}`, variant: "ok" }
@@ -278,6 +290,16 @@ export default function SettingsDashboard() {
           iconStroke: "#8B5CF6",
           title: "Return Settings",
           desc: "Return window, fees, photo requirements, auto-approve, auto-refund, and refund methods.",
+          searchKeywords: [
+            "window",
+            "fees",
+            "photo",
+            "approval",
+            "refund",
+            "store credit",
+            "exchange",
+            "instructions",
+          ],
           status: [
             { label: `${d.returnWindowDays}-day window`, variant: "info" },
             d.autoApprove
@@ -325,6 +347,7 @@ export default function SettingsDashboard() {
           iconStroke: "#DB2777",
           title: "Product Policies",
           desc: "Define per-product return policies based on tags, type, or collection. First matching rule overrides the global return window.",
+          searchKeywords: ["product", "tag", "collection", "type", "override", "window"],
           status: [
             d.productPolicyCount > 0
               ? {
@@ -353,6 +376,7 @@ export default function SettingsDashboard() {
           iconStroke: "#DC2626",
           title: "Customer Blocklist",
           desc: "Block specific customers from submitting return requests by email, phone, or order name.",
+          searchKeywords: ["blocklist", "blocked", "fraud", "email", "phone", "customer"],
           status: [
             d.blocklistEnabled
               ? { label: "Enabled", variant: "ok" }
@@ -381,6 +405,7 @@ export default function SettingsDashboard() {
           iconStroke: "#C2410C",
           title: "Channel Policies",
           desc: "Configure return rules per Shopify sales channel: Online Store, POS, Draft Orders, and B2B.",
+          searchKeywords: ["channel", "online store", "pos", "draft", "b2b", "sales channel"],
           status: [{ label: "POS · Draft · B2B", variant: "info" as const }],
         },
       ],
@@ -407,6 +432,7 @@ export default function SettingsDashboard() {
           iconStroke: "#16A34A",
           title: "Auto-Approve Rules",
           desc: "Configure advanced rules to auto-approve or flag returns for manual review based on order value, reason, tags, or customer history.",
+          searchKeywords: ["automation", "auto approve", "manual review", "order value", "tags"],
           status: [
             d.autoApprove
               ? { label: "Auto-approve on", variant: "ok" }
@@ -442,6 +468,16 @@ export default function SettingsDashboard() {
           desc: d.hasFynd
             ? "Fynd connected — manage credentials, test connection, and sync returns."
             : "Connect Fynd for reverse logistics, shipment tracking, and return sync.",
+          searchKeywords: [
+            "integration",
+            "credentials",
+            "connection",
+            "shipment",
+            "tracking",
+            "sync",
+            "uat",
+            "production",
+          ],
           status: [
             d.hasFynd
               ? { label: "Connected", variant: "ok" }
@@ -475,6 +511,7 @@ export default function SettingsDashboard() {
           iconStroke: "#D97706",
           title: "Notifications",
           desc: "SMTP email, sound alerts, and notification templates.",
+          searchKeywords: ["smtp", "email", "whatsapp", "sms", "alerts", "templates"],
           status: [
             d.smtpConfigured
               ? { label: "SMTP connected", variant: "ok" as const }
@@ -508,6 +545,7 @@ export default function SettingsDashboard() {
           iconStroke: "#7C3AED",
           title: "Fynd Webhook Logs",
           desc: "View incoming Fynd webhook events, processing status, errors, and raw payloads with analytics.",
+          searchKeywords: ["webhook", "logs", "events", "errors", "payload", "analytics"],
           status: [
             d.hasFynd
               ? { label: "Fynd active", variant: "ok" as const }
@@ -532,6 +570,7 @@ export default function SettingsDashboard() {
           iconStroke: "#A855F7",
           title: "External API Keys",
           desc: "Generate API keys for ERP systems and external integrations. View API docs and download Postman collection.",
+          searchKeywords: ["api", "keys", "erp", "docs", "postman", "external"],
           status: [{ label: "API access", variant: "info" as const }],
         },
       ],
@@ -558,6 +597,7 @@ export default function SettingsDashboard() {
           iconStroke: "#059669",
           title: "Bonus Credit",
           desc: "Offer extra store credit when customers choose exchange or store credit over a refund.",
+          searchKeywords: ["bonus", "credit", "store credit", "exchange", "refund", "revenue"],
           status: [
             d.bonusCreditEnabled
               ? { label: `Enabled (+${d.bonusCreditPct}%)`, variant: "ok" }
@@ -586,6 +626,7 @@ export default function SettingsDashboard() {
           iconStroke: "#0D9488",
           title: "Green Returns",
           desc: "Let customers keep low-value items instead of returning them, reducing shipping costs.",
+          searchKeywords: ["green", "sustainability", "low value", "threshold", "shipping", "keep item"],
           status: [
             d.greenReturnsEnabled
               ? { label: "Enabled", variant: "ok" }
@@ -627,6 +668,7 @@ export default function SettingsDashboard() {
           iconStroke: "#EC4899",
           title: "Portal Appearance",
           desc: "Customize the customer portal — colors, fonts, layout, and which tabs to show.",
+          searchKeywords: ["portal", "widget", "theme", "appearance", "colors", "fonts", "tabs"],
           status: [
             d.hasPortalTheme
               ? { label: "Theme customized", variant: "ok" }
@@ -653,6 +695,7 @@ export default function SettingsDashboard() {
           iconStroke: "#3B82F6",
           title: "Multi-Language",
           desc: "Configure the portal language and customize translated labels for the customer portal.",
+          searchKeywords: ["language", "translation", "labels", "locale", "i18n"],
           status: [
             {
               label: d.portalLanguage === "en" ? "English" : d.portalLanguage.toUpperCase(),
@@ -681,6 +724,7 @@ export default function SettingsDashboard() {
           iconStroke: "#D97706",
           title: "Return Labels",
           desc: "Set default return instructions shown to customers after their return is approved.",
+          searchKeywords: ["labels", "instructions", "customer message", "approved", "documents"],
           status: [
             d.hasDefaultReturnInstructions
               ? { label: "Instructions set", variant: "ok" }
@@ -706,6 +750,7 @@ export default function SettingsDashboard() {
           iconStroke: "#DC2626",
           title: "Permissions",
           desc: "Enable read_all_orders to access full order history for returns and refunds.",
+          searchKeywords: ["permissions", "read all orders", "access", "scope", "orders"],
           status: [
             d.readAllOrders
               ? { label: "read_all_orders enabled", variant: "ok" }
@@ -731,6 +776,7 @@ export default function SettingsDashboard() {
           iconStroke: "#0D9488",
           title: "Billing",
           desc: "View your current Shopify plan, change plans, or review subscription status.",
+          searchKeywords: ["billing", "plan", "subscription", "pricing", "charges"],
           status: [{ label: "Managed Pricing", variant: "info" as const }],
         },
       ],
@@ -740,6 +786,28 @@ export default function SettingsDashboard() {
   /* v8 ignore stop */
   const allCards = groups.flatMap((g) => g.cards);
   const configuredCount = allCards.filter((c) => c.status.some((s) => s.variant === "ok")).length;
+  const normalizedSettingsQuery = settingsQuery.trim().toLowerCase();
+  const filteredGroups = normalizedSettingsQuery
+    ? groups
+        .map((group) => ({
+          ...group,
+          cards: group.cards.filter((card) =>
+            [
+              group.title,
+              card.title,
+              card.desc,
+              card.to,
+              ...card.status.map((s) => s.label),
+              ...(card.searchKeywords ?? []),
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(normalizedSettingsQuery),
+          ),
+        }))
+        .filter((group) => group.cards.length > 0)
+    : groups;
+  const resultCount = filteredGroups.reduce((sum, group) => sum + group.cards.length, 0);
 
   return (
     <AppPage heading="Settings">
@@ -821,8 +889,37 @@ export default function SettingsDashboard() {
           </div>
         </div>
 
+        <div className="settings-search-panel">
+          <div className="settings-search-input-wrap">
+            <Search size={18} strokeWidth={2} aria-hidden="true" />
+            <input
+              type="search"
+              value={settingsQuery}
+              onChange={(event) => setSettingsQuery(event.target.value)}
+              placeholder="Search settings"
+              aria-label="Search settings"
+              className="settings-search-input"
+            />
+            {settingsQuery && (
+              <button
+                type="button"
+                className="settings-search-clear"
+                onClick={() => setSettingsQuery("")}
+                aria-label="Clear settings search"
+              >
+                <X size={16} strokeWidth={2} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          {normalizedSettingsQuery && (
+            <div className="settings-search-count" aria-live="polite">
+              {resultCount} match{resultCount !== 1 ? "es" : ""}
+            </div>
+          )}
+        </div>
+
         {/* ── Grouped Cards ── */}
-        {groups.map((group) => (
+        {filteredGroups.map((group) => (
           <div key={group.title} style={{ marginBottom: 24 }}>
             <div
               className="app-overline"
@@ -910,6 +1007,15 @@ export default function SettingsDashboard() {
             </div>
           </div>
         ))}
+
+        {normalizedSettingsQuery && resultCount === 0 && (
+          <div className="settings-search-empty">
+            <div className="settings-search-empty-title">No matching settings</div>
+            <div className="settings-search-empty-text">
+              Try policy, refund, Fynd, notifications, portal, permissions, or billing.
+            </div>
+          </div>
+        )}
 
         {/* ── Fynd Setup Guide (secondary) ── */}
         {!d.hasFynd && (

@@ -42,7 +42,7 @@ vi.mock("@shopify/shopify-app-react-router/server", () => ({
 }));
 
 import { renderWithRouter } from "../../test/component-helpers";
-import { waitFor } from "@testing-library/react";
+import { fireEvent, waitFor } from "@testing-library/react";
 import SettingsDashboard from "../app.settings._index";
 
 const baseLoaderData = {
@@ -203,5 +203,40 @@ describe("Settings dashboard (default export)", () => {
     expect(container.textContent).toMatch(/0\/\d+/);
     // Empty-state hint is shown in the summary bar.
     expect(container.textContent).toMatch(/Configure your return policies/i);
+  });
+
+  it("filters settings cards using the search input", async () => {
+    const { container, getByLabelText } = renderWithRouter(SettingsDashboard, {
+      initialEntries: ["/app/settings"],
+      loaderData: baseLoaderData,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("Return Settings");
+    });
+
+    fireEvent.change(getByLabelText("Search settings"), { target: { value: "smtp" } });
+
+    expect(container.textContent).toContain("Notifications");
+    expect(container.textContent).toContain("1 match");
+    expect(container.textContent).not.toContain("Policy Rules");
+    expect(container.textContent).not.toContain("Billing");
+  });
+
+  it("shows an empty state when settings search has no matches", async () => {
+    const { container, getByLabelText } = renderWithRouter(SettingsDashboard, {
+      initialEntries: ["/app/settings"],
+      loaderData: baseLoaderData,
+    });
+    await waitFor(() => {
+      expect(container.textContent).toContain("Return Settings");
+    });
+
+    fireEvent.change(getByLabelText("Search settings"), {
+      target: { value: "not-a-real-setting" },
+    });
+
+    expect(container.textContent).toContain("No matching settings");
+    expect(container.textContent).toContain("0 matches");
+    expect(container.textContent).not.toContain("Return Settings");
   });
 });

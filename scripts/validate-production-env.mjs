@@ -94,6 +94,19 @@ function requireAllowedValue(name, allowedValues) {
   }
 }
 
+function isTruthyFlag(name) {
+  return ["1", "true", "yes"].includes((process.env[name] ?? "").trim().toLowerCase());
+}
+
+function validateBillingMode() {
+  const value = (process.env.APP_BILLING_MODE ?? "").trim().toLowerCase();
+  if (["prod", "production"].includes(value)) return;
+  if (value === "dev" && isTruthyFlag("ALLOW_DEV_BILLING_IN_PRODUCTION")) return;
+  invalid.push(
+    "APP_BILLING_MODE must be one of: prod, production; dev is allowed only with ALLOW_DEV_BILLING_IN_PRODUCTION=true",
+  );
+}
+
 function rejectFalseFlag(name, message) {
   const value = (process.env[name] ?? "").trim().toLowerCase();
   if (value === "false") {
@@ -159,7 +172,7 @@ requireHex64("ENCRYPTION_KEY");
 requireMinLength("PORTAL_JWT_SECRET", 32);
 requireMinLength("CRON_SECRET", 32);
 requireMinLength("FYND_WEBHOOK_SECRET", 32);
-requireAllowedValue("APP_BILLING_MODE", ["prod", "production"]);
+validateBillingMode();
 rejectFalseFlag(
   "PORTAL_CSRF_REQUIRED",
   "PORTAL_CSRF_REQUIRED must not be false in production",

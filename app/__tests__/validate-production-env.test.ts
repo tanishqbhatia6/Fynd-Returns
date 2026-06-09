@@ -70,7 +70,18 @@ describe("scripts/validate-production-env.mjs", () => {
 
     const devRes = runValidator(dev);
     expect(devRes.status).toBe(1);
-    expect(devRes.stderr).toContain("APP_BILLING_MODE must be one of: prod, production");
+    expect(devRes.stderr).toContain(
+      "APP_BILLING_MODE must be one of: prod, production; dev is allowed only with ALLOW_DEV_BILLING_IN_PRODUCTION=true",
+    );
+  });
+
+  it("allows temporary dev billing only behind an explicit production bypass flag", () => {
+    const res = runValidator({
+      ...validEnv,
+      APP_BILLING_MODE: "dev",
+      ALLOW_DEV_BILLING_IN_PRODUCTION: "true",
+    });
+    expect(res.status).toBe(0);
   });
 
   it("rejects disabling portal CSRF in production", () => {

@@ -33,6 +33,9 @@ Billing:
 - `APP_BILLING_MODE` must be `production` or `prod` in production. Leaving it
   unset makes the app billing gate fail open in dev mode, so startup rejects
   that configuration.
+- For a temporary non-launch Railway environment only, `APP_BILLING_MODE=dev`
+  is allowed when `ALLOW_DEV_BILLING_IN_PRODUCTION=true` is also set. Do not use
+  this flag for launch production because it bypasses Shopify Managed Pricing.
 - `APP_MANAGED_PRICING_HANDLE` is required for Shopify Managed Pricing.
 - Keep `SUPERADMIN_EMAILS` in secret storage if configured. It controls billing
   override access, and startup validates the email list format when present.

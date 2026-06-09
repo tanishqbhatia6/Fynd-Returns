@@ -330,6 +330,8 @@ export default function App() {
   );
   const [storedFrameContext, setStoredFrameContext] = useState<string | null>(null);
   const [appSearchQuery, setAppSearchQuery] = useState("");
+  const [isAppSearchOpen, setIsAppSearchOpen] = useState(false);
+  const appSearchInputRef = useRef<HTMLInputElement | null>(null);
   const frameContext = currentFrameContext ?? storedFrameContext;
   useNotificationSound(adminSoundEnabled, pendingCount);
 
@@ -365,6 +367,44 @@ export default function App() {
     },
     [getAdminPath, navigate],
   );
+
+  const openAppSearch = useCallback(() => {
+    setIsAppSearchOpen(true);
+  }, []);
+
+  const closeAppSearch = useCallback(() => {
+    setIsAppSearchOpen(false);
+    setAppSearchQuery("");
+  }, []);
+
+  useEffect(() => {
+    if (!isAppSearchOpen) return;
+    const frame = window.requestAnimationFrame(() => appSearchInputRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [isAppSearchOpen]);
+
+  useEffect(() => {
+    const handleOpenSearch = () => openAppSearch();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && key === "k") {
+        event.preventDefault();
+        openAppSearch();
+        return;
+      }
+      if (event.key === "Escape" && isAppSearchOpen) {
+        event.preventDefault();
+        closeAppSearch();
+      }
+    };
+
+    window.addEventListener("rpm:open-search", handleOpenSearch);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("rpm:open-search", handleOpenSearch);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeAppSearch, isAppSearchOpen, openAppSearch]);
 
   const normalizedAppSearchQuery = appSearchQuery.trim().toLowerCase();
   const hasAppSearchQuery = normalizedAppSearchQuery.length > 0;
@@ -407,10 +447,10 @@ export default function App() {
 
   const navigateToAppSearchResult = useCallback(
     (path: string) => {
-      setAppSearchQuery("");
+      closeAppSearch();
       navigate(getAdminPath(path));
     },
-    [getAdminPath, navigate],
+    [closeAppSearch, getAdminPath, navigate],
   );
 
   const handleAppSearchSubmit = useCallback(
@@ -465,57 +505,71 @@ export default function App() {
           Documentation
         </s-link>
       </s-app-nav>
-      <div className="app-shell-global-search">
-        <form
-          className="app-shell-global-search-box"
-          role="search"
-          onSubmit={handleAppSearchSubmit}
+      {isAppSearchOpen && (
+        <div
+          className="app-shell-command-overlay"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeAppSearch();
+          }}
         >
-          <Search size={17} strokeWidth={2} aria-hidden="true" />
-          <input
-            type="search"
-            value={appSearchQuery}
-            onChange={(event) => setAppSearchQuery(event.target.value)}
-            placeholder="Search anything in ReturnProMax"
-            aria-label="Search anything in ReturnProMax"
-          />
-          {appSearchQuery && (
-            <button
-              type="button"
-              className="app-shell-global-search-clear"
-              onClick={() => setAppSearchQuery("")}
-              aria-label="Clear app search"
+          <div className="app-shell-command-palette" role="dialog" aria-modal="true">
+            <form
+              className="app-shell-global-search-box"
+              role="search"
+              onSubmit={handleAppSearchSubmit}
             >
-              <X size={15} strokeWidth={2} aria-hidden="true" />
-            </button>
-          )}
-        </form>
-        {hasAppSearchQuery && (
-          <div className="app-shell-global-search-results" role="listbox">
-            {visibleAppSearchResults.length > 0 ? (
-              visibleAppSearchResults.map((item) => (
+              <Search size={18} strokeWidth={2} aria-hidden="true" />
+              <input
+                ref={appSearchInputRef}
+                type="search"
+                value={appSearchQuery}
+                onChange={(event) => setAppSearchQuery(event.target.value)}
+                placeholder="Search anything in ReturnProMax"
+                aria-label="Search anything in ReturnProMax"
+              />
+              {appSearchQuery && (
                 <button
                   type="button"
-                  key={`${item.category}-${item.path}`}
-                  className="app-shell-global-search-result"
-                  onClick={() => navigateToAppSearchResult(item.path)}
-                  role="option"
+                  className="app-shell-global-search-clear"
+                  onClick={() => setAppSearchQuery("")}
+                  aria-label="Clear app search"
                 >
-                  <span className="app-shell-global-search-result-main">
-                    <span>{item.title}</span>
-                    <small>{item.category}</small>
-                  </span>
-                  <span className="app-shell-global-search-result-description">
-                    {item.description}
-                  </span>
+                  <X size={15} strokeWidth={2} aria-hidden="true" />
                 </button>
-              ))
-            ) : (
-              <div className="app-shell-global-search-empty">No matching app sections</div>
-            )}
+              )}
+              <kbd className="app-shell-command-shortcut">Esc</kbd>
+            </form>
+            <div className="app-shell-global-search-results" role="listbox">
+              {hasAppSearchQuery && visibleAppSearchResults.length > 0 ? (
+                visibleAppSearchResults.map((item) => (
+                  <button
+                    type="button"
+                    key={`${item.category}-${item.path}`}
+                    className="app-shell-global-search-result"
+                    onClick={() => navigateToAppSearchResult(item.path)}
+                    role="option"
+                  >
+                    <span className="app-shell-global-search-result-main">
+                      <span>{item.title}</span>
+                      <small>{item.category}</small>
+                    </span>
+                    <span className="app-shell-global-search-result-description">
+                      {item.description}
+                    </span>
+                  </button>
+                ))
+              ) : hasAppSearchQuery ? (
+                <div className="app-shell-global-search-empty">No matching app sections</div>
+              ) : (
+                <div className="app-shell-global-search-empty">
+                  Type a page, order, return ID, customer, or setting.
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
       <Outlet />
     </AppProvider>
   );

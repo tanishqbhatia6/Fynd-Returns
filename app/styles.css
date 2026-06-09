@@ -1149,15 +1149,15 @@ s-section {
   top: 0;
   z-index: 80;
   display: flex;
-  justify-content: center;
-  padding: 10px 16px;
+  justify-content: flex-start;
+  padding: 10px clamp(18px, 2.4vw, 36px);
   background: rgba(248, 250, 252, 0.94);
   border-bottom: 1px solid rgba(226, 232, 240, 0.9);
   backdrop-filter: blur(10px);
 }
 
 .app-shell-global-search-box {
-  width: min(100%, 680px);
+  width: 100%;
   min-height: 40px;
   display: flex;
   align-items: center;
@@ -1225,11 +1225,11 @@ s-section {
 .app-shell-global-search-results {
   position: absolute;
   top: calc(100% - 6px);
-  left: 50%;
-  width: min(calc(100% - 32px), 680px);
+  left: clamp(18px, 2.4vw, 36px);
+  right: clamp(18px, 2.4vw, 36px);
+  width: auto;
   max-height: min(70vh, 520px);
   overflow-y: auto;
-  transform: translateX(-50%);
   padding: 6px;
   background: rgba(255, 255, 255, 0.99);
   border: 1px solid rgba(203, 213, 225, 0.95);
@@ -1886,11 +1886,13 @@ s-section[heading]::before {
 
 @media (max-width: 480px) {
   .app-shell-global-search {
-    padding: 8px 10px;
+    padding: 8px 14px;
   }
 
   .app-shell-global-search-results {
-    width: calc(100% - 20px);
+    left: 14px;
+    right: 14px;
+    width: auto;
   }
 
   .app-shell-global-search-result-main {
